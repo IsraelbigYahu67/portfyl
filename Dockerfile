@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1
+
+# ---- Stage 1: build the React frontend ----------------------------------------
+FROM node:22-alpine AS frontend
+WORKDIR /app/frontend
+# Install from the lockfile first for better layer caching.
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+# Build the SPA -> /app/frontend/dist
+COPY frontend/ ./
+RUN npm run build
+
+# ---- Stage 2: Python backend + built SPA (runtime) ----------------------------
+FROM python:3.14-slim AS runtime
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PORT=8080
+WORKDIR /app
+
+# Backend deps first (layer cached unless requirements.txt changes).
+COPY backend/requirements.txt ./backend/requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
+
+# Backend source. snowball.db / .env / __pycache__ are kept out via .dockerignore,
+# so no data or secrets are baked into the image.
+COPY backend/ ./backend/
+
+# Drop the built SPA where FastAPI looks for it: backend/main.py serves
+# ../frontend/dist (Section 4), i.e. /app/frontend/dist here.
+COPY --from=frontend /app/frontend/dist ./frontend/dist
+
+# Run from the backend dir (mirrors local dev; `main:app` is importable here).
+WORKDIR /app/backend
+EXPOSE 8080
+
+# Production server: no --reload, bind 0.0.0.0 on the PORT Cloud Run provides
+# (default 8080). --proxy-headers so the app trusts Cloud Run's TLS termination.
+# The SQLite DB is NOT in the image; it lives on the GCS volume mounted at runtime
+# and is pointed to via DATABASE_PATH (see database.py).
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --proxy-headers --forwarded-allow-ips '*'"]

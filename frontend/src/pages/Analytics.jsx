@@ -1,0 +1,716 @@
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  fetchRiskMetrics,
+  fetchSectorBreakdown,
+  fetchCorrelation,
+  fetchBenchmarkCatalog,
+  fetchBenchmarkComparison,
+} from "../api";
+import { useCurrency } from "../App";
+import MetricCard, { InfoIcon } from "../components/MetricCard";
+import {
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line,
+} from "recharts";
+import { Activity, RefreshCw, TrendingDown, TrendingUp, Shield, Target, Wallet } from "lucide-react";
+import { TickerLink } from "../components/StockDetail";
+
+const PERIODS = ["3M", "6M", "1Y", "2Y"];
+const COLORS = [
+  "#22c55e", "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6",
+  "#06b6d4", "#ef4444", "#84cc16", "#f97316", "#a855f7",
+  "#14b8a6", "#f43f5e", "#6366f1", "#eab308", "#0ea5e9",
+];
+
+// Definitions + formulas surfaced via the (i) icon next to each metric.
+// Kept on the client so the API stays data-only and translations are easy.
+const INFO = {
+  total_return: {
+    title: "Total Return (TWR)",
+    what: "Cumulative time-weighted return over the selected period. Strips out the timing of your deposits/withdrawals so the % reflects investment performance only — the same methodology funds use on their factsheets.",
+    formula: "∏(1 + rᵢ) − 1, where rᵢ = (Vᵢ − Vᵢ₋₁ − Cᵢ) / (Vᵢ₋₁ + 0.5·Cᵢ)",
+    note: "Cᵢ = net buys minus sells on day i (Modified-Dietz).",
+  },
+  ann_return: {
+    title: "Annualized Return (Arithmetic)",
+    what: "Average daily return scaled to one year. Used inside Sharpe/Sortino. Not the same as CAGR — this one ignores compounding.",
+    formula: "mean(daily_returns) × 252",
+  },
+  cagr: {
+    title: "CAGR (Geometric)",
+    what: "Compound annual growth rate from the TWR cumulative return. The constant yearly rate that, compounded, would produce the same total return over the period.",
+    formula: "(1 + TotalReturn)^(1/years) − 1",
+  },
+  ann_vol: {
+    title: "Annualized Volatility",
+    what: "Standard deviation of daily TWR returns, scaled to one year. Measures how much your portfolio's daily return varies.",
+    formula: "stdev(daily_returns) × √252",
+  },
+  win_rate: {
+    title: "Win Rate",
+    what: "Share of trading days in the selected period where the portfolio's TWR daily return was positive.",
+    formula: "up_days / (up_days + down_days)",
+  },
+  sharpe: {
+    title: "Sharpe Ratio",
+    what: "Return earned per unit of total volatility, vs the risk-free rate. >1 is decent, >2 is great. Negative means you'd be better off in cash.",
+    formula: "(Annualized Return − Rf) / Annualized Volatility",
+    note: "Rf = 5% (risk-free rate).",
+  },
+  sortino: {
+    title: "Sortino Ratio",
+    what: "Like Sharpe but only penalises downside volatility. Higher when upside moves are big and downside moves are small.",
+    formula: "(Annualized Return − Rf) / Downside Stdev × √252",
+    note: "Downside stdev uses only days where return < Rf/252.",
+  },
+  beta: {
+    title: "Beta (vs benchmark)",
+    what: "Sensitivity of your portfolio's daily TWR to the chosen benchmark's daily return. 1 = moves with the benchmark; >1 = more volatile; <1 = less volatile.",
+    formula: "cov(rₚ, r_B) / var(r_B)",
+  },
+  alpha: {
+    title: "Alpha (annualized)",
+    what: "Excess annualized return your portfolio earned over what its Beta vs the chosen benchmark would predict. Positive = outperformed; negative = underperformed.",
+    formula: "AnnReturn − [Rf + β × (R_B − Rf)]",
+    note: "Jensen's Alpha. Uses the same Rf as Sharpe.",
+  },
+  tracking_error: {
+    title: "Tracking Error",
+    what: "Annualised standard deviation of the daily difference between your portfolio's TWR and the benchmark's return. How much your day-to-day path diverges from the benchmark.",
+    formula: "stdev(rₚ − r_B) × √252",
+    note: "Low = closet-indexing. High = lots of active risk vs the benchmark.",
+  },
+  info_ratio: {
+    title: "Information Ratio",
+    what: "Active return per unit of tracking error. Higher = your divergence from the benchmark is being rewarded. >0.5 is good for an active strategy.",
+    formula: "(mean(rₚ − r_B) × 252) / TrackingError",
+  },
+  up_capture: {
+    title: "Up Capture",
+    what: "On days the benchmark was up, what fraction of its move did you capture on average? 1.0 = matched, >1 = beat upside, <1 = lagged upside.",
+    formula: "mean(rₚ | r_B>0) / mean(r_B | r_B>0)",
+  },
+  down_capture: {
+    title: "Down Capture",
+    what: "On days the benchmark was down, what fraction of its loss did you take? <1 is good — you fell less than the benchmark.",
+    formula: "mean(rₚ | r_B<0) / mean(r_B | r_B<0)",
+  },
+  active_return: {
+    title: "Active Return",
+    what: "Cumulative portfolio TWR minus benchmark cumulative return over the window. Positive = outperformed the benchmark in raw percentage terms.",
+    formula: "PortfolioReturn − BenchmarkReturn",
+  },
+  correlation_bench: {
+    title: "Correlation (vs benchmark)",
+    what: "How tightly your daily TWR co-moves with the benchmark's daily return. 1 = lock-step; 0 = unrelated; negative = inverse.",
+    formula: "corr(rₚ, r_B)",
+  },
+  max_dd: {
+    title: "Maximum Drawdown",
+    what: "Worst peak-to-trough decline in the cumulative TWR curve during the selected period. The biggest 'paper loss' you would have ridden through.",
+    formula: "min[(cumulative_t − peak_t) / peak_t]",
+  },
+  current_dd: {
+    title: "Current Drawdown",
+    what: "How far below your most recent equity peak the portfolio is right now (in TWR terms).",
+    formula: "(cumulative_last − cumulative_peak) / cumulative_peak",
+  },
+  best_day: {
+    title: "Best Day",
+    what: "Largest single-day TWR return inside the selected period.",
+    formula: "max(daily_returns)",
+  },
+  worst_day: {
+    title: "Worst Day",
+    what: "Largest single-day TWR loss inside the selected period.",
+    formula: "min(daily_returns)",
+  },
+  simple_roi: {
+    title: "Simple ROI (lifetime)",
+    what: "Money-weighted total return: total gains as a share of every dollar you ever put in. Matches the dashboard's Total P&L %. Captures the effect of your timing — DCAing more into a winning position boosts this.",
+    formula: "(Unrealized + Realized + Dividends) / Σ Buy Cost",
+    note: "Sells with no matching prior buy in the DB are excluded.",
+  },
+  xirr: {
+    title: "Annualized IRR (XIRR)",
+    what: "The discount rate at which the NPV of every buy (−), sell (+), dividend (+), and the current value (+) equals zero. Annualized money-weighted return — the rate your actual cash flows earned.",
+    formula: "Find r where Σ CFᵢ / (1+r)^(dᵢ/365) = 0",
+    note: "Solved via Newton + bisection over the lifetime cashflow series.",
+  },
+  net_profit: {
+    title: "Net Profit (lifetime)",
+    what: "Total dollar gain from everything: paper P&L on current holdings + realized P&L from closed positions + dividends.",
+    formula: "Unrealized + Realized + Dividends",
+  },
+  total_invested: {
+    title: "Capital Currently Invested",
+    what: "Cost basis of the positions you still hold. Cash you've deployed and not yet recovered through sells.",
+    formula: "Σ (open shares × avg cost)",
+  },
+  current_value: {
+    title: "Current Market Value",
+    what: "Latest mark-to-market value of all open positions, converted to USD.",
+    formula: "Σ (open shares × latest close × FX→USD)",
+  },
+};
+
+function RatingBadge({ value, thresholds, labels }) {
+  let level = 0;
+  for (let i = 0; i < thresholds.length; i++) {
+    if (value >= thresholds[i]) level = i + 1;
+  }
+  const colors = ["text-red-600 bg-red-400/10", "text-yellow-400 bg-yellow-400/10", "text-emerald-600 bg-green-400/10", "text-emerald-400 bg-emerald-400/10"];
+  return (
+    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${colors[Math.min(level, colors.length - 1)]}`}>
+      {labels[Math.min(level, labels.length - 1)]}
+    </span>
+  );
+}
+
+function CorrelationMatrix({ tickers, matrix }) {
+  if (!tickers?.length || !matrix?.length) return null;
+
+  const getColor = (v) => {
+    if (v >= 0.7) return "bg-red-500/60";
+    if (v >= 0.4) return "bg-orange-500/40";
+    if (v >= 0) return "bg-green-500/30";
+    if (v >= -0.4) return "bg-blue-500/30";
+    return "bg-blue-500/60";
+  };
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="text-xs">
+        <thead>
+          <tr>
+            <th className="px-2 py-1"></th>
+            {tickers.map((t) => (
+              <th key={t} className="px-2 py-1 font-mono text-slate-500 font-medium">
+                <TickerLink ticker={t}>{t}</TickerLink>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {tickers.map((t, i) => (
+            <tr key={t}>
+              <td className="px-2 py-1 font-mono text-slate-500 font-medium">
+                <TickerLink ticker={t}>{t}</TickerLink>
+              </td>
+              {matrix[i].map((val, j) => (
+                <td key={j} className="px-1 py-1">
+                  <div className={`w-12 h-8 flex items-center justify-center rounded text-[11px] font-mono tabular-nums ${i === j ? "bg-slate-100 text-slate-400" : getColor(val) + " text-slate-800"}`}>
+                    {val.toFixed(2)}
+                  </div>
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export default function Analytics() {
+  const { currency, rate } = useCurrency();
+  const [period, setPeriod] = useState("1Y");
+  const [benchmarkId, setBenchmarkId] = useState(null);
+
+  const convert = (n) => (currency === "CZK" && rate ? n * rate : n);
+  const fmt = (n) => {
+    if (n == null) return "—";
+    const str = Math.abs(convert(n)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const sign = n < 0 ? "-" : "";
+    return currency === "CZK" ? `${sign}${str} Kč` : `${sign}$${str}`;
+  };
+  // For values the backend ALREADY returns in the active currency (the sector
+  // breakdown is fetched with `currency`). Unlike fmt(), this must NOT re-apply
+  // the CZK rate, otherwise CZK figures get double-converted.
+  const fmtCur = (n) => {
+    if (n == null) return "—";
+    const str = Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const sign = n < 0 ? "-" : "";
+    return currency === "CZK" ? `${sign}${str} Kč` : `${sign}$${str}`;
+  };
+
+  const { data: benchmarks } = useQuery({
+    queryKey: ["benchmark-catalog"],
+    queryFn: fetchBenchmarkCatalog,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Auto-select the catalog's marked default — or fall back to the S&P preset —
+  // once the catalog lands. Without this, the first paint uses the server-side
+  // default but the dropdown shows nothing selected.
+  useEffect(() => {
+    if (benchmarkId != null || !benchmarks?.length) return;
+    const def =
+      benchmarks.find((b) => b.is_default) ||
+      benchmarks.find((b) => b.is_preset && b.ticker === "^GSPC") ||
+      benchmarks[0];
+    if (def) setBenchmarkId(def.id);
+  }, [benchmarks, benchmarkId]);
+
+  const { data: metrics, isLoading: ml, refetch, isFetching } = useQuery({
+    queryKey: ["risk-metrics", period, benchmarkId],
+    queryFn: () => fetchRiskMetrics(period.toLowerCase(), benchmarkId),
+  });
+
+  const { data: comparison, isLoading: bl } = useQuery({
+    queryKey: ["benchmark-comparison", period, benchmarkId],
+    queryFn: () => fetchBenchmarkComparison(period.toLowerCase(), benchmarkId),
+  });
+
+  const { data: sectors, isLoading: sl } = useQuery({
+    queryKey: ["sector-breakdown", currency],
+    queryFn: () => fetchSectorBreakdown(currency),
+  });
+
+  const { data: corr, isLoading: cl } = useQuery({
+    queryKey: ["correlation", period],
+    queryFn: () => fetchCorrelation(period.toLowerCase()),
+  });
+
+  const benchName = metrics?.benchmark?.name || comparison?.benchmark?.name || "benchmark";
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <Activity size={20} className="text-brand" />
+            Portfolio Analytics
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5">Risk metrics, diversification, and correlations</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={benchmarkId ?? ""}
+            onChange={(e) => setBenchmarkId(e.target.value ? Number(e.target.value) : null)}
+            className="text-xs bg-surface border border-surface-hover rounded-md px-2 py-1 text-slate-800 hover:border-brand focus:outline-none focus:border-brand"
+            title="Benchmark for beta / alpha / tracking error"
+          >
+            {benchmarks?.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+                {b.is_preset ? "" : " ·"}
+                {b.is_default ? " (default)" : ""}
+              </option>
+            ))}
+          </select>
+          <div className="flex gap-1">
+            {PERIODS.map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
+                  period === p ? "bg-white text-brand font-semibold shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => refetch()} className="btn-ghost flex items-center gap-2 text-sm" disabled={isFetching}>
+            <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
+          </button>
+        </div>
+      </div>
+
+      {ml ? (
+        <div className="card animate-pulse h-32 flex items-center justify-center text-slate-500">
+          Calculating risk metrics…
+        </div>
+      ) : !metrics || metrics.sharpe_ratio == null ? (
+        <div className="card text-slate-500 text-sm text-center py-12">
+          Not enough data to compute risk metrics. Add more transactions and try again.
+        </div>
+      ) : (
+        <>
+          {metrics.lifetime && (
+            <section>
+              <h2 className="text-sm font-semibold text-slate-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+                <Wallet size={14} className="text-brand" />
+                Lifetime — Money-Weighted (your actual cashflows)
+              </h2>
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+                <MetricCard
+                  label="Simple ROI"
+                  info={INFO.simple_roi}
+                  value={`${metrics.lifetime.simple_roi >= 0 ? "+" : ""}${metrics.lifetime.simple_roi}%`}
+                  positive={metrics.lifetime.simple_roi >= 0}
+                  negative={metrics.lifetime.simple_roi < 0}
+                  sub="Matches dashboard Total P&L %"
+                />
+                <MetricCard
+                  label="Annualized IRR (XIRR)"
+                  info={INFO.xirr}
+                  value={`${metrics.lifetime.xirr >= 0 ? "+" : ""}${metrics.lifetime.xirr}%`}
+                  positive={metrics.lifetime.xirr >= 0}
+                  negative={metrics.lifetime.xirr < 0}
+                  sub="Per-year, weights cashflow timing"
+                />
+                <MetricCard
+                  label="Net Profit"
+                  info={INFO.net_profit}
+                  value={fmt(metrics.lifetime.net_profit)}
+                  positive={metrics.lifetime.net_profit >= 0}
+                  negative={metrics.lifetime.net_profit < 0}
+                  sub={`Realized ${fmt(metrics.lifetime.realized_pnl)} · Div ${fmt(metrics.lifetime.dividends)}`}
+                />
+                <MetricCard
+                  label="Capital Invested"
+                  info={INFO.total_invested}
+                  value={fmt(metrics.lifetime.total_invested)}
+                  sub={`Value ${fmt(metrics.lifetime.current_value)}`}
+                />
+              </div>
+            </section>
+          )}
+
+          <section>
+            <h2 className="text-sm font-semibold text-slate-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+              <Activity size={14} className="text-brand" />
+              {period} — Time-Weighted (investment performance only)
+            </h2>
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+              <MetricCard
+                label="Total Return"
+                info={INFO.total_return}
+                value={`${metrics.total_return >= 0 ? "+" : ""}${metrics.total_return}%`}
+                positive={metrics.total_return >= 0}
+                negative={metrics.total_return < 0}
+                sub={metrics.cagr != null ? `CAGR ${metrics.cagr >= 0 ? "+" : ""}${metrics.cagr}%` : null}
+              />
+              <MetricCard
+                label="Ann. Return"
+                info={INFO.ann_return}
+                value={`${metrics.annualized_return >= 0 ? "+" : ""}${metrics.annualized_return}%`}
+                positive={metrics.annualized_return >= 0}
+                negative={metrics.annualized_return < 0}
+                sub="Arithmetic (mean × 252)"
+              />
+              <MetricCard
+                label="Ann. Volatility"
+                info={INFO.ann_vol}
+                value={`${metrics.annualized_volatility}%`}
+                sub={<RatingBadge value={-metrics.annualized_volatility} thresholds={[-30, -20, -15]} labels={["High", "Moderate", "Low", "Very Low"]} />}
+              />
+              <MetricCard
+                label="Win Rate"
+                info={INFO.win_rate}
+                value={`${metrics.win_rate}%`}
+                sub={`${metrics.positive_days} up / ${metrics.negative_days} down`}
+              />
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-sm font-semibold text-slate-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+              <TrendingUp size={14} className="text-brand" />
+              vs {benchName} — Active Performance
+            </h2>
+            {bl ? (
+              <div className="card animate-pulse h-48 flex items-center justify-center text-slate-500">
+                Loading benchmark comparison…
+              </div>
+            ) : !comparison?.series?.length ? (
+              <div className="card text-slate-500 text-sm text-center py-8">
+                No overlapping data with this benchmark over the selected window.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                <div className="card xl:col-span-2">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs uppercase tracking-wider text-slate-500">Cumulative Return</h3>
+                    <div className="flex items-center gap-3 text-[10px]">
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-brand inline-block" />Portfolio</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-500 inline-block" />{benchName}</span>
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={comparison.series} margin={{ top: 4, right: 12, bottom: 0, left: -8 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="date" tick={{ fill: "#6b7280", fontSize: 10 }} minTickGap={32} />
+                      <YAxis tick={{ fill: "#6b7280", fontSize: 10 }} tickFormatter={(v) => `${v}%`} />
+                      <Tooltip
+                        contentStyle={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
+                        labelStyle={{ color: "#64748b", fontSize: 11 }}
+                        formatter={(v, k) => [`${v}%`, k === "portfolio_pct" ? "Portfolio" : k === "benchmark_pct" ? benchName : "Active"]}
+                      />
+                      <Line type="monotone" dataKey="portfolio_pct" stroke="#22c55e" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="benchmark_pct" stroke="#9ca3af" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="active_pct" stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 4" dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="grid grid-cols-2 gap-3 content-start">
+                  <MetricCard
+                    label="Active Return"
+                    info={INFO.active_return}
+                    value={`${(comparison.metrics?.active_return ?? 0) >= 0 ? "+" : ""}${comparison.metrics?.active_return ?? 0}%`}
+                    positive={(comparison.metrics?.active_return ?? 0) > 0}
+                    negative={(comparison.metrics?.active_return ?? 0) < 0}
+                    sub={`P ${comparison.metrics?.portfolio_return}% · B ${comparison.metrics?.benchmark_return}%`}
+                  />
+                  <MetricCard
+                    label="Tracking Error"
+                    info={INFO.tracking_error}
+                    value={comparison.metrics?.tracking_error != null ? `${comparison.metrics.tracking_error}%` : "—"}
+                    sub="Annualised"
+                  />
+                  <MetricCard
+                    label="Info Ratio"
+                    info={INFO.info_ratio}
+                    value={comparison.metrics?.information_ratio ?? "—"}
+                    positive={(comparison.metrics?.information_ratio ?? 0) > 0}
+                    negative={(comparison.metrics?.information_ratio ?? 0) < 0}
+                  />
+                  <MetricCard
+                    label="Correlation"
+                    info={INFO.correlation_bench}
+                    value={comparison.metrics?.correlation ?? "—"}
+                  />
+                  <MetricCard
+                    label="Up Capture"
+                    info={INFO.up_capture}
+                    value={comparison.metrics?.up_capture ?? "—"}
+                    positive={(comparison.metrics?.up_capture ?? 0) > 1}
+                  />
+                  <MetricCard
+                    label="Down Capture"
+                    info={INFO.down_capture}
+                    value={comparison.metrics?.down_capture ?? "—"}
+                    positive={(comparison.metrics?.down_capture ?? 0) < 1 && (comparison.metrics?.down_capture ?? 0) > 0}
+                    negative={(comparison.metrics?.down_capture ?? 0) > 1}
+                  />
+                </div>
+              </div>
+            )}
+          </section>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="card">
+              <h2 className="text-sm font-semibold text-slate-500 mb-4 uppercase tracking-wider flex items-center gap-2">
+                <Shield size={14} />
+                Risk-Adjusted Returns
+              </h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-100 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-slate-500 flex items-center gap-1.5">
+                      Sharpe Ratio <InfoIcon info={INFO.sharpe} />
+                    </span>
+                    <RatingBadge value={metrics.sharpe_ratio} thresholds={[0, 1, 2]} labels={["Poor", "Below Avg", "Good", "Excellent"]} />
+                  </div>
+                  <span className="text-2xl font-bold tabular-nums">{metrics.sharpe_ratio}</span>
+                  <p className="text-[10px] text-slate-400 mt-1">Return per unit of total risk</p>
+                </div>
+                <div className="bg-slate-100 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-slate-500 flex items-center gap-1.5">
+                      Sortino Ratio <InfoIcon info={INFO.sortino} />
+                    </span>
+                    <RatingBadge value={metrics.sortino_ratio} thresholds={[0, 1, 2]} labels={["Poor", "Below Avg", "Good", "Excellent"]} />
+                  </div>
+                  <span className="text-2xl font-bold tabular-nums">{metrics.sortino_ratio}</span>
+                  <p className="text-[10px] text-slate-400 mt-1">Return per unit of downside risk</p>
+                </div>
+                {metrics.beta != null && (
+                  <div className="bg-slate-100 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-slate-500 flex items-center gap-1.5">
+                        Beta (vs {benchName}) <InfoIcon info={INFO.beta} />
+                      </span>
+                      <RatingBadge value={-Math.abs(metrics.beta - 1)} thresholds={[-1, -0.3, -0.1]} labels={["Aggressive", "Active", "Moderate", "Benchmark"]} />
+                    </div>
+                    <span className="text-2xl font-bold tabular-nums">{metrics.beta}</span>
+                    <p className="text-[10px] text-slate-400 mt-1">Benchmark sensitivity</p>
+                  </div>
+                )}
+                {metrics.alpha != null && (
+                  <div className="bg-slate-100 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-slate-500 flex items-center gap-1.5">
+                        Alpha (ann.) <InfoIcon info={INFO.alpha} />
+                      </span>
+                    </div>
+                    <span className={`text-2xl font-bold tabular-nums ${metrics.alpha >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                      {metrics.alpha >= 0 ? "+" : ""}{metrics.alpha}%
+                    </span>
+                    <p className="text-[10px] text-slate-400 mt-1">Excess return vs {benchName}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="card">
+              <h2 className="text-sm font-semibold text-slate-500 mb-4 uppercase tracking-wider flex items-center gap-2">
+                <TrendingDown size={14} />
+                Drawdown Analysis
+              </h2>
+              <div className="space-y-4">
+                <div className="bg-slate-100 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-slate-500 flex items-center gap-1.5">
+                      Maximum Drawdown <InfoIcon info={INFO.max_dd} />
+                    </span>
+                    <RatingBadge value={metrics.max_drawdown} thresholds={[-50, -30, -15]} labels={["Severe", "High", "Moderate", "Low"]} />
+                  </div>
+                  <span className="text-3xl font-bold tabular-nums text-red-600">{metrics.max_drawdown}%</span>
+                  {metrics.max_drawdown_start && (
+                    <p className="text-[10px] text-slate-400 mt-2">
+                      {metrics.max_drawdown_start} → {metrics.max_drawdown_end}
+                      {metrics.max_drawdown_recovery && ` (recovered ${metrics.max_drawdown_recovery})`}
+                    </p>
+                  )}
+                </div>
+                <div className="bg-slate-100 rounded-lg p-4">
+                  <span className="text-xs text-slate-500 flex items-center gap-1.5 mb-1">
+                    Current Drawdown <InfoIcon info={INFO.current_dd} />
+                  </span>
+                  <span className={`text-xl font-bold tabular-nums ${metrics.current_drawdown < -5 ? "text-red-600" : metrics.current_drawdown < 0 ? "text-yellow-400" : "text-emerald-600"}`}>
+                    {metrics.current_drawdown}%
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-slate-100 rounded-lg p-3">
+                    <span className="text-xs text-slate-500 flex items-center gap-1.5 mb-1">
+                      Best Day <InfoIcon info={INFO.best_day} />
+                    </span>
+                    <span className="text-sm font-bold tabular-nums text-emerald-600">+{metrics.best_day}%</span>
+                  </div>
+                  <div className="bg-slate-100 rounded-lg p-3">
+                    <span className="text-xs text-slate-500 flex items-center gap-1.5 mb-1">
+                      Worst Day <InfoIcon info={INFO.worst_day} />
+                    </span>
+                    <span className="text-sm font-bold tabular-nums text-red-600">{metrics.worst_day}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="card">
+          <h2 className="text-sm font-semibold text-slate-500 mb-4 uppercase tracking-wider flex items-center gap-2">
+            <Target size={14} />
+            Sector Allocation
+          </h2>
+          {sl ? (
+            <div className="h-64 flex items-center justify-center text-slate-500 text-sm animate-pulse">Loading sectors…</div>
+          ) : !sectors?.sectors?.length ? (
+            <div className="text-slate-500 text-sm">No sector data available.</div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie
+                    data={sectors.sectors}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={95}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {sectors.sectors.map((_, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
+                    formatter={(v, _, props) => [`${fmtCur(v)} (${props.payload.weight}%)`, props.payload.name]}
+                  />
+                  <Legend
+                    formatter={(v) => <span className="text-xs text-slate-500">{v}</span>}
+                    iconType="circle"
+                    iconSize={8}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <h2 className="text-sm font-semibold text-slate-500 mb-4 uppercase tracking-wider">
+            Country Exposure
+          </h2>
+          {sl ? (
+            <div className="h-64 flex items-center justify-center text-slate-500 text-sm animate-pulse">Loading…</div>
+          ) : !sectors?.countries?.length ? (
+            <div className="text-slate-500 text-sm">No country data available.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={sectors.countries} layout="vertical" margin={{ left: 0, right: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis type="number" tick={{ fill: "#6b7280", fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
+                <YAxis type="category" dataKey="name" tick={{ fill: "#64748b", fontSize: 11 }} width={100} />
+                <Tooltip
+                  contentStyle={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
+                  formatter={(v) => [`${v}%`, "Weight"]}
+                />
+                <Bar dataKey="weight" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      <div className="card">
+        <h2 className="text-sm font-semibold text-slate-500 mb-4 uppercase tracking-wider">
+          Asset Type Breakdown
+        </h2>
+        {sl ? (
+          <div className="h-24 flex items-center justify-center text-slate-500 text-sm animate-pulse">Loading…</div>
+        ) : !sectors?.asset_types?.length ? (
+          <div className="text-slate-500 text-sm">No asset type data available.</div>
+        ) : (
+          <div className="space-y-2">
+            {sectors.asset_types.map((row, i) => (
+              <div key={row.name} className="flex items-center gap-3">
+                <span className="w-20 text-xs text-slate-500 shrink-0">{row.name}</span>
+                <div className="flex-1 bg-surface rounded-full h-2 overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.min(100, row.weight)}%`,
+                      backgroundColor: COLORS[i % COLORS.length],
+                    }}
+                  />
+                </div>
+                <span className="w-20 text-right text-xs tabular-nums text-slate-500 shrink-0">
+                  {fmtCur(row.value)}
+                </span>
+                <span className="w-14 text-right text-xs tabular-nums text-slate-500 shrink-0">
+                  {row.weight}%
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <h2 className="text-sm font-semibold text-slate-500 mb-4 uppercase tracking-wider">
+          Correlation Matrix
+        </h2>
+        <p className="text-[10px] text-slate-400 mb-3">
+          How your holdings move together. High correlation (red) means less diversification benefit.
+        </p>
+        {cl ? (
+          <div className="h-32 flex items-center justify-center text-slate-500 text-sm animate-pulse">Computing correlations…</div>
+        ) : !corr?.tickers?.length || corr.tickers.length < 2 ? (
+          <div className="text-slate-500 text-sm">Need at least 2 holdings for correlation analysis.</div>
+        ) : (
+          <CorrelationMatrix tickers={corr.tickers} matrix={corr.matrix} />
+        )}
+      </div>
+    </div>
+  );
+}

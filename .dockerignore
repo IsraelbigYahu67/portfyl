@@ -1,0 +1,39 @@
+# Python bytecode / caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Never bake the database into the image — prod uses the mounted GCS volume
+*.db
+*.sqlite
+*.sqlite3
+
+# Local secrets / environment
+.env
+.env.*
+
+# Node deps and build output (npm ci + npm run build run inside the image)
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+
+# Python virtualenvs
+venv/
+.venv/
+env/
+
+# graphify knowledge-graph cache + output
+graphify-out/
+
+# VCS, tooling, editor, OS cruft
+.git/
+.gitignore
+.claude/
+*.log
+.DS_Store
+
+# The build files themselves don't need to be in the context
+Dockerfile
+.dockerignore

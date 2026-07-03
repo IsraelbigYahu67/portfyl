@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --brand: #059669;
+    --brand-hover: #047857;
+    --brand-light: #D1FAE5;
+    --bg: #F6F8F7;
+    --bg-subtle: #F0FDF4;
+    --sidebar-active: #ECFDF5;
+    --surface-card: #FFFFFF;
+    --border: #E6EAF0;
+    --ink: #0B1220;
+    --muted: #64748B;
+    --hairline: #E6EAF0;
+    --gain: #10B981;
+    --loss: #EF4444;
+  }
+  body {
+    @apply bg-surface text-ink font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.5;
+  }
+  * { box-sizing: border-box; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #DCE2EA; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #B6C0CD; }
+  h1, h2, h3, .font-display { font-family: theme("fontFamily.display"); }
+  .tnum { font-variant-numeric: tabular-nums; }
+  /* Keyboard-only focus ring across all interactive elements. */
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  /* Inputs already render their own focus ring (see .input below). */
+  .input:focus-visible { outline: none; }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-card rounded-2xl border border-hairline p-5 shadow-card;
+    transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+  }
+  .card-interactive:hover {
+    @apply shadow-card-hover -translate-y-0.5;
+    border-color: color-mix(in srgb, var(--brand) 22%, var(--hairline));
+  }
+  .btn-primary {
+    @apply bg-brand hover:bg-brand-dim text-white font-semibold px-4 py-2 rounded-lg transition-colors;
+  }
+  .btn-ghost {
+    @apply border border-hairline hover:border-slate-300 text-slate-500 hover:text-slate-700 px-4 py-2 rounded-lg transition-colors;
+  }
+  .input {
+    @apply bg-slate-50 border border-hairline rounded-lg px-3 py-2 text-ink placeholder-slate-400 focus:outline-none focus:border-brand w-full;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .input:focus { box-shadow: 0 0 0 3px var(--brand-light); }
+  .eyebrow {
+    @apply font-display text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500;
+  }
+  .gain { @apply text-gain; }
+  .loss { @apply text-loss; }
+}
+
+@layer utilities {
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+    background: #EEF1F5;
+  }
+  .shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent);
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  @keyframes shimmer { 100% { transform: translateX(100%); } }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .shimmer::after { display: none; }
+}
+
+/* ----------------------------------------------------------------------------
+ * Dark mode. Surface / border / brand colors already flow through CSS variables
+ * (set per-theme by applyAppearance() in App.jsx) and adapt automatically. The
+ * app also uses Tailwind's slate scale and a few raw surfaces directly, so we
+ * remap those utilities here under html.dark. Kept unlayered so they win over
+ * Tailwind's generated utilities regardless of source order.
+ * ------------------------------------------------------------------------- */
+html.dark body { color: #E2E8F0; }
+
+/* Text hierarchy: darker-in-light maps to lighter-in-dark. */
+.dark .text-slate-800 { color: #F1F5F9; }
+.dark .text-slate-700 { color: #E2E8F0; }
+.dark .text-slate-600 { color: #CBD5E1; }
+.dark .text-slate-500 { color: #94A3B8; }
+.dark .text-slate-400 { color: #64748B; }
+.dark .text-slate-300 { color: #475569; }
+.dark .hover\:text-slate-800:hover { color: #F1F5F9; }
+.dark .hover\:text-slate-700:hover { color: #E2E8F0; }
+
+/* Raw surfaces (cards/borders use the CSS vars above and already adapt). */
+.dark .bg-white { background-color: #334155; }
+.dark .bg-slate-50 { background-color: #1E293B; }
+.dark .bg-slate-100 { background-color: #1E293B; }
+.dark .hover\:bg-slate-50:hover { background-color: #334155; }
+.dark .hover\:bg-slate-100:hover { background-color: #334155; }
+
+/* Component classes bake colors in via @apply, so remap them explicitly. */
+.dark .input { background-color: #1E293B; color: #F1F5F9; }
+.dark .input::placeholder { color: #64748B; }
+.dark .btn-ghost { color: #94A3B8; }
+.dark .btn-ghost:hover { color: #E2E8F0; }
+
+/* Brighten semantic gain/loss + badges a touch for contrast on dark. */
+.dark .text-emerald-600 { color: #34D399; }
+.dark .text-red-600 { color: #F87171; }
+
+/* Scrollbar. */
+.dark ::-webkit-scrollbar-thumb { background: #334155; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #475569; }

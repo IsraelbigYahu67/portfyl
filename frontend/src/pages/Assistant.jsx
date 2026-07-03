@@ -1,0 +1,333 @@
+import { useState, useRef, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Bot,
+  Send,
+  Loader2,
+  Settings as SettingsIcon,
+  Eye,
+  EyeOff,
+  Trash2,
+  AlertCircle,
+  Sparkles,
+} from "lucide-react";
+import {
+  fetchAssistantConfig,
+  saveAssistantConfig,
+  deleteAssistantConfig,
+  sendAssistantMessage,
+} from "../api";
+
+const MODELS = [
+  { value: "deepseek-chat", label: "DeepSeek Chat (V3) — fast" },
+  { value: "deepseek-reasoner", label: "DeepSeek Reasoner (R1) — deeper, slower" },
+];
+
+const SUGGESTIONS = [
+  "How concentrated is my portfolio?",
+  "Summarize my recent transactions",
+  "What are my largest positions?",
+];
+
+export default function Assistant() {
+  const queryClient = useQueryClient();
+
+  const { data: config, isLoading: configLoading } = useQuery({
+    queryKey: ["assistant-config"],
+    queryFn: fetchAssistantConfig,
+    staleTime: 60 * 1000,
+  });
+
+  const configured = !!config?.configured;
+
+  // Config form
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [modelInput, setModelInput] = useState("deepseek-chat");
+  const [showKey, setShowKey] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
+  const [configError, setConfigError] = useState(null);
+
+  // Keep the model selector in sync with the stored model once it loads.
+  useEffect(() => {
+    if (config?.model) setModelInput(config.model);
+  }, [config?.model]);
+
+  // Chat
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [chatError, setChatError] = useState(null);
+  const scrollRef = useRef(null);
+
+  const chatMutation = useMutation({
+    mutationFn: (msgs) => sendAssistantMessage(msgs),
+    onSuccess: (data) => {
+      setMessages((prev) => [...prev, data.reply]);
+    },
+    onError: (err) => {
+      setChatError(err.response?.data?.detail || "The assistant request failed. Try again.");
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: () => saveAssistantConfig(apiKeyInput.trim(), modelInput),
+    onSuccess: () => {
+      setApiKeyInput("");
+      setShowConfig(false);
+      setConfigError(null);
+      queryClient.invalidateQueries({ queryKey: ["assistant-config"] });
+    },
+    onError: (err) => setConfigError(err.response?.data?.detail || "Failed to save settings"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteAssistantConfig,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assistant-config"] });
+    },
+  });
+
+  // Auto-scroll to newest message.
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, chatMutation.isPending]);
+
+  const panelOpen = showConfig || (!configured && !configLoading);
+
+  function send(text) {
+    const content = (text ?? input).trim();
+    if (!content || chatMutation.isPending || !configured) return;
+    const next = [...messages, { role: "user", content }];
+    setMessages(next);
+    setInput("");
+    setChatError(null);
+    chatMutation.mutate(next);
+  }
+
+  function onInputKeyDown(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-3rem)]">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Bot size={20} className="text-brand" />
+            <h1 className="text-xl font-semibold">AI Assistant</h1>
+          </div>
+          <p className="text-sm text-slate-500">
+            Powered by DeepSeek · aware of your active portfolio
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {configured && (
+            <span className="text-xs text-slate-400 font-mono hidden sm:inline">
+              {config.model}
+            </span>
+          )}
+          <button
+            onClick={() => setShowConfig((s) => !s)}
+            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand border border-surface-border rounded-lg px-3 py-1.5 transition-colors"
+          >
+            <SettingsIcon size={15} />
+            Settings
+          </button>
+        </div>
+      </div>
+
+      {/* Config panel */}
+      {panelOpen && (
+        <div className="rounded-xl border border-surface-border bg-surface-card p-5 mb-4 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-700">DeepSeek connection</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Create a key at{" "}
+              <a
+                href="https://platform.deepseek.com/api_keys"
+                target="_blank"
+                rel="noreferrer"
+                className="text-brand hover:underline"
+              >
+                platform.deepseek.com
+              </a>
+              . It's stored locally on your backend and only sent to DeepSeek.
+            </p>
+          </div>
+
+          {configError && (
+            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+              <AlertCircle size={15} className="mt-0.5 shrink-0" />
+              <span>{configError}</span>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-slate-600">API key</label>
+            <div className="relative">
+              <input
+                type={showKey ? "text" : "password"}
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                placeholder={
+                  configured ? `Saved (${config.key_preview}) — enter a new key to replace` : "sk-..."
+                }
+                className="w-full border border-surface-border rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-slate-600">Model</label>
+            <select
+              value={modelInput}
+              onChange={(e) => setModelInput(e.target.value)}
+              className="w-full border border-surface-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30"
+            >
+              {MODELS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => saveMutation.mutate()}
+              disabled={(!apiKeyInput.trim() && !configured) || saveMutation.isPending}
+              className="flex items-center gap-2 bg-brand text-white font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : null}
+              {configured ? "Save changes" : "Connect"}
+            </button>
+            {configured && (
+              <button
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                className="flex items-center gap-2 text-red-600 border border-red-200 font-semibold text-sm px-4 py-2.5 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-40"
+              >
+                {deleteMutation.isPending ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Trash2 size={16} />
+                )}
+                Remove key
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Chat area */}
+      <div className="flex-1 min-h-0 rounded-xl border border-surface-border bg-surface-card flex flex-col overflow-hidden">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-4">
+          {messages.length === 0 && !chatMutation.isPending && (
+            <div className="h-full flex flex-col items-center justify-center text-center px-6">
+              <div className="w-12 h-12 rounded-full bg-brand/10 flex items-center justify-center mb-3">
+                <Sparkles size={22} className="text-brand" />
+              </div>
+              <p className="text-sm text-slate-600 font-medium mb-1">
+                Ask about your portfolio
+              </p>
+              <p className="text-xs text-slate-400 mb-5 max-w-sm">
+                I can see your current holdings, cost basis, and recent transactions.
+              </p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => send(s)}
+                    disabled={!configured}
+                    className="text-xs text-slate-600 border border-surface-border rounded-full px-3 py-1.5 hover:border-brand hover:text-brand transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {messages.map((m, i) => (
+            <MessageBubble key={i} role={m.role} content={m.content} />
+          ))}
+
+          {chatMutation.isPending && (
+            <div className="flex items-center gap-2 text-sm text-slate-400">
+              <Loader2 size={15} className="animate-spin" />
+              Thinking…
+            </div>
+          )}
+
+          {chatError && (
+            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+              <AlertCircle size={15} className="mt-0.5 shrink-0" />
+              <span>{chatError}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="border-t border-surface-border p-3">
+          {!configured && !configLoading ? (
+            <p className="text-xs text-slate-400 text-center py-2">
+              Add a DeepSeek API key above to start chatting.
+            </p>
+          ) : (
+            <div className="flex items-end gap-2">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onInputKeyDown}
+                rows={1}
+                placeholder="Ask about your holdings, allocation, recent trades…"
+                disabled={chatMutation.isPending}
+                className="flex-1 resize-none border border-surface-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 max-h-40 disabled:opacity-60"
+              />
+              <button
+                onClick={() => send()}
+                disabled={!input.trim() || chatMutation.isPending}
+                className="flex items-center justify-center bg-brand text-white rounded-lg w-11 h-11 shrink-0 hover:bg-brand/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {chatMutation.isPending ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Send size={18} />
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({ role, content }) {
+  const isUser = role === "user";
+  return (
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
+          isUser
+            ? "bg-brand text-white rounded-br-sm"
+            : "bg-slate-100 text-slate-800 rounded-bl-sm"
+        }`}
+      >
+        {content}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,14 @@
+# dependencies / build artifacts
+node_modules/
+frontend/dist/
+__pycache__/
+*.pyc
+.venv/
+
+# data & secrets — the DB holds real portfolio data, never commit it
+*.db
+.env
+
+# editor/os noise
+.DS_Store
+Thumbs.db
