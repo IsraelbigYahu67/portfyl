@@ -52,12 +52,14 @@ Once the backend is running: **http://localhost:8000/docs** (Swagger UI)
 ## Architecture
 
 ```
-snowball-analytics/
+portfyl/
 ├── backend/                          # FastAPI + SQLAlchemy + SQLite + yfinance
 │   ├── main.py                       # App entry, startup migrations, CORS, router wiring
 │   ├── database.py                   # SQLAlchemy engine & session, DB migration (snowball.db → portfyl.db)
 │   ├── models.py                     # ORM: Portfolio, Transaction, Watchlist, WatchlistItem,
-│   │                                 #   Benchmark, BenchmarkComponent, BrokerConnection
+│   │                                 #   Benchmark, BenchmarkComponent, BrokerConnection,
+│   │                                 #   OptionsTrade, PolymarketPosition, TradeNote, DiscordWebhook,
+│   │                                 #   BrokerBalance, AppSetting
 │   ├── schemas.py                    # Pydantic request/response schemas
 │   ├── cache.py                      # Thread-safe in-process TTL cache for yfinance responses
 │   ├── fx.py                         # Historical FX rate snapshots (currency → CZK per txn date)
@@ -87,7 +89,7 @@ snowball-analytics/
 │   │   ├── assistant.py               # AI portfolio assistant (LLM chat over your data)
 │   │   └── dividend_calendar.py      # Forward dividend calendar: ex-date, frequency, amount
 │   │                                 #   per holding, monthly projection, annual estimate
-│   └── tests/                        # 53 tests across 7 modules (holdings, FIFO, tax,
+│   └── tests/                        # 54 tests across 7 modules (holdings, FIFO, tax,
 │                                     #   broker, cache, FX, screener, dividend calendar)
 ├── frontend/                         # React 18 + Vite + Tailwind CSS + Recharts + React Query
 │   ├── src/
@@ -183,15 +185,15 @@ snowball-analytics/
 
 ## Testing
 
-The backend has **53 tests** across 7 test modules:
+The backend has **54 tests** across 7 test modules:
 
 | Module | Tests | Covers |
 |---|---|---|
-| `test_portfolio.py` | 9 | Holdings aggregation, FIFO P&L, sell reduces cost, closed positions, summary, multi-ticker, date ordering |
-| `test_analytics.py` | 12 | Capital gains (simple, multi-lot FIFO, long/short term, loss), Czech tax (value test, time test, 40M cap, multi-year) |
-| `test_broker.py` | 12 | T212 ticker normalization (suffixes, exchange tags, renames, BRK special, UCITS, whitespace), canonical regex |
+| `test_portfolio.py` | 11 | Holdings aggregation, FIFO P&L, sell reduces cost, closed positions, summary, multi-ticker, date ordering |
+| `test_analytics.py` | 13 | Capital gains (simple, multi-lot FIFO, long/short term, loss), Czech tax (value test, time test, 40M cap, multi-year) |
+| `test_broker.py` | 10 | T212 ticker normalization (suffixes, exchange tags, renames, BRK special, UCITS, whitespace), canonical regex |
 | `test_cache.py` | 6 | TTL cache (hit, miss, expiry, exception not cached, kwargs keying, clear) |
-| `test_fx.py` | 5 | Ticker map (direct, fallback, case-insensitive, empty), FX CZK shortcut |
+| `test_fx.py` | 6 | Ticker map (direct, fallback, case-insensitive, empty), FX CZK shortcut |
 | `test_dividend_calendar.py` | 3 | Empty portfolio, holdings produce tickers, function structure |
 | `test_market.py` | 5 | `_in_range` helper, preset universes, screener row structure, fallback universe, custom tickers |
 
