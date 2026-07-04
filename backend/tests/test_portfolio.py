@@ -7,7 +7,9 @@ from unittest.mock import patch
 
 import pytest
 
-from routers.portfolio import _build_holdings, get_summary
+from models import Transaction
+from schemas import TransactionCreate
+from routers.portfolio import _build_holdings, create_transaction, get_summary
 
 
 class TestBuildHoldings:
@@ -111,6 +113,43 @@ class TestSummary:
         s = get_summary(currency="USD", db=db_session, pid=pid)
         assert s["total_value"] == 0.0
         assert s["holdings_count"] == 0
+
+
+class TestCreateTransaction:
+    """Tests for POST /portfolio/transactions (create_transaction)."""
+
+    def test_creates_transaction_with_resolved_fields(self, db_session, pid):
+        """Valid input creates a row: ticker upper-cased, name/fx resolved, portfolio_id set.
+
+        Regression test: create_transaction used to crash with
+        `TypeError: models.Transaction() got multiple values for keyword
+        argument 'ticker'` because txn.model_dump() already carries 'ticker'
+        and the constructor call passed ticker= again.
+        """
+        txn_in = TransactionCreate(
+            ticker="aapl",
+            type="buy",
+            shares=10,
+            price=150.0,
+            currency="USD",
+            date=date(2024, 1, 15),
+        )
+
+        with (
+            patch("routers.portfolio.market_data.get_info", return_value={"shortName": "Apple Inc."}),
+            patch("routers.portfolio.fetch_fx_to_czk", return_value=22.5),
+        ):
+            result = create_transaction(txn_in, db=db_session, pid=pid)
+
+        assert result.id is not None
+        assert result.ticker == "AAPL"
+        assert result.name == "Apple Inc."
+        assert result.fx_to_czk == 22.5
+        assert result.portfolio_id == pid
+
+        stored = db_session.query(Transaction).filter(Transaction.id == result.id).first()
+        assert stored.ticker == "AAPL"
+        assert stored.shares == 10
 
 
 from tests.helpers import make_txn

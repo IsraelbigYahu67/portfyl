@@ -180,7 +180,7 @@ def create_transaction(
     name = market_data.get_info(txn.ticker.upper()).get("shortName") or txn.ticker
     fx = fetch_fx_to_czk(txn.currency, txn.date)
     db_txn = Transaction(
-        **txn.model_dump(),
+        **txn.model_dump(exclude={"ticker"}),
         name=name,
         ticker=txn.ticker.upper(),
         fx_to_czk=fx,
