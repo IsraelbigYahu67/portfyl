@@ -73,3 +73,16 @@ def test_accrued_interest_respects_start_date():
     acc = accrued_interest(txns, rates, as_of=date(2025, 1, 1))
     # only ~184 days accrue: 10000 * 0.05 * 184/365 ≈ 252
     assert 240.0 <= acc["USD"] <= 260.0
+
+
+def test_accrued_interest_clips_to_as_of_ignoring_future_txns():
+    # A later deposit dated AFTER as_of must not extend the earlier segment past as_of.
+    txns = [
+        _cash("deposit", 10000, "USD", d=date(2024, 1, 1)),
+        _cash("deposit", 50000, "USD", d=date(2025, 6, 1)),  # future relative to as_of
+    ]
+    rates = {"USD": {"annual_rate": 0.05, "enabled": True, "start_date": None}}
+    acc = accrued_interest(txns, rates, as_of=date(2025, 1, 1))
+    # Only the 10,000 balance accrues over 2024-01-01..2025-01-01 (~501); the future
+    # 50,000 deposit and any accrual past as_of are ignored.
+    assert 500.0 <= acc["USD"] <= 503.0

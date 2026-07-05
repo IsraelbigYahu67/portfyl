@@ -73,11 +73,13 @@ def accrued_interest(transactions, rates, as_of=None):
         total = 0.0
         for i, (seg_start, bal) in enumerate(timeline):
             seg_end = timeline[i + 1][0] if i + 1 < len(timeline) else as_of
+            seg_end = min(seg_end, as_of)  # never accrue past the requested as_of
             lo = max(seg_start, start)
             if seg_end <= lo or bal <= 0:
                 continue
             days = (seg_end - lo).days
             total += bal * rate * days / 365.0
-        if total:
-            out[ccy] = round(total, 2)
+        rounded = round(total, 2)
+        if rounded:
+            out[ccy] = rounded
     return out
