@@ -64,6 +64,16 @@ def _ensure_cash_columns():
             conn.execute(text("DROP TABLE transactions_old"))
 
 
+def _ensure_cash_interest_rate_table():
+    """create_all() builds it for fresh DBs; this is a no-op safety net for existing DBs."""
+    with engine.begin() as conn:
+        exists = conn.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='cash_interest_rates'"
+        )).first()
+        if not exists:
+            Base.metadata.tables["cash_interest_rates"].create(bind=conn)
+
+
 def _ensure_default_portfolio() -> int:
     """Return the id of the default portfolio, creating it if missing."""
     db = SessionLocal()
@@ -287,6 +297,7 @@ def _ensure_owner_id_columns() -> None:
 _ensure_owner_id_columns()
 _ensure_fx_column()
 _ensure_cash_columns()
+_ensure_cash_interest_rate_table()
 _default_pid = _ensure_default_portfolio()
 _ensure_portfolio_columns(_default_pid)
 _backfill_fx()

@@ -227,3 +227,16 @@ class TradeNote(Base):
     tags = Column(String, nullable=True)
     sentiment = Column(String, nullable=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class CashInterestRate(Base):
+    __tablename__ = "cash_interest_rates"
+    __table_args__ = (UniqueConstraint("portfolio_id", "currency", name="uq_cash_rate_pid_ccy"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    portfolio_id = Column(Integer, ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False, index=True)
+    currency = Column(String, nullable=False)          # "USD" | "GBP" | "EUR" | "CZK" ...
+    annual_rate = Column(Float, nullable=False, default=0.0)  # decimal, e.g. 0.045 = 4.5% APY
+    enabled = Column(Boolean, nullable=False, default=False)
+    start_date = Column(Date, nullable=True)           # accrual start; NULL => first cash event
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
