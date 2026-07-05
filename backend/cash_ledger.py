@@ -36,3 +36,48 @@ def cash_balance_by_currency(transactions) -> dict[str, float]:
         ccy, amt = signed_cash(txn)
         out[ccy] = out.get(ccy, 0.0) + amt
     return out
+
+
+def _balance_timeline(transactions, currency):
+    """Sorted [(date, running_balance)] for `currency`, one point per event date."""
+    events = []
+    for txn in transactions:
+        ccy, amt = signed_cash(txn)
+        if ccy == currency and amt:
+            events.append((txn.date, amt))
+    events.sort(key=lambda e: e[0])
+    timeline, running = [], 0.0
+    for d, amt in events:
+        running += amt
+        if timeline and timeline[-1][0] == d:
+            timeline[-1] = (d, running)
+        else:
+            timeline.append((d, running))
+    return timeline
+
+
+def accrued_interest(transactions, rates, as_of=None):
+    """Lazy straight-line interest per currency: sum(balance * rate * days/365)
+    over each segment where balance > 0, from max(start_date, first event) to as_of.
+    Only currencies with an enabled rate accrue."""
+    as_of = as_of or date.today()
+    out: dict[str, float] = {}
+    for ccy, cfg in rates.items():
+        if not cfg.get("enabled") or not cfg.get("annual_rate"):
+            continue
+        rate = float(cfg["annual_rate"])
+        timeline = _balance_timeline(transactions, ccy)
+        if not timeline:
+            continue
+        start = cfg.get("start_date") or timeline[0][0]
+        total = 0.0
+        for i, (seg_start, bal) in enumerate(timeline):
+            seg_end = timeline[i + 1][0] if i + 1 < len(timeline) else as_of
+            lo = max(seg_start, start)
+            if seg_end <= lo or bal <= 0:
+                continue
+            days = (seg_end - lo).days
+            total += bal * rate * days / 365.0
+        if total:
+            out[ccy] = round(total, 2)
+    return out
