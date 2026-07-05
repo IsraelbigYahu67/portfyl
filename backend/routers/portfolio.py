@@ -454,11 +454,35 @@ def get_summary(
     total_pnl = unrealized_pnl + realized_pnl + total_dividends
     total_pnl_pct = (total_pnl / cum_buys_cost * 100) if cum_buys_cost > 0 else 0
 
+    # Day change — authoritative, reuses the movers 2-day-close logic across ALL
+    # holdings. fx per holding is derived from the already-converted market_value
+    # so it matches total_value exactly. Degrades to None on any data gap.
+    day_change = None
+    day_change_pct = None
+    active_day = _build_holdings(transactions)
+    closes_map = _two_day_closes(list(active_day.keys())) if active_day else {}
+    if closes_map:
+        rows = []
+        mv_by_ticker = {h["ticker"]: h for h in holdings}
+        for ticker, (start_px, end_px) in closes_map.items():
+            shares = active_day[ticker]["shares"]
+            h = mv_by_ticker.get(ticker)
+            if not h or shares <= 0 or end_px <= 0:
+                continue
+            fx = h["market_value"] / (shares * end_px)  # native -> display currency
+            rows.append({"shares": shares, "start": start_px, "end": end_px, "fx": fx})
+        if rows:
+            change, prev_value = aggregate_day_change(rows)
+            day_change = round(change, 2)
+            day_change_pct = round(change / prev_value * 100, 2) if prev_value > 0 else None
+
     return {
         "total_value": round(total_value, 2),
         "total_invested": round(total_invested, 2),
         "total_pnl": round(total_pnl, 2),
         "total_pnl_percent": round(total_pnl_pct, 2),
+        "day_change": day_change,
+        "day_change_percent": day_change_pct,
         "total_dividends": round(total_dividends, 2),
         "holdings_count": len(holdings),
         "last_updated": datetime.now().isoformat(),
@@ -1029,6 +1053,44 @@ def get_earnings(
     return sorted(result, key=lambda r: r["datetime_cet"])
 
 
+def aggregate_day_change(rows):
+    """Pure: sum per-holding day P&L and the prior day's value, both in the
+    display currency (each row carries its own fx multiplier)."""
+    change = 0.0
+    prev_value = 0.0
+    for r in rows:
+        shares, start, end, fx = r["shares"], r["start"], r["end"], r["fx"]
+        change += shares * (end - start) * fx
+        prev_value += shares * start * fx
+    return change, prev_value
+
+
+def _two_day_closes(tickers):
+    """{ticker: (start_close, end_close)} from a 2-day window. Never raises."""
+    if not tickers:
+        return {}
+    try:
+        raw = yf.download(tickers, period="2d", auto_adjust=True, progress=False)
+        if raw is None or raw.empty:
+            return {}
+        if len(tickers) == 1:
+            closes = raw[["Close"]].rename(columns={"Close": tickers[0]})
+        else:
+            closes = raw["Close"] if "Close" in raw.columns else raw
+    except Exception:
+        return {}
+    closes = closes.ffill().dropna(how="all")
+    out = {}
+    for ticker in tickers:
+        if ticker not in closes.columns:
+            continue
+        col = closes[ticker].dropna()
+        if len(col) < 2:
+            continue
+        out[ticker] = (float(col.iloc[0]), float(col.iloc[-1]))
+    return out
+
+
 @router.get("/movers")
 def get_movers(
     period: str = "1d",
@@ -1044,6 +1106,34 @@ def get_movers(
         return {"gainers": [], "losers": []}
 
     tickers = list(active.keys())
+
+    if period.lower() == "1d":
+        closes_map = _two_day_closes(tickers)
+        if not closes_map:
+            return {"gainers": [], "losers": []}
+        results = []
+        for ticker in tickers:
+            if ticker not in closes_map:
+                continue
+            start_price, end_price = closes_map[ticker]
+            if start_price <= 0:
+                continue
+            change_pct = round(((end_price - start_price) / start_price) * 100, 2)
+            price, name, currency = _fetch_price_and_info(ticker)
+            shares = active[ticker]["shares"]
+            results.append({
+                "ticker": ticker, "name": name,
+                "current_price": round(end_price, 2),
+                "change_pct": change_pct,
+                "period_pnl": round(shares * (end_price - start_price), 2),
+                "currency": currency,
+            })
+        results.sort(key=lambda x: x["change_pct"], reverse=True)
+        return {
+            "gainers": results[:5],
+            "losers": list(reversed(results[-5:])) if len(results) >= 5 else list(reversed(results)),
+        }
+
     period_map = {"1d": "2d", "1w": "7d", "1m": "1mo"}
     yf_period = period_map.get(period.lower(), "2d")
 

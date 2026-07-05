@@ -9,7 +9,6 @@ const STORAGE_KEY = "sb_dashboard_layout";
 const VISIBLE_KEY = "sb_dashboard_widgets";
 
 const ALL_WIDGETS = [
-  { id: "metrics", label: "Metrics", minW: 2, minH: 2 },
   { id: "performance", label: "Performance Chart", minW: 3, minH: 4 },
   { id: "heatmap", label: "Heatmap", minW: 3, minH: 4 },
   { id: "earnings", label: "Earnings Calendar", minW: 2, minH: 3 },
@@ -20,13 +19,12 @@ const ALL_WIDGETS = [
 
 const DEFAULT_LAYOUTS = {
   lg: [
-    { i: "metrics", x: 0, y: 0, w: 6, h: 2 },
-    { i: "performance", x: 0, y: 2, w: 3, h: 5 },
-    { i: "heatmap", x: 3, y: 2, w: 3, h: 5 },
-    { i: "earnings", x: 0, y: 7, w: 3, h: 4 },
-    { i: "holdings", x: 3, y: 7, w: 3, h: 4 },
-    { i: "insiderBuys", x: 0, y: 11, w: 6, h: 5 },
-    { i: "movers", x: 0, y: 16, w: 6, h: 4 },
+    { i: "performance", x: 0, y: 0, w: 3, h: 5 },
+    { i: "heatmap", x: 3, y: 0, w: 3, h: 5 },
+    { i: "earnings", x: 0, y: 5, w: 3, h: 4 },
+    { i: "holdings", x: 3, y: 5, w: 3, h: 4 },
+    { i: "insiderBuys", x: 0, y: 9, w: 6, h: 5 },
+    { i: "movers", x: 0, y: 14, w: 6, h: 4 },
   ],
 };
 
@@ -178,8 +176,10 @@ export default function DashboardGrid({ children, editing, onEditToggle }) {
         </ResponsiveGridLayout>
       ) : (
         <div className="space-y-6">
-          {visible.map((id) => (
-            <div key={id}>{children[id]}</div>
+          {visible.map((id, i) => (
+            <div key={id} className="animate-fade-up" style={{ animationDelay: `${Math.min(i * 60, 360)}ms` }}>
+              {children[id]}
+            </div>
           ))}
         </div>
       )}

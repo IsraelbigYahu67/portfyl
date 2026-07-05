@@ -1,17 +1,13 @@
 import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
+import { formatMoney, formatPercent } from "../lib/format";
 
 function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }) {
   if (!active || !payload?.length) return null;
 
   const row = payload[0]?.payload;
   if (!row) return null;
-
-  const fmtMoney = (v) =>
-    currency === "CZK"
-      ? `${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Kč`
-      : `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const pnl = row.pnl;
   const pnlPct = row.pnl_pct;
@@ -21,35 +17,33 @@ function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }
   const line = (name, val, color) => (
     <div className="flex justify-between gap-6">
       <span className="text-slate-600">{name}</span>
-      <span className={`font-medium ${color}`}>{val}</span>
+      <span className={`font-mono tnum font-medium ${color}`}>{val}</span>
     </div>
   );
-  const moneyColor = (v) => (v >= 0 ? "text-emerald-600" : "text-red-600");
-  const fmtSignedMoney = (v) => `${v >= 0 ? "+" : ""}${fmtMoney(v)}`;
-  const fmtSignedPct = (v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+  const moneyColor = (v) => (v >= 0 ? "text-gain" : "text-loss");
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs shadow-lg">
+    <div className="bg-white border border-hairline rounded-xl shadow-pop px-3 py-2 text-xs">
       <p className="text-slate-500 mb-1.5">{label}</p>
       <div className="space-y-1">
         {mode === "value" && (
           <>
-            {line("Value", fmtMoney(row.value), "text-slate-800")}
-            {line("Invested", fmtMoney(row.invested), "text-blue-400")}
+            {line("Value", formatMoney(row.value, currency), "text-ink")}
+            {line("Invested", formatMoney(row.invested, currency), "text-slate-400")}
           </>
         )}
-        {pnl != null && line("Period P&L", fmtSignedMoney(pnl), moneyColor(pnl))}
-        {pnlPct != null && line("Period %", fmtSignedPct(pnlPct), moneyColor(pnlPct))}
-        {totalPnl != null && line("Total P&L", fmtSignedMoney(totalPnl), moneyColor(totalPnl))}
-        {totalPnlPct != null && line("Total %", fmtSignedPct(totalPnlPct), moneyColor(totalPnlPct))}
+        {pnl != null && line("Period P&L", formatMoney(pnl, currency), moneyColor(pnl))}
+        {pnlPct != null && line("Period %", formatPercent(pnlPct), moneyColor(pnlPct))}
+        {totalPnl != null && line("Total P&L", formatMoney(totalPnl, currency), moneyColor(totalPnl))}
+        {totalPnlPct != null && line("Total %", formatPercent(totalPnlPct), moneyColor(totalPnlPct))}
         {benchmarkMeta?.map((b) => {
           const val = row[`bench_${b.key}`];
           if (val == null) return null;
           return (
             <div key={b.key} className="flex justify-between gap-6">
               <span style={{ color: b.color }}>{b.label}</span>
-              <span style={{ color: b.color }} className="font-medium">
-                {val >= 0 ? "+" : ""}{val.toFixed(2)}%
+              <span style={{ color: b.color }} className="font-mono tnum font-medium">
+                {formatPercent(val)}
               </span>
             </div>
           );
@@ -89,114 +83,132 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
   const fmtPctAxis = (v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
 
   return (
-    <ResponsiveContainer width="100%" height={320}>
-      <ComposedChart data={sampled} margin={{ top: 4, right: hasBenchmarks && !isGrowth ? 50 : 4, left: 0, bottom: 0 }}>
-        <defs>
-          <linearGradient id="gValue" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
-            <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-          </linearGradient>
-          <linearGradient id="gInvested" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
-            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-          </linearGradient>
-          <linearGradient id="gGrowth" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-            <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-        <XAxis
-          dataKey="date"
-          tick={{ fill: "#64748B", fontSize: 11 }}
-          tickFormatter={(v) => shortRange ? v.slice(5) : v.slice(0, 7)}
-          minTickGap={60}
-        />
-        {isGrowth ? (
-          <>
-            <YAxis
-              yAxisId="pct"
-              tick={{ fill: "#64748B", fontSize: 11 }}
-              tickFormatter={fmtPctAxis}
-              width={55}
-              domain={['dataMin', 'dataMax']}
-            />
-            <Tooltip content={<CustomTooltip currency={currency} benchmarkMeta={benchmarkMeta} mode={mode} />} />
-            <Legend
-              formatter={(v) => {
-                if (v === "pnl_pct") return <span className="text-xs text-slate-600">Portfolio Growth</span>;
-                const bm = benchmarkMeta.find((b) => `bench_${b.key}` === v);
-                if (bm) return <span className="text-xs" style={{ color: bm.color }}>{bm.label}</span>;
-                return <span className="text-xs text-slate-600">{v}</span>;
-              }}
-            />
-            <Area
-              yAxisId="pct"
-              type="monotone"
-              dataKey="pnl_pct"
-              stroke="#22c55e"
-              fill="url(#gGrowth)"
-              strokeWidth={2}
-              dot={false}
-            />
-            {benchmarkMeta.map((b) => (
-              <Line
-                key={b.key}
-                yAxisId="pct"
-                type="monotone"
-                dataKey={`bench_${b.key}`}
-                stroke={b.color}
-                strokeWidth={1.5}
-                dot={false}
-                connectNulls
-              />
-            ))}
-          </>
-        ) : (
-          <>
-            <YAxis
-              yAxisId="value"
-              tick={{ fill: "#64748B", fontSize: 11 }}
-              tickFormatter={fmtAxis}
-              width={currency === "CZK" ? 72 : 52}
-              domain={['dataMin', 'dataMax']}
-            />
-            {hasBenchmarks && (
+    <div className="flex-1 min-h-[300px] mt-6 -mx-2 -mb-2 relative">
+      <div className="absolute inset-0">
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={sampled} margin={{ top: 4, right: hasBenchmarks && !isGrowth ? 50 : 4, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="var(--brand)" stopOpacity={0.25} />
+              <stop offset="95%" stopColor="var(--brand)" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="colorInvested" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.15} />
+              <stop offset="95%" stopColor="#94a3b8" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="colorGrowth" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="var(--brand)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="var(--brand)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="var(--hairline)" vertical={false} />
+          <XAxis
+            dataKey="date"
+            tick={{ fill: "#94a3b8", fontSize: 11, fontFamily: "JetBrains Mono Variable" }}
+            tickFormatter={(v) => shortRange ? v.slice(5) : v.slice(0, 7)}
+            minTickGap={60}
+            axisLine={false}
+            tickLine={false}
+          />
+          {isGrowth ? (
+            <>
               <YAxis
                 yAxisId="pct"
-                orientation="right"
-                tick={{ fill: "#64748B", fontSize: 11 }}
+                tick={{ fill: "#94a3b8", fontSize: 11, fontFamily: "JetBrains Mono Variable" }}
                 tickFormatter={fmtPctAxis}
-                width={50}
+                width={55}
+                domain={['dataMin', 'dataMax']}
+                axisLine={false}
+                tickLine={false}
               />
-            )}
-            <Tooltip content={<CustomTooltip currency={currency} benchmarkMeta={benchmarkMeta} mode={mode} />} />
-            <Legend
-              formatter={(v) => {
-                if (v === "value") return <span className="text-xs text-slate-600">Portfolio Value</span>;
-                if (v === "invested") return <span className="text-xs text-slate-600">Invested</span>;
-                const bm = benchmarkMeta.find((b) => `bench_${b.key}` === v);
-                if (bm) return <span className="text-xs" style={{ color: bm.color }}>{bm.label}</span>;
-                return <span className="text-xs text-slate-600">{v}</span>;
-              }}
-            />
-            <Area yAxisId="value" type="monotone" dataKey="invested" stroke="#3b82f6" fill="url(#gInvested)" strokeWidth={1.5} dot={false} />
-            <Area yAxisId="value" type="monotone" dataKey="value" stroke="#22c55e" fill="url(#gValue)" strokeWidth={2} dot={false} />
-            {benchmarkMeta.map((b) => (
-              <Line
-                key={b.key}
+              <Tooltip content={<CustomTooltip currency={currency} benchmarkMeta={benchmarkMeta} mode={mode} />} />
+              <Legend
+                verticalAlign="top"
+                align="right"
+                wrapperStyle={{ paddingBottom: '20px' }}
+                formatter={(v) => {
+                  if (v === "pnl_pct") return <span className="text-xs text-slate-600">Portfolio Growth</span>;
+                  const bm = benchmarkMeta.find((b) => `bench_${b.key}` === v);
+                  if (bm) return <span className="text-xs" style={{ color: bm.color }}>{bm.label}</span>;
+                  return <span className="text-xs text-slate-600">{v}</span>;
+                }}
+              />
+              <Area
                 yAxisId="pct"
                 type="monotone"
-                dataKey={`bench_${b.key}`}
-                stroke={b.color}
-                strokeWidth={1.5}
+                dataKey="pnl_pct"
+                stroke="var(--brand)"
+                fill="url(#colorGrowth)"
+                strokeWidth={2.5}
                 dot={false}
-                connectNulls
               />
-            ))}
-          </>
-        )}
-      </ComposedChart>
-    </ResponsiveContainer>
+              {benchmarkMeta.map((b) => (
+                <Line
+                  key={b.key}
+                  yAxisId="pct"
+                  type="monotone"
+                  dataKey={`bench_${b.key}`}
+                  stroke={b.color}
+                  strokeWidth={1.5}
+                  dot={false}
+                  connectNulls
+                />
+              ))}
+            </>
+          ) : (
+            <>
+              <YAxis
+                yAxisId="value"
+                tick={{ fill: "#94a3b8", fontSize: 11, fontFamily: "JetBrains Mono Variable" }}
+                tickFormatter={fmtAxis}
+                width={currency === "CZK" ? 72 : 52}
+                domain={['dataMin', 'dataMax']}
+                axisLine={false}
+                tickLine={false}
+              />
+              {hasBenchmarks && (
+                <YAxis
+                  yAxisId="pct"
+                  orientation="right"
+                  tick={{ fill: "#94a3b8", fontSize: 11, fontFamily: "JetBrains Mono Variable" }}
+                  tickFormatter={fmtPctAxis}
+                  width={50}
+                  axisLine={false}
+                  tickLine={false}
+                />
+              )}
+              <Tooltip content={<CustomTooltip currency={currency} benchmarkMeta={benchmarkMeta} mode={mode} />} />
+              <Legend
+                verticalAlign="top"
+                align="right"
+                wrapperStyle={{ paddingBottom: '20px' }}
+                formatter={(v) => {
+                  if (v === "value") return <span className="text-xs text-slate-600">Portfolio Value</span>;
+                  if (v === "invested") return <span className="text-xs text-slate-600">Invested</span>;
+                  const bm = benchmarkMeta.find((b) => `bench_${b.key}` === v);
+                  if (bm) return <span className="text-xs" style={{ color: bm.color }}>{bm.label}</span>;
+                  return <span className="text-xs text-slate-600">{v}</span>;
+                }}
+              />
+              <Area yAxisId="value" type="monotone" dataKey="invested" stroke="#cbd5e1" fill="url(#colorInvested)" strokeWidth={1.5} dot={false} />
+              <Area yAxisId="value" type="monotone" dataKey="value" stroke="var(--brand)" fill="url(#colorValue)" strokeWidth={2.5} dot={false} />
+              {benchmarkMeta.map((b) => (
+                <Line
+                  key={b.key}
+                  yAxisId="pct"
+                  type="monotone"
+                  dataKey={`bench_${b.key}`}
+                  stroke={b.color}
+                  strokeWidth={1.5}
+                  dot={false}
+                  connectNulls
+                />
+              ))}
+            </>
+          )}
+        </ComposedChart>
+      </ResponsiveContainer>
+      </div>
+    </div>
   );
 }

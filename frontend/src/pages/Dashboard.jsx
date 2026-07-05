@@ -4,10 +4,13 @@ import { fetchSummary, fetchHoldings, fetchPerformance, fetchBenchmarks, fetchMo
 import { useCurrency } from "../App";
 import MetricCard from "../components/MetricCard";
 import PerformanceChart from "../components/PerformanceChart";
-import { RefreshCw, TrendingUp, TrendingDown, Calendar, LayoutGrid, Lock, UserCheck } from "lucide-react";
+import { RefreshCw, TrendingUp, TrendingDown, Calendar, LayoutGrid, Lock, UserCheck, PieChart, Activity } from "lucide-react";
+import { formatMoney, formatPercent } from "../lib/format";
+import { Card, SectionHeader, SkeletonRows, SkeletonChart, EmptyState, DeltaPill } from "../components/ui";
 import Heatmap from "../components/Heatmap";
 import { TickerLink } from "../components/StockDetail";
 import DashboardGrid from "../components/DashboardGrid";
+import PortfolioHero from "../components/PortfolioHero";
 
 const MOVER_PERIODS = [
   { key: "1d", label: "Today" },
@@ -75,23 +78,15 @@ export default function Dashboard() {
     staleTime: 30 * 60 * 1000,
   });
 
+  const heroSeries = (perf || [])
+    .map((p) => ({ value: p.value }))
+    .filter((p) => Number.isFinite(p.value));
+
   // Server now returns values in the requested currency, so no client-side
   // multiplication is needed. The convert() shim is kept for components that
   // are still currency-agnostic.
   const convert = (n) => n;
 
-  const fmt = (n) => {
-    if (n == null) return "—";
-    const sign = n < 0 ? "-" : "";
-    const str = Math.abs(n).toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    return currency === "CZK" ? `${sign}${str} Kč` : `${sign}$${str}`;
-  };
-
-  const fmtPct = (n) =>
-    n == null ? "—" : (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
 
   const pnlPos = summary?.total_pnl >= 0;
 
@@ -137,32 +132,12 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <PortfolioHero summary={summary} loading={sl} currency={currency} series={heroSeries} />
       <DashboardGrid editing={editingLayout} onEditToggle={() => setEditingLayout(!editingLayout)}>
         {{
-          metrics: (
-            <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
-              <MetricCard label="Portfolio Value" value={fmt(summary?.total_value)} loading={sl} />
-              <MetricCard label="Total Invested" value={fmt(summary?.total_invested)} loading={sl} />
-              <MetricCard
-                label="Total P&L"
-                value={fmt(summary?.total_pnl)}
-                sub={fmtPct(summary?.total_pnl_percent)}
-                positive={pnlPos}
-                negative={!pnlPos && summary?.total_pnl != null}
-                loading={sl}
-              />
-              <MetricCard label="Dividends Received" value={fmt(summary?.total_dividends)} loading={sl} />
-              <MetricCard label="Holdings" value={summary?.holdings_count ?? "—"} loading={sl} />
-            </div>
-          ),
-
           performance: (
-            <div className="card h-full">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
-                  Portfolio Performance
-                </h2>
-                <div className="flex items-center gap-3">
+            <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "100ms" }}>
+              <SectionHeader icon={TrendingUp} action={<div className="flex items-center gap-3">
                   <div className="flex gap-0.5 bg-slate-100 rounded-lg p-0.5">
                     {["value", "growth"].map((m) => (
                       <button
@@ -193,8 +168,9 @@ export default function Dashboard() {
                       </button>
                     ))}
                   </div>
-                </div>
-              </div>
+                </div>}>
+                Portfolio Performance
+              </SectionHeader>
               <div className="flex flex-wrap gap-1.5 mb-4">
                 {BENCHMARKS.map((b) => (
                   <button
@@ -212,9 +188,7 @@ export default function Dashboard() {
                 ))}
               </div>
               {pl ? (
-                <div className="h-64 flex items-center justify-center">
-                  <div className="text-slate-500 text-sm animate-pulse">Loading chart…</div>
-                </div>
+                <div className="flex-1"><SkeletonChart height={256} /></div>
               ) : (
                 <PerformanceChart
                   data={perf}
@@ -224,26 +198,29 @@ export default function Dashboard() {
                   benchmarkMeta={BENCHMARKS.filter((b) => activeBenchmarks.includes(b.key))}
                 />
               )}
-            </div>
+            </Card>
           ),
 
           heatmap: (
-            <div className="card h-full">
-              <Heatmap />
-            </div>
+            <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "150ms" }}>
+              <SectionHeader icon={LayoutGrid}>Heatmap</SectionHeader>
+              {hl ? (
+                <div className="flex-1"><SkeletonChart height={256} /></div>
+              ) : holdings.length === 0 ? (
+                <div className="flex-1 flex"><EmptyState icon={LayoutGrid} title="No holdings to map" hint="Import transactions to see your heatmap." /></div>
+              ) : (
+                <Heatmap />
+              )}
+            </Card>
           ),
 
           earnings: (
-            <div className="card h-full flex flex-col">
-              <h2 className="text-sm font-semibold text-slate-500 mb-4 uppercase tracking-wider flex items-center gap-2">
-                <Calendar size={14} /> Earnings Calendar
-              </h2>
+            <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "200ms" }}>
+              <SectionHeader icon={Calendar}>Earnings Calendar</SectionHeader>
               {el ? (
-                <div className="h-20 flex items-center justify-center">
-                  <div className="text-slate-500 text-sm animate-pulse">Loading earnings…</div>
-                </div>
+                <SkeletonRows rows={6} cols={3} />
               ) : earnings.length === 0 ? (
-                <p className="text-slate-400 text-xs">No upcoming earnings reports for current holdings.</p>
+                <EmptyState icon={Calendar} title="No upcoming earnings" hint="None of your current holdings report soon." />
               ) : (
                 <div className="space-y-2.5">
                   {earnings.slice(0, 10).map((e) => (
@@ -263,16 +240,16 @@ export default function Dashboard() {
                   ))}
                 </div>
               )}
-            </div>
+            </Card>
           ),
 
           holdings: (
-            <div className="card h-full flex flex-col">
-              <h2 className="text-sm font-semibold text-slate-500 mb-4 uppercase tracking-wider">
-                Top 10 Holdings
-              </h2>
-              {holdings.length === 0 ? (
-                <p className="text-slate-400 text-xs">No holdings yet.</p>
+            <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "250ms" }}>
+              <SectionHeader icon={PieChart}>Top 10 Holdings</SectionHeader>
+              {hl ? (
+                <SkeletonRows rows={8} cols={3} />
+              ) : holdings.length === 0 ? (
+                <EmptyState icon={PieChart} title="No holdings yet" hint="Import your transactions to see your top positions." action={<a href="/import" className="btn-primary text-xs">Import CSV</a>} />
               ) : (
                 <div className="space-y-2.5">
                   {holdings.slice(0, 10).map((h) => (
@@ -288,13 +265,13 @@ export default function Dashboard() {
                         {h.weight.toFixed(1)}%
                       </span>
                       <span className="text-sm tabular-nums w-28 text-right text-slate-500">
-                        {fmt(h.market_value)}
+                        {formatMoney(h.market_value, currency)}
                       </span>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
+            </Card>
           ),
 
           insiderBuys: (() => {
@@ -307,16 +284,12 @@ export default function Dashboard() {
             const thSortable = (key, align) => `${thBase} ${align} cursor-pointer select-none transition-colors ${insiderSort === key ? "text-brand" : "text-slate-400 hover:text-slate-600"}`;
             const sortArrow = (key) => insiderSort === key ? " ▼" : "";
             return (
-            <div className="card h-full flex flex-col">
-              <h2 className="text-sm font-semibold text-slate-500 mb-4 uppercase tracking-wider flex items-center gap-2">
-                <UserCheck size={14} /> Insider Buys (1Y)
-              </h2>
+            <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "300ms" }}>
+              <SectionHeader icon={UserCheck}>Insider Buys (1Y)</SectionHeader>
               {il ? (
-                <div className="h-20 flex items-center justify-center">
-                  <div className="text-slate-500 text-sm animate-pulse">Loading insider buys…</div>
-                </div>
+                <SkeletonRows rows={6} cols={6} />
               ) : sorted.length === 0 ? (
-                <p className="text-slate-400 text-xs">No insider buys in the last 12 months.</p>
+                <EmptyState icon={UserCheck} title="No insider buys" hint="No insider purchases across your holdings in the last 12 months." />
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -347,15 +320,15 @@ export default function Dashboard() {
                             {b.shares != null ? Math.abs(b.shares).toLocaleString() : "—"}
                           </td>
                           <td className="py-1.5 pr-3 text-right tabular-nums text-slate-700">
-                            {b.buy_price != null ? fmt(b.buy_price) : "—"}
+                            {b.buy_price != null ? formatMoney(b.buy_price, currency) : "—"}
                           </td>
                           <td className="py-1.5 pr-3 text-right tabular-nums text-slate-700 font-medium">
-                            {b.value != null ? fmt(Math.abs(b.value)) : "—"}
+                            {b.value != null ? formatMoney(Math.abs(b.value), currency) : "—"}
                           </td>
                           <td className={`py-1.5 pr-3 text-right tabular-nums font-medium ${b.pnl == null ? "text-slate-400" : pnlUp ? "text-emerald-600" : "text-red-600"}`}>
                             {b.pnl != null ? (
-                              <span title={`Current: ${fmt(b.current_price)}`}>
-                                {b.pnl >= 0 ? "+" : ""}{fmt(b.pnl)}
+                              <span title={`Current: ${formatMoney(b.current_price, currency)}`}>
+                                {b.pnl >= 0 ? "+" : ""}{formatMoney(b.pnl, currency)}
                                 {b.pnl_pct != null && <span className="text-[10px] ml-1">({b.pnl_pct >= 0 ? "+" : ""}{b.pnl_pct.toFixed(1)}%)</span>}
                               </span>
                             ) : "—"}
@@ -370,17 +343,13 @@ export default function Dashboard() {
                   </table>
                 </div>
               )}
-            </div>
+            </Card>
             );
           })(),
 
           movers: (
-            <div className="card h-full">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
-                  Top Movers
-                </h2>
-                <div className="flex items-center gap-3">
+            <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "350ms" }}>
+              <SectionHeader icon={Activity} action={<div className="flex items-center gap-3">
                   <div className="flex gap-0.5 bg-surface rounded-md p-0.5 border border-surface-border">
                     {[{ key: "pct", label: "%" }, { key: "value", label: "$" }].map((s) => (
                       <button
@@ -411,12 +380,11 @@ export default function Dashboard() {
                       </button>
                     ))}
                   </div>
-                </div>
-              </div>
+                </div>}>Top Movers</SectionHeader>
               {ml ? (
-                <div className="h-32 flex items-center justify-center">
-                  <div className="text-slate-500 text-sm animate-pulse">Loading movers...</div>
-                </div>
+                <SkeletonRows rows={6} cols={3} />
+              ) : (!movers?.gainers?.length && !movers?.losers?.length) ? (
+                <EmptyState icon={Activity} title="No movers yet" hint="Import transactions to track daily gainers and losers." />
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   <div>
@@ -432,11 +400,9 @@ export default function Dashboard() {
                             <TickerLink ticker={m.ticker} className="w-14 font-mono font-semibold text-left" />
                             <span className="flex-1 text-slate-500 truncate">{m.name}</span>
                             <span className={`tabular-nums font-medium w-24 text-right ${m.period_pnl >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                              {fmt(m.period_pnl)}
+                              {formatMoney(m.period_pnl, currency)}
                             </span>
-                            <span className="tabular-nums text-emerald-600 font-medium w-16 text-right">
-                              +{m.change_pct}%
-                            </span>
+                            <div className="w-16 flex justify-end"><DeltaPill pct={m.change_pct} value={null} size="sm" /></div>
                           </div>
                         ))
                       )}
@@ -455,11 +421,9 @@ export default function Dashboard() {
                             <TickerLink ticker={m.ticker} className="w-14 font-mono font-semibold text-left" />
                             <span className="flex-1 text-slate-500 truncate">{m.name}</span>
                             <span className={`tabular-nums font-medium w-24 text-right ${m.period_pnl >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                              {fmt(m.period_pnl)}
+                              {formatMoney(m.period_pnl, currency)}
                             </span>
-                            <span className="tabular-nums text-red-600 font-medium w-16 text-right">
-                              {m.change_pct}%
-                            </span>
+                            <div className="w-16 flex justify-end"><DeltaPill pct={m.change_pct} value={null} size="sm" /></div>
                           </div>
                         ))
                       )}
@@ -467,7 +431,7 @@ export default function Dashboard() {
                   </div>
                 </div>
               )}
-            </div>
+            </Card>
           ),
         }}
       </DashboardGrid>
