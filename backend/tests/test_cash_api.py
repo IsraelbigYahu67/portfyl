@@ -2,7 +2,14 @@ import os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from datetime import date
+from unittest.mock import patch
+
+import pytest
+from fastapi import HTTPException
+
+from models import Portfolio
 from routers.portfolio import _build_holdings
+from routers.cash import create_cash, list_cash, update_cash, delete_cash, CashCreate
 from tests.helpers import make_txn
 
 
@@ -36,3 +43,87 @@ def test_cash_rows_do_not_leak_into_closed_holdings():
     assert None not in with_cash
     assert with_cash.keys() == only_trades.keys()
     assert with_cash == only_trades
+
+
+# ---------------------------------------------------------------------------
+# /api/cash CRUD router (Task 6)
+# ---------------------------------------------------------------------------
+# fetch_fx_to_czk hits yfinance for a live rate; mirror the pattern already
+# used in tests/test_portfolio.py::TestCreateTransaction (patch the name as
+# imported into the router module) so these tests stay hermetic/offline.
+
+
+def test_create_and_list_cash(db_session, pid):
+    with patch("routers.cash.fetch_fx_to_czk", return_value=22.5):
+        create_cash(CashCreate(type="deposit", amount=1000, currency="usd", date=date(2024, 1, 1)), db_session, pid)
+        create_cash(CashCreate(type="fee", amount=5, currency="USD", date=date(2024, 1, 2)), db_session, pid)
+
+    rows = list_cash(db_session, pid)
+    assert {r.type for r in rows} == {"deposit", "fee"}
+    assert len(rows) == 2
+    # newest first
+    assert rows[0].type == "fee"
+    # currency is upper-cased regardless of input casing
+    assert all(r.currency == "USD" for r in rows)
+    assert all(r.fx_to_czk == 22.5 for r in rows)
+
+
+def test_update_cash(db_session, pid):
+    with patch("routers.cash.fetch_fx_to_czk", return_value=22.5):
+        created = create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+
+    with patch("routers.cash.fetch_fx_to_czk", return_value=24.0):
+        updated = update_cash(
+            created.id,
+            CashCreate(type="withdrawal", amount=250, currency="EUR", date=date(2024, 2, 1), note="oops"),
+            db_session, pid,
+        )
+
+    assert updated.id == created.id
+    assert updated.type == "withdrawal"
+    assert updated.amount == 250
+    assert updated.currency == "EUR"
+    assert updated.date == date(2024, 2, 1)
+    assert updated.note == "oops"
+    assert updated.fx_to_czk == 24.0
+
+
+def test_delete_cash(db_session, pid):
+    with patch("routers.cash.fetch_fx_to_czk", return_value=22.5):
+        created = create_cash(CashCreate(type="fee", amount=5, currency="USD", date=date(2024, 1, 2)), db_session, pid)
+
+    result = delete_cash(created.id, db_session, pid)
+    assert result == {"ok": True}
+    assert list_cash(db_session, pid) == []
+
+
+def test_update_missing_cash_raises_404(db_session, pid):
+    with pytest.raises(HTTPException) as exc_info:
+        update_cash(999, CashCreate(type="fee", amount=5, currency="USD", date=date(2024, 1, 2)), db_session, pid)
+    assert exc_info.value.status_code == 404
+
+
+def test_delete_missing_cash_raises_404(db_session, pid):
+    with pytest.raises(HTTPException) as exc_info:
+        delete_cash(999, db_session, pid)
+    assert exc_info.value.status_code == 404
+
+
+def test_cash_is_scoped_to_portfolio(db_session, pid):
+    other = Portfolio(name="Other", is_default=False)
+    db_session.add(other)
+    db_session.commit()
+    db_session.refresh(other)
+
+    with patch("routers.cash.fetch_fx_to_czk", return_value=22.5):
+        create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+        create_cash(CashCreate(type="deposit", amount=500, currency="USD", date=date(2024, 1, 1)), db_session, other.id)
+
+    assert len(list_cash(db_session, pid)) == 1
+    assert len(list_cash(db_session, other.id)) == 1
+
+    # Can't update/delete a row that belongs to a different portfolio.
+    other_row = list_cash(db_session, other.id)[0]
+    with pytest.raises(HTTPException) as exc_info:
+        update_cash(other_row.id, CashCreate(type="fee", amount=1, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+    assert exc_info.value.status_code == 404
