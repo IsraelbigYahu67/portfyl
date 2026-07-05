@@ -9,6 +9,7 @@ from datetime import datetime
 
 from database import get_db
 from models import Transaction
+from cash_ledger import TRADE_TYPES
 from schemas import TransactionCreate, TransactionResponse
 from fx import fetch_fx_to_czk, bulk_fetch_fx
 from routers.portfolios import require_portfolio
@@ -121,6 +122,8 @@ def _build_holdings(transactions: list, include_closed: bool = False, in_czk: bo
     fx_fallback: dict[str, float] = {}
     holdings: dict[str, dict] = {}
     for txn in sorted(transactions, key=lambda t: (t.date, _TXN_TYPE_ORDER.get(t.type, 1))):
+        if txn.type not in TRADE_TYPES or not txn.ticker:
+            continue  # cash rows (deposit/withdrawal/fee/interest) never affect holdings
         t = txn.ticker
         if in_czk:
             fx = txn.fx_to_czk or _live_fx_to_czk(txn.currency, fx_fallback)

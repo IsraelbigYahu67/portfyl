@@ -8,6 +8,7 @@ import numpy as np
 
 from database import get_db
 from models import Transaction, Benchmark, BenchmarkComponent
+from cash_ledger import TRADE_TYPES
 from routers.portfolios import require_portfolio
 from ticker_map import yf_symbol
 from routers.portfolio import _xirr, _live_to_usd
@@ -112,12 +113,15 @@ def _price_to_usd(price: float, ccy: str, fx_series: dict[str, pd.Series], idx) 
 
 
 def _get_transactions(db: Session, pid: int):
-    return (
+    rows = (
         db.query(Transaction)
         .filter(Transaction.portfolio_id == pid)
         .order_by(Transaction.date)
         .all()
     )
+    # Single choke point for all analytics consumers: cash rows
+    # (deposit/withdrawal/fee/interest, ticker=None) never reach returns/tax math.
+    return [t for t in rows if t.type in TRADE_TYPES and t.ticker]
 
 
 # Czech Income Tax Act §4: capital gain on a security is exempt if the holding
