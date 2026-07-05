@@ -7,7 +7,8 @@ from unittest.mock import patch
 import pytest
 from fastapi import HTTPException
 
-from models import Portfolio
+from models import Portfolio, Transaction
+from schemas import TransactionResponse
 from routers.portfolio import _build_holdings
 from routers.cash import create_cash, list_cash, update_cash, delete_cash, CashCreate
 from tests.helpers import make_txn
@@ -127,3 +128,27 @@ def test_cash_is_scoped_to_portfolio(db_session, pid):
     with pytest.raises(HTTPException) as exc_info:
         update_cash(other_row.id, CashCreate(type="fee", amount=1, currency="USD", date=date(2024, 1, 1)), db_session, pid)
     assert exc_info.value.status_code == 404
+
+
+def test_cash_row_serializes_via_transaction_response(db_session, pid):
+    # A persisted cash row has ticker=None; TransactionResponse must tolerate it,
+    # else GET /api/portfolio/transactions 500s for the whole portfolio (that
+    # endpoint returns ALL rows for the portfolio and serializes via this schema).
+    # Note: tests call routers directly, bypassing FastAPI's response_model
+    # validation — so we reproduce the 500 by validating through the schema here.
+    with patch("routers.cash.fetch_fx_to_czk", return_value=23.0):
+        row = create_cash(CashCreate(type="deposit", amount=1000, currency="USD",
+                                     date=date(2024, 1, 1)), db_session, pid)
+    persisted = db_session.query(Transaction).filter(Transaction.id == row.id).first()
+    # Would raise pydantic.ValidationError before the Optional fix; must succeed after.
+    TransactionResponse.model_validate(persisted)
+
+
+def test_cash_endpoints_refuse_trade_rows(db_session, pid):
+    # PUT/DELETE cash guard on type.in_(CASH_TYPES): a trade row must be refused.
+    trade = make_txn(type="buy", shares=10, price=100, currency="USD", portfolio_id=pid)
+    db_session.add(trade); db_session.commit(); db_session.refresh(trade)
+    with pytest.raises(HTTPException):
+        update_cash(trade.id, CashCreate(type="deposit", amount=1, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+    with pytest.raises(HTTPException):
+        delete_cash(trade.id, db_session, pid)
