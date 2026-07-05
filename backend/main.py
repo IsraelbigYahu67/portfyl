@@ -31,6 +31,39 @@ def _ensure_fx_column() -> None:
             conn.execute(text("ALTER TABLE transactions ADD COLUMN fx_to_czk FLOAT"))
 
 
+def _ensure_cash_columns():
+    """Add Transaction.amount and relax ticker NOT NULL for cash rows (SQLite rebuild).
+
+    Must run before _backfill_fx(): that helper does an ORM `db.query(Transaction)`,
+    which selects every mapped column (now including `amount`) — same reasoning as
+    why _ensure_fx_column() also runs ahead of it.
+    """
+    with engine.begin() as conn:
+        cols = {r[1] for r in conn.execute(text("PRAGMA table_info(transactions)"))}
+        if "amount" not in cols:
+            conn.execute(text("ALTER TABLE transactions ADD COLUMN amount FLOAT"))
+        # Relax ticker NOT NULL if the existing table still enforces it.
+        info = list(conn.execute(text("PRAGMA table_info(transactions)")))
+        ticker_notnull = any(r[1] == "ticker" and r[3] == 1 for r in info)  # r[3] = notnull
+        if ticker_notnull:
+            conn.execute(text("ALTER TABLE transactions RENAME TO transactions_old"))
+            # SQLite index names are global; RENAME leaves ix_* bound to the old
+            # table, so free those names before the ORM recreates identically-named
+            # indexes on the new table (otherwise: "index ... already exists").
+            # Materialize the PRAGMA rows first: iterating that cursor lazily while
+            # issuing DROP INDEX on the same connection triggers "database table is
+            # locked" (an open read cursor blocks the write).
+            idx_names = [row[1] for row in conn.execute(text("PRAGMA index_list(transactions_old)"))]
+            for idx_name in idx_names:
+                if not idx_name.startswith("sqlite_autoindex"):
+                    conn.execute(text(f'DROP INDEX IF EXISTS "{idx_name}"'))
+            Base.metadata.tables["transactions"].create(bind=conn)
+            old_cols = [r[1] for r in conn.execute(text("PRAGMA table_info(transactions_old)"))]
+            collist = ", ".join(old_cols)
+            conn.execute(text(f"INSERT INTO transactions ({collist}) SELECT {collist} FROM transactions_old"))
+            conn.execute(text("DROP TABLE transactions_old"))
+
+
 def _ensure_default_portfolio() -> int:
     """Return the id of the default portfolio, creating it if missing."""
     db = SessionLocal()
@@ -253,6 +286,7 @@ def _ensure_owner_id_columns() -> None:
 # _ensure_default_portfolio), so it runs ahead of the other startup migrations.
 _ensure_owner_id_columns()
 _ensure_fx_column()
+_ensure_cash_columns()
 _default_pid = _ensure_default_portfolio()
 _ensure_portfolio_columns(_default_pid)
 _backfill_fx()

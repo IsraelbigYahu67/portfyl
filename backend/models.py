@@ -22,11 +22,12 @@ class Transaction(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     portfolio_id = Column(Integer, ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False, index=True)
-    ticker = Column(String, index=True, nullable=False)
+    ticker = Column(String, index=True, nullable=True)   # was nullable=False; NULL for cash rows
     name = Column(String, nullable=True)
     type = Column(String, nullable=False)  # buy | sell | dividend
     shares = Column(Float, nullable=False)
     price = Column(Float, nullable=False)
+    amount = Column(Float, nullable=True)   # cash amount (native ccy) for deposit/withdrawal/fee/interest; NULL for trades
     currency = Column(String, default="USD")
     date = Column(Date, nullable=False)
     notes = Column(String, nullable=True)
