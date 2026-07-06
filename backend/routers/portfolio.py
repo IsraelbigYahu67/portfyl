@@ -479,6 +479,21 @@ def get_summary(
             day_change = round(change, 2)
             day_change_pct = round(change / prev_value * 100, 2) if prev_value > 0 else None
 
+    # Cash + accrued interest, blended into net worth on the SAME basis as
+    # total_value: cash_amount_to_display only converts native->CZK when the
+    # display currency is CZK, otherwise it's a native sum (mirrors the
+    # live_fx=1.0 branch above), so total_value + cash + accrued is always
+    # consistent.
+    from cash_ledger import cash_balance_by_currency, accrued_interest
+    from models import CashInterestRate
+    from fx import cash_amount_to_display
+    _rates = {r.currency: {"annual_rate": r.annual_rate, "enabled": r.enabled, "start_date": r.start_date}
+              for r in db.query(CashInterestRate).filter(CashInterestRate.portfolio_id == pid).all()}
+    _balances = cash_balance_by_currency(transactions)
+    _accrued = accrued_interest(transactions, _rates)
+    cash_total = sum(cash_amount_to_display(v, ccy, currency) for ccy, v in _balances.items())
+    accrued_total = sum(cash_amount_to_display(v, ccy, currency) for ccy, v in _accrued.items())
+
     return {
         "total_value": round(total_value, 2),
         "total_invested": round(total_invested, 2),
@@ -489,6 +504,9 @@ def get_summary(
         "total_dividends": round(total_dividends, 2),
         "holdings_count": len(holdings),
         "last_updated": datetime.now().isoformat(),
+        "cash": round(cash_total, 2),
+        "accrued_interest": round(accrued_total, 2),
+        "net_worth": round(total_value + cash_total + accrued_total, 2),
     }
 
 

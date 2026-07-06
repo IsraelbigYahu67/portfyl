@@ -14,6 +14,7 @@ from routers.cash import (
     create_cash, list_cash, update_cash, delete_cash, CashCreate,
     get_rates, put_rates, get_balance, RatesPayload, RateItem,
 )
+from routers.portfolio import get_summary
 from tests.helpers import make_txn
 
 
@@ -222,3 +223,21 @@ def test_put_rates_upsert_is_idempotent(db_session, pid):
     assert len(rows) == 1
     assert rows[0].annual_rate == 0.05
     assert rows[0].enabled is True
+
+
+# ---------------------------------------------------------------------------
+# Net worth in /portfolio/summary (Task 8)
+# ---------------------------------------------------------------------------
+# get_summary(currency, db, pid) with no trade-type transactions: get_holdings
+# returns [] and the day-change block short-circuits on `if active_day else {}`
+# (active_day is {} since _build_holdings skips cash rows), so this never hits
+# yfinance/network — hermetic by construction. Only create_cash's
+# fetch_fx_to_czk needs mocking (same pattern as the other CRUD tests above).
+
+
+def test_summary_net_worth_adds_cash(db_session, pid):
+    with patch("routers.cash.fetch_fx_to_czk", return_value=23.0):
+        create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+    s = get_summary(currency="USD", db=db_session, pid=pid)
+    assert s["cash"] == 1000.0
+    assert s["net_worth"] == round(s["total_value"] + s["cash"] + s["accrued_interest"], 2)
