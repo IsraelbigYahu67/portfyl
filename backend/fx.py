@@ -104,6 +104,14 @@ def cash_amount_to_display(amount_native: float, native_ccy: str, display_ccy: s
     return convert_amount(amount_native, native_ccy, "CZK") if display_ccy.upper() == "CZK" else amount_native
 
 
+def cash_total_from_transactions(transactions, display_ccy: str) -> float:
+    """Blended cash BALANCE total in display currency, mirroring get_summary's basis.
+    Sums cash_balance_by_currency (native, per currency) via cash_amount_to_display."""
+    from cash_ledger import cash_balance_by_currency
+    balances = cash_balance_by_currency(transactions)
+    return sum(cash_amount_to_display(v, ccy, display_ccy) for ccy, v in balances.items())
+
+
 def bulk_fetch_fx(pairs: Iterable[tuple[str, date]]) -> dict[tuple[str, date], float]:
     """Batch-resolve (currency, date) → rate. Groups by currency and downloads
     one history window per currency to minimize yfinance calls."""

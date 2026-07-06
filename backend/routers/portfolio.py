@@ -484,14 +484,13 @@ def get_summary(
     # display currency is CZK, otherwise it's a native sum (mirrors the
     # live_fx=1.0 branch above), so total_value + cash + accrued is always
     # consistent.
-    from cash_ledger import cash_balance_by_currency, accrued_interest
+    from cash_ledger import accrued_interest
     from models import CashInterestRate
-    from fx import cash_amount_to_display
+    from fx import cash_amount_to_display, cash_total_from_transactions
     _rates = {r.currency: {"annual_rate": r.annual_rate, "enabled": r.enabled, "start_date": r.start_date}
               for r in db.query(CashInterestRate).filter(CashInterestRate.portfolio_id == pid).all()}
-    _balances = cash_balance_by_currency(transactions)
     _accrued = accrued_interest(transactions, _rates)
-    cash_total = sum(cash_amount_to_display(v, ccy, currency) for ccy, v in _balances.items())
+    cash_total = cash_total_from_transactions(transactions, currency)
     accrued_total = sum(cash_amount_to_display(v, ccy, currency) for ccy, v in _accrued.items())
 
     return {

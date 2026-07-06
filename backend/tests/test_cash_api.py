@@ -15,6 +15,7 @@ from routers.cash import (
     get_rates, put_rates, get_balance, RatesPayload, RateItem,
 )
 from routers.portfolio import get_summary
+from routers.analytics import sector_breakdown
 from tests.helpers import make_txn
 
 
@@ -241,3 +242,59 @@ def test_summary_net_worth_adds_cash(db_session, pid):
     s = get_summary(currency="USD", db=db_session, pid=pid)
     assert s["cash"] == 1000.0
     assert s["net_worth"] == round(s["total_value"] + s["cash"] + s["accrued_interest"], 2)
+
+
+# ---------------------------------------------------------------------------
+# Cash bucket in the allocation / sector breakdown (Task 9)
+# ---------------------------------------------------------------------------
+# sector_breakdown(currency, db, pid) with only cash rows (no trades):
+# _get_transactions is trade-guarded (TRADE_TYPES + ticker) so `transactions`
+# is empty and the function takes its cash-only early-return branch — never
+# touches market_data/yfinance, so this stays hermetic.
+
+
+def test_allocation_includes_cash_bucket(db_session, pid):
+    with patch("routers.cash.fetch_fx_to_czk", return_value=23.0):
+        create_cash(CashCreate(type="deposit", amount=2000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+
+    result = sector_breakdown(currency="USD", db=db_session, pid=pid)
+
+    for key in ("sectors", "countries", "asset_types"):
+        bucket_list = result[key]
+        cash_rows = [b for b in bucket_list if b["name"] == "Cash"]
+        assert len(cash_rows) == 1, f"expected exactly one Cash bucket in {key}"
+        assert cash_rows[0]["value"] == 2000.0
+        # Cash-only portfolio: Cash is the entire allocation for every dimension.
+        assert cash_rows[0]["weight"] == 100.0
+        assert round(sum(b["weight"] for b in bucket_list), 2) == 100.0
+
+
+def test_allocation_cash_pct_included_in_denominator_with_holdings(db_session, pid):
+    # With holdings present too, Cash must be folded into the SAME percentage
+    # denominator as the sector/country/asset-type buckets (not a separate 100%).
+    # Note: the cash ledger is shared with trades (signed_cash treats "buy" as
+    # a cash outflow), so deposit 2000 then buy 1000 of stock -> cash balance
+    # nets to 1000, matching a real brokerage cash-sweep account.
+    with patch("routers.cash.fetch_fx_to_czk", return_value=23.0):
+        create_cash(CashCreate(type="deposit", amount=2000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+
+    trade = make_txn(type="buy", shares=10, price=100, currency="USD",
+                      date=date(2024, 1, 2), portfolio_id=pid)
+    db_session.add(trade)
+    db_session.commit()
+
+    with patch("market_data.get_infos", return_value={
+        "AAPL": {"currentPrice": 100.0, "currency": "USD", "sector": "Technology", "quoteType": "EQUITY"},
+    }):
+        result = sector_breakdown(currency="USD", db=db_session, pid=pid)
+
+    for key in ("sectors", "countries", "asset_types"):
+        bucket_list = result[key]
+        cash_rows = [b for b in bucket_list if b["name"] == "Cash"]
+        assert len(cash_rows) == 1, f"expected exactly one Cash bucket in {key}"
+        assert cash_rows[0]["value"] == 1000.0
+        # holdings market value = 10 * 100 = 1000; cash = 1000 -> weight = 1000/2000*100
+        assert cash_rows[0]["weight"] == pytest.approx(50.0, abs=0.01)
+        assert round(sum(b["weight"] for b in bucket_list), 2) == 100.0
+    # total_value stays holdings-only (matches get_summary's contract: net_worth = total_value + cash).
+    assert result["total_value"] == 1000.0

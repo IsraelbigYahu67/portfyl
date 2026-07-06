@@ -897,13 +897,28 @@ def sector_breakdown(
     db: Session = Depends(get_db),
     pid: int = Depends(require_portfolio),
 ):
+    from fx import cash_total_from_transactions
+
     transactions = _get_transactions(db, pid)
+    in_czk = currency.upper() == "CZK"
+    display_ccy = "CZK" if in_czk else "USD"
+
+    # Cash bucket (Task 9): blended cash BALANCE in display currency, sourced
+    # from the FULL transaction list (all types). _get_transactions above is
+    # trade-guarded (TRADE_TYPES + ticker) and excludes cash rows entirely, so
+    # it cannot be reused for this — trades+cash both matter for the balance.
+    txns = db.query(Transaction).filter(Transaction.portfolio_id == pid).all()
+    cash_total = cash_total_from_transactions(txns, display_ccy)
+    has_cash = abs(cash_total) > 0.005
+
     if not transactions:
-        return {"sectors": [], "countries": [], "asset_types": [], "total_value": 0.0}
+        # Cash-only portfolio (no trades yet): still surface the Cash slice —
+        # it's 100% of the (non-holdings) allocation.
+        cash_only = [{"name": "Cash", "value": round(cash_total, 2), "weight": 100.0}] if has_cash else []
+        return {"sectors": cash_only, "countries": cash_only, "asset_types": cash_only, "total_value": 0.0}
 
     from routers.portfolio import _build_holdings, _live_fx_to_czk, _live_to_usd
 
-    in_czk = currency.upper() == "CZK"
     active = _build_holdings(transactions, in_czk=in_czk)
 
     sector_totals: dict[str, float] = defaultdict(float)
@@ -939,18 +954,30 @@ def sector_breakdown(
         except Exception:
             continue
 
+    if has_cash:
+        # Append Cash to each breakdown dimension — it has no sector/country/
+        # asset-type of its own, so it's surfaced identically across all three.
+        sector_totals["Cash"] = cash_total
+        country_totals["Cash"] = cash_total
+        type_totals["Cash"] = cash_total
+
     def to_breakdown(totals: dict) -> list:
+        # Denominator is this dict's own sum (not the outer holdings-only
+        # total_value) so that once Cash is folded in above, its weight is
+        # included in the percentage base — the returned top-level
+        # "total_value" stays holdings-only, matching get_summary's contract.
+        denom = sum(totals.values())
         items = []
         for name, value in sorted(totals.items(), key=lambda x: -x[1]):
             items.append({
                 "name": name,
                 "value": round(value, 2),
-                "weight": round(value / total_value * 100, 2) if total_value > 0 else 0,
+                "weight": round(value / denom * 100, 2) if denom > 0 else 0,
             })
         return items
 
     return {
-        "currency": "CZK" if in_czk else "USD",
+        "currency": display_ccy,
         "sectors": to_breakdown(sector_totals),
         "countries": to_breakdown(country_totals),
         "asset_types": to_breakdown(type_totals),
