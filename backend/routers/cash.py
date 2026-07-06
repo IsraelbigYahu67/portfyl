@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Transaction, CashInterestRate
 from routers.portfolios import require_portfolio
-from fx import fetch_fx_to_czk, convert_amount
+from fx import fetch_fx_to_czk, cash_amount_to_display
 from cash_ledger import CASH_TYPES, cash_balance_by_currency, accrued_interest
 
 router = APIRouter(prefix="/cash", tags=["cash"])
@@ -65,7 +65,7 @@ def create_cash(body: CashCreate, db: Session = Depends(get_db), pid: int = Depe
     return _to_row(row)
 
 
-@router.put("/{cash_id}", response_model=CashRow)
+@router.put("/{cash_id:int}", response_model=CashRow)
 def update_cash(cash_id: int, body: CashCreate, db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
     row = (db.query(Transaction)
              .filter(Transaction.id == cash_id, Transaction.portfolio_id == pid,
@@ -80,7 +80,7 @@ def update_cash(cash_id: int, body: CashCreate, db: Session = Depends(get_db), p
     return _to_row(row)
 
 
-@router.delete("/{cash_id}")
+@router.delete("/{cash_id:int}")
 def delete_cash(cash_id: int, db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
     row = (db.query(Transaction)
              .filter(Transaction.id == cash_id, Transaction.portfolio_id == pid,
@@ -142,7 +142,10 @@ def get_balance(currency: str = "USD", db: Session = Depends(get_db), pid: int =
     for ccy in set(balances) | set(accrued):
         bal, acc = balances.get(ccy, 0.0), accrued.get(ccy, 0.0)
         by_currency[ccy] = {"balance": round(bal, 2), "accrued": round(acc, 2)}
-        total += convert_amount(bal, ccy, disp)
-        total_accrued += convert_amount(acc, ccy, disp)
+        # Mirror get_summary's basis for blended totals: convert native->CZK only
+        # when display is CZK; otherwise leave native (get_summary sums non-CZK
+        # display values natively via live_fx=1.0). by_currency stays native.
+        total += cash_amount_to_display(bal, ccy, disp)
+        total_accrued += cash_amount_to_display(acc, ccy, disp)
     return {"by_currency": by_currency, "total": round(total, 2),
             "total_accrued": round(total_accrued, 2), "currency": disp}

@@ -180,3 +180,45 @@ def test_balance_endpoint_sums_flows(db_session, pid):
     assert res["by_currency"]["USD"]["balance"] == 950.0
     assert res["currency"] == "USD"
     assert res["total"] == 950.0
+
+
+def test_put_interest_rates_route_not_shadowed_by_cash_id():
+    # PUT /{cash_id:int} must NOT shadow the literal PUT /interest-rates. Direct
+    # function calls (the rest of this file) bypass routing, so assert at the
+    # router level that /cash/interest-rates dispatches to put_rates.
+    from starlette.routing import Match
+    from routers.cash import router
+    scope = {"type": "http", "method": "PUT", "path": "/cash/interest-rates"}
+    full = [r for r in router.routes if r.matches(scope)[0] == Match.FULL]
+    assert full, "no route matched PUT /cash/interest-rates"
+    assert full[0].endpoint.__name__ == "put_rates", f"shadowed by {full[0].endpoint.__name__}"
+
+
+def test_balance_total_mirrors_get_summary_basis(db_session, pid):
+    # total must mirror get_summary's basis: native-summed for non-CZK display
+    # (get_summary uses live_fx=1.0), converted native->CZK only when display=CZK.
+    with patch("routers.cash.fetch_fx_to_czk", return_value=23.0):
+        create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+    # display=USD: total is native (no conversion), mirroring get_summary's live_fx=1.0
+    assert get_balance("USD", db_session, pid)["total"] == 1000.0
+    # display=CZK: cash_amount_to_display -> convert_amount pivots USD->CZK->CZK.
+    # convert_amount divides by the target's CZK rate, so keep CZK->CZK == 1.0
+    # (real fetch_fx_to_czk behavior) and stub only the USD leg to 23.0.
+    def _fx(ccy, on_date=None):
+        return 1.0 if (ccy or "").upper() == "CZK" else 23.0
+    with patch("fx.fetch_fx_to_czk", side_effect=_fx):
+        res_czk = get_balance("CZK", db_session, pid)
+    assert res_czk["total"] == 23000.0
+
+
+def test_put_rates_upsert_is_idempotent(db_session, pid):
+    # Upserting the same (pid, currency) twice must NOT duplicate rows; the second
+    # call's values win.
+    put_rates(RatesPayload(rates=[RateItem(currency="USD", annual_rate=0.04, enabled=False)]), db_session, pid)
+    put_rates(RatesPayload(rates=[RateItem(currency="USD", annual_rate=0.05, enabled=True)]), db_session, pid)
+    from models import CashInterestRate
+    rows = db_session.query(CashInterestRate).filter(CashInterestRate.portfolio_id == pid,
+                                                     CashInterestRate.currency == "USD").all()
+    assert len(rows) == 1
+    assert rows[0].annual_rate == 0.05
+    assert rows[0].enabled is True

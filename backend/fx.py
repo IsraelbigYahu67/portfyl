@@ -96,6 +96,14 @@ def convert_amount(amount_native: float, from_ccy: str, to_ccy: str,
     return amount_native * r_from / r_to
 
 
+def cash_amount_to_display(amount_native: float, native_ccy: str, display_ccy: str) -> float:
+    """Mirror get_summary's currency handling for blended cash totals: convert
+    native->CZK only when the display currency is CZK; otherwise leave native
+    (get_summary leaves non-CZK display values native via live_fx=1.0). Keeps
+    net_worth = total_value + cash on one consistent basis. Task 8 reuses this."""
+    return convert_amount(amount_native, native_ccy, "CZK") if display_ccy.upper() == "CZK" else amount_native
+
+
 def bulk_fetch_fx(pairs: Iterable[tuple[str, date]]) -> dict[tuple[str, date], float]:
     """Batch-resolve (currency, date) → rate. Groups by currency and downloads
     one history window per currency to minimize yfinance calls."""
