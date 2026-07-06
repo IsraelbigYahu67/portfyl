@@ -74,6 +74,28 @@ def fetch_fx_to_czk(currency: str, txn_date: date) -> float | None:
         return None
 
 
+def convert_amount(amount_native: float, from_ccy: str, to_ccy: str,
+                   on_date: date | None = None) -> float:
+    """Convert `amount_native` from `from_ccy` to `to_ccy` (display currency).
+
+    Mirrors how `get_summary` maps native figures to the display currency —
+    money is pivoted through CZK using the same `{ccy}CZK=X` rate source
+    (`fetch_fx_to_czk`): native -> CZK, then CZK -> display. Same-currency
+    conversions are a no-op, and a missing/zero rate degrades gracefully to the
+    input amount (matching `get_summary`, which never crashes on absent FX).
+    """
+    src = (from_ccy or "USD").upper()
+    dst = (to_ccy or "USD").upper()
+    if src == dst:
+        return amount_native
+    on_date = on_date or date.today()
+    r_from = fetch_fx_to_czk(src, on_date)   # native -> CZK
+    r_to = fetch_fx_to_czk(dst, on_date)     # display -> CZK
+    if not r_from or not r_to:
+        return amount_native  # no rate available: leave amount unconverted
+    return amount_native * r_from / r_to
+
+
 def bulk_fetch_fx(pairs: Iterable[tuple[str, date]]) -> dict[tuple[str, date], float]:
     """Batch-resolve (currency, date) → rate. Groups by currency and downloads
     one history window per currency to minimize yfinance calls."""

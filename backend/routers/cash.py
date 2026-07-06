@@ -6,10 +6,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Transaction
+from models import Transaction, CashInterestRate
 from routers.portfolios import require_portfolio
-from fx import fetch_fx_to_czk
-from cash_ledger import CASH_TYPES
+from fx import fetch_fx_to_czk, convert_amount
+from cash_ledger import CASH_TYPES, cash_balance_by_currency, accrued_interest
 
 router = APIRouter(prefix="/cash", tags=["cash"])
 
@@ -90,3 +90,59 @@ def delete_cash(cash_id: int, db: Session = Depends(get_db), pid: int = Depends(
         raise HTTPException(404, "Cash entry not found")
     db.delete(row); db.commit()
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Interest-rate settings + per-currency balance (Task 7)
+# ---------------------------------------------------------------------------
+
+
+class RateItem(BaseModel):
+    currency: str = Field(min_length=3, max_length=3)
+    annual_rate: float = Field(ge=0)
+    enabled: bool = False
+    start_date: Optional[date_type] = None
+
+
+class RatesPayload(BaseModel):
+    rates: List[RateItem]
+
+
+@router.get("/interest-rates", response_model=List[RateItem])
+def get_rates(db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
+    rows = db.query(CashInterestRate).filter(CashInterestRate.portfolio_id == pid).all()
+    return [RateItem(currency=r.currency, annual_rate=r.annual_rate, enabled=r.enabled,
+                     start_date=r.start_date) for r in rows]
+
+
+@router.put("/interest-rates", response_model=List[RateItem])
+def put_rates(body: RatesPayload, db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
+    for item in body.rates:
+        ccy = item.currency.upper()
+        row = (db.query(CashInterestRate)
+                 .filter(CashInterestRate.portfolio_id == pid, CashInterestRate.currency == ccy)
+                 .first())
+        if not row:
+            row = CashInterestRate(portfolio_id=pid, currency=ccy)
+            db.add(row)
+        row.annual_rate, row.enabled, row.start_date = item.annual_rate, item.enabled, item.start_date
+    db.commit()
+    return get_rates(db, pid)
+
+
+@router.get("/balance")
+def get_balance(currency: str = "USD", db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
+    txns = db.query(Transaction).filter(Transaction.portfolio_id == pid).all()
+    rates = {r.currency: {"annual_rate": r.annual_rate, "enabled": r.enabled, "start_date": r.start_date}
+             for r in db.query(CashInterestRate).filter(CashInterestRate.portfolio_id == pid).all()}
+    balances = cash_balance_by_currency(txns)
+    accrued = accrued_interest(txns, rates)
+    disp = currency.upper()
+    by_currency, total, total_accrued = {}, 0.0, 0.0
+    for ccy in set(balances) | set(accrued):
+        bal, acc = balances.get(ccy, 0.0), accrued.get(ccy, 0.0)
+        by_currency[ccy] = {"balance": round(bal, 2), "accrued": round(acc, 2)}
+        total += convert_amount(bal, ccy, disp)
+        total_accrued += convert_amount(acc, ccy, disp)
+    return {"by_currency": by_currency, "total": round(total, 2),
+            "total_accrued": round(total_accrued, 2), "currency": disp}

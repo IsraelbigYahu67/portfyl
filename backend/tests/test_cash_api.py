@@ -10,7 +10,10 @@ from fastapi import HTTPException
 from models import Portfolio, Transaction
 from schemas import TransactionResponse
 from routers.portfolio import _build_holdings
-from routers.cash import create_cash, list_cash, update_cash, delete_cash, CashCreate
+from routers.cash import (
+    create_cash, list_cash, update_cash, delete_cash, CashCreate,
+    get_rates, put_rates, get_balance, RatesPayload, RateItem,
+)
 from tests.helpers import make_txn
 
 
@@ -152,3 +155,28 @@ def test_cash_endpoints_refuse_trade_rows(db_session, pid):
         update_cash(trade.id, CashCreate(type="deposit", amount=1, currency="USD", date=date(2024, 1, 1)), db_session, pid)
     with pytest.raises(HTTPException):
         delete_cash(trade.id, db_session, pid)
+
+
+# ---------------------------------------------------------------------------
+# Interest-rate settings + per-currency balance (Task 7)
+# ---------------------------------------------------------------------------
+
+
+def test_put_and_get_interest_rates(db_session, pid):
+    put_rates(RatesPayload(rates=[RateItem(currency="USD", annual_rate=0.045, enabled=True)]), db_session, pid)
+    rows = get_rates(db_session, pid)
+    assert rows[0].currency == "USD" and rows[0].enabled is True
+    assert rows[0].annual_rate == 0.045
+
+
+def test_balance_endpoint_sums_flows(db_session, pid):
+    # by_currency is native, and display currency == native (USD) so convert_amount
+    # is a no-op — the balance endpoint never hits the network here. create_cash's
+    # fetch_fx_to_czk is mocked to keep it offline (same pattern as the CRUD tests).
+    with patch("routers.cash.fetch_fx_to_czk", return_value=22.5):
+        create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+        create_cash(CashCreate(type="fee", amount=50, currency="USD", date=date(2024, 1, 2)), db_session, pid)
+    res = get_balance("USD", db_session, pid)
+    assert res["by_currency"]["USD"]["balance"] == 950.0
+    assert res["currency"] == "USD"
+    assert res["total"] == 950.0
