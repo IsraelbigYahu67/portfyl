@@ -14,7 +14,8 @@ function Chip({ label, value }) {
 
 export default function PortfolioHero({ summary, loading, currency = "USD", series = [] }) {
   const positive = (summary?.day_change ?? summary?.total_pnl ?? 0) >= 0;
-  const animatedValue = useCountUp(summary?.total_value ?? 0, { enabled: !loading && summary != null });
+  const netWorth = summary?.net_worth ?? summary?.total_value ?? 0;
+  const animatedValue = useCountUp(netWorth, { enabled: !loading && summary != null });
 
   return (
     <section className="card card-interactive relative overflow-hidden p-6 animate-fade-up">
@@ -22,16 +23,23 @@ export default function PortfolioHero({ summary, loading, currency = "USD", seri
       <div className="relative">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="eyebrow">Portfolio Value</p>
+            <p className="eyebrow">Net Worth</p>
             {loading || summary == null ? (
               <div className="mt-2"><Skeleton h="2.75rem" w="16rem" /></div>
             ) : (
-              <div className="flex items-baseline gap-3 flex-wrap mt-1">
-                <span className="font-display text-[clamp(2.25rem,5vw,3.25rem)] font-bold tracking-tight text-ink tnum leading-none">
-                  {formatMoney(animatedValue, currency)}
-                </span>
-                <DeltaPill value={summary.day_change} pct={summary.day_change_percent} currency={currency} size="lg" />
-              </div>
+              <>
+                <div className="flex items-baseline gap-3 flex-wrap mt-1">
+                  <span className="font-display text-[clamp(2.25rem,5vw,3.25rem)] font-bold tracking-tight text-ink tnum leading-none">
+                    {formatMoney(animatedValue, currency)}
+                  </span>
+                  <DeltaPill value={summary.day_change} pct={summary.day_change_percent} currency={currency} size="lg" />
+                </div>
+                <div className="flex items-center gap-3 mt-1 text-xs font-mono tnum text-slate-500">
+                  <span>Positions {formatMoney(summary.total_value, currency)}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>Cash {formatMoney(summary.cash, currency)}</span>
+                </div>
+              </>
             )}
           </div>
         </div>
