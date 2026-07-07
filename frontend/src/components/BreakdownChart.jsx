@@ -6,6 +6,12 @@ const COLORS = [
   "#eab308", "#3b82f6", "#e11d48", "#84cc16",
 ];
 
+// Cash has no sector/country/asset-type of its own — give it a fixed neutral
+// slate color instead of whatever the palette-by-index lookup would assign,
+// so it visually reads as "not an equity" in every dimension it appears in.
+const CASH_COLOR = "#94a3b8";
+const colorFor = (item, i) => (item.name === "Cash" ? CASH_COLOR : COLORS[i % COLORS.length]);
+
 export default function BreakdownChart({ title, data, currencyLabel }) {
   const fmt = (n) => {
     if (n == null) return "—";
@@ -38,8 +44,8 @@ export default function BreakdownChart({ title, data, currencyLabel }) {
                 outerRadius={75}
                 paddingAngle={2}
               >
-                {data.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                {data.map((item, i) => (
+                  <Cell key={i} fill={colorFor(item, i)} />
                 ))}
               </Pie>
               <Tooltip
@@ -59,7 +65,7 @@ export default function BreakdownChart({ title, data, currencyLabel }) {
             <div key={item.name} className="flex items-center gap-2 text-sm">
               <div
                 className="w-2.5 h-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                style={{ backgroundColor: colorFor(item, i) }}
               />
               <span className="text-slate-700 truncate flex-1">{item.name}</span>
               <span className="tabular-nums text-slate-500 w-14 text-right">
