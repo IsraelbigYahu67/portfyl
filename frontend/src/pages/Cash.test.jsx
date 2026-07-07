@@ -13,6 +13,16 @@ vi.mock("../api", () => ({
   deleteCash: vi.fn(),
 }));
 
+// Cash.jsx also calls useConfirm()/useToast(), which throw outside their
+// providers. The empty-state assertion never exercises delete, so we just need
+// the hooks to not throw on render: confirm resolves true, toast is a no-op.
+vi.mock("../components/ui/ConfirmDialog", () => ({
+  useConfirm: () => () => Promise.resolve(true),
+}));
+vi.mock("../components/ui/Toast", () => ({
+  useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), dismiss: vi.fn() }),
+}));
+
 describe("Cash", () => {
   it("mounts and shows the ledger empty state", async () => {
     const qc = new QueryClient();

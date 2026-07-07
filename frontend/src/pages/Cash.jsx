@@ -5,6 +5,8 @@ import { Card, SectionHeader, SkeletonRows, EmptyState } from "../components/ui"
 import { formatMoney } from "../lib/format";
 import { fetchCash, createCash, deleteCash, fetchCashBalance } from "../api";
 import { useCurrency } from "../App";
+import { useConfirm } from "../components/ui/ConfirmDialog";
+import { useToast } from "../components/ui/Toast";
 
 const CASH_TYPES = ["deposit", "withdrawal", "fee", "interest"];
 
@@ -13,6 +15,8 @@ export default function Cash() {
   // outside that provider (e.g. in tests) the context is null, so fall back to USD.
   const currency = useCurrency()?.currency || "USD";
   const qc = useQueryClient();
+  const confirm = useConfirm();
+  const toast = useToast();
 
   const rows = useQuery({ queryKey: ["cash"], queryFn: fetchCash });
   const balance = useQuery({
@@ -27,7 +31,25 @@ export default function Cash() {
   };
 
   const add = useMutation({ mutationFn: createCash, onSuccess: invalidate });
-  const del = useMutation({ mutationFn: deleteCash, onSuccess: invalidate });
+  const del = useMutation({
+    mutationFn: deleteCash,
+    onSuccess: () => {
+      invalidate();
+      toast.success("Cash entry deleted");
+    },
+    onError: (err) =>
+      toast.error(err?.response?.data?.detail || "Failed to delete cash entry"),
+  });
+
+  const handleDelete = async (r) => {
+    const ok = await confirm({
+      title: "Delete this cash entry?",
+      message: `${r.type} of ${formatMoney(r.amount, r.currency)} on ${r.date} will be permanently removed.`,
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (ok) del.mutate(r.id);
+  };
 
   const [form, setForm] = useState({ type: "deposit", amount: "", currency: "USD", date: "", note: "" });
 
@@ -126,7 +148,7 @@ export default function Cash() {
                   <td className="py-2 text-slate-400">{r.note}</td>
                   <td className="py-2 text-right">
                     <button
-                      onClick={() => del.mutate(r.id)}
+                      onClick={() => handleDelete(r)}
                       aria-label={`Delete ${r.type} on ${r.date}`}
                       className="text-slate-400 hover:text-loss transition-colors"
                     >
