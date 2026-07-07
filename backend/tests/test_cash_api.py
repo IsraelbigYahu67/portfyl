@@ -7,6 +7,8 @@ from unittest.mock import patch
 import pytest
 from fastapi import HTTPException
 
+import pandas as pd
+
 from models import Portfolio, Transaction
 from schemas import TransactionResponse
 from routers.portfolio import _build_holdings
@@ -15,7 +17,8 @@ from routers.cash import (
     get_rates, put_rates, get_balance, RatesPayload, RateItem,
 )
 from routers.portfolio import get_summary
-from routers.analytics import sector_breakdown
+from routers.analytics import sector_breakdown, _build_value_cashflow_series, _lifetime_money_weighted
+from cash_ledger import has_external_cashflows
 from tests.helpers import make_txn
 
 
@@ -298,3 +301,112 @@ def test_allocation_cash_pct_included_in_denominator_with_holdings(db_session, p
         assert round(sum(b["weight"] for b in bucket_list), 2) == 100.0
     # total_value stays holdings-only (matches get_summary's contract: net_worth = total_value + cash).
     assert result["total_value"] == 1000.0
+
+
+# ---------------------------------------------------------------------------
+# Returns integration: deposits/withdrawals as external cashflows (Task 10)
+# ---------------------------------------------------------------------------
+# _build_value_cashflow_series / _lifetime_money_weighted are the real entry
+# points /risk-metrics (and, for the V/C series, /analytics/benchmarks/
+# comparison) call. They're exercised directly here (mirroring how
+# test_analytics.py calls other private analytics helpers directly) with a
+# mocked price panel + ticker-currency lookup so no network is hit. All
+# amounts are USD, so _live_to_usd short-circuits (routers/portfolio.py:562,
+# `if c == "USD": return 1.0`) without needing a mock either. "today" is
+# frozen so the XIRR figure -- which anchors its final flow on date.today() --
+# is a deterministic regression pin instead of drifting with the calendar.
+
+
+class _FrozenDate(date):
+    @classmethod
+    def today(cls):
+        return date(2024, 2, 1)
+
+
+def _mock_price_panel(index, closes):
+    return pd.DataFrame({"Close": closes}, index=index)
+
+
+def test_returns_unchanged_without_cash(db_session, pid):
+    """Fallback: trade-only txns (no deposit/withdrawal rows) must produce the
+    exact same V/C series and lifetime dict as the pre-Task-10 implementation.
+    These numbers were locked by running this test against the code BEFORE
+    the cash-aware branch was added."""
+    txns = [
+        make_txn("AAPL", "buy", 10, 100.0, currency="USD", date=date(2024, 1, 1), portfolio_id=pid),
+        make_txn("AAPL", "buy", 5, 110.0, currency="USD", date=date(2024, 1, 3), portfolio_id=pid),
+        make_txn("AAPL", "sell", 5, 120.0, currency="USD", date=date(2024, 1, 5), portfolio_id=pid),
+    ]
+    for t in txns:
+        db_session.add(t)
+    db_session.commit()
+
+    assert has_external_cashflows(txns) is False
+
+    idx = pd.date_range("2024-01-01", periods=10, freq="D")
+    closes = [100, 101, 102, 103, 104, 105, 106, 107, 108, 109]
+    with patch("routers.analytics.yf.download", return_value=_mock_price_panel(idx, closes)), \
+         patch("routers.analytics.market_data.get_infos", return_value={"AAPL": {"currency": "USD"}}), \
+         patch("routers.analytics.date", _FrozenDate):
+        V, C, closes_index = _build_value_cashflow_series(txns, date(2023, 12, 27))
+        lifetime = _lifetime_money_weighted(txns, V)
+
+    assert V.tolist() == pytest.approx([1000, 1010, 1530, 1545, 1040, 1050, 1060, 1070, 1080, 1090])
+    assert C.tolist() == pytest.approx([1000, 0, 550, 0, -600, 0, 0, 0, 0, 0])
+
+    assert lifetime["current_value"] == pytest.approx(1090.0)
+    assert lifetime["total_invested"] == pytest.approx(1033.33, abs=0.01)
+    assert lifetime["cum_buys_cost"] == pytest.approx(1550.0)
+    assert lifetime["realized_pnl"] == pytest.approx(83.33, abs=0.01)
+    assert lifetime["dividends"] == 0.0
+    assert lifetime["unrealized_pnl"] == pytest.approx(56.67, abs=0.01)
+    assert lifetime["net_profit"] == pytest.approx(140.0, abs=0.01)
+    assert lifetime["simple_roi"] == pytest.approx(9.03, abs=0.01)
+    assert lifetime["xirr"] == pytest.approx(371.69, abs=0.01)
+
+
+def test_returns_use_deposits_as_external_cashflows(db_session, pid):
+    """With a deposit present, C comes from the deposit (not the buy it later
+    funds) and V folds in the running cash balance -- the buy becomes internal
+    reallocation (cash -> position), so the money-weighted return reflects
+    contributed capital rather than trade activity."""
+    txns = [
+        make_txn(ticker=None, type="deposit", shares=0.0, price=0.0, amount=2000,
+                 currency="USD", date=date(2024, 1, 1), portfolio_id=pid),
+        make_txn("AAPL", "buy", 10, 100.0, currency="USD", date=date(2024, 1, 3), portfolio_id=pid),
+    ]
+    for t in txns:
+        db_session.add(t)
+    db_session.commit()
+
+    assert has_external_cashflows(txns) is True
+
+    idx = pd.date_range("2024-01-01", periods=6, freq="D")
+    closes = [100, 100, 100, 105, 110, 115]
+    with patch("routers.analytics.yf.download", return_value=_mock_price_panel(idx, closes)), \
+         patch("routers.analytics.market_data.get_infos", return_value={"AAPL": {"currency": "USD"}}), \
+         patch("routers.analytics.date", _FrozenDate):
+        V, C, closes_index = _build_value_cashflow_series(txns, date(2023, 12, 27))
+        lifetime = _lifetime_money_weighted(txns, V)
+
+    # External cashflow C is driven by the $2000 deposit (day 1), NOT the
+    # $1000 buy (day 3) it later funds -- the buy no longer appears in C.
+    assert C.tolist() == pytest.approx([2000, 0, 0, 0, 0, 0])
+    # V folds in the running cash balance: day1 = 0 holdings + 2000 cash;
+    # day3 = 1000 holdings (10@100) + 1000 leftover cash (net of the buy);
+    # thereafter only the holdings leg moves with the AAPL close price.
+    assert V.tolist() == pytest.approx([2000, 2000, 2000, 2050, 2100, 2150])
+
+    # current_value/unrealized_pnl/simple_roi stay positions-only (net worth
+    # minus the still-idle cash), matching get_summary's total_value-vs-
+    # net_worth split -- otherwise the untouched $1000 cash would be double
+    # counted as "profit".
+    assert lifetime["current_value"] == pytest.approx(1150.0)   # 10 shares @ 115
+    assert lifetime["total_invested"] == pytest.approx(1000.0)
+    assert lifetime["unrealized_pnl"] == pytest.approx(150.0)
+    assert lifetime["net_profit"] == pytest.approx(150.0)
+    assert lifetime["simple_roi"] == pytest.approx(15.0)         # 150/1000, not 1150/1000
+    # XIRR is driven by the deposit (-2000 @ Jan 1) against ending NET WORTH
+    # (+2150 @ frozen "today"), reflecting contributed capital rather than
+    # the trade.
+    assert lifetime["xirr"] == pytest.approx(134.32, abs=0.01)

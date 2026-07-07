@@ -8,7 +8,7 @@ import numpy as np
 
 from database import get_db
 from models import Transaction, Benchmark, BenchmarkComponent
-from cash_ledger import TRADE_TYPES
+from cash_ledger import TRADE_TYPES, has_external_cashflows, cash_balance_by_currency
 from routers.portfolios import require_portfolio
 from ticker_map import yf_symbol
 from routers.portfolio import _xirr, _live_to_usd
@@ -458,7 +458,14 @@ def _build_value_cashflow_series(transactions: list, start_date: date):
     or (None, None, None) if there's no usable price data.
 
     auto_adjust=True bakes dividend reinvestment into V_t, so dividend
-    transactions are NOT counted as external cashflow."""
+    transactions are NOT counted as external cashflow.
+
+    When the portfolio has deposit/withdrawal rows (has_external_cashflows),
+    C switches to deposit(+)/withdrawal(-) and V additionally folds in the
+    running cash balance, so V represents whole-portfolio net worth rather
+    than holdings-only -- buys/sells become internal reallocation between
+    cash and positions instead of external cashflow. Portfolios with zero
+    deposit/withdrawal rows take the untouched original path (else branch)."""
     held_tickers = sorted({t.ticker for t in transactions if t.type in ("buy", "sell")})
     if not held_tickers:
         return None, None, None
@@ -492,45 +499,117 @@ def _build_value_cashflow_series(transactions: list, start_date: date):
                 prev = holdings.get(txn.ticker, 0)
                 holdings[txn.ticker] = max(0.0, prev - min(txn.shares, prev))
 
-    values: list[float] = []
-    cashflows: list[float] = []
-    for date_idx in closes.index:
-        curr_date = date_idx.date()
-        cf_today = 0.0
-        for d_key in [d for d in list(txns_by_date.keys()) if d <= curr_date]:
-            for txn in txns_by_date.pop(d_key):
-                ccy = ticker_ccy.get(txn.ticker, "USD")
-                if txn.type == "buy":
-                    holdings[txn.ticker] = holdings.get(txn.ticker, 0) + txn.shares
-                    px_usd = _price_to_usd(txn.price, ccy, fx_series, date_idx)
-                    if pd.notna(px_usd):
-                        cf_today += txn.shares * px_usd
-                elif txn.type == "sell":
-                    prev = holdings.get(txn.ticker, 0)
-                    sold = min(txn.shares, prev)
-                    holdings[txn.ticker] = max(0.0, prev - sold)
-                    px_usd = _price_to_usd(txn.price, ccy, fx_series, date_idx)
-                    if pd.notna(px_usd):
-                        cf_today -= sold * px_usd
+    if has_external_cashflows(transactions):
+        # Cash-aware path: deposits(+)/withdrawals(-) are the external
+        # cashflow; buys/sells are internal reallocation (cash <-> positions)
+        # so they no longer feed C. V additionally folds in the running cash
+        # balance (from cash_balance_by_currency, walked forward over the
+        # date index) so it reflects whole-portfolio net worth. Dividends are
+        # excluded from that cash balance -- same reason dividends are
+        # excluded from C above: auto_adjust already prices the dividend into
+        # the holdings series, so crediting the cash again would double-count.
+        cash_ccys = {(t.currency or "USD").upper() for t in transactions if t.type != "dividend"}
+        extra_ccys = cash_ccys - set(fx_series.keys()) - {"USD"}
+        cash_fx_series = _fx_to_usd_series(extra_ccys, start_date, closes.index) if extra_ccys else {}
+        combined_fx = {**fx_series, **cash_fx_series}
 
-        v = 0.0
-        for tk, sh in holdings.items():
-            if sh <= 0 or tk not in closes.columns:
-                continue
-            try:
-                p = float(closes.loc[date_idx, tk])
-            except Exception:
-                continue
-            p_usd = _price_to_usd(p, ticker_ccy.get(tk, "USD"), fx_series, date_idx)
-            if pd.notna(p_usd):
-                v += sh * p_usd
+        pre_window_cash = [t for t in transactions if t.date < first_trading_day and t.type != "dividend"]
+        cash_txns_to_date: list = list(pre_window_cash)
 
-        values.append(v)
-        cashflows.append(cf_today)
+        values: list[float] = []
+        cashflows: list[float] = []
+        for date_idx in closes.index:
+            curr_date = date_idx.date()
+            cf_today = 0.0
+            for d_key in [d for d in list(txns_by_date.keys()) if d <= curr_date]:
+                for txn in txns_by_date.pop(d_key):
+                    if txn.type == "buy":
+                        holdings[txn.ticker] = holdings.get(txn.ticker, 0) + txn.shares
+                        cash_txns_to_date.append(txn)
+                    elif txn.type == "sell":
+                        prev = holdings.get(txn.ticker, 0)
+                        sold = min(txn.shares, prev)
+                        holdings[txn.ticker] = max(0.0, prev - sold)
+                        cash_txns_to_date.append(txn)
+                    elif txn.type == "deposit":
+                        amt_usd = _price_to_usd(txn.amount, (txn.currency or "USD").upper(), combined_fx, date_idx)
+                        if pd.notna(amt_usd):
+                            cf_today += amt_usd
+                        cash_txns_to_date.append(txn)
+                    elif txn.type == "withdrawal":
+                        amt_usd = _price_to_usd(txn.amount, (txn.currency or "USD").upper(), combined_fx, date_idx)
+                        if pd.notna(amt_usd):
+                            cf_today -= amt_usd
+                        cash_txns_to_date.append(txn)
+                    elif txn.type in ("fee", "interest"):
+                        cash_txns_to_date.append(txn)
+                    # dividend: excluded from the cash balance (see docstring
+                    # above) -- already priced into V via the auto_adjust close.
 
-    V = pd.Series(values, index=closes.index)
-    C = pd.Series(cashflows, index=closes.index)
-    return V, C, closes.index
+            v = 0.0
+            for tk, sh in holdings.items():
+                if sh <= 0 or tk not in closes.columns:
+                    continue
+                try:
+                    p = float(closes.loc[date_idx, tk])
+                except Exception:
+                    continue
+                p_usd = _price_to_usd(p, ticker_ccy.get(tk, "USD"), fx_series, date_idx)
+                if pd.notna(p_usd):
+                    v += sh * p_usd
+
+            balances = cash_balance_by_currency(cash_txns_to_date)
+            for ccy, bal in balances.items():
+                bal_usd = _price_to_usd(bal, ccy, combined_fx, date_idx)
+                if pd.notna(bal_usd):
+                    v += bal_usd
+
+            values.append(v)
+            cashflows.append(cf_today)
+
+        V = pd.Series(values, index=closes.index)
+        C = pd.Series(cashflows, index=closes.index)
+        return V, C, closes.index
+    else:
+        values: list[float] = []
+        cashflows: list[float] = []
+        for date_idx in closes.index:
+            curr_date = date_idx.date()
+            cf_today = 0.0
+            for d_key in [d for d in list(txns_by_date.keys()) if d <= curr_date]:
+                for txn in txns_by_date.pop(d_key):
+                    ccy = ticker_ccy.get(txn.ticker, "USD")
+                    if txn.type == "buy":
+                        holdings[txn.ticker] = holdings.get(txn.ticker, 0) + txn.shares
+                        px_usd = _price_to_usd(txn.price, ccy, fx_series, date_idx)
+                        if pd.notna(px_usd):
+                            cf_today += txn.shares * px_usd
+                    elif txn.type == "sell":
+                        prev = holdings.get(txn.ticker, 0)
+                        sold = min(txn.shares, prev)
+                        holdings[txn.ticker] = max(0.0, prev - sold)
+                        px_usd = _price_to_usd(txn.price, ccy, fx_series, date_idx)
+                        if pd.notna(px_usd):
+                            cf_today -= sold * px_usd
+
+            v = 0.0
+            for tk, sh in holdings.items():
+                if sh <= 0 or tk not in closes.columns:
+                    continue
+                try:
+                    p = float(closes.loc[date_idx, tk])
+                except Exception:
+                    continue
+                p_usd = _price_to_usd(p, ticker_ccy.get(tk, "USD"), fx_series, date_idx)
+                if pd.notna(p_usd):
+                    v += sh * p_usd
+
+            values.append(v)
+            cashflows.append(cf_today)
+
+        V = pd.Series(values, index=closes.index)
+        C = pd.Series(cashflows, index=closes.index)
+        return V, C, closes.index
 
 
 def _modified_dietz_daily_returns(V: pd.Series, C: pd.Series, window_start: date) -> pd.Series:
@@ -789,7 +868,15 @@ def _lifetime_money_weighted(transactions, V_usd: pd.Series) -> dict:
     """Lifetime money-weighted metrics in USD: simple ROI (matches dashboard
     semantics) and annualized XIRR. Uses live FX for converting historical
     transactions to USD — acceptable for the per-position % since amounts
-    cancel; for portfolios where this is mostly USD already, it's exact."""
+    cancel; for portfolios where this is mostly USD already, it's exact.
+
+    When the portfolio has deposit/withdrawal rows (has_external_cashflows),
+    xirr_flows are built from deposits(-)/withdrawals(+) instead of buys/
+    sells/dividends — buys/sells become internal reallocation (mirrors
+    _build_value_cashflow_series) — and the XIRR terminal flow uses ending
+    NET WORTH (V_usd already folds in the cash balance in this case).
+    Portfolios with zero deposit/withdrawal rows take the untouched original
+    path (else branch)."""
     shares_open: dict[str, float] = {}
     cost_open: dict[str, float] = {}
     cum_buys_cost_usd = 0.0
@@ -797,44 +884,100 @@ def _lifetime_money_weighted(transactions, V_usd: pd.Series) -> dict:
     dividends_usd = 0.0
     xirr_flows: list[tuple] = []
 
-    for txn in sorted(transactions, key=lambda t: t.date):
-        ccy = (txn.currency or "USD").upper()
-        rate = _live_to_usd("GBP" if ccy in ("GBP", "GBP") or ccy == "GBp" else ccy)
-        if txn.shares <= 0:
-            continue
-        price_usd = txn.price * rate
-        amt_usd = txn.shares * price_usd
-        if txn.type == "buy":
-            shares_open[txn.ticker] = shares_open.get(txn.ticker, 0.0) + txn.shares
-            cost_open[txn.ticker] = cost_open.get(txn.ticker, 0.0) + amt_usd
-            cum_buys_cost_usd += amt_usd
-            xirr_flows.append((txn.date, -amt_usd))
-        elif txn.type == "sell":
-            prev = shares_open.get(txn.ticker, 0.0)
-            # Match only against shares we know the cost basis for. Unmatched
-            # portions (sells without a prior buy in this DB) are skipped from
-            # every lifetime metric — we don't know their cost basis, so
-            # counting them as profit would inflate both Simple ROI and XIRR.
-            sold = min(txn.shares, prev)
-            if sold > 0:
-                avg = cost_open[txn.ticker] / prev
-                proceeds_matched = sold * price_usd
-                realized_pnl_usd += proceeds_matched - sold * avg
-                shares_open[txn.ticker] = prev - sold
-                cost_open[txn.ticker] = max(0.0, cost_open[txn.ticker] - sold * avg)
-                xirr_flows.append((txn.date, +proceeds_matched))
-        elif txn.type == "dividend":
-            dividends_usd += amt_usd
-            xirr_flows.append((txn.date, +amt_usd))
+    if has_external_cashflows(transactions):
+        for txn in sorted(transactions, key=lambda t: t.date):
+            if txn.type in ("deposit", "withdrawal"):
+                ccy = (txn.currency or "USD").upper()
+                rate = _live_to_usd("GBP" if ccy == "GBp" else ccy)
+                amt_usd = float(txn.amount or 0.0) * rate
+                if txn.type == "deposit":
+                    xirr_flows.append((txn.date, -amt_usd))
+                else:
+                    xirr_flows.append((txn.date, +amt_usd))
+                continue
+            if txn.shares is None or txn.shares <= 0:
+                continue
+            ccy = (txn.currency or "USD").upper()
+            rate = _live_to_usd("GBP" if ccy in ("GBP", "GBP") or ccy == "GBp" else ccy)
+            price_usd = txn.price * rate
+            amt_usd = txn.shares * price_usd
+            if txn.type == "buy":
+                shares_open[txn.ticker] = shares_open.get(txn.ticker, 0.0) + txn.shares
+                cost_open[txn.ticker] = cost_open.get(txn.ticker, 0.0) + amt_usd
+                cum_buys_cost_usd += amt_usd
+                # NOTE: buys no longer feed xirr_flows here -- internal
+                # reallocation (cash -> position), not an external cashflow.
+            elif txn.type == "sell":
+                prev = shares_open.get(txn.ticker, 0.0)
+                sold = min(txn.shares, prev)
+                if sold > 0:
+                    avg = cost_open[txn.ticker] / prev
+                    proceeds_matched = sold * price_usd
+                    realized_pnl_usd += proceeds_matched - sold * avg
+                    shares_open[txn.ticker] = prev - sold
+                    cost_open[txn.ticker] = max(0.0, cost_open[txn.ticker] - sold * avg)
+                    # NOTE: sells no longer feed xirr_flows here either --
+                    # internal reallocation (position -> cash).
+            elif txn.type == "dividend":
+                dividends_usd += amt_usd
+                # NOTE: excluded from xirr_flows -- auto_adjust already prices
+                # the dividend into V_usd, so adding the cash again here would
+                # double-count it (same reasoning as _build_value_cashflow_series).
+    else:
+        for txn in sorted(transactions, key=lambda t: t.date):
+            ccy = (txn.currency or "USD").upper()
+            rate = _live_to_usd("GBP" if ccy in ("GBP", "GBP") or ccy == "GBp" else ccy)
+            if txn.shares <= 0:
+                continue
+            price_usd = txn.price * rate
+            amt_usd = txn.shares * price_usd
+            if txn.type == "buy":
+                shares_open[txn.ticker] = shares_open.get(txn.ticker, 0.0) + txn.shares
+                cost_open[txn.ticker] = cost_open.get(txn.ticker, 0.0) + amt_usd
+                cum_buys_cost_usd += amt_usd
+                xirr_flows.append((txn.date, -amt_usd))
+            elif txn.type == "sell":
+                prev = shares_open.get(txn.ticker, 0.0)
+                # Match only against shares we know the cost basis for. Unmatched
+                # portions (sells without a prior buy in this DB) are skipped from
+                # every lifetime metric — we don't know their cost basis, so
+                # counting them as profit would inflate both Simple ROI and XIRR.
+                sold = min(txn.shares, prev)
+                if sold > 0:
+                    avg = cost_open[txn.ticker] / prev
+                    proceeds_matched = sold * price_usd
+                    realized_pnl_usd += proceeds_matched - sold * avg
+                    shares_open[txn.ticker] = prev - sold
+                    cost_open[txn.ticker] = max(0.0, cost_open[txn.ticker] - sold * avg)
+                    xirr_flows.append((txn.date, +proceeds_matched))
+            elif txn.type == "dividend":
+                dividends_usd += amt_usd
+                xirr_flows.append((txn.date, +amt_usd))
 
-    current_value_usd = float(V_usd.iloc[-1]) if len(V_usd) else 0.0
+    net_worth_usd = float(V_usd.iloc[-1]) if len(V_usd) else 0.0
+    if has_external_cashflows(transactions):
+        # current_value/unrealized_pnl/simple_roi stay positions-only (matches
+        # get_summary's total_value-vs-net_worth split) -- back the still-idle
+        # cash balance out of V_usd's net worth so it isn't double counted as
+        # "profit". The XIRR terminal flow below uses the full net worth,
+        # since deposits/withdrawals are flows against the WHOLE portfolio.
+        cash_bal_native = cash_balance_by_currency([t for t in transactions if t.type != "dividend"])
+        cash_usd = 0.0
+        for ccy, bal in cash_bal_native.items():
+            c = (ccy or "USD").upper()
+            cash_usd += bal * _live_to_usd("GBP" if c == "GBp" else c)
+        current_value_usd = net_worth_usd - cash_usd
+    else:
+        current_value_usd = net_worth_usd
+
     total_invested_usd = sum(cost_open.values())
     unrealized_pnl_usd = current_value_usd - total_invested_usd
     net_profit_usd = unrealized_pnl_usd + realized_pnl_usd + dividends_usd
     simple_roi = (net_profit_usd / cum_buys_cost_usd) if cum_buys_cost_usd > 0 else 0.0
 
-    if current_value_usd > 0:
-        xirr_flows.append((date.today(), current_value_usd))
+    xirr_ending_value = net_worth_usd if has_external_cashflows(transactions) else current_value_usd
+    if xirr_ending_value > 0:
+        xirr_flows.append((date.today(), xirr_ending_value))
     xirr_rate = _xirr(xirr_flows) if len(xirr_flows) >= 2 else 0.0
 
     return {

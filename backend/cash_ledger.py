@@ -29,6 +29,16 @@ def signed_cash(txn) -> tuple[str, float]:
     return ccy, 0.0
 
 
+def has_external_cashflows(transactions) -> bool:
+    """True if any row is a deposit or withdrawal -- external capital movement
+    (money entering/leaving the portfolio from outside), as opposed to
+    buys/sells (internal reallocation) or fee/interest (cash-only, not an
+    external capital contribution). Gates the cash-aware returns path in
+    analytics.py; portfolios with none of these take the untouched original
+    trade-only path."""
+    return any(t.type in ("deposit", "withdrawal") for t in transactions)
+
+
 def cash_balance_by_currency(transactions) -> dict[str, float]:
     """Per-currency net cash (native). Negative balances are allowed (tolerant)."""
     out: dict[str, float] = {}
