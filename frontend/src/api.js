@@ -206,3 +206,14 @@ export const upsertTradeNote = (transactionId, data) =>
 export const deleteTradeNote = (transactionId) =>
   api.delete(`/notes/transaction/${transactionId}`).then((r) => r.data);
 export const fetchAllTradeNotes = () => api.get("/notes/all").then((r) => r.data);
+
+// ----- Cash (portfolio-scoped) ------------------------------------------------
+export const fetchCash = () => api.get("/cash").then((r) => r.data);
+export const createCash = (data) => api.post("/cash", data).then((r) => r.data);
+export const updateCash = (id, data) => api.put(`/cash/${id}`, data).then((r) => r.data);
+export const deleteCash = (id) => api.delete(`/cash/${id}`).then((r) => r.data);
+export const fetchCashBalance = (currency = "USD") =>
+  api.get("/cash/balance", { params: { currency } }).then((r) => r.data);
+export const fetchInterestRates = () => api.get("/cash/interest-rates").then((r) => r.data);
+export const saveInterestRates = (rates) =>
+  api.put("/cash/interest-rates", { rates }).then((r) => r.data);

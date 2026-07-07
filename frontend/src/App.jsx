@@ -6,6 +6,7 @@ import PlatformLanding from "./pages/PlatformLanding";
 import Dashboard from "./pages/Dashboard";
 import Allocation from "./pages/Allocation";
 import Transactions from "./pages/Transactions";
+import Cash from "./pages/Cash";
 import Options from "./pages/Options";
 import Polymarket from "./pages/Polymarket";
 import Import from "./pages/Import";
@@ -297,6 +298,7 @@ function AppLayout() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/allocation" element={<Allocation />} />
               <Route path="/transactions" element={<Transactions />} />
+              <Route path="/cash" element={<Cash />} />
               <Route path="/import" element={<Import />} />
               <Route path="/dividends" element={<Dividends />} />
               <Route path="/dividend-calendar" element={<DividendCalendar />} />
