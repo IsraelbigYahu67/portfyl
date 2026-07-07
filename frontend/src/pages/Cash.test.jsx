@@ -11,6 +11,8 @@ vi.mock("../api", () => ({
   fetchCashBalance: () => Promise.resolve({ total: 0, total_accrued: 0, by_currency: {} }),
   createCash: vi.fn(),
   deleteCash: vi.fn(),
+  fetchInterestRates: () => Promise.resolve([]),
+  saveInterestRates: vi.fn(),
 }));
 
 // Cash.jsx also calls useConfirm()/useToast(), which throw outside their

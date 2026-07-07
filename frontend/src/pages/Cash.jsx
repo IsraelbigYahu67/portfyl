@@ -1,9 +1,16 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Wallet, Plus, Trash2 } from "lucide-react";
+import { Wallet, Plus, Trash2, Percent } from "lucide-react";
 import { Card, SectionHeader, SkeletonRows, EmptyState } from "../components/ui";
 import { formatMoney } from "../lib/format";
-import { fetchCash, createCash, deleteCash, fetchCashBalance } from "../api";
+import {
+  fetchCash,
+  createCash,
+  deleteCash,
+  fetchCashBalance,
+  fetchInterestRates,
+  saveInterestRates,
+} from "../api";
 import { useCurrency } from "../App";
 import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/Toast";
@@ -161,6 +168,75 @@ export default function Cash() {
           </table>
         )}
       </Card>
+
+      <Card>
+        <SectionHeader icon={Percent}>Interest (T212-style accrual)</SectionHeader>
+        <InterestRates currency={currency} />
+      </Card>
+    </div>
+  );
+}
+
+function InterestRates() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["cash-rates"], queryFn: fetchInterestRates });
+  const [draft, setDraft] = useState(null);
+  const rows = draft ?? (q.data ?? []);
+  const save = useMutation({
+    mutationFn: saveInterestRates,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cash-rates"] });
+      qc.invalidateQueries({ queryKey: ["cash-balance"] });
+      qc.invalidateQueries({ queryKey: ["summary"] });
+      setDraft(null);
+    },
+  });
+  const set = (i, patch) => setDraft(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const addRow = () =>
+    setDraft([...rows, { currency: "USD", annual_rate: 0, enabled: true, start_date: null }]);
+
+  if (q.isLoading) return <SkeletonRows rows={2} cols={3} />;
+  return (
+    <div className="space-y-2">
+      {rows.map((r, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <input
+            className="input w-20"
+            value={r.currency}
+            onChange={(e) => set(i, { currency: e.target.value.toUpperCase() })}
+          />
+          <input
+            className="input w-24"
+            type="number"
+            step="0.01"
+            value={(r.annual_rate * 100).toFixed(2)}
+            onChange={(e) => set(i, { annual_rate: Number(e.target.value) / 100 })}
+          />{" "}
+          <span className="text-xs text-slate-400">% p.a.</span>
+          <label className="text-xs flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={r.enabled}
+              onChange={(e) => set(i, { enabled: e.target.checked })}
+            />{" "}
+            enabled
+          </label>
+          <input
+            className="input w-40"
+            type="date"
+            value={r.start_date ?? ""}
+            onChange={(e) => set(i, { start_date: e.target.value || null })}
+          />
+        </div>
+      ))}
+      <div className="flex gap-2">
+        <button className="btn-ghost" onClick={addRow}>
+          + Currency
+        </button>
+        <button className="btn-primary" disabled={!draft} onClick={() => save.mutate(rows)}>
+          Save
+        </button>
+      </div>
     </div>
   );
 }
