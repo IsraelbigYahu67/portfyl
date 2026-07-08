@@ -134,8 +134,13 @@ Dividend (Ordinary),2024-09-15 00:00:00,US5949181045,MSFT,Microsoft,5,0.75,USD,â
           </div>
           <div className="flex items-start gap-1.5 text-xs text-slate-500">
             <Info size={12} className="mt-0.5 shrink-0 text-blue-400" />
-            Non-trade rows (Deposits, Withdrawals, Interest on cash, Currency conversions) are
-            automatically skipped.
+            <span>
+              Imports the full history â€” trades, deposits, withdrawals, interest on cash,
+              dividends, card debits, cashback and currency conversions (share lending
+              interest is ignored). <span className="font-medium text-slate-700">A Trading 212
+              import always replaces all existing data for this portfolio</span>, so the cash
+              balance reconciles with your broker.
+            </span>
           </div>
         </div>
 
@@ -204,7 +209,8 @@ Dividend (Ordinary),2024-09-15 00:00:00,US5949181045,MSFT,Microsoft,5,0.75,USD,â
                 Replace existing portfolio
               </span>
               <p className="text-xs text-slate-500 mt-0.5">
-                Deletes all current transactions before importing. Use this to start fresh with your own data.
+                Deletes all current transactions before importing. Use this to start fresh with
+                your own data. (Trading 212 exports always replace, regardless of this setting.)
               </p>
             </div>
           </label>

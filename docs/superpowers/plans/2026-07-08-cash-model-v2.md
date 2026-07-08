@@ -90,7 +90,7 @@ Everything settles in CZK (`Currency (Total)` = CZK on every row). Semantics ver
 
 ## Implementation tasks
 
-### [ ] T1. Schema: settlement columns + migration
+### [x] T1. Schema: settlement columns + migration
 - `models.py` Transaction: add `cash_amount = Column(Float, nullable=True)` (POSITIVE
   magnitude; direction comes from `type`, consistent with existing `amount` convention)
   and `cash_currency = Column(String, nullable=True)` (settlement ccy, "CZK" for T212).
@@ -100,7 +100,7 @@ Everything settles in CZK (`Currency (Total)` = CZK on every row). Semantics ver
   (and mirrors `amount` semantics). Decide in code: for cash-type rows `cash_amount` stays
   NULL and `amount` remains authoritative.
 
-### [ ] T2. cash_ledger core
+### [x] T2. cash_ledger core
 - `CASH_TYPES` += `card_debit`, `cashback`, `fx_in`, `fx_out`.
 - New frozenset `EXTERNAL_FLOW_TYPES = {deposit, withdrawal, card_debit, cashback}`;
   `has_external_cashflows` checks membership in it.
@@ -112,7 +112,7 @@ Everything settles in CZK (`Currency (Total)` = CZK on every row). Semantics ver
   day AFTER the last `type=="interest"` txn in that currency) — if no interest rows,
   behave as today (cfg.start_date or first event).
 
-### [ ] T3. T212 importer rework (`_normalize_t212` in routers/portfolio.py)
+### [x] T3. T212 importer rework (`_normalize_t212` in routers/portfolio.py)
 - Emit trade rows for buy/sell/limit/stop actions: ticker, name, shares, price (USD),
   currency (price ccy), `fx_to_czk = 1/Exchange rate` (fallback to yfinance bulk fetch if
   rate missing), `cash_amount = abs(Total)`, `cash_currency = Currency (Total)`.
@@ -128,7 +128,7 @@ Everything settles in CZK (`Currency (Total)` = CZK on every row). Semantics ver
   (documented in response + Import page copy).
 - Keep the Native CSV format path working unchanged.
 
-### [ ] T4. Display-currency correctness
+### [x] T4. Display-currency correctness
 - `fx.py`: make `cash_amount_to_display(amount, native, display) = convert_amount(amount,
   native, display)` (kill the CZK-only mirror hack); `folded_cash_display` unchanged
   semantics on top. `convert_amount` already pivots via CZK.
@@ -147,7 +147,7 @@ Everything settles in CZK (`Currency (Total)` = CZK on every row). Semantics ver
   convert to display currency; the V/C series is USD-internal, display conversion happens
   where? Verify and fix USD→display step.
 
-### [ ] T5. Analytics/returns wiring
+### [x] T5. Analytics/returns wiring
 - `_build_value_cashflow_series` per-type walk: `card_debit` → C −= amt_usd;
   `cashback` → C += amt_usd; both also append to `cash_txns_to_date`. `fx_in`/`fx_out`
   append only (internal). `fee`/`interest` unchanged. Buys/sells now contribute their
@@ -160,7 +160,7 @@ Everything settles in CZK (`Currency (Total)` = CZK on every row). Semantics ver
   `cash_balance_by_currency` — preserve those filters (lines ~511, 516, 964).
 - XIRR path: same external-flow treatment for card_debit/cashback.
 
-### [ ] T6. Cash router + manual trade creation
+### [x] T6. Cash router + manual trade creation
 - `routers/cash.py`: `CashCreate` type pattern extended? Manual entry stays
   deposit/withdrawal/fee/interest (user adds those); listing (`list_cash`) returns ALL
   CASH_TYPES incl. card_debit/cashback/fx_in/fx_out so imported rows show in the ledger.
@@ -169,7 +169,7 @@ Everything settles in CZK (`Currency (Total)` = CZK on every row). Semantics ver
   `cash_currency = "CZK"` so manual trades also move the pile.
 - `/cash/balance`: totals now use real conversion (T4) — `by_currency` stays native.
 
-### [ ] T7. Frontend
+### [x] T7. Frontend
 - `App.jsx`: default currency fallback → "CZK" (localStorage `sb_currency`; users with a
   stored "USD" keep it — acceptable, tell user to flip the switcher once).
 - `Cash.jsx`: type badges/labels for interest, card_debit ("Card"), cashback, fx_in/fx_out
@@ -178,7 +178,7 @@ Everything settles in CZK (`Currency (Total)` = CZK on every row). Semantics ver
 - `Import.jsx`: copy stating a T212 import replaces all portfolio data.
 - Check `Transactions.jsx` still trade-only (backend already filters).
 
-### [ ] T8. Tests (backend/tests/, run `python -m pytest tests/ -v` from backend/ with venv;
+### [x] T8. Tests (backend/tests/, run `python -m pytest tests/ -v` from backend/ with venv;
 pytest NOT in requirements — `uv pip install pytest` if missing; conftest patches os.rename)
 - Importer: fixture CSV containing one row of EACH action type copied verbatim from
   portfoliodata.csv (incl. lending interest → assert skipped; currency conversion → 3 rows;

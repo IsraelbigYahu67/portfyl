@@ -103,8 +103,10 @@ export function usePortfolio() {
 }
 
 function CurrencyProvider({ children }) {
+  // CZK default: the broker account settles in CZK, so the headline numbers are
+  // directly comparable to Trading 212. USD stays available in the switcher.
   const [currency, setCurrencyState] = useState(
-    () => localStorage.getItem("sb_currency") || "USD"
+    () => localStorage.getItem("sb_currency") || "CZK"
   );
 
   const setCurrency = (c) => {

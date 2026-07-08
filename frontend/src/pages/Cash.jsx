@@ -15,7 +15,36 @@ import { useCurrency } from "../App";
 import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/Toast";
 
+// Types offered for manual entry; the ledger can additionally contain imported
+// rows (card debits, cashback, FX conversion legs) from a Trading 212 CSV.
 const CASH_TYPES = ["deposit", "withdrawal", "fee", "interest"];
+
+const TYPE_LABEL = {
+  deposit: "Deposit",
+  withdrawal: "Withdrawal",
+  fee: "Fee",
+  interest: "Interest",
+  card_debit: "Card",
+  cashback: "Cashback",
+  fx_in: "FX in",
+  fx_out: "FX out",
+};
+
+// Direction of each type's cash impact — mirrors backend signed_cash.
+const CASH_IN = new Set(["deposit", "interest", "cashback", "fx_in"]);
+
+function TypeBadge({ type }) {
+  const inflow = CASH_IN.has(type);
+  return (
+    <span
+      className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
+        inflow ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+      }`}
+    >
+      {TYPE_LABEL[type] || type}
+    </span>
+  );
+}
 
 export default function Cash() {
   // useCurrency() reads CurrencyContext (provided by App's CurrencyProvider);
@@ -58,7 +87,7 @@ export default function Cash() {
     if (ok) del.mutate(r.id);
   };
 
-  const [form, setForm] = useState({ type: "deposit", amount: "", currency: "USD", date: "", note: "" });
+  const [form, setForm] = useState({ type: "deposit", amount: "", currency: "CZK", date: "", note: "" });
 
   const submit = (e) => {
     e.preventDefault();
@@ -150,8 +179,10 @@ export default function Cash() {
               {rows.data.map((r) => (
                 <tr key={r.id} className="border-b border-hairline">
                   <td className="py-2 text-slate-500">{r.date}</td>
-                  <td className="py-2 capitalize">{r.type}</td>
-                  <td className="py-2 font-mono tnum text-right">{formatMoney(r.amount, r.currency)}</td>
+                  <td className="py-2"><TypeBadge type={r.type} /></td>
+                  <td className={`py-2 font-mono tnum text-right ${CASH_IN.has(r.type) ? "text-gain" : "text-loss"}`}>
+                    {CASH_IN.has(r.type) ? "+" : "−"}{formatMoney(r.amount, r.currency)}
+                  </td>
                   <td className="py-2 text-slate-400">{r.note}</td>
                   <td className="py-2 text-right">
                     <button
