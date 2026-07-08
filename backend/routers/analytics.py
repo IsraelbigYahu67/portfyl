@@ -1040,23 +1040,35 @@ def sector_breakdown(
     db: Session = Depends(get_db),
     pid: int = Depends(require_portfolio),
 ):
-    from fx import cash_total_from_transactions
+    from fx import folded_cash_display
+    from models import CashInterestRate
 
     transactions = _get_transactions(db, pid)
     in_czk = currency.upper() == "CZK"
     display_ccy = "CZK" if in_czk else "USD"
 
-    # Cash bucket (Task 9): blended cash BALANCE in display currency, sourced
-    # from the FULL transaction list (all types). _get_transactions above is
-    # trade-guarded (TRADE_TYPES + ticker) and excludes cash rows entirely, so
-    # it cannot be reused for this — trades+cash both matter for the balance.
+    # Cash bucket: guarded on external cashflows (deposit/withdrawal rows), same
+    # semantic as get_summary -- a portfolio with none does not get a Cash bucket
+    # at all (holdings-only breakdown, weights sum to 100 as before the cash
+    # model). When gated on, the value is FOLDED (balance + accrued interest),
+    # matching get_summary's "Cash" figure so the allocation bucket and the
+    # dashboard headline agree. Sourced from the FULL transaction list (all
+    # types) -- _get_transactions above is trade-guarded (TRADE_TYPES + ticker)
+    # and excludes cash rows entirely, so it cannot be reused for this.
     txns = db.query(Transaction).filter(Transaction.portfolio_id == pid).all()
-    cash_total = cash_total_from_transactions(txns, display_ccy)
-    has_cash = abs(cash_total) > 0.005
+    if has_external_cashflows(txns):
+        rates = {r.currency: {"annual_rate": r.annual_rate, "enabled": r.enabled, "start_date": r.start_date}
+                  for r in db.query(CashInterestRate).filter(CashInterestRate.portfolio_id == pid).all()}
+        cash_total = folded_cash_display(txns, rates, display_ccy)
+        has_cash = abs(cash_total) > 0.005
+    else:
+        cash_total = 0.0
+        has_cash = False
 
     if not transactions:
         # Cash-only portfolio (no trades yet): still surface the Cash slice —
-        # it's 100% of the (non-holdings) allocation.
+        # it's 100% of the (non-holdings) allocation -- but only when the guard
+        # above found an actual deposit/withdrawal (has_cash already reflects it).
         cash_only = [{"name": "Cash", "value": round(cash_total, 2), "weight": 100.0}] if has_cash else []
         return {"sectors": cash_only, "countries": cash_only, "asset_types": cash_only, "total_value": 0.0}
 

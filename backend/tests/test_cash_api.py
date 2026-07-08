@@ -16,9 +16,9 @@ from routers.cash import (
     create_cash, list_cash, update_cash, delete_cash, CashCreate,
     get_rates, put_rates, get_balance, RatesPayload, RateItem,
 )
-from routers.portfolio import get_summary
+from routers.portfolio import get_summary, get_transactions
 from routers.analytics import sector_breakdown, _build_value_cashflow_series, _lifetime_money_weighted
-from cash_ledger import has_external_cashflows
+from cash_ledger import has_external_cashflows, TRADE_TYPES
 from tests.helpers import make_txn
 
 
@@ -163,6 +163,31 @@ def test_cash_endpoints_refuse_trade_rows(db_session, pid):
 
 
 # ---------------------------------------------------------------------------
+# GET /api/portfolio/transactions excludes cash rows (FIX A)
+# ---------------------------------------------------------------------------
+# Cash rows (ticker=None) belong to the Cash ledger, not the Transactions page.
+# Un-filtered, they used to leak in as blank rows and crash the page's
+# ticker-filter (`t.ticker.toLowerCase()` on null).
+
+
+def test_get_transactions_excludes_cash_rows(db_session, pid):
+    trade = make_txn(type="buy", shares=10, price=100, currency="USD", portfolio_id=pid)
+    db_session.add(trade)
+    db_session.commit()
+
+    with patch("routers.cash.fetch_fx_to_czk", return_value=23.0):
+        create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+
+    rows = get_transactions(db_session, pid)
+
+    assert len(rows) == 1
+    assert rows[0].ticker == "AAPL"
+    assert rows[0].type == "buy"
+    assert all(r.ticker is not None for r in rows)
+    assert all(r.type in TRADE_TYPES for r in rows)
+
+
+# ---------------------------------------------------------------------------
 # Interest-rate settings + per-currency balance (Task 7)
 # ---------------------------------------------------------------------------
 
@@ -240,11 +265,34 @@ def test_put_rates_upsert_is_idempotent(db_session, pid):
 
 
 def test_summary_net_worth_adds_cash(db_session, pid):
+    # Deposit present -> has_external_cashflows True -> cash is surfaced. New
+    # folded semantic: "cash" already includes accrued interest (0 here, no
+    # rate configured), so net_worth = total_value + cash (no separate +accrued).
     with patch("routers.cash.fetch_fx_to_czk", return_value=23.0):
         create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
     s = get_summary(currency="USD", db=db_session, pid=pid)
     assert s["cash"] == 1000.0
-    assert s["net_worth"] == round(s["total_value"] + s["cash"] + s["accrued_interest"], 2)
+    assert s["net_worth"] == round(s["total_value"] + s["cash"], 2)
+
+
+def test_summary_no_cash_when_no_deposits(db_session, pid):
+    # Trade-only portfolio (no deposit/withdrawal rows) -> guard active:
+    # cash is NOT surfaced at all, net_worth == total_value. Mock market-data /
+    # day-change lookups so this stays hermetic (no live yfinance calls) --
+    # an open position otherwise drives get_summary's day-change block into a
+    # real yf.download for a single ticker.
+    trade = make_txn(type="buy", shares=10, price=100, currency="USD", portfolio_id=pid)
+    db_session.add(trade)
+    db_session.commit()
+
+    with patch("market_data.get_infos", return_value={
+            "AAPL": {"currentPrice": 100.0, "currency": "USD"},
+        }), \
+         patch("routers.portfolio.yf.download", return_value=pd.DataFrame()):
+        s = get_summary(currency="USD", db=db_session, pid=pid)
+
+    assert s["cash"] == 0.0
+    assert s["net_worth"] == s["total_value"]
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +349,26 @@ def test_allocation_cash_pct_included_in_denominator_with_holdings(db_session, p
         assert round(sum(b["weight"] for b in bucket_list), 2) == 100.0
     # total_value stays holdings-only (matches get_summary's contract: net_worth = total_value + cash).
     assert result["total_value"] == 1000.0
+
+
+def test_allocation_no_cash_bucket_without_deposits(db_session, pid):
+    # Trade-only portfolio (no deposit/withdrawal rows) -> guard active: NO Cash
+    # bucket in any dimension, weights sum to ~100 across holdings alone (same
+    # contract as before the cash model).
+    trade = make_txn(type="buy", shares=10, price=100, currency="USD",
+                      date=date(2024, 1, 2), portfolio_id=pid)
+    db_session.add(trade)
+    db_session.commit()
+
+    with patch("market_data.get_infos", return_value={
+        "AAPL": {"currentPrice": 100.0, "currency": "USD", "sector": "Technology", "quoteType": "EQUITY"},
+    }):
+        result = sector_breakdown(currency="USD", db=db_session, pid=pid)
+
+    for key in ("sectors", "countries", "asset_types"):
+        bucket_list = result[key]
+        assert all(b["name"] != "Cash" for b in bucket_list)
+        assert round(sum(b["weight"] for b in bucket_list), 2) == pytest.approx(100.0, abs=0.01)
 
 
 # ---------------------------------------------------------------------------

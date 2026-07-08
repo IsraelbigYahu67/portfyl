@@ -112,6 +112,18 @@ def cash_total_from_transactions(transactions, display_ccy: str) -> float:
     return sum(cash_amount_to_display(v, ccy, display_ccy) for ccy, v in balances.items())
 
 
+def folded_cash_display(transactions, rates, display_ccy):
+    """Blended cash BALANCE + accrued interest in display currency (mirror basis).
+    The single 'Cash' figure used by the dashboard summary and the allocation bucket,
+    so both reconcile with net_worth. Callers gate on has_external_cashflows first."""
+    from cash_ledger import cash_balance_by_currency, accrued_interest
+    balances = cash_balance_by_currency(transactions)
+    accrued = accrued_interest(transactions, rates)
+    total = sum(cash_amount_to_display(v, ccy, display_ccy) for ccy, v in balances.items())
+    total += sum(cash_amount_to_display(v, ccy, display_ccy) for ccy, v in accrued.items())
+    return total
+
+
 def bulk_fetch_fx(pairs: Iterable[tuple[str, date]]) -> dict[tuple[str, date], float]:
     """Batch-resolve (currency, date) → rate. Groups by currency and downloads
     one history window per currency to minimize yfinance calls."""

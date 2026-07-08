@@ -170,7 +170,16 @@ def _live_fx_to_czk(currency: str, cache: dict) -> float:
 
 @router.get("/transactions", response_model=List[TransactionResponse])
 def get_transactions(db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
-    return _portfolio_txns(db, pid).order_by(Transaction.date.desc()).all()
+    # Trade rows only -- cash rows (deposit/withdrawal/fee/interest, ticker=None)
+    # belong to the Cash ledger, not the Transactions page. Un-filtered, they leaked
+    # in as blank rows and crashed the page's ticker-filter (`t.ticker.toLowerCase()`
+    # on null).
+    return (
+        _portfolio_txns(db, pid)
+        .filter(Transaction.type.in_(TRADE_TYPES))
+        .order_by(Transaction.date.desc())
+        .all()
+    )
 
 
 @router.post("/transactions", response_model=TransactionResponse)
@@ -479,19 +488,26 @@ def get_summary(
             day_change = round(change, 2)
             day_change_pct = round(change / prev_value * 100, 2) if prev_value > 0 else None
 
-    # Cash + accrued interest, blended into net worth on the SAME basis as
-    # total_value: cash_amount_to_display only converts native->CZK when the
-    # display currency is CZK, otherwise it's a native sum (mirrors the
-    # live_fx=1.0 branch above), so total_value + cash + accrued is always
-    # consistent.
-    from cash_ledger import accrued_interest
+    # Cash: guarded on external cashflows (deposit/withdrawal rows). A portfolio
+    # with none (trades-only) does not surface cash at all -- net_worth ==
+    # total_value -- avoiding a confusing negative/phantom cash figure for the
+    # app's real trades-but-no-deposits user. When gated on, the displayed
+    # "Cash" figure is FOLDED (balance + accrued interest) into one number so it
+    # reconciles with net_worth; accrued is NOT added again below (no double-count).
+    from cash_ledger import accrued_interest, has_external_cashflows
     from models import CashInterestRate
-    from fx import cash_amount_to_display, cash_total_from_transactions
+    from fx import cash_amount_to_display, folded_cash_display
     _rates = {r.currency: {"annual_rate": r.annual_rate, "enabled": r.enabled, "start_date": r.start_date}
               for r in db.query(CashInterestRate).filter(CashInterestRate.portfolio_id == pid).all()}
-    _accrued = accrued_interest(transactions, _rates)
-    cash_total = cash_total_from_transactions(transactions, currency)
-    accrued_total = sum(cash_amount_to_display(v, ccy, currency) for ccy, v in _accrued.items())
+    if has_external_cashflows(transactions):
+        cash_total = folded_cash_display(transactions, _rates, currency)  # balance + accrued, folded
+        _accrued = accrued_interest(transactions, _rates)
+        accrued_total = sum(cash_amount_to_display(v, ccy, currency) for ccy, v in _accrued.items())
+    else:
+        cash_total = 0.0
+        accrued_total = 0.0
+    # cash_total already includes accrued interest -- do NOT add accrued_total again.
+    net_worth = total_value + cash_total
 
     return {
         "total_value": round(total_value, 2),
@@ -505,7 +521,7 @@ def get_summary(
         "last_updated": datetime.now().isoformat(),
         "cash": round(cash_total, 2),
         "accrued_interest": round(accrued_total, 2),
-        "net_worth": round(total_value + cash_total + accrued_total, 2),
+        "net_worth": round(net_worth, 2),
     }
 
 
