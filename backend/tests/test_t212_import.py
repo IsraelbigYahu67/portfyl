@@ -1,0 +1,252 @@
+"""Cash model v2: T212 full-history import, settlement-aware signed_cash,
+and accrual start after the last real interest row.
+
+The fixture rows are verbatim lines from a real Trading 212 export
+(portfoliodata.csv) — one of each action type the importer must handle.
+"""
+
+from __future__ import annotations
+
+import io
+from datetime import date
+
+import pandas as pd
+import pytest
+
+from cash_ledger import (
+    CASH_TYPES,
+    EXTERNAL_FLOW_TYPES,
+    accrued_interest,
+    cash_balance_by_currency,
+    has_external_cashflows,
+    signed_cash,
+)
+from models import Transaction
+from routers.portfolio import _is_t212, _normalize_t212
+from tests.helpers import make_txn
+
+_T212_HEADER = (
+    "Action,Time,ISIN,Ticker,Name,Notes,ID,No. of shares,Price / share,"
+    "Currency (Price / share),Exchange rate,Result,Currency (Result),Total,"
+    "Currency (Total),Withholding tax,Currency (Withholding tax),"
+    "Currency conversion from amount,Currency (Currency conversion from amount),"
+    "Currency conversion to amount,Currency (Currency conversion to amount),"
+    "Currency conversion fee,Currency (Currency conversion fee),Merchant name,Merchant category"
+)
+
+_T212_ROWS = [
+    'Deposit,2026-01-19 19:21:23,,,,"Bank Transfer",019bd7b4-6854-737b-b684-d370d418a7b7,,,,,,,68050.00,"CZK",,,,,,,,,,',
+    'Interest on cash,2026-01-20 02:11:32,,,,"Interest on cash",019bd92b-eb5b-7235-ae55-af03f2fb1e55,,,,,,,6.76,"CZK",,,,,,,,,,',
+    'Market buy,2026-01-20 10:28:43,US90353T1007,UBER,"Uber Technologies",,EOF45353502272,0.6700000000,83.5000000000,USD,0.04818109,,,1162.88,"CZK",,,,,,,1.74,"CZK",,',
+    'Market sell,2026-01-22 18:02:39,US0919471013,BTGO,"BitGo",,EOF45459915169,1.0000000000,22.4200000000,USD,0.04843064,-11.03,"CZK",462.24,"CZK",,,,,,,0.69,"CZK",,',
+    'Limit sell,2026-07-07 14:52:38,US3032501047,FICO,"Fair Isaac",,EOF53809672546,0.0300000000,1318.6800000000,USD,0.04718896,165.27,"CZK",837.08,"CZK",,,,,,,1.26,"CZK",,',
+    'Dividend (Dividend),2026-03-11 15:20:28,US78409V1044,SPGI,"S&P Global",,,0.3500000000,0.824500,USD,20.96750000,,,6.05,"CZK",0.05,USD,,,,,,,,',
+    'Card debit,2026-01-24 20:14:30,,,,,019bf4ab-4efa-7340-8baa-5995cbf7a857,,,,,,,-388.00,"CZK",,,,,,,,,"Allegro","MISCELLANEOUS"',
+    'Spending cashback,2026-01-26 02:19:33,,,,,019bf819-6ae9-7dd7-a3d7-e117a9b1a764,,,,,,,5.82,"CZK",,,,,,,,,,',
+    'Withdrawal,2026-03-09 17:48:08,,,,,019cd3b6-a49f-7866-9cce-5e5335c2f5d5,,,,,,,-500.00,"CZK",,,,,,,,,,',
+    'Currency conversion,2026-06-03 11:13:59,,,,"5.00 USD -> 104.08 CZK",TZZIPQ4HBW4VFBP5,,,,,,,-0.16,"CZK",,,5.00,"USD",104.08,"CZK",-0.16,"CZK",,',
+    'Lending interest,2026-03-20 05:07:50,,,,"Share lending interest",019d09a4-84d1-7b82-af12-79fcb320cd22,,,,,,,0.06,"CZK",,,,,,,,,,',
+]
+
+# Hand-computed CZK cash impact of the fixture (Total column, signed by type):
+# +68050 +6.76 -1162.88 +462.24 +837.08 +6.05 -388 +5.82 -500 +104.08 -0.16
+_EXPECTED_CZK = 67420.99
+_EXPECTED_USD = -5.00  # the fx_out leg of the currency conversion
+
+
+def _normalized_rows():
+    df = pd.read_csv(io.StringIO(_T212_HEADER + "\n" + "\n".join(_T212_ROWS)))
+    df.columns = df.columns.str.lower().str.strip()
+    assert _is_t212(set(df.columns))
+    return _normalize_t212(df)
+
+
+def _by_type(rows):
+    out: dict[str, list] = {}
+    for r in rows:
+        out.setdefault(r["type"], []).append(r)
+    return out
+
+
+class TestNormalizeT212:
+    def test_row_counts_and_lending_interest_skipped(self):
+        rows, skipped = _normalized_rows()
+        types = _by_type(rows)
+        assert skipped == 1  # exactly the Lending interest row
+        assert len(rows) == 12
+        assert len(types["buy"]) == 1
+        assert len(types["sell"]) == 2  # Market sell + Limit sell
+        assert len(types["dividend"]) == 1
+        for t in ("deposit", "withdrawal", "interest", "card_debit", "cashback",
+                  "fx_in", "fx_out", "fee"):
+            assert len(types[t]) == 1, t
+
+    def test_buy_settlement_and_exact_fx(self):
+        rows, _ = _normalized_rows()
+        buy = _by_type(rows)["buy"][0]
+        assert buy["ticker"] == "UBER"
+        assert buy["shares"] == pytest.approx(0.67)
+        assert buy["price"] == pytest.approx(83.50)
+        assert buy["currency"] == "USD"
+        # Total (CZK, FX fee included) is the exact cash the buy consumed.
+        assert buy["cash_amount"] == pytest.approx(1162.88)
+        assert buy["cash_currency"] == "CZK"
+        # Trades quote Exchange rate as USD per 1 CZK.
+        assert buy["fx_to_czk"] == pytest.approx(1 / 0.04818109)
+
+    def test_dividend_settlement_and_inverted_fx(self):
+        rows, _ = _normalized_rows()
+        div = _by_type(rows)["dividend"][0]
+        assert div["ticker"] == "SPGI"
+        assert div["cash_amount"] == pytest.approx(6.05)
+        assert div["cash_currency"] == "CZK"
+        # Dividends derive fx from Total/(shares*price) ~= the export's 20.9675.
+        assert div["fx_to_czk"] == pytest.approx(20.9675, rel=1e-3)
+
+    def test_cash_rows(self):
+        rows, _ = _normalized_rows()
+        types = _by_type(rows)
+        assert types["deposit"][0]["amount"] == pytest.approx(68050.00)
+        assert types["deposit"][0]["currency"] == "CZK"
+        # Negative Totals (withdrawal/card debit) are stored as positive
+        # magnitudes; direction lives in the type.
+        assert types["withdrawal"][0]["amount"] == pytest.approx(500.00)
+        assert types["card_debit"][0]["amount"] == pytest.approx(388.00)
+        assert "Allegro" in types["card_debit"][0]["notes"]
+        assert types["cashback"][0]["amount"] == pytest.approx(5.82)
+        assert types["interest"][0]["amount"] == pytest.approx(6.76)
+
+    def test_currency_conversion_becomes_three_legs(self):
+        rows, _ = _normalized_rows()
+        types = _by_type(rows)
+        assert types["fx_out"][0]["amount"] == pytest.approx(5.00)
+        assert types["fx_out"][0]["currency"] == "USD"
+        assert types["fx_in"][0]["amount"] == pytest.approx(104.08)
+        assert types["fx_in"][0]["currency"] == "CZK"
+        assert types["fee"][0]["amount"] == pytest.approx(0.16)
+        assert types["fee"][0]["currency"] == "CZK"
+
+
+class TestSettlementSignedCash:
+    def _txns(self):
+        rows, _ = _normalized_rows()
+        return [Transaction(**r, portfolio_id=1) for r in rows]
+
+    def test_balance_reconciles_with_broker_totals(self):
+        balances = cash_balance_by_currency(self._txns())
+        assert balances["CZK"] == pytest.approx(_EXPECTED_CZK, abs=0.01)
+        assert balances["USD"] == pytest.approx(_EXPECTED_USD, abs=0.01)
+
+    def test_buy_pulls_settlement_currency(self):
+        buy = make_txn(type="buy", shares=0.67, price=83.50, currency="USD",
+                       cash_amount=1162.88, cash_currency="CZK")
+        assert signed_cash(buy) == ("CZK", pytest.approx(-1162.88))
+
+    def test_sell_and_dividend_push_settlement_currency(self):
+        sell = make_txn(type="sell", shares=1.0, price=22.42, currency="USD",
+                        cash_amount=462.24, cash_currency="CZK")
+        div = make_txn(type="dividend", shares=0.35, price=0.8245, currency="USD",
+                       cash_amount=6.05, cash_currency="CZK")
+        assert signed_cash(sell) == ("CZK", pytest.approx(462.24))
+        assert signed_cash(div) == ("CZK", pytest.approx(6.05))
+
+    def test_legacy_trade_without_settlement_falls_back_to_native(self):
+        buy = make_txn(type="buy", shares=10, price=150.0, currency="USD")
+        assert signed_cash(buy) == ("USD", pytest.approx(-1500.0))
+
+    def test_new_types_membership_and_direction(self):
+        assert {"card_debit", "cashback", "fx_in", "fx_out"} <= CASH_TYPES
+        assert EXTERNAL_FLOW_TYPES == {"deposit", "withdrawal", "card_debit", "cashback"}
+        card = make_txn(ticker=None, type="card_debit", shares=0.0, price=0.0,
+                        amount=388.0, currency="CZK")
+        back = make_txn(ticker=None, type="cashback", shares=0.0, price=0.0,
+                        amount=5.82, currency="CZK")
+        assert signed_cash(card) == ("CZK", pytest.approx(-388.0))
+        assert signed_cash(back) == ("CZK", pytest.approx(5.82))
+        assert has_external_cashflows([card])
+        assert has_external_cashflows([back])
+        fxo = make_txn(ticker=None, type="fx_out", shares=0.0, price=0.0,
+                       amount=5.0, currency="USD")
+        assert signed_cash(fxo) == ("USD", pytest.approx(-5.0))
+        assert not has_external_cashflows([fxo])
+
+
+class TestDisplayCurrencyConversion:
+    """USD display used to sum native amounts with fx=1.0 (CZK cash counted as
+    USD). Now every value converts native -> CZK (snapshot) -> display (live)."""
+
+    def _patch_live_fx(self, monkeypatch):
+        import routers.portfolio as rp
+        monkeypatch.setattr(
+            rp, "_live_fx_to_czk",
+            lambda ccy, cache: {"CZK": 1.0, "USD": 20.0}[(ccy or "USD").upper()],
+        )
+
+    def test_usd_display_converts_czk_cost(self, monkeypatch):
+        self._patch_live_fx(monkeypatch)
+        from routers.portfolio import _build_holdings
+        buy = make_txn(ticker="CEZ", type="buy", shares=10, price=100.0,
+                       currency="CZK", fx_to_czk=1.0)
+        usd = _build_holdings([buy], display_ccy="USD")
+        czk = _build_holdings([buy], display_ccy="CZK")
+        assert usd["CEZ"]["cost"] == pytest.approx(1000.0 / 20.0)
+        assert czk["CEZ"]["cost"] == pytest.approx(1000.0)
+
+    def test_usd_display_uses_historical_snapshot_for_usd_trades(self, monkeypatch):
+        self._patch_live_fx(monkeypatch)
+        from routers.portfolio import _build_holdings
+        # Bought when USDCZK was 25; live rate is 20 -> the USD-display cost
+        # reflects the FX move (25/20), it is no longer just shares*price.
+        buy = make_txn(ticker="AAPL", type="buy", shares=1, price=100.0,
+                       currency="USD", fx_to_czk=25.0)
+        usd = _build_holdings([buy], display_ccy="USD")
+        assert usd["AAPL"]["cost"] == pytest.approx(100.0 * 25.0 / 20.0)
+
+    def test_default_stays_native_for_shares_only_callers(self):
+        from routers.portfolio import _build_holdings
+        buy = make_txn(ticker="AAPL", type="buy", shares=1, price=100.0,
+                       currency="USD", fx_to_czk=25.0)
+        native = _build_holdings([buy])
+        assert native["AAPL"]["cost"] == pytest.approx(100.0)
+
+    def test_cash_amount_to_display_really_converts(self, monkeypatch):
+        import fx as fxmod
+        monkeypatch.setattr(
+            fxmod, "fetch_fx_to_czk",
+            lambda ccy, d=None: {"CZK": 1.0, "USD": 20.0}[(ccy or "USD").upper()],
+        )
+        from fx import cash_amount_to_display
+        # CZK cash viewed in USD must divide by the rate (old code returned it raw).
+        assert cash_amount_to_display(60000.0, "CZK", "USD") == pytest.approx(3000.0)
+        assert cash_amount_to_display(100.0, "USD", "CZK") == pytest.approx(2000.0)
+        assert cash_amount_to_display(42.0, "CZK", "CZK") == pytest.approx(42.0)
+
+
+class TestAccrualStartsAfterLastInterestRow:
+    def test_accrual_skips_period_covered_by_imported_interest(self):
+        deposit = make_txn(ticker=None, type="deposit", shares=0.0, price=0.0,
+                           amount=10000.0, currency="CZK", date=date(2026, 1, 1))
+        interest = make_txn(ticker=None, type="interest", shares=0.0, price=0.0,
+                            amount=1.0, currency="CZK", date=date(2026, 1, 6))
+        rates = {"CZK": {"annual_rate": 0.0365, "enabled": True, "start_date": None}}
+        out = accrued_interest([deposit, interest], rates, as_of=date(2026, 1, 16))
+        # Real interest covers through Jan 6 -> accrue Jan 7..Jan 16 = 9 day-gaps
+        # on a 10001 balance: 10001 * 0.0365 * 9 / 365 = 9.00.
+        assert out["CZK"] == pytest.approx(10001 * 0.0365 * 9 / 365, abs=0.01)
+
+    def test_explicit_start_date_later_than_interest_wins(self):
+        deposit = make_txn(ticker=None, type="deposit", shares=0.0, price=0.0,
+                           amount=10000.0, currency="CZK", date=date(2026, 1, 1))
+        interest = make_txn(ticker=None, type="interest", shares=0.0, price=0.0,
+                            amount=1.0, currency="CZK", date=date(2026, 1, 6))
+        rates = {"CZK": {"annual_rate": 0.0365, "enabled": True,
+                         "start_date": date(2026, 1, 11)}}
+        out = accrued_interest([deposit, interest], rates, as_of=date(2026, 1, 16))
+        assert out["CZK"] == pytest.approx(10001 * 0.0365 * 5 / 365, abs=0.01)
+
+    def test_no_interest_rows_behaves_as_before(self):
+        deposit = make_txn(ticker=None, type="deposit", shares=0.0, price=0.0,
+                           amount=10000.0, currency="CZK", date=date(2026, 1, 1))
+        rates = {"CZK": {"annual_rate": 0.0365, "enabled": True, "start_date": None}}
+        out = accrued_interest([deposit], rates, as_of=date(2026, 1, 11))
+        assert out["CZK"] == pytest.approx(10000 * 0.0365 * 10 / 365, abs=0.01)

@@ -97,15 +97,14 @@ def convert_amount(amount_native: float, from_ccy: str, to_ccy: str,
 
 
 def cash_amount_to_display(amount_native: float, native_ccy: str, display_ccy: str) -> float:
-    """Mirror get_summary's currency handling for blended cash totals: convert
-    native->CZK only when the display currency is CZK; otherwise leave native
-    (get_summary leaves non-CZK display values native via live_fx=1.0). Keeps
-    net_worth = total_value + cash on one consistent basis. Task 8 reuses this."""
-    return convert_amount(amount_native, native_ccy, "CZK") if display_ccy.upper() == "CZK" else amount_native
+    """Blended cash total helper: real conversion into the display currency
+    (native -> CZK -> display). get_summary/holdings convert on the same
+    CZK-pivot basis, so net_worth = total_value + cash stays consistent."""
+    return convert_amount(amount_native, native_ccy, display_ccy)
 
 
 def cash_total_from_transactions(transactions, display_ccy: str) -> float:
-    """Blended cash BALANCE total in display currency, mirroring get_summary's basis.
+    """Blended cash BALANCE total in display currency.
     Sums cash_balance_by_currency (native, per currency) via cash_amount_to_display."""
     from cash_ledger import cash_balance_by_currency
     balances = cash_balance_by_currency(transactions)
@@ -113,7 +112,7 @@ def cash_total_from_transactions(transactions, display_ccy: str) -> float:
 
 
 def folded_cash_display(transactions, rates, display_ccy):
-    """Blended cash BALANCE + accrued interest in display currency (mirror basis).
+    """Blended cash BALANCE + accrued interest in display currency.
     The single 'Cash' figure used by the dashboard summary and the allocation bucket,
     so both reconcile with net_worth. Callers gate on has_external_cashflows first."""
     from cash_ledger import cash_balance_by_currency, accrued_interest

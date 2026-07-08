@@ -27,8 +27,14 @@ class Transaction(Base):
     type = Column(String, nullable=False)  # buy | sell | dividend
     shares = Column(Float, nullable=False)
     price = Column(Float, nullable=False)
-    amount = Column(Float, nullable=True)   # cash amount (native ccy) for deposit/withdrawal/fee/interest; NULL for trades
+    amount = Column(Float, nullable=True)   # cash amount (native ccy) for cash rows (deposit/withdrawal/...); NULL for trades
     currency = Column(String, default="USD")
+    # Settlement: the actual cash a trade/dividend moved, in the account currency
+    # (T212 CSV `Total`, FX fees included). Positive magnitude; direction comes from
+    # `type`. NULL on cash rows (`amount` is authoritative there) and on legacy trades
+    # (signed_cash falls back to shares*price in the trade currency).
+    cash_amount = Column(Float, nullable=True)
+    cash_currency = Column(String, nullable=True)
     date = Column(Date, nullable=False)
     notes = Column(String, nullable=True)
     source = Column(String, nullable=True)  # "manual" | "t212_api" | "csv"

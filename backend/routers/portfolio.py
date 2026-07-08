@@ -30,11 +30,17 @@ _T212_BUY_ACTIONS = {
 _T212_SELL_ACTIONS = {
     "market sell", "limit sell", "stop sell", "sell"
 }
-# Non-trade rows we recognise and silently skip
+# Cash movements mapped 1:1 onto ledger types (amount = |Total|, direction from type).
+_T212_CASH_ACTIONS = {
+    "deposit": "deposit",
+    "withdrawal": "withdrawal",
+    "interest on cash": "interest",
+    "card debit": "card_debit",
+    "spending cashback": "cashback",
+}
+# Recognised and deliberately ignored (user decision: share lending is out of scope).
 _T212_SKIP_ACTIONS = {
-    "interest on cash", "withdrawal", "deposit",
-    "currency conversion", "cash in", "cash out",
-    "spending cashback", "result from positions",
+    "lending interest", "cash in", "cash out", "result from positions",
 }
 
 
@@ -50,54 +56,133 @@ def _t212_action_to_type(action: str) -> str | None:
         return "sell"
     if "dividend" in a:
         return "dividend"
-    if a in _T212_SKIP_ACTIONS or not a:
-        return None  # skip silently
-    return None  # unknown → skip
+    if a in _T212_CASH_ACTIONS:
+        return _T212_CASH_ACTIONS[a]
+    return None  # lending interest / unknown → skip
+
+
+def _t212_num(row, col) -> float | None:
+    v = row.get(col)
+    if v is None or pd.isna(v):
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _t212_str(row, col, default="") -> str:
+    v = row.get(col)
+    if v is None or pd.isna(v):
+        return default
+    s = str(v).strip()
+    return s if s and s.upper() != "NAN" else default
 
 
 def _normalize_t212(df: pd.DataFrame) -> tuple[list[dict], int]:
     """Convert a T212 DataFrame into a list of normalised row dicts.
+
+    Everything in a T212 export settles in the account currency: the `Total`
+    column is the exact cash impact (buy totals include the FX fee, sell totals
+    are net of it), stored as cash_amount/cash_currency so trades move the cash
+    pile. Deposits, withdrawals, interest, card debits and cashback become cash
+    rows; a currency conversion becomes fx_out + fx_in (+ fee) legs.
 
     Returns (rows, skipped_count).
     """
     rows, skipped = [], 0
     for _, row in df.iterrows():
         raw_action = str(row.get("action", "")).strip()
-        txn_type = _t212_action_to_type(raw_action)
-        if txn_type is None:
-            skipped += 1
-            continue
-
-        ticker = str(row.get("ticker", "")).strip().upper()
-        if not ticker or ticker in ("NAN", ""):
-            skipped += 1
-            continue
-
-        shares_raw = row.get("no. of shares")
-        price_raw = row.get("price / share")
-        if pd.isna(shares_raw) or pd.isna(price_raw):
-            skipped += 1
-            continue
-
         try:
             txn_date = pd.to_datetime(str(row["time"])).date()
         except Exception:
             skipped += 1
             continue
 
-        currency = str(row.get("currency (price / share)", "USD")).strip().upper()
-        if not currency or currency == "NAN":
-            currency = "USD"
+        total = _t212_num(row, "total")
+        total_ccy = _t212_str(row, "currency (total)", "CZK").upper()
+        action_lc = raw_action.lower()
+
+        if action_lc == "currency conversion":
+            from_amt = _t212_num(row, "currency conversion from amount")
+            from_ccy = _t212_str(row, "currency (currency conversion from amount)").upper()
+            to_amt = _t212_num(row, "currency conversion to amount")
+            to_ccy = _t212_str(row, "currency (currency conversion to amount)").upper()
+            note = _t212_str(row, "notes", raw_action)
+            if from_amt and from_ccy:
+                rows.append({"ticker": None, "name": None, "type": "fx_out",
+                             "shares": 0.0, "price": 0.0, "amount": abs(from_amt),
+                             "currency": from_ccy, "date": txn_date, "notes": f"T212: {note}"})
+            if to_amt and to_ccy:
+                rows.append({"ticker": None, "name": None, "type": "fx_in",
+                             "shares": 0.0, "price": 0.0, "amount": abs(to_amt),
+                             "currency": to_ccy, "date": txn_date, "notes": f"T212: {note}"})
+            if total:
+                rows.append({"ticker": None, "name": None, "type": "fee",
+                             "shares": 0.0, "price": 0.0, "amount": abs(total),
+                             "currency": total_ccy, "date": txn_date,
+                             "notes": "T212: Currency conversion fee"})
+            continue
+
+        txn_type = _t212_action_to_type(raw_action)
+        if txn_type is None:
+            skipped += 1
+            continue
+
+        if txn_type in _T212_CASH_ACTIONS.values():
+            if not total:
+                skipped += 1
+                continue
+            if txn_type == "card_debit":
+                merchant = _t212_str(row, "merchant name")
+                category = _t212_str(row, "merchant category")
+                note = f"Card: {merchant}" + (f" ({category})" if category else "") \
+                    if merchant else "T212: Card debit"
+            else:
+                note = f"T212: {_t212_str(row, 'notes', raw_action)}"
+            rows.append({"ticker": None, "name": None, "type": txn_type,
+                         "shares": 0.0, "price": 0.0, "amount": abs(total),
+                         "currency": total_ccy, "date": txn_date, "notes": note})
+            continue
+
+        # Trade / dividend rows
+        ticker = _t212_str(row, "ticker").upper()
+        shares = _t212_num(row, "no. of shares")
+        price = _t212_num(row, "price / share")
+        if not ticker or shares is None or price is None:
+            skipped += 1
+            continue
+
+        currency = _t212_str(row, "currency (price / share)", "USD").upper()
+        rate = _t212_num(row, "exchange rate")
+
+        # fx_to_czk: exact from the export rather than a yfinance lookup.
+        # Trades quote `Exchange rate` as price-ccy per 1 CZK (~0.048 for USD);
+        # dividends quote it inverted, CZK per 1 price-ccy (~21) -- for those,
+        # Total / (shares*price) reproduces it exactly, fees don't apply.
+        fx_to_czk = None
+        if currency == "CZK" or total_ccy != "CZK":
+            fx_to_czk = 1.0 if currency == "CZK" else None
+        elif txn_type == "dividend":
+            if total and shares and price:
+                fx_to_czk = abs(total) / (shares * price)
+            elif rate:
+                fx_to_czk = rate
+        elif rate:
+            fx_to_czk = 1.0 / rate
 
         rows.append({
             "ticker": ticker,
-            "name": str(row.get("name", ticker)).strip(),
+            "name": _t212_str(row, "name", ticker),
             "type": txn_type,
-            "shares": float(shares_raw),
-            "price": float(price_raw),
+            "shares": shares,
+            "price": price,
             "currency": currency,
             "date": txn_date,
             "notes": f"T212: {raw_action}",
+            "fx_to_czk": fx_to_czk,
+            "cash_amount": abs(total) if total else None,
+            "cash_currency": total_ccy if total else None,
         })
 
     return rows, skipped
@@ -117,16 +202,22 @@ def _portfolio_txns(db: Session, pid: int):
     return db.query(Transaction).filter(Transaction.portfolio_id == pid)
 
 
-def _build_holdings(transactions: list, include_closed: bool = False, in_czk: bool = False) -> dict:
-    """Aggregate per-ticker shares, cost, dividends and realized P&L."""
+def _build_holdings(transactions: list, include_closed: bool = False,
+                    display_ccy: str | None = None) -> dict:
+    """Aggregate per-ticker shares, cost, dividends and realized P&L.
+
+    display_ccy=None leaves money values in each txn's native currency (fine for
+    the many callers that only read `shares`). Passing a currency converts every
+    value native -> CZK (historical per-txn snapshot) -> display (live rate)."""
     fx_fallback: dict[str, float] = {}
+    disp_rate = _live_fx_to_czk(display_ccy, fx_fallback) if display_ccy else None
     holdings: dict[str, dict] = {}
     for txn in sorted(transactions, key=lambda t: (t.date, _TXN_TYPE_ORDER.get(t.type, 1))):
         if txn.type not in TRADE_TYPES or not txn.ticker:
-            continue  # cash rows (deposit/withdrawal/fee/interest) never affect holdings
+            continue  # cash rows (deposit/withdrawal/fee/interest/...) never affect holdings
         t = txn.ticker
-        if in_czk:
-            fx = txn.fx_to_czk or _live_fx_to_czk(txn.currency, fx_fallback)
+        if disp_rate:
+            fx = (txn.fx_to_czk or _live_fx_to_czk(txn.currency, fx_fallback)) / disp_rate
         else:
             fx = 1.0
         if t not in holdings:
@@ -196,6 +287,10 @@ def create_transaction(
         name=name,
         ticker=txn.ticker.upper(),
         fx_to_czk=fx,
+        # Manual trades settle from the CZK cash pile like imported ones; without
+        # a rate we leave settlement unset and signed_cash falls back to native.
+        cash_amount=round(txn.shares * txn.price * fx, 2) if fx else None,
+        cash_currency="CZK" if fx else None,
         portfolio_id=pid,
     )
     db.add(db_txn)
@@ -256,6 +351,10 @@ async def import_csv(
         fmt = "Trading 212"
         normalised, skipped = _normalize_t212(df)
         new_rows = normalised
+        # A T212 export is the broker's full history: importing one always
+        # replaces the portfolio's data (user-chosen overwrite semantics) so the
+        # cash ledger reconciles with the broker instead of double-counting.
+        replace = True
 
     else:
         fmt = "Native"
@@ -291,17 +390,23 @@ async def import_csv(
     if replace:
         _portfolio_txns(db, pid).delete(synchronize_session=False)
 
-    fx_map = bulk_fetch_fx({(r["currency"], r["date"]) for r in new_rows})
+    # Backfill FX only where the normaliser couldn't derive an exact rate from
+    # the file itself (T212 rows carry their own; CZK rows are 1.0).
+    fx_needed = {(r["currency"], r["date"]) for r in new_rows if not r.get("fx_to_czk")}
+    fx_map = bulk_fetch_fx(fx_needed)
     for r in new_rows:
         try:
-            r["fx_to_czk"] = fx_map.get((r["currency"].upper(), r["date"]))
+            if not r.get("fx_to_czk"):
+                ccy = r["currency"].upper()
+                r["fx_to_czk"] = 1.0 if ccy == "CZK" else fx_map.get((ccy, r["date"]))
             db.add(Transaction(**r, portfolio_id=pid))
             imported += 1
         except Exception as e:
             errors.append(str(e))
 
     db.commit()
-    return {"imported": imported, "skipped": skipped, "errors": errors, "format": fmt}
+    return {"imported": imported, "skipped": skipped, "errors": errors, "format": fmt,
+            "replaced": replace}
 
 
 @router.get("/holdings")
@@ -315,8 +420,8 @@ def get_holdings(
     if not transactions:
         return []
 
-    in_czk = currency.upper() == "CZK"
-    all_data = _build_holdings(transactions, include_closed=True, in_czk=in_czk)
+    display_ccy = currency.upper()
+    all_data = _build_holdings(transactions, include_closed=True, display_ccy=display_ccy)
     active = {k: v for k, v in all_data.items() if v["shares"] > 0.0001}
     # Warm the quote cache for every ticker in one concurrent, deadline-bounded
     # batch so the per-ticker _fetch_price_and_info calls below all hit the
@@ -325,10 +430,11 @@ def get_holdings(
     result = []
     total_value = 0.0
     fx_cache: dict[str, float] = {}
+    disp_rate = _live_fx_to_czk(display_ccy, fx_cache)
 
     for ticker, data in active.items():
         price, name, ticker_ccy = _fetch_price_and_info(ticker)
-        live_fx = _live_fx_to_czk(ticker_ccy, fx_cache) if in_czk else 1.0
+        live_fx = _live_fx_to_czk(ticker_ccy, fx_cache) / disp_rate
         market_value = data["shares"] * price * live_fx
         cost_basis = data["cost"]
         pnl = market_value - cost_basis
@@ -363,7 +469,7 @@ def get_holdings(
                 txn_names[txn.ticker] = txn.name
             if txn.ticker in closed:
                 t = txn_totals.setdefault(txn.ticker, {"bought_val": 0.0, "sold_val": 0.0, "bought_sh": 0.0, "sold_sh": 0.0})
-                fx = (txn.fx_to_czk or _live_fx_to_czk(txn.currency, fx_cache)) if in_czk else 1.0
+                fx = (txn.fx_to_czk or _live_fx_to_czk(txn.currency, fx_cache)) / disp_rate
                 if txn.type == "buy":
                     t["bought_val"] += txn.shares * txn.price * fx
                     t["bought_sh"] += txn.shares
@@ -384,7 +490,7 @@ def get_holdings(
             # of sold. Uses live price * live FX (so it tracks the user's
             # currency view), against the buy cost expressed in that currency.
             live_price, _, live_ccy = _fetch_price_and_info(ticker)
-            live_fx = _live_fx_to_czk(live_ccy, fx_cache) if in_czk else 1.0
+            live_fx = _live_fx_to_czk(live_ccy, fx_cache) / disp_rate
             if bought_sh and live_price > 0:
                 hypothetical_value = bought_sh * live_price * live_fx
                 pnl_if_held = hypothetical_value - cost
@@ -427,16 +533,17 @@ def get_summary(
     pid: int = Depends(require_portfolio),
 ):
     holdings = get_holdings(currency=currency, db=db, pid=pid)
-    in_czk = currency.upper() == "CZK"
+    display_ccy = currency.upper()
     total_value = sum(h["market_value"] for h in holdings)
     total_invested = sum(h["cost_basis"] for h in holdings)
     unrealized_pnl = total_value - total_invested
 
     transactions = _portfolio_txns(db, pid).all()
     fx_fallback: dict[str, float] = {}
+    disp_rate = _live_fx_to_czk(display_ccy, fx_fallback)
 
     def _txn_fx(t):
-        return (t.fx_to_czk or _live_fx_to_czk(t.currency, fx_fallback)) if in_czk else 1.0
+        return (t.fx_to_czk or _live_fx_to_czk(t.currency, fx_fallback)) / disp_rate
 
     total_dividends = sum(
         t.shares * t.price * _txn_fx(t) for t in transactions if t.type == "dividend"

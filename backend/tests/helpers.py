@@ -20,6 +20,8 @@ def make_txn(
     source: str | None = "manual",
     portfolio_id: int = 1,
     amount: float | None = None,
+    cash_amount: float | None = None,
+    cash_currency: str | None = None,
 ) -> Transaction:
     return Transaction(
         portfolio_id=portfolio_id,
@@ -34,4 +36,6 @@ def make_txn(
         fx_to_czk=fx_to_czk,
         notes=notes,
         source=source,
+        cash_amount=cash_amount,
+        cash_currency=cash_currency,
     )

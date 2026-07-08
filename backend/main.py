@@ -64,6 +64,19 @@ def _ensure_cash_columns():
             conn.execute(text("DROP TABLE transactions_old"))
 
 
+def _ensure_settlement_columns():
+    """Add Transaction.cash_amount / cash_currency (cash model v2 settlement columns).
+
+    Must run before _backfill_fx() for the same ORM-selects-every-column reason as
+    _ensure_fx_column()."""
+    with engine.begin() as conn:
+        cols = {r[1] for r in conn.execute(text("PRAGMA table_info(transactions)"))}
+        if "cash_amount" not in cols:
+            conn.execute(text("ALTER TABLE transactions ADD COLUMN cash_amount FLOAT"))
+        if "cash_currency" not in cols:
+            conn.execute(text("ALTER TABLE transactions ADD COLUMN cash_currency VARCHAR"))
+
+
 def _ensure_cash_interest_rate_table():
     """create_all() builds it for fresh DBs; this is a no-op safety net for existing DBs."""
     with engine.begin() as conn:
@@ -297,6 +310,7 @@ def _ensure_owner_id_columns() -> None:
 _ensure_owner_id_columns()
 _ensure_fx_column()
 _ensure_cash_columns()
+_ensure_settlement_columns()
 _ensure_cash_interest_rate_table()
 _default_pid = _ensure_default_portfolio()
 _ensure_portfolio_columns(_default_pid)

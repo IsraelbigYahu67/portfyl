@@ -8,7 +8,8 @@ import numpy as np
 
 from database import get_db
 from models import Transaction, Benchmark, BenchmarkComponent
-from cash_ledger import TRADE_TYPES, has_external_cashflows, cash_balance_by_currency
+from cash_ledger import (TRADE_TYPES, EXTERNAL_FLOW_TYPES, has_external_cashflows,
+                         cash_balance_by_currency, signed_cash)
 from routers.portfolios import require_portfolio
 from ticker_map import yf_symbol
 from routers.portfolio import _xirr, _live_to_usd
@@ -508,7 +509,10 @@ def _build_value_cashflow_series(transactions: list, start_date: date):
         # excluded from that cash balance -- same reason dividends are
         # excluded from C above: auto_adjust already prices the dividend into
         # the holdings series, so crediting the cash again would double-count.
-        cash_ccys = {(t.currency or "USD").upper() for t in transactions if t.type != "dividend"}
+        # Settlement currencies: signed_cash routes trades through their
+        # cash_currency (CZK for T212), so build the FX set from it, not from
+        # the trade's price currency.
+        cash_ccys = {signed_cash(t)[0] for t in transactions if t.type != "dividend"}
         extra_ccys = cash_ccys - set(fx_series.keys()) - {"USD"}
         cash_fx_series = _fx_to_usd_series(extra_ccys, start_date, closes.index) if extra_ccys else {}
         combined_fx = {**fx_series, **cash_fx_series}
@@ -531,17 +535,15 @@ def _build_value_cashflow_series(transactions: list, start_date: date):
                         sold = min(txn.shares, prev)
                         holdings[txn.ticker] = max(0.0, prev - sold)
                         cash_txns_to_date.append(txn)
-                    elif txn.type == "deposit":
+                    elif txn.type in EXTERNAL_FLOW_TYPES:
+                        # deposit/cashback add external money; withdrawal/card
+                        # debit remove it.
                         amt_usd = _price_to_usd(txn.amount, (txn.currency or "USD").upper(), combined_fx, date_idx)
                         if pd.notna(amt_usd):
-                            cf_today += amt_usd
+                            cf_today += amt_usd if txn.type in ("deposit", "cashback") else -amt_usd
                         cash_txns_to_date.append(txn)
-                    elif txn.type == "withdrawal":
-                        amt_usd = _price_to_usd(txn.amount, (txn.currency or "USD").upper(), combined_fx, date_idx)
-                        if pd.notna(amt_usd):
-                            cf_today -= amt_usd
-                        cash_txns_to_date.append(txn)
-                    elif txn.type in ("fee", "interest"):
+                    elif txn.type in ("fee", "interest", "fx_in", "fx_out"):
+                        # cash-only internal events: move the balance, not C.
                         cash_txns_to_date.append(txn)
                     # dividend: excluded from the cash balance (see docstring
                     # above) -- already priced into V via the auto_adjust close.
@@ -886,11 +888,13 @@ def _lifetime_money_weighted(transactions, V_usd: pd.Series) -> dict:
 
     if has_external_cashflows(transactions):
         for txn in sorted(transactions, key=lambda t: t.date):
-            if txn.type in ("deposit", "withdrawal"):
+            if txn.type in EXTERNAL_FLOW_TYPES:
                 ccy = (txn.currency or "USD").upper()
                 rate = _live_to_usd("GBP" if ccy == "GBp" else ccy)
                 amt_usd = float(txn.amount or 0.0) * rate
-                if txn.type == "deposit":
+                # Money entering the portfolio (deposit/cashback) is a negative
+                # XIRR flow; money leaving (withdrawal/card debit) positive.
+                if txn.type in ("deposit", "cashback"):
                     xirr_flows.append((txn.date, -amt_usd))
                 else:
                     xirr_flows.append((txn.date, +amt_usd))
@@ -1074,7 +1078,7 @@ def sector_breakdown(
 
     from routers.portfolio import _build_holdings, _live_fx_to_czk, _live_to_usd
 
-    active = _build_holdings(transactions, in_czk=in_czk)
+    active = _build_holdings(transactions)  # shares only; values converted live below
 
     sector_totals: dict[str, float] = defaultdict(float)
     country_totals: dict[str, float] = defaultdict(float)

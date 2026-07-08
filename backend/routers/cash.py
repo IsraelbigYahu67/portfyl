@@ -15,7 +15,9 @@ router = APIRouter(prefix="/cash", tags=["cash"])
 
 
 class CashCreate(BaseModel):
-    type: str = Field(pattern="^(deposit|withdrawal|fee|interest)$")
+    # Manual entry uses the first four; the rest exist so imported rows
+    # (card debits, cashback, FX legs) can be edited without a 422.
+    type: str = Field(pattern="^(deposit|withdrawal|fee|interest|card_debit|cashback|fx_in|fx_out)$")
     amount: float = Field(gt=0)
     currency: str = Field(min_length=3, max_length=3)
     date: date_type
@@ -142,9 +144,7 @@ def get_balance(currency: str = "USD", db: Session = Depends(get_db), pid: int =
     for ccy in set(balances) | set(accrued):
         bal, acc = balances.get(ccy, 0.0), accrued.get(ccy, 0.0)
         by_currency[ccy] = {"balance": round(bal, 2), "accrued": round(acc, 2)}
-        # Mirror get_summary's basis for blended totals: convert native->CZK only
-        # when display is CZK; otherwise leave native (get_summary sums non-CZK
-        # display values natively via live_fx=1.0). by_currency stays native.
+        # Blended totals convert into the display currency; by_currency stays native.
         total += cash_amount_to_display(bal, ccy, disp)
         total_accrued += cash_amount_to_display(acc, ccy, disp)
     return {"by_currency": by_currency, "total": round(total, 2),
