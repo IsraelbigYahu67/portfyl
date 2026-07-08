@@ -191,7 +191,7 @@ pytest NOT in requirements — `uv pip install pytest` if missing; conftest patc
   `test_portfolio`, `test_analytics`, helpers.py).
 - Frontend: `npx vitest run` (Cash.test.jsx, PortfolioHero.test.jsx may need updates).
 
-### [ ] T9. End-to-end verification
+### [x] T9. End-to-end verification
 - `start.bat` (or backend uvicorn :8000 + `npm run dev` :5173), login `snowball-dev`.
 - Import real `portfoliodata.csv` (replace), then check: Cash page CZK balance and
   Dashboard net worth ≈ broker (~64.6k CZK; small drift = ignored lending interest +
@@ -199,7 +199,7 @@ pytest NOT in requirements — `uv pip install pytest` if missing; conftest patc
   clean (trades only), performance chart renders.
 - DB backups exist at `backend/portfyl.db.bak-preTask*` if anything goes wrong.
 
-### [ ] T10. Commit(s) + wrap-up
+### [x] T10. Commit(s) + wrap-up
 - Conventional commits per logical unit (schema/ledger, importer, display-fix, frontend,
   tests). Do NOT commit portfoliodata.csv unless user asks (contains real financial data).
 
@@ -213,3 +213,20 @@ pytest NOT in requirements — `uv pip install pytest` if missing; conftest patc
 - Lending interest: ignore completely.
 - Known accepted imprecision: conversion-fee inside/outside 104.08 CZK ambiguity (±0.16
   CZK), dividend Total assumed net (verified numerically), lending interest excluded.
+
+## Verification results (2026-07-08, all tasks DONE)
+
+- Backend: 106 pytest passed (17 new in tests/test_t212_import.py). Frontend: 24 vitest passed.
+- Imported real portfoliodata.csv into portfolio 1 "zubik" via API: imported=452,
+  skipped=88 (exactly the lending-interest rows), replaced=true.
+- /cash/balance: CZK 10,737.07 + USD 0.63 — matches an independent hand-computation
+  from the CSV to the cent. (USD balance comes from USD-denominated interest rows +
+  the 5 USD conversion.)
+- /portfolio/summary CZK: net_worth 64,976.71 (positions 54,226.27 + cash 10,750.44)
+  ~= broker's ~64.6k. USD view: $3,061.67 (phantom 70k gone); implied rate 21.22 ✓.
+- Browser-verified Dashboard (both currencies) and Cash page (badges, signed amounts,
+  FX legs, deposits). DB backup taken pre-import: backend/portfyl.db.bak-preCashV2-*.
+- Known deferred item: /portfolio/performance daily series still only converts USD->CZK
+  (fine while all tickers are USD-priced); noted in T4.
+- NOTE: first /holdings call after import can return 0-priced tickers (yfinance batch
+  deadline); resolves on retry once the quote cache warms.
