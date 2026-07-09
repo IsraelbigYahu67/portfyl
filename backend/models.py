@@ -246,3 +246,24 @@ class CashInterestRate(Base):
     enabled = Column(Boolean, nullable=False, default=False)
     start_date = Column(Date, nullable=True)           # accrual start; NULL => first cash event
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class PriceAlert(Base):
+    """A user-armed price threshold for a ticker. When the live price crosses it,
+    the alert fires a Discord notification (via the portfolio's webhook) and flips
+    to `triggered` so it won't re-fire until the user resets it. Portfolio-scoped
+    so it can reach that portfolio's DiscordWebhook."""
+    __tablename__ = "price_alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(String, nullable=False, default="default", server_default="default", index=True)  # see Portfolio.owner_id
+    portfolio_id = Column(Integer, ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False, index=True)
+    ticker = Column(String, nullable=False, index=True)
+    direction = Column(String, nullable=False)         # "above" | "below"
+    target_price = Column(Float, nullable=False)
+    note = Column(String, nullable=True)
+    enabled = Column(Boolean, nullable=False, default=True)   # user arm/disarm switch
+    status = Column(String, nullable=False, default="active", server_default="active")  # "active" | "triggered"
+    last_triggered_at = Column(DateTime(timezone=True), nullable=True)
+    triggered_price = Column(Float, nullable=True)     # the price observed when it fired
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

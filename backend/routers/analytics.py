@@ -1060,21 +1060,45 @@ def sector_breakdown(
     # types) -- _get_transactions above is trade-guarded (TRADE_TYPES + ticker)
     # and excludes cash rows entirely, so it cannot be reused for this.
     txns = db.query(Transaction).filter(Transaction.portfolio_id == pid).all()
+    # Per-currency cash (native ccy -> display value) feeds the FX-exposure
+    # ("currencies") dimension. Same external-cashflow gate as the folded Cash
+    # bucket; the sum of these equals cash_total so the dimensions reconcile.
+    cash_by_ccy_display: dict[str, float] = {}
     if has_external_cashflows(txns):
+        from cash_ledger import cash_balance_by_currency, accrued_interest
+        from fx import cash_amount_to_display
+
         rates = {r.currency: {"annual_rate": r.annual_rate, "enabled": r.enabled, "start_date": r.start_date}
                   for r in db.query(CashInterestRate).filter(CashInterestRate.portfolio_id == pid).all()}
         cash_total = folded_cash_display(txns, rates, display_ccy)
         has_cash = abs(cash_total) > 0.005
+        balances = cash_balance_by_currency(txns)
+        accrued = accrued_interest(txns, rates)
+        for ccy in set(balances) | set(accrued):
+            v = cash_amount_to_display(balances.get(ccy, 0.0) + accrued.get(ccy, 0.0), ccy, display_ccy)
+            if abs(v) > 0.005:
+                cash_by_ccy_display[ccy] = v
     else:
         cash_total = 0.0
         has_cash = False
+
+    def _weighted(totals: dict) -> list:
+        """[{name, value, weight%}] sorted desc; weight base is the dict's own sum."""
+        denom = sum(totals.values())
+        return [
+            {"name": name, "value": round(value, 2),
+             "weight": round(value / denom * 100, 2) if denom > 0 else 0}
+            for name, value in sorted(totals.items(), key=lambda x: -x[1])
+        ]
 
     if not transactions:
         # Cash-only portfolio (no trades yet): still surface the Cash slice —
         # it's 100% of the (non-holdings) allocation -- but only when the guard
         # above found an actual deposit/withdrawal (has_cash already reflects it).
         cash_only = [{"name": "Cash", "value": round(cash_total, 2), "weight": 100.0}] if has_cash else []
-        return {"sectors": cash_only, "countries": cash_only, "asset_types": cash_only, "total_value": 0.0}
+        currencies = _weighted(cash_by_ccy_display) if has_cash else []
+        return {"sectors": cash_only, "countries": cash_only, "asset_types": cash_only,
+                "currencies": currencies, "total_value": 0.0}
 
     from routers.portfolio import _build_holdings, _live_fx_to_czk, _live_to_usd
 
@@ -1083,6 +1107,7 @@ def sector_breakdown(
     sector_totals: dict[str, float] = defaultdict(float)
     country_totals: dict[str, float] = defaultdict(float)
     type_totals: dict[str, float] = defaultdict(float)
+    currency_totals: dict[str, float] = defaultdict(float)  # native trading ccy -> display value
     total_value = 0.0
     fx_cache: dict[str, float] = {}
     infos = market_data.get_infos(list(active.keys()))  # one bounded, concurrent batch
@@ -1105,41 +1130,34 @@ def sector_breakdown(
             country = _classify_country(info)
             quote_type = (info.get("quoteType") or "EQUITY").upper()
             type_label = _QUOTE_TYPE_LABEL.get(quote_type, quote_type.title() if quote_type else "Other")
+            # FX exposure groups by the security's native trading currency
+            # (pence-quoted LSE names normalized to GBP, matching the value calc).
+            trade_ccy = "GBP" if ticker_ccy == "GBp" else (ticker_ccy or "USD").upper()
 
             sector_totals[sector] += market_value
             country_totals[country] += market_value
             type_totals[type_label] += market_value
+            currency_totals[trade_ccy] += market_value
             total_value += market_value
         except Exception:
             continue
 
     if has_cash:
-        # Append Cash to each breakdown dimension — it has no sector/country/
-        # asset-type of its own, so it's surfaced identically across all three.
+        # Append Cash to sector/country/asset-type — it has no dimension of its
+        # own, so it's surfaced identically across the three. For currencies,
+        # cash is folded into its actual native currency (real FX exposure).
         sector_totals["Cash"] = cash_total
         country_totals["Cash"] = cash_total
         type_totals["Cash"] = cash_total
-
-    def to_breakdown(totals: dict) -> list:
-        # Denominator is this dict's own sum (not the outer holdings-only
-        # total_value) so that once Cash is folded in above, its weight is
-        # included in the percentage base — the returned top-level
-        # "total_value" stays holdings-only, matching get_summary's contract.
-        denom = sum(totals.values())
-        items = []
-        for name, value in sorted(totals.items(), key=lambda x: -x[1]):
-            items.append({
-                "name": name,
-                "value": round(value, 2),
-                "weight": round(value / denom * 100, 2) if denom > 0 else 0,
-            })
-        return items
+        for ccy, v in cash_by_ccy_display.items():
+            currency_totals[ccy] += v
 
     return {
         "currency": display_ccy,
-        "sectors": to_breakdown(sector_totals),
-        "countries": to_breakdown(country_totals),
-        "asset_types": to_breakdown(type_totals),
+        "sectors": _weighted(sector_totals),
+        "countries": _weighted(country_totals),
+        "asset_types": _weighted(type_totals),
+        "currencies": _weighted(currency_totals),
         "total_value": round(total_value, 2),
     }
 

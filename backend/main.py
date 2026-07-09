@@ -15,7 +15,7 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 from database import engine, SessionLocal
 from models import Base, Transaction, Portfolio, Benchmark, BenchmarkComponent, OptionsTrade, PolymarketPosition, DiscordWebhook, TradeNote, BrokerBalance, AppSetting
-from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, dividend_calendar, cash
+from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, dividend_calendar, cash, alerts
 from fx import bulk_fetch_fx
 import auth
 
@@ -411,11 +411,61 @@ app.include_router(notes.router, prefix="/api")
 app.include_router(assistant.router, prefix="/api")
 app.include_router(dividend_calendar.router, prefix="/api")
 app.include_router(cash.router, prefix="/api")
+app.include_router(alerts.router, prefix="/api")
 
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# --- background price-alert poller --------------------------------------------
+# The app has no external scheduler, so a single asyncio task polls all armed
+# alerts every ALERT_CHECK_INTERVAL_SECONDS and fires Discord notifications for
+# any that crossed. Opt-out with ALERT_POLLER_ENABLED=0 (e.g. in tests / CLI
+# tooling). Each pass uses its own DB session and swallows errors so a bad tick
+# never takes the app down. Note: while the process is asleep between ticks no
+# alerts fire — this is a self-hosted convenience poller, not a low-latency feed.
+_ALERT_POLLER_TASK = None
+
+
+async def _alert_poller_loop():
+    import asyncio as _asyncio
+    from routers.alerts import run_check
+
+    interval = int(os.environ.get("ALERT_CHECK_INTERVAL_SECONDS", "900"))
+    while True:
+        try:
+            await _asyncio.sleep(interval)
+            db = SessionLocal()
+            try:
+                fired = await run_check(db)  # all portfolios
+                if fired:
+                    logging.getLogger("portfyl.alerts").info(
+                        "price-alert poller fired %d alert(s)", len(fired))
+            finally:
+                db.close()
+        except _asyncio.CancelledError:
+            break
+        except Exception:
+            logging.getLogger("portfyl.alerts").exception("price-alert poller tick failed")
+
+
+@app.on_event("startup")
+async def _start_alert_poller():
+    global _ALERT_POLLER_TASK
+    if os.environ.get("ALERT_POLLER_ENABLED", "1") != "1":
+        return
+    import asyncio as _asyncio
+    _ALERT_POLLER_TASK = _asyncio.create_task(_alert_poller_loop())
+
+
+@app.on_event("shutdown")
+async def _stop_alert_poller():
+    global _ALERT_POLLER_TASK
+    if _ALERT_POLLER_TASK is not None:
+        _ALERT_POLLER_TASK.cancel()
+        _ALERT_POLLER_TASK = None
 
 
 # --- serve the built React SPA (production / same-origin) ---------------------
