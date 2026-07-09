@@ -87,6 +87,16 @@ export default function Allocation() {
             data={breakdown?.countries}
             currencyLabel={currency}
           />
+          <BreakdownChart
+            title="Currency Exposure"
+            data={breakdown?.currencies}
+            currencyLabel={currency}
+          />
+          <BreakdownChart
+            title="Asset Type"
+            data={breakdown?.asset_types}
+            currencyLabel={currency}
+          />
         </div>
       )}
 
