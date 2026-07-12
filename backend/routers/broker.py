@@ -7,6 +7,7 @@ import base64
 import yfinance as yf
 
 from database import get_db
+from fx import bulk_fetch_fx
 from models import BrokerConnection, Transaction
 from routers.portfolios import require_portfolio
 from auth import get_current_user
@@ -82,6 +83,18 @@ def _normalize_t212_ticker(t212_ticker: str) -> str:
 
 import re as _re
 _CANONICAL_TICKER = _re.compile(r"^[A-Z0-9]+([.\-][A-Z0-9]+)?$")
+
+
+def _dedup_keys(ticker: str, *parts) -> set[str]:
+    """Dedup keys under the row's ticker AND its exchange-suffix-stripped base
+    ('COPM.L' → 'COPM'), so API-normalized tickers match the raw tickers the
+    CSV import stores. Class-share dashes (BRK-B) are left alone."""
+    tail = "_".join(str(p) for p in parts)
+    keys = {f"{ticker}_{tail}"}
+    base = (ticker or "").split(".")[0]
+    if base != ticker:
+        keys.add(f"{base}_{tail}")
+    return keys
 
 
 def _split_adjust(txns_by_ticker: dict) -> int:
@@ -299,17 +312,28 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
 
     existing_sources = set()
     new_orders_by_ticker: dict[str, list[Transaction]] = {}
+    new_txns: list[Transaction] = []
     # Dedup only within THIS portfolio — another portfolio holding the same ticker
-    # at the same date/price is not a duplicate, it's separate data.
-    t212_txns = (
+    # at the same date/price is not a duplicate, it's separate data. But within the
+    # portfolio, dedupe against EVERY trade row regardless of origin: CSV-imported
+    # rows carry source=NULL, and matching only source='t212_api' once re-imported
+    # the entire order history on top of a CSV import, doubling every position.
+    existing_txns = (
         db.query(Transaction)
-        .filter(Transaction.source == "t212_api", Transaction.portfolio_id == pid)
+        .filter(Transaction.portfolio_id == pid, Transaction.ticker.isnot(None))
         .all()
     )
-    for t in t212_txns:
-        existing_sources.add(f"{t.ticker}_{t.date}_{t.type}_{t.shares}_{t.price}")
+    for t in existing_txns:
+        existing_sources |= _dedup_keys(t.ticker, t.date, t.type, t.shares, t.price)
         if t.type == "dividend":
-            existing_sources.add(f"{t.ticker}_{t.date}_dividend_{round(t.shares * t.price, 6)}")
+            existing_sources |= _dedup_keys(
+                t.ticker, t.date, "dividend", round(t.shares * t.price, 6))
+    # Orders older than the newest known trade are history the portfolio already
+    # has (CSV exports and older syncs cover it); representations drift across
+    # sources (split-adjusted prices, per-share vs total dividends), so key
+    # matching alone can't be trusted for the past. Same-day overlap still goes
+    # through the key dedupe above.
+    latest_existing = max((t.date for t in existing_txns), default=None)
 
     for item in orders:
         try:
@@ -333,8 +357,8 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
             else:
                 continue
 
-            filled_qty = abs(fill_data.get("quantity") or order_data.get("filledQuantity", 0))
-            filled_price = fill_data.get("price", 0)
+            filled_qty = float(abs(fill_data.get("quantity") or order_data.get("filledQuantity", 0)))
+            filled_price = float(fill_data.get("price", 0) or 0)
             if not filled_qty or not filled_price:
                 continue
 
@@ -347,10 +371,13 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
             except Exception:
                 continue
 
+            if latest_existing and txn_date < latest_existing:
+                continue
+
             name = instrument.get("name", ticker)
 
-            dedup_key = f"{ticker}_{txn_date}_{txn_type}_{filled_qty}_{filled_price}"
-            if dedup_key in existing_sources:
+            keys = _dedup_keys(ticker, txn_date, txn_type, filled_qty, filled_price)
+            if keys & existing_sources:
                 continue
 
             new_txn = Transaction(
@@ -358,8 +385,8 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
                 ticker=ticker,
                 name=name,
                 type=txn_type,
-                shares=float(filled_qty),
-                price=float(filled_price),
+                shares=filled_qty,
+                price=filled_price,
                 currency=currency,
                 date=txn_date,
                 notes=f"T212 Order #{order_data.get('id', '')}",
@@ -367,7 +394,8 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
             )
             db.add(new_txn)
             new_orders_by_ticker.setdefault(ticker, []).append(new_txn)
-            existing_sources.add(dedup_key)
+            new_txns.append(new_txn)
+            existing_sources |= keys
             imported += 1
         except Exception as e:
             errors.append(str(e))
@@ -395,11 +423,14 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
                 except Exception:
                     continue
 
-                dedup_key = f"{ticker}_{txn_date}_dividend_{total_amount}"
-                if dedup_key in existing_sources:
+                if latest_existing and txn_date < latest_existing:
                     continue
 
-                db.add(Transaction(
+                keys = _dedup_keys(ticker, txn_date, "dividend", total_amount)
+                if keys & existing_sources:
+                    continue
+
+                new_div = Transaction(
                     portfolio_id=pid,
                     ticker=ticker,
                     name=ticker,
@@ -410,14 +441,34 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
                     date=txn_date,
                     notes="T212 Dividend",
                     source="t212_api",
-                ))
-                existing_sources.add(dedup_key)
+                )
+                db.add(new_div)
+                new_txns.append(new_div)
+                existing_sources |= keys
                 dividends_imported += 1
             except Exception as e:
                 errors.append(str(e))
     except Exception as e:
         errors.append(f"Dividend fetch failed: {e}")
 
+    # Everything in a T212 account settles in the account currency (CZK here):
+    # snapshot the trade-date fx and store the CZK cash impact, like the CSV
+    # import does. Without it, cash model v2 falls back to shares*price in the
+    # trade currency and a synced buy drains a USD pile that doesn't exist.
+    # (Approximation — no FX-fee detail; the next CSV replace-import corrects it.)
+    fx_needed = {((t.currency or "USD").upper(), t.date) for t in new_txns
+                 if (t.currency or "USD").upper() != "CZK"}
+    fx_map = bulk_fetch_fx(fx_needed)
+    for t in new_txns:
+        ccy = (t.currency or "USD").upper()
+        fx = 1.0 if ccy == "CZK" else fx_map.get((ccy, t.date))
+        if fx:
+            t.fx_to_czk = fx
+            t.cash_amount = round(float(t.shares) * float(t.price) * fx, 2)
+            t.cash_currency = "CZK"
+
+    # Split-adjust rewrites shares*=R, price/=R — the product (and therefore the
+    # CZK settlement above) is unchanged.
     _split_adjust(new_orders_by_ticker)
     _drop_corporate_action_pairs(db, new_orders_by_ticker)
 
