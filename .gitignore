@@ -8,6 +8,10 @@ __pycache__/
 # data & secrets — the DB holds real portfolio data, never commit it
 *.db
 .env
+portfoliodata.csv
+
+# local agent state / worktrees
+.claude/
 
 # editor/os noise
 .DS_Store
