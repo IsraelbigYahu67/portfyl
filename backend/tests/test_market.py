@@ -24,13 +24,22 @@ class TestStockScreener:
         assert _in_range(15.0, None, None) is True  # no bounds
 
     def test_preset_universes(self):
-        """Preset ticker lists are defined and non-empty."""
+        """Preset ticker lists are defined, full-sized, and well-formed."""
         from routers.market import _PRESET_UNIVERSES
         assert "sp500" in _PRESET_UNIVERSES
         assert "nasdaq100" in _PRESET_UNIVERSES
+        assert "dividend_aristocrats" in _PRESET_UNIVERSES
         assert "tech_large" in _PRESET_UNIVERSES
+        # Full constituent lists, not top-20 samples.
+        assert len(_PRESET_UNIVERSES["sp500"]) >= 400
+        assert len(_PRESET_UNIVERSES["nasdaq100"]) >= 90
+        assert len(_PRESET_UNIVERSES["dividend_aristocrats"]) >= 55
+        # tech_large stays small: it's the fallback universe, so a bad universe
+        # param must not accidentally trigger a 500-name scan.
+        assert len(_PRESET_UNIVERSES["tech_large"]) <= 15
         for name, tickers in _PRESET_UNIVERSES.items():
             assert len(tickers) > 0, f"{name} is empty"
+            assert len(tickers) == len(set(tickers)), f"{name} has duplicates"
             assert all(t.isupper() for t in tickers), f"{name} has non-upper tickers"
 
     def test_ticker_screener_row_structure(self):

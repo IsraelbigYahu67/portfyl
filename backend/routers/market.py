@@ -1282,17 +1282,28 @@ def get_fundamentals(ticker: str):
 # Stock screener: filter a list of tickers by fundamental criteria
 # ---------------------------------------------------------------------------
 
+from universes import SP500, NASDAQ100, DIVIDEND_ARISTOCRATS, TECH_LARGE
+
 _PRESET_UNIVERSES = {
-    "sp500": ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "BRK-B", "LLY", "AVGO", "TSLA",
-               "JPM", "UNH", "V", "XOM", "MA", "PG", "COST", "JNJ", "HD", "MRK"],
-    "nasdaq100": ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "AVGO", "COST",
-                  "NFLX", "ADBE", "AMD", "PEP", "CSCO", "LIN", "TMUS", "INTU", "AMGN", "QCOM", "CMCSA"],
-    "tech_large": ["AAPL", "MSFT", "NVDA", "AVGO", "ORCL", "CRM", "AMD", "ADBE", "CSCO", "ACN"],
+    "sp500": SP500,
+    "nasdaq100": NASDAQ100,
+    "dividend_aristocrats": DIVIDEND_ARISTOCRATS,
+    "tech_large": TECH_LARGE,
 }
+
+# Screener rows change slowly (valuation ratios, not tick prices), so cache them
+# for an hour. This is what makes the full-index universes usable: the first
+# scan of ~500 names pays the yfinance cost once, then filtering/sorting/
+# re-screening is instant until the TTL lapses.
+_SCREENER_ROW_TTL = 3600.0
+_SCREENER_ROW_CACHE: dict[str, tuple[float, dict]] = {}
 
 
 def _ticker_screener_row(sym: str) -> dict[str, Any]:
     """One row for the screener: lightweight fundamentals (no statements, no DCF)."""
+    cached = _SCREENER_ROW_CACHE.get(sym)
+    if cached and time.time() - cached[0] < _SCREENER_ROW_TTL:
+        return cached[1]
     try:
         info = yf.Ticker(yf_symbol(sym)).info or {}
     except Exception:
@@ -1302,7 +1313,7 @@ def _ticker_screener_row(sym: str) -> dict[str, Any]:
     ratios = _ratios_from_info(info)
     sector = _sector_avg(info.get("sector"))
 
-    return {
+    row = {
         "ticker": sym,
         "name": info.get("shortName") or info.get("longName") or sym,
         "price": _f(price),
@@ -1334,6 +1345,11 @@ def _ticker_screener_row(sym: str) -> dict[str, Any]:
         "fifty_two_week_high": _f(info.get("fiftyTwoWeekHigh")),
         "fifty_two_week_low": _f(info.get("fiftyTwoWeekLow")),
     }
+    # Only cache rows that actually resolved a price; an empty info dict is a
+    # transient yfinance miss and should be retried on the next scan.
+    if row["price"] is not None:
+        _SCREENER_ROW_CACHE[sym] = (time.time(), row)
+    return row
 
 
 def _in_range(val: float | None, lo: float | None, hi: float | None) -> bool:
@@ -1374,11 +1390,15 @@ def stock_screener(
 ):
     """Stock screener: filter a universe of tickers by valuation/fundamental criteria.
 
-    Universes:
-      - `sp500`     → 20 largest S&P 500 constituents
-      - `nasdaq100`  → 20 largest NASDAQ-100 constituents
-      - `tech_large` → 10 largest tech megacaps
+    Universes (full constituent lists, see universes.py):
+      - `sp500`                → S&P 500 (~500 names)
+      - `nasdaq100`            → NASDAQ-100 (~100 names)
+      - `dividend_aristocrats` → S&P 500 Dividend Aristocrats (~65 names)
+      - `tech_large`           → 10 tech megacaps (also the fallback universe)
       - Custom via `tickers` parameter (comma-separated symbols)
+
+    The first scan of a full index is slow (one yfinance lookup per name);
+    rows are then cached for an hour so re-filtering is instant.
 
     Filters: min_pe, max_pe, min_forward_pe, max_forward_pe, min_pb, max_pb,
     min_div_yield, max_div_yield (percent), min_market_cap, max_market_cap,
@@ -1401,9 +1421,11 @@ def stock_screener(
     if not tickers_list:
         return {"universe": universe, "results": [], "total": 0, "filters_applied": True}
 
+    tickers_list = list(dict.fromkeys(tickers_list))  # dedupe, keep order
+
     # Fetch data in parallel
     rows: list[dict] = []
-    with ThreadPoolExecutor(max_workers=min(10, len(tickers_list))) as ex:
+    with ThreadPoolExecutor(max_workers=min(12, len(tickers_list))) as ex:
         futures = {ex.submit(_ticker_screener_row, sym): sym for sym in tickers_list}
         for f in as_completed(futures):
             try:

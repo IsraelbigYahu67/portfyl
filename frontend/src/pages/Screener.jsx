@@ -5,8 +5,9 @@ import { useStockDetail } from "../components/StockDetail";
 import { Search, SlidersHorizontal, RefreshCw, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 const UNIVERSE_OPTIONS = [
-  { value: "sp500", label: "S&P 500 (Top 20)" },
-  { value: "nasdaq100", label: "NASDAQ-100 (Top 20)" },
+  { value: "sp500", label: "S&P 500 (full index)", slow: true },
+  { value: "nasdaq100", label: "NASDAQ-100 (full index)", slow: true },
+  { value: "dividend_aristocrats", label: "Dividend Aristocrats", slow: true },
   { value: "tech_large", label: "Tech Mega-Caps" },
 ];
 
@@ -118,6 +119,11 @@ export default function Screener() {
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
+              {UNIVERSE_OPTIONS.find((o) => o.value === universe)?.slow && !customTickers.trim() && (
+                <p className="text-[11px] text-slate-400 mt-1">
+                  First scan fetches every constituent (~1 min); results are cached for an hour.
+                </p>
+              )}
             </div>
             <div>
               <label className="text-xs text-slate-500 mb-1 block">Custom Tickers</label>
