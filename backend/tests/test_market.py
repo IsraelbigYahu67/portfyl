@@ -62,3 +62,56 @@ class TestStockScreener:
         # These will try to fetch from Network, but we just test the shape
         assert "results" in result
         assert result["total"] >= 0
+
+
+class TestGetInfosTimeout:
+    """A deadline miss must not be cached as 'no data' — that poisoned the
+    USDCZK=X quote for 60s and made every position render at ≈ -95%."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_state(self):
+        import market_data
+        market_data._cache.clear()
+        market_data._inflight.clear()
+        yield
+        market_data._cache.clear()
+        market_data._inflight.clear()
+
+    def test_timeout_leaves_cache_unpoisoned_and_result_collectable(self):
+        import threading
+        import market_data
+
+        release = threading.Event()
+
+        def slow_info(symbol):
+            release.wait(5)
+            return {"regularMarketPrice": 21.2}
+
+        with patch("market_data._raw_info", side_effect=slow_info):
+            out = market_data.get_infos(["USDCZK=X"], timeout=0.2)
+            assert out["USDCZK=X"] == {}          # nothing yet, caller degrades
+            assert "USDCZK=X" not in market_data._cache  # but NOT cached as empty
+            assert "USDCZK=X" in market_data._inflight
+
+            release.set()
+            market_data._inflight["USDCZK=X"].result(timeout=5)  # let it finish
+            out = market_data.get_infos(["USDCZK=X"], timeout=0.2)
+
+        assert out["USDCZK=X"]["regularMarketPrice"] == 21.2
+        assert "USDCZK=X" not in market_data._inflight
+
+    def test_genuine_empty_fetch_still_cached(self):
+        import market_data
+
+        calls = []
+
+        def empty_info(symbol):
+            calls.append(symbol)
+            return {}
+
+        with patch("market_data._raw_info", side_effect=empty_info):
+            assert market_data.get_infos(["NODATA"], timeout=2)["NODATA"] == {}
+            assert market_data.get_infos(["NODATA"], timeout=2)["NODATA"] == {}
+
+        assert len(calls) == 1  # second call served from the empty-TTL cache
+        assert "NODATA" in market_data._cache

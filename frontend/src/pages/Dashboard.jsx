@@ -320,15 +320,15 @@ export default function Dashboard() {
                             {b.shares != null ? Math.abs(b.shares).toLocaleString() : "—"}
                           </td>
                           <td className="py-1.5 pr-3 text-right tabular-nums text-slate-700">
-                            {b.buy_price != null ? formatMoney(b.buy_price, currency) : "—"}
+                            {b.buy_price != null ? formatMoney(b.buy_price, b.currency) : "—"}
                           </td>
                           <td className="py-1.5 pr-3 text-right tabular-nums text-slate-700 font-medium">
-                            {b.value != null ? formatMoney(Math.abs(b.value), currency) : "—"}
+                            {b.value != null ? formatMoney(Math.abs(b.value), b.currency) : "—"}
                           </td>
                           <td className={`py-1.5 pr-3 text-right tabular-nums font-medium ${b.pnl == null ? "text-slate-400" : pnlUp ? "text-emerald-600" : "text-red-600"}`}>
                             {b.pnl != null ? (
-                              <span title={`Current: ${formatMoney(b.current_price, currency)}`}>
-                                {b.pnl >= 0 ? "+" : ""}{formatMoney(b.pnl, currency)}
+                              <span title={`Current: ${formatMoney(b.current_price, b.currency)}`}>
+                                {b.pnl >= 0 ? "+" : ""}{formatMoney(b.pnl, b.currency)}
                                 {b.pnl_pct != null && <span className="text-[10px] ml-1">({b.pnl_pct >= 0 ? "+" : ""}{b.pnl_pct.toFixed(1)}%)</span>}
                               </span>
                             ) : "—"}
@@ -400,7 +400,7 @@ export default function Dashboard() {
                             <TickerLink ticker={m.ticker} className="w-14 font-mono font-semibold text-left" />
                             <span className="flex-1 text-slate-500 truncate">{m.name}</span>
                             <span className={`tabular-nums font-medium w-24 text-right ${m.period_pnl >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                              {formatMoney(m.period_pnl, currency)}
+                              {formatMoney(m.period_pnl, m.currency)}
                             </span>
                             <div className="w-16 flex justify-end"><DeltaPill pct={m.change_pct} value={null} size="sm" /></div>
                           </div>
@@ -421,7 +421,7 @@ export default function Dashboard() {
                             <TickerLink ticker={m.ticker} className="w-14 font-mono font-semibold text-left" />
                             <span className="flex-1 text-slate-500 truncate">{m.name}</span>
                             <span className={`tabular-nums font-medium w-24 text-right ${m.period_pnl >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                              {formatMoney(m.period_pnl, currency)}
+                              {formatMoney(m.period_pnl, m.currency)}
                             </span>
                             <div className="w-16 flex justify-end"><DeltaPill pct={m.change_pct} value={null} size="sm" /></div>
                           </div>

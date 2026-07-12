@@ -9,7 +9,7 @@ import pytest
 
 from models import Transaction
 from schemas import TransactionCreate
-from routers.portfolio import _build_holdings, create_transaction, get_summary
+from routers.portfolio import _build_holdings, create_transaction, get_summary, get_holdings
 
 
 class TestBuildHoldings:
@@ -96,6 +96,71 @@ class TestBuildHoldings:
         assert h["NVDA"]["cost"] == pytest.approx(5 * 800 + 5 * 400)
 
 
+class TestHoldingsCurrency:
+    """/holdings splits currencies by field: per-share prices (avg_cost,
+    current_price, live_price) stay in the stock's *native* currency, while
+    portfolio-level values (market_value, cost_basis, pnl, dividends) convert
+    to the display currency. A $200 US stock must never render as "200 Kč"."""
+
+    # display currency CZK; USD settles at 20 Kč / $1.
+    _FX = {"USD": 20.0, "CZK": 1.0}
+
+    def _patches(self, live_price, ccy="USD"):
+        from tests.helpers import make_txn  # noqa: F401 (import kept local for clarity)
+        return (
+            patch("routers.portfolio._fetch_price_and_info",
+                  return_value=(live_price, "Mock Co.", ccy)),
+            patch("routers.portfolio._live_fx_to_czk",
+                  side_effect=lambda c, cache: self._FX.get((c or "USD").upper(), 1.0)),
+            patch("routers.portfolio.market_data.get_infos", return_value={}),
+        )
+
+    def test_open_position_per_share_native_value_display(self, db_session, pid):
+        """Open US holding, CZK display: avg_cost/current_price in USD;
+        market_value/cost_basis/pnl in CZK."""
+        db_session.add(make_txn("AAPL", "buy", 10, 150.0, currency="USD",
+                                date=date(2024, 1, 1), portfolio_id=pid))
+        db_session.commit()
+
+        p1, p2, p3 = self._patches(live_price=200.0)
+        with p1, p2, p3:
+            rows = get_holdings(currency="CZK", db=db_session, pid=pid)
+
+        h = next(r for r in rows if r["ticker"] == "AAPL")
+        assert h["currency"] == "USD"
+        # Per-share prices: native USD, NOT multiplied by the 20x FX rate.
+        assert h["avg_cost"] == pytest.approx(150.0)
+        assert h["current_price"] == pytest.approx(200.0)
+        # Portfolio-level: converted to CZK (20x).
+        assert h["market_value"] == pytest.approx(10 * 200.0 * 20.0)  # 40,000 Kč
+        assert h["cost_basis"] == pytest.approx(10 * 150.0 * 20.0)    # 30,000 Kč
+        assert h["pnl"] == pytest.approx(10000.0)                     # 40k - 30k
+
+    def test_closed_position_per_share_native_value_display(self, db_session, pid):
+        """Closed US holding, CZK display: avg buy/sell and the live price are
+        native USD; realized P&L is CZK."""
+        for t in (
+            make_txn("TSLA", "buy", 10, 200.0, currency="USD",
+                     date=date(2024, 1, 1), portfolio_id=pid),
+            make_txn("TSLA", "sell", 10, 250.0, currency="USD",
+                     date=date(2024, 6, 1), portfolio_id=pid),
+        ):
+            db_session.add(t)
+        db_session.commit()
+
+        p1, p2, p3 = self._patches(live_price=300.0)
+        with p1, p2, p3:
+            rows = get_holdings(include_closed=True, currency="CZK", db=db_session, pid=pid)
+
+        h = next(r for r in rows if r["ticker"] == "TSLA")
+        assert h["closed"] is True
+        assert h["currency"] == "USD"
+        assert h["avg_cost"] == pytest.approx(200.0)       # native avg buy
+        assert h["current_price"] == pytest.approx(250.0)  # native avg sell
+        assert h["live_price"] == pytest.approx(300.0)     # native live price today
+        assert h["pnl"] == pytest.approx(10000.0)          # 10*(250-200)*20 Kč
+
+
 class TestSummary:
     """Tests for /portfolio/summary logic (get_summary)."""
 
@@ -153,3 +218,72 @@ class TestCreateTransaction:
 
 
 from tests.helpers import make_txn
+
+
+class TestLiveFxFallback:
+    """_live_fx_to_czk must never silently turn a quote hiccup into rate 1.0 —
+    that once rendered every USD position at ≈ -95% in CZK display."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_last_good(self):
+        import routers.portfolio as rp
+        rp._LAST_GOOD_FX.clear()
+        yield
+        rp._LAST_GOOD_FX.clear()
+
+    def test_success_remembers_last_good_rate(self):
+        import routers.portfolio as rp
+        with patch("routers.portfolio.market_data.get_info",
+                   return_value={"regularMarketPrice": 22.0}):
+            assert rp._live_fx_to_czk("USD", {}) == 22.0
+        assert rp._LAST_GOOD_FX["USD"] == 22.0
+
+    def test_falls_back_to_daily_close_series(self):
+        import routers.portfolio as rp
+        with (
+            patch("routers.portfolio.market_data.get_info", return_value={}),
+            patch("routers.portfolio.fetch_fx_to_czk", return_value=21.5),
+        ):
+            assert rp._live_fx_to_czk("USD", {}) == 21.5
+
+    def test_falls_back_to_last_good_rate(self):
+        import routers.portfolio as rp
+        rp._LAST_GOOD_FX["USD"] = 20.5
+        with (
+            patch("routers.portfolio.market_data.get_info", return_value={}),
+            patch("routers.portfolio.fetch_fx_to_czk", return_value=None),
+        ):
+            assert rp._live_fx_to_czk("USD", {}) == 20.5
+
+    def test_total_failure_returns_1_without_caching(self):
+        import routers.portfolio as rp
+        cache = {}
+        with (
+            patch("routers.portfolio.market_data.get_info", return_value={}),
+            patch("routers.portfolio.fetch_fx_to_czk", return_value=None),
+        ):
+            assert rp._live_fx_to_czk("USD", cache) == 1.0
+        # The made-up 1.0 must not stick for the rest of the request.
+        assert "USD" not in cache
+
+    def test_holdings_warms_fx_pairs_with_tickers(self, db_session, pid):
+        """The FX pair joins the quote warm-up batch instead of queueing
+        behind it (the queue-starvation that caused the 1.0 fallback)."""
+        db_session.add(make_txn("AAPL", "buy", 10, 150.0, currency="USD",
+                                date=date(2024, 1, 1), fx_to_czk=20.0,
+                                portfolio_id=pid))
+        db_session.commit()
+
+        warmed = []
+        with (
+            patch("routers.portfolio.market_data.get_infos",
+                  side_effect=lambda ts, **kw: warmed.extend(ts) or {}),
+            patch("routers.portfolio._fetch_price_and_info",
+                  return_value=(200.0, "Mock", "USD")),
+            patch("routers.portfolio._live_fx_to_czk",
+                  side_effect=lambda c, cache: 1.0 if (c or "USD").upper() == "CZK" else 20.0),
+        ):
+            get_holdings(currency="CZK", db=db_session, pid=pid)
+
+        assert "AAPL" in warmed
+        assert "USDCZK=X" in warmed

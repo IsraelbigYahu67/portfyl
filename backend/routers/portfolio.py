@@ -5,6 +5,7 @@ import yfinance as yf
 import pandas as pd
 import pytz
 import io
+import logging
 from datetime import datetime
 
 from database import get_db
@@ -221,24 +222,38 @@ def _build_holdings(transactions: list, include_closed: bool = False,
         else:
             fx = 1.0
         if t not in holdings:
-            holdings[t] = {"shares": 0.0, "cost": 0.0, "dividends": 0.0, "realized_pnl": 0.0, "currency": txn.currency}
+            # cost = cost basis in display currency (FX-applied). cost_native =
+            # the same running total but FX-free, in the ticker's own currency,
+            # so per-share prices (avg cost) can be shown natively (a US stock's
+            # $150 avg stays $150, never converted to Kč).
+            holdings[t] = {"shares": 0.0, "cost": 0.0, "cost_native": 0.0,
+                           "dividends": 0.0, "realized_pnl": 0.0, "currency": txn.currency}
         if txn.type == "buy":
             holdings[t]["shares"] += txn.shares
             holdings[t]["cost"] += txn.shares * txn.price * fx
+            holdings[t]["cost_native"] += txn.shares * txn.price
         elif txn.type == "sell":
             if holdings[t]["shares"] > 0:
                 avg = holdings[t]["cost"] / holdings[t]["shares"]
+                avg_native = holdings[t]["cost_native"] / holdings[t]["shares"]
                 sold_shares = min(txn.shares, holdings[t]["shares"])
                 holdings[t]["realized_pnl"] += sold_shares * (txn.price * fx - avg)
                 holdings[t]["shares"] -= sold_shares
                 holdings[t]["cost"] -= sold_shares * avg
+                holdings[t]["cost_native"] -= sold_shares * avg_native
                 holdings[t]["shares"] = max(0.0, holdings[t]["shares"])
                 holdings[t]["cost"] = max(0.0, holdings[t]["cost"])
+                holdings[t]["cost_native"] = max(0.0, holdings[t]["cost_native"])
         elif txn.type == "dividend":
             holdings[t]["dividends"] += txn.shares * txn.price * fx
     if include_closed:
         return holdings
     return {k: v for k, v in holdings.items() if v["shares"] > 0.0001}
+
+
+# Last successful live rate per currency, process-wide. A quote hiccup must not
+# silently become "1 Kč per USD" — that once rendered every position at ≈ -95%.
+_LAST_GOOD_FX: dict[str, float] = {}
 
 
 def _live_fx_to_czk(currency: str, cache: dict) -> float:
@@ -254,7 +269,15 @@ def _live_fx_to_czk(currency: str, cache: dict) -> float:
     except Exception:
         rate = 0.0
     if rate <= 0:
-        rate = 1.0
+        rate = fetch_fx_to_czk(c, datetime.now().date()) or _LAST_GOOD_FX.get(c) or 0.0
+        if rate <= 0:
+            # Truly cold start with no rate source at all. Don't cache or
+            # remember the made-up 1.0 so the next lookup retries.
+            logging.getLogger("portfyl.fx").warning(
+                "No %s→CZK rate available (live quote, daily close and "
+                "last-known-good all missing); falling back to 1.0", c)
+            return 1.0
+    _LAST_GOOD_FX[c] = rate
     cache[c] = rate
     return rate
 
@@ -425,8 +448,12 @@ def get_holdings(
     active = {k: v for k, v in all_data.items() if v["shares"] > 0.0001}
     # Warm the quote cache for every ticker in one concurrent, deadline-bounded
     # batch so the per-ticker _fetch_price_and_info calls below all hit the
-    # cache instead of fanning out serial Yahoo requests.
-    market_data.get_infos(list(all_data.keys()))
+    # cache instead of fanning out serial Yahoo requests. FX pairs ride in the
+    # same batch: submitted separately they queue behind leftover warm-up work,
+    # miss their own deadline, and the display converts at a bogus rate.
+    fx_ccys = {display_ccy} | {(t.currency or "USD").upper() for t in transactions}
+    market_data.get_infos(
+        list(all_data.keys()) + [f"{c}CZK=X" for c in fx_ccys if c != "CZK"])
     result = []
     total_value = 0.0
     fx_cache: dict[str, float] = {}
@@ -439,7 +466,9 @@ def get_holdings(
         cost_basis = data["cost"]
         pnl = market_value - cost_basis
         pnl_pct = (pnl / cost_basis * 100) if cost_basis > 0 else 0
-        avg_cost = cost_basis / data["shares"] if data["shares"] > 0 else 0
+        # avg_cost is a per-share price → native currency (matches current_price,
+        # which is also native), so it never gets an incorrect Kč label.
+        avg_cost = data["cost_native"] / data["shares"] if data["shares"] > 0 else 0
         result.append({
             "ticker": ticker,
             "name": name,
@@ -468,13 +497,18 @@ def get_holdings(
             if txn.ticker not in txn_names and txn.name:
                 txn_names[txn.ticker] = txn.name
             if txn.ticker in closed:
-                t = txn_totals.setdefault(txn.ticker, {"bought_val": 0.0, "sold_val": 0.0, "bought_sh": 0.0, "sold_sh": 0.0})
+                t = txn_totals.setdefault(txn.ticker, {
+                    "bought_val": 0.0, "sold_val": 0.0,
+                    "bought_val_native": 0.0, "sold_val_native": 0.0,
+                    "bought_sh": 0.0, "sold_sh": 0.0})
                 fx = (txn.fx_to_czk or _live_fx_to_czk(txn.currency, fx_cache)) / disp_rate
                 if txn.type == "buy":
                     t["bought_val"] += txn.shares * txn.price * fx
+                    t["bought_val_native"] += txn.shares * txn.price
                     t["bought_sh"] += txn.shares
                 elif txn.type == "sell":
                     t["sold_val"] += txn.shares * txn.price * fx
+                    t["sold_val_native"] += txn.shares * txn.price
                     t["sold_sh"] += txn.shares
 
         for ticker, data in closed.items():
@@ -483,8 +517,10 @@ def get_holdings(
             realized = data["realized_pnl"]
             pnl_pct = (realized / cost * 100) if cost > 0 else 0
             bought_sh = totals.get("bought_sh", 0)
-            avg_buy = cost / bought_sh if bought_sh else 0
-            avg_sell = totals["sold_val"] / totals["sold_sh"] if totals.get("sold_sh") else 0
+            # Per-share buy/sell prices → native currency (like open holdings),
+            # so a sold US position doesn't render its prices as Kč.
+            avg_buy = totals.get("bought_val_native", 0) / bought_sh if bought_sh else 0
+            avg_sell = totals["sold_val_native"] / totals["sold_sh"] if totals.get("sold_sh") else 0
 
             # Hypothetical P&L if the position had been held to today instead
             # of sold. Uses live price * live FX (so it tracks the user's
@@ -517,7 +553,8 @@ def get_holdings(
                 "currency": data.get("currency", "USD"),
                 "dividends": round(data["dividends"], 2),
                 "closed": True,
-                "live_price": round(live_price * live_fx, 2) if live_price else None,
+                # live_price shown natively (USD), alongside the native avg buy/sell.
+                "live_price": round(live_price, 2) if live_price else None,
                 "pnl_if_held": round(pnl_if_held, 2) if pnl_if_held is not None else None,
                 "pnl_if_held_pct": round(pnl_if_held_pct, 2) if pnl_if_held_pct is not None else None,
                 "pnl_if_held_delta": round(pnl_if_held_delta, 2) if pnl_if_held_delta is not None else None,
@@ -1503,6 +1540,7 @@ def get_insider_buys(
         try:
             stock = yf.Ticker(ticker)
             info = stock.info or {}
+            ticker_ccy = info.get("currency", "USD")
             current_price = info.get("currentPrice") or info.get("regularMarketPrice")
             if current_price is not None:
                 prices[ticker] = float(current_price)
@@ -1544,6 +1582,9 @@ def get_insider_buys(
                     "pnl": pnl,
                     "pnl_pct": pnl_pct,
                     "date": txn["date"],
+                    # Insider filings are in the stock's native currency (USD for
+                    # US listings), so the frontend must not stamp them with Kč.
+                    "currency": ticker_ccy,
                 })
         except Exception:
             continue

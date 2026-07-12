@@ -15,6 +15,17 @@ describe("formatMoney", () => {
     expect(formatMoney(null)).toBe("—");
     expect(formatMoney(undefined)).toBe("—");
   });
+  it("uses the € prefix for EUR and £ for GBP", () => {
+    expect(formatMoney(1234.5, "EUR")).toBe("€1,234.50");
+    expect(formatMoney(1234.5, "GBP")).toBe("£1,234.50");
+  });
+  it("treats GBp/GBX as London pence with a p suffix", () => {
+    expect(formatMoney(250, "GBp")).toBe("250.00 p");
+    expect(formatMoney(250, "GBX")).toBe("250.00 p");
+  });
+  it("falls back to $ for an unmapped currency", () => {
+    expect(formatMoney(12, "ZZZ")).toBe("$12.00");
+  });
 });
 
 describe("formatPercent", () => {

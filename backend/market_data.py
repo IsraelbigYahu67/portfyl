@@ -36,6 +36,11 @@ _EMPTY_TTL = 60.0
 _executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="yf-info")
 # broker-ticker(upper) -> (fetched_at, info_dict)
 _cache: dict[str, tuple[float, dict]] = {}
+# broker-ticker(upper) -> Future still running past a caller's deadline. Kept so
+# a later call collects the eventual result instead of resubmitting — and so a
+# deadline miss is never cached as "no data" (that once poisoned USDCZK=X for
+# 60s and every position rendered at ≈ -95%).
+_inflight: dict[str, Future] = {}
 
 
 def _ttl(info: dict) -> float:
@@ -78,7 +83,11 @@ def get_infos(tickers, timeout: float = INFO_TIMEOUT) -> dict[str, dict]:
         if cached and now - cached[0] < _ttl(cached[1]):
             out[tk] = cached[1]
         elif key not in pending:
-            pending[key] = _executor.submit(_raw_info, yf_symbol(tk))
+            fut = _inflight.get(key)
+            if fut is None:
+                fut = _executor.submit(_raw_info, yf_symbol(tk))
+                _inflight[key] = fut
+            pending[key] = fut
 
     if pending:
         deadline = time.time() + timeout
@@ -86,9 +95,14 @@ def get_infos(tickers, timeout: float = INFO_TIMEOUT) -> dict[str, dict]:
             remaining = max(0.1, deadline - time.time())
             try:
                 info = fut.result(timeout=remaining) or {}
+            except TimeoutError:
+                # Still running — leave it in _inflight for a later call to
+                # collect; caching {} here would pin "no data" for _EMPTY_TTL.
+                continue
             except Exception:
                 info = {}
             _cache[key] = (time.time(), info)
+            _inflight.pop(key, None)
 
     for tk in tickers:
         if tk not in out:
