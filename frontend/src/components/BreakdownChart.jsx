@@ -9,10 +9,14 @@ const COLORS = [
 // Cash has no sector/country/asset-type of its own — give it a fixed neutral
 // slate color instead of whatever the palette-by-index lookup would assign,
 // so it visually reads as "not an equity" in every dimension it appears in.
-const CASH_COLOR = "#94a3b8";
-const colorFor = (item, i) => (item.name === "Cash" ? CASH_COLOR : COLORS[i % COLORS.length]);
+// "Other" (the grouped small-positions slice) is a catch-all the same way.
+const NEUTRAL_COLOR = "#94a3b8";
+const colorFor = (item, i) =>
+  item.name === "Cash" || item.name === "Other" ? NEUTRAL_COLOR : COLORS[i % COLORS.length];
 
-export default function BreakdownChart({ title, data, currencyLabel }) {
+// legendColumns=2 flows the legend into two newspaper-style columns (read
+// down, then across) — used by the wide Positions card to halve its height.
+export default function BreakdownChart({ title, data, currencyLabel, legendColumns = 1 }) {
   const fmt = (n) => {
     if (n == null) return "—";
     const sign = n < 0 ? "-" : "";
@@ -49,20 +53,39 @@ export default function BreakdownChart({ title, data, currencyLabel }) {
                 ))}
               </Pie>
               <Tooltip
-                contentStyle={{
-                  background: "#ffffff",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: 8,
-                  fontSize: 12,
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const item = payload[0].payload;
+                  return (
+                    <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs shadow-lg">
+                      <div className="font-semibold text-slate-800">
+                        {item.name} · {item.weight}%
+                      </div>
+                      {/* Grouped slices (e.g. "Other" positions) carry their
+                          members in `items` — list them on hover. */}
+                      {item.items?.length > 0 && (
+                        <div className="flex flex-wrap gap-x-2 mt-1 max-w-[240px] text-slate-500">
+                          {item.items.map((sub) => (
+                            <span key={sub.name} className="whitespace-nowrap">
+                              {sub.name} {sub.weight}%
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
                 }}
-                formatter={(val, name) => [`${val}%`, name]}
               />
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <div className="flex-1 space-y-1.5 min-w-0">
+        <div
+          className={`flex-1 min-w-0 space-y-1.5 ${
+            legendColumns === 2 ? "sm:columns-2 sm:gap-x-10" : ""
+          }`}
+        >
           {data.map((item, i) => (
-            <div key={item.name} className="flex items-center gap-2 text-sm">
+            <div key={item.name} className="flex items-center gap-2 text-sm break-inside-avoid">
               <div
                 className="w-2.5 h-2.5 rounded-full shrink-0"
                 style={{ backgroundColor: colorFor(item, i) }}

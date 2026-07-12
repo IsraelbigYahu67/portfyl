@@ -2,8 +2,8 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  Area, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line,
-  Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Customized, Legend,
+  Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
   ArrowDownRight, ArrowUpRight, Building2, ChevronDown, ChevronUp,
@@ -11,6 +11,7 @@ import {
   TrendingDown, TrendingUp, Users,
 } from "lucide-react";
 import { fetchHistory } from "../api";
+import { columnChanges } from "../lib/chartChanges";
 import useStockReportConfig, { ALL_SECTIONS } from "../hooks/useStockReportConfig";
 
 // ---------------------------------------------------------------------------
@@ -151,6 +152,73 @@ function currencySymbol(code) {
 // Sub-components
 // ---------------------------------------------------------------------------
 
+// Two-line x-axis tick for the financials bar charts: period label on top,
+// vs-previous-column % change (see columnChanges) beneath it. Rendering the
+// change inside the tick keeps it centred under its column at any chart
+// width. The change line uses the darker 700-shade green/red plus a bold
+// weight so it stays readable at chart-axis size.
+function ChangeTick({ x, y, payload, index, changes, fontSize = 10 }) {
+  const change = changes?.[payload?.index ?? index] ?? null;
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text dy={10} textAnchor="middle" fill="#64748b" fontSize={fontSize}>
+        {payload.value}
+      </text>
+      {change != null && (
+        <text
+          dy={24}
+          textAnchor="middle"
+          fill={change >= 0 ? "#047857" : "#b91c1c"}
+          fontSize={10}
+          fontWeight={700}
+        >
+          {fmtPct(change, 1)}
+        </text>
+      )}
+    </g>
+  );
+}
+
+// Dotted, semi-transparent purple overlay marking the TTM level on top of the
+// last full-year bar (annual view) — TTM shares that column instead of getting
+// its own. Rendered through recharts' Customized layer: formattedGraphicalItems
+// carries the Bar's computed rectangles, so the overlay aligns exactly with
+// the bar it decorates, and a dashed line pins the precise TTM level.
+function TtmOverlay({ formattedGraphicalItems, yAxisMap, ttm, patternId }) {
+  if (ttm == null) return null;
+  const rects = formattedGraphicalItems?.[0]?.props?.data;
+  const yScale = yAxisMap && Object.values(yAxisMap)[0]?.scale;
+  if (!rects?.length || !yScale) return null;
+  const target = rects.find((r) => r?.payload?.hasTtmOverlay);
+  if (!target || target.x == null || target.width == null) return null;
+  const yZero = yScale(0);
+  const yTtm = yScale(ttm);
+  const top = Math.min(yZero, yTtm);
+  const height = Math.abs(yZero - yTtm);
+  if (!Number.isFinite(top) || !Number.isFinite(height) || height <= 0) return null;
+  return (
+    // Decoration only — must not swallow hover events meant for the bar
+    // underneath (the tooltip would otherwise never fire on this column).
+    <g pointerEvents="none">
+      <defs>
+        <pattern id={patternId} width="6" height="6" patternUnits="userSpaceOnUse">
+          <circle cx="3" cy="3" r="2.4" fill="#8b5cf6" fillOpacity="0.55" />
+        </pattern>
+      </defs>
+      <rect x={target.x} y={top} width={target.width} height={height} fill={`url(#${patternId})`} />
+      <line
+        x1={target.x}
+        x2={target.x + target.width}
+        y1={yTtm}
+        y2={yTtm}
+        stroke="#8b5cf6"
+        strokeWidth={1.5}
+        strokeDasharray="3 2"
+      />
+    </g>
+  );
+}
+
 function MetricBarChart({ metric, currencyCode, period = "annual", isCount = false, ttm = null }) {
   const cs = currencySymbol(currencyCode);
   const { name, years, values, yoy, cagr } = metric;
@@ -186,12 +254,27 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
     value: values[i],
     yoy: yoy?.[i] ?? null,
   }));
-  // TTM shows as its own column after the latest reported year — annual view
-  // only, since it'd be meaningless sitting next to quarterly bars.
-  const rows =
-    ttm != null && !isQuarterly && !isCount
-      ? [...data, { year: "TTM", value: ttm, yoy: null, isTTM: true }]
-      : data;
+  // TTM doesn't get its own column — it overlays the last full-year bar as a
+  // dotted purple level (annual view only), keeping the axis to real periods.
+  const showTtmOverlay = ttm != null && !isQuarterly && !isCount && data.length > 0;
+  const rows = data;
+  // Change vs the previous column (YoY annual / QoQ quarterly), shown as a
+  // second x-axis line. The angled/dense quarterly layout has no room for a
+  // second line — hide it there and let the tooltip's QoQ carry it.
+  const changes = columnChanges(rows);
+  const rowsWithChange = rows.map((r, i) => ({
+    ...r,
+    change: changes[i],
+    hasTtmOverlay: showTtmOverlay && i === rows.length - 1,
+  }));
+  const showChangeLine = !(isQuarterly && data.length > 6) && rows.length <= 10;
+  // Only widen the y-domain when the TTM level falls outside the bars' own
+  // range — a functional domain costs recharts its nice round ticks, so keep
+  // the default auto axis whenever the overlay already fits.
+  const vals = rows.map((r) => r.value).filter((v) => v != null);
+  const ttmOutside =
+    showTtmOverlay && vals.length > 0 &&
+    (ttm > Math.max(0, ...vals) || ttm < Math.min(0, ...vals));
 
   const lastYoy = yoy && yoy.length ? yoy[yoy.length - 1] : null;
 
@@ -217,17 +300,23 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
       <div className="text-lg font-bold tabular-nums">{fmtVal(values[values.length - 1])}</div>
       <div className="h-32 mt-2">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
+          <BarChart data={rowsWithChange} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
             <CartesianGrid strokeDasharray="2 4" stroke="#e2e8f0" vertical={false} />
             <XAxis
               dataKey="year"
-              tick={{ fill: "#64748b", fontSize: isQuarterly ? 8 : 10 }}
+              tick={
+                showChangeLine ? (
+                  <ChangeTick changes={changes} fontSize={isQuarterly ? 8 : 10} />
+                ) : (
+                  { fill: "#64748b", fontSize: isQuarterly ? 8 : 10 }
+                )
+              }
               tickLine={false}
               axisLine={{ stroke: "#e2e8f0" }}
               interval={isQuarterly && data.length > 8 ? "preserveStartEnd" : 0}
               angle={isQuarterly && data.length > 6 ? -35 : 0}
               textAnchor={isQuarterly && data.length > 6 ? "end" : "middle"}
-              height={isQuarterly && data.length > 6 ? 28 : 16}
+              height={showChangeLine ? 34 : isQuarterly && data.length > 6 ? 28 : 16}
             />
             <YAxis
               tick={{ fill: "#64748b", fontSize: 9 }}
@@ -237,6 +326,14 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
               tickLine={false}
               axisLine={false}
               width={40}
+              // The TTM overlay isn't a bar, so when it exceeds every bar the
+              // domain must be widened by hand (with 5% headroom) or the
+              // overlay would draw past the plot area.
+              domain={
+                ttmOutside
+                  ? [(dataMin) => Math.min(0, dataMin, ttm) * 1.05, (dataMax) => Math.max(0, dataMax, ttm) * 1.05]
+                  : undefined
+              }
             />
             <Tooltip
               cursor={{ fill: "rgba(0,0,0,0.04)" }}
@@ -245,12 +342,20 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
                 const row = payload[0].payload;
                 return (
                   <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs shadow-lg">
-                    <div className="text-slate-500">{row.isTTM ? "TTM · trailing 12M" : row.year}</div>
+                    <div className="text-slate-500">{row.year}</div>
                     <div className="font-semibold text-slate-800">{fmtVal(row.value)}</div>
                     {row.yoy != null && (
                       <div className={changeColor(row.yoy)}>
                         YoY {fmtPct(row.yoy, 2)}
                       </div>
+                    )}
+                    {isQuarterly && row.change != null && (
+                      <div className={changeColor(row.change)}>
+                        QoQ {fmtPct(row.change, 2)}
+                      </div>
+                    )}
+                    {row.hasTtmOverlay && (
+                      <div className="text-violet-600">TTM {fmtVal(ttm)}</div>
                     )}
                   </div>
                 );
@@ -258,9 +363,16 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
             />
             <Bar dataKey="value" radius={[3, 3, 0, 0]}>
               {rows.map((d, i) => (
-                <Cell key={i} fill={d.isTTM ? "#8b5cf6" : isCount ? "#6366f1" : d.value >= 0 ? "#22c55e" : "#ef4444"} />
+                <Cell key={i} fill={isCount ? "#6366f1" : d.value >= 0 ? "#22c55e" : "#ef4444"} />
               ))}
             </Bar>
+            {showTtmOverlay && (
+              <Customized
+                component={(cp) => (
+                  <TtmOverlay {...cp} ttm={ttm} patternId={`ttm-dots-${name.replace(/\W+/g, "-")}`} />
+                )}
+              />
+            )}
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -1299,21 +1411,29 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
   const lastActual = actuals[actuals.length - 1];
   const lastActualYoy = lastActual?.growth;
 
-  // TTM renders as its own column between the latest actual year and the first
-  // forward estimate (annual view only — hidden for quarterly).
-  const showTtm = ttm != null && !isQuarterly;
-  const rows = (() => {
-    if (!showTtm) return data;
-    const ttmBar = {
-      label: "TTM", value: ttm, isEstimate: false, isTTM: true,
-      growth: null, low: null, high: null, analysts: 0,
-    };
-    const firstEstimate = data.findIndex((d) => d.isEstimate);
-    if (firstEstimate === -1) return [...data, ttmBar];
-    const copy = [...data];
-    copy.splice(firstEstimate, 0, ttmBar);
-    return copy;
-  })();
+  // TTM doesn't get its own column — it overlays the latest actual bar as a
+  // dotted purple level (annual view only), so estimates sit directly next to
+  // the real fiscal years.
+  const showTtm = ttm != null && !isQuarterly && actuals.length > 0;
+  const lastActualIdx = data.reduce((k, d, i) => (d.isEstimate ? k : i), -1);
+  const rows = data;
+  // Change vs the previous column (YoY annual / QoQ quarterly, estimates vs
+  // their prior period), shown as a second x-axis line. Hidden in the angled/
+  // dense quarterly layout where it can't fit — the tooltip carries it there.
+  const changes = columnChanges(rows);
+  const rowsWithChange = rows.map((r, i) => ({
+    ...r,
+    change: changes[i],
+    hasTtmOverlay: showTtm && i === lastActualIdx,
+  }));
+  const showChangeLine = !(isQuarterly && data.length > 6) && rows.length <= 10;
+  // Only widen the y-domain when the TTM level falls outside the bars' own
+  // range — a functional domain costs recharts its nice round ticks, so keep
+  // the default auto axis whenever the overlay already fits.
+  const vals = rows.map((r) => r.value).filter((v) => v != null);
+  const ttmOutside =
+    showTtm && vals.length > 0 &&
+    (ttm > Math.max(0, ...vals) || ttm < Math.min(0, ...vals));
 
   return (
     <div className="bg-surface rounded-lg p-4 flex flex-col">
@@ -1348,17 +1468,23 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
       </div>
       <div className="h-32 mt-2">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
+          <BarChart data={rowsWithChange} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
             <CartesianGrid strokeDasharray="2 4" stroke="#e2e8f0" vertical={false} />
             <XAxis
               dataKey="label"
-              tick={{ fill: "#64748b", fontSize: isQuarterly ? 8 : 10 }}
+              tick={
+                showChangeLine ? (
+                  <ChangeTick changes={changes} fontSize={isQuarterly ? 8 : 10} />
+                ) : (
+                  { fill: "#64748b", fontSize: isQuarterly ? 8 : 10 }
+                )
+              }
               tickLine={false}
               axisLine={{ stroke: "#e2e8f0" }}
               interval={isQuarterly && data.length > 8 ? "preserveStartEnd" : 0}
               angle={isQuarterly && data.length > 6 ? -35 : 0}
               textAnchor={isQuarterly && data.length > 6 ? "end" : "middle"}
-              height={isQuarterly && data.length > 6 ? 32 : 16}
+              height={showChangeLine ? 34 : isQuarterly && data.length > 6 ? 32 : 16}
             />
             <YAxis
               tick={{ fill: "#64748b", fontSize: 9 }}
@@ -1366,6 +1492,14 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
               tickLine={false}
               axisLine={false}
               width={40}
+              // The TTM overlay isn't a bar, so when it exceeds every bar the
+              // domain must be widened by hand (with 5% headroom) or the
+              // overlay would draw past the plot area.
+              domain={
+                ttmOutside
+                  ? [(dataMin) => Math.min(0, dataMin, ttm) * 1.05, (dataMax) => Math.max(0, dataMax, ttm) * 1.05]
+                  : undefined
+              }
             />
             <Tooltip
               cursor={{ fill: "rgba(0,0,0,0.04)" }}
@@ -1375,7 +1509,7 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
                 return (
                   <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs shadow-lg">
                     <div className="text-slate-500">
-                      {row.isTTM ? "TTM · trailing 12M" : `${row.label}${row.isEstimate ? " · estimate" : " · actual"}`}
+                      {row.label}{row.isEstimate ? " · estimate" : " · actual"}
                     </div>
                     <div className="font-semibold text-slate-800">
                       {row.value == null
@@ -1399,6 +1533,16 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
                         {row.isEstimate ? "Fcst growth" : "YoY"} {fmtPct(row.growth, 2)}
                       </div>
                     )}
+                    {isQuarterly && row.change != null && (
+                      <div className={row.change >= 0 ? "text-emerald-600 text-[10px]" : "text-red-600 text-[10px]"}>
+                        QoQ {fmtPct(row.change, 2)}
+                      </div>
+                    )}
+                    {row.hasTtmOverlay && (
+                      <div className="text-violet-600">
+                        TTM {isPerShare ? `${cs}${ttm.toFixed(2)}` : fmtCompact(ttm, cs)}
+                      </div>
+                    )}
                   </div>
                 );
               }}
@@ -1407,18 +1551,25 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
               {rows.map((d, i) => (
                 <Cell
                   key={i}
-                  fill={d.isTTM ? "#8b5cf6" : d.isEstimate ? "#3b82f6" : (d.value >= 0 ? "#22c55e" : "#ef4444")}
+                  fill={d.isEstimate ? "#3b82f6" : (d.value >= 0 ? "#22c55e" : "#ef4444")}
                   fillOpacity={d.isEstimate ? 0.75 : 1}
                 />
               ))}
             </Bar>
+            {showTtm && (
+              <Customized
+                component={(cp) => (
+                  <TtmOverlay {...cp} ttm={ttm} patternId={`ttm-dots-${name.replace(/\W+/g, "-")}`} />
+                )}
+              />
+            )}
           </BarChart>
         </ResponsiveContainer>
       </div>
       <div className="flex items-center gap-3 mt-2 text-[10px] text-slate-500">
         <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-[#22c55e] rounded-sm" />Actual</span>
         {showTtm && (
-          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-[#8b5cf6] rounded-sm" />TTM</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm border border-dashed border-violet-500 bg-violet-500/40" />TTM</span>
         )}
         <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-[#3b82f6] rounded-sm opacity-75" />Estimate</span>
       </div>

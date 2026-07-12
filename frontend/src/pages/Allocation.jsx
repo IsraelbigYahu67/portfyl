@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAllHoldings, fetchSectorBreakdown } from "../api";
 import { useCurrency } from "../App";
+import { formatMoney } from "../lib/format";
+import { groupPositions } from "../lib/positionsPie";
 import { TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { TickerLink, useStockDetail } from "../components/StockDetail";
 import BreakdownChart from "../components/BreakdownChart";
@@ -12,15 +14,11 @@ export default function Allocation() {
   const { currency } = useCurrency();
   const { openStock } = useStockDetail();
 
-  const fmt = (n) => {
-    if (n == null) return "—";
-    const sign = n < 0 ? "-" : "";
-    const str = Math.abs(n).toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    return currency === "CZK" ? `${sign}${str} Kč` : `${sign}$${str}`;
-  };
+  // Portfolio-level money (value, P&L, dividends) is shown in the display
+  // currency (CZK by default). Per-share prices (avg cost, current price) are
+  // shown in each stock's *native* currency — a US stock's price is $, not Kč.
+  const fmt = (n) => formatMoney(n, currency);
+  const fmtNative = (n, code) => formatMoney(n, code || currency);
 
   const {
     data: holdings = [],
@@ -36,6 +34,11 @@ export default function Allocation() {
     queryKey: ["sector-breakdown", currency],
     queryFn: () => fetchSectorBreakdown(currency),
   });
+
+  // Positions pie: >2% holdings get their own slice, the rest fold into
+  // "Other". Derived from the same holdings query as the table, so the pie
+  // always matches the Weight column (and refreshes with "Refresh prices").
+  const positions = useMemo(() => groupPositions(holdings), [holdings]);
 
   const [sort, setSort] = useState({ key: "market_value", dir: "desc" });
 
@@ -71,23 +74,31 @@ export default function Allocation() {
         </button>
       </div>
 
-      {breakdownLoading ? (
+      {breakdownLoading || holdingsLoading ? (
         <div className="card animate-pulse h-48 flex items-center justify-center text-slate-500">
           Loading allocation data...
         </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <>
           <BreakdownChart
-            title="Sector Allocation"
-            data={breakdown?.sectors}
+            title="Positions"
+            data={positions}
             currencyLabel={currency}
+            legendColumns={2}
           />
-          <BreakdownChart
-            title="Country Allocation"
-            data={breakdown?.countries}
-            currencyLabel={currency}
-          />
-        </div>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <BreakdownChart
+              title="Sector Allocation"
+              data={breakdown?.sectors}
+              currencyLabel={currency}
+            />
+            <BreakdownChart
+              title="Country Allocation"
+              data={breakdown?.countries}
+              currencyLabel={currency}
+            />
+          </div>
+        </>
       )}
 
       <div>
@@ -138,12 +149,12 @@ export default function Allocation() {
                         <td className={`px-4 py-3 tabular-nums text-sm text-right ${closed ? "text-slate-500" : ""}`}>
                           {closed ? "—" : h.shares.toLocaleString()}
                         </td>
-                        <td className={`px-4 py-3 tabular-nums text-sm text-right ${closed ? "text-slate-500" : ""}`}>{fmt(h.avg_cost)}</td>
+                        <td className={`px-4 py-3 tabular-nums text-sm text-right ${closed ? "text-slate-500" : ""}`}>{fmtNative(h.avg_cost, h.currency)}</td>
                         <td className={`px-4 py-3 tabular-nums text-sm text-right font-medium ${closed ? "text-slate-500" : ""}`}>
-                          <div>{fmt(h.current_price)}</div>
+                          <div>{fmtNative(h.current_price, h.currency)}</div>
                           {closed && h.live_price != null && (
                             <div className="text-[10px] text-slate-400 leading-tight" title="Live market price today">
-                              now {fmt(h.live_price)}
+                              now {fmtNative(h.live_price, h.currency)}
                             </div>
                           )}
                         </td>
