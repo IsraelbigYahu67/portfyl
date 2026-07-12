@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Trash2, X, TrendingUp, TrendingDown, Search as SearchIcon, Loader2,
+  Bell, BellRing, RotateCcw, RefreshCw,
 } from "lucide-react";
 import {
   fetchWatchlists,
@@ -11,6 +12,11 @@ import {
   addWatchlistItem,
   removeWatchlistItem,
   searchTickers,
+  fetchAlerts,
+  createAlert,
+  updateAlert,
+  deleteAlert,
+  checkAlerts,
 } from "../api";
 
 function fmtPrice(v, code = "USD") {
@@ -124,7 +130,7 @@ function AddTickerForm({ watchlistId }) {
   );
 }
 
-function WatchlistCard({ wl }) {
+function WatchlistCard({ wl, onAlert }) {
   const qc = useQueryClient();
 
   const removeWlMut = useMutation({
@@ -208,6 +214,18 @@ function WatchlistCard({ wl }) {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
+                    onAlert?.(it.ticker);
+                  }}
+                  className="text-slate-400 hover:text-brand p-1 transition-colors"
+                  title="Create a price alert for this ticker"
+                  aria-label="Create price alert"
+                >
+                  <Bell size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
                     removeItemMut.mutate(it.id);
                   }}
                   className="text-slate-400 hover:text-red-600 p-1 transition-colors"
@@ -215,6 +233,177 @@ function WatchlistCard({ wl }) {
                   aria-label="Remove from watchlist"
                 >
                   <X size={14} />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function PriceAlertsPanel({ prefillTicker, onConsumePrefill }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ ticker: "", direction: "above", target_price: "" });
+
+  const { data: alerts = [], isLoading } = useQuery({
+    queryKey: ["alerts"],
+    queryFn: fetchAlerts,
+    staleTime: 15_000,
+  });
+
+  // A bell click on a watchlist row pre-fills the ticker and focuses the form.
+  useEffect(() => {
+    if (prefillTicker) {
+      setForm((f) => ({ ...f, ticker: prefillTicker }));
+      onConsumePrefill?.();
+    }
+  }, [prefillTicker]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["alerts"] });
+
+  const add = useMutation({
+    mutationFn: createAlert,
+    onSuccess: () => {
+      invalidate();
+      setForm((f) => ({ ...f, target_price: "" }));
+    },
+  });
+  const reset = useMutation({
+    mutationFn: (id) => updateAlert(id, { status: "active" }),
+    onSuccess: invalidate,
+  });
+  const toggle = useMutation({
+    mutationFn: ({ id, enabled }) => updateAlert(id, { enabled }),
+    onSuccess: invalidate,
+  });
+  const remove = useMutation({ mutationFn: deleteAlert, onSuccess: invalidate });
+  const check = useMutation({ mutationFn: checkAlerts, onSuccess: invalidate });
+
+  const submit = (e) => {
+    e.preventDefault();
+    const t = form.ticker.trim().toUpperCase();
+    const price = Number(form.target_price);
+    if (!t || !price) return;
+    add.mutate({ ticker: t, direction: form.direction, target_price: price });
+  };
+
+  return (
+    <section className="bg-surface-card border border-surface-border rounded-xl mb-6">
+      <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-surface-border">
+        <div className="flex items-center gap-2">
+          <Bell size={16} className="text-brand" />
+          <h2 className="text-lg font-bold">Price Alerts</h2>
+          <span className="text-xs text-slate-500">Discord notification when a price is crossed</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => check.mutate()}
+          disabled={check.isPending || alerts.length === 0}
+          className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand disabled:opacity-40"
+          title="Evaluate all alerts against live prices right now"
+        >
+          <RefreshCw size={13} className={check.isPending ? "animate-spin" : ""} />
+          Check now
+        </button>
+      </header>
+
+      <form onSubmit={submit} className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-surface-border">
+        <input
+          type="text"
+          value={form.ticker}
+          onChange={(e) => setForm({ ...form, ticker: e.target.value.toUpperCase() })}
+          placeholder="Ticker"
+          className="w-28 bg-surface border border-surface-border rounded-md px-2 py-1.5 text-sm font-mono focus:outline-none focus:border-brand"
+        />
+        <select
+          value={form.direction}
+          onChange={(e) => setForm({ ...form, direction: e.target.value })}
+          className="bg-surface border border-surface-border rounded-md px-2 py-1.5 text-sm focus:outline-none focus:border-brand"
+        >
+          <option value="above">rises to / above</option>
+          <option value="below">falls to / below</option>
+        </select>
+        <input
+          type="number"
+          step="0.01"
+          value={form.target_price}
+          onChange={(e) => setForm({ ...form, target_price: e.target.value })}
+          placeholder="Target price"
+          className="w-32 bg-surface border border-surface-border rounded-md px-2 py-1.5 text-sm tabular-nums focus:outline-none focus:border-brand"
+        />
+        <button
+          type="submit"
+          disabled={add.isPending || !form.ticker.trim() || !form.target_price}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand text-black text-sm font-medium disabled:opacity-50"
+        >
+          <Plus size={14} />
+          Add alert
+        </button>
+        {add.isError && (
+          <span className="text-xs text-red-600">
+            {add.error?.response?.data?.detail || "Failed to add alert"}
+          </span>
+        )}
+      </form>
+
+      {isLoading ? (
+        <div className="py-6 text-center text-slate-400 text-sm animate-pulse">Loading alerts…</div>
+      ) : alerts.length === 0 ? (
+        <div className="py-6 text-center text-slate-400 text-sm">
+          No alerts yet. Add one above — you'll get a Discord message when it's crossed.
+        </div>
+      ) : (
+        <ul className="divide-y divide-surface-border">
+          {alerts.map((a) => {
+            const triggered = a.status === "triggered";
+            return (
+              <li key={a.id} className="flex items-center gap-3 px-4 py-2.5">
+                <div className="w-20 font-mono font-bold text-sm shrink-0">{a.ticker}</div>
+                <div className="flex-1 text-sm text-slate-600">
+                  {a.direction === "above" ? "≥" : "≤"}{" "}
+                  <span className="tabular-nums font-medium">{a.target_price}</span>
+                  {a.current_price != null && (
+                    <span className="text-xs text-slate-400 ml-2 tabular-nums">
+                      now {a.current_price.toFixed(2)}
+                    </span>
+                  )}
+                  {a.note && <span className="text-xs text-slate-400 ml-2 italic">{a.note}</span>}
+                </div>
+                {triggered ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">
+                    <BellRing size={11} /> Triggered
+                  </span>
+                ) : (
+                  <label className="inline-flex items-center gap-1 text-xs text-slate-500">
+                    <input
+                      type="checkbox"
+                      checked={a.enabled}
+                      onChange={(e) => toggle.mutate({ id: a.id, enabled: e.target.checked })}
+                    />
+                    Armed
+                  </label>
+                )}
+                {triggered && (
+                  <button
+                    type="button"
+                    onClick={() => reset.mutate(a.id)}
+                    className="text-slate-400 hover:text-brand p-1 transition-colors"
+                    title="Re-arm this alert"
+                    aria-label="Re-arm alert"
+                  >
+                    <RotateCcw size={14} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => remove.mutate(a.id)}
+                  className="text-slate-400 hover:text-red-600 p-1 transition-colors"
+                  title="Delete alert"
+                  aria-label="Delete alert"
+                >
+                  <Trash2 size={14} />
                 </button>
               </li>
             );
@@ -269,6 +458,7 @@ function NewWatchlistForm() {
 }
 
 export default function Watchlists() {
+  const [prefillTicker, setPrefillTicker] = useState("");
   const { data: watchlists = [], isLoading, isError } = useQuery({
     queryKey: ["watchlists"],
     queryFn: fetchWatchlists,
@@ -286,6 +476,11 @@ export default function Watchlists() {
         </div>
         <NewWatchlistForm />
       </div>
+
+      <PriceAlertsPanel
+        prefillTicker={prefillTicker}
+        onConsumePrefill={() => setPrefillTicker("")}
+      />
 
       {isLoading && (
         <div className="text-center py-16 text-slate-500 text-sm animate-pulse">
@@ -307,7 +502,7 @@ export default function Watchlists() {
 
       <div className="space-y-6">
         {watchlists.map((wl) => (
-          <WatchlistCard key={wl.id} wl={wl} />
+          <WatchlistCard key={wl.id} wl={wl} onAlert={setPrefillTicker} />
         ))}
       </div>
     </div>

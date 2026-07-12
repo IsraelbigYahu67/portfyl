@@ -9,7 +9,7 @@ from database import get_db
 from models import Transaction, CashInterestRate
 from routers.portfolios import require_portfolio
 from fx import fetch_fx_to_czk, cash_amount_to_display
-from cash_ledger import CASH_TYPES, cash_balance_by_currency, accrued_interest
+from cash_ledger import CASH_TYPES, cash_balance_by_currency, accrued_interest, signed_cash
 
 router = APIRouter(prefix="/cash", tags=["cash"])
 
@@ -130,6 +130,36 @@ def put_rates(body: RatesPayload, db: Session = Depends(get_db), pid: int = Depe
         row.annual_rate, row.enabled, row.start_date = item.annual_rate, item.enabled, item.start_date
     db.commit()
     return get_rates(db, pid)
+
+
+@router.get("/history")
+def get_history(currency: str = "USD", db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
+    """Dated running cash-balance series in the display currency, one point per
+    event date. Every cash/trade event moves the balance (buys pull cash out,
+    sells/dividends/deposits push in), so the final point equals /balance's
+    blended `total` minus lazy accrued interest (which has no dated event).
+    Cross-currency events are converted on the same live CZK-pivot basis as
+    /balance so the two endpoints reconcile."""
+    disp = currency.upper()
+    txns = db.query(Transaction).filter(Transaction.portfolio_id == pid).all()
+    events = []
+    for t in txns:
+        ccy, amt = signed_cash(t)
+        if not amt:
+            continue
+        events.append((t.date, cash_amount_to_display(amt, ccy, disp)))
+    events.sort(key=lambda e: e[0])
+
+    series: List[dict] = []
+    running = 0.0
+    for d, amt in events:
+        running += amt
+        iso = d.isoformat()
+        if series and series[-1]["date"] == iso:
+            series[-1]["balance"] = round(running, 2)
+        else:
+            series.append({"date": iso, "balance": round(running, 2)})
+    return {"currency": disp, "series": series}
 
 
 @router.get("/balance")

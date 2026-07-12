@@ -214,6 +214,15 @@ export const updateCash = (id, data) => api.put(`/cash/${id}`, data).then((r) =>
 export const deleteCash = (id) => api.delete(`/cash/${id}`).then((r) => r.data);
 export const fetchCashBalance = (currency = "USD") =>
   api.get("/cash/balance", { params: { currency } }).then((r) => r.data);
+export const fetchCashHistory = (currency = "USD") =>
+  api.get("/cash/history", { params: { currency } }).then((r) => r.data);
 export const fetchInterestRates = () => api.get("/cash/interest-rates").then((r) => r.data);
 export const saveInterestRates = (rates) =>
   api.put("/cash/interest-rates", { rates }).then((r) => r.data);
+
+// ----- Price alerts (portfolio-scoped) ---------------------------------------
+export const fetchAlerts = () => api.get("/alerts").then((r) => r.data);
+export const createAlert = (data) => api.post("/alerts", data).then((r) => r.data);
+export const updateAlert = (id, data) => api.patch(`/alerts/${id}`, data).then((r) => r.data);
+export const deleteAlert = (id) => api.delete(`/alerts/${id}`).then((r) => r.data);
+export const checkAlerts = () => api.post("/alerts/check").then((r) => r.data);

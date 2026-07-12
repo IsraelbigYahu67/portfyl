@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Wallet, Plus, Trash2, Percent } from "lucide-react";
+import { Wallet, Plus, Trash2, Percent, TrendingUp } from "lucide-react";
 import { Card, SectionHeader, SkeletonRows, EmptyState } from "../components/ui";
 import { formatMoney } from "../lib/format";
+import CashBalanceChart from "../components/CashBalanceChart";
 import {
   fetchCash,
   createCash,
   deleteCash,
   fetchCashBalance,
+  fetchCashHistory,
   fetchInterestRates,
   saveInterestRates,
 } from "../api";
@@ -59,10 +61,15 @@ export default function Cash() {
     queryKey: ["cash-balance", currency],
     queryFn: () => fetchCashBalance(currency),
   });
+  const history = useQuery({
+    queryKey: ["cash-history", currency],
+    queryFn: () => fetchCashHistory(currency),
+  });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["cash"] });
     qc.invalidateQueries({ queryKey: ["cash-balance"] });
+    qc.invalidateQueries({ queryKey: ["cash-history"] });
     qc.invalidateQueries({ queryKey: ["summary"] });
   };
 
@@ -116,6 +123,13 @@ export default function Cash() {
           </div>
         )}
       </Card>
+
+      {(history.data?.series?.length ?? 0) >= 2 && (
+        <Card>
+          <SectionHeader icon={TrendingUp}>Balance over time</SectionHeader>
+          <CashBalanceChart data={history.data.series} currency={currency} />
+        </Card>
+      )}
 
       <Card>
         <SectionHeader icon={Plus}>Add cash flow</SectionHeader>
