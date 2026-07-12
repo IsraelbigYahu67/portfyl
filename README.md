@@ -135,6 +135,7 @@ portfyl/
 - **Transaction CRUD** — buy/sell/dividend with manual entry or CSV import
 - **CSV Import** — native format (date, ticker, type, shares, price) **and** Trading 212 export format
 - **Trading 212 Sync** — connect via API key, auto-fetch orders and dividends, split-adjustment detection, corporate-action pair cleanup
+- **Background auto-sync** — opt-in per broker connection (T212 + IBKR); a poller syncs every 6 h and announces imports on Discord
 - **Holdings Engine** — FIFO avg-cost cost basis, realized/unrealized P&L, closed positions with "what if held" P&L
 
 ### Performance & Risk
@@ -153,7 +154,7 @@ portfyl/
 - **Fair value** — P/E multiple (current + sector median), EV/EBITDA (current + sector median), 2-stage FCF DCF with WACC sensitivity grid
 - **Analyst consensus** — buy/sell/hold counts, price targets, upside
 - **Ownership** — institutional holders table, insider holdings %, insider transactions
-- **Stock screener** — filter 3 preset universes (S&P 20, NASDAQ-100 20, Tech 10) by P/E, forward P/E, P/B, P/S, div yield, market cap, ROE, net margin, sector; sortable by any metric
+- **Stock screener** — filter full index universes (S&P 500, NASDAQ-100, Dividend Aristocrats, tech mega-caps) by P/E, forward P/E, P/B, P/S, div yield, market cap, ROE, net margin, sector; sortable by any metric; rows cached for an hour so re-filtering is instant
 
 ### Tax (Czech Republic)
 - **§4 time test** — 3-year holding period exemption, per-lot tracking
@@ -167,6 +168,7 @@ portfyl/
 - **Forward dividend calendar** — next ex-date, pay date, amount per share, frequency per holding
 - **Monthly projection** — 12-month forward chart with estimated income per month
 - **Annual estimate** — total projected dividend income for the next 12 months
+- **Ex-date notifications** — Discord digest when a holding's ex-dividend date is within 3 days (each dividend announced once)
 
 ### FX & Multi-Currency
 - Per-transaction FX snapshot (currency → CZK at txn date) for accurate CZK cost basis
@@ -185,17 +187,22 @@ portfyl/
 
 ## Testing
 
-The backend has **54 tests** across 7 test modules:
+The backend has **149 tests** across 14 modules:
 
-| Module | Tests | Covers |
-|---|---|---|
-| `test_portfolio.py` | 11 | Holdings aggregation, FIFO P&L, sell reduces cost, closed positions, summary, multi-ticker, date ordering |
-| `test_analytics.py` | 13 | Capital gains (simple, multi-lot FIFO, long/short term, loss), Czech tax (value test, time test, 40M cap, multi-year) |
-| `test_broker.py` | 10 | T212 ticker normalization (suffixes, exchange tags, renames, BRK special, UCITS, whitespace), canonical regex |
-| `test_cache.py` | 6 | TTL cache (hit, miss, expiry, exception not cached, kwargs keying, clear) |
-| `test_fx.py` | 6 | Ticker map (direct, fallback, case-insensitive, empty), FX CZK shortcut |
-| `test_dividend_calendar.py` | 3 | Empty portfolio, holdings produce tickers, function structure |
-| `test_market.py` | 5 | `_in_range` helper, preset universes, screener row structure, fallback universe, custom tickers |
+| Module | Covers |
+|---|---|
+| `test_portfolio.py` | Holdings aggregation, FIFO P&L, closed positions, summary, native-currency prices |
+| `test_analytics.py` | Capital gains (multi-lot FIFO, long/short term), Czech tax (value test, time test, 40M cap) |
+| `test_broker.py` | T212 ticker normalization, sync dedup (CSV vs API, base-ticker, history cutoff), CZK settlement |
+| `test_cash_ledger.py` / `test_cash_api.py` | Cash model: signed cash, balances, accrued interest, CRUD, guards |
+| `test_alerts.py` | Price alerts: CRUD, crossing semantics, trigger/re-arm, no-data handling |
+| `test_jobs.py` | Background jobs: broker auto-sync (opt-in, notifications, failure isolation), dividend ex-date digests (window, dedup, flags) |
+| `test_currency_and_history.py` | FX exposure breakdown, cash history series |
+| `test_t212_import.py` | CSV import legs, settlement cash, display-currency conversion, interest accrual |
+| `test_cache.py` / `test_fx.py` | TTL cache semantics; ticker map and FX shortcuts |
+| `test_dividend_calendar.py` | Forward dividend calendar structure |
+| `test_day_change.py` | Day-change and movers calculations |
+| `test_market.py` | Screener: `_in_range`, full preset universes, row cache, custom tickers |
 
 ```bash
 cd backend
@@ -230,6 +237,7 @@ is running. Key groups:
 | `/api/analytics` | `analytics.py` | Performance, risk, tax report, sector breakdown, correlation |
 | `/api/analytics/benchmarks` | `benchmarks.py` | Benchmark CRUD, comparison |
 | `/api/analytics/dividend-calendar` | `dividend_calendar.py` | Forward dividend projection |
+| `/api/alerts` | `alerts.py` | Price alerts (CRUD, manual check; background poller fires Discord notifications) |
 | `/api/broker` | `broker.py` | Trading 212 connect/disconnect/sync |
 | `/api/ibkr` | `ibkr.py` | Interactive Brokers Flex Query import/sync |
 | `/api/options` | `options.py` | Options positions, greeks, expiry tracking |

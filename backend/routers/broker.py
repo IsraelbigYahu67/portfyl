@@ -279,6 +279,18 @@ def connect(payload: dict, db: Session = Depends(get_db), pid: int = Depends(req
     return {"ok": True, "message": "Connected to Trading 212"}
 
 
+@router.post("/trading212/auto-sync")
+def set_auto_sync(payload: dict, db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
+    """Toggle background auto-sync for this portfolio's T212 connection. The
+    poller in main.py only syncs connections that opted in here."""
+    conn = _get_connection(db, pid)
+    if not conn:
+        raise HTTPException(status_code=404, detail="Trading 212 is not connected")
+    conn.auto_sync = bool(payload.get("enabled"))
+    db.commit()
+    return {"ok": True, "auto_sync": conn.auto_sync}
+
+
 @router.delete("/trading212/connect")
 def disconnect(db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
     conn = _get_connection(db, pid)

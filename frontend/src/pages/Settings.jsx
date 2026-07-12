@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchT212Status, connectT212, disconnectT212, syncT212, fetchIBKRStatus, connectIBKR, disconnectIBKR, syncIBKR, fetchPolymarketStatus, connectPolymarket, disconnectPolymarket, syncPolymarket } from "../api";
+import { fetchT212Status, connectT212, disconnectT212, syncT212, setT212AutoSync, fetchIBKRStatus, connectIBKR, disconnectIBKR, syncIBKR, setIBKRAutoSync, fetchPolymarketStatus, connectPolymarket, disconnectPolymarket, syncPolymarket } from "../api";
 import { Loader2, Link, Unlink, RefreshCw, CheckCircle2, AlertCircle, Eye, EyeOff, Briefcase } from "lucide-react";
 import { usePortfolio } from "../App";
 import DiscordSettings from "../components/DiscordSettings";
@@ -213,6 +213,18 @@ export default function Settings() {
     },
   });
 
+  const autoSyncMutation = useMutation({
+    mutationFn: setT212AutoSync,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["t212-status"] }),
+    onError: (err) => setError(err.response?.data?.detail || "Failed to update auto-sync"),
+  });
+
+  const ibkrAutoSyncMutation = useMutation({
+    mutationFn: setIBKRAutoSync,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ibkr-status"] }),
+    onError: (err) => setIbkrError(err.response?.data?.detail || "Failed to update auto-sync"),
+  });
+
   const connected = status?.connected;
   const busy = connectMutation.isPending || disconnectMutation.isPending || syncMutation.isPending;
 
@@ -336,6 +348,19 @@ export default function Settings() {
                     ? new Date(status.connected_at).toLocaleDateString()
                     : "—"}
                 </span>
+              </div>
+              <div className="flex justify-between items-center pt-1">
+                <span className="text-slate-500">
+                  Auto-sync
+                  <span className="text-xs text-slate-400 ml-2">checks for new trades every 6 h</span>
+                </span>
+                <button
+                  onClick={() => autoSyncMutation.mutate(!status.auto_sync)}
+                  disabled={autoSyncMutation.isPending}
+                  className={`w-9 h-5 rounded-full transition-colors relative ${status.auto_sync ? "bg-brand" : "bg-slate-300"}`}
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${status.auto_sync ? "left-[18px]" : "left-0.5"}`} />
+                </button>
               </div>
             </div>
 
@@ -475,6 +500,19 @@ export default function Settings() {
                     ? new Date(ibkrStatus.connected_at).toLocaleDateString()
                     : "—"}
                 </span>
+              </div>
+              <div className="flex justify-between items-center pt-1">
+                <span className="text-slate-500">
+                  Auto-sync
+                  <span className="text-xs text-slate-400 ml-2">checks for new trades every 6 h</span>
+                </span>
+                <button
+                  onClick={() => ibkrAutoSyncMutation.mutate(!ibkrStatus.auto_sync)}
+                  disabled={ibkrAutoSyncMutation.isPending}
+                  className={`w-9 h-5 rounded-full transition-colors relative ${ibkrStatus.auto_sync ? "bg-brand" : "bg-slate-300"}`}
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${ibkrStatus.auto_sync ? "left-[18px]" : "left-0.5"}`} />
+                </button>
               </div>
             </div>
 

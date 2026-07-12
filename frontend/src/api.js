@@ -152,6 +152,8 @@ export const connectT212 = (apiKey, apiSecret) =>
   api.post("/broker/trading212/connect", { api_key: apiKey, api_secret: apiSecret }).then((r) => r.data);
 export const disconnectT212 = () => api.delete("/broker/trading212/connect").then((r) => r.data);
 export const syncT212 = () => api.post("/broker/trading212/sync").then((r) => r.data);
+export const setT212AutoSync = (enabled) =>
+  api.post("/broker/trading212/auto-sync", { enabled }).then((r) => r.data);
 
 export const fetchCombinedSummary = (currency = "USD") =>
   api.get(`/portfolio/combined-summary`, { params: { currency } }).then((r) => r.data);
@@ -162,6 +164,8 @@ export const connectIBKR = (flexToken, queryId) =>
   api.post("/broker/ibkr/connect", { flex_token: flexToken, query_id: queryId }).then((r) => r.data);
 export const disconnectIBKR = () => api.delete("/broker/ibkr/connect").then((r) => r.data);
 export const syncIBKR = () => api.post("/broker/ibkr/sync").then((r) => r.data);
+export const setIBKRAutoSync = (enabled) =>
+  api.post("/broker/ibkr/auto-sync", { enabled }).then((r) => r.data);
 export const fetchIBKRBalance = () => api.get("/broker/ibkr/balance").then((r) => r.data);
 
 // ----- Options (portfolio-scoped) -----------------------------------------

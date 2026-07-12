@@ -248,6 +248,21 @@ class CashInterestRate(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class DividendNotification(Base):
+    """Dedup ledger for dividend ex-date Discord notifications: one row per
+    (portfolio, ticker, ex_date) that has already been announced, so repeated
+    job ticks and app restarts never re-send the same upcoming dividend."""
+    __tablename__ = "dividend_notifications"
+    __table_args__ = (UniqueConstraint("portfolio_id", "ticker", "ex_date", name="uq_divnotif_pid_ticker_ex"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(String, nullable=False, default="default", server_default="default", index=True)  # see Portfolio.owner_id
+    portfolio_id = Column(Integer, ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False, index=True)
+    ticker = Column(String, nullable=False)
+    ex_date = Column(Date, nullable=False)
+    sent_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class PriceAlert(Base):
     """A user-armed price threshold for a ticker. When the live price crosses it,
     the alert fires a Discord notification (via the portfolio's webhook) and flips

@@ -394,10 +394,27 @@ def get_status(
 
     return {
         "connected": True,
+        "auto_sync": conn.auto_sync,
         "last_synced_at": conn.last_synced_at.isoformat() if conn.last_synced_at else None,
         "token_preview": token_preview,
         "connected_at": conn.created_at.isoformat() if conn.created_at else None,
     }
+
+
+@router.post("/auto-sync")
+def set_auto_sync(
+    payload: dict,
+    db: Session = Depends(get_db),
+    pid: int = Depends(require_portfolio),
+):
+    """Toggle background auto-sync for this portfolio's IBKR connection. The
+    poller in main.py only syncs connections that opted in here."""
+    conn = _get_ibkr_connection(db, pid)
+    if not conn:
+        raise HTTPException(status_code=404, detail="IBKR is not connected")
+    conn.auto_sync = bool(payload.get("enabled"))
+    db.commit()
+    return {"ok": True, "auto_sync": conn.auto_sync}
 
 
 @router.get("/balance")

@@ -419,53 +419,86 @@ def health():
     return {"status": "ok"}
 
 
-# --- background price-alert poller --------------------------------------------
-# The app has no external scheduler, so a single asyncio task polls all armed
-# alerts every ALERT_CHECK_INTERVAL_SECONDS and fires Discord notifications for
-# any that crossed. Opt-out with ALERT_POLLER_ENABLED=0 (e.g. in tests / CLI
-# tooling). Each pass uses its own DB session and swallows errors so a bad tick
-# never takes the app down. Note: while the process is asleep between ticks no
-# alerts fire — this is a self-hosted convenience poller, not a low-latency feed.
-_ALERT_POLLER_TASK = None
+# --- background pollers --------------------------------------------------------
+# The app has no external scheduler, so asyncio tasks handle the recurring work:
+#   * price alerts  — every ALERT_CHECK_INTERVAL_SECONDS (default 15 min),
+#                     opt-out ALERT_POLLER_ENABLED=0
+#   * broker sync   — every BROKER_AUTOSYNC_INTERVAL_SECONDS (default 6 h),
+#                     opt-out BROKER_AUTOSYNC_ENABLED=0; only connections whose
+#                     auto_sync flag is on are synced (per-portfolio opt-in)
+#   * dividends     — every DIVIDEND_NOTIFY_INTERVAL_SECONDS (default 12 h),
+#                     opt-out DIVIDEND_NOTIFY_ENABLED=0; announces ex-dates due
+#                     within DIVIDEND_NOTIFY_LEAD_DAYS (default 3), each at most
+#                     once (dividend_notifications dedup table)
+# Each tick uses its own DB session and swallows errors so a bad pass never
+# takes the app down. While the process is asleep between ticks nothing fires —
+# these are self-hosted convenience pollers, not low-latency feeds.
+_BG_TASKS: list = []
 
 
-async def _alert_poller_loop():
+async def _periodic_loop(name: str, pass_fn, interval: int, initial_delay: int):
+    """Run `await pass_fn(db)` every `interval` seconds, forever. `pass_fn`
+    returns a list of things that happened (logged when non-empty)."""
     import asyncio as _asyncio
-    from routers.alerts import run_check
 
-    interval = int(os.environ.get("ALERT_CHECK_INTERVAL_SECONDS", "900"))
+    logger = logging.getLogger(f"portfyl.{name}")
+    delay = initial_delay
     while True:
         try:
-            await _asyncio.sleep(interval)
+            await _asyncio.sleep(delay)
+            delay = interval
             db = SessionLocal()
             try:
-                fired = await run_check(db)  # all portfolios
-                if fired:
-                    logging.getLogger("portfyl.alerts").info(
-                        "price-alert poller fired %d alert(s)", len(fired))
+                happened = await pass_fn(db)
+                if happened:
+                    logger.info("%s pass: %d event(s)", name, len(happened))
             finally:
                 db.close()
         except _asyncio.CancelledError:
             break
         except Exception:
-            logging.getLogger("portfyl.alerts").exception("price-alert poller tick failed")
+            logger.exception("%s pass failed", name)
 
 
 @app.on_event("startup")
-async def _start_alert_poller():
-    global _ALERT_POLLER_TASK
-    if os.environ.get("ALERT_POLLER_ENABLED", "1") != "1":
-        return
+async def _start_background_pollers():
     import asyncio as _asyncio
-    _ALERT_POLLER_TASK = _asyncio.create_task(_alert_poller_loop())
+    from routers.alerts import run_check
+    from jobs import broker_autosync_pass, dividend_exdate_pass
+
+    def _env_int(key: str, default: int) -> int:
+        try:
+            return int(os.environ.get(key, default))
+        except ValueError:
+            return default
+
+    if os.environ.get("ALERT_POLLER_ENABLED", "1") == "1":
+        interval = _env_int("ALERT_CHECK_INTERVAL_SECONDS", 900)
+        _BG_TASKS.append(_asyncio.create_task(
+            _periodic_loop("alerts", run_check, interval, initial_delay=interval)))
+
+    if os.environ.get("BROKER_AUTOSYNC_ENABLED", "1") == "1":
+        interval = _env_int("BROKER_AUTOSYNC_INTERVAL_SECONDS", 21600)
+        _BG_TASKS.append(_asyncio.create_task(
+            _periodic_loop("autosync", broker_autosync_pass, interval, initial_delay=interval)))
+
+    if os.environ.get("DIVIDEND_NOTIFY_ENABLED", "1") == "1":
+        interval = _env_int("DIVIDEND_NOTIFY_INTERVAL_SECONDS", 43200)
+        lead = _env_int("DIVIDEND_NOTIFY_LEAD_DAYS", 3)
+
+        async def _dividend_pass(db, _lead=lead):
+            return await dividend_exdate_pass(db, lead_days=_lead)
+
+        # Short initial delay (not a full interval): a restart shouldn't be able
+        # to skip today's ex-date check — the dedup table makes early runs safe.
+        _BG_TASKS.append(_asyncio.create_task(
+            _periodic_loop("dividends", _dividend_pass, interval, initial_delay=300)))
 
 
 @app.on_event("shutdown")
-async def _stop_alert_poller():
-    global _ALERT_POLLER_TASK
-    if _ALERT_POLLER_TASK is not None:
-        _ALERT_POLLER_TASK.cancel()
-        _ALERT_POLLER_TASK = None
+async def _stop_background_pollers():
+    while _BG_TASKS:
+        _BG_TASKS.pop().cancel()
 
 
 # --- serve the built React SPA (production / same-origin) ---------------------
