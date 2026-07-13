@@ -76,8 +76,9 @@ Missing/invalid values fall back to defaults.
 ## API (new backend/routers/settings.py, prefix /settings)
 
 - `GET /api/settings/sync-schedule` → `{mode, daily_time, interval_hours,
-  timezone, last_run, next_run}` (`next_run` computed from the same boundary
-  logic, for display).
+  timezone, last_run, next_run}` (`next_run` for display: the next daily
+  boundary in daily mode, `last_run + interval` in interval mode, `null` when
+  it would be "immediately"/unknown).
 - `PUT /api/settings/sync-schedule` → validates `mode ∈ {daily, interval}`,
   `daily_time` matches `HH:MM`, `1 ≤ interval_hours ≤ 168`; upserts the
   `AppSetting` rows.
