@@ -6,7 +6,7 @@ from collections import defaultdict
 import httpx
 
 from database import get_db
-from models import AppSetting, Transaction, Portfolio
+from models import Transaction, Portfolio
 from routers.portfolios import require_portfolio
 from app_settings import get_setting as _get_setting, set_setting as _set_setting
 

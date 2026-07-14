@@ -5,12 +5,19 @@ import os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import asyncio
+import pytest
 from datetime import date
 from unittest.mock import patch, AsyncMock
 
 from models import BrokerConnection, DiscordWebhook, DividendNotification
 from jobs import broker_autosync_pass, dividend_exdate_pass
 from tests.helpers import make_txn
+
+
+@pytest.fixture(autouse=True)
+def _no_sync_tz_env(monkeypatch):
+    """Schedule tests assume the Europe/Prague default; keep the suite hermetic."""
+    monkeypatch.delenv("BROKER_SYNC_TIMEZONE", raising=False)
 
 
 def _run(coro):
@@ -343,6 +350,30 @@ def test_daily_dst_spring_forward_fires_once():
     assert sync_due(now, "daily", "02:00", 6, ran_today, PRAGUE) is False
 
 
+def test_daily_dst_gap_time_fires_once_not_repeatedly():
+    # 2026-03-29: Prague skips 02:00->03:00. A daily_time of 02:30 is inside
+    # the gap; its boundary resolves to 01:30 UTC. Before that instant the
+    # sync must NOT be due (the old code re-fired every tick here), at/after
+    # it exactly one run happens.
+    ran_yesterday = datetime(2026, 3, 28, 1, 35, tzinfo=timezone.utc)
+    before = datetime(2026, 3, 29, 1, 0, tzinfo=timezone.utc)
+    assert sync_due(before, "daily", "02:30", 6, ran_yesterday, PRAGUE) is False
+    at = datetime(2026, 3, 29, 1, 31, tzinfo=timezone.utc)
+    assert sync_due(at, "daily", "02:30", 6, ran_yesterday, PRAGUE) is True
+    # once run at `at`, later ticks are not due
+    later = datetime(2026, 3, 29, 1, 45, tzinfo=timezone.utc)
+    assert sync_due(later, "daily", "02:30", 6, at, PRAGUE) is False
+
+
+def test_daily_dst_fall_back_ambiguous_time_fires_once():
+    # 2026-10-25: Prague repeats 02:00-03:00 (CEST->CET). 02:30 is ambiguous;
+    # fold=0 picks the first occurrence (00:30 UTC). Exactly one fire per day.
+    ran_yesterday = datetime(2026, 10, 24, 0, 35, tzinfo=timezone.utc)
+    now = datetime(2026, 10, 25, 2, 0, tzinfo=timezone.utc)
+    assert sync_due(now, "daily", "02:30", 6, ran_yesterday, PRAGUE) is True
+    assert sync_due(now, "daily", "02:30", 6, now, PRAGUE) is False
+
+
 def test_interval_due_when_never_ran():
     now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
     assert sync_due(now, "interval", "02:00", 6, None, PRAGUE) is True
@@ -462,3 +493,13 @@ def test_tick_marks_ran_even_when_no_connections(db_session):
         out = _run(autosync_tick(db_session, now=now))
     assert out == []
     assert load_sync_schedule(db_session)["last_run"] == now
+
+
+def test_tick_does_not_advance_last_run_when_pass_raises(db_session):
+    now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
+    stamped = now - timedelta(days=1)
+    mark_sync_ran(db_session, stamped)
+    with patch("jobs.broker_autosync_pass", new=AsyncMock(side_effect=RuntimeError("boom"))):
+        with pytest.raises(RuntimeError):
+            _run(autosync_tick(db_session, now=now))
+    assert load_sync_schedule(db_session)["last_run"] == stamped

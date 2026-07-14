@@ -62,8 +62,11 @@ DEFAULT_SYNC_INTERVAL_HOURS = 6
 def _daily_boundary(local_now: datetime, daily_time: str) -> datetime:
     """Most recent occurrence of `daily_time` at or before `local_now`, as an
     aware datetime in local tz. On DST spring-forward days a nonexistent wall
-    time resolves via fold=0 (shifted forward), so the boundary still exists
-    exactly once per day."""
+    time resolves via fold=0 (shifted forward): the wall-clock comparison
+    above still picks a boundary, but its UTC instant can land in the future
+    relative to `local_now` (e.g. "02:30" -> 01:30 UTC while it's only 01:05
+    UTC) — callers must not treat that boundary as already passed without
+    checking the actual UTC instant (see sync_due's `<= now` guard)."""
     hh, mm = (int(p) for p in daily_time.split(":"))
     boundary = local_now.replace(hour=hh, minute=mm, second=0, microsecond=0)
     if boundary > local_now:
@@ -81,8 +84,11 @@ def sync_due(now: datetime, mode: str, daily_time: str, interval_hours: int,
         return True
     if mode == "interval":
         return now - last_run >= timedelta(hours=interval_hours)
-    boundary = _daily_boundary(now.astimezone(tz), daily_time)
-    return last_run < boundary.astimezone(timezone.utc)
+    boundary_utc = _daily_boundary(now.astimezone(tz), daily_time).astimezone(timezone.utc)
+    # A daily_time inside the DST spring-forward gap converts to a UTC instant
+    # that can still be in the future ("02:30" -> 01:30 UTC while now is 01:05);
+    # without the `<= now` guard the sync would re-fire every tick until then.
+    return boundary_utc <= now and last_run < boundary_utc
 
 
 def next_sync_run(now: datetime, mode: str, daily_time: str, interval_hours: int,
@@ -93,6 +99,10 @@ def next_sync_run(now: datetime, mode: str, daily_time: str, interval_hours: int
         return None
     if mode == "interval":
         return last_run + timedelta(hours=interval_hours)
+    # Display-only: for a daily_time inside the spring-forward gap this shows
+    # tomorrow's boundary while the actual (deferred) fire still happens later
+    # today, once the gap's UTC instant arrives — a one-hour, once-a-year cosmetic
+    # mismatch, not a correctness issue (sync_due is what gates the real run).
     nxt = _daily_boundary(now.astimezone(tz), daily_time) + timedelta(days=1)
     return nxt.astimezone(timezone.utc)
 
