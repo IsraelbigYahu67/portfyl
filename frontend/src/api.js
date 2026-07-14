@@ -18,7 +18,7 @@ const api = axios.create({ baseURL: "/api" });
 
 // Endpoints that are NOT portfolio-scoped — these must not receive portfolio_id
 // or they'd 404 / mis-route.
-const PORTFOLIO_AGNOSTIC_PREFIXES = ["/portfolios", "/market", "/watchlists"];
+const PORTFOLIO_AGNOSTIC_PREFIXES = ["/portfolios", "/market", "/watchlists", "/settings"];
 
 function isPortfolioAgnostic(url) {
   if (!url) return false;
@@ -167,6 +167,11 @@ export const syncIBKR = () => api.post("/broker/ibkr/sync").then((r) => r.data);
 export const setIBKRAutoSync = (enabled) =>
   api.post("/broker/ibkr/auto-sync", { enabled }).then((r) => r.data);
 export const fetchIBKRBalance = () => api.get("/broker/ibkr/balance").then((r) => r.data);
+
+// ----- Global settings (not portfolio-scoped) ---------------------------------
+
+export const fetchSyncSchedule = () => api.get("/settings/sync-schedule").then((r) => r.data);
+export const updateSyncSchedule = (data) => api.put("/settings/sync-schedule", data).then((r) => r.data);
 
 // ----- Options (portfolio-scoped) -----------------------------------------
 export const fetchOptionsTrades = () => api.get("/options/trades").then((r) => r.data);
