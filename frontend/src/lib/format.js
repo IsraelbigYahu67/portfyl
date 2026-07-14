@@ -48,3 +48,13 @@ export function formatNumber(n, digits = 0) {
     maximumFractionDigits: digits,
   });
 }
+
+// Date-only ISO strings ("2024-01-01") must not go through `new Date(iso)`:
+// the spec parses them as UTC midnight, so they render as the *previous* day
+// in any timezone west of UTC. Build the Date from local components instead.
+export function formatShortDate(iso, options = { month: "short", day: "numeric" }) {
+  if (!iso) return DASH;
+  const [y, m, d] = String(iso).split("-").map(Number);
+  if (!y || !m || !d) return DASH;
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", options);
+}

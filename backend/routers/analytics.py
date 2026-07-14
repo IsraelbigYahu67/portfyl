@@ -1095,9 +1095,11 @@ def sector_breakdown(
         # Cash-only portfolio (no trades yet): still surface the Cash slice —
         # it's 100% of the (non-holdings) allocation -- but only when the guard
         # above found an actual deposit/withdrawal (has_cash already reflects it).
+        # Countries stays empty: cash has no country, so it's excluded from that
+        # dimension entirely (holdings-only pie).
         cash_only = [{"name": "Cash", "value": round(cash_total, 2), "weight": 100.0}] if has_cash else []
         currencies = _weighted(cash_by_ccy_display) if has_cash else []
-        return {"sectors": cash_only, "countries": cash_only, "asset_types": cash_only,
+        return {"sectors": cash_only, "countries": [], "asset_types": cash_only,
                 "currencies": currencies, "total_value": 0.0}
 
     from routers.portfolio import _build_holdings, _live_fx_to_czk, _live_to_usd
@@ -1143,11 +1145,11 @@ def sector_breakdown(
             continue
 
     if has_cash:
-        # Append Cash to sector/country/asset-type — it has no dimension of its
-        # own, so it's surfaced identically across the three. For currencies,
-        # cash is folded into its actual native currency (real FX exposure).
+        # Append Cash to sector/asset-type — it has no dimension of its own.
+        # Country deliberately gets NO Cash slice (cash has no country); its
+        # weights renormalize over holdings alone. For currencies, cash is
+        # folded into its actual native currency (real FX exposure).
         sector_totals["Cash"] = cash_total
-        country_totals["Cash"] = cash_total
         type_totals["Cash"] = cash_total
         for ccy, v in cash_by_ccy_display.items():
             currency_totals[ccy] += v

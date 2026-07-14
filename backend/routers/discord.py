@@ -119,10 +119,15 @@ async def test_webhook(body: WebhookTestMessage, portfolio_id: int = Depends(req
     return {"status": "sent"}
 
 
-async def send_discord_notification(db: Session, portfolio_id: int, title: str, description: str, color: int = 0x059669):
+async def send_discord_notification(db: Session, portfolio_id: int, title: str,
+                                    description: str, color: int = 0x059669) -> bool | None:
+    """Post an embed to the portfolio's webhook, reporting delivery: True when
+    Discord accepted it, False when the post failed (callers gating one-shot
+    state — alert trigger flags, dividend dedup rows — must not persist it on
+    False so a later pass retries), None when no webhook is configured."""
     hook = db.query(DiscordWebhook).filter(DiscordWebhook.portfolio_id == portfolio_id).first()
     if not hook:
-        return
+        return None
 
     payload = {
         "embeds": [{
@@ -135,6 +140,7 @@ async def send_discord_notification(db: Session, portfolio_id: int, title: str, 
 
     try:
         async with httpx.AsyncClient() as client:
-            await client.post(hook.webhook_url, json=payload, timeout=5.0)
+            resp = await client.post(hook.webhook_url, json=payload, timeout=5.0)
     except Exception:
-        pass
+        return False
+    return resp.status_code in (200, 204)

@@ -310,14 +310,17 @@ def test_allocation_includes_cash_bucket(db_session, pid):
 
     result = sector_breakdown(currency="USD", db=db_session, pid=pid)
 
-    for key in ("sectors", "countries", "asset_types"):
+    for key in ("sectors", "asset_types"):
         bucket_list = result[key]
         cash_rows = [b for b in bucket_list if b["name"] == "Cash"]
         assert len(cash_rows) == 1, f"expected exactly one Cash bucket in {key}"
         assert cash_rows[0]["value"] == 2000.0
-        # Cash-only portfolio: Cash is the entire allocation for every dimension.
+        # Cash-only portfolio: Cash is the entire allocation for these dimensions.
         assert cash_rows[0]["weight"] == 100.0
         assert round(sum(b["weight"] for b in bucket_list), 2) == 100.0
+    # Country dimension never carries Cash — cash has no country, so a
+    # cash-only portfolio has an empty country breakdown.
+    assert result["countries"] == []
 
 
 def test_allocation_cash_pct_included_in_denominator_with_holdings(db_session, pid):
@@ -339,7 +342,7 @@ def test_allocation_cash_pct_included_in_denominator_with_holdings(db_session, p
     }):
         result = sector_breakdown(currency="USD", db=db_session, pid=pid)
 
-    for key in ("sectors", "countries", "asset_types"):
+    for key in ("sectors", "asset_types"):
         bucket_list = result[key]
         cash_rows = [b for b in bucket_list if b["name"] == "Cash"]
         assert len(cash_rows) == 1, f"expected exactly one Cash bucket in {key}"
@@ -347,6 +350,10 @@ def test_allocation_cash_pct_included_in_denominator_with_holdings(db_session, p
         # holdings market value = 10 * 100 = 1000; cash = 1000 -> weight = 1000/2000*100
         assert cash_rows[0]["weight"] == pytest.approx(50.0, abs=0.01)
         assert round(sum(b["weight"] for b in bucket_list), 2) == 100.0
+    # Countries: no Cash slice; weights renormalize over holdings alone.
+    countries = result["countries"]
+    assert all(b["name"] != "Cash" for b in countries)
+    assert round(sum(b["weight"] for b in countries), 2) == pytest.approx(100.0, abs=0.01)
     # total_value stays holdings-only (matches get_summary's contract: net_worth = total_value + cash).
     assert result["total_value"] == 1000.0
 

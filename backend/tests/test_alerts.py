@@ -6,6 +6,7 @@ from unittest.mock import patch, AsyncMock
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from models import PriceAlert
 from routers.alerts import (
@@ -129,6 +130,36 @@ def test_disabled_alert_not_checked(db_session, pid):
     with patch("routers.alerts.market_data.get_infos", _infos(175)), \
          patch("routers.alerts.send_discord_notification", AsyncMock()):
         assert _fire(db_session, pid) == []
+
+
+def test_alert_stays_armed_when_discord_delivery_fails(db_session, pid):
+    # send_discord_notification returns False when the webhook post fails — the
+    # alert must stay active so the next pass retries, instead of flipping to
+    # triggered with no notification ever delivered.
+    create_alert(AlertCreate(ticker="AAPL", direction="above", target_price=150), db_session, pid)
+    with patch("routers.alerts.market_data.get_infos", _infos(175)), \
+         patch("routers.alerts.send_discord_notification", AsyncMock(return_value=False)):
+        fired = _fire(db_session, pid)
+    assert fired == []
+    row = db_session.query(PriceAlert).first()
+    assert row.status == "active"
+    assert row.triggered_price is None
+
+    # Webhook recovers: the same crossing fires and is recorded.
+    with patch("routers.alerts.market_data.get_infos", _infos(175)), \
+         patch("routers.alerts.send_discord_notification", AsyncMock(return_value=True)):
+        fired = _fire(db_session, pid)
+    assert len(fired) == 1
+    assert db_session.query(PriceAlert).first().status == "triggered"
+
+
+def test_update_cannot_force_triggered_status(db_session, pid):
+    # Only the checker sets "triggered": a PATCH must not fake a trigger (or
+    # silently disarm monitoring) by writing the status directly.
+    create_alert(AlertCreate(ticker="AAPL", direction="above", target_price=150), db_session, pid)
+    with pytest.raises(ValidationError):
+        AlertUpdate(status="triggered")
+    assert db_session.query(PriceAlert).first().status == "active"
 
 
 def test_reset_rearms_and_can_fire_again(db_session, pid):

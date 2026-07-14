@@ -196,6 +196,16 @@ def _fetch_price_and_info(ticker: str) -> tuple[float, str, str]:
     return market_data.quote(market_data.get_info(ticker), ticker)
 
 
+def _pence_to_pounds(price: float, ccy: str) -> tuple[float, str]:
+    """LSE quotes arrive in pence ('GBp'/'GBX') while FX rates are per pound:
+    valuation must convert pence → pounds before applying the GBP rate, or the
+    position is overstated 100x. Per-share *display* prices stay in pence (the
+    frontend renders them with a 'p' suffix, matching the txn history)."""
+    if (ccy or "") in ("GBp", "GBX"):
+        return price / 100.0, "GBP"
+    return price, ccy
+
+
 _TXN_TYPE_ORDER = {"buy": 0, "dividend": 1, "sell": 2}
 
 
@@ -461,8 +471,9 @@ def get_holdings(
 
     for ticker, data in active.items():
         price, name, ticker_ccy = _fetch_price_and_info(ticker)
-        live_fx = _live_fx_to_czk(ticker_ccy, fx_cache) / disp_rate
-        market_value = data["shares"] * price * live_fx
+        value_price, fx_ccy = _pence_to_pounds(price, ticker_ccy)
+        live_fx = _live_fx_to_czk(fx_ccy, fx_cache) / disp_rate
+        market_value = data["shares"] * value_price * live_fx
         cost_basis = data["cost"]
         pnl = market_value - cost_basis
         pnl_pct = (pnl / cost_basis * 100) if cost_basis > 0 else 0
@@ -526,9 +537,10 @@ def get_holdings(
             # of sold. Uses live price * live FX (so it tracks the user's
             # currency view), against the buy cost expressed in that currency.
             live_price, _, live_ccy = _fetch_price_and_info(ticker)
-            live_fx = _live_fx_to_czk(live_ccy, fx_cache) / disp_rate
+            value_live, fx_ccy = _pence_to_pounds(live_price, live_ccy)
+            live_fx = _live_fx_to_czk(fx_ccy, fx_cache) / disp_rate
             if bought_sh and live_price > 0:
-                hypothetical_value = bought_sh * live_price * live_fx
+                hypothetical_value = bought_sh * value_live * live_fx
                 pnl_if_held = hypothetical_value - cost
                 pnl_if_held_pct = (pnl_if_held / cost * 100) if cost > 0 else 0
                 # Delta vs. realized: positive means holding would have done better.

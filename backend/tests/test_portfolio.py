@@ -102,8 +102,8 @@ class TestHoldingsCurrency:
     portfolio-level values (market_value, cost_basis, pnl, dividends) convert
     to the display currency. A $200 US stock must never render as "200 Kč"."""
 
-    # display currency CZK; USD settles at 20 Kč / $1.
-    _FX = {"USD": 20.0, "CZK": 1.0}
+    # display currency CZK; USD settles at 20 Kč / $1, GBP at 29 Kč / £1.
+    _FX = {"USD": 20.0, "CZK": 1.0, "GBP": 29.0}
 
     def _patches(self, live_price, ccy="USD"):
         from tests.helpers import make_txn  # noqa: F401 (import kept local for clarity)
@@ -135,6 +135,27 @@ class TestHoldingsCurrency:
         assert h["market_value"] == pytest.approx(10 * 200.0 * 20.0)  # 40,000 Kč
         assert h["cost_basis"] == pytest.approx(10 * 150.0 * 20.0)    # 30,000 Kč
         assert h["pnl"] == pytest.approx(10000.0)                     # 40k - 30k
+
+    def test_lse_pence_quote_valued_in_pounds(self, db_session, pid):
+        """LSE stock quoted in pence (GBp): per-share prices stay in pence, but
+        market_value must convert pence → pounds before applying the per-pound
+        GBP rate — multiplying the raw pence price by it is a 100x error."""
+        db_session.add(make_txn("SGRO.L", "buy", 100, 7000.0, currency="GBX",
+                                fx_to_czk=0.29, date=date(2024, 1, 1), portfolio_id=pid))
+        db_session.commit()
+
+        p1, p2, p3 = self._patches(live_price=7150.0, ccy="GBp")
+        with p1, p2, p3:
+            rows = get_holdings(currency="CZK", db=db_session, pid=pid)
+
+        h = next(r for r in rows if r["ticker"] == "SGRO.L")
+        assert h["currency"] == "GBp"
+        assert h["current_price"] == pytest.approx(7150.0)  # pence, native
+        assert h["avg_cost"] == pytest.approx(7000.0)       # pence, native
+        # 100 sh × £71.50 × 29 Kč/£ — NOT 100 × 7150 × 29.
+        assert h["market_value"] == pytest.approx(100 * 71.50 * 29.0)
+        # Cost basis converts via the txn's own pence→CZK snapshot rate.
+        assert h["cost_basis"] == pytest.approx(100 * 7000.0 * 0.29)
 
     def test_closed_position_per_share_native_value_display(self, db_session, pid):
         """Closed US holding, CZK display: avg buy/sell and the live price are

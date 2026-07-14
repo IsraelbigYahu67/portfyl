@@ -479,8 +479,12 @@ async def _start_background_pollers():
 
     if os.environ.get("BROKER_AUTOSYNC_ENABLED", "1") == "1":
         interval = _env_int("BROKER_AUTOSYNC_INTERVAL_SECONDS", 21600)
+        # Short initial delay (not a full interval): a deployment that restarts
+        # more often than every 6 h (Cloud Run cold starts) would reset a
+        # full-interval countdown on every start and never sync at all. The
+        # sync dedup makes early runs safe.
         _BG_TASKS.append(_asyncio.create_task(
-            _periodic_loop("autosync", broker_autosync_pass, interval, initial_delay=interval)))
+            _periodic_loop("autosync", broker_autosync_pass, interval, initial_delay=300)))
 
     if os.environ.get("DIVIDEND_NOTIFY_ENABLED", "1") == "1":
         interval = _env_int("DIVIDEND_NOTIFY_INTERVAL_SECONDS", 43200)

@@ -1,4 +1,4 @@
-import { formatMoney, formatPercent, formatCompact, formatNumber } from "./format";
+import { formatMoney, formatPercent, formatCompact, formatNumber, formatShortDate } from "./format";
 
 describe("formatMoney", () => {
   it("formats USD with symbol and 2dp", () => {
@@ -55,5 +55,18 @@ describe("formatCompact", () => {
 describe("formatNumber", () => {
   it("groups with no decimals by default", () => {
     expect(formatNumber(12345)).toBe("12,345");
+  });
+});
+
+describe("formatShortDate", () => {
+  it("renders a date-only ISO string as its own calendar day (no UTC shift)", () => {
+    // `new Date("2024-01-01")` parses as UTC midnight and displays as Dec 31
+    // anywhere west of UTC; building from local components must not.
+    expect(formatShortDate("2024-01-01")).toBe("Jan 1");
+    expect(formatShortDate("2026-12-31")).toBe("Dec 31");
+  });
+  it("returns an em dash for missing input", () => {
+    expect(formatShortDate(null)).toBe("—");
+    expect(formatShortDate("")).toBe("—");
   });
 });

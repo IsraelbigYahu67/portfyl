@@ -73,6 +73,48 @@ class TestStockScreener:
         assert result["total"] >= 0
 
 
+class TestScreenerRowBounded:
+    """_ticker_screener_row must route through market_data's bounded, cached
+    get_info — a raw yf.Ticker(...).info call can hang for ~10 minutes on one
+    thin ticker and stall the whole 500-name screener scan."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_row_cache(self):
+        from routers import market
+        market._SCREENER_ROW_CACHE.clear()
+        yield
+        market._SCREENER_ROW_CACHE.clear()
+
+    def test_row_uses_bounded_market_data(self, monkeypatch):
+        from routers import market
+
+        calls = []
+
+        def fake_get_info(sym, **kwargs):
+            calls.append(sym)
+            return {"currentPrice": 123.0, "shortName": "Test Co", "marketCap": 5_000_000}
+
+        def forbidden_ticker(sym):
+            raise AssertionError("raw yf.Ticker() bypasses the bounded wrapper")
+
+        monkeypatch.setattr(market.market_data, "get_info", fake_get_info)
+        monkeypatch.setattr(market.yf, "Ticker", forbidden_ticker)
+
+        row = market._ticker_screener_row("AAPL")
+        assert calls == ["AAPL"]
+        assert row["price"] == 123.0
+        assert row.get("error") is None
+
+    def test_row_reports_unavailable_when_no_data(self, monkeypatch):
+        from routers import market
+        monkeypatch.setattr(market.market_data, "get_info", lambda sym, **k: {})
+        monkeypatch.setattr(
+            market.yf, "Ticker",
+            lambda s: (_ for _ in ()).throw(AssertionError("raw yf call")))
+        row = market._ticker_screener_row("THIN")
+        assert row.get("error") == "unavailable"
+
+
 class TestGetInfosTimeout:
     """A deadline miss must not be cached as 'no data' — that poisoned the
     USDCZK=X quote for 60s and made every position render at ≈ -95%."""

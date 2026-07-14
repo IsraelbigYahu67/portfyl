@@ -42,9 +42,9 @@ class AlertUpdate(BaseModel):
     target_price: Optional[float] = Field(default=None, gt=0)
     note: Optional[str] = None
     enabled: Optional[bool] = None
-    # "active" re-arms a triggered alert; the endpoint ignores "triggered" here
-    # (only the checker sets that) — see update_alert.
-    status: Optional[str] = Field(default=None, pattern="^(active|triggered)$")
+    # Only "active" (re-arm) is accepted: "triggered" is set exclusively by the
+    # checker, so a PATCH can't fake a trigger or silently disarm monitoring.
+    status: Optional[str] = Field(default=None, pattern="^active$")
 
 
 # -------- Serialization ----------------------------------------------------
@@ -95,9 +95,6 @@ async def run_check(db: Session, pid: int | None = None) -> list[dict]:
         if not _crossed(a.direction, price, a.target_price):
             continue
 
-        a.status = "triggered"
-        a.last_triggered_at = datetime.utcnow()
-        a.triggered_price = round(price, 4)
         arrow = "▲" if a.direction == "above" else "▼"
         title = f"🔔 {a.ticker} {arrow} {a.target_price:g}"
         desc = (f"**{a.ticker}** is now **{price:,.2f}**, "
@@ -105,7 +102,16 @@ async def run_check(db: Session, pid: int | None = None) -> list[dict]:
                 f"your target of {a.target_price:g}.")
         if a.note:
             desc += f"\n\n_{a.note}_"
-        await send_discord_notification(db, a.portfolio_id, title, desc, color=ALERT_COLOR)
+        delivered = await send_discord_notification(db, a.portfolio_id, title, desc, color=ALERT_COLOR)
+        if delivered is False:
+            # Webhook down or misconfigured: leave the alert armed so the next
+            # pass retries — flipping it now would eat the notification forever
+            # (triggered is one-shot). No webhook at all (None) still triggers:
+            # the alert badge in the UI works without Discord.
+            continue
+        a.status = "triggered"
+        a.last_triggered_at = datetime.utcnow()
+        a.triggered_price = round(price, 4)
         fired.append(_serialize(a, price))
 
     db.commit()

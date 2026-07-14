@@ -628,19 +628,25 @@ async def scheduler_sync(
     """Machine entrypoint for Cloud Scheduler. Bypasses the password-gate
     middleware (its path is listed in main._PUBLIC_PATHS) and authenticates with
     a constant-time SCHEDULER_TOKEN check instead of the session cookie. Syncs
-    every IBKR connection owned by the default user. 403 on a bad/absent token;
-    Flex failures surface via status code (502 / 504) so the scheduler can detect
-    them; 200 only when every connection synced cleanly."""
+    every IBKR connection that has auto-sync enabled in Settings — the same
+    per-connection opt-in the in-process poller honors, so turning the toggle
+    off actually stops background syncing on scheduler deployments too. 403 on
+    a bad/absent token; Flex failures surface via status code (502 / 504) so
+    the scheduler can detect them; 200 only when every connection synced
+    cleanly."""
     if not check_scheduler_token(x_scheduler_token or token or ""):
         raise HTTPException(status_code=403, detail="Invalid or missing scheduler token")
 
     conns = (
         db.query(BrokerConnection)
-        .filter(BrokerConnection.broker == "ibkr", BrokerConnection.owner_id == DEFAULT_OWNER_ID)
+        .filter(BrokerConnection.broker == "ibkr",
+                BrokerConnection.owner_id == DEFAULT_OWNER_ID,
+                BrokerConnection.auto_sync == True)  # noqa: E712
         .all()
     )
     if not conns:
-        return {"status": "ok", "message": "no IBKR connection to sync", "results": []}
+        return {"status": "ok", "message": "no auto-sync-enabled IBKR connection to sync",
+                "results": []}
 
     results = []
     had_timeout = False

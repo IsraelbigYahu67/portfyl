@@ -19,6 +19,7 @@ Two passes live here:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import date, timedelta
 
@@ -50,7 +51,11 @@ async def broker_autosync_pass(db: Session) -> list[dict]:
         summary = {"portfolio_id": conn.portfolio_id, "broker": conn.broker, "ok": True}
         try:
             if conn.broker == "trading212":
-                r = sync_transactions(db, conn.portfolio_id, conn.owner_id or "default")
+                # sync_transactions is blocking (paginated httpx + yfinance
+                # split lookups) — run it in a worker thread to keep the event
+                # loop free, like alerts.run_check does for get_infos.
+                r = await asyncio.to_thread(
+                    sync_transactions, db, conn.portfolio_id, conn.owner_id or "default")
                 summary["imported"] = r.get("total_imported", 0)
                 detail = (f"{r.get('imported_orders', 0)} order(s), "
                           f"{r.get('imported_dividends', 0)} dividend(s)")
@@ -136,7 +141,8 @@ async def dividend_exdate_pass(db: Session, today: date | None = None,
     for hook in hooks:
         pid = hook.portfolio_id
         try:
-            upcoming = _upcoming_dividends(db, pid, today, lead_days)
+            # Blocking yfinance I/O per holding — keep it off the event loop.
+            upcoming = await asyncio.to_thread(_upcoming_dividends, db, pid, today, lead_days)
         except Exception as e:
             log.warning("dividend check failed for portfolio %s: %s", pid, e)
             continue
@@ -160,12 +166,17 @@ async def dividend_exdate_pass(db: Session, today: date | None = None,
                    if item["est_payment"] else "")
             lines.append(f"**{item['ticker']}** ex-dividend **{item['ex_date'].isoformat()}**{per_share}{est}")
 
-        await send_discord_notification(
+        delivered = await send_discord_notification(
             db, pid,
             f"📅 {len(fresh)} upcoming ex-dividend date(s)",
             "\n".join(lines),
             color=DIVIDEND_COLOR,
         )
+        if delivered is False:
+            # Delivery failed: don't consume the one-shot dedup rows — the
+            # next tick retries, otherwise the notification is lost forever.
+            log.warning("dividend notification delivery failed for portfolio %s; will retry", pid)
+            continue
         for item in fresh:
             db.add(DividendNotification(portfolio_id=pid, ticker=item["ticker"],
                                         ex_date=item["ex_date"]))

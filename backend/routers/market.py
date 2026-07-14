@@ -1304,9 +1304,12 @@ def _ticker_screener_row(sym: str) -> dict[str, Any]:
     cached = _SCREENER_ROW_CACHE.get(sym)
     if cached and time.time() - cached[0] < _SCREENER_ROW_TTL:
         return cached[1]
-    try:
-        info = yf.Ticker(yf_symbol(sym)).info or {}
-    except Exception:
+    # Bounded + cached via market_data (which maps broker symbols itself): a
+    # raw yf.Ticker(...).info can hang ~10 minutes on one thin/delisted name,
+    # and with full-index universes a single such ticker stalled the whole
+    # screener request until every worker finished.
+    info = market_data.get_info(sym)
+    if not info:
         return {"ticker": sym, "error": "unavailable"}
 
     price = info.get("currentPrice") or info.get("regularMarketPrice")

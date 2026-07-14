@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import date, datetime
 from urllib.parse import urlparse, parse_qs
 import httpx
 import base64
@@ -340,12 +340,20 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
         if t.type == "dividend":
             existing_sources |= _dedup_keys(
                 t.ticker, t.date, "dividend", round(t.shares * t.price, 6))
-    # Orders older than the newest known trade are history the portfolio already
-    # has (CSV exports and older syncs cover it); representations drift across
+    # History cutoff, per instrument: orders older than a ticker's own newest
+    # known transaction are history the portfolio already has for that ticker
+    # (CSV exports and older syncs cover it); representations drift across
     # sources (split-adjusted prices, per-share vs total dividends), so key
-    # matching alone can't be trusted for the past. Same-day overlap still goes
-    # through the key dedupe above.
-    latest_existing = max((t.date for t in existing_txns), default=None)
+    # matching alone can't be trusted for the past. A ticker with no history at
+    # all has nothing covering it — its full history must import. Keyed by the
+    # suffix-stripped base (like _dedup_keys) so COPM and COPM.L are one
+    # instrument. Same-day overlap still goes through the key dedupe above.
+    latest_by_base: dict[str, date] = {}
+    for t in existing_txns:
+        base_ticker = (t.ticker or "").split(".")[0]
+        if base_ticker and (base_ticker not in latest_by_base
+                            or t.date > latest_by_base[base_ticker]):
+            latest_by_base[base_ticker] = t.date
 
     for item in orders:
         try:
@@ -383,7 +391,8 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
             except Exception:
                 continue
 
-            if latest_existing and txn_date < latest_existing:
+            cutoff = latest_by_base.get(ticker.split(".")[0])
+            if cutoff and txn_date < cutoff:
                 continue
 
             name = instrument.get("name", ticker)
@@ -435,7 +444,8 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
                 except Exception:
                     continue
 
-                if latest_existing and txn_date < latest_existing:
+                cutoff = latest_by_base.get(ticker.split(".")[0])
+                if cutoff and txn_date < cutoff:
                     continue
 
                 keys = _dedup_keys(ticker, txn_date, "dividend", total_amount)

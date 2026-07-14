@@ -1,10 +1,8 @@
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
-import { formatMoney } from "../lib/format";
+import { formatMoney, formatShortDate } from "../lib/format";
 
 // Cash holds flat between events and jumps on each deposit/withdrawal/trade, so
 // a step curve is the honest shape — not a smoothed interpolation.
-const fmtDate = (iso) =>
-  new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
 const compact = (n) => {
   const a = Math.abs(n);
@@ -39,7 +37,7 @@ export default function CashBalanceChart({ data = [], currency = "USD" }) {
           <CartesianGrid vertical={false} stroke="#EEF1F5" />
           <XAxis
             dataKey="date"
-            tickFormatter={fmtDate}
+            tickFormatter={(iso) => formatShortDate(iso)}
             axisLine={false}
             tickLine={false}
             minTickGap={32}

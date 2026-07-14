@@ -138,19 +138,49 @@ class TestSyncDedupe:
         assert res["imported_orders"] == 0
         assert self._txn_count(db_session, pid) == 1
 
-    def test_skips_orders_older_than_latest_existing_trade(self, db_session, pid, connection):
-        # An old order that doesn't key-match anything (different representation
-        # after splits etc.) must still be skipped: history is already imported.
+    def test_date_cutoff_is_per_ticker_not_portfolio_wide(self, db_session, pid, connection):
+        # AAPL history exists through 2024-06-01: an old AAPL order that doesn't
+        # key-match (representation drift after splits) is still skipped. MSFT
+        # has no history at all — its old orders are genuinely new and must
+        # import, not be dropped because *another* ticker has newer trades.
         db_session.add(make_txn("AAPL", "buy", 10, 150.0, date=date(2024, 6, 1),
                                 source=None, portfolio_id=pid))
         db_session.commit()
         res = _run_sync(db_session, pid, [
-            _order("MSFT", "BUY", 5, 300.0, "2024-01-05"),   # before latest → skip
-            _order("NVDA", "BUY", 2, 120.0, "2024-06-02"),   # after latest → import
+            _order("AAPL", "BUY", 40, 37.5, "2024-01-05"),   # pre-split repr → skip
+            _order("MSFT", "BUY", 5, 300.0, "2024-01-05"),   # never-seen ticker → import
+            _order("NVDA", "BUY", 2, 120.0, "2024-06-02"),   # after cutoff → import
         ])
-        assert res["imported_orders"] == 1
+        assert res["imported_orders"] == 2
         tickers = {t.ticker for t in db_session.query(Transaction).all()}
-        assert tickers == {"AAPL", "NVDA"}
+        assert tickers == {"AAPL", "MSFT", "NVDA"}
+
+    def test_date_cutoff_matches_base_ticker(self, db_session, pid, connection):
+        # CSV stores the raw export ticker (COPM); the API normalizes to COPM.L —
+        # the per-ticker cutoff must treat them as the same instrument.
+        db_session.add(make_txn("COPM", "buy", 3, 9.91, date=date(2024, 6, 1),
+                                source=None, portfolio_id=pid))
+        db_session.commit()
+        res = _run_sync(db_session, pid, [
+            _order("COPMl", "BUY", 7, 4.25, "2024-02-01"),   # old, drifted repr → skip
+        ])
+        assert res["imported_orders"] == 0
+        assert self._txn_count(db_session, pid) == 1
+
+    def test_dividend_cutoff_is_per_ticker(self, db_session, pid, connection):
+        # KO was never imported: its old dividends must come in even though
+        # AAPL has newer trades in the same portfolio.
+        db_session.add(make_txn("AAPL", "buy", 10, 150.0, date=date(2024, 6, 1),
+                                source=None, portfolio_id=pid))
+        db_session.commit()
+        res = _run_sync(db_session, pid, [], dividends=[{
+            "ticker": "KO",
+            "grossAmountPerShare": 0.485,
+            "quantity": 10,
+            "paidOn": "2024-03-15T00:00:00Z",
+            "instrument": {"currency": "USD"},
+        }])
+        assert res["imported_dividends"] == 1
 
     def test_first_sync_imports_full_history(self, db_session, pid, connection):
         res = _run_sync(db_session, pid, [
