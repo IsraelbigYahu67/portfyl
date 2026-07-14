@@ -423,9 +423,14 @@ def health():
 # The app has no external scheduler, so asyncio tasks handle the recurring work:
 #   * price alerts  — every ALERT_CHECK_INTERVAL_SECONDS (default 15 min),
 #                     opt-out ALERT_POLLER_ENABLED=0
-#   * broker sync   — every BROKER_AUTOSYNC_INTERVAL_SECONDS (default 6 h),
-#                     opt-out BROKER_AUTOSYNC_ENABLED=0; only connections whose
-#                     auto_sync flag is on are synced (per-portfolio opt-in)
+#   * broker sync   — 60 s heartbeat; jobs.autosync_tick runs the sync when the
+#                     configured schedule says so (Settings → Auto-sync
+#                     schedule: daily at HH:MM — default 02:00 Europe/Prague,
+#                     BROKER_SYNC_TIMEZONE overrides — or every N hours).
+#                     Opt-out BROKER_AUTOSYNC_ENABLED=0; only connections whose
+#                     auto_sync flag is on are synced (per-portfolio opt-in).
+#                     Last-run is persisted, so a missed boundary (asleep at
+#                     2 AM) catches up at the first tick after startup.
 #   * dividends     — every DIVIDEND_NOTIFY_INTERVAL_SECONDS (default 12 h),
 #                     opt-out DIVIDEND_NOTIFY_ENABLED=0; announces ex-dates due
 #                     within DIVIDEND_NOTIFY_LEAD_DAYS (default 3), each at most
@@ -464,7 +469,7 @@ async def _periodic_loop(name: str, pass_fn, interval: int, initial_delay: int):
 async def _start_background_pollers():
     import asyncio as _asyncio
     from routers.alerts import run_check
-    from jobs import broker_autosync_pass, dividend_exdate_pass
+    from jobs import autosync_tick, dividend_exdate_pass
 
     def _env_int(key: str, default: int) -> int:
         try:
@@ -478,13 +483,12 @@ async def _start_background_pollers():
             _periodic_loop("alerts", run_check, interval, initial_delay=interval)))
 
     if os.environ.get("BROKER_AUTOSYNC_ENABLED", "1") == "1":
-        interval = _env_int("BROKER_AUTOSYNC_INTERVAL_SECONDS", 21600)
-        # Short initial delay (not a full interval): a deployment that restarts
-        # more often than every 6 h (Cloud Run cold starts) would reset a
-        # full-interval countdown on every start and never sync at all. The
-        # sync dedup makes early runs safe.
+        # 60 s heartbeat: each tick asks jobs.autosync_tick whether the
+        # configured schedule is due; the sync itself runs only then. Short
+        # initial delay so a restart quickly catches up on a missed boundary
+        # (the persisted last-run makes early ticks safe).
         _BG_TASKS.append(_asyncio.create_task(
-            _periodic_loop("autosync", broker_autosync_pass, interval, initial_delay=300)))
+            _periodic_loop("autosync", autosync_tick, interval=60, initial_delay=300)))
 
     if os.environ.get("DIVIDEND_NOTIFY_ENABLED", "1") == "1":
         interval = _env_int("DIVIDEND_NOTIFY_INTERVAL_SECONDS", 43200)
