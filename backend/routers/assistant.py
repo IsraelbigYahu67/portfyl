@@ -8,6 +8,7 @@ import httpx
 from database import get_db
 from models import AppSetting, Transaction, Portfolio
 from routers.portfolios import require_portfolio
+from app_settings import get_setting as _get_setting, set_setting as _set_setting
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 
@@ -26,20 +27,6 @@ MAX_HISTORY = 20
 # ---------------------------------------------------------------------------
 # App-setting helpers
 # ---------------------------------------------------------------------------
-
-def _get_setting(db: Session, key: str) -> Optional[str]:
-    row = db.query(AppSetting).filter(AppSetting.key == key).first()
-    return row.value if row else None
-
-
-def _set_setting(db: Session, key: str, value: Optional[str]) -> None:
-    row = db.query(AppSetting).filter(AppSetting.key == key).first()
-    if row is None:
-        row = AppSetting(key=key, value=value)
-        db.add(row)
-    else:
-        row.value = value
-
 
 def _key_preview(key: str) -> str:
     if not key:
