@@ -4,6 +4,7 @@ import { fetchT212Status, connectT212, disconnectT212, syncT212, setT212AutoSync
 import { Loader2, Link, Unlink, RefreshCw, CheckCircle2, AlertCircle, Eye, EyeOff, Briefcase } from "lucide-react";
 import { usePortfolio } from "../App";
 import DiscordSettings from "../components/DiscordSettings";
+import SyncScheduleSettings from "../components/SyncScheduleSettings";
 
 export default function Settings() {
   const queryClient = useQueryClient();
@@ -352,7 +353,7 @@ export default function Settings() {
               <div className="flex justify-between items-center pt-1">
                 <span className="text-slate-500">
                   Auto-sync
-                  <span className="text-xs text-slate-400 ml-2">checks for new trades every 6 h</span>
+                  <span className="text-xs text-slate-400 ml-2">checks for new trades on the auto-sync schedule below</span>
                 </span>
                 <button
                   onClick={() => autoSyncMutation.mutate(!status.auto_sync)}
@@ -504,7 +505,7 @@ export default function Settings() {
               <div className="flex justify-between items-center pt-1">
                 <span className="text-slate-500">
                   Auto-sync
-                  <span className="text-xs text-slate-400 ml-2">checks for new trades every 6 h</span>
+                  <span className="text-xs text-slate-400 ml-2">checks for new trades on the auto-sync schedule below</span>
                 </span>
                 <button
                   onClick={() => ibkrAutoSyncMutation.mutate(!ibkrStatus.auto_sync)}
@@ -545,6 +546,8 @@ export default function Settings() {
           </div>
         )}
       </div>
+
+      <SyncScheduleSettings />
 
       <DiscordSettings />
 

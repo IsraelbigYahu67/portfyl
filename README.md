@@ -135,7 +135,7 @@ portfyl/
 - **Transaction CRUD** — buy/sell/dividend with manual entry or CSV import
 - **CSV Import** — native format (date, ticker, type, shares, price) **and** Trading 212 export format
 - **Trading 212 Sync** — connect via API key, auto-fetch orders and dividends, split-adjustment detection, corporate-action pair cleanup
-- **Background auto-sync** — opt-in per broker connection (T212 + IBKR); a poller syncs every 6 h and announces imports on Discord
+- **Background auto-sync** — opt-in per broker connection (T212 + IBKR); syncs on a configurable schedule (daily at a set time — default 02:00 Europe/Prague — or every N hours; Settings → Auto-sync schedule) and announces imports on Discord
 - **Holdings Engine** — FIFO avg-cost cost basis, realized/unrealized P&L, closed positions with "what if held" P&L
 
 ### Performance & Risk
