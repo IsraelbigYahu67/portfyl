@@ -5,8 +5,13 @@ summary list (empty when nothing happened) — the same shape the price-alert
 `run_check` uses, so main.py can run them all through one generic loop and the
 tests can drive them synchronously with `asyncio.run`.
 
-Two passes live here:
+Three passes live here:
 
+* :func:`autosync_tick` — the minutely scheduler gate around
+  ``broker_autosync_pass``: reads the configured schedule (daily at HH:MM in
+  the local timezone, or every N hours) from the AppSetting table and runs
+  the pass only when due, persisting a last-run stamp so restarts and
+  downtime catch up instead of double- or never-running.
 * :func:`broker_autosync_pass` — syncs every broker connection whose
   ``auto_sync`` flag is on (Trading 212 and IBKR), and announces imports on the
   portfolio's Discord webhook when ``notify_trades`` is enabled. One failing
@@ -194,6 +199,24 @@ async def broker_autosync_pass(db: Session) -> list[dict]:
                     color=SYNC_COLOR,
                 )
         results.append(summary)
+    return results
+
+
+async def autosync_tick(db: Session, now: datetime | None = None) -> list[dict]:
+    """One poller tick: run broker_autosync_pass iff the configured schedule
+    says a sync is due, then persist the run timestamp. Same (db) -> list shape
+    as the other passes so main.py's _periodic_loop drives it directly.
+
+    If the pass raises, last_run is NOT advanced — the next tick retries
+    (per-connection failures are already contained inside the pass, so a
+    whole-pass exception means something systemic like a dead DB)."""
+    now = now or datetime.now(timezone.utc)
+    s = load_sync_schedule(db)
+    if not sync_due(now, s["mode"], s["daily_time"], s["interval_hours"],
+                    s["last_run"], sync_timezone()):
+        return []
+    results = await broker_autosync_pass(db)
+    mark_sync_ran(db, now)
     return results
 
 

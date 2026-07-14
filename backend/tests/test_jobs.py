@@ -426,3 +426,39 @@ def test_load_schedule_treats_naive_last_run_as_utc(db_session):
     db_session.commit()
     assert load_sync_schedule(db_session)["last_run"] == \
         datetime(2026, 7, 13, 0, 5, tzinfo=timezone.utc)
+
+
+# -------- autosync_tick -------------------------------------------------------
+
+from jobs import autosync_tick
+
+
+def test_tick_skips_when_not_due(db_session):
+    now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
+    mark_sync_ran(db_session, now - timedelta(hours=1))  # ran after today's 02:00 boundary
+    with patch("jobs.broker_autosync_pass", new=AsyncMock()) as p:
+        out = _run(autosync_tick(db_session, now=now))
+    assert out == []
+    p.assert_not_awaited()
+    # last_run untouched
+    assert load_sync_schedule(db_session)["last_run"] == now - timedelta(hours=1)
+
+
+def test_tick_runs_pass_and_marks_ran_when_due(db_session):
+    now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
+    mark_sync_ran(db_session, now - timedelta(days=1))
+    results = [{"portfolio_id": 1, "broker": "trading212", "ok": True, "imported": 2}]
+    with patch("jobs.broker_autosync_pass", new=AsyncMock(return_value=results)) as p:
+        out = _run(autosync_tick(db_session, now=now))
+    p.assert_awaited_once()
+    assert out == results
+    assert load_sync_schedule(db_session)["last_run"] == now
+
+
+def test_tick_marks_ran_even_when_no_connections(db_session):
+    # An empty pass still consumes the boundary — no minute-by-minute retries.
+    now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
+    with patch("jobs.broker_autosync_pass", new=AsyncMock(return_value=[])):
+        out = _run(autosync_tick(db_session, now=now))
+    assert out == []
+    assert load_sync_schedule(db_session)["last_run"] == now
