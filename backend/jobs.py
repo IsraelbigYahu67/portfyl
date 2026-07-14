@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -32,6 +32,60 @@ log = logging.getLogger("portfyl.jobs")
 
 DIVIDEND_COLOR = 0x8B5CF6  # violet — matches the TTM/dividend accents in the UI
 SYNC_COLOR = 0x059669      # green — same as trade notifications
+
+
+# -------- Sync schedule ------------------------------------------------------
+# The autosync poller in main.py ticks every minute and asks sync_due() whether
+# the configured schedule (Settings -> Auto-sync schedule) says it's time.
+# Config lives in the AppSetting table under these keys; timestamps are aware
+# UTC; "daily" boundaries are computed in SYNC's local timezone.
+
+SYNC_MODE_KEY = "broker_sync_mode"                  # "daily" | "interval"
+SYNC_DAILY_TIME_KEY = "broker_sync_daily_time"      # "HH:MM" 24h local time
+SYNC_INTERVAL_HOURS_KEY = "broker_sync_interval_hours"
+SYNC_LAST_RUN_KEY = "broker_sync_last_run"          # ISO-8601 UTC
+
+DEFAULT_SYNC_MODE = "daily"
+DEFAULT_SYNC_DAILY_TIME = "02:00"
+DEFAULT_SYNC_INTERVAL_HOURS = 6
+
+
+def _daily_boundary(local_now: datetime, daily_time: str) -> datetime:
+    """Most recent occurrence of `daily_time` at or before `local_now`, as an
+    aware datetime in local tz. On DST spring-forward days a nonexistent wall
+    time resolves via fold=0 (shifted forward), so the boundary still exists
+    exactly once per day."""
+    hh, mm = (int(p) for p in daily_time.split(":"))
+    boundary = local_now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if boundary > local_now:
+        boundary -= timedelta(days=1)
+    return boundary
+
+
+def sync_due(now: datetime, mode: str, daily_time: str, interval_hours: int,
+             last_run: datetime | None, tz) -> bool:
+    """Is a broker sync due? `now`/`last_run` are aware UTC datetimes.
+    daily: due when the most recent daily_time boundary (in tz) hasn't been
+    run yet — which is also the catch-up rule after downtime.
+    interval: due when interval_hours have elapsed since last_run."""
+    if last_run is None:
+        return True
+    if mode == "interval":
+        return now - last_run >= timedelta(hours=interval_hours)
+    boundary = _daily_boundary(now.astimezone(tz), daily_time)
+    return last_run < boundary.astimezone(timezone.utc)
+
+
+def next_sync_run(now: datetime, mode: str, daily_time: str, interval_hours: int,
+                  last_run: datetime | None, tz) -> datetime | None:
+    """Next scheduled run as aware UTC, for display. None = due right now
+    (the poller will run it within a minute)."""
+    if sync_due(now, mode, daily_time, interval_hours, last_run, tz):
+        return None
+    if mode == "interval":
+        return last_run + timedelta(hours=interval_hours)
+    nxt = _daily_boundary(now.astimezone(tz), daily_time) + timedelta(days=1)
+    return nxt.astimezone(timezone.utc)
 
 
 # -------- Broker auto-sync --------------------------------------------------

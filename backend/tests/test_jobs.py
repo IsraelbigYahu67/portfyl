@@ -288,3 +288,86 @@ def test_dividend_pass_skips_tickers_without_exdate(db_session, pid):
         announced = _run(dividend_exdate_pass(db_session, today=date(2026, 7, 12)))
     assert announced == []
     sent.assert_not_awaited()
+
+
+# -------- sync_due / next_sync_run ------------------------------------------
+
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+from jobs import sync_due, next_sync_run
+
+PRAGUE = ZoneInfo("Europe/Prague")
+# 2026-07-13 is CEST (UTC+2): the 02:00 local boundary is 00:00 UTC.
+
+
+def test_daily_due_when_never_ran():
+    now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
+    assert sync_due(now, "daily", "02:00", 6, None, PRAGUE) is True
+
+
+def test_daily_not_due_after_todays_run():
+    now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
+    last = datetime(2026, 7, 13, 0, 5, tzinfo=timezone.utc)  # ran just after 02:00 local
+    assert sync_due(now, "daily", "02:00", 6, last, PRAGUE) is False
+
+
+def test_daily_due_once_boundary_crossed():
+    # Ran yesterday; now it's 03:00 local today — today's boundary has passed.
+    now = datetime(2026, 7, 13, 1, 0, tzinfo=timezone.utc)
+    last = datetime(2026, 7, 12, 0, 5, tzinfo=timezone.utc)
+    assert sync_due(now, "daily", "02:00", 6, last, PRAGUE) is True
+
+
+def test_daily_not_due_before_todays_boundary():
+    # 01:30 local on the 13th — most recent boundary is yesterday's, already ran.
+    now = datetime(2026, 7, 12, 23, 30, tzinfo=timezone.utc)
+    last = datetime(2026, 7, 12, 0, 10, tzinfo=timezone.utc)
+    assert sync_due(now, "daily", "02:00", 6, last, PRAGUE) is False
+
+
+def test_daily_catches_up_after_downtime():
+    # App was down for three days: first check after boot must fire.
+    now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
+    last = datetime(2026, 7, 10, 0, 5, tzinfo=timezone.utc)
+    assert sync_due(now, "daily", "02:00", 6, last, PRAGUE) is True
+
+
+def test_daily_dst_spring_forward_fires_once():
+    # 2026-03-29: Prague jumps 02:00 CET -> 03:00 CEST; 02:00 does not exist.
+    # The boundary resolves to 01:00 UTC. Ran yesterday -> due; ran today -> not.
+    now = datetime(2026, 3, 29, 8, 0, tzinfo=timezone.utc)
+    ran_yesterday = datetime(2026, 3, 28, 1, 30, tzinfo=timezone.utc)
+    ran_today = datetime(2026, 3, 29, 1, 30, tzinfo=timezone.utc)
+    assert sync_due(now, "daily", "02:00", 6, ran_yesterday, PRAGUE) is True
+    assert sync_due(now, "daily", "02:00", 6, ran_today, PRAGUE) is False
+
+
+def test_interval_due_when_never_ran():
+    now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
+    assert sync_due(now, "interval", "02:00", 6, None, PRAGUE) is True
+
+
+def test_interval_due_after_elapsed():
+    now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
+    assert sync_due(now, "interval", "02:00", 6, now - timedelta(hours=7), PRAGUE) is True
+    assert sync_due(now, "interval", "02:00", 6, now - timedelta(hours=5), PRAGUE) is False
+
+
+def test_next_run_none_when_due_now():
+    now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
+    assert next_sync_run(now, "daily", "02:00", 6, None, PRAGUE) is None
+
+
+def test_next_run_daily_is_next_boundary():
+    now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
+    last = datetime(2026, 7, 13, 0, 5, tzinfo=timezone.utc)
+    nxt = next_sync_run(now, "daily", "02:00", 6, last, PRAGUE)
+    assert nxt == datetime(2026, 7, 14, 0, 0, tzinfo=timezone.utc)  # 02:00 CEST tomorrow
+
+
+def test_next_run_interval_is_last_plus_interval():
+    now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
+    last = now - timedelta(hours=2)
+    nxt = next_sync_run(now, "interval", "02:00", 6, last, PRAGUE)
+    assert nxt == last + timedelta(hours=6)
