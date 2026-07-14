@@ -21,10 +21,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import re
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
+from app_settings import get_setting, set_setting
 from models import BrokerConnection, DiscordWebhook, DividendNotification, Transaction
 from routers.discord import send_discord_notification
 
@@ -86,6 +90,57 @@ def next_sync_run(now: datetime, mode: str, daily_time: str, interval_hours: int
         return last_run + timedelta(hours=interval_hours)
     nxt = _daily_boundary(now.astimezone(tz), daily_time) + timedelta(days=1)
     return nxt.astimezone(timezone.utc)
+
+
+_TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def sync_timezone() -> ZoneInfo:
+    """Schedule timezone: BROKER_SYNC_TIMEZONE env var, else Europe/Prague.
+    A bad env value falls back rather than killing the poller."""
+    name = os.environ.get("BROKER_SYNC_TIMEZONE", "Europe/Prague")
+    try:
+        return ZoneInfo(name)
+    except Exception:
+        return ZoneInfo("Europe/Prague")
+
+
+def load_sync_schedule(db: Session) -> dict:
+    """Schedule config from AppSetting rows; anything missing or invalid
+    silently falls back to the defaults (the poller must never crash on a
+    hand-edited row)."""
+    mode = get_setting(db, SYNC_MODE_KEY)
+    if mode not in ("daily", "interval"):
+        mode = DEFAULT_SYNC_MODE
+
+    daily_time = get_setting(db, SYNC_DAILY_TIME_KEY) or DEFAULT_SYNC_DAILY_TIME
+    if not _TIME_RE.match(daily_time):
+        daily_time = DEFAULT_SYNC_DAILY_TIME
+
+    raw_hours = get_setting(db, SYNC_INTERVAL_HOURS_KEY)
+    try:
+        interval_hours = int(raw_hours) if raw_hours else DEFAULT_SYNC_INTERVAL_HOURS
+    except ValueError:
+        interval_hours = DEFAULT_SYNC_INTERVAL_HOURS
+    interval_hours = max(1, min(interval_hours, 168))
+
+    last_run = None
+    raw_last = get_setting(db, SYNC_LAST_RUN_KEY)
+    if raw_last:
+        try:
+            last_run = datetime.fromisoformat(raw_last)
+            if last_run.tzinfo is None:
+                last_run = last_run.replace(tzinfo=timezone.utc)
+        except ValueError:
+            last_run = None
+
+    return {"mode": mode, "daily_time": daily_time,
+            "interval_hours": interval_hours, "last_run": last_run}
+
+
+def mark_sync_ran(db: Session, when: datetime) -> None:
+    set_setting(db, SYNC_LAST_RUN_KEY, when.isoformat())
+    db.commit()
 
 
 # -------- Broker auto-sync --------------------------------------------------

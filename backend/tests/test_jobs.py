@@ -371,3 +371,58 @@ def test_next_run_interval_is_last_plus_interval():
     last = now - timedelta(hours=2)
     nxt = next_sync_run(now, "interval", "02:00", 6, last, PRAGUE)
     assert nxt == last + timedelta(hours=6)
+
+
+# -------- schedule config persistence ----------------------------------------
+
+from app_settings import set_setting
+from jobs import (SYNC_MODE_KEY, SYNC_DAILY_TIME_KEY, SYNC_INTERVAL_HOURS_KEY,
+                  SYNC_LAST_RUN_KEY, load_sync_schedule, mark_sync_ran, sync_timezone)
+
+
+def test_sync_timezone_default_and_override(monkeypatch):
+    monkeypatch.delenv("BROKER_SYNC_TIMEZONE", raising=False)
+    assert sync_timezone().key == "Europe/Prague"
+    monkeypatch.setenv("BROKER_SYNC_TIMEZONE", "America/New_York")
+    assert sync_timezone().key == "America/New_York"
+    monkeypatch.setenv("BROKER_SYNC_TIMEZONE", "Not/AZone")
+    assert sync_timezone().key == "Europe/Prague"  # bad value falls back
+
+
+def test_load_schedule_defaults_on_empty_db(db_session):
+    s = load_sync_schedule(db_session)
+    assert s == {"mode": "daily", "daily_time": "02:00",
+                 "interval_hours": 6, "last_run": None}
+
+
+def test_load_schedule_falls_back_on_garbage(db_session):
+    set_setting(db_session, SYNC_MODE_KEY, "weekly")
+    set_setting(db_session, SYNC_DAILY_TIME_KEY, "25:99")
+    set_setting(db_session, SYNC_INTERVAL_HOURS_KEY, "lots")
+    set_setting(db_session, SYNC_LAST_RUN_KEY, "yesterday-ish")
+    db_session.commit()
+    s = load_sync_schedule(db_session)
+    assert s == {"mode": "daily", "daily_time": "02:00",
+                 "interval_hours": 6, "last_run": None}
+
+
+def test_load_schedule_reads_valid_values(db_session):
+    set_setting(db_session, SYNC_MODE_KEY, "interval")
+    set_setting(db_session, SYNC_DAILY_TIME_KEY, "04:30")
+    set_setting(db_session, SYNC_INTERVAL_HOURS_KEY, "12")
+    db_session.commit()
+    s = load_sync_schedule(db_session)
+    assert (s["mode"], s["daily_time"], s["interval_hours"]) == ("interval", "04:30", 12)
+
+
+def test_mark_sync_ran_roundtrip(db_session):
+    when = datetime(2026, 7, 13, 0, 5, tzinfo=timezone.utc)
+    mark_sync_ran(db_session, when)
+    assert load_sync_schedule(db_session)["last_run"] == when
+
+
+def test_load_schedule_treats_naive_last_run_as_utc(db_session):
+    set_setting(db_session, SYNC_LAST_RUN_KEY, "2026-07-13T00:05:00")
+    db_session.commit()
+    assert load_sync_schedule(db_session)["last_run"] == \
+        datetime(2026, 7, 13, 0, 5, tzinfo=timezone.utc)
