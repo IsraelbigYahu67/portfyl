@@ -13,7 +13,7 @@ export default function SyncScheduleSettings() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
-  const { data: schedule, isLoading } = useQuery({
+  const { data: schedule, isLoading, isError } = useQuery({
     queryKey: ["sync-schedule"],
     queryFn: fetchSyncSchedule,
   });
@@ -65,7 +65,12 @@ export default function SyncScheduleSettings() {
         </div>
       )}
 
-      {isLoading || mode === null ? (
+      {isError ? (
+        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+          <AlertCircle size={16} className="shrink-0" />
+          Failed to load sync schedule
+        </div>
+      ) : isLoading || mode === null ? (
         <Loader2 size={18} className="animate-spin text-slate-400" />
       ) : (
         <div className="space-y-4">

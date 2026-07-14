@@ -5,10 +5,7 @@ import SyncScheduleSettings from "./SyncScheduleSettings";
 // vi.mock factories are hoisted above top-level consts — a plain `const spy`
 // referenced inside the factory would hit a TDZ error. vi.hoisted() runs first.
 const mocks = vi.hoisted(() => ({
-  updateSyncSchedule: vi.fn(() => Promise.resolve({})),
-}));
-vi.mock("../api", () => ({
-  fetchSyncSchedule: () =>
+  fetchSyncSchedule: vi.fn(() =>
     Promise.resolve({
       mode: "daily",
       daily_time: "02:00",
@@ -16,12 +13,19 @@ vi.mock("../api", () => ({
       timezone: "Europe/Prague",
       last_run: null,
       next_run: null,
-    }),
+    })
+  ),
+  updateSyncSchedule: vi.fn(() => Promise.resolve({})),
+}));
+vi.mock("../api", () => ({
+  fetchSyncSchedule: mocks.fetchSyncSchedule,
   updateSyncSchedule: mocks.updateSyncSchedule,
 }));
 
 function mount() {
-  const qc = new QueryClient();
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
     <QueryClientProvider client={qc}>
       <SyncScheduleSettings />
@@ -50,5 +54,11 @@ describe("SyncScheduleSettings", () => {
         interval_hours: 6,
       })
     );
+  });
+
+  it("displays error banner when initial fetch fails", async () => {
+    mocks.fetchSyncSchedule.mockRejectedValueOnce(new Error("Network error"));
+    mount();
+    expect(await screen.findByText(/Failed to load sync schedule/i)).toBeInTheDocument();
   });
 });
