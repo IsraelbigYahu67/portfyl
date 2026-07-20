@@ -99,7 +99,7 @@ export default function Dashboard() {
         <div>
           <h1 className="text-xl font-bold">Portfolio Overview</h1>
           {summary?.last_updated && (
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-muted mt-0.5">
               Updated {new Date(summary.last_updated).toLocaleTimeString()}
             </p>
           )}
@@ -110,7 +110,7 @@ export default function Dashboard() {
             className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-colors ${
               editingLayout
                 ? "bg-brand/10 border-brand/30 text-brand font-medium"
-                : "btn-ghost border-slate-200"
+                : "btn-ghost border-hairline"
             }`}
           >
             {editingLayout ? <Lock size={14} /> : <LayoutGrid size={14} />}
@@ -141,15 +141,15 @@ export default function Dashboard() {
           performance: (
             <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "100ms" }}>
               <SectionHeader icon={TrendingUp} action={<div className="flex items-center gap-3">
-                  <div className="flex gap-0.5 bg-slate-100 rounded-lg p-0.5">
+                  <div className="flex gap-0.5 bg-surface-hover rounded-lg p-0.5">
                     {["value", "growth"].map((m) => (
                       <button
                         key={m}
                         onClick={() => setChartMode(m)}
                         className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
                           chartMode === m
-                            ? "bg-white text-brand font-semibold shadow-sm"
-                            : "text-slate-500 hover:text-slate-700"
+                            ? "bg-surface-card text-brand font-semibold shadow-sm"
+                            : "text-muted hover:text-ink"
                         }`}
                       >
                         {m === "value" ? "Value" : "Growth %"}
@@ -163,8 +163,8 @@ export default function Dashboard() {
                         onClick={() => setPeriod(p)}
                         className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
                           period === p
-                            ? "bg-white text-brand font-semibold shadow-sm"
-                            : "text-slate-500 hover:text-slate-700"
+                            ? "bg-surface-card text-brand font-semibold shadow-sm"
+                            : "text-muted hover:text-ink"
                         }`}
                       >
                         {p}
@@ -229,14 +229,14 @@ export default function Dashboard() {
                   {earnings.slice(0, 10).map((e) => (
                     <div key={e.ticker} className="flex items-center gap-3 text-sm">
                       <TickerLink ticker={e.ticker} className="w-16 font-mono font-semibold text-left" />
-                      <span className="flex-1 text-slate-500 truncate">{e.name}</span>
-                      <span className="tabular-nums text-slate-500 w-20 text-right">
+                      <span className="flex-1 text-muted truncate">{e.name}</span>
+                      <span className="tabular-nums text-muted w-20 text-right">
                         {e.date}
                       </span>
-                      <span className="tabular-nums text-slate-800 font-medium w-16 text-right">
+                      <span className="tabular-nums text-ink font-medium w-16 text-right">
                         {e.time}
                       </span>
-                      <span className="tabular-nums text-slate-500 w-20 text-right">
+                      <span className="tabular-nums text-muted w-20 text-right">
                         {e.eps_estimate != null ? `EPS ${e.eps_estimate}` : "—"}
                       </span>
                     </div>
@@ -264,10 +264,10 @@ export default function Dashboard() {
                           style={{ width: `${h.weight}%` }}
                         />
                       </div>
-                      <span className="text-sm font-semibold tabular-nums w-14 text-right text-slate-800">
+                      <span className="text-sm font-semibold tabular-nums w-14 text-right text-ink">
                         {h.weight.toFixed(1)}%
                       </span>
-                      <span className="text-sm tabular-nums w-28 text-right text-slate-500">
+                      <span className="text-sm tabular-nums w-28 text-right text-muted">
                         {formatMoney(h.market_value, currency)}
                       </span>
                     </div>
@@ -284,7 +284,7 @@ export default function Dashboard() {
               return (b.date || "").localeCompare(a.date || "");
             });
             const thBase = "text-[10px] font-medium uppercase tracking-wider pb-2";
-            const thSortable = (key, align) => `${thBase} ${align} cursor-pointer select-none transition-colors ${insiderSort === key ? "text-brand" : "text-slate-400 hover:text-slate-600"}`;
+            const thSortable = (key, align) => `${thBase} ${align} cursor-pointer select-none transition-colors ${insiderSort === key ? "text-brand" : "text-muted hover:text-ink"}`;
             const sortArrow = (key) => insiderSort === key ? " ▼" : "";
             return (
             <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "300ms" }}>
@@ -298,10 +298,10 @@ export default function Dashboard() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-surface-border">
-                        <th className={`${thBase} text-left text-slate-400`}>Ticker</th>
-                        <th className={`${thBase} text-left text-slate-400`}>Insider</th>
-                        <th className={`${thBase} text-right text-slate-400`}>Shares</th>
-                        <th className={`${thBase} text-right text-slate-400`}>Buy Price</th>
+                        <th className={`${thBase} text-left text-muted`}>Ticker</th>
+                        <th className={`${thBase} text-left text-muted`}>Insider</th>
+                        <th className={`${thBase} text-right text-muted`}>Shares</th>
+                        <th className={`${thBase} text-right text-muted`}>Buy Price</th>
                         <th className={thSortable("value", "text-right")} onClick={() => setInsiderSort("value")}>Value{sortArrow("value")}</th>
                         <th className={thSortable("pnl", "text-right")} onClick={() => setInsiderSort("pnl")}>P&L{sortArrow("pnl")}</th>
                         <th className={thSortable("date", "text-right")} onClick={() => setInsiderSort("date")}>Date{sortArrow("date")}</th>
@@ -315,20 +315,20 @@ export default function Dashboard() {
                           <td className="py-1.5 pr-3">
                             <TickerLink ticker={b.ticker} className="font-mono font-semibold" />
                           </td>
-                          <td className="py-1.5 pr-3 text-slate-600 max-w-[180px] truncate" title={`${b.insider || ""}${b.position ? ` — ${b.position}` : ""}`}>
+                          <td className="py-1.5 pr-3 text-muted max-w-[180px] truncate" title={`${b.insider || ""}${b.position ? ` — ${b.position}` : ""}`}>
                             {b.insider || "—"}
-                            {b.position && <span className="text-slate-400 text-[10px] ml-1">({b.position})</span>}
+                            {b.position && <span className="text-muted text-[10px] ml-1">({b.position})</span>}
                           </td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums text-slate-700">
+                          <td className="py-1.5 pr-3 text-right tabular-nums text-ink">
                             {b.shares != null ? Math.abs(b.shares).toLocaleString() : "—"}
                           </td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums text-slate-700">
+                          <td className="py-1.5 pr-3 text-right tabular-nums text-ink">
                             {b.buy_price != null ? formatMoney(b.buy_price, b.currency) : "—"}
                           </td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums text-slate-700 font-medium">
+                          <td className="py-1.5 pr-3 text-right tabular-nums text-ink font-medium">
                             {b.value != null ? formatMoney(Math.abs(b.value), b.currency) : "—"}
                           </td>
-                          <td className={`py-1.5 pr-3 text-right tabular-nums font-medium ${b.pnl == null ? "text-slate-400" : pnlUp ? "text-emerald-600" : "text-red-600"}`}>
+                          <td className={`py-1.5 pr-3 text-right tabular-nums font-medium ${b.pnl == null ? "text-muted" : pnlUp ? "text-gain" : "text-loss"}`}>
                             {b.pnl != null ? (
                               <span title={`Current: ${formatMoney(b.current_price, b.currency)}`}>
                                 {b.pnl >= 0 ? "+" : ""}{formatMoney(b.pnl, b.currency)}
@@ -336,7 +336,7 @@ export default function Dashboard() {
                               </span>
                             ) : "—"}
                           </td>
-                          <td className="py-1.5 text-right tabular-nums text-slate-500 text-xs">
+                          <td className="py-1.5 text-right tabular-nums text-muted text-xs">
                             {b.date || "—"}
                           </td>
                         </tr>
@@ -360,8 +360,8 @@ export default function Dashboard() {
                         onClick={() => setMoverSort(s.key)}
                         className={`px-2 py-0.5 text-xs rounded font-medium transition-colors ${
                           moverSort === s.key
-                            ? "bg-white text-brand font-semibold shadow-sm"
-                            : "text-slate-500 hover:text-slate-700"
+                            ? "bg-surface-card text-brand font-semibold shadow-sm"
+                            : "text-muted hover:text-ink"
                         }`}
                       >
                         {s.label}
@@ -375,8 +375,8 @@ export default function Dashboard() {
                         onClick={() => setMoverPeriod(p.key)}
                         className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
                           moverPeriod === p.key
-                            ? "bg-white text-brand font-semibold shadow-sm"
-                            : "text-slate-500 hover:text-slate-700"
+                            ? "bg-surface-card text-brand font-semibold shadow-sm"
+                            : "text-muted hover:text-ink"
                         }`}
                       >
                         {p.label}
@@ -391,18 +391,18 @@ export default function Dashboard() {
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   <div>
-                    <h3 className="text-xs font-medium text-emerald-600 mb-2 flex items-center gap-1">
+                    <h3 className="text-xs font-medium text-gain mb-2 flex items-center gap-1">
                       <TrendingUp size={12} /> Gainers
                     </h3>
                     <div className="space-y-1.5">
                       {(movers?.gainers || []).length === 0 ? (
-                        <p className="text-slate-400 text-xs">No data</p>
+                        <p className="text-muted text-xs">No data</p>
                       ) : (
                         [...movers.gainers].sort((a, b) => moverSort === "value" ? b.period_pnl - a.period_pnl : b.change_pct - a.change_pct).map((m) => (
                           <div key={m.ticker} className="flex items-center gap-3 text-sm">
                             <TickerLink ticker={m.ticker} className="w-14 font-mono font-semibold text-left" />
-                            <span className="flex-1 text-slate-500 truncate">{m.name}</span>
-                            <span className={`tabular-nums font-medium w-24 text-right ${m.period_pnl >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                            <span className="flex-1 text-muted truncate">{m.name}</span>
+                            <span className={`tabular-nums font-medium w-24 text-right ${m.period_pnl >= 0 ? "text-gain" : "text-loss"}`}>
                               {formatMoney(m.period_pnl, m.currency)}
                             </span>
                             <div className="w-16 flex justify-end"><DeltaPill pct={m.change_pct} value={null} size="sm" /></div>
@@ -412,18 +412,18 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-xs font-medium text-red-600 mb-2 flex items-center gap-1">
+                    <h3 className="text-xs font-medium text-loss mb-2 flex items-center gap-1">
                       <TrendingDown size={12} /> Losers
                     </h3>
                     <div className="space-y-1.5">
                       {(movers?.losers || []).length === 0 ? (
-                        <p className="text-slate-400 text-xs">No data</p>
+                        <p className="text-muted text-xs">No data</p>
                       ) : (
                         [...movers.losers].sort((a, b) => moverSort === "value" ? a.period_pnl - b.period_pnl : a.change_pct - b.change_pct).map((m) => (
                           <div key={m.ticker} className="flex items-center gap-3 text-sm">
                             <TickerLink ticker={m.ticker} className="w-14 font-mono font-semibold text-left" />
-                            <span className="flex-1 text-slate-500 truncate">{m.name}</span>
-                            <span className={`tabular-nums font-medium w-24 text-right ${m.period_pnl >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                            <span className="flex-1 text-muted truncate">{m.name}</span>
+                            <span className={`tabular-nums font-medium w-24 text-right ${m.period_pnl >= 0 ? "text-gain" : "text-loss"}`}>
                               {formatMoney(m.period_pnl, m.currency)}
                             </span>
                             <div className="w-16 flex justify-end"><DeltaPill pct={m.change_pct} value={null} size="sm" /></div>

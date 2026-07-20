@@ -105,7 +105,7 @@ export default function DashboardGrid({ children, editing, onEditToggle }) {
             <>
               <button
                 onClick={resetLayout}
-                className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-muted hover:text-ink px-2.5 py-1.5 rounded-lg border border-hairline transition-colors"
               >
                 <RotateCcw size={12} /> Reset
               </button>
@@ -118,12 +118,12 @@ export default function DashboardGrid({ children, editing, onEditToggle }) {
                     <Plus size={12} /> Add Widget
                   </button>
                   {showAdd && (
-                    <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-50 min-w-[160px]">
+                    <div className="absolute top-full left-0 mt-1 bg-surface-card border border-hairline rounded-lg shadow-lg py-1 z-50 min-w-[160px]">
                       {hiddenWidgets.map((w) => (
                         <button
                           key={w.id}
                           onClick={() => addWidget(w.id)}
-                          className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                          className="w-full text-left px-3 py-2 text-sm text-ink hover:bg-surface-hover"
                         >
                           {w.label}
                         </button>
@@ -155,14 +155,14 @@ export default function DashboardGrid({ children, editing, onEditToggle }) {
             const childContent = children[id];
             return (
               <div key={id} className="relative">
-                <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between bg-white/90 backdrop-blur-sm rounded-t-xl px-3 py-1.5 border-b border-slate-100">
-                  <div className="drag-handle cursor-grab active:cursor-grabbing flex items-center gap-1.5 text-xs text-slate-400">
+                <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between bg-surface-card/90 backdrop-blur-sm rounded-t-xl px-3 py-1.5 border-b border-hairline">
+                  <div className="drag-handle cursor-grab active:cursor-grabbing flex items-center gap-1.5 text-xs text-muted">
                     <GripVertical size={12} />
                     {widget?.label}
                   </div>
                   <button
                     onClick={() => removeWidget(id)}
-                    className="text-slate-400 hover:text-red-500 transition-colors"
+                    className="text-muted hover:text-red-500 transition-colors"
                   >
                     <X size={12} />
                   </button>

@@ -35,7 +35,7 @@ export default function PortfolioHero({ summary, loading, currency = "USD", seri
                   </span>
                   <DeltaPill value={summary.day_change} pct={summary.day_change_percent} currency={currency} size="lg" />
                 </div>
-                <div className="flex items-center gap-3 mt-1 text-xs font-sans tabular-nums text-slate-500">
+                <div className="flex items-center gap-3 mt-1 text-xs font-sans tabular-nums text-muted">
                   <span>Positions {formatMoney(summary.total_value, currency)}</span>
                   <span aria-hidden="true">·</span>
                   <span>Cash {formatMoney(summary.cash, currency)}</span>

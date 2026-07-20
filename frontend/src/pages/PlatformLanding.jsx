@@ -124,12 +124,12 @@ export default function PlatformLanding() {
     <div className="max-w-3xl mx-auto space-y-8 pt-8">
       <div className="text-center space-y-1">
         <h1 className="text-2xl font-bold">{portfolio?.name ?? "Portfolio"}</h1>
-        <p className="text-sm text-slate-500">Select a platform to view</p>
+        <p className="text-sm text-muted">Select a platform to view</p>
       </div>
 
       {noneConnected && (
         <div className="text-center py-12 space-y-4">
-          <p className="text-slate-500">No platforms connected yet.</p>
+          <p className="text-muted">No platforms connected yet.</p>
           <button
             onClick={() => { setPlatform("t212"); navigate("/settings"); }}
             className="inline-flex items-center gap-2 bg-brand text-white font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand-hover transition-colors"
@@ -156,10 +156,10 @@ export default function PlatformLanding() {
                     <Icon size={20} className="text-brand" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-800 group-hover:text-brand transition-colors">
+                    <h3 className="font-semibold text-ink group-hover:text-brand transition-colors">
                       {p.name}
                     </h3>
-                    <p className="text-xs text-slate-500">{p.subtitle}</p>
+                    <p className="text-xs text-muted">{p.subtitle}</p>
                   </div>
                 </div>
               </div>
@@ -167,14 +167,14 @@ export default function PlatformLanding() {
               <div className="space-y-2">
                 {p.value != null && (
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-slate-500">Value</span>
-                    <span className="font-bold text-slate-800 tabular-nums">{fmt(p.value)}</span>
+                    <span className="text-xs text-muted">Value</span>
+                    <span className="font-bold text-ink tabular-nums">{fmt(p.value)}</span>
                   </div>
                 )}
                 {p.pnl != null && (
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-slate-500">P&L</span>
-                    <span className={`font-bold tabular-nums flex items-center gap-1 ${pnlPositive ? "text-emerald-600" : "text-red-600"}`}>
+                    <span className="text-xs text-muted">P&L</span>
+                    <span className={`font-bold tabular-nums flex items-center gap-1 ${pnlPositive ? "text-gain" : "text-loss"}`}>
                       {pnlPositive ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
                       {fmt(p.pnl)}
                     </span>
@@ -182,7 +182,7 @@ export default function PlatformLanding() {
                 )}
                 {p.metric && (
                   <div className="pt-1 border-t border-surface-border">
-                    <span className="text-xs text-slate-400">{p.metric}</span>
+                    <span className="text-xs text-muted">{p.metric}</span>
                   </div>
                 )}
               </div>
@@ -195,10 +195,10 @@ export default function PlatformLanding() {
           onClick={() => setShowAddModal(true)}
           className="group flex flex-col items-center justify-center gap-3 border-2 border-dashed border-surface-border rounded-xl p-6 hover:border-brand hover:bg-brand/5 transition-all min-h-[140px]"
         >
-          <div className="w-10 h-10 rounded-lg bg-slate-100 group-hover:bg-brand/10 flex items-center justify-center transition-colors">
-            <Plus size={20} className="text-slate-400 group-hover:text-brand transition-colors" />
+          <div className="w-10 h-10 rounded-lg bg-surface-hover group-hover:bg-brand/10 flex items-center justify-center transition-colors">
+            <Plus size={20} className="text-muted group-hover:text-brand transition-colors" />
           </div>
-          <span className="text-sm font-medium text-slate-500 group-hover:text-brand transition-colors">
+          <span className="text-sm font-medium text-muted group-hover:text-brand transition-colors">
             Add connector
           </span>
         </button>
@@ -212,14 +212,14 @@ export default function PlatformLanding() {
               <h2 className="text-lg font-bold">Add connector</h2>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-700 transition-colors"
+                className="text-muted hover:text-ink transition-colors"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <p className="text-sm text-slate-500">
-              Choose a platform to connect to <span className="font-medium text-slate-700">{portfolio?.name}</span>
+            <p className="text-sm text-muted">
+              Choose a platform to connect to <span className="font-medium text-ink">{portfolio?.name}</span>
             </p>
 
             <div className="space-y-2">
@@ -246,32 +246,32 @@ export default function PlatformLanding() {
                     }}
                     className={`w-full flex items-center gap-3 p-4 rounded-lg border text-left transition-all ${
                       !c.ready
-                        ? "border-surface-border bg-slate-50 opacity-60 cursor-not-allowed"
+                        ? "border-surface-border bg-surface-hover opacity-60 cursor-not-allowed"
                         : alreadyConnected
-                        ? "border-green-200 bg-green-50 cursor-not-allowed"
+                        ? "border-gain/30 bg-gain/10 cursor-not-allowed"
                         : "border-surface-border bg-surface-card hover:border-brand hover:shadow-sm cursor-pointer"
                     }`}
                   >
                     <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                      alreadyConnected ? "bg-green-100" : "bg-brand/10"
+                      alreadyConnected ? "bg-gain/10" : "bg-brand/10"
                     }`}>
-                      <Icon size={18} className={alreadyConnected ? "text-emerald-600" : "text-brand"} />
+                      <Icon size={18} className={alreadyConnected ? "text-gain" : "text-brand"} />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-slate-800">{c.name}</span>
+                        <span className="text-sm font-semibold text-ink">{c.name}</span>
                         {!c.ready && (
-                          <span className="text-[10px] font-medium bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded">
+                          <span className="text-[10px] font-medium bg-surface-hover text-muted px-1.5 py-0.5 rounded">
                             Coming soon
                           </span>
                         )}
                         {alreadyConnected && (
-                          <span className="text-[10px] font-medium bg-green-100 text-emerald-600 px-1.5 py-0.5 rounded">
+                          <span className="text-[10px] font-medium bg-gain/10 text-gain px-1.5 py-0.5 rounded">
                             Connected
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5">{c.subtitle}</p>
+                      <p className="text-xs text-muted mt-0.5">{c.subtitle}</p>
                     </div>
                   </button>
                 );

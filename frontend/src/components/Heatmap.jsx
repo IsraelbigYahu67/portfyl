@@ -151,18 +151,18 @@ export default function Heatmap() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
           Heatmap
         </h2>
-        <div className="flex gap-0.5 bg-slate-100 rounded-lg p-0.5">
+        <div className="flex gap-0.5 bg-surface-hover rounded-lg p-0.5">
           {PERIODS.map((p) => (
             <button
               key={p.key}
               onClick={() => setPeriod(p.key)}
               className={`px-2 py-1 text-[11px] rounded-md font-medium transition-colors ${
                 period === p.key
-                  ? "bg-white text-brand font-semibold shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
+                  ? "bg-surface-card text-brand font-semibold shadow-sm"
+                  : "text-muted hover:text-ink"
               }`}
             >
               {p.label}
@@ -172,10 +172,10 @@ export default function Heatmap() {
       </div>
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center min-h-[300px]">
-          <div className="text-slate-400 text-sm animate-pulse">Loading heatmap...</div>
+          <div className="text-muted text-sm animate-pulse">Loading heatmap...</div>
         </div>
       ) : data.length === 0 ? (
-        <p className="text-slate-400 text-xs">No holdings data available.</p>
+        <p className="text-muted text-xs">No holdings data available.</p>
       ) : (
         <div
           ref={setContainerEl}
@@ -199,7 +199,7 @@ export default function Heatmap() {
                     backgroundColor: "var(--bg-subtle)",
                   }}
                 >
-                  <span className="text-slate-500 font-bold text-lg tracking-widest">...</span>
+                  <span className="text-muted font-bold text-lg tracking-widest">...</span>
                   {showSmallTooltip && (
                     <div
                       className="absolute z-50 bg-surface-card-elevated border border-hairline rounded-lg shadow-xl p-3 min-w-[240px] max-h-[300px] overflow-y-auto"
@@ -215,7 +215,7 @@ export default function Heatmap() {
                           >
                             <span className="font-mono font-semibold text-ink">{s.ticker}</span>
                             <div className="flex items-center gap-2">
-                              <span className={`font-medium ${s.change_pct >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                              <span className={`font-medium ${s.change_pct >= 0 ? "text-gain" : "text-loss"}`}>
                                 {s.change_pct >= 0 ? "+" : ""}{s.change_pct}%
                               </span>
                               <span className="text-muted font-medium">{s.weight}%</span>
