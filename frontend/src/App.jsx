@@ -91,11 +91,11 @@ function applyAppearance(name, isDark) {
   if (isDark) {
     s.setProperty("--bg", DARK_SURFACES.bg);
     s.setProperty("--bg-subtle", DARK_SURFACES.bgSubtle);
-    s.setProperty("--sidebar-active", p.brandLightDark);
+    s.setProperty("--sidebar-active", p.sidebarActive);
   } else {
     s.setProperty("--bg", p.bg);
     s.setProperty("--bg-subtle", p.bgSubtle);
-    s.setProperty("--sidebar-active", p.sidebarActive);
+    s.setProperty("--sidebar-active", p.brandLight);
   }
   document.documentElement.classList.toggle("dark", isDark);
 }
