@@ -109,7 +109,8 @@ function ConfirmDialog({ title, message, confirmLabel, cancelLabel, danger, onRe
       >
         <div className="flex items-start gap-3">
           {danger && (
-            <span className="shrink-0 mt-0.5 text-loss">
+            /* deliberately not --loss: destructive-action red is fixed, not tied to P&L semantics */
+            <span className="shrink-0 mt-0.5 text-red-600">
               <AlertTriangle size={20} />
             </span>
           )}
