@@ -50,10 +50,13 @@ export default function Sidebar() {
 
   return (
     <aside className="w-[232px] shrink-0 bg-surface-card border-r border-surface-border flex flex-col h-screen sticky top-0"
-      style={{ boxShadow: "1px 0 4px rgba(0,0,0,0.02)" }}>
-      <div className="flex items-center gap-2.5 px-[18px] py-4 border-b border-surface-border">
+      style={{ boxShadow: "1px 0 0 var(--glass-border-alpha)" }}>
+      <div className="flex items-center gap-2.5 px-[18px] py-4 border-b border-hairline">
         <img src="/logo.png" alt="Portfyl" className="w-11 h-11 object-contain" />
-        <span className="font-bold text-[17px] tracking-tight">Portfyl</span>
+        <div className="flex flex-col leading-tight">
+          <span className="font-display font-bold text-[17px] tracking-tight text-ink">Portfyl</span>
+          <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted">Institutional Grade</span>
+        </div>
       </div>
 
       <div className="px-3 pt-2">
@@ -64,7 +67,7 @@ export default function Sidebar() {
         <div className="px-3 pt-2">
           <button
             onClick={() => { setPlatform(null); navigate("/"); }}
-            className="w-full flex items-center gap-2 text-xs text-slate-500 hover:text-brand px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
+            className="w-full flex items-center gap-2 text-xs text-muted hover:text-brand px-2 py-1.5 rounded-lg hover:bg-surface-hover transition-colors"
           >
             <ArrowLeft size={12} />
             <span className="font-medium">{platformLabel}</span>
@@ -81,11 +84,10 @@ export default function Sidebar() {
             className={({ isActive }) =>
               `flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-all ${
                 isActive
-                  ? "font-semibold text-brand"
-                  : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                  ? "font-semibold text-brand bg-[var(--sidebar-active)] shadow-[inset_0_0_0_1px_var(--glass-border-alpha)]"
+                  : "text-muted hover:text-ink hover:bg-surface-hover"
               }`
             }
-            style={({ isActive }) => isActive ? { backgroundColor: "var(--sidebar-active)" } : undefined}
           >
             <Icon size={16} />
             {label}
@@ -96,7 +98,7 @@ export default function Sidebar() {
       <div className="mt-auto pb-3 space-y-3">
         {/* Appearance (light / dark / system) */}
         <div className="px-4">
-          <p className="text-[10px] text-slate-400 mb-1.5 pl-0.5">Appearance</p>
+          <p className="text-[10px] text-muted mb-1.5 pl-0.5">Appearance</p>
           <SegmentedControl
             block
             size="sm"
@@ -113,7 +115,7 @@ export default function Sidebar() {
 
         {/* Palette switcher */}
         <div className="px-4">
-          <p className="text-[10px] text-slate-400 mb-1.5 pl-0.5">Accent</p>
+          <p className="text-[10px] text-muted mb-1.5 pl-0.5">Accent</p>
           <div className="flex gap-1.5">
             {PALETTE_OPTIONS.map(({ key, label }) => (
               <button
@@ -133,8 +135,8 @@ export default function Sidebar() {
 
         {/* Currency toggle */}
         <div className="px-4 space-y-2">
-          <p className="text-[10px] text-slate-400 pl-0.5">Display currency</p>
-          <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+          <p className="text-[10px] text-muted pl-0.5">Display currency</p>
+          <div className="flex items-center gap-0.5 bg-surface-hover rounded-lg p-0.5">
             {["USD", "CZK"].map((c) => (
               <button
                 key={c}
@@ -147,8 +149,8 @@ export default function Sidebar() {
                   currency === c
                     ? "bg-brand text-white"
                     : czk_unavailable && c === "CZK"
-                    ? "text-slate-300 cursor-not-allowed"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "text-muted cursor-not-allowed"
+                    : "text-muted hover:text-ink"
                 }`}
               >
                 {c === "CZK" && rateLoading ? (
@@ -158,16 +160,16 @@ export default function Sidebar() {
             ))}
           </div>
           {currency === "CZK" && rate && (
-            <p className="text-[10px] text-slate-400 text-center tabular-nums">
+            <p className="text-[10px] text-muted text-center tabular-nums">
               1 USD = {rate.toFixed(2)} Kc
             </p>
           )}
           {czk_unavailable && (
-            <p className="text-[10px] text-red-500 text-center">Rate unavailable</p>
+            <p className="text-[10px] text-loss text-center">Rate unavailable</p>
           )}
         </div>
 
-        <div className="px-5 text-[11px] text-slate-400" style={{ opacity: 0.7 }}>
+        <div className="px-5 text-[11px] text-muted" style={{ opacity: 0.7 }}>
           Live data via Yahoo Finance
         </div>
       </div>
