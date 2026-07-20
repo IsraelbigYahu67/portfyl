@@ -7,7 +7,7 @@ function Chip({ label, value }) {
   return (
     <div className="flex flex-col">
       <span className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">{label}</span>
-      <span className="font-mono text-sm font-semibold text-ink tnum">{value}</span>
+      <span className="font-sans text-sm font-semibold text-ink tabular-nums">{value}</span>
     </div>
   );
 }
@@ -34,7 +34,7 @@ export default function PortfolioHero({ summary, loading, currency = "USD", seri
                   </span>
                   <DeltaPill value={summary.day_change} pct={summary.day_change_percent} currency={currency} size="lg" />
                 </div>
-                <div className="flex items-center gap-3 mt-1 text-xs font-mono tnum text-slate-500">
+                <div className="flex items-center gap-3 mt-1 text-xs font-sans tabular-nums text-slate-500">
                   <span>Positions {formatMoney(summary.total_value, currency)}</span>
                   <span aria-hidden="true">·</span>
                   <span>Cash {formatMoney(summary.cash, currency)}</span>

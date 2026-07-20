@@ -13,7 +13,7 @@ export function DeltaPill({ value = null, pct = null, currency = "USD", size = "
     ? "bg-gain/10 text-gain"
     : "bg-loss/10 text-loss";
   return (
-    <span className={`inline-flex items-center rounded-full font-mono font-semibold tnum ${SIZES[size]} ${tone} ${className}`}>
+    <span className={`inline-flex items-center rounded-full font-sans font-semibold tabular-nums ${SIZES[size]} ${tone} ${className}`}>
       <span aria-hidden="true">{positive ? "▲" : "▼"}</span>
       {value != null && <span>{formatMoney(Math.abs(value), currency)}</span>}
       {pct != null && <span className="opacity-80">({formatPercent(pct)})</span>}

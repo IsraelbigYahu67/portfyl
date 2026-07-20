@@ -230,7 +230,7 @@ function BalancePanel({ data, loading }) {
           {cashEntries.map(([cur, v]) => (
             <span
               key={cur}
-              className="text-xs font-mono bg-slate-100 text-slate-600 rounded px-2 py-1 tabular-nums"
+              className="text-xs font-sans bg-slate-100 text-slate-600 rounded px-2 py-1 tabular-nums"
             >
               {cur} {v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
@@ -499,7 +499,7 @@ function AllTradesTab({ trades, loading }) {
               >
                 <td className="px-4 py-3 text-slate-600 tabular-nums">{fmtDate(trade.close_date)}</td>
                 <td className="px-4 py-3 font-mono font-semibold text-slate-800">{trade.underlying}</td>
-                <td className="px-4 py-3 font-mono text-slate-700 tabular-nums">${trade.strike}</td>
+                <td className="px-4 py-3 font-sans text-slate-700 tabular-nums">${trade.strike}</td>
                 <td className="px-4 py-3 text-slate-600 tabular-nums">{fmtDate(trade.expiry)}</td>
                 <td className="px-4 py-3">
                   <span

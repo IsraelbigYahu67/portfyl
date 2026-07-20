@@ -1,4 +1,4 @@
-import "@fontsource-variable/space-grotesk";
+import "@fontsource-variable/plus-jakarta-sans";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/jetbrains-mono";
 import React from "react";

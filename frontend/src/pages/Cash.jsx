@@ -112,7 +112,7 @@ export default function Cash() {
           <SkeletonRows rows={2} cols={2} />
         ) : (
           <div className="flex items-baseline gap-3">
-            <span className="font-mono text-2xl font-bold text-ink tnum">
+            <span className="font-sans text-2xl font-bold text-ink tabular-nums">
               {formatMoney(balance.data?.total, currency)}
             </span>
             {balance.data?.total_accrued > 0 && (
@@ -194,7 +194,7 @@ export default function Cash() {
                 <tr key={r.id} className="border-b border-hairline">
                   <td className="py-2 text-slate-500">{r.date}</td>
                   <td className="py-2"><TypeBadge type={r.type} /></td>
-                  <td className={`py-2 font-mono tnum text-right ${CASH_IN.has(r.type) ? "text-gain" : "text-loss"}`}>
+                  <td className={`py-2 font-sans tabular-nums text-right ${CASH_IN.has(r.type) ? "text-gain" : "text-loss"}`}>
                     {CASH_IN.has(r.type) ? "+" : "−"}{formatMoney(r.amount, r.currency)}
                   </td>
                   <td className="py-2 text-slate-400">{r.note}</td>

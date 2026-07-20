@@ -17,7 +17,7 @@ function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }
   const line = (name, val, color) => (
     <div className="flex justify-between gap-6">
       <span className="text-slate-600">{name}</span>
-      <span className={`font-mono tnum font-medium ${color}`}>{val}</span>
+      <span className={`font-sans tabular-nums font-medium ${color}`}>{val}</span>
     </div>
   );
   const moneyColor = (v) => (v >= 0 ? "text-gain" : "text-loss");
@@ -42,7 +42,7 @@ function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }
           return (
             <div key={b.key} className="flex justify-between gap-6">
               <span style={{ color: b.color }}>{b.label}</span>
-              <span style={{ color: b.color }} className="font-mono tnum font-medium">
+              <span style={{ color: b.color }} className="font-sans tabular-nums font-medium">
                 {formatPercent(val)}
               </span>
             </div>

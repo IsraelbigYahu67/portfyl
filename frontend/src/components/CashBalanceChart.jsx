@@ -17,7 +17,7 @@ function CashTooltip({ active, payload, currency }) {
   return (
     <div className="bg-white border border-hairline rounded-xl shadow-pop px-3 py-2 text-xs">
       <div className="text-slate-400">{p.date}</div>
-      <div className="font-mono tnum font-semibold text-ink">{formatMoney(p.balance, currency)}</div>
+      <div className="font-sans tabular-nums font-semibold text-ink">{formatMoney(p.balance, currency)}</div>
     </div>
   );
 }

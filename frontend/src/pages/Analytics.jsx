@@ -200,7 +200,7 @@ function CorrelationMatrix({ tickers, matrix }) {
               </td>
               {matrix[i].map((val, j) => (
                 <td key={j} className="px-1 py-1">
-                  <div className={`w-12 h-8 flex items-center justify-center rounded text-[11px] font-mono tabular-nums ${i === j ? "bg-slate-100 text-slate-400" : getColor(val) + " text-slate-800"}`}>
+                  <div className={`w-12 h-8 flex items-center justify-center rounded text-[11px] font-sans tabular-nums ${i === j ? "bg-slate-100 text-slate-400" : getColor(val) + " text-slate-800"}`}>
                     {val.toFixed(2)}
                   </div>
                 </td>
