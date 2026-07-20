@@ -5,6 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { useStockDetail } from "../components/StockDetail";
+import MetricCard from "../components/MetricCard";
 
 function fmtMoney(v) {
   if (v == null || isNaN(v)) return "—";
@@ -52,22 +53,17 @@ export default function DividendCalendar() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-xl border border-surface-border bg-surface-card p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Est. Annual Income</p>
-          <p className="text-2xl font-semibold text-brand">
-            {fmtMoney(data?.total_annual_est)}
-          </p>
-        </div>
-        <div className="rounded-xl border border-surface-border bg-surface-card p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Dividend Payers</p>
-          <p className="text-2xl font-semibold">{tickers.filter((t) => t.amount_per_share != null).length} / {tickers.length}</p>
-        </div>
-        <div className="rounded-xl border border-surface-border bg-surface-card p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Next 30 Days Est.</p>
-          <p className="text-2xl font-semibold text-emerald-600">
-            {fmtMoney(monthly.slice(0, 1).reduce((s, m) => s + m.total, 0))}
-          </p>
-        </div>
+        <MetricCard icon={DollarSign} label="Est. Annual Income" value={fmtMoney(data?.total_annual_est)} />
+        <MetricCard
+          icon={CalendarDays}
+          label="Dividend Payers"
+          value={`${tickers.filter((t) => t.amount_per_share != null).length} / ${tickers.length}`}
+        />
+        <MetricCard
+          icon={TrendingUp}
+          label="Next 30 Days Est."
+          value={fmtMoney(monthly.slice(0, 1).reduce((s, m) => s + m.total, 0))}
+        />
       </div>
 
       {/* Monthly projection chart */}

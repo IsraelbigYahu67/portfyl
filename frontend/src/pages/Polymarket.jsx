@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchPolymarketPositions, fetchPolymarketSummary, syncPolymarket } from "../api";
-import { Hexagon, RefreshCw } from "lucide-react";
+import { Hexagon, RefreshCw, Wallet, TrendingUp, TrendingDown, Target, Layers } from "lucide-react";
+import MetricCard from "../components/MetricCard";
 
 function fmtCents(v) {
   if (v == null) return "-";
@@ -12,6 +13,13 @@ function fmtMoney(v) {
   if (v == null) return "-";
   const sign = v >= 0 ? "+" : "";
   return `${sign}$${Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// Plain absolute-value money (no +/- sign forced) — used for the neutral
+// "Positions Value" stat, which isn't a gain/loss figure.
+function fmtAbsMoney(v) {
+  if (v == null) return "-";
+  return `$${Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function fmtPercent(v) {
@@ -78,11 +86,36 @@ export default function Polymarket() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <SummaryCard label="Positions Value" value={summary?.total_value} isMoney loading={summaryLoading} neutral />
-        <SummaryCard label="Unrealized P&L" value={summary?.unrealized_pnl} isMoney loading={summaryLoading} />
-        <SummaryCard label="Realized P&L" value={summary?.realized_pnl} isMoney loading={summaryLoading} />
-        <SummaryCard label="Win Rate" value={summary?.win_rate} isPercent loading={summaryLoading} />
-        <SummaryCard label="Open Positions" value={summary?.open_positions} isCount loading={summaryLoading} />
+        <MetricCard icon={Wallet} label="Positions Value" value={fmtAbsMoney(summary?.total_value)} loading={summaryLoading} />
+        <MetricCard
+          icon={TrendingUp}
+          label="Unrealized P&L"
+          value={fmtMoney(summary?.unrealized_pnl)}
+          positive={summary?.unrealized_pnl != null && summary.unrealized_pnl >= 0}
+          negative={summary?.unrealized_pnl != null && summary.unrealized_pnl < 0}
+          loading={summaryLoading}
+        />
+        <MetricCard
+          icon={TrendingDown}
+          label="Realized P&L"
+          value={fmtMoney(summary?.realized_pnl)}
+          positive={summary?.realized_pnl != null && summary.realized_pnl >= 0}
+          negative={summary?.realized_pnl != null && summary.realized_pnl < 0}
+          loading={summaryLoading}
+        />
+        <MetricCard
+          icon={Target}
+          label="Win Rate"
+          value={fmtPercent(summary?.win_rate != null ? summary.win_rate * 100 : null)}
+          positive={summary?.win_rate != null && summary.win_rate >= 0.5}
+          loading={summaryLoading}
+        />
+        <MetricCard
+          icon={Layers}
+          label="Open Positions"
+          value={summary?.open_positions != null ? summary.open_positions.toLocaleString() : "-"}
+          loading={summaryLoading}
+        />
       </div>
 
       {/* Positions table */}
@@ -166,38 +199,6 @@ export default function Polymarket() {
             </table>
           </div>
         </div>
-      )}
-    </div>
-  );
-}
-
-function SummaryCard({ label, value, isMoney, isPercent, isCount, loading, neutral }) {
-  let displayValue = "-";
-  let colorClass = "text-slate-800";
-
-  if (!loading && value != null) {
-    if (isMoney) {
-      if (neutral) {
-        displayValue = `$${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      } else {
-        displayValue = fmtMoney(value);
-        colorClass = value >= 0 ? "text-emerald-600" : "text-red-600";
-      }
-    } else if (isPercent) {
-      displayValue = fmtPercent(value * 100);
-      colorClass = value >= 0.5 ? "text-emerald-600" : "text-slate-800";
-    } else if (isCount) {
-      displayValue = value.toLocaleString();
-    }
-  }
-
-  return (
-    <div className="rounded-xl border border-surface-border bg-surface-card p-4 flex flex-col gap-1">
-      <span className="text-[11px] text-slate-500 uppercase tracking-wider font-medium">{label}</span>
-      {loading ? (
-        <div className="h-7 w-20 bg-slate-100 rounded animate-pulse mt-1" />
-      ) : (
-        <span className={`text-lg font-bold tabular-nums ${colorClass}`}>{displayValue}</span>
       )}
     </div>
   );

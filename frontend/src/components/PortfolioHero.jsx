@@ -3,11 +3,12 @@ import { formatMoney, formatCompact, formatNumber } from "../lib/format";
 import { DeltaPill, Skeleton, SkeletonMetric } from "./ui";
 import HeroSparkline from "./HeroSparkline";
 
-function Chip({ label, value }) {
+function Chip({ label, value, positive, negative }) {
+  const valueColor = positive ? "text-gain" : negative ? "text-loss" : "text-ink";
   return (
-    <div className="flex flex-col">
-      <span className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">{label}</span>
-      <span className="font-sans text-sm font-semibold text-ink tabular-nums">{value}</span>
+    <div className="flex flex-col gap-0.5 rounded-lg bg-surface-card-elevated border border-hairline px-3 py-2.5 min-w-0">
+      <span className="eyebrow truncate">{label}</span>
+      <span className={`font-sans text-sm font-bold tabular-nums truncate ${valueColor}`}>{value}</span>
     </div>
   );
 }
@@ -44,10 +45,13 @@ export default function PortfolioHero({ summary, loading, currency = "USD", seri
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-4 max-w-2xl">
+        <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl">
           {loading || summary == null ? (
             <>
-              <SkeletonMetric /><SkeletonMetric /><SkeletonMetric /><SkeletonMetric />
+              <div className="rounded-lg bg-surface-card-elevated border border-hairline px-3 py-2.5"><SkeletonMetric /></div>
+              <div className="rounded-lg bg-surface-card-elevated border border-hairline px-3 py-2.5"><SkeletonMetric /></div>
+              <div className="rounded-lg bg-surface-card-elevated border border-hairline px-3 py-2.5"><SkeletonMetric /></div>
+              <div className="rounded-lg bg-surface-card-elevated border border-hairline px-3 py-2.5"><SkeletonMetric /></div>
             </>
           ) : (
             <>
@@ -55,6 +59,8 @@ export default function PortfolioHero({ summary, loading, currency = "USD", seri
               <Chip
                 label="All-time P&L"
                 value={`${summary.total_pnl >= 0 ? "+" : ""}${formatCompact(summary.total_pnl, currency)}`}
+                positive={summary.total_pnl >= 0}
+                negative={summary.total_pnl < 0}
               />
               <Chip label="Dividends" value={formatCompact(summary.total_dividends, currency)} />
               <Chip label="Holdings" value={formatNumber(summary.holdings_count)} />

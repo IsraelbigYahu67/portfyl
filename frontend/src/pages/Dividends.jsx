@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchDividends, fetchDividendForecast } from "../api";
 import { CalendarDays, RefreshCw, TrendingUp, DollarSign } from "lucide-react";
 import { useStockDetail } from "../components/StockDetail";
+import MetricCard from "../components/MetricCard";
 import {
   BarChart,
   Bar,
@@ -133,19 +134,13 @@ function ForecastChart({ forecast, loading }) {
     v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v.toFixed(0)}`;
 
   return (
-    <section>
-      <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-          <DollarSign size={13} /> Dividend income {forecast.year}
-        </h2>
-        <div className="text-xs text-slate-500 flex gap-4">
-          <span>
-            Paid YTD <span className="text-emerald-600 font-medium">{fmtMoney(forecast.total_paid)}</span>
-          </span>
-          <span>
-            Estimated remaining <span className="text-brand font-medium">{fmtMoney(forecast.total_estimated)}</span>
-          </span>
-        </div>
+    <section className="space-y-3">
+      <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+        <DollarSign size={13} /> Dividend income {forecast.year}
+      </h2>
+      <div className="grid grid-cols-2 gap-4">
+        <MetricCard icon={DollarSign} label="Paid YTD" value={fmtMoney(forecast.total_paid)} />
+        <MetricCard icon={TrendingUp} label="Estimated remaining" value={fmtMoney(forecast.total_estimated)} />
       </div>
       <div className="rounded-xl border border-surface-border bg-surface-card p-4">
         <ResponsiveContainer width="100%" height={260}>

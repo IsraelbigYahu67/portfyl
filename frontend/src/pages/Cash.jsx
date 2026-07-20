@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Wallet, Plus, Trash2, Percent, TrendingUp } from "lucide-react";
 import { Card, SectionHeader, SkeletonRows, EmptyState } from "../components/ui";
+import MetricCard from "../components/MetricCard";
 import { formatMoney } from "../lib/format";
 import CashBalanceChart from "../components/CashBalanceChart";
 import {
@@ -106,23 +107,14 @@ export default function Cash() {
     <div className="space-y-6">
       <h1 className="text-xl font-bold">Cash</h1>
 
-      <Card>
-        <SectionHeader icon={Wallet}>Balance</SectionHeader>
-        {balance.isLoading ? (
-          <SkeletonRows rows={2} cols={2} />
-        ) : (
-          <div className="flex items-baseline gap-3">
-            <span className="font-sans text-2xl font-bold text-ink tabular-nums">
-              {formatMoney(balance.data?.total, currency)}
-            </span>
-            {balance.data?.total_accrued > 0 && (
-              <span className="font-sans text-xs text-gain">
-                +{formatMoney(balance.data.total_accrued, currency)} interest
-              </span>
-            )}
-          </div>
-        )}
-      </Card>
+      <MetricCard
+        icon={Wallet}
+        label="Balance"
+        value={formatMoney(balance.data?.total, currency)}
+        sub={balance.data?.total_accrued > 0 ? `+${formatMoney(balance.data.total_accrued, currency)} interest` : null}
+        positive={balance.data?.total_accrued > 0}
+        loading={balance.isLoading}
+      />
 
       {(history.data?.series?.length ?? 0) >= 2 && (
         <Card>

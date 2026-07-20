@@ -17,6 +17,7 @@ import {
   Wallet,
 } from "lucide-react";
 import OptionsCalendar from "../components/OptionsCalendar";
+import MetricCard from "../components/MetricCard";
 
 const TABS = [
   { key: "underlying", label: "By Underlying" },
@@ -104,12 +105,50 @@ export default function Options() {
 
       {/* Summary stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <SummaryCard label="Total P&L" value={summary?.total_pnl} isMoney loading={summaryLoading} />
-        <SummaryCard label="Commissions" value={summary?.total_commission ? -Math.abs(summary.total_commission) : null} isMoney loading={summaryLoading} />
-        <SummaryCard label="Win Rate" value={summary?.win_rate} isPercent loading={summaryLoading} />
-        <SummaryCard label="Avg Win" value={summary?.avg_win} isMoney loading={summaryLoading} />
-        <SummaryCard label="Avg Loss" value={summary?.avg_loss} isMoney loading={summaryLoading} />
-        <SummaryCard label="Total Trades" value={summary?.total_trades} isCount loading={summaryLoading} />
+        <MetricCard
+          icon={TrendingUp}
+          label="Total P&L"
+          value={fmtMoney(summary?.total_pnl)}
+          positive={summary?.total_pnl != null && summary.total_pnl >= 0}
+          negative={summary?.total_pnl != null && summary.total_pnl < 0}
+          loading={summaryLoading}
+        />
+        <MetricCard
+          icon={Wallet}
+          label="Commissions"
+          value={fmtMoney(summary?.total_commission ? -Math.abs(summary.total_commission) : null)}
+          negative={!!summary?.total_commission}
+          loading={summaryLoading}
+        />
+        <MetricCard
+          icon={Target}
+          label="Win Rate"
+          value={fmtPercent(summary?.win_rate)}
+          positive={summary?.win_rate != null && summary.win_rate >= 50}
+          loading={summaryLoading}
+        />
+        <MetricCard
+          icon={TrendingUp}
+          label="Avg Win"
+          value={fmtMoney(summary?.avg_win)}
+          positive={summary?.avg_win != null && summary.avg_win >= 0}
+          negative={summary?.avg_win != null && summary.avg_win < 0}
+          loading={summaryLoading}
+        />
+        <MetricCard
+          icon={TrendingDown}
+          label="Avg Loss"
+          value={fmtMoney(summary?.avg_loss)}
+          positive={summary?.avg_loss != null && summary.avg_loss >= 0}
+          negative={summary?.avg_loss != null && summary.avg_loss < 0}
+          loading={summaryLoading}
+        />
+        <MetricCard
+          icon={ArrowUpDown}
+          label="Total Trades"
+          value={summary?.total_trades != null ? summary.total_trades.toLocaleString() : "-"}
+          loading={summaryLoading}
+        />
       </div>
 
       {/* Tabs */}
@@ -138,36 +177,6 @@ export default function Options() {
       )}
       {tab === "trades" && (
         <AllTradesTab trades={trades} loading={tradesLoading} />
-      )}
-    </div>
-  );
-}
-
-/* ---------- Summary Card ---------- */
-
-function SummaryCard({ label, value, isMoney, isPercent, isCount, loading }) {
-  let displayValue = "-";
-  let colorClass = "text-slate-800";
-
-  if (!loading && value != null) {
-    if (isMoney) {
-      displayValue = fmtMoney(value);
-      colorClass = value >= 0 ? "text-emerald-600" : "text-red-600";
-    } else if (isPercent) {
-      displayValue = fmtPercent(value);
-      colorClass = value >= 50 ? "text-emerald-600" : "text-slate-800";
-    } else if (isCount) {
-      displayValue = value.toLocaleString();
-    }
-  }
-
-  return (
-    <div className="rounded-xl border border-surface-border bg-surface-card p-4 flex flex-col gap-1">
-      <span className="text-[11px] text-slate-500 uppercase tracking-wider font-medium">{label}</span>
-      {loading ? (
-        <div className="h-7 w-20 bg-slate-100 rounded animate-pulse mt-1" />
-      ) : (
-        <span className={`text-lg font-bold tabular-nums ${colorClass}`}>{displayValue}</span>
       )}
     </div>
   );
