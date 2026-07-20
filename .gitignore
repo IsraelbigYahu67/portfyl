@@ -12,7 +12,9 @@ portfoliodata.csv
 
 # local agent state / worktrees
 .claude/
+.worktrees/
 
 # editor/os noise
 .DS_Store
 Thumbs.db
+.superpowers/
