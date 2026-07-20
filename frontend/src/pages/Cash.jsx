@@ -116,7 +116,7 @@ export default function Cash() {
               {formatMoney(balance.data?.total, currency)}
             </span>
             {balance.data?.total_accrued > 0 && (
-              <span className="font-mono text-xs text-gain">
+              <span className="font-sans text-xs text-gain">
                 +{formatMoney(balance.data.total_accrued, currency)} interest
               </span>
             )}

@@ -349,7 +349,7 @@ function ByUnderlyingTab({ data, loading }) {
                         className="border-t border-surface-border hover:bg-surface-hover transition-colors"
                       >
                         <td className="px-4 py-2.5 text-slate-600 tabular-nums">{fmtDate(trade.close_date)}</td>
-                        <td className="px-4 py-2.5 font-mono text-slate-700">${trade.strike}</td>
+                        <td className="px-4 py-2.5 font-sans text-slate-700">${trade.strike}</td>
                         <td className="px-4 py-2.5 text-slate-600 tabular-nums">{fmtDate(trade.expiry)}</td>
                         <td className="px-4 py-2.5">
                           <span
