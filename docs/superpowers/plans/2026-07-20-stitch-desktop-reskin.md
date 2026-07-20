@@ -58,12 +58,12 @@
 | `--glass-overlay-alpha` | `rgba(255,255,255,0.5)` |
 | `--shadow-ambient` | `0px 4px 20px rgba(16,22,43,0.10)` |
 
-**3-way accent palette** (`brand` / `brandHover` / `brandLightDark` [dark-mode tinted-chip bg] / `brandLight` [light-mode tinted-chip bg]):
-| Accent | Dark brand | Dark hover | Dark tint bg | Light brand | Light hover | Light tint bg |
-|---|---|---|---|---|---|---|
-| **Arctic Blue** | `#3B82F6` *(new — Stitch "Action Blue")* | `#2563EB` | `#1E3A5F` | `#2563EB` *(kept)* | `#1D4ED8` *(kept)* | `#DBEAFE` *(kept)* |
-| **Mint Green** | `#34D399` *(new, close to Stitch secondary)* | `#10B981` | `#0F3D30` | `#059669` *(kept)* | `#047857` *(kept)* | `#D1FAE5` *(kept)* |
-| **Soft Iris** *(gap-fill — not in Stitch)* | `#A78BFA` | `#8B5CF6` | `#2E2555` | `#7C3AED` *(kept)* | `#6D28D9` *(kept)* | `#EDE9FE` *(kept)* |
+**3-way accent palette** (`brand` / `brandHover` / `brandLightDark` [dark-mode tinted-chip bg] / `brandLight` [light-mode tinted-chip bg]) — **mode-independent brand hue** (correction, post-Task-1-review): the app's pre-existing `applyAppearance()` has never branched `--brand`/`--brand-hover` by light/dark, and Task 1 Step 7 deliberately keeps that structure untouched to avoid scope creep in the foundational task. An earlier draft of this table implied separate light-mode brand shades; that was dropped as an unnecessary refinement (existing `#3B82F6`-family blues already clear WCAG's 3:1 UI-component contrast bar on white) rather than implemented — one `brand`/`brandHover` pair serves both modes, exactly as `frontend/src/App.jsx`'s `PALETTES` (post Task 1) has it:
+| Accent | Brand (both modes) | Hover (both modes) | Dark tint bg | Light tint bg |
+|---|---|---|---|---|
+| **Arctic Blue** | `#3B82F6` *(new — Stitch "Action Blue")* | `#2563EB` | `#1E3A5F` | `#DBEAFE` *(kept)* |
+| **Mint Green** | `#34D399` *(new, close to Stitch secondary)* | `#10B981` | `#0F3D30` | `#D1FAE5` *(kept)* |
+| **Soft Iris** *(gap-fill — not in Stitch)* | `#A78BFA` | `#8B5CF6` | `#2E2555` | `#EDE9FE` *(kept)* |
 
 Soft Iris is derived, not copied: a periwinkle-violet at the same lightness/saturation register as the blue and emerald accents (Stitch's own tertiary is amber, not purple — amber is reserved for the chart palette instead, see below, so it doesn't collide with "warning" semantics).
 
