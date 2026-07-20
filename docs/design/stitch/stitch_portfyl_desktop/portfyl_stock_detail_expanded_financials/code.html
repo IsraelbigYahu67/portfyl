@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Portfyl | NVIDIA Corporation (NVDA) Detail</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-variant": "#2d3449",
+                    "on-surface-variant": "#c2c6d6",
+                    "tertiary-container": "#ca8100",
+                    "secondary-fixed": "#6ffbbe",
+                    "on-secondary-container": "#00311f",
+                    "on-primary": "#002e6a",
+                    "error-container": "#93000a",
+                    "secondary-container": "#00a572",
+                    "surface-container-low": "#131b2e",
+                    "on-tertiary-fixed-variant": "#653e00",
+                    "primary-fixed": "#d8e2ff",
+                    "on-primary-fixed": "#001a42",
+                    "inverse-primary": "#005ac2",
+                    "on-tertiary-fixed": "#2a1700",
+                    "on-tertiary": "#472a00",
+                    "background": "#0b1326",
+                    "tertiary-fixed": "#ffddb8",
+                    "primary-container": "#4d8eff",
+                    "secondary-fixed-dim": "#4edea3",
+                    "on-secondary-fixed-variant": "#005236",
+                    "outline": "#8c909f",
+                    "on-error-container": "#ffdad6",
+                    "surface": "#0b1326",
+                    "outline-variant": "#424754",
+                    "tertiary-fixed-dim": "#ffb95f",
+                    "on-primary-container": "#00285d",
+                    "inverse-on-surface": "#283044",
+                    "primary-fixed-dim": "#adc6ff",
+                    "surface-bright": "#31394d",
+                    "surface-tint": "#adc6ff",
+                    "surface-dim": "#0b1326",
+                    "on-primary-fixed-variant": "#004395",
+                    "surface-container-high": "#222a3d",
+                    "surface-container-lowest": "#060e20",
+                    "error": "#ffb4ab",
+                    "secondary": "#4edea3",
+                    "tertiary": "#ffb95f",
+                    "on-error": "#690005",
+                    "on-surface": "#dae2fd",
+                    "on-secondary-fixed": "#002113",
+                    "primary": "#adc6ff",
+                    "surface-container-highest": "#2d3449",
+                    "on-tertiary-container": "#3e2400",
+                    "on-secondary": "#003824",
+                    "inverse-surface": "#dae2fd",
+                    "surface-container": "#171f33",
+                    "on-background": "#dae2fd"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "margin-mobile": "16px",
+                    "gutter": "20px",
+                    "xs": "4px",
+                    "xl": "32px",
+                    "lg": "24px",
+                    "md": "16px",
+                    "sm": "8px",
+                    "max-width": "1440px",
+                    "margin-desktop": "40px",
+                    "unit": "4px"
+            },
+            "fontFamily": {
+                    "headline-sm": ["Plus Jakarta Sans"],
+                    "body-md": ["Inter"],
+                    "label-md": ["Inter"],
+                    "numeric-data": ["Inter"],
+                    "headline-md": ["Plus Jakarta Sans"],
+                    "display-lg": ["Plus Jakarta Sans"],
+                    "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "numeric-data": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #020617;
+            color: #dae2fd;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        .glass-card:hover {
+            border-color: rgba(173, 198, 255, 0.3);
+            background: rgba(15, 23, 42, 0.6);
+        }
+        .text-gradient {
+            background: linear-gradient(135deg, #adc6ff 0%, #4edea3 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-custom::-webkit-scrollbar {
+            width: 4px;
+        }
+        .scrollbar-custom::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .scrollbar-custom::-webkit-scrollbar-thumb {
+            background: #424754;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="dark selection:bg-primary/30">
+<!-- Sidebar Navigation -->
+<nav class="fixed left-0 top-0 h-full w-64 z-50 bg-surface-container-low/60 backdrop-blur-xl border-r border-outline-variant/20 flex flex-col py-lg">
+<div class="px-lg mb-xl">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary">account_balance_wallet</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md text-primary tracking-tight">Portfyl</h1>
+<p class="text-label-md text-on-surface-variant leading-none uppercase tracking-widest opacity-60">Institutional Grade</p>
+</div>
+</div>
+</div>
+<div class="flex-1 space-y-xs px-md">
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-all duration-200 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">dashboard</span> Dashboard
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-primary font-bold border-r-2 border-primary bg-primary/5 transition-all duration-200 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">account_balance_wallet</span> Portfolio
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-all duration-200 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">query_stats</span> Analytics
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-all duration-200 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">show_chart</span> Markets
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-all duration-200 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">description</span> Reports
+            </a>
+</div>
+<div class="px-md pt-lg border-t border-outline-variant/20 space-y-xs">
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-all duration-200 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">help_outline</span> Support
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-all duration-200 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">logout</span> Sign Out
+            </a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="ml-64 min-h-screen">
+<!-- Top Navigation Bar -->
+<header class="fixed top-0 right-0 w-[calc(100%-16rem)] z-40 bg-surface/40 backdrop-blur-xl border-b border-outline-variant/20 shadow-sm flex justify-between items-center h-16 px-margin-desktop">
+<div class="flex items-center gap-md">
+<button class="flex items-center gap-xs px-sm py-xs rounded hover:bg-white/5 transition-colors cursor-pointer text-on-surface-variant">
+<span class="material-symbols-outlined text-sm">arrow_back</span>
+<span class="font-label-md text-label-md">Back to Portfolio</span>
+</button>
+</div>
+<div class="flex items-center gap-lg">
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
+<input class="bg-surface-container-lowest border border-outline-variant/30 rounded-full pl-10 pr-4 py-1.5 text-body-md text-on-surface w-64 focus:outline-none focus:border-primary transition-all" placeholder="Search assets, news, people..." type="text"/>
+</div>
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary transition-colors">notifications</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary transition-colors">settings</span>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-primary/20">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a financial advisor in a modern, glass-walled office with soft morning light." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC66YN5MqsPUw7lSqARhQc3Ngb-qCa-orwKUQ4horyt5m7e4kFpYFy-W6BblcbPiPoJ-Tt5fGc6wokDyGxPec-PqucQTXys4QS45wKTPI9_x8_rOGci92KMi7fIn9meSLjyWU6FbTzEs2gwo69odllx1NBpclES3dL7hovp8Iv0Yhlw5DNJp7_NiD5aPZRVaOHwnvLmYkTyKtdA2ZrAoFbq4UQsPfIKJrQ4rscTuLN5tfMy8I-0w7Gvqe1KyVG5RUli7GErpBWZ6w"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Content Canvas -->
+<div class="pt-24 pb-12 px-margin-desktop max-w-[1440px] mx-auto">
+<!-- Header Section -->
+<section class="mb-xl animate-fade-in">
+<div class="flex flex-col lg:flex-row lg:items-end justify-between gap-lg">
+<div class="space-y-sm">
+<div class="flex items-center gap-md">
+<span class="bg-primary/10 text-primary px-3 py-1 rounded text-headline-sm font-headline-sm">NVDA</span>
+<h1 class="text-display-lg font-display-lg tracking-tight">NVIDIA Corporation</h1>
+</div>
+<div class="flex flex-wrap items-center gap-x-md gap-y-xs text-on-surface-variant font-label-md text-label-md">
+<span class="flex items-center gap-xs"><span class="material-symbols-outlined text-xs">account_balance</span> NASDAQ</span>
+<span class="flex items-center gap-xs"><span class="material-symbols-outlined text-xs">precision_manufacturing</span> Technology</span>
+<span class="flex items-center gap-xs"><span class="material-symbols-outlined text-xs">memory</span> Semiconductors</span>
+<span class="flex items-center gap-xs"><span class="material-symbols-outlined text-xs">public</span> USA</span>
+<a class="text-primary hover:underline flex items-center gap-xs" href="#">nvidia.com <span class="material-symbols-outlined text-xs">open_in_new</span></a>
+</div>
+</div>
+<div class="text-right flex flex-col items-end">
+<div class="flex items-baseline gap-sm">
+<span class="text-[56px] font-bold tracking-tighter leading-none">$882.04</span>
+<div class="text-secondary flex items-center font-bold text-headline-sm">
+<span class="material-symbols-outlined">arrow_drop_up</span>
+                                +4.28% (+$36.21)
+                            </div>
+</div>
+<p class="text-label-md text-on-surface-variant opacity-60 mt-xs">As of May 24, 2024 • Market Open</p>
+<div class="flex gap-sm mt-md">
+<button class="bg-surface-container border border-outline-variant/30 px-lg py-2 rounded-lg font-label-md text-label-md flex items-center gap-sm hover:bg-surface-variant transition-colors active:scale-95">
+<span class="material-symbols-outlined text-sm">tune</span> Customize
+                            </button>
+<button class="bg-primary text-on-primary px-lg py-2 rounded-lg font-label-md text-label-md flex items-center gap-sm hover:brightness-110 shadow-lg shadow-primary/20 active:scale-95">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">bookmark</span> Add to Watchlist
+                            </button>
+</div>
+</div>
+</div>
+</section>
+<!-- Quick Stats & 52-Week Range Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-lg mb-xl">
+<!-- Quick Stats Cards (6) -->
+<div class="lg:col-span-8 grid grid-cols-2 md:grid-cols-3 gap-md">
+<div class="glass-card p-md rounded-xl">
+<p class="text-label-md text-on-surface-variant mb-xs">Market Cap</p>
+<p class="text-headline-sm font-headline-sm">2.18T</p>
+<p class="text-[10px] text-on-surface-variant mt-xs">USD • Megacap</p>
+</div>
+<div class="glass-card p-md rounded-xl">
+<p class="text-label-md text-on-surface-variant mb-xs">P/E TTM</p>
+<p class="text-headline-sm font-headline-sm">72.5</p>
+<p class="text-[10px] text-on-surface-variant mt-xs">Sector Avg: 24.2</p>
+</div>
+<div class="glass-card p-md rounded-xl">
+<p class="text-label-md text-on-surface-variant mb-xs">EPS TTM</p>
+<p class="text-headline-sm font-headline-sm">$1.80</p>
+<p class="text-[10px] text-secondary mt-xs">+58% YoY</p>
+</div>
+<div class="glass-card p-md rounded-xl">
+<p class="text-label-md text-on-surface-variant mb-xs">Div Yield</p>
+<p class="text-headline-sm font-headline-sm">0.02%</p>
+<p class="text-[10px] text-on-surface-variant mt-xs">$0.16 Annual</p>
+</div>
+<div class="glass-card p-md rounded-xl">
+<p class="text-label-md text-on-surface-variant mb-xs">Beta</p>
+<p class="text-headline-sm font-headline-sm">1.75</p>
+<p class="text-[10px] text-error mt-xs">High Volatility</p>
+</div>
+<div class="glass-card p-md rounded-xl">
+<p class="text-label-md text-on-surface-variant mb-xs">EV/EBITDA</p>
+<p class="text-headline-sm font-headline-sm">54.2</p>
+<p class="text-[10px] text-on-surface-variant mt-xs">LTM Basis</p>
+</div>
+</div>
+<!-- 52-Week Range -->
+<div class="lg:col-span-4 glass-card p-lg rounded-xl flex flex-col justify-center">
+<h3 class="font-label-md text-label-md text-on-surface-variant mb-lg uppercase tracking-wider">52-Week Range</h3>
+<div class="relative w-full h-2 bg-surface-container-highest rounded-full mb-md">
+<!-- Current Market Marker (NVDA is near the high) -->
+<div class="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-primary rounded-full border-2 border-white ring-4 ring-primary/20 z-10" style="left: 88%;"></div>
+<!-- Color Bar (indicating growth) -->
+<div class="absolute h-full bg-gradient-to-r from-primary to-secondary rounded-full" style="width: 88%;"></div>
+</div>
+<div class="flex justify-between text-numeric-data font-numeric-data mb-lg">
+<span class="text-on-surface-variant">$258.50 <br/><small class="text-[10px] opacity-60">LOW</small></span>
+<span class="text-right">$974.00 <br/><small class="text-[10px] opacity-60">HIGH</small></span>
+</div>
+<div class="grid grid-cols-2 gap-md pt-md border-t border-white/5">
+<div class="space-y-xs">
+<p class="text-[10px] text-on-surface-variant uppercase">50D Avg</p>
+<p class="font-headline-sm text-headline-sm">$812.40</p>
+</div>
+<div class="space-y-xs">
+<p class="text-[10px] text-on-surface-variant uppercase">200D Avg</p>
+<p class="font-headline-sm text-headline-sm">$645.20</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Bento Grid of Financials and Analytics -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-lg">
+<!-- Financials Charts Section (Annual/Quarterly Toggle) -->
+<div class="lg:col-span-8 glass-card p-lg rounded-xl">
+<div class="flex justify-between items-center mb-xl">
+<h3 class="font-headline-sm text-headline-sm">Financial Performance</h3>
+<div class="flex bg-surface-container-lowest p-1 rounded-lg">
+<button class="px-lg py-1 rounded-md bg-primary text-on-primary text-label-md font-label-md transition-all">Annual</button>
+<button class="px-lg py-1 rounded-md text-on-surface-variant text-label-md font-label-md hover:text-on-surface transition-all">Quarterly</button>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-xl">
+<!-- Chart Card Placeholder: Revenue -->
+<div class="space-y-md">
+<div class="flex justify-between items-end">
+<div>
+<p class="text-label-md text-on-surface-variant">Revenue</p>
+<p class="text-headline-sm font-headline-sm text-gradient">$60.9B</p>
+</div>
+<div class="text-right">
+<span class="text-[10px] text-secondary font-bold">+126% YoY</span>
+</div>
+</div>
+<div class="h-24 flex items-end gap-1">
+<div class="w-full bg-primary/20 h-1/4 rounded-sm"></div>
+<div class="w-full bg-primary/40 h-2/4 rounded-sm"></div>
+<div class="w-full bg-primary/60 h-3/4 rounded-sm"></div>
+<div class="w-full bg-primary h-full rounded-sm"></div>
+</div>
+<p class="text-[10px] text-on-surface-variant">5Y CAGR: 34.2%</p>
+</div>
+<!-- Chart Card Placeholder: Net Income -->
+<div class="space-y-md">
+<div class="flex justify-between items-end">
+<div>
+<p class="text-label-md text-on-surface-variant">Net Income</p>
+<p class="text-headline-sm font-headline-sm text-gradient">$29.7B</p>
+</div>
+<div class="text-right">
+<span class="text-[10px] text-secondary font-bold">+581% YoY</span>
+</div>
+</div>
+<div class="h-24 flex items-end gap-1">
+<div class="w-full bg-secondary/20 h-1/6 rounded-sm"></div>
+<div class="w-full bg-secondary/40 h-2/6 rounded-sm"></div>
+<div class="w-full bg-secondary/60 h-3/6 rounded-sm"></div>
+<div class="w-full bg-secondary h-full rounded-sm"></div>
+</div>
+<p class="text-[10px] text-on-surface-variant">5Y CAGR: 48.1%</p>
+</div>
+<!-- Chart Card Placeholder: Free Cash Flow -->
+<div class="space-y-md">
+<div class="flex justify-between items-end">
+<div>
+<p class="text-label-md text-on-surface-variant">FCF</p>
+<p class="text-headline-sm font-headline-sm text-gradient">$26.9B</p>
+</div>
+<div class="text-right">
+<span class="text-[10px] text-secondary font-bold">+400% YoY</span>
+</div>
+</div>
+<div class="h-24 flex items-end gap-1">
+<div class="w-full bg-primary/20 h-1/5 rounded-sm"></div>
+<div class="w-full bg-primary/40 h-2/5 rounded-sm"></div>
+<div class="w-full bg-primary/60 h-3/5 rounded-sm"></div>
+<div class="w-full bg-primary h-full rounded-sm"></div>
+</div>
+<p class="text-[10px] text-on-surface-variant">5Y CAGR: 41.2%</p>
+</div>
+<!-- Chart Card Placeholder: Cash vs Debt -->
+<div class="space-y-md">
+<div class="flex justify-between items-end">
+<div>
+<p class="text-label-md text-on-surface-variant">Cash / Debt</p>
+<p class="text-headline-sm font-headline-sm text-gradient">$25B / $8B</p>
+</div>
+</div>
+<div class="h-24 flex items-end gap-2">
+<div class="w-full h-full flex flex-col justify-end">
+<div class="w-full bg-secondary h-4/5 rounded-sm"></div>
+<p class="text-[8px] text-center mt-1">Cash</p>
+</div>
+<div class="w-full h-full flex flex-col justify-end">
+<div class="w-full bg-error h-1/5 rounded-sm"></div>
+<p class="text-[8px] text-center mt-1">Debt</p>
+</div>
+</div>
+</div>
+<!-- Chart Card: Adjusted EPS -->
+<div class="space-y-md">
+<div class="flex justify-between items-end">
+<div>
+<p class="text-label-md text-on-surface-variant">Adjusted EPS</p>
+<p class="text-headline-sm font-headline-sm text-gradient">$1.80</p>
+</div>
+<div class="text-right">
+<span class="text-[10px] text-secondary font-bold">+260% YoY</span>
+</div>
+</div>
+<div class="h-24 flex items-end gap-1">
+<div class="w-full bg-primary/20 h-1/6 rounded-sm"></div>
+<div class="w-full bg-primary/40 h-2/6 rounded-sm"></div>
+<div class="w-full bg-primary/60 h-4/6 rounded-sm"></div>
+<div class="w-full bg-primary h-full rounded-sm"></div>
+</div>
+<p class="text-[10px] text-on-surface-variant">5Y CAGR: 28.4%</p>
+</div>
+<!-- Chart Card: Shares Outstanding -->
+<div class="space-y-md">
+<div class="flex justify-between items-end">
+<div>
+<p class="text-label-md text-on-surface-variant">Shares Outstanding</p>
+<p class="text-headline-sm font-headline-sm text-gradient">24.6B</p>
+</div>
+<div class="text-right">
+<span class="text-[10px] text-on-surface-variant font-bold">-0.2% YoY</span>
+</div>
+</div>
+<div class="h-24 flex items-end gap-1">
+<div class="w-full bg-secondary/60 h-full rounded-sm"></div>
+<div class="w-full bg-secondary/60 h-[99%] rounded-sm"></div>
+<div class="w-full bg-secondary/60 h-[98.5%] rounded-sm"></div>
+<div class="w-full bg-secondary h-[98%] rounded-sm"></div>
+</div>
+<p class="text-[10px] text-on-surface-variant">Stable Capital Structure</p>
+</div></div>
+</div>
+<!-- Analyst Consensus -->
+<div class="lg:col-span-4 glass-card p-lg rounded-xl">
+<h3 class="font-headline-sm text-headline-sm mb-lg">Analyst Consensus</h3>
+<div class="flex items-center gap-lg mb-xl">
+<div class="relative w-24 h-24 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90">
+<circle class="text-surface-container-highest" cx="48" cy="48" fill="transparent" r="40" stroke="currentColor" stroke-width="8"></circle>
+<circle class="text-secondary" cx="48" cy="48" fill="transparent" r="40" stroke="currentColor" stroke-dasharray="251.2" stroke-dashoffset="50" stroke-width="8"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-headline-md font-bold">4.8</span>
+<span class="text-[10px] text-on-surface-variant font-bold">STRONG BUY</span>
+</div>
+</div>
+<div class="flex-1 space-y-sm">
+<div class="flex items-center gap-sm">
+<span class="w-12 text-label-md text-on-surface-variant">Str. Buy</span>
+<div class="flex-1 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-full"></div>
+</div>
+<span class="w-6 text-label-md text-right">42</span>
+</div>
+<div class="flex items-center gap-sm">
+<span class="w-12 text-label-md text-on-surface-variant">Buy</span>
+<div class="flex-1 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-3/4"></div>
+</div>
+<span class="w-6 text-label-md text-right">15</span>
+</div>
+<div class="flex items-center gap-sm">
+<span class="w-12 text-label-md text-on-surface-variant">Hold</span>
+<div class="flex-1 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-tertiary w-1/4"></div>
+</div>
+<span class="w-6 text-label-md text-right">4</span>
+</div>
+<div class="flex items-center gap-sm">
+<span class="w-12 text-label-md text-on-surface-variant">Sell</span>
+<div class="flex-1 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-error w-0"></div>
+</div>
+<span class="w-6 text-label-md text-right">0</span>
+</div>
+</div>
+</div>
+<div class="pt-lg border-t border-white/5">
+<p class="text-label-md text-on-surface-variant mb-md uppercase tracking-wider">1Y Price Target Forecast</p>
+<div class="flex items-center gap-sm mb-xs">
+<span class="text-label-md w-20 text-on-surface-variant">High Target</span>
+<span class="flex-1 border-b border-dashed border-white/20"></span>
+<span class="text-headline-sm font-headline-sm text-secondary">$1,200</span>
+</div>
+<div class="flex items-center gap-sm mb-xs">
+<span class="text-label-md w-20 text-on-surface-variant">Avg Target</span>
+<span class="flex-1 border-b border-dashed border-white/20"></span>
+<span class="text-headline-sm font-headline-sm text-primary">$950</span>
+</div>
+<div class="flex items-center gap-sm">
+<span class="text-label-md w-20 text-on-surface-variant">Low Target</span>
+<span class="flex-1 border-b border-dashed border-white/20"></span>
+<span class="text-headline-sm font-headline-sm text-error">$650</span>
+</div>
+<p class="mt-md text-center text-label-md text-secondary bg-secondary/10 py-2 rounded-lg">+36.2% Potential Upside</p>
+</div>
+</div>
+<!-- Dense Table: Valuation & Quality -->
+<div class="lg:col-span-8 glass-card rounded-xl overflow-hidden">
+<div class="p-lg border-b border-white/5 flex justify-between items-center">
+<h3 class="font-headline-sm text-headline-sm">Valuation &amp; Quality Metrics</h3>
+<span class="text-label-md bg-primary/10 text-primary px-3 py-1 rounded-full uppercase">Industry: Semi-Industry Lead</span>
+</div>
+<div class="overflow-x-auto scrollbar-custom max-h-[600px]">
+<table class="w-full text-left">
+<thead class="sticky top-0 bg-surface-container-high z-10">
+<tr>
+<th class="px-lg py-md font-label-md text-label-md text-on-surface-variant uppercase">Metric</th>
+<th class="px-lg py-md font-label-md text-label-md text-on-surface-variant uppercase text-right">Stock</th>
+<th class="px-lg py-md font-label-md text-label-md text-on-surface-variant uppercase text-right">Sector Median</th>
+<th class="px-lg py-md font-label-md text-label-md text-on-surface-variant uppercase text-right">Delta</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<tr class="hover:bg-primary/5 transition-colors">
+<td class="px-lg py-sm font-body-md text-body-md">P/E (Non-GAAP TTM)</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right">72.50</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right">24.18</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right text-error">+200%</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors">
+<td class="px-lg py-sm font-body-md text-body-md">Forward P/E</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right">35.42</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right">25.04</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right text-error">+41.4%</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors">
+<td class="px-lg py-sm font-body-md text-body-md">EV / Revenue</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right">36.14</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right">2.87</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right text-error">+1,159%</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors">
+<td class="px-lg py-sm font-body-md text-body-md">Gross Margin</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right">72.7%</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right">48.9%</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right text-secondary">+48.6%</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors">
+<td class="px-lg py-sm font-body-md text-body-md">Operating Margin</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right">54.1%</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right">8.4%</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right text-secondary">+544%</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors">
+<td class="px-lg py-sm font-body-md text-body-md">ROE (TTM)</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right">91.5%</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right">1.2%</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right text-secondary">+7,525%</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors">
+<td class="px-lg py-sm font-body-md text-body-md">Debt / Equity</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right">19.2%</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right">38.4%</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right text-secondary">-50%</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors">
+<td class="px-lg py-sm font-body-md text-body-md">Quick Ratio</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right">3.8</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right">1.2</td>
+<td class="px-lg py-sm font-numeric-data text-numeric-data text-right text-secondary">+216%</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Ownership & Holders -->
+<div class="lg:col-span-4 glass-card p-lg rounded-xl">
+<h3 class="font-headline-sm text-headline-sm mb-lg">Ownership</h3>
+<div class="flex justify-between items-center mb-xl">
+<div class="relative w-32 h-32">
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 100 100">
+<circle cx="50" cy="50" fill="transparent" r="40" stroke="#1E293B" stroke-width="12"></circle>
+<circle class="transition-all duration-1000" cx="50" cy="50" fill="transparent" r="40" stroke="#3B82F6" stroke-dasharray="251.2" stroke-dashoffset="80.3" stroke-width="12"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-headline-sm font-bold">68%</span>
+<span class="text-[8px] text-on-surface-variant">INSTITUTIONAL</span>
+</div>
+</div>
+<div class="space-y-md">
+<div class="flex items-center gap-sm">
+<div class="w-3 h-3 bg-primary rounded-full"></div>
+<span class="text-label-md text-on-surface-variant">68.2% Institutional</span>
+</div>
+<div class="flex items-center gap-sm">
+<div class="w-3 h-3 bg-slate-700 rounded-full"></div>
+<span class="text-label-md text-on-surface-variant">31.8% Retail / Other</span>
+</div>
+</div>
+</div>
+<h4 class="text-label-md text-on-surface-variant uppercase tracking-widest mb-md">Top 5 Institutional Holders</h4>
+<div class="space-y-sm">
+<div class="flex justify-between items-center p-sm bg-white/5 rounded-lg">
+<div class="flex items-center gap-sm">
+<div class="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold">V</div>
+<span class="text-label-md">Vanguard Group Inc</span>
+</div>
+<span class="font-numeric-data text-numeric-data">8.24%</span>
+</div>
+<div class="flex justify-between items-center p-sm bg-white/5 rounded-lg">
+<div class="flex items-center gap-sm">
+<div class="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold">B</div>
+<span class="text-label-md">BlackRock Inc</span>
+</div>
+<span class="font-numeric-data text-numeric-data">7.12%</span>
+</div>
+<div class="flex justify-between items-center p-sm bg-white/5 rounded-lg">
+<div class="flex items-center gap-sm">
+<div class="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold">F</div>
+<span class="text-label-md">FMR LLC</span>
+</div>
+<span class="font-numeric-data text-numeric-data">3.45%</span>
+</div>
+<div class="flex justify-between items-center p-sm bg-white/5 rounded-lg">
+<div class="flex items-center gap-sm">
+<div class="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold">S</div>
+<span class="text-label-md">State Street Corp</span>
+</div>
+<span class="font-numeric-data text-numeric-data">3.11%</span>
+</div>
+<div class="flex justify-between items-center p-sm bg-white/5 rounded-lg">
+<div class="flex items-center gap-sm">
+<div class="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold">J</div>
+<span class="text-label-md">JPMorgan Chase</span>
+</div>
+<span class="font-numeric-data text-numeric-data">1.92%</span>
+</div>
+</div>
+</div>
+<!-- Valuation Models & Matrix -->
+<div class="lg:col-span-12 glass-card p-lg rounded-xl">
+<h3 class="font-headline-sm text-headline-sm mb-lg">Valuation Models</h3>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-xl">
+<div>
+<table class="w-full text-left">
+<thead class="border-b border-white/10">
+<tr>
+<th class="py-md text-label-md text-on-surface-variant uppercase">Method</th>
+<th class="py-md text-label-md text-on-surface-variant uppercase text-right">Fair Value</th>
+<th class="py-md text-label-md text-on-surface-variant uppercase text-right">Upside</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/5">
+<tr class="bg-error/10">
+<td class="py-md text-body-md">DCF (5Y Growth)</td>
+<td class="py-md text-numeric-data text-right">$1,042.50</td>
+<td class="py-md text-numeric-data text-right text-secondary">+18.2%</td>
+</tr>
+<tr class="bg-error/10">
+<td class="py-md text-body-md">Multiples (Forward P/E)</td>
+<td class="py-md text-numeric-data text-right">$912.00</td>
+<td class="py-md text-numeric-data text-right text-secondary">+3.4%</td>
+</tr>
+<tr class="bg-error/10">
+<td class="py-md text-body-md">Graham Number</td>
+<td class="py-md text-numeric-data text-right text-error">$345.20</td>
+<td class="py-md text-numeric-data text-right text-error">-60.8%</td>
+</tr>
+<tr>
+<td class="py-md text-body-md">Dividend Discount Model</td>
+<td class="py-md text-numeric-data text-right">$42.00</td>
+<td class="py-md text-numeric-data text-right text-error">-95.2%</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="bg-surface-container-lowest/50 p-lg rounded-xl border border-white/5">
+<h4 class="text-label-md text-on-surface-variant uppercase tracking-widest mb-md">DCF Sensitivity Matrix (WACC vs Growth)</h4>
+<div class="overflow-x-auto">
+<table class="w-full text-center border-collapse">
+<thead>
+<tr>
+<th class="p-xs text-[10px] text-on-surface-variant bg-surface-container-high border border-white/10">WACC \ g</th>
+<th class="p-xs text-[10px] text-on-surface-variant bg-surface-container-high border border-white/10">2.0%</th>
+<th class="p-xs text-[10px] text-on-surface-variant bg-surface-container-high border border-white/10">2.5%</th>
+<th class="p-xs text-[10px] text-on-surface-variant bg-surface-container-high border border-white/10">3.0%</th>
+<th class="p-xs text-[10px] text-on-surface-variant bg-surface-container-high border border-white/10">3.5%</th>
+<th class="p-xs text-[10px] text-on-surface-variant bg-surface-container-high border border-white/10">4.0%</th>
+</tr>
+</thead>
+<tbody class="text-[10px] font-numeric-data">
+<tr class="bg-error/10">
+<th class="p-xs text-on-surface-variant bg-surface-container-high border border-white/10">8.0%</th>
+<td class="p-xs border border-white/10 bg-secondary/20">1,240</td>
+<td class="p-xs border border-white/10 bg-secondary/20">1,280</td>
+<td class="p-xs border border-white/10 bg-secondary/30">1,350</td>
+<td class="p-xs border border-white/10 bg-secondary/30">1,410</td>
+<td class="p-xs border border-white/10 bg-secondary/40">1,500</td>
+</tr>
+<tr class="bg-error/10">
+<th class="p-xs text-on-surface-variant bg-surface-container-high border border-white/10">9.0%</th>
+<td class="p-xs border border-white/10 bg-secondary/10">1,120</td>
+<td class="p-xs border border-white/10 bg-secondary/10">1,150</td>
+<td class="p-xs border border-white/10 bg-secondary/20">1,210</td>
+<td class="p-xs border border-white/10 bg-secondary/20">1,260</td>
+<td class="p-xs border border-white/10 bg-secondary/30">1,320</td>
+</tr>
+<tr class="bg-error/10">
+<th class="p-xs text-on-surface-variant bg-surface-container-high border border-white/10">10.0%</th>
+<td class="p-xs border border-white/10 bg-primary/10">980</td>
+<td class="p-xs border border-white/10 bg-primary/10">1,020</td>
+<td class="p-xs border border-white/10 bg-primary/20">1,042</td>
+<td class="p-xs border border-white/10 bg-secondary/10">1,110</td>
+<td class="p-xs border border-white/10 bg-secondary/10">1,180</td>
+</tr>
+<tr>
+<th class="p-xs text-on-surface-variant bg-surface-container-high border border-white/10">11.0%</th>
+<td class="p-xs border border-white/10 bg-error/10">880</td>
+<td class="p-xs border border-white/10 bg-error/10">910</td>
+<td class="p-xs border border-white/10 bg-primary/10">940</td>
+<td class="p-xs border border-white/10 bg-primary/10">980</td>
+<td class="p-xs border border-white/10 bg-primary/20">1,020</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+<!-- About Section -->
+<div class="lg:col-span-12 glass-card p-lg rounded-xl">
+<h3 class="font-headline-sm text-headline-sm mb-lg">About NVIDIA Corporation</h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-xl text-body-md text-on-surface-variant leading-relaxed">
+<p>NVIDIA Corporation is a global leader in accelerated computing. The company's pioneer work in GPU computing has transformed the gaming, professional visualization, data center, and automotive markets. With the rise of artificial intelligence, NVIDIA's technologies have become the bedrock of the modern data center, powering the world's most sophisticated AI models.</p>
+<p>Founded in 1993, the company is headquartered in Santa Clara, California. Its primary revenue streams are derived from its Compute &amp; Networking segment, which includes Data Center platforms and systems for AI, and its Graphics segment, featuring the GeForce GPUs for gaming and the NVIDIA RTX for professional design work.</p>
+<p>Currently, the company is experiencing unprecedented growth driven by the "AI Industrial Revolution." Its H100 and upcoming Blackwell architecture represent the pinnacle of semiconductor engineering, allowing for massive-scale large language model training and inference that defines the current technological landscape.</p>
+</div>
+</div>
+<!-- Insider Activity -->
+<div class="lg:col-span-12 glass-card rounded-xl overflow-hidden">
+<div class="p-lg border-b border-white/5 flex justify-between items-center">
+<h3 class="font-headline-sm text-headline-sm">Insider Activity</h3>
+<div class="flex items-center gap-md">
+<span class="flex items-center gap-xs text-label-md text-secondary"><div class="w-2 h-2 rounded-full bg-secondary"></div> Net Buying</span>
+<span class="flex items-center gap-xs text-label-md text-error"><div class="w-2 h-2 rounded-full bg-error"></div> Net Selling</span>
+</div>
+</div>
+<div class="p-lg h-64 mb-md relative">
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 1000 200">
+<!-- X-Axis Labels (Months) -->
+<g class="text-[10px] fill-on-surface-variant opacity-60">
+<text x="50" y="195">Jan</text>
+<text x="150" y="195">Feb</text>
+<text x="250" y="195">Mar</text>
+<text x="350" y="195">Apr</text>
+<text x="450" y="195">May</text>
+<text x="550" y="195">Jun</text>
+<text x="650" y="195">Jul</text>
+<text x="750" y="195">Aug</text>
+<text x="850" y="195">Sep</text>
+<text x="950" y="195">Oct</text>
+</g>
+<!-- Volume Bars (Grouped) -->
+<g opacity="0.4">
+<!-- Jan -->
+<rect class="fill-secondary" height="60" rx="1" width="8" x="40" y="120"></rect>
+<rect class="fill-error" height="40" rx="1" width="8" x="50" y="140"></rect>
+<!-- Feb -->
+<rect class="fill-secondary" height="80" rx="1" width="8" x="140" y="100"></rect>
+<rect class="fill-error" height="50" rx="1" width="8" x="150" y="130"></rect>
+<!-- Mar -->
+<rect class="fill-secondary" height="30" rx="1" width="8" x="240" y="150"></rect>
+<rect class="fill-error" height="90" rx="1" width="8" x="250" y="90"></rect>
+<!-- Apr -->
+<rect class="fill-secondary" height="70" rx="1" width="8" x="340" y="110"></rect>
+<rect class="fill-error" height="20" rx="1" width="8" x="350" y="160"></rect>
+<!-- May -->
+<rect class="fill-secondary" height="100" rx="1" width="8" x="440" y="80"></rect>
+<rect class="fill-error" height="60" rx="1" width="8" x="450" y="120"></rect>
+</g>
+<!-- Close Price Line (Blue) -->
+<path d="M 50 150 L 150 130 L 250 140 L 350 100 L 450 80 L 550 90 L 650 70 L 750 60 L 850 50 L 950 40" fill="none" stroke="#4d8eff" stroke-width="2"></path>
+<!-- Grid Lines -->
+<line stroke="white" stroke-opacity="0.05" x1="0" x2="1000" y1="180" y2="180"></line>
+<line stroke="white" stroke-opacity="0.05" x1="0" x2="1000" y1="130" y2="130"></line>
+<line stroke="white" stroke-opacity="0.05" x1="0" x2="1000" y1="80" y2="80"></line>
+<line stroke="white" stroke-opacity="0.05" x1="0" x2="1000" y1="30" y2="30"></line>
+</svg>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-surface-container-high">
+<tr>
+<th class="px-lg py-md text-label-md text-on-surface-variant uppercase">Insider Name</th>
+<th class="px-lg py-md text-label-md text-on-surface-variant uppercase">Title</th>
+<th class="px-lg py-md text-label-md text-on-surface-variant uppercase text-right">Date</th>
+<th class="px-lg py-md text-label-md text-on-surface-variant uppercase text-right">Shares</th>
+<th class="px-lg py-md text-label-md text-on-surface-variant uppercase text-right">Price</th>
+<th class="px-lg py-md text-label-md text-on-surface-variant uppercase text-right">Total Value</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/5">
+<tr class="hover:bg-white/5 transition-colors bg-error/10">
+<td class="px-lg py-md text-body-md">Huang Jen-Hsun</td>
+<td class="px-lg py-md text-label-md text-on-surface-variant">CEO</td>
+<td class="px-lg py-md text-numeric-data text-right">May 21, 2024</td>
+<td class="px-lg py-md text-numeric-data text-right">120,000</td>
+<td class="px-lg py-md text-numeric-data text-right text-error">$860.20</td>
+<td class="px-lg py-md text-numeric-data text-right">$103.2M</td>
+</tr>
+<tr class="hover:bg-white/5 transition-colors bg-error/10">
+<td class="px-lg py-md text-body-md">Kress Colette</td>
+<td class="px-lg py-md text-label-md text-on-surface-variant">CFO</td>
+<td class="px-lg py-md text-numeric-data text-right">May 15, 2024</td>
+<td class="px-lg py-md text-numeric-data text-right">15,400</td>
+<td class="px-lg py-md text-numeric-data text-right text-error">$822.14</td>
+<td class="px-lg py-md text-numeric-data text-right">$12.6M</td>
+</tr>
+<tr class="hover:bg-white/5 transition-colors bg-error/10">
+<td class="px-lg py-md text-body-md">Coxe Tench</td>
+<td class="px-lg py-md text-label-md text-on-surface-variant">Director</td>
+<td class="px-lg py-md text-numeric-data text-right">May 02, 2024</td>
+<td class="px-lg py-md text-numeric-data text-right">50,000</td>
+<td class="px-lg py-md text-numeric-data text-right text-error">$792.00</td>
+<td class="px-lg py-md text-numeric-data text-right">$39.6M</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Background Effect (Subtle) -->
+<div class="fixed top-0 left-0 w-full h-full pointer-events-none z-[-1] opacity-20">
+</div>
+<script>
+        // Micro-interactions and effects
+        document.addEventListener('DOMContentLoaded', () => {
+            const cards = document.querySelectorAll('.glass-card');
+            cards.forEach(card => {
+                card.addEventListener('mouseenter', () => {
+                    card.style.transform = 'translateY(-2px)';
+                });
+                card.addEventListener('mouseleave', () => {
+                    card.style.transform = 'translateY(0)';
+                });
+            });
+        });
+    </script>
+</body></html>

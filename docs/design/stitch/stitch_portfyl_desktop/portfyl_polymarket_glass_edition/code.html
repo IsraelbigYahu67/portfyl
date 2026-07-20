@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Portfyl | Polymarket Analytics</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Plus+Jakarta+Sans:wght@100..900&display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .neon-glow-blue {
+            text-shadow: 0 0 8px rgba(173, 198, 255, 0.5);
+        }
+        .neon-glow-pink {
+            text-shadow: 0 0 8px rgba(255, 185, 95, 0.5);
+        }
+        .table-row-hover:hover {
+            background: rgba(255, 255, 255, 0.05);
+            box-shadow: inset 0 0 20px rgba(59, 130, 246, 0.05);
+            transition: all 0.3s ease;
+        }
+        body {
+            background-color: #020617;
+            color: #dae2fd;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ffb4ab",
+                        "surface-container": "#171f33",
+                        "error-container": "#93000a",
+                        "on-error": "#690005",
+                        "primary-container": "#4d8eff",
+                        "on-secondary": "#003824",
+                        "secondary": "#4edea3",
+                        "inverse-primary": "#005ac2",
+                        "background": "#0b1326",
+                        "on-background": "#dae2fd",
+                        "surface-tint": "#adc6ff",
+                        "outline-variant": "#424754",
+                        "on-tertiary": "#472a00",
+                        "secondary-fixed": "#6ffbbe",
+                        "on-error-container": "#ffdad6",
+                        "surface-container-low": "#131b2e",
+                        "surface-container-high": "#222a3d",
+                        "primary-fixed-dim": "#adc6ff",
+                        "surface": "#0b1326",
+                        "on-secondary-fixed-variant": "#005236",
+                        "surface-container-lowest": "#060e20",
+                        "on-tertiary-container": "#3e2400",
+                        "outline": "#8c909f",
+                        "inverse-on-surface": "#283044",
+                        "secondary-fixed-dim": "#4edea3",
+                        "on-tertiary-fixed": "#2a1700",
+                        "tertiary": "#ffb95f",
+                        "surface-variant": "#2d3449",
+                        "tertiary-fixed-dim": "#ffb95f",
+                        "on-tertiary-fixed-variant": "#653e00",
+                        "primary": "#adc6ff",
+                        "on-primary": "#002e6a",
+                        "on-surface": "#dae2fd",
+                        "surface-bright": "#31394d",
+                        "secondary-container": "#00a572",
+                        "on-primary-fixed-variant": "#004395",
+                        "on-primary-fixed": "#001a42",
+                        "surface-dim": "#0b1326",
+                        "on-secondary-container": "#00311f",
+                        "on-primary-container": "#00285d",
+                        "tertiary-fixed": "#ffddb8",
+                        "primary-fixed": "#d8e2ff",
+                        "tertiary-container": "#ca8100",
+                        "surface-container-highest": "#2d3449",
+                        "on-surface-variant": "#c2c6d6",
+                        "on-secondary-fixed": "#002113",
+                        "inverse-surface": "#dae2fd"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-mobile": "16px",
+                        "xs": "4px",
+                        "max-width": "1440px",
+                        "unit": "4px",
+                        "lg": "24px",
+                        "xl": "32px",
+                        "sm": "8px",
+                        "md": "16px",
+                        "margin-desktop": "40px",
+                        "gutter": "20px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Inter"],
+                        "headline-sm": ["Plus Jakarta Sans"],
+                        "numeric-data": ["Inter"],
+                        "display-lg": ["Plus Jakarta Sans"],
+                        "headline-md": ["Plus Jakarta Sans"],
+                        "display-lg-mobile": ["Plus Jakarta Sans"],
+                        "body-lg": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "numeric-data": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "display-lg-mobile": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="font-body-md text-on-surface bg-background min-h-screen">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-screen w-64 z-50 bg-surface-container/80 backdrop-blur-2xl border-r border-outline-variant/20 flex flex-col py-lg px-md gap-sm shadow-lg hidden md:flex">
+<div class="flex items-center gap-md px-sm mb-xl">
+<div class="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">hexagon</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">Portfyl</h1>
+<p class="font-label-md text-label-md text-on-surface-variant">Institutional Grade</p>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-xs">
+<a class="group flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all cursor-pointer" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="group flex items-center gap-md px-md py-sm rounded-lg text-primary font-bold bg-primary/10 transition-all cursor-pointer" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">account_balance_wallet</span>
+<span class="font-label-md text-label-md">Portfolio</span>
+</a>
+<a class="group flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all cursor-pointer" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="font-label-md text-label-md">Transactions</span>
+</a>
+<a class="group flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all cursor-pointer" href="#">
+<span class="material-symbols-outlined">monitoring</span>
+<span class="font-label-md text-label-md">Analytics</span>
+</a>
+<a class="group flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all cursor-pointer" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+</nav>
+<div class="mt-auto flex flex-col gap-xs pt-lg border-t border-outline-variant/10">
+<a class="group flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all cursor-pointer" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+<a class="group flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all cursor-pointer" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-label-md text-label-md">Sign Out</span>
+</a>
+</div>
+</aside>
+<div class="md:ml-64 min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<header class="w-full sticky top-0 z-40 bg-surface/70 backdrop-blur-xl border-b border-outline-variant/30 shadow-sm flex items-center justify-between px-margin-desktop h-16">
+<div class="flex items-center gap-md">
+<div class="relative flex items-center bg-surface-variant/40 px-md py-1.5 rounded-full border border-outline-variant/30">
+<span class="material-symbols-outlined text-on-surface-variant mr-2 text-[20px]">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-body-md w-48 lg:w-64 p-0 placeholder:text-on-surface-variant" placeholder="Search markets..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-surface-variant/50 transition-colors p-2 rounded-full cursor-pointer active:scale-95">notifications</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-surface-variant/50 transition-colors p-2 rounded-full cursor-pointer active:scale-95">settings</button>
+<button class="bg-primary text-on-primary font-label-md text-label-md px-lg py-2 rounded-lg hover:brightness-110 active:scale-95 transition-all shadow-md">Add Entry</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-primary/30">
+<img class="w-full h-full object-cover" data-alt="A close-up high-quality portrait of a professional investor in a high-tech office environment, soft cinematic lighting, blue and emerald color grading, premium aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCSpJJjT930tiwd5ke1qAFIsqiaYg7Wuv_-IGe-VSzus8dnfd935iilsWKQ3fz_LEiVumPBXQHyd0Zs1idl0xwOIr_m9uWBft_bF-MHIKQKKbU17Y4sOKz7iYqC6s9aHVcUqOhU8xx0cQoqQBvLmqKoeRaBA_VAteSYLXeSN4BKHxx8S_NWAjPdW_z7MhXdT_y09KgQRNBaRNDNiLZWIUfwJ4qdHYxamKRBZM9FCSGQPFKAgxOV5rJkvewMfnOCi9W9mOcnZT2o4w"/>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 p-margin-desktop space-y-xl max-w-max-width mx-auto w-full">
+<!-- Page Header -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-md">
+<div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
+<span class="material-symbols-outlined text-primary text-[32px]" style="font-variation-settings: 'FILL' 1;">hexagon</span>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">Polymarket</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Prediction Market Portfolio Analysis</p>
+</div>
+</div>
+<button class="flex items-center gap-sm px-lg py-2.5 rounded-lg border border-outline-variant hover:bg-surface-variant/30 transition-all cursor-pointer active:scale-95">
+<span class="material-symbols-outlined text-primary">refresh</span>
+<span class="font-label-md text-label-md uppercase tracking-wider">Refresh Data</span>
+</button>
+</div>
+<!-- Summary Metrics Bento -->
+<section class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-gutter">
+<!-- Metric 1 -->
+<div class="glass-panel p-lg rounded-xl flex flex-col justify-between group hover:border-primary/40 transition-colors">
+<span class="font-label-md text-label-md text-on-surface-variant mb-md">Positions Value</span>
+<div class="space-y-xs">
+<p class="font-display-lg text-[28px] font-bold text-on-surface">$42,150.00</p>
+<div class="flex items-center gap-xs text-secondary">
+<span class="material-symbols-outlined text-[16px]">trending_up</span>
+<span class="font-numeric-data text-numeric-data">+12.5%</span>
+</div>
+</div>
+</div>
+<!-- Metric 2 -->
+<div class="glass-panel p-lg rounded-xl flex flex-col justify-between group hover:border-secondary/40 transition-colors">
+<span class="font-label-md text-label-md text-on-surface-variant mb-md">Unrealized P&L</span>
+<div class="space-y-xs">
+<p class="font-display-lg text-[28px] font-bold text-secondary">+$8,420.00</p>
+<div class="flex items-center gap-xs text-secondary/60">
+<span class="font-numeric-data text-numeric-data">Active Exposure</span>
+</div>
+</div>
+</div>
+<!-- Metric 3 -->
+<div class="glass-panel p-lg rounded-xl flex flex-col justify-between group hover:border-secondary/40 transition-colors">
+<span class="font-label-md text-label-md text-on-surface-variant mb-md">Realized P&L</span>
+<div class="space-y-xs">
+<p class="font-display-lg text-[28px] font-bold text-secondary">+$12,402.10</p>
+<div class="flex items-center gap-xs text-secondary/60">
+<span class="font-numeric-data text-numeric-data">All Time</span>
+</div>
+</div>
+</div>
+<!-- Metric 4 -->
+<div class="glass-panel p-lg rounded-xl flex flex-col justify-between group hover:border-primary/40 transition-colors">
+<span class="font-label-md text-label-md text-on-surface-variant mb-md">Win Rate</span>
+<div class="space-y-xs">
+<p class="font-display-lg text-[28px] font-bold text-primary">68%</p>
+<div class="w-full bg-surface-variant/30 h-1.5 rounded-full overflow-hidden mt-2">
+<div class="bg-primary h-full rounded-full" style="width: 68%;"></div>
+</div>
+</div>
+</div>
+<!-- Metric 5 -->
+<div class="glass-panel p-lg rounded-xl flex flex-col justify-between group hover:border-outline/40 transition-colors">
+<span class="font-label-md text-label-md text-on-surface-variant mb-md">Open Positions</span>
+<div class="space-y-xs">
+<p class="font-display-lg text-[28px] font-bold text-on-surface">12</p>
+<div class="flex items-center gap-xs text-on-surface-variant">
+<span class="font-numeric-data text-numeric-data">Across 4 Categories</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Table Section -->
+<section class="glass-panel rounded-xl overflow-hidden">
+<div class="px-lg py-md border-b border-outline-variant/20 flex items-center justify-between bg-surface-container-low/50">
+<h3 class="font-headline-sm text-headline-sm">Open Positions</h3>
+<div class="flex items-center gap-sm">
+<span class="font-label-md text-label-md text-on-surface-variant">Filter by:</span>
+<select class="bg-surface-variant/40 border-outline-variant/30 rounded-lg text-label-md font-label-md focus:ring-primary focus:border-primary py-1">
+<option>All Markets</option>
+<option>Crypto</option>
+<option>Politics</option>
+<option>Sports</option>
+</select>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full border-collapse">
+<thead>
+<tr class="text-left border-b border-outline-variant/10 bg-surface-container-lowest/50">
+<th class="px-lg py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Market</th>
+<th class="px-lg py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Outcome</th>
+<th class="px-lg py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Size</th>
+<th class="px-lg py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Avg Price</th>
+<th class="px-lg py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Current</th>
+<th class="px-lg py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">P&L</th>
+<th class="px-lg py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Return %</th>
+<th class="px-lg py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-center">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<!-- Row 1 -->
+<tr class="table-row-hover group cursor-pointer transition-all">
+<td class="px-lg py-lg">
+<div class="flex items-center gap-md">
+<div class="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px] text-primary">currency_bitcoin</span>
+</div>
+<span class="font-body-md font-semibold">Will Bitcoin hit $100k in 2024?</span>
+</div>
+</td>
+<td class="px-lg py-lg">
+<span class="px-sm py-1 rounded bg-primary/10 text-primary border border-primary/20 text-label-md font-bold neon-glow-blue">YES</span>
+</td>
+<td class="px-lg py-lg text-right font-numeric-data">$5,000.00</td>
+<td class="px-lg py-lg text-right font-numeric-data text-on-surface-variant">$0.42</td>
+<td class="px-lg py-lg text-right font-numeric-data text-on-surface-variant">$0.78</td>
+<td class="px-lg py-lg text-right font-numeric-data text-secondary">+$4,285.71</td>
+<td class="px-lg py-lg text-right font-numeric-data">
+<div class="inline-flex items-center gap-1 text-secondary">
+<span class="material-symbols-outlined text-[14px]">north_east</span>
+                                        85.7%
+                                    </div>
+</td>
+<td class="px-lg py-lg text-center">
+<span class="px-3 py-1 rounded-full bg-secondary/10 text-secondary text-[10px] uppercase font-bold tracking-widest border border-secondary/20">Open</span>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="table-row-hover group cursor-pointer transition-all">
+<td class="px-lg py-lg">
+<div class="flex items-center gap-md">
+<div class="w-8 h-8 rounded bg-tertiary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px] text-tertiary">how_to_reg</span>
+</div>
+<span class="font-body-md font-semibold">US Presidential Election Winner</span>
+</div>
+</td>
+<td class="px-lg py-lg">
+<span class="px-sm py-1 rounded bg-tertiary/10 text-tertiary border border-tertiary/20 text-label-md font-bold neon-glow-pink">NO</span>
+</td>
+<td class="px-lg py-lg text-right font-numeric-data">$12,400.00</td>
+<td class="px-lg py-lg text-right font-numeric-data text-on-surface-variant">$0.55</td>
+<td class="px-lg py-lg text-right font-numeric-data text-on-surface-variant">$0.41</td>
+<td class="px-lg py-lg text-right font-numeric-data text-error">-$3,156.36</td>
+<td class="px-lg py-lg text-right font-numeric-data">
+<div class="inline-flex items-center gap-1 text-error">
+<span class="material-symbols-outlined text-[14px]">south_east</span>
+                                        25.4%
+                                    </div>
+</td>
+<td class="px-lg py-lg text-center">
+<span class="px-3 py-1 rounded-full bg-secondary/10 text-secondary text-[10px] uppercase font-bold tracking-widest border border-secondary/20">Open</span>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="table-row-hover group cursor-pointer transition-all">
+<td class="px-lg py-lg">
+<div class="flex items-center gap-md">
+<div class="w-8 h-8 rounded bg-secondary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px] text-secondary">sports_soccer</span>
+</div>
+<span class="font-body-md font-semibold">Will Man City win the UCL?</span>
+</div>
+</td>
+<td class="px-lg py-lg">
+<span class="px-sm py-1 rounded bg-primary/10 text-primary border border-primary/20 text-label-md font-bold neon-glow-blue">YES</span>
+</td>
+<td class="px-lg py-lg text-right font-numeric-data">$2,500.00</td>
+<td class="px-lg py-lg text-right font-numeric-data text-on-surface-variant">$0.28</td>
+<td class="px-lg py-lg text-right font-numeric-data text-on-surface-variant">$0.28</td>
+<td class="px-lg py-lg text-right font-numeric-data text-on-surface-variant">$0.00</td>
+<td class="px-lg py-lg text-right font-numeric-data text-on-surface-variant">0.0%</td>
+<td class="px-lg py-lg text-center">
+<span class="px-3 py-1 rounded-full bg-outline-variant/30 text-on-surface-variant text-[10px] uppercase font-bold tracking-widest">Resolved</span>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="table-row-hover group cursor-pointer transition-all">
+<td class="px-lg py-lg">
+<div class="flex items-center gap-md">
+<div class="w-8 h-8 rounded bg-error/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px] text-error">rocket_launch</span>
+</div>
+<span class="font-body-md font-semibold">Starship Next Launch Success</span>
+</div>
+</td>
+<td class="px-lg py-lg">
+<span class="px-sm py-1 rounded bg-primary/10 text-primary border border-primary/20 text-label-md font-bold neon-glow-blue">YES</span>
+</td>
+<td class="px-lg py-lg text-right font-numeric-data">$7,250.00</td>
+<td class="px-lg py-lg text-right font-numeric-data text-on-surface-variant">$0.35</td>
+<td class="px-lg py-lg text-right font-numeric-data text-on-surface-variant">$0.62</td>
+<td class="px-lg py-lg text-right font-numeric-data text-secondary">+$5,592.86</td>
+<td class="px-lg py-lg text-right font-numeric-data">
+<div class="inline-flex items-center gap-1 text-secondary">
+<span class="material-symbols-outlined text-[14px]">north_east</span>
+                                        77.1%
+                                    </div>
+</td>
+<td class="px-lg py-lg text-center">
+<span class="px-3 py-1 rounded-full bg-secondary/10 text-secondary text-[10px] uppercase font-bold tracking-widest border border-secondary/20">Open</span>
+</td>
+</tr>
+<!-- Row 5 -->
+<tr class="table-row-hover group cursor-pointer transition-all">
+<td class="px-lg py-lg">
+<div class="flex items-center gap-md">
+<div class="w-8 h-8 rounded bg-primary-container/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px] text-primary">cloud</span>
+</div>
+<span class="font-body-md font-semibold">Rain in NYC on July 4th?</span>
+</div>
+</td>
+<td class="px-lg py-lg">
+<span class="px-sm py-1 rounded bg-tertiary/10 text-tertiary border border-tertiary/20 text-label-md font-bold neon-glow-pink">NO</span>
+</td>
+<td class="px-lg py-lg text-right font-numeric-data">$1,200.00</td>
+<td class="px-lg py-lg text-right font-numeric-data text-on-surface-variant">$0.82</td>
+<td class="px-lg py-lg text-right font-numeric-data text-on-surface-variant">$0.95</td>
+<td class="px-lg py-lg text-right font-numeric-data text-secondary">+$190.24</td>
+<td class="px-lg py-lg text-right font-numeric-data">
+<div class="inline-flex items-center gap-1 text-secondary">
+<span class="material-symbols-outlined text-[14px]">north_east</span>
+                                        15.8%
+                                    </div>
+</td>
+<td class="px-lg py-lg text-center">
+<span class="px-3 py-1 rounded-full bg-error/10 text-error text-[10px] uppercase font-bold tracking-widest border border-error/20">Closed</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-lg py-md border-t border-outline-variant/10 bg-surface-container-lowest/30 flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant">Showing 5 of 12 open positions</span>
+<div class="flex items-center gap-md">
+<button class="material-symbols-outlined p-1 rounded hover:bg-surface-variant transition-colors disabled:opacity-30" disabled="">chevron_left</button>
+<span class="font-label-md text-label-md">Page 1 of 3</span>
+<button class="material-symbols-outlined p-1 rounded hover:bg-surface-variant transition-colors">chevron_right</button>
+</div>
+</div>
+</section>
+</main>
+</div>
+<!-- Mobile Bottom NavBar -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 bg-surface/90 backdrop-blur-xl border-t border-outline-variant/20 z-50 px-margin-mobile py-2 flex items-center justify-between">
+<button class="flex flex-col items-center gap-1 p-2 text-on-surface-variant">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px] font-bold">Home</span>
+</button>
+<button class="flex flex-col items-center gap-1 p-2 text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">account_balance_wallet</span>
+<span class="text-[10px] font-bold">Portfolio</span>
+</button>
+<button class="flex flex-col items-center gap-1 p-2 text-on-surface-variant">
+<span class="material-symbols-outlined">monitoring</span>
+<span class="text-[10px] font-bold">Markets</span>
+</button>
+<button class="flex flex-col items-center gap-1 p-2 text-on-surface-variant">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] font-bold">Profile</span>
+</button>
+</nav>
+<script>
+        // Simple Micro-interactions
+        document.querySelectorAll('.table-row-hover').forEach(row => {
+            row.addEventListener('click', () => {
+                row.style.transform = 'scale(0.995)';
+                setTimeout(() => {
+                    row.style.transform = 'scale(1)';
+                }, 100);
+            });
+        });
+
+        // Search Bar Focus Effect
+        const searchInput = document.querySelector('input[type="text"]');
+        const searchContainer = searchInput.parentElement;
+        searchInput.addEventListener('focus', () => {
+            searchContainer.classList.add('border-primary/50');
+            searchContainer.classList.add('ring-2');
+            searchContainer.classList.add('ring-primary/10');
+        });
+        searchInput.addEventListener('blur', () => {
+            searchContainer.classList.remove('border-primary/50');
+            searchContainer.classList.remove('ring-2');
+            searchContainer.classList.remove('ring-primary/10');
+        });
+    </script>
+</body></html>

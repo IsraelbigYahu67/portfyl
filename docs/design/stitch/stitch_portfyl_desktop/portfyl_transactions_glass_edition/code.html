@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Portfyl - Transactions</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            background-color: #0b1326;
+            color: #dae2fd;
+            -webkit-font-smoothing: antialiased;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(30, 41, 59, 0.5);
+        }
+        .transaction-row:hover {
+            background: rgba(255, 255, 255, 0.05);
+            box-shadow: inset 0 0 10px rgba(173, 198, 255, 0.05);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        /* Custom scrollbar for data density */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #2d3449; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #424754; }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#adc6ff",
+                        "on-primary-container": "#00285d",
+                        "inverse-primary": "#005ac2",
+                        "outline": "#8c909f",
+                        "on-primary": "#002e6a",
+                        "tertiary-fixed-dim": "#ffb95f",
+                        "surface-container-lowest": "#060e20",
+                        "on-primary-fixed-variant": "#004395",
+                        "inverse-surface": "#dae2fd",
+                        "tertiary-container": "#ca8100",
+                        "surface-tint": "#adc6ff",
+                        "surface-container-high": "#222a3d",
+                        "tertiary": "#ffb95f",
+                        "secondary": "#4edea3",
+                        "surface": "#0b1326",
+                        "secondary-fixed-dim": "#4edea3",
+                        "primary-fixed": "#d8e2ff",
+                        "on-surface": "#dae2fd",
+                        "on-secondary-container": "#00311f",
+                        "surface-container": "#171f33",
+                        "on-tertiary": "#472a00",
+                        "surface-container-low": "#131b2e",
+                        "surface-variant": "#2d3449",
+                        "on-secondary-fixed-variant": "#005236",
+                        "on-secondary": "#003824",
+                        "secondary-fixed": "#6ffbbe",
+                        "on-background": "#dae2fd",
+                        "tertiary-fixed": "#ffddb8",
+                        "on-secondary-fixed": "#002113",
+                        "on-primary-fixed": "#001a42",
+                        "on-tertiary-container": "#3e2400",
+                        "secondary-container": "#00a572",
+                        "outline-variant": "#424754",
+                        "on-error-container": "#ffdad6",
+                        "background": "#0b1326",
+                        "surface-container-highest": "#2d3449",
+                        "primary-container": "#4d8eff",
+                        "primary-fixed-dim": "#adc6ff",
+                        "on-error": "#690005",
+                        "surface-dim": "#0b1326",
+                        "error": "#ffb4ab",
+                        "surface-bright": "#31394d",
+                        "on-tertiary-fixed-variant": "#653e00",
+                        "on-surface-variant": "#c2c6d6",
+                        "error-container": "#93000a",
+                        "on-tertiary-fixed": "#2a1700",
+                        "inverse-on-surface": "#283044"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "max-width": "1440px",
+                        "lg": "24px",
+                        "sm": "8px",
+                        "md": "16px",
+                        "gutter": "20px",
+                        "unit": "4px",
+                        "xs": "4px",
+                        "margin-mobile": "16px",
+                        "xl": "32px",
+                        "margin-desktop": "40px"
+                    },
+                    "fontFamily": {
+                        "numeric-data": ["Inter"],
+                        "label-md": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-sm": ["Plus Jakarta Sans"],
+                        "display-lg-mobile": ["Plus Jakarta Sans"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Plus Jakarta Sans"],
+                        "display-lg": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "numeric-data": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "display-lg-mobile": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface">
+<!-- Sidebar Navigation -->
+<nav class="fixed left-0 top-0 h-screen w-64 z-50 bg-surface-container/80 backdrop-blur-2xl border-r border-outline-variant/20 flex flex-col py-lg px-md gap-sm shadow-lg hidden md:flex">
+<div class="flex items-center gap-md mb-xl px-sm">
+<div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary font-bold">account_balance_wallet</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">Portfyl</h1>
+<p class="font-label-md text-label-md text-on-surface-variant opacity-70">Institutional Grade</p>
+</div>
+</div>
+<div class="flex-1 flex flex-col gap-xs">
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg font-label-md text-label-md">
+<span class="material-symbols-outlined">dashboard</span>
+<span>Dashboard</span>
+</a>
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg font-label-md text-label-md">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span>Portfolio</span>
+</a>
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-primary font-bold bg-primary/10 rounded-lg font-label-md text-label-md">
+<span class="material-symbols-outlined">receipt_long</span>
+<span>Transactions</span>
+</a>
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg font-label-md text-label-md">
+<span class="material-symbols-outlined">monitoring</span>
+<span>Analytics</span>
+</a>
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg font-label-md text-label-md">
+<span class="material-symbols-outlined">description</span>
+<span>Reports</span>
+</a>
+</div>
+<div class="mt-auto flex flex-col gap-xs pt-lg border-t border-outline-variant/10">
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg font-label-md text-label-md">
+<span class="material-symbols-outlined">help</span>
+<span>Support</span>
+</a>
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg font-label-md text-label-md">
+<span class="material-symbols-outlined">logout</span>
+<span>Sign Out</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="md:ml-64 min-h-screen">
+<!-- Top Bar -->
+<header class="w-full sticky top-0 z-40 bg-surface/70 backdrop-blur-xl border-b border-outline-variant/30 shadow-sm h-16 flex items-center justify-between px-margin-desktop">
+<div class="flex items-center gap-xl flex-1">
+<h2 class="font-headline-sm text-headline-sm text-on-surface font-semibold">Transactions</h2>
+<div class="hidden lg:flex relative items-center flex-1 max-w-md">
+<span class="material-symbols-outlined absolute left-3 text-outline">search</span>
+<input class="w-full bg-surface-container-low border border-outline-variant/30 rounded-full py-2 pl-10 pr-4 text-body-md font-body-md focus:outline-none focus:border-primary transition-all text-on-surface" placeholder="Search ticker, company, or date..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="bg-primary text-on-primary px-lg py-2 rounded-full font-label-md text-label-md font-bold flex items-center gap-sm active:scale-95 transition-transform" onclick="toggleModal('transaction-modal', true)">
+<span class="material-symbols-outlined" style="font-variation-settings: 'wght' 600">add</span>
+                    Add Entry
+                </button>
+<div class="flex items-center gap-sm ml-md">
+<button class="p-2 text-on-surface-variant hover:bg-surface-variant/50 rounded-full transition-colors material-symbols-outlined">notifications</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-variant/50 rounded-full transition-colors material-symbols-outlined">settings</button>
+<div class="w-8 h-8 rounded-full overflow-hidden ml-sm border border-outline-variant/50">
+<img class="w-full h-full object-cover" data-alt="A professional high-resolution close-up portrait of a modern finance executive with a clean, cinematic aesthetic. The lighting is soft and directional, highlighting facial features against a blurred office background of glass and soft blue tones. The individual has a confident yet approachable expression, fitting for a premium institutional investment platform like Portfyl." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBk6DF06YjMdHIIuWaeTZ-y4DhtgXVH7QGt29Xl2RQ4Z6EAzmYoqPs_1ftLtvwzer-k1aGZtRy5gxZ7f89RKpSi7VTQtHtYjxdx--YqYaX1PK5_Im6obYYDOOEWJ5ciHK_XxYM5tXEPH4SjqzPTqhoj0o2xfXyTmg2XsMfW4BO70VSjUn2d_1t45IZez3cjUMuitxXI1qbAFWaFEua9-U8A_ooPaoeCHshwwqJAx7jAfJLqKPnn-hUdTwmzoYFt9xLzKgDqaGD0Ag"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Content Area -->
+<div class="p-margin-desktop flex flex-col gap-lg">
+<!-- Filters & Summary -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter">
+<div class="glass-panel p-md rounded-xl flex flex-col gap-xs">
+<span class="font-label-md text-label-md text-on-surface-variant">Total Volume (30d)</span>
+<span class="font-numeric-data text-headline-md text-primary">$4,281,092.45</span>
+</div>
+<div class="glass-panel p-md rounded-xl flex flex-col gap-xs">
+<span class="font-label-md text-label-md text-on-surface-variant">Trade Count</span>
+<span class="font-numeric-data text-headline-md">124 Trades</span>
+</div>
+<div class="glass-panel p-md rounded-xl flex flex-col gap-xs">
+<span class="font-label-md text-label-md text-on-surface-variant">Primary Sector</span>
+<span class="font-numeric-data text-headline-md text-secondary">Technology</span>
+</div>
+<div class="flex items-end justify-end gap-sm">
+<button class="flex items-center gap-xs px-md py-2 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/30 text-label-md font-label-md">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+                        Filter
+                    </button>
+<button class="flex items-center gap-xs px-md py-2 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/30 text-label-md font-label-md">
+<span class="material-symbols-outlined text-[18px]">download</span>
+                        Export
+                    </button>
+</div>
+</div>
+<!-- Transactions Table -->
+<div class="glass-panel rounded-xl overflow-hidden shadow-2xl">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-high/60 border-b border-outline-variant/30">
+<tr>
+<th class="px-md py-lg font-label-md text-label-md text-on-surface-variant">Date</th>
+<th class="px-md py-lg font-label-md text-label-md text-on-surface-variant">Ticker</th>
+<th class="px-md py-lg font-label-md text-label-md text-on-surface-variant">Type</th>
+<th class="px-md py-lg font-label-md text-label-md text-on-surface-variant text-right">Shares</th>
+<th class="px-md py-lg font-label-md text-label-md text-on-surface-variant text-right">Price</th>
+<th class="px-md py-lg font-label-md text-label-md text-on-surface-variant text-right">Total Value</th>
+<th class="px-md py-lg font-label-md text-label-md text-on-surface-variant">Currency</th>
+<th class="px-md py-lg font-label-md text-label-md text-on-surface-variant">Notes</th>
+<th class="px-md py-lg font-label-md text-label-md text-on-surface-variant text-center">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<!-- Row 1 -->
+<tr class="transaction-row transition-all group border-b border-outline-variant/5">
+<td class="px-md py-md font-numeric-data text-numeric-data">2024-05-24</td>
+<td class="px-md py-md">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-surface-variant/50 flex items-center justify-center font-bold text-xs text-primary">NV</div>
+<span class="font-semibold text-on-surface">NVDA</span>
+</div>
+</td>
+<td class="px-md py-md">
+<span class="px-sm py-1 rounded-full text-[10px] font-bold uppercase bg-secondary/10 text-secondary border border-secondary/20">Buy</span>
+</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right">450.00</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right">$945.22</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right font-bold text-on-surface">$425,349.00</td>
+<td class="px-md py-md text-on-surface-variant text-xs">USD</td>
+<td class="px-md py-md text-on-surface-variant text-xs max-w-xs truncate">Quarterly rebalancing allocation</td>
+<td class="px-md py-md text-center">
+<div class="flex items-center justify-center gap-sm">
+<button class="p-1.5 rounded-lg hover:bg-primary/20 hover:text-primary transition-colors material-symbols-outlined text-[18px]">edit</button>
+<button class="p-1.5 rounded-lg hover:bg-error/20 hover:text-error transition-colors material-symbols-outlined text-[18px]">delete</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="transaction-row transition-all group border-b border-outline-variant/5">
+<td class="px-md py-md font-numeric-data text-numeric-data">2024-05-23</td>
+<td class="px-md py-md">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-surface-variant/50 flex items-center justify-center font-bold text-xs text-primary">TS</div>
+<span class="font-semibold text-on-surface">TSLA</span>
+</div>
+</td>
+<td class="px-md py-md">
+<span class="px-sm py-1 rounded-full text-[10px] font-bold uppercase bg-error/10 text-error border border-error/20">Sell</span>
+</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right">1,200.00</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right">$174.50</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right font-bold text-on-surface">$209,400.00</td>
+<td class="px-md py-md text-on-surface-variant text-xs">USD</td>
+<td class="px-md py-md text-on-surface-variant text-xs max-w-xs truncate">Profit taking at resistance</td>
+<td class="px-md py-md text-center">
+<div class="flex items-center justify-center gap-sm">
+<button class="p-1.5 rounded-lg hover:bg-primary/20 hover:text-primary transition-colors material-symbols-outlined text-[18px]">edit</button>
+<button class="p-1.5 rounded-lg hover:bg-error/20 hover:text-error transition-colors material-symbols-outlined text-[18px]">delete</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="transaction-row transition-all group border-b border-outline-variant/5">
+<td class="px-md py-md font-numeric-data text-numeric-data">2024-05-22</td>
+<td class="px-md py-md">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-surface-variant/50 flex items-center justify-center font-bold text-xs text-primary">AP</div>
+<span class="font-semibold text-on-surface">AAPL</span>
+</div>
+</td>
+<td class="px-md py-md">
+<span class="px-sm py-1 rounded-full text-[10px] font-bold uppercase bg-tertiary/10 text-tertiary border border-tertiary/20">Dividend</span>
+</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right">—</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right">—</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right font-bold text-on-surface">$4,850.22</td>
+<td class="px-md py-md text-on-surface-variant text-xs">USD</td>
+<td class="px-md py-md text-on-surface-variant text-xs max-w-xs truncate">Auto-reinvested quarterly payout</td>
+<td class="px-md py-md text-center">
+<div class="flex items-center justify-center gap-sm">
+<button class="p-1.5 rounded-lg hover:bg-primary/20 hover:text-primary transition-colors material-symbols-outlined text-[18px]">edit</button>
+<button class="p-1.5 rounded-lg hover:bg-error/20 hover:text-error transition-colors material-symbols-outlined text-[18px]">delete</button>
+</div>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="transaction-row transition-all group border-b border-outline-variant/5">
+<td class="px-md py-md font-numeric-data text-numeric-data">2024-05-20</td>
+<td class="px-md py-md">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-surface-variant/50 flex items-center justify-center font-bold text-xs text-primary">AM</div>
+<span class="font-semibold text-on-surface">AMZN</span>
+</div>
+</td>
+<td class="px-md py-md">
+<span class="px-sm py-1 rounded-full text-[10px] font-bold uppercase bg-secondary/10 text-secondary border border-secondary/20">Buy</span>
+</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right">800.00</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right">$183.15</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right font-bold text-on-surface">$146,520.00</td>
+<td class="px-md py-md text-on-surface-variant text-xs">USD</td>
+<td class="px-md py-md text-on-surface-variant text-xs max-w-xs truncate">Accumulating position</td>
+<td class="px-md py-md text-center">
+<div class="flex items-center justify-center gap-sm">
+<button class="p-1.5 rounded-lg hover:bg-primary/20 hover:text-primary transition-colors material-symbols-outlined text-[18px]">edit</button>
+<button class="p-1.5 rounded-lg hover:bg-error/20 hover:text-error transition-colors material-symbols-outlined text-[18px]">delete</button>
+</div>
+</td>
+</tr>
+<!-- Row 5 -->
+<tr class="transaction-row transition-all group">
+<td class="px-md py-md font-numeric-data text-numeric-data">2024-05-18</td>
+<td class="px-md py-md">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-surface-variant/50 flex items-center justify-center font-bold text-xs text-primary">MS</div>
+<span class="font-semibold text-on-surface">MSFT</span>
+</div>
+</td>
+<td class="px-md py-md">
+<span class="px-sm py-1 rounded-full text-[10px] font-bold uppercase bg-secondary/10 text-secondary border border-secondary/20">Buy</span>
+</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right">250.00</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right">$430.12</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right font-bold text-on-surface">$107,530.00</td>
+<td class="px-md py-md text-on-surface-variant text-xs">USD</td>
+<td class="px-md py-md text-on-surface-variant text-xs max-w-xs truncate">Core growth strategy</td>
+<td class="px-md py-md text-center">
+<div class="flex items-center justify-center gap-sm">
+<button class="p-1.5 rounded-lg hover:bg-primary/20 hover:text-primary transition-colors material-symbols-outlined text-[18px]">edit</button>
+<button class="p-1.5 rounded-lg hover:bg-error/20 hover:text-error transition-colors material-symbols-outlined text-[18px]">delete</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="bg-surface-container/40 border-t border-outline-variant/20 px-md py-md flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant">Showing 1-10 of 124 transactions</span>
+<div class="flex items-center gap-sm">
+<button class="p-2 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/50 disabled:opacity-30 disabled:cursor-not-allowed">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="px-3 py-1 bg-primary text-on-primary rounded font-numeric-data">1</button>
+<button class="px-3 py-1 hover:bg-surface-variant/50 rounded font-numeric-data">2</button>
+<button class="px-3 py-1 hover:bg-surface-variant/50 rounded font-numeric-data">3</button>
+<span class="text-on-surface-variant">...</span>
+<button class="px-3 py-1 hover:bg-surface-variant/50 rounded font-numeric-data">13</button>
+<button class="p-2 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/50">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Add Transaction Modal -->
+<div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm hidden transition-opacity duration-300 opacity-0" id="transaction-modal">
+<div class="glass-panel w-full max-w-2xl rounded-2xl shadow-display p-xl flex flex-col gap-lg transform scale-95 transition-transform duration-300">
+<div class="flex items-center justify-between">
+<div>
+<h3 class="font-headline-md text-headline-md font-bold text-on-surface">Add Transaction</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Enter details to record a new asset movement.</p>
+</div>
+<button class="p-2 hover:bg-surface-variant/50 rounded-full transition-colors material-symbols-outlined text-outline" onclick="toggleModal('transaction-modal', false)">close</button>
+</div>
+<form class="grid grid-cols-2 gap-md" onsubmit="event.preventDefault(); toggleModal('transaction-modal', false);">
+<div class="flex flex-col gap-xs">
+<label class="font-label-md text-label-md text-on-surface-variant">Ticker Symbol</label>
+<input class="bg-background border border-outline-variant/40 rounded-lg p-3 text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="e.g. AAPL" type="text"/>
+</div>
+<div class="flex flex-col gap-xs">
+<label class="font-label-md text-label-md text-on-surface-variant">Transaction Type</label>
+<select class="bg-background border border-outline-variant/40 rounded-lg p-3 text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all appearance-none cursor-pointer">
+<option value="buy">Buy</option>
+<option value="sell">Sell</option>
+<option value="dividend">Dividend</option>
+</select>
+</div>
+<div class="flex flex-col gap-xs">
+<label class="font-label-md text-label-md text-on-surface-variant">Shares</label>
+<input class="bg-background border border-outline-variant/40 rounded-lg p-3 text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="0.00" step="0.01" type="number"/>
+</div>
+<div class="flex flex-col gap-xs">
+<label class="font-label-md text-label-md text-on-surface-variant">Price per Share</label>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">$</span>
+<input class="w-full bg-background border border-outline-variant/40 rounded-lg p-3 pl-7 text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="0.00" step="0.01" type="number"/>
+</div>
+</div>
+<div class="flex flex-col gap-xs">
+<label class="font-label-md text-label-md text-on-surface-variant">Transaction Date</label>
+<input class="bg-background border border-outline-variant/40 rounded-lg p-3 text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-on-surface" type="date"/>
+</div>
+<div class="flex flex-col gap-xs">
+<label class="font-label-md text-label-md text-on-surface-variant">Currency</label>
+<select class="bg-background border border-outline-variant/40 rounded-lg p-3 text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all appearance-none">
+<option value="usd">USD</option>
+<option value="eur">EUR</option>
+<option value="gbp">GBP</option>
+</select>
+</div>
+<div class="col-span-2 flex flex-col gap-xs">
+<label class="font-label-md text-label-md text-on-surface-variant">Notes (Optional)</label>
+<textarea class="bg-background border border-outline-variant/40 rounded-lg p-3 text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all resize-none" placeholder="Add details about this trade..." rows="3"></textarea>
+</div>
+<div class="col-span-2 flex justify-end gap-md mt-lg">
+<button class="px-lg py-2 rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-variant/30 transition-all" onclick="toggleModal('transaction-modal', false)" type="button">Cancel</button>
+<button class="bg-primary text-on-primary px-xl py-2 rounded-lg font-label-md text-label-md font-bold shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all" type="submit">Confirm Entry</button>
+</div>
+</form>
+</div>
+</div>
+<script>
+        function toggleModal(id, show) {
+            const modal = document.getElementById(id);
+            const content = modal.querySelector('div');
+            
+            if (show) {
+                modal.classList.remove('hidden');
+                setTimeout(() => {
+                    modal.classList.add('opacity-100');
+                    content.classList.add('scale-100');
+                    content.classList.remove('scale-95');
+                }, 10);
+            } else {
+                modal.classList.remove('opacity-100');
+                content.classList.add('scale-95');
+                content.classList.remove('scale-100');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                }, 300);
+            }
+        }
+
+        // Close modal on background click
+        window.onclick = function(event) {
+            const modal = document.getElementById('transaction-modal');
+            if (event.target == modal) {
+                toggleModal('transaction-modal', false);
+            }
+        }
+    </script>
+</body></html>

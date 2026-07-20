@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Stock Screener | Portfyl</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container": "#171f33",
+                        "on-secondary-container": "#00311f",
+                        "on-surface": "#dae2fd",
+                        "surface-container-low": "#131b2e",
+                        "on-tertiary": "#472a00",
+                        "inverse-surface": "#dae2fd",
+                        "on-primary-fixed-variant": "#004395",
+                        "primary-fixed": "#d8e2ff",
+                        "surface": "#0b1326",
+                        "secondary-fixed-dim": "#4edea3",
+                        "tertiary": "#ffb95f",
+                        "secondary": "#4edea3",
+                        "tertiary-container": "#ca8100",
+                        "surface-tint": "#adc6ff",
+                        "surface-container-high": "#222a3d",
+                        "tertiary-fixed-dim": "#ffb95f",
+                        "surface-container-lowest": "#060e20",
+                        "primary": "#adc6ff",
+                        "outline": "#8c909f",
+                        "on-primary": "#002e6a",
+                        "inverse-primary": "#005ac2",
+                        "on-primary-container": "#00285d",
+                        "error-container": "#93000a",
+                        "on-surface-variant": "#c2c6d6",
+                        "on-tertiary-fixed": "#2a1700",
+                        "inverse-on-surface": "#283044",
+                        "surface-dim": "#0b1326",
+                        "error": "#ffb4ab",
+                        "primary-fixed-dim": "#adc6ff",
+                        "on-error": "#690005",
+                        "surface-container-highest": "#2d3449",
+                        "primary-container": "#4d8eff",
+                        "on-tertiary-fixed-variant": "#653e00",
+                        "surface-bright": "#31394d",
+                        "tertiary-fixed": "#ffddb8",
+                        "on-secondary-fixed": "#002113",
+                        "on-primary-fixed": "#001a42",
+                        "background": "#0b1326",
+                        "secondary-container": "#00a572",
+                        "outline-variant": "#424754",
+                        "on-error-container": "#ffdad6",
+                        "on-tertiary-container": "#3e2400",
+                        "surface-variant": "#2d3449",
+                        "on-secondary-fixed-variant": "#005236",
+                        "on-secondary": "#003824",
+                        "secondary-fixed": "#6ffbbe",
+                        "on-background": "#dae2fd"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xs": "4px",
+                        "xl": "32px",
+                        "margin-desktop": "40px",
+                        "margin-mobile": "16px",
+                        "unit": "4px",
+                        "sm": "8px",
+                        "md": "16px",
+                        "gutter": "20px",
+                        "lg": "24px",
+                        "max-width": "1440px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Inter"],
+                        "body-md": ["Inter"],
+                        "numeric-data": ["Inter"],
+                        "display-lg": ["Plus Jakarta Sans"],
+                        "headline-md": ["Plus Jakarta Sans"],
+                        "headline-sm": ["Plus Jakarta Sans"],
+                        "display-lg-mobile": ["Plus Jakarta Sans"],
+                        "body-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "numeric-data": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "display-lg-mobile": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #0b1326;
+            color: #dae2fd;
+            -webkit-font-smoothing: antialiased;
+        }
+        .glass-panel {
+            background: rgba(45, 52, 73, 0.4);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .neon-green-badge {
+            background: rgba(111, 251, 190, 0.1);
+            color: #4edea3;
+            border: 1px solid rgba(111, 251, 190, 0.3);
+            box-shadow: 0 0 12px rgba(111, 251, 190, 0.15);
+        }
+        .neon-orange-badge {
+            background: rgba(255, 185, 95, 0.1);
+            color: #ffb95f;
+            border: 1px solid rgba(255, 185, 95, 0.3);
+            box-shadow: 0 0 12px rgba(255, 185, 95, 0.15);
+        }
+        .table-scrollbar::-webkit-scrollbar {
+            height: 6px;
+            width: 6px;
+        }
+        .table-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .table-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+        }
+        .table-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+        .input-focus-ring:focus {
+            border-color: #adc6ff;
+            box-shadow: 0 0 0 2px rgba(173, 198, 255, 0.2);
+            outline: none;
+        }
+    </style>
+</head>
+<body class="overflow-x-hidden">
+<!-- SideNavBar (Predicted Component) -->
+<aside class="fixed left-0 top-0 h-screen w-64 z-50 bg-surface-container/80 backdrop-blur-2xl border-r border-outline-variant/20 flex flex-col py-lg px-md gap-sm shadow-lg hidden md:flex">
+<div class="flex items-center gap-md px-sm mb-lg">
+<div class="w-10 h-10 rounded-lg bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary-container" style="font-variation-settings: 'FILL' 1;">account_balance_wallet</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary leading-tight">Portfyl</h1>
+<p class="font-label-md text-label-md text-on-surface-variant opacity-60">Institutional Grade</p>
+</div>
+</div>
+<nav class="flex-1 space-y-xs">
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all font-label-md text-label-md rounded-lg" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span>Dashboard</span>
+</a>
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-primary font-bold bg-primary/10 rounded-lg font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">monitoring</span>
+<span>Stock Screener</span>
+</a>
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all font-label-md text-label-md rounded-lg" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span>Portfolio</span>
+</a>
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all font-label-md text-label-md rounded-lg" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span>Transactions</span>
+</a>
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all font-label-md text-label-md rounded-lg" href="#">
+<span class="material-symbols-outlined">description</span>
+<span>Reports</span>
+</a>
+</nav>
+<div class="border-t border-outline-variant/20 pt-md mt-auto">
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all font-label-md text-label-md rounded-lg" href="#">
+<span class="material-symbols-outlined">help</span>
+<span>Support</span>
+</a>
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all font-label-md text-label-md rounded-lg" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span>Sign Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Wrapper -->
+<main class="md:ml-64 min-h-screen flex flex-col">
+<!-- TopNavBar (Predicted Component) -->
+<header class="w-full sticky top-0 z-40 bg-surface/70 backdrop-blur-xl border-b border-outline-variant/30 shadow-sm h-16 flex items-center justify-between px-margin-desktop">
+<div class="flex items-center gap-xl flex-1">
+<div class="md:hidden font-headline-md text-headline-md font-bold text-primary">Portfyl</div>
+<div class="relative w-full max-w-md group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">search</span>
+<input class="bg-surface-variant/40 border-none rounded-full py-2 pl-10 pr-4 w-full text-body-md font-body-md focus:ring-1 focus:ring-primary/50 text-on-surface placeholder:text-on-surface-variant/50" placeholder="Search markets, assets, or tools..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-md ml-lg">
+<div class="hidden sm:flex gap-sm mr-md border-r border-outline-variant/30 pr-md">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary transition-colors">notifications</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary transition-colors">settings</span>
+</div>
+<button class="bg-primary text-on-primary px-lg py-sm rounded-full font-label-md text-label-md flex items-center gap-xs hover:bg-primary-container transition-colors active:scale-95">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                    Add Entry
+                </button>
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-container-high border border-outline-variant/50 cursor-pointer active:scale-95 transition-transform">
+<img class="w-full h-full object-cover" data-alt="Close up profile portrait of a professional male investor in a modern minimalist office setting, soft dramatic lighting from a window, cinematic color grading with cool blue tones and warm skin highlights." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCdE3Z8MnFuMsALoPrQvlZAa_FempBfw34Y_kftYAgZirnWO_kxi3AKUZZ_6_vnOL6v8OI7USYudxFpiDFvtPU1ZJ5RU7YurO2oByM2xoD0eiH1HMz1OjLmXWKKBP2XDWzi92JxsevBQoNVhjPcYRlIsZjDUGAZwU-I-Y8U25Z6Od_doayDay8n0nuWPNadVT2VQjYxV4pZyGYxQiBfkd5ZKEgW1upS52kqKcxef2S5QJRzWtc_iaGCrr1Z8pRvmIXp1EiOrx2BEA"/>
+</div>
+</div>
+</header>
+<!-- Content Area -->
+<div class="flex-1 p-margin-mobile md:p-margin-desktop max-w-[1600px] mx-auto w-full space-y-lg">
+<!-- Page Header -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-md">
+<div>
+<h2 class="font-display-lg text-display-lg-mobile md:text-display-lg leading-tight text-on-surface">Stock Screener</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-xs">Filter through 12,000+ global equities with institutional precision.</p>
+</div>
+<div class="flex items-center gap-sm">
+<button class="flex items-center gap-xs bg-surface-variant/40 border border-outline-variant/30 px-md py-sm rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-variant/60 hover:text-on-surface transition-all">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+                        Filters
+                    </button>
+<button class="flex items-center gap-xs bg-surface-variant/40 border border-outline-variant/30 px-md py-sm rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-variant/60 hover:text-on-surface transition-all">
+<span class="material-symbols-outlined text-[18px]">refresh</span>
+                        Refresh
+                    </button>
+</div>
+</div>
+<!-- Filters Pane -->
+<section class="glass-panel p-lg rounded-xl">
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-md">
+<!-- Universe -->
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface-variant">Universe</label>
+<select class="w-full bg-surface/60 border border-outline-variant/50 rounded-lg px-md py-sm text-body-md font-body-md text-on-surface input-focus-ring appearance-none">
+<option>S&amp;P 500</option>
+<option>Nasdaq 100</option>
+<option>Russell 2000</option>
+<option>FTSE 100</option>
+</select>
+</div>
+<!-- Custom Tickers -->
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface-variant">Custom Tickers</label>
+<input class="w-full bg-surface/60 border border-outline-variant/50 rounded-lg px-md py-sm text-body-md font-body-md text-on-surface input-focus-ring placeholder:text-on-surface-variant/30" placeholder="AAPL, TSLA..." type="text"/>
+</div>
+<!-- Sector -->
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface-variant">Sector</label>
+<select class="w-full bg-surface/60 border border-outline-variant/50 rounded-lg px-md py-sm text-body-md font-body-md text-on-surface input-focus-ring appearance-none">
+<option>All Sectors</option>
+<option>Technology</option>
+<option>Financials</option>
+<option>Healthcare</option>
+<option>Energy</option>
+</select>
+</div>
+<!-- Max P/E -->
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface-variant">Max P/E Ratio</label>
+<input class="w-full bg-surface/60 border border-outline-variant/50 rounded-lg px-md py-sm text-body-md font-body-md text-on-surface input-focus-ring" placeholder="25.0" step="0.1" type="number"/>
+</div>
+<!-- Min Div Yield -->
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface-variant">Min Div Yield (%)</label>
+<input class="w-full bg-surface/60 border border-outline-variant/50 rounded-lg px-md py-sm text-body-md font-body-md text-on-surface input-focus-ring" placeholder="2.0" step="0.1" type="number"/>
+</div>
+<!-- Sort By -->
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface-variant">Sort By</label>
+<select class="w-full bg-surface/60 border border-outline-variant/50 rounded-lg px-md py-sm text-body-md font-body-md text-on-surface input-focus-ring appearance-none">
+<option>Market Cap (High)</option>
+<option>P/E Ratio (Low)</option>
+<option>Dividend Yield (High)</option>
+<option>Price Performance</option>
+</select>
+</div>
+</div>
+<div class="mt-md flex justify-end">
+<button class="text-label-md font-label-md text-primary hover:text-primary-container transition-colors cursor-pointer underline underline-offset-4 decoration-primary/30">
+                        Reset all filters
+                    </button>
+</div>
+</section>
+<!-- Screener Results Table -->
+<section class="glass-panel rounded-xl overflow-hidden flex flex-col">
+<div class="overflow-x-auto table-scrollbar">
+<table class="w-full text-left border-collapse min-w-[1200px]">
+<thead>
+<tr class="bg-surface-container-high/40 border-b border-outline-variant/30">
+<th class="px-lg py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Ticker</th>
+<th class="px-md py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Name</th>
+<th class="px-md py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Price</th>
+<th class="px-md py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Mkt Cap</th>
+<th class="px-md py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">P/E</th>
+<th class="px-md py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Fwd P/E</th>
+<th class="px-md py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">P/B</th>
+<th class="px-md py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">P/S</th>
+<th class="px-md py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Div Yield</th>
+<th class="px-md py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">ROE</th>
+<th class="px-md py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Net Margin</th>
+<th class="px-md py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Beta</th>
+<th class="px-md py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Sector</th>
+<th class="px-lg py-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-center">Rating</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/20">
+<!-- Row 1 -->
+<tr class="hover:bg-primary/5 transition-colors group cursor-pointer">
+<td class="px-lg py-md">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center p-1.5">
+<img class="w-full h-full object-contain" data-alt="A minimalist tech company logo design, circular emblem, high contrast black and white with a subtle glow, professional aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBeIYePFMX4N0bQhtPgvfS4cQ9YMOZVHAxNAWBu_eIoTXUpPGGR0pzBUFA4_WOdiA3cO_AJbfslmbnE1oBLlzUDa2TdcGj_LP6dzy1TL6eRyxYBqfyjFxRzvNzlNIbOajYcDFpQ82meR28YH9m5-GUA02165vylHYSOCT8wnS0y4LtVNKPegfVzDlE5dYfEX67TUpGKSQWWDRshgKtCO93rmTVVwsJOzIU1BsuFqRs9EiQJ5fRwBM3wVvAWwV4XfEml4ID1H3oNxA"/>
+</div>
+<span class="font-numeric-data text-numeric-data font-bold text-on-surface">AAPL</span>
+</div>
+</td>
+<td class="px-md py-md font-body-md text-body-md text-on-surface-variant">Apple Inc.</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface">$189.43</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">2.94T</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">30.2</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">28.4</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">42.1</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">7.6</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-secondary">0.51%</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">154.3%</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">25.3%</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">1.28</td>
+<td class="px-md py-md font-body-md text-body-md text-on-surface-variant">Technology</td>
+<td class="px-lg py-md text-center">
+<span class="px-sm py-0.5 rounded-full font-label-md text-label-md neon-green-badge whitespace-nowrap">Strong Buy</span>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-primary/5 transition-colors group cursor-pointer">
+<td class="px-lg py-md">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center p-1.5">
+<img class="w-full h-full object-contain" data-alt="A sleek corporate financial services logo, geometric shapes, blue and silver color scheme, professional dark mode aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDll4jnITNFNielUP3DvnH9BmOORlefHlT0Ahz27aTIr_K22B8UlZ2Y6DDl8lf_phWFLNBJYS2yhuCaV36Z6zsz45US-GwCnUzTRU1AIXLnGX90Zk_F4LwR5JVnDkVYuQBYHVrHx5V4ATzZQWHIiVTRpGjpPNVd6m9queXdNOSohptRwpLI41NgVmlTcawGza5pXqQSt_ZxWw1qzJjN77_Gle-qfWhlBb8Bjb6wrXKgsug6VHTNs4QCtB_J6BRlGigft4HK5bil1Q"/>
+</div>
+<span class="font-numeric-data text-numeric-data font-bold text-on-surface">JPM</span>
+</div>
+</td>
+<td class="px-md py-md font-body-md text-body-md text-on-surface-variant">JPMorgan Chase</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface">$172.10</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">498B</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">10.4</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">11.2</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">1.6</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">3.1</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-secondary">2.44%</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">16.8%</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">32.1%</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">1.12</td>
+<td class="px-md py-md font-body-md text-body-md text-on-surface-variant">Financials</td>
+<td class="px-lg py-md text-center">
+<span class="px-sm py-0.5 rounded-full font-label-md text-label-md neon-orange-badge whitespace-nowrap">Hold</span>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-primary/5 transition-colors group cursor-pointer">
+<td class="px-lg py-md">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center p-1.5">
+<img class="w-full h-full object-contain" data-alt="A modern electric vehicle or energy brand logo, sharp futuristic lines, vibrant neon green accents, dark tech style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB5IC_ZGivoq-lGKZSuiZLx1AvZQU74jTdTf-DdmN5s1RAop7UyyeSzp-Vf1eYLauIOFLdq5Bi9CH2iNWBnksPMX3bYHwOHPQ5hInJtIuMuTAsLp0ol_nrpCkehc2b4ftS2H-Zn-HpaDL8AnICFXrhPxdpzvGkduhBtO9sy3hcbUpp79g_6S_Pk7kUfeHyDnp-rZMLMyZ42TS_nv2nkplbruv7Pvbnlx47BTgzJnEnVHQu81uYZfotrjics-oCuho5L3fwnxsQwvg"/>
+</div>
+<span class="font-numeric-data text-numeric-data font-bold text-on-surface">TSLA</span>
+</div>
+</td>
+<td class="px-md py-md font-body-md text-body-md text-on-surface-variant">Tesla, Inc.</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface">$238.12</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">756B</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">72.4</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">58.1</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">14.2</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">8.1</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">0.00%</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">28.4%</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">14.1%</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">2.14</td>
+<td class="px-md py-md font-body-md text-body-md text-on-surface-variant">Consumer Cyclical</td>
+<td class="px-lg py-md text-center">
+<span class="px-sm py-0.5 rounded-full font-label-md text-label-md neon-green-badge whitespace-nowrap">Strong Buy</span>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-primary/5 transition-colors group cursor-pointer">
+<td class="px-lg py-md">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center p-1.5">
+<img class="w-full h-full object-contain" data-alt="Professional retail or logistics brand logo, clean typography, minimalist industrial aesthetic, dark mode background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBEhH0xHCbeMvTXUwFrHdXVKTfmcSUl1yWYmk75xKIsPjA6MaPfydsM78kHB3YC3XwgVQLFcE_GfU1gB1ZEAI-E6FC3b3TzahrnyjpzAUJXw6dtDptNwJ784v9GTAeXsRK3VWsyW8clv5f2bpgfd0RiO878mMKcwyMPXQcJtHmCEawlpEuiozY4gcY0XAT5-XqTdbgWwm9kV9QfRAxmG02uP0tyK65Ao_IQhNh6YqjoTGbMynz-GRy_tarrv8Korh7YiDEc7l_sVQ"/>
+</div>
+<span class="font-numeric-data text-numeric-data font-bold text-on-surface">AMZN</span>
+</div>
+</td>
+<td class="px-md py-md font-body-md text-body-md text-on-surface-variant">Amazon.com, Inc.</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface">$145.24</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">1.50T</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">78.1</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">41.4</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">8.4</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">2.8</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">0.00%</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">15.2%</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">5.4%</td>
+<td class="px-md py-md font-numeric-data text-numeric-data text-right text-on-surface-variant">1.16</td>
+<td class="px-md py-md font-body-md text-body-md text-on-surface-variant">Consumer Cyclical</td>
+<td class="px-lg py-md text-center">
+<span class="px-sm py-0.5 rounded-full font-label-md text-label-md neon-orange-badge whitespace-nowrap">Hold</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination / Footer -->
+<div class="px-lg py-md border-t border-outline-variant/30 flex items-center justify-between bg-surface-container/20">
+<p class="font-label-md text-label-md text-on-surface-variant">Showing <span class="text-on-surface">1-4</span> of 528 results</p>
+<div class="flex items-center gap-xs">
+<button class="p-xs hover:bg-surface-variant/50 rounded transition-colors text-on-surface-variant disabled:opacity-30" disabled="">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center rounded bg-primary/10 text-primary font-label-md text-label-md">1</button>
+<button class="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-variant/50 text-on-surface-variant font-label-md text-label-md">2</button>
+<button class="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-variant/50 text-on-surface-variant font-label-md text-label-md">3</button>
+<span class="text-on-surface-variant mx-1">...</span>
+<button class="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-variant/50 text-on-surface-variant font-label-md text-label-md">42</button>
+<button class="p-xs hover:bg-surface-variant/50 rounded transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+</div>
+<!-- FAB (Contextual suppression for Details/Transactional screens, but shown here for Dashboard-like primary flow) -->
+<div class="fixed bottom-lg right-lg z-50">
+<button class="w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-transform group">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add</span>
+<span class="absolute right-full mr-md px-md py-sm bg-surface-container-high text-on-surface rounded-lg font-label-md text-label-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity shadow-xl border border-outline-variant/30 pointer-events-none">Create Alert</span>
+</button>
+</div>
+</main>
+<!-- Micro-interactions Script -->
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Hover effect for table rows to enhance the glassmorphism feel
+            const rows = document.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                row.addEventListener('mouseenter', () => {
+                    row.style.boxShadow = 'inset 0 0 20px rgba(173, 198, 255, 0.05)';
+                });
+                row.addEventListener('mouseleave', () => {
+                    row.style.boxShadow = 'none';
+                });
+            });
+
+            // Ripple-like effect on button active states is handled by Tailwind's active:scale-95
+            // But we can add a subtle console log for institutional data flow simulation
+            console.log("Portfyl Stock Screener Engine Initialized... Fetching market data...");
+        });
+    </script>
+</body></html>

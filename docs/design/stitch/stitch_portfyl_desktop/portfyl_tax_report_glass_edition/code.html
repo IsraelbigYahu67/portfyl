@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Portfyl | Tax Report</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Load Tailwind Config -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "secondary-fixed-dim": "#4edea3",
+                "outline": "#8c909f",
+                "on-secondary-fixed-variant": "#005236",
+                "on-tertiary-fixed": "#2a1700",
+                "inverse-primary": "#005ac2",
+                "tertiary-fixed": "#ffddb8",
+                "primary-container": "#4d8eff",
+                "background": "#0b1326",
+                "on-tertiary": "#472a00",
+                "surface-container-low": "#131b2e",
+                "on-tertiary-fixed-variant": "#653e00",
+                "secondary-container": "#00a572",
+                "primary-fixed": "#d8e2ff",
+                "on-primary-fixed": "#001a42",
+                "tertiary-container": "#ca8100",
+                "secondary-fixed": "#6ffbbe",
+                "on-secondary-container": "#00311f",
+                "surface-variant": "#2d3449",
+                "on-surface-variant": "#c2c6d6",
+                "error-container": "#93000a",
+                "on-primary": "#002e6a",
+                "on-secondary": "#003824",
+                "on-tertiary-container": "#3e2400",
+                "surface-container-highest": "#2d3449",
+                "on-background": "#dae2fd",
+                "surface-container": "#171f33",
+                "inverse-surface": "#dae2fd",
+                "on-surface": "#dae2fd",
+                "on-secondary-fixed": "#002113",
+                "tertiary": "#ffb95f",
+                "on-error": "#690005",
+                "primary": "#adc6ff",
+                "surface-container-lowest": "#060e20",
+                "error": "#ffb4ab",
+                "surface-container-high": "#222a3d",
+                "on-primary-fixed-variant": "#004395",
+                "secondary": "#4edea3",
+                "primary-fixed-dim": "#adc6ff",
+                "tertiary-fixed-dim": "#ffb95f",
+                "on-primary-container": "#00285d",
+                "inverse-on-surface": "#283044",
+                "surface": "#0b1326",
+                "outline-variant": "#424754",
+                "on-error-container": "#ffdad6",
+                "surface-dim": "#0b1326",
+                "surface-tint": "#adc6ff",
+                "surface-bright": "#31394d"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+            },
+            "spacing": {
+                "md": "16px",
+                "max-width": "1440px",
+                "margin-desktop": "40px",
+                "sm": "8px",
+                "unit": "4px",
+                "margin-mobile": "16px",
+                "gutter": "20px",
+                "xs": "4px",
+                "xl": "32px",
+                "lg": "24px"
+            },
+            "fontFamily": {
+                "headline-sm": ["Plus Jakarta Sans"],
+                "body-md": ["Inter"],
+                "label-md": ["Inter"],
+                "display-lg-mobile": ["Plus Jakarta Sans"],
+                "numeric-data": ["Inter"],
+                "headline-md": ["Plus Jakarta Sans"],
+                "display-lg": ["Plus Jakarta Sans"],
+                "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                "display-lg-mobile": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+                "numeric-data": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #020617;
+            color: #dae2fd;
+            font-family: 'Inter', sans-serif;
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(30, 41, 59, 0.5);
+            transition: all 0.3s ease;
+        }
+        .glass-card:hover {
+            border-color: rgba(59, 130, 246, 0.3);
+            background: rgba(15, 23, 42, 0.6);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.8s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-background selection:bg-primary/30">
+<!-- Sidebar Component (Predicted from SideNavBar JSON) -->
+<aside class="fixed left-0 top-0 h-screen w-64 z-50 bg-surface-container/80 backdrop-blur-2xl border-r border-outline-variant/20 flex flex-col py-lg px-md gap-sm hidden md:flex">
+<div class="flex items-center gap-md mb-xl px-sm">
+<div class="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary-container" style="font-variation-settings: 'FILL' 1;">account_balance_wallet</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">Portfyl</h1>
+<p class="text-[10px] uppercase tracking-widest text-outline">Institutional Grade</p>
+</div>
+</div>
+<nav class="flex-1 space-y-xs">
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="font-label-md text-label-md">Portfolio</span>
+</a>
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="font-label-md text-label-md">Transactions</span>
+</a>
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">monitoring</span>
+<span class="font-label-md text-label-md">Analytics</span>
+</a>
+<!-- Reports is Active based on "Tax Report" screen intent -->
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-primary font-bold bg-primary/10 rounded-lg" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">description</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+</nav>
+<div class="mt-auto pt-lg border-t border-outline-variant/20 space-y-xs">
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+<a class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-label-md text-label-md">Sign Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="md:pl-64 min-h-screen">
+<!-- TopNavBar Component (Predicted) -->
+<header class="w-full sticky top-0 z-40 bg-surface/70 backdrop-blur-xl border-b border-outline-variant/30 shadow-sm flex items-center justify-between px-margin-desktop h-16">
+<div class="flex items-center gap-lg">
+<div class="md:hidden">
+<span class="material-symbols-outlined text-primary cursor-pointer">menu</span>
+</div>
+<div class="hidden lg:flex items-center bg-surface-container-low border border-outline-variant/30 px-md py-1.5 rounded-full w-64 gap-sm">
+<span class="material-symbols-outlined text-outline text-sm">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-body-md w-full p-0" placeholder="Search data..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="bg-primary text-on-primary font-label-md text-label-md px-md py-2 rounded-lg cursor-pointer active:scale-95 transition-all">
+                    Add Entry
+                </button>
+<div class="flex gap-sm">
+<span class="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-variant/50 rounded-full cursor-pointer transition-colors">notifications</span>
+<span class="material-symbols-outlined text-on-surface-variant p-2 hover:bg-surface-variant/50 rounded-full cursor-pointer transition-colors">settings</span>
+</div>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-primary/30">
+<img class="w-full h-full object-cover" data-alt="Close-up headshot of a professional investor, shot in high-definition with cinematic lighting against a dark, blurred office background. The style is sharp and corporate, using a palette of deep blues and subtle grays to match the platform's institutional aesthetic. The subject is wearing business attire, looking directly at the camera with a confident expression." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBvhmbtZbMPCO2m4q53fiDNiWN70Pq67oM1zhv1Xs_0W_WGGsVmg2idsVSmLJvTAmEW1Xs-u8nSIkDTkSyse-IHlihAMl96i0CO4YTvbbrXyTozNCixdYTgOesijP8NIsXqEXy9S9ucdx-md5noJblL66walFhJfk95RFWlXS43I0W1WV9NadbSweDC6HXzwuBZJONMIqxMrlGDrSNg5MrcT-tsBxdjZnndbSwbQOyE9IBMTUIC3CXhWkSLbucdExK2bQHstk37Dg"/>
+</div>
+</div>
+</header>
+<!-- Page Content -->
+<div class="px-margin-desktop py-lg space-y-xl animate-fade-in">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-md">
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">Tax Report</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Detailed tax analysis and regulatory reporting</p>
+</div>
+<div class="flex items-center gap-sm">
+<div class="relative group">
+<button class="glass-card px-md py-2 rounded-lg flex items-center gap-md hover:border-primary/50 transition-all">
+<span class="font-label-md text-label-md">2024</span>
+<span class="material-symbols-outlined text-sm">expand_more</span>
+</button>
+</div>
+<button class="flex items-center gap-sm bg-surface-container-high border border-outline-variant/30 text-on-surface px-md py-2 rounded-lg font-label-md text-label-md hover:bg-surface-variant/50 transition-all">
+<span class="material-symbols-outlined text-sm">download</span>
+                        Export CSV
+                    </button>
+</div>
+</div>
+<!-- Metrics Row -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter">
+<!-- Total Realized P&L -->
+<div class="glass-card p-lg rounded-xl flex flex-col gap-sm">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-outline uppercase tracking-wider">Total Realized P&amp;L</span>
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">analytics</span>
+</div>
+<div class="mt-sm">
+<p class="font-display-lg text-headline-md lg:text-[28px] text-primary">$842,105.18</p>
+<div class="flex items-center gap-xs mt-1">
+<span class="material-symbols-outlined text-secondary-fixed-dim text-sm">trending_up</span>
+<span class="text-secondary-fixed-dim text-[12px] font-bold">+12.4% vs LY</span>
+</div>
+</div>
+</div>
+<!-- Short-Term Gains -->
+<div class="glass-card p-lg rounded-xl flex flex-col gap-sm">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-outline uppercase tracking-wider">Short-Term Gains</span>
+<span class="material-symbols-outlined text-tertiary">timer</span>
+</div>
+<div class="mt-sm">
+<p class="font-display-lg text-headline-md lg:text-[28px] text-on-surface">$124,500.00</p>
+<p class="text-on-surface-variant text-[12px] mt-1">Assets held &lt; 1 year</p>
+</div>
+</div>
+<!-- Long-Term Gains -->
+<div class="glass-card p-lg rounded-xl flex flex-col gap-sm">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-outline uppercase tracking-wider">Long-Term Gains</span>
+<span class="material-symbols-outlined text-secondary">history</span>
+</div>
+<div class="mt-sm">
+<p class="font-display-lg text-headline-md lg:text-[28px] text-on-surface">$717,605.18</p>
+<p class="text-on-surface-variant text-[12px] mt-1">Assets held &gt; 1 year</p>
+</div>
+</div>
+<!-- Taxable Dividend Income -->
+<div class="glass-card p-lg rounded-xl flex flex-col gap-sm">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-outline uppercase tracking-wider">Taxable Dividends</span>
+<span class="material-symbols-outlined text-on-tertiary-fixed-variant">payments</span>
+</div>
+<div class="mt-sm">
+<p class="font-display-lg text-headline-md lg:text-[28px] text-on-surface">$14,250.00</p>
+<p class="text-on-surface-variant text-[12px] mt-1">Qualified &amp; Non-Qualified</p>
+</div>
+</div>
+</div>
+<!-- Czech Tax Panel -->
+<section class="space-y-md">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary">policy</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Czech §4 Exemption Analysis</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+<div class="glass-card p-lg rounded-xl flex items-center justify-between border-l-4 border-l-secondary">
+<div class="space-y-1">
+<p class="font-label-md text-label-md text-outline">Time Test Exemption (3 Years)</p>
+<p class="font-body-lg text-body-lg text-on-surface">Compliance status for holding periods</p>
+</div>
+<div class="bg-on-secondary/10 px-md py-1.5 rounded-full border border-secondary/20">
+<span class="text-secondary font-bold text-label-md">Exempted</span>
+</div>
+</div>
+<div class="glass-card p-lg rounded-xl flex items-center justify-between border-l-4 border-l-tertiary">
+<div class="space-y-1">
+<p class="font-label-md text-label-md text-outline">100k CZK Threshold</p>
+<p class="font-body-lg text-body-lg text-on-surface">Annual sales volume analysis</p>
+</div>
+<div class="bg-tertiary/10 px-md py-1.5 rounded-full border border-tertiary/20">
+<span class="text-tertiary font-bold text-label-md">Limit Not Exceeded</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Tabs and Data Table -->
+<div class="space-y-md">
+<div class="flex items-center border-b border-outline-variant/20">
+<button class="px-lg py-md font-label-md text-label-md text-primary border-b-2 border-primary transition-all">Realized Gains</button>
+<button class="px-lg py-md font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-all">Unrealized Gains</button>
+<button class="px-lg py-md font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-all">Dividend Income</button>
+</div>
+<div class="glass-card rounded-xl overflow-hidden overflow-x-auto scrollbar-hide">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-highest/50 border-b border-outline-variant/30">
+<tr>
+<th class="px-md py-4 font-label-md text-label-md text-outline">Ticker</th>
+<th class="px-md py-4 font-label-md text-label-md text-outline">Buy Date</th>
+<th class="px-md py-4 font-label-md text-label-md text-outline">Sell Date</th>
+<th class="px-md py-4 font-label-md text-label-md text-outline">Shares</th>
+<th class="px-md py-4 font-label-md text-label-md text-outline text-right">Cost Basis</th>
+<th class="px-md py-4 font-label-md text-label-md text-outline text-right">Proceeds</th>
+<th class="px-md py-4 font-label-md text-label-md text-outline text-right">Gain/Loss</th>
+<th class="px-md py-4 font-label-md text-label-md text-outline">Gain %</th>
+<th class="px-md py-4 font-label-md text-label-md text-outline">Days</th>
+<th class="px-md py-4 font-label-md text-label-md text-outline">Term</th>
+<th class="px-md py-4 font-label-md text-label-md text-outline">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-variant/30 transition-colors cursor-pointer group">
+<td class="px-md py-4">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center border border-outline-variant/30">
+<span class="material-symbols-outlined text-sm">rocket_launch</span>
+</div>
+<span class="font-numeric-data text-numeric-data text-on-surface font-bold">NVDA</span>
+</div>
+</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface-variant">Jan 12, 2021</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface-variant">Feb 20, 2024</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface">500</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface text-right">$52,400.00</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface text-right">$458,200.00</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-secondary text-right">+$405,800.00</td>
+<td class="px-md py-4">
+<span class="px-2 py-1 rounded bg-secondary/10 text-secondary text-[10px] font-bold">+774.4%</span>
+</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface-variant">1,134</td>
+<td class="px-md py-4 font-label-md text-[11px] text-outline uppercase tracking-wider">Long</td>
+<td class="px-md py-4">
+<span class="text-secondary font-bold text-[11px] flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">verified</span> Exempt
+                                    </span>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-variant/30 transition-colors cursor-pointer">
+<td class="px-md py-4">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center border border-outline-variant/30">
+<span class="material-symbols-outlined text-sm">laptop_mac</span>
+</div>
+<span class="font-numeric-data text-numeric-data text-on-surface font-bold">AAPL</span>
+</div>
+</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface-variant">Nov 15, 2023</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface-variant">Mar 05, 2024</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface">1,000</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface text-right">$185,000.00</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface text-right">$172,500.00</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-error text-right">-$12,500.00</td>
+<td class="px-md py-4">
+<span class="px-2 py-1 rounded bg-error/10 text-error text-[10px] font-bold">-6.7%</span>
+</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface-variant">111</td>
+<td class="px-md py-4 font-label-md text-[11px] text-outline uppercase tracking-wider">Short</td>
+<td class="px-md py-4">
+<span class="text-error font-bold text-[11px] flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">warning</span> Taxable
+                                    </span>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-variant/30 transition-colors cursor-pointer">
+<td class="px-md py-4">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center border border-outline-variant/30">
+<span class="material-symbols-outlined text-sm">electric_car</span>
+</div>
+<span class="font-numeric-data text-numeric-data text-on-surface font-bold">TSLA</span>
+</div>
+</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface-variant">May 20, 2022</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface-variant">Jan 10, 2024</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface">150</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface text-right">$34,500.00</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface text-right">$48,750.00</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-secondary text-right">+$14,250.00</td>
+<td class="px-md py-4">
+<span class="px-2 py-1 rounded bg-secondary/10 text-secondary text-[10px] font-bold">+41.3%</span>
+</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface-variant">600</td>
+<td class="px-md py-4 font-label-md text-[11px] text-outline uppercase tracking-wider">Long</td>
+<td class="px-md py-4">
+<span class="text-error font-bold text-[11px] flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">gavel</span> Taxable
+                                    </span>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-variant/30 transition-colors cursor-pointer">
+<td class="px-md py-4">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center border border-outline-variant/30">
+<span class="material-symbols-outlined text-sm">language</span>
+</div>
+<span class="font-numeric-data text-numeric-data text-on-surface font-bold">GOOGL</span>
+</div>
+</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface-variant">Mar 10, 2020</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface-variant">Apr 12, 2024</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface">200</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface text-right">$22,000.00</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface text-right">$31,500.00</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-secondary text-right">+$9,500.00</td>
+<td class="px-md py-4">
+<span class="px-2 py-1 rounded bg-secondary/10 text-secondary text-[10px] font-bold">+43.2%</span>
+</td>
+<td class="px-md py-4 font-numeric-data text-numeric-data text-on-surface-variant">1,494</td>
+<td class="px-md py-4 font-label-md text-[11px] text-outline uppercase tracking-wider">Long</td>
+<td class="px-md py-4">
+<span class="text-secondary font-bold text-[11px] flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">verified</span> Exempt
+                                    </span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Footer Compliance Info -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-md pt-lg border-t border-outline-variant/20 text-on-surface-variant">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-tertiary">info</span>
+<p class="font-label-md text-label-md">Reports are generated based on FIFO accounting. Consult a tax professional for final filing.</p>
+</div>
+<div class="flex items-center gap-lg">
+<span class="font-label-md text-label-md cursor-pointer hover:text-primary">Methodology</span>
+<span class="font-label-md text-label-md cursor-pointer hover:text-primary">Legal Disclosure</span>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation for Mobile (Predicted from TopNavBar JSON/Shell Mandate) -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-container/90 backdrop-blur-xl border-t border-outline-variant/30 flex items-center justify-around px-md z-50">
+<span class="material-symbols-outlined text-on-surface-variant">dashboard</span>
+<span class="material-symbols-outlined text-on-surface-variant">account_balance_wallet</span>
+<div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center -mt-8 shadow-lg shadow-primary/40">
+<span class="material-symbols-outlined text-on-primary">add</span>
+</div>
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">description</span>
+<span class="material-symbols-outlined text-on-surface-variant">person</span>
+</nav>
+<script>
+        // Micro-interactions
+        document.querySelectorAll('.glass-card').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.style.transform = 'translateY(-2px)';
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'translateY(0px)';
+            });
+        });
+    </script>
+</body></html>

@@ -4,19 +4,34 @@
 
 @layer base {
   :root {
+    /* Light (default at first paint; applyAppearance() overrides immediately on mount) */
     --brand: #059669;
     --brand-hover: #047857;
     --brand-light: #D1FAE5;
-    --bg: #F6F8F7;
-    --bg-subtle: #F0FDF4;
-    --sidebar-active: #ECFDF5;
+    --bg: #F3F5FB;
+    --bg-subtle: #E8ECF5;
+    --sidebar-active: #D1FAE5;
     --surface-card: #FFFFFF;
-    --border: #E6EAF0;
-    --ink: #0B1220;
-    --muted: #64748B;
-    --hairline: #E6EAF0;
+    --surface-card-elevated: #F7F9FD;
+    --border: #DDE3F0;
+    --hairline: #DDE3F0;
+    --ink: #10162B;
+    --muted: #6B7592;
     --gain: #10B981;
     --loss: #EF4444;
+    --glass-border-alpha: rgba(16, 22, 43, 0.06);
+    --glass-overlay-alpha: rgba(255, 255, 255, 0.5);
+    --blur-card: 12px;
+    --blur-overlay: 20px;
+    --shadow-ambient: 0px 4px 20px rgba(16, 22, 43, 0.10);
+    --chart-1: var(--brand);
+    --chart-2: #4EDEA3;
+    --chart-3: #FFB95F;
+    --chart-4: #A78BFA;
+    --chart-5: #38BDF8;
+    --chart-6: #FB7185;
+    --chart-7: #FACC15;
+    --chart-8: #64748B;
   }
   body {
     @apply bg-surface text-ink font-sans;
@@ -47,12 +62,17 @@
 
 @layer components {
   .card {
-    @apply bg-surface-card rounded-2xl border border-hairline p-5 shadow-card;
+    @apply bg-surface-card rounded-lg border border-hairline p-5;
+    background-image: linear-gradient(to bottom right, var(--glass-overlay-alpha), transparent 40%);
+    backdrop-filter: blur(var(--blur-card));
+    box-shadow: var(--shadow-ambient);
+    border-color: var(--hairline);
     transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
   }
   .card-interactive:hover {
-    @apply shadow-card-hover -translate-y-0.5;
-    border-color: color-mix(in srgb, var(--brand) 22%, var(--hairline));
+    @apply -translate-y-0.5;
+    background-color: var(--surface-card-elevated);
+    border-color: color-mix(in srgb, var(--brand) 30%, var(--hairline));
   }
   .btn-primary {
     @apply bg-brand hover:bg-brand-dim text-white font-semibold px-4 py-2 rounded-lg transition-colors;
@@ -66,7 +86,7 @@
   }
   .input:focus { box-shadow: 0 0 0 3px var(--brand-light); }
   .eyebrow {
-    @apply font-display text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500;
+    @apply font-display text-[11px] font-semibold uppercase tracking-[0.05em] text-muted;
   }
   .gain { @apply text-gain; }
   .loss { @apply text-loss; }
@@ -100,41 +120,11 @@
 }
 
 /* ----------------------------------------------------------------------------
- * Dark mode. Surface / border / brand colors already flow through CSS variables
- * (set per-theme by applyAppearance() in App.jsx) and adapt automatically. The
- * app also uses Tailwind's slate scale and a few raw surfaces directly, so we
- * remap those utilities here under html.dark. Kept unlayered so they win over
- * Tailwind's generated utilities regardless of source order.
+ * Dark mode. Surface / border / brand / text colors flow through CSS custom
+ * properties (set per-theme by applyAppearance() in App.jsx) and adapt
+ * automatically — no per-utility overrides needed here. Only the scrollbar
+ * thumb (drawn with hardcoded browser-native colors, not Tailwind utilities)
+ * needs an explicit dark-mode repoint.
  * ------------------------------------------------------------------------- */
-html.dark body { color: #E2E8F0; }
-
-/* Text hierarchy: darker-in-light maps to lighter-in-dark. */
-.dark .text-slate-800 { color: #F1F5F9; }
-.dark .text-slate-700 { color: #E2E8F0; }
-.dark .text-slate-600 { color: #CBD5E1; }
-.dark .text-slate-500 { color: #94A3B8; }
-.dark .text-slate-400 { color: #64748B; }
-.dark .text-slate-300 { color: #475569; }
-.dark .hover\:text-slate-800:hover { color: #F1F5F9; }
-.dark .hover\:text-slate-700:hover { color: #E2E8F0; }
-
-/* Raw surfaces (cards/borders use the CSS vars above and already adapt). */
-.dark .bg-white { background-color: #334155; }
-.dark .bg-slate-50 { background-color: #1E293B; }
-.dark .bg-slate-100 { background-color: #1E293B; }
-.dark .hover\:bg-slate-50:hover { background-color: #334155; }
-.dark .hover\:bg-slate-100:hover { background-color: #334155; }
-
-/* Component classes bake colors in via @apply, so remap them explicitly. */
-.dark .input { background-color: #1E293B; color: #F1F5F9; }
-.dark .input::placeholder { color: #64748B; }
-.dark .btn-ghost { color: #94A3B8; }
-.dark .btn-ghost:hover { color: #E2E8F0; }
-
-/* Brighten semantic gain/loss + badges a touch for contrast on dark. */
-.dark .text-emerald-600 { color: #34D399; }
-.dark .text-red-600 { color: #F87171; }
-
-/* Scrollbar. */
-.dark ::-webkit-scrollbar-thumb { background: #334155; }
-.dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
+.dark ::-webkit-scrollbar-thumb { background: var(--hairline); }
+.dark ::-webkit-scrollbar-thumb:hover { background: var(--bg-subtle); }

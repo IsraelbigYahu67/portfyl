@@ -1,0 +1,391 @@
+<!DOCTYPE html><html class="dark" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Portfyl | Search Stocks</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700;800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;family=Plus+Jakarta+Sans:wght@100..900&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-surface-variant": "#c2c6d6",
+                    "surface-container": "#171f33",
+                    "surface-container-high": "#222a3d",
+                    "on-primary-container": "#00285d",
+                    "primary-fixed-dim": "#adc6ff",
+                    "on-secondary": "#003824",
+                    "on-secondary-container": "#00311f",
+                    "inverse-primary": "#005ac2",
+                    "surface-container-lowest": "#060e20",
+                    "surface-tint": "#adc6ff",
+                    "surface-container-low": "#131b2e",
+                    "surface-variant": "#2d3449",
+                    "inverse-on-surface": "#283044",
+                    "secondary-fixed": "#6ffbbe",
+                    "tertiary-fixed": "#ffddb8",
+                    "on-primary-fixed": "#001a42",
+                    "on-primary-fixed-variant": "#004395",
+                    "on-error": "#690005",
+                    "on-primary": "#002e6a",
+                    "on-background": "#dae2fd",
+                    "on-secondary-fixed": "#002113",
+                    "primary": "#adc6ff",
+                    "on-tertiary-fixed": "#2a1700",
+                    "surface-dim": "#0b1326",
+                    "primary-fixed": "#d8e2ff",
+                    "on-tertiary": "#472a00",
+                    "surface": "#0b1326",
+                    "outline-variant": "#424754",
+                    "on-tertiary-fixed-variant": "#653e00",
+                    "on-surface": "#dae2fd",
+                    "secondary-container": "#00a572",
+                    "on-tertiary-container": "#3e2400",
+                    "background": "#0b1326",
+                    "outline": "#8c909f",
+                    "tertiary-fixed-dim": "#ffb95f",
+                    "inverse-surface": "#dae2fd",
+                    "surface-bright": "#31394d",
+                    "secondary": "#4edea3",
+                    "error-container": "#93000a",
+                    "error": "#ffb4ab",
+                    "surface-container-highest": "#2d3449",
+                    "secondary-fixed-dim": "#4edea3",
+                    "primary-container": "#4d8eff",
+                    "on-secondary-fixed-variant": "#005236",
+                    "on-error-container": "#ffdad6",
+                    "tertiary": "#ffb95f",
+                    "tertiary-container": "#ca8100"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "max-width": "1440px",
+                    "unit": "4px",
+                    "md": "16px",
+                    "margin-desktop": "40px",
+                    "gutter": "20px",
+                    "margin-mobile": "16px",
+                    "sm": "8px",
+                    "xs": "4px",
+                    "xl": "32px",
+                    "lg": "24px"
+            },
+            "fontFamily": {
+                    "numeric-data": ["Inter"],
+                    "headline-sm": ["Plus Jakarta Sans"],
+                    "display-lg": ["Plus Jakarta Sans"],
+                    "headline-md": ["Plus Jakarta Sans"],
+                    "display-lg-mobile": ["Plus Jakarta Sans"],
+                    "body-md": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "label-md": ["Inter"]
+            },
+            "fontSize": {
+                    "numeric-data": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                    "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "display-lg-mobile": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #0b1326;
+            color: #dae2fd;
+            -webkit-font-smoothing: antialiased;
+        }
+        .glass-panel {
+            background: rgba(23, 31, 51, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .search-glow:focus-within {
+            box-shadow: inset 0 0 15px rgba(173, 198, 255, 0.1), 0 0 0 1px #adc6ff;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="min-h-screen overflow-x-hidden">
+<!-- Background Atmospheric Elements -->
+<div class="fixed inset-0 pointer-events-none z-0">
+<div class="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-primary/10 blur-[120px] rounded-full"></div>
+<div class="absolute bottom-[-10%] left-[-5%] w-[600px] h-[600px] bg-secondary/5 blur-[120px] rounded-full"></div>
+</div>
+<!-- Side Navigation (Shared Component Anchor) -->
+<aside class="fixed left-0 top-0 h-screen w-64 z-50 flex flex-col py-lg px-md gap-sm bg-surface-container/80 backdrop-blur-2xl border-r border-outline-variant/20 shadow-lg hidden md:flex">
+<div class="flex items-center gap-sm mb-xl px-xs">
+<div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary-container" style="font-variation-settings: 'FILL' 1;">account_balance</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary tracking-tight">Portfyl</h1>
+<p class="font-label-md text-label-md text-on-surface-variant opacity-70">Institutional Grade</p>
+</div>
+</div>
+<nav class="flex-1 space-y-xs">
+<div class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</div>
+<div class="group cursor-pointer flex items-center gap-md px-md py-sm text-primary font-bold bg-primary/10 rounded-lg">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">search</span>
+<span class="font-label-md text-label-md">Portfolio</span>
+</div>
+<div class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="font-label-md text-label-md">Transactions</span>
+</div>
+<div class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg">
+<span class="material-symbols-outlined">monitoring</span>
+<span class="font-label-md text-label-md">Analytics</span>
+</div>
+<div class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg">
+<span class="material-symbols-outlined">description</span>
+<span class="font-label-md text-label-md">Reports</span>
+</div>
+</nav>
+<div class="mt-auto pt-lg border-t border-outline-variant/20 space-y-xs">
+<div class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg">
+<span class="material-symbols-outlined">help</span>
+<span class="font-label-md text-label-md">Support</span>
+</div>
+<div class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-label-md text-label-md">Sign Out</span>
+</div>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="relative z-10 md:ml-64 min-h-screen px-margin-mobile md:px-margin-desktop py-lg">
+<!-- Header -->
+<header class="max-w-5xl mx-auto mb-xl">
+<div class="flex flex-col gap-xs">
+<h2 class="font-display-lg text-display-lg-mobile md:text-display-lg text-on-surface">Search Stocks</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-xl">Find your next investment across global markets with institutional-grade search tools.</p>
+</div>
+</header>
+<!-- Search Interaction Area -->
+<section class="max-w-5xl mx-auto space-y-lg">
+<!-- Search Bar -->
+<div class="relative group">
+<div class="absolute inset-y-0 left-0 pl-lg flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-primary text-2xl">search</span>
+</div>
+<input autofocus="" class="w-full bg-surface/40 backdrop-blur-xl border border-white/10 rounded-xl py-xl pl-16 pr-lg text-headline-sm font-headline-sm text-on-surface placeholder:text-on-surface-variant/40 outline-none transition-all search-glow" placeholder="Ticker, company name, or sector..." type="text">
+<div class="absolute inset-y-0 right-md flex items-center">
+<kbd class="hidden md:inline-flex items-center gap-1 px-sm py-xs bg-surface-variant/50 border border-outline-variant/30 rounded text-[10px] text-on-surface-variant font-mono">
+<span class="text-xs">⌘</span>K
+                    </kbd>
+</div>
+</div>
+<!-- Results Container -->
+<div class="glass-panel rounded-xl overflow-hidden shadow-2xl border border-outline-variant/20">
+<!-- Results Header -->
+<div class="px-lg py-md border-b border-outline-variant/20 bg-surface-container-low/50 flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Global Markets</span>
+<span class="font-label-md text-label-md text-primary">6 Results Found</span>
+</div>
+<!-- Result Items -->
+<div class="divide-y divide-outline-variant/10">
+<!-- Result Item 1 -->
+<div class="group flex items-center justify-between px-lg py-lg hover:bg-white/5 transition-colors cursor-pointer">
+<div class="flex items-center gap-lg">
+<div class="w-12 h-12 rounded-lg bg-surface-container-highest border border-outline-variant/30 flex items-center justify-center p-2">
+<div class="w-full h-full bg-cover bg-center rounded-sm" data-alt="The minimalist logo of Apple Inc, a sleek silver apple silhouette on a clean dark slate background, professional corporate branding photography with soft rim lighting." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBbOz5bT1_rriEsyMXGIhV-ujC4bLInK02rji9ZkzCnI8OtdiNEI94Nv36Y6jmWm0UPBw7L9RwXKCrj5WD08MW5S8wWd96_lr9v1S_810V4AetJRMD6AHJZLSmviFnE4vMXeceLh9u_AIIzjc3JcW3ho-x2jj1bgm8OK-nHQWUzhiiDNKZ6JXnBCaZh4djQqvgIy66pUI4hjNXGA1OAbIigAwcYgSBq1I6RH8B3BLglcFX16ubK7CnXFkb4cYCvbRcZHLJ0C73S0g')"></div>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-sm">
+<span class="font-headline-sm text-headline-sm text-on-surface font-bold">AAPL</span>
+<span class="px-sm py-0.5 bg-secondary/10 text-secondary text-[10px] font-bold rounded uppercase tracking-tighter">Technology</span>
+</div>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface font-medium">Apple Inc.</span>
+<span class="font-label-md text-label-md text-on-surface-variant opacity-60">NASDAQ · Equity · Consumer Electronics</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-xl">
+<div class="text-right hidden sm:flex flex-col">
+<span class="font-numeric-data text-numeric-data text-on-surface">$189.43</span>
+<span class="font-label-md text-label-md text-secondary">+1.24%</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary group-hover:translate-x-1 transition-all">arrow_forward</span>
+</div>
+</div>
+<!-- Result Item 2 -->
+<div class="group flex items-center justify-between px-lg py-lg hover:bg-white/5 transition-colors cursor-pointer">
+<div class="flex items-center gap-lg">
+<div class="w-12 h-12 rounded-lg bg-surface-container-highest border border-outline-variant/30 flex items-center justify-center p-2">
+<div class="w-full h-full bg-cover bg-center rounded-sm" data-alt="A futuristic Microsoft logo stylized with glassmorphic transparency, soft blue and white hues, set against a deep navy high-tech background with subtle data stream overlays." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBUhmm_Wj6wRENdKVWfVjnFgn-8qxuinQ2kltvljDecjhUb6Hgma5DZ0X4-SngjUu4lRyjYwEaEDIxfKzxHFdqxPVLmdkyQ1Z5z1T5ykiYelSi6972Tm270ltc0fpeY38HQ8LmS-3TkFieGbEXOU5c_Q1jobxUW3TWiMpYk9WZJBQqURPMekGl2lFtwBtDzvYnRRMnnJcckUgmbD6h-nxyq1pLZA7V45yTilYR6zOkho4Wku1H0ZcwaM8AkSymCbPTvmXNcrUViRA')"></div>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-sm">
+<span class="font-headline-sm text-headline-sm text-on-surface font-bold">MSFT</span>
+<span class="px-sm py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded uppercase tracking-tighter">Software</span>
+</div>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface font-medium">Microsoft Corp.</span>
+<span class="font-label-md text-label-md text-on-surface-variant opacity-60">NASDAQ · Equity · Productivity &amp; Business</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-xl">
+<div class="text-right hidden sm:flex flex-col">
+<span class="font-numeric-data text-numeric-data text-on-surface">$421.90</span>
+<span class="font-label-md text-label-md text-secondary">+0.85%</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary group-hover:translate-x-1 transition-all">arrow_forward</span>
+</div>
+</div>
+<!-- Result Item 3 -->
+<div class="group flex items-center justify-between px-lg py-lg hover:bg-white/5 transition-colors cursor-pointer">
+<div class="flex items-center gap-lg">
+<div class="w-12 h-12 rounded-lg bg-surface-container-highest border border-outline-variant/30 flex items-center justify-center p-2">
+<div class="w-full h-full bg-cover bg-center rounded-sm" data-alt="Tesla motors logo rendered in a polished chrome finish, high-contrast lighting, dark background with subtle red ambient light reflecting off the metallic curves of the 'T' symbol." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuChrlqyUIvYpLVaWobBoAdIplGyI2RgPCFRwHtn5uLRuPwSR62Z_fVLt9UxyJqnn6DqGooB4LpSofl6m1E6RrXDL5amAT4eTx45C7BMMnEwWqpiUZgCAdIcGKhD6CUVDZ2CYvs-gSqmfMhTuhltmAKtjaS5aUj2ljE0YXY0k-xQP7vxAViqdQuVrvpABpl4a-SONmASsvoPvVtQZo2YOa6pKiIQqcwaI6-L2ukZTlwsrSi1bw_A4Zun8AgA76zppVHoRW3ibCfIJQ')"></div>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-sm">
+<span class="font-headline-sm text-headline-sm text-on-surface font-bold">TSLA</span>
+<span class="px-sm py-0.5 bg-tertiary/10 text-tertiary text-[10px] font-bold rounded uppercase tracking-tighter">Automotive</span>
+</div>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface font-medium">Tesla, Inc.</span>
+<span class="font-label-md text-label-md text-on-surface-variant opacity-60">NASDAQ · Equity · Electric Vehicles</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-xl">
+<div class="text-right hidden sm:flex flex-col">
+<span class="font-numeric-data text-numeric-data text-on-surface">$175.22</span>
+<span class="font-label-md text-label-md text-error">-2.10%</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary group-hover:translate-x-1 transition-all">arrow_forward</span>
+</div>
+</div>
+<!-- Result Item 4 -->
+<div class="group flex items-center justify-between px-lg py-lg hover:bg-white/5 transition-colors cursor-pointer">
+<div class="flex items-center gap-lg">
+<div class="w-12 h-12 rounded-lg bg-surface-container-highest border border-outline-variant/30 flex items-center justify-center p-2">
+<div class="w-full h-full bg-cover bg-center rounded-sm" data-alt="NVIDIA corporation logo, neon green circuit patterns forming the iconic eye shape, high-tech aesthetic, glowing elements against a matte black textured background." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBFlgoprnX58nDGPwM-pOQeVlrA9dXAxloe5VdIvov4_FzZ9S2N_UqXwmhotN00shHk2nvBlZGZXfQ41GSfKd6HVjqwwLxgAjxzLJL7esIuIrqCXxbtjWL28IQy2GmPK0BtH4aoN8LCQtqEbbCjXfkfNl2muKkiIfxqdzN1HWOyZmFf9NqRP90o_V7-bsHbxP3Tr_rvM9G_mtxOE4XClVSJg_KVVPNDXM-s6f6Irth9t47o4Th6aD1_QFPdqa_FIE1tDUh-Ai8uig')"></div>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-sm">
+<span class="font-headline-sm text-headline-sm text-on-surface font-bold">NVDA</span>
+<span class="px-sm py-0.5 bg-secondary/10 text-secondary text-[10px] font-bold rounded uppercase tracking-tighter">Semiconductors</span>
+</div>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface font-medium">NVIDIA Corporation</span>
+<span class="font-label-md text-label-md text-on-surface-variant opacity-60">NASDAQ · Equity · Graphics &amp; AI</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-xl">
+<div class="text-right hidden sm:flex flex-col">
+<span class="font-numeric-data text-numeric-data text-on-surface">$894.52</span>
+<span class="font-label-md text-label-md text-secondary">+3.42%</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary group-hover:translate-x-1 transition-all">arrow_forward</span>
+</div>
+</div>
+<!-- Result Item 5 -->
+<div class="group flex items-center justify-between px-lg py-lg hover:bg-white/5 transition-colors cursor-pointer">
+<div class="flex items-center gap-lg">
+<div class="w-12 h-12 rounded-lg bg-surface-container-highest border border-outline-variant/30 flex items-center justify-center p-2">
+<div class="w-full h-full bg-cover bg-center rounded-sm" data-alt="Amazon corporation logo featuring the iconic arrow from a to z, rendered in warm orange and dark blue tones, soft-focus warehouse background in a professional business photography style." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuClnZi0XrhVpX_pdBaPLzyxCpmN5MucPZXrlcPlKFCbE48pmRHIkGtrFbvn_rbu89LXeWuJDe5mzoQVu6PXRRJdI7PpbP7XxGsVWTjemjsy8LM5V7bYPJ6lkiEDakE0Y98KWWS9pWL759bWaKx3OEeyDS0AdtjZQ3np92VKGDHXHCQsfQMotGmi_MX1Khd_1fyeYkf7aS2H-3ljmdaKlez4xOV7q8hmZ8DW2WKc1mgrF40GXtHpRcj8B5TqerYU2Gd9kukgdj_Big')"></div>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-sm">
+<span class="font-headline-sm text-headline-sm text-on-surface font-bold">AMZN</span>
+<span class="px-sm py-0.5 bg-on-surface-variant/10 text-on-surface-variant text-[10px] font-bold rounded uppercase tracking-tighter">Consumer</span>
+</div>
+<div class="flex flex-col">
+<span class="font-body-md text-body-md text-on-surface font-medium">Amazon.com, Inc.</span>
+<span class="font-label-md text-label-md text-on-surface-variant opacity-60">NASDAQ · Equity · E-commerce &amp; Cloud</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-xl">
+<div class="text-right hidden sm:flex flex-col">
+<span class="font-numeric-data text-numeric-data text-on-surface">$178.15</span>
+<span class="font-label-md text-label-md text-secondary">+0.48%</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary group-hover:translate-x-1 transition-all">arrow_forward</span>
+</div>
+</div>
+</div>
+<!-- Footer / Load More -->
+<div class="px-lg py-lg bg-surface-container-highest/20 flex justify-center">
+<button class="flex items-center gap-sm px-xl py-sm bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all group">
+<span class="font-label-md text-label-md text-on-surface">View All Markets</span>
+<span class="material-symbols-outlined text-sm group-hover:translate-y-0.5 transition-transform">expand_more</span>
+</button>
+</div>
+</div>
+<!-- Bento Grid - Trending Insights -->
+
+</section>
+</main>
+<!-- Bottom Navigation (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-container/80 backdrop-blur-xl border-t border-outline-variant/20 flex items-center justify-around z-50">
+<div class="flex flex-col items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px]">Home</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">search</span>
+<span class="text-[10px]">Search</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="text-[10px]">Assets</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px]">Profile</span>
+</div>
+</nav>
+<script>
+        // Micro-interaction for the search input
+        const searchInput = document.querySelector('input');
+        const resultsList = document.querySelector('.divide-y');
+
+        searchInput.addEventListener('focus', () => {
+            // Placeholder for real filtering logic
+            console.log('Search focused - activating premium glass filter effects');
+        });
+
+        // Simple mock for "typing" effect on result highlight
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const rows = resultsList.querySelectorAll('.group');
+            
+            rows.forEach(row => {
+                const text = row.innerText.toLowerCase();
+                if (text.includes(query)) {
+                    row.style.display = 'flex';
+                    row.classList.add('animate-pulse-once');
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+    </script>
+
+
+</body></html>

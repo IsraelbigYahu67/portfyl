@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Plus+Jakarta+Sans:wght@100..900&display=swap" rel="stylesheet"/>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .glass-card {
+      background: rgba(15, 23, 42, 0.4);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(30, 41, 59, 0.5);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
+    .glass-input {
+      background: #020617;
+      border: 1px solid #1e293b;
+      transition: all 0.2s ease-in-out;
+    }
+    .glass-input:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+      outline: none;
+    }
+    body {
+      background-color: #0b1326;
+      color: #dae2fd;
+    }
+  </style>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-surface-variant": "#c2c6d6",
+            "error-container": "#93000a",
+            "on-tertiary-fixed": "#2a1700",
+            "inverse-on-surface": "#283044",
+            "surface-container-highest": "#2d3449",
+            "primary-container": "#4d8eff",
+            "primary-fixed-dim": "#adc6ff",
+            "on-error": "#690005",
+            "surface-dim": "#0b1326",
+            "error": "#ffb4ab",
+            "surface-bright": "#31394d",
+            "on-tertiary-fixed-variant": "#653e00",
+            "tertiary-fixed": "#ffddb8",
+            "on-secondary-fixed": "#002113",
+            "on-primary-fixed": "#001a42",
+            "on-tertiary-container": "#3e2400",
+            "secondary-container": "#00a572",
+            "outline-variant": "#424754",
+            "on-error-container": "#ffdad6",
+            "background": "#0b1326",
+            "surface-variant": "#2d3449",
+            "on-secondary-fixed-variant": "#005236",
+            "on-secondary": "#003824",
+            "secondary-fixed": "#6ffbbe",
+            "on-background": "#dae2fd",
+            "on-surface": "#dae2fd",
+            "on-secondary-container": "#00311f",
+            "surface-container": "#171f33",
+            "on-tertiary": "#472a00",
+            "surface-container-low": "#131b2e",
+            "on-primary-fixed-variant": "#004395",
+            "inverse-surface": "#dae2fd",
+            "tertiary-container": "#ca8100",
+            "surface-tint": "#adc6ff",
+            "surface-container-high": "#222a3d",
+            "tertiary": "#ffb95f",
+            "secondary": "#4edea3",
+            "surface": "#0b1326",
+            "secondary-fixed-dim": "#4edea3",
+            "primary-fixed": "#d8e2ff",
+            "tertiary-fixed-dim": "#ffb95f",
+            "surface-container-lowest": "#060e20",
+            "primary": "#adc6ff",
+            "on-primary-container": "#00285d",
+            "inverse-primary": "#005ac2",
+            "outline": "#8c909f",
+            "on-primary": "#002e6a"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "lg": "24px",
+            "max-width": "1440px",
+            "sm": "8px",
+            "md": "16px",
+            "gutter": "20px",
+            "unit": "4px",
+            "xs": "4px",
+            "xl": "32px",
+            "margin-desktop": "40px",
+            "margin-mobile": "16px"
+          },
+          "fontFamily": {
+            "numeric-data": ["Inter"],
+            "label-md": ["Inter"],
+            "body-md": ["Inter"],
+            "headline-sm": ["Plus Jakarta Sans"],
+            "display-lg-mobile": ["Plus Jakarta Sans"],
+            "body-lg": ["Inter"],
+            "headline-md": ["Plus Jakarta Sans"],
+            "display-lg": ["Plus Jakarta Sans"]
+          },
+          "fontSize": {
+            "numeric-data": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+            "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+            "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+            "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+            "display-lg-mobile": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+            "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+            "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+            "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+          }
+        },
+      },
+    }
+  </script>
+</head>
+<body class="font-body-md text-on-surface selection:bg-primary/30">
+<!-- Side Navigation Shell -->
+<aside class="fixed left-0 top-0 h-screen w-64 z-50 bg-surface-container/80 backdrop-blur-2xl border-r border-outline-variant/20 shadow-lg flex flex-col py-lg px-md gap-sm hidden md:flex">
+<div class="flex items-center gap-sm px-sm mb-xl">
+<div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary">account_balance_wallet</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">Portfyl</h1>
+<p class="font-label-md text-label-md text-on-surface-variant opacity-70">Institutional Grade</p>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-xs">
+<div class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</div>
+<div class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="font-label-md text-label-md">Portfolio</span>
+</div>
+<div class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="font-label-md text-label-md">Transactions</span>
+</div>
+<div class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg">
+<span class="material-symbols-outlined">monitoring</span>
+<span class="font-label-md text-label-md">Analytics</span>
+</div>
+<div class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg">
+<span class="material-symbols-outlined">description</span>
+<span class="font-label-md text-label-md">Reports</span>
+</div>
+</nav>
+<div class="mt-auto flex flex-col gap-xs pt-lg border-t border-outline-variant/10">
+<div class="group cursor-pointer flex items-center gap-md px-md py-sm text-primary font-bold bg-primary/10 rounded-lg">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</div>
+<div class="group cursor-pointer flex items-center gap-md px-md py-sm text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 transition-all rounded-lg">
+<span class="material-symbols-outlined">help</span>
+<span class="font-label-md text-label-md">Support</span>
+</div>
+</div>
+</aside>
+<!-- Top Navigation Shell -->
+<header class="w-full sticky top-0 z-40 bg-surface/70 backdrop-blur-xl border-b border-outline-variant/30 shadow-sm flex items-center justify-between px-margin-desktop h-16 md:pl-[296px]">
+<div class="flex items-center gap-md">
+<div class="md:hidden">
+<span class="material-symbols-outlined text-primary">menu</span>
+</div>
+<span class="hidden md:block font-headline-sm text-headline-sm text-on-surface-variant">Settings & Connections</span>
+</div>
+<div class="flex items-center gap-lg">
+<div class="flex items-center gap-sm">
+<div class="cursor-pointer active:scale-95 p-sm hover:bg-surface-variant/50 transition-colors rounded-full relative">
+<span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full"></span>
+</div>
+<div class="cursor-pointer active:scale-95 p-sm hover:bg-surface-variant/50 transition-colors rounded-full">
+<span class="material-symbols-outlined text-on-surface-variant">account_circle</span>
+</div>
+</div>
+<button class="bg-primary text-on-primary-container px-md py-sm rounded-lg font-label-md text-label-md active:scale-95 transition-all shadow-lg shadow-primary/10">
+        Add Entry
+      </button>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="md:pl-64 min-h-screen pb-xl">
+<div class="max-w-7xl mx-auto px-margin-mobile md:px-margin-desktop pt-xl">
+<!-- Page Header -->
+<div class="mb-xl">
+<h2 class="font-display-lg text-display-lg text-primary">Settings</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant mt-xs">Managing connection for portfolio X</p>
+</div>
+<!-- Bento Grid for Connections -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter mb-xl">
+<!-- Connection 1: Trading 212 -->
+<div class="glass-card rounded-xl p-lg flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-lg">
+<div class="w-12 h-12 rounded-lg bg-surface-container flex items-center justify-center p-sm border border-outline-variant/30 overflow-hidden">
+<img class="w-full h-full object-contain" data-alt="The logo of Trading 212, featuring a stylized number 212 in a minimalist, corporate modern style. The graphic uses a sophisticated dark blue and bright electric blue color scheme to align with an institutional investment tool aesthetic, with soft lighting and professional-grade finish." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDCSoA1ZyZIgaAi6-I6fkygSYAYkk_T_YR42hcnUT4iv-VHtWMgEyaZFDjvJ24_nuHc7hJoMDB4-SWXs2PNjodbaDxtuA6wXgdzHrk6S1Qzy74u219WNQIsYZ5UMFcH50cwoerjgdkEfkVawZ4tpuRO-sYrO6U5XD0OcsdxzeYiqMsEh5dpKQC03xH3diRrGl522DplllW3Hwzbl_xD0x6twfy5fwt1EtV1vx9HOlys3K-XoSGopJjJ-Db0dfhmpUY4olXo6z-HQA"/>
+</div>
+<div class="flex items-center gap-xs px-sm py-1 bg-secondary/10 rounded-full">
+<div class="w-2 h-2 rounded-full bg-secondary animate-pulse"></div>
+<span class="font-label-md text-label-md text-secondary">Connected</span>
+</div>
+</div>
+<h3 class="font-headline-sm text-headline-sm mb-xs">Trading 212</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-lg">Institutional equity & ETF account</p>
+<div class="space-y-md">
+<div class="flex justify-between items-center py-sm border-b border-outline-variant/10">
+<span class="font-label-md text-label-md text-on-surface-variant">Last Synced</span>
+<span class="font-numeric-data text-numeric-data">2 mins ago</span>
+</div>
+<div class="flex justify-between items-center py-sm border-b border-outline-variant/10">
+<span class="font-label-md text-label-md text-on-surface-variant">Status</span>
+<span class="font-numeric-data text-numeric-data text-secondary">Active</span>
+</div>
+</div>
+</div>
+<div class="mt-xl flex flex-col gap-sm">
+<div class="flex items-center justify-between p-sm bg-surface-container/50 rounded-lg border border-outline-variant/20">
+<span class="font-label-md text-label-md">Auto-sync</span>
+<button class="relative w-10 h-5 bg-secondary rounded-full transition-colors flex items-center px-0.5">
+<div class="w-4 h-4 bg-on-secondary rounded-full transform translate-x-5"></div>
+</button>
+</div>
+<div class="flex gap-sm">
+<button class="flex-1 bg-primary text-on-primary py-sm rounded-lg font-label-md text-label-md hover:brightness-110 active:scale-95 transition-all">Sync Now</button>
+<button class="px-md border border-error/50 text-error py-sm rounded-lg font-label-md text-label-md hover:bg-error/10 active:scale-95 transition-all">Disconnect</button>
+</div>
+</div>
+</div>
+<!-- Connection 2: Interactive Brokers -->
+<div class="glass-card rounded-xl p-lg flex flex-col">
+<div class="flex justify-between items-start mb-lg">
+<div class="w-12 h-12 rounded-lg bg-surface-container flex items-center justify-center p-sm border border-outline-variant/30 overflow-hidden">
+<img class="w-full h-full object-contain" data-alt="The logo of Interactive Brokers presented in a sleek, glassmorphic container. The design is corporate and technical, using shades of gray, white, and a touch of professional red. The lighting is crisp and modern, reflecting a high-frequency trading platform vibe." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAIoFuFl-X3dyRCjnOpHHyLLWy2WaL3ueBy42Vti9ptUygWTZlCU2sK1iNPTLJNy1U8i-a0_JlZ1Stq6j_qM0KKxRU1MfziU7yCpmn9ZCtMasLpn5612UumDPGU9dAHpekY8v1H-mQDjY7z8nwNADpQolpBGJjerWBP-AFpIlYuVzYOuwNA8k5ueP3rWn6sh17SCTxcaUqi1eqYktFMBUjNzrwMbC9_X9knS8ucuz_XN0sI-uELzdR6uCWzJeZCB1Pr-RuKQoYQKg"/>
+</div>
+<div class="flex items-center gap-xs px-sm py-1 bg-on-surface-variant/10 rounded-full">
+<div class="w-2 h-2 rounded-full bg-on-surface-variant/40"></div>
+<span class="font-label-md text-label-md text-on-surface-variant">Not Connected</span>
+</div>
+</div>
+<h3 class="font-headline-sm text-headline-sm mb-xs">Interactive Brokers</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-lg">Connect TWS or Client Portal API</p>
+<div class="space-y-md flex-1">
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface-variant ml-1">API Key</label>
+<input class="glass-input w-full rounded-lg px-md py-sm text-on-surface placeholder:text-on-surface-variant/30 font-numeric-data" placeholder="ibkr_live_..." type="text"/>
+</div>
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface-variant ml-1">Secret</label>
+<input class="glass-input w-full rounded-lg px-md py-sm text-on-surface placeholder:text-on-surface-variant/30" placeholder="••••••••••••••••" type="password"/>
+</div>
+</div>
+<button class="w-full mt-xl bg-surface-bright border border-outline-variant/30 text-on-surface py-sm rounded-lg font-label-md text-label-md hover:bg-primary hover:text-on-primary transition-all active:scale-95">Connect Account</button>
+</div>
+<!-- Connection 3: Polymarket -->
+<div class="glass-card rounded-xl p-lg flex flex-col">
+<div class="flex justify-between items-start mb-lg">
+<div class="w-12 h-12 rounded-lg bg-surface-container flex items-center justify-center p-sm border border-outline-variant/30 overflow-hidden">
+<img class="w-full h-full object-contain" data-alt="A futuristic and minimal representation of the Polymarket logo, focusing on prediction market themes. The colors are vibrant neon greens and deep space blues, presented on a dark, reflective material. The style is technologically advanced, emphasizing decentralization and transparent data." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAjqFof0QhHloKTdPmSrPij5Mc1U6yLKyZ2CbUnuDqPQpEHVyOPyaoEwm09o6Jcb1PNUOh-s1u1NJGnlOr5eYuijpvYy9xnW0DlHu-m5WDXWZIwq9VPuGqs5B1xRGpP4sOzclkl4HrC6k07xJyz_drm9FxjSkExKeIMHYzfJ-9TDXHJNfeR-gp4_KOXIk2zugW7RrywjYwzi29eSznIhX5tNs3BX-gfW5YScbdYIuROpf20mxfyD9EuxOKo7LnZiCMRQCeKVZiAXg"/>
+</div>
+<div class="flex items-center gap-xs px-sm py-1 bg-on-surface-variant/10 rounded-full">
+<div class="w-2 h-2 rounded-full bg-on-surface-variant/40"></div>
+<span class="font-label-md text-label-md text-on-surface-variant">Not Connected</span>
+</div>
+</div>
+<h3 class="font-headline-sm text-headline-sm mb-xs">Polymarket</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-lg">Track prediction market positions</p>
+<div class="space-y-md flex-1">
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface-variant ml-1">Wallet Address</label>
+<input class="glass-input w-full rounded-lg px-md py-sm text-on-surface placeholder:text-on-surface-variant/30 font-numeric-data" placeholder="0x..." type="text"/>
+</div>
+<div class="p-md bg-primary/5 border border-primary/20 rounded-lg mt-md">
+<p class="font-label-md text-label-md text-primary leading-relaxed">
+                Connect your Polygon wallet to track positions and PnL in real-time.
+              </p>
+</div>
+</div>
+<button class="w-full mt-xl bg-surface-bright border border-outline-variant/30 text-on-surface py-sm rounded-lg font-label-md text-label-md hover:bg-primary hover:text-on-primary transition-all active:scale-95">Link Wallet</button>
+</div>
+</div>
+<!-- Secondary Sections -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+<!-- Sync Schedule -->
+<div class="glass-card rounded-xl p-lg">
+<div class="flex items-center gap-md mb-lg">
+<div class="w-10 h-10 rounded-lg bg-tertiary-container/20 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined">schedule</span>
+</div>
+<div>
+<h4 class="font-headline-sm text-headline-sm">Sync Schedule</h4>
+<p class="font-label-md text-label-md text-on-surface-variant">Automate your data refreshes</p>
+</div>
+</div>
+<div class="grid grid-cols-4 gap-sm mb-lg">
+<div class="flex flex-col items-center p-sm rounded-lg border border-primary bg-primary/10 cursor-pointer">
+<span class="font-label-md text-label-md">1h</span>
+</div>
+<div class="flex flex-col items-center p-sm rounded-lg border border-outline-variant/30 hover:bg-surface-variant/30 cursor-pointer transition-colors">
+<span class="font-label-md text-label-md">4h</span>
+</div>
+<div class="flex flex-col items-center p-sm rounded-lg border border-outline-variant/30 hover:bg-surface-variant/30 cursor-pointer transition-colors">
+<span class="font-label-md text-label-md">Daily</span>
+</div>
+<div class="flex flex-col items-center p-sm rounded-lg border border-outline-variant/30 hover:bg-surface-variant/30 cursor-pointer transition-colors">
+<span class="font-label-md text-label-md">Off</span>
+</div>
+</div>
+<div class="h-1 bg-surface-variant rounded-full overflow-hidden">
+<div class="w-1/4 h-full bg-primary shadow-[0_0_8px_rgba(173,198,255,0.6)]"></div>
+</div>
+</div>
+<!-- Discord Notifications -->
+<div class="glass-card rounded-xl p-lg">
+<div class="flex items-center justify-between mb-lg">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-lg bg-on-primary-fixed-variant/20 flex items-center justify-center text-primary-fixed-dim">
+<span class="material-symbols-outlined">notifications_active</span>
+</div>
+<div>
+<h4 class="font-headline-sm text-headline-sm">Discord Notifications</h4>
+<p class="font-label-md text-label-md text-on-surface-variant">Portfolio alerts & trade logs</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant/40">open_in_new</span>
+</div>
+<div class="flex items-center gap-md p-md bg-surface-container-highest/30 border border-outline-variant/20 rounded-lg">
+<div class="flex-1">
+<p class="font-body-md text-body-md text-on-surface-variant">Webhook URL</p>
+<p class="font-numeric-data text-numeric-data text-on-surface truncate">https://discord.com/api/webhooks/9821...</p>
+</div>
+<button class="bg-surface-variant p-sm rounded-lg text-on-surface hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-sm">edit</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Mobile Bottom Nav Shell -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-container/80 backdrop-blur-xl border-t border-outline-variant/20 flex items-center justify-around px-md z-50">
+<div class="flex flex-col items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined">dashboard</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">settings</span>
+</div>
+</nav>
+<script>
+    // Micro-interactions and effects
+    document.querySelectorAll('.active\\:scale-95').forEach(el => {
+      el.addEventListener('mousedown', () => el.style.transform = 'scale(0.95)');
+      el.addEventListener('mouseup', () => el.style.transform = 'scale(1)');
+      el.addEventListener('mouseleave', () => el.style.transform = 'scale(1)');
+    });
+
+    // Simple Toggle Switch Logic
+    const toggleBtn = document.querySelector('button.relative.w-10.h-5');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', function() {
+        const dot = this.querySelector('div');
+        const isActive = dot.classList.contains('translate-x-5');
+        if (isActive) {
+          dot.classList.remove('translate-x-5');
+          this.classList.replace('bg-secondary', 'bg-surface-variant');
+        } else {
+          dot.classList.add('translate-x-5');
+          this.classList.replace('bg-surface-variant', 'bg-secondary');
+        }
+      });
+    }
+  </script>
+</body></html>

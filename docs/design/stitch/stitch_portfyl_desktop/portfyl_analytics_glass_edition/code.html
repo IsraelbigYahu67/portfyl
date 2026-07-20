@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Analytics | Portfyl Glass Edition</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700;800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;family=Plus+Jakarta+Sans:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .glass-panel {
+      backdrop-filter: blur(20px);
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-card {
+      backdrop-filter: blur(16px);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .chart-gradient {
+      background: linear-gradient(180deg, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0) 100%);
+    }
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    /* Hide scrollbar for IE, Edge and Firefox */
+    .no-scrollbar {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+    }
+  </style>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "surface-container-lowest": "#060e20",
+            "tertiary-fixed-dim": "#ffb95f",
+            "inverse-primary": "#005ac2",
+            "on-primary-container": "#00285d",
+            "outline": "#8c909f",
+            "on-primary": "#002e6a",
+            "primary": "#adc6ff",
+            "on-tertiary": "#472a00",
+            "surface-container-low": "#131b2e",
+            "on-secondary-container": "#00311f",
+            "on-surface": "#dae2fd",
+            "surface-container": "#171f33",
+            "tertiary": "#ffb95f",
+            "secondary": "#4edea3",
+            "tertiary-container": "#ca8100",
+            "surface-tint": "#adc6ff",
+            "surface-container-high": "#222a3d",
+            "primary-fixed": "#d8e2ff",
+            "surface": "#0b1326",
+            "secondary-fixed-dim": "#4edea3",
+            "on-primary-fixed-variant": "#004395",
+            "inverse-surface": "#dae2fd",
+            "on-tertiary-container": "#3e2400",
+            "background": "#0b1326",
+            "secondary-container": "#00a572",
+            "outline-variant": "#424754",
+            "on-error-container": "#ffdad6",
+            "tertiary-fixed": "#ffddb8",
+            "on-secondary-fixed": "#002113",
+            "on-primary-fixed": "#001a42",
+            "secondary-fixed": "#6ffbbe",
+            "on-background": "#dae2fd",
+            "surface-variant": "#2d3449",
+            "on-secondary-fixed-variant": "#005236",
+            "on-secondary": "#003824",
+            "on-tertiary-fixed": "#2a1700",
+            "inverse-on-surface": "#283044",
+            "on-surface-variant": "#c2c6d6",
+            "error-container": "#93000a",
+            "on-tertiary-fixed-variant": "#653e00",
+            "surface-bright": "#31394d",
+            "primary-fixed-dim": "#adc6ff",
+            "on-error": "#690005",
+            "surface-container-highest": "#2d3449",
+            "primary-container": "#4d8eff",
+            "surface-dim": "#0b1326",
+            "error": "#ffb4ab"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "unit": "4px",
+            "margin-mobile": "16px",
+            "xl": "32px",
+            "margin-desktop": "40px",
+            "xs": "4px",
+            "max-width": "1440px",
+            "lg": "24px",
+            "md": "16px",
+            "gutter": "20px",
+            "sm": "8px"
+          },
+          "fontFamily": {
+            "label-md": ["Inter"],
+            "body-md": ["Inter"],
+            "numeric-data": ["Inter"],
+            "headline-sm": ["Plus Jakarta Sans"],
+            "display-lg-mobile": ["Plus Jakarta Sans"],
+            "body-lg": ["Inter"],
+            "display-lg": ["Plus Jakarta Sans"],
+            "headline-md": ["Plus Jakarta Sans"]
+          },
+          "fontSize": {
+            "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+            "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+            "numeric-data": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+            "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+            "display-lg-mobile": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+            "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+            "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+            "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}]
+          }
+        },
+      },
+    }
+  </script>
+</head>
+<body class="bg-surface-container-lowest text-on-surface font-body-md overflow-x-hidden selection:bg-primary/30">
+<!-- SideNavBar Anchor -->
+<aside class="fixed left-0 top-0 h-full w-64 z-50 bg-surface-container-low/60 backdrop-blur-xl border-r border-outline-variant/20 flex flex-col py-lg shadow-lg">
+<div class="px-lg mb-xl flex items-center gap-sm">
+<div class="w-10 h-10 rounded-lg bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary-container" style="font-variation-settings: 'FILL' 1;">account_balance_wallet</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md text-primary tracking-tight">Portfyl</h1>
+<p class="text-[10px] text-on-surface-variant uppercase tracking-[0.2em]">Institutional Grade</p>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-xs px-md">
+<a class="flex items-center gap-md px-md py-sm rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="font-label-md text-label-md">Portfolio</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-xl text-primary font-bold border-r-2 border-primary bg-primary/5 transition-all duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">query_stats</span>
+<span class="font-label-md text-label-md">Analytics</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">show_chart</span>
+<span class="font-label-md text-label-md">Markets</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+</nav>
+<div class="mt-auto px-md flex flex-col gap-xs">
+<a class="flex items-center gap-md px-md py-sm rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">help_outline</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-label-md text-label-md">Sign Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-64 min-h-screen">
+<!-- TopNavBar Anchor -->
+<header class="fixed top-0 right-0 w-[calc(100%-16rem)] z-40 bg-surface/40 backdrop-blur-xl border-b border-outline-variant/20 shadow-sm flex justify-between items-center h-16 px-margin-desktop">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">analytics</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Portfolio Analytics</h2>
+</div>
+<div class="flex items-center gap-lg">
+<!-- Period Tabs & Benchmark Selector -->
+<div class="flex items-center bg-surface-container-high/50 rounded-lg p-1 border border-outline-variant/20">
+<button class="px-md py-1 rounded-md bg-primary-container text-on-primary-container font-label-md text-label-md transition-all">3M</button>
+<button class="px-md py-1 rounded-md text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-all">6M</button>
+<button class="px-md py-1 rounded-md text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-all">1Y</button>
+<button class="px-md py-1 rounded-md text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-all">2Y</button>
+</div>
+<div class="flex items-center gap-sm bg-surface-container-high/50 px-md py-2 rounded-lg border border-outline-variant/20 cursor-pointer">
+<span class="text-label-md text-on-surface-variant">Benchmark:</span>
+<span class="text-label-md text-primary font-bold">S&amp;P 500</span>
+<span class="material-symbols-outlined text-sm">expand_more</span>
+</div>
+<button class="p-2 rounded-full hover:bg-white/5 transition-colors active:scale-95">
+<span class="material-symbols-outlined text-on-surface-variant">refresh</span>
+</button>
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer transition-colors">notifications</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer transition-colors">settings</span>
+<div class="w-8 h-8 rounded-full bg-cover bg-center border border-primary/20" data-alt="Professional headshot of a senior financial analyst in a modern office environment, featuring cool blue lighting and a high-end corporate aesthetic that matches the dark mode interface of the platform." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAKhmqcv3Cp4XkogfEP4IEn65VjuiE89C1clQRVpipVEyNv86xDrvLEt0NT-8xDQX4tZ8qqz5-zsCCBk-L2-rYqG5xa8Wdzd6JmOIhLKTMBXX2KosbMCbF-wZ9opEGYdkVzcfO4gdqv6Nqa6TxorPybFFk43mSfVSaB23YbKo6u_WeCG3Dsd8mfkwgXbhqITDcpDzgd0b5pJIrC-Kn7c5QlhSR-ua9J6qt4J0TU51lq7xIajDAS4cDUxpmsVttFPTMpOzwOw_Cyzg')"></div>
+</div>
+</div>
+</header>
+<div class="pt-24 pb-12 px-margin-desktop space-y-xl">
+<!-- Subtext -->
+<div class="-mb-lg">
+<p class="text-on-surface-variant font-body-lg text-body-lg">Institutional performance and risk attribution across your global multi-asset portfolio.</p>
+</div>
+<!-- Lifetime Performance Section -->
+<section class="space-y-md">
+<div class="flex items-center gap-sm">
+<div class="w-1.5 h-6 bg-primary rounded-full"></div>
+<h3 class="font-headline-sm text-headline-sm">Lifetime Performance</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter">
+<div class="glass-card p-xl rounded-xl space-y-sm hover:border-primary/40 transition-colors">
+<span class="text-label-md text-on-surface-variant uppercase tracking-wider">Simple ROI</span>
+<div class="flex items-end justify-between">
+<span class="text-display-lg text-primary font-display-lg">+142.4%</span>
+<span class="material-symbols-outlined text-primary mb-2">trending_up</span>
+</div>
+</div>
+<div class="glass-card p-xl rounded-xl space-y-sm">
+<span class="text-label-md text-on-surface-variant uppercase tracking-wider">Ann. IRR</span>
+<div class="flex items-end justify-between">
+<span class="text-display-lg text-on-surface font-display-lg">18.2%</span>
+<span class="material-symbols-outlined text-on-surface-variant mb-2">speed</span>
+</div>
+</div>
+<div class="glass-card p-xl rounded-xl space-y-sm">
+<span class="text-label-md text-on-surface-variant uppercase tracking-wider">Net Profit</span>
+<div class="flex items-end justify-between">
+<span class="text-display-lg text-secondary font-display-lg">$842,105</span>
+<span class="material-symbols-outlined text-secondary mb-2">payments</span>
+</div>
+</div>
+<div class="glass-card p-xl rounded-xl space-y-sm">
+<span class="text-label-md text-on-surface-variant uppercase tracking-wider">Capital Invested</span>
+<div class="flex items-end justify-between">
+<span class="text-display-lg text-on-surface font-display-lg">$2,003,815</span>
+<span class="material-symbols-outlined text-on-surface-variant mb-2">account_balance</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Time-Weighted Performance Section -->
+<section class="space-y-md">
+<div class="flex items-center gap-sm">
+<div class="w-1.5 h-6 bg-secondary rounded-full"></div>
+<h3 class="font-headline-sm text-headline-sm">Time-Weighted Performance</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter">
+<div class="glass-card p-xl rounded-xl space-y-sm">
+<span class="text-label-md text-on-surface-variant uppercase tracking-wider">Total Return</span>
+<div class="flex items-end justify-between">
+<span class="text-display-lg text-primary font-display-lg">+32.4%</span>
+<span class="material-symbols-outlined text-primary mb-2">bar_chart</span>
+</div>
+</div>
+<div class="glass-card p-xl rounded-xl space-y-sm">
+<span class="text-label-md text-on-surface-variant uppercase tracking-wider">Ann. Return</span>
+<div class="flex items-end justify-between">
+<span class="text-display-lg text-on-surface font-display-lg">12.8%</span>
+<span class="material-symbols-outlined text-on-surface-variant mb-2">timeline</span>
+</div>
+</div>
+<div class="glass-card p-xl rounded-xl space-y-sm">
+<span class="text-label-md text-on-surface-variant uppercase tracking-wider">Ann. Volatility</span>
+<div class="flex items-end justify-between">
+<span class="text-display-lg text-error font-display-lg">14.2%</span>
+<span class="material-symbols-outlined text-error mb-2">bolt</span>
+</div>
+</div>
+<div class="glass-card p-xl rounded-xl space-y-sm">
+<span class="text-label-md text-on-surface-variant uppercase tracking-wider">Win Rate</span>
+<div class="flex items-end justify-between">
+<span class="text-display-lg text-secondary font-display-lg">64%</span>
+<span class="material-symbols-outlined text-secondary mb-2">verified</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Comparison Chart Section -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+<div class="lg:col-span-2 glass-panel p-xl rounded-2xl space-y-lg relative overflow-hidden">
+<div class="flex justify-between items-start">
+<div class="space-y-1">
+<h3 class="font-headline-sm text-headline-sm">Performance Comparison</h3>
+<p class="text-on-surface-variant text-label-md">Portfolio vs S&amp;P 500 Index</p>
+</div>
+<div class="flex gap-md">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-primary"></div>
+<span class="text-label-md">Portfolio</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-outline"></div>
+<span class="text-label-md">S&amp;P 500</span>
+</div>
+</div>
+</div>
+<!-- Mock Chart -->
+<div class="h-64 w-full relative flex items-end gap-2">
+
+<!-- Fake Chart Lines -->
+<svg class="absolute inset-0 w-full h-full" preserveaspectratio="none" viewbox="0 0 1000 200">
+<path d="M0,180 L100,160 L200,170 L300,140 L400,150 L500,110 L600,120 L700,90 L800,100 L900,60 L1000,50" fill="none" stroke="#adc6ff" stroke-linecap="round" stroke-width="3"></path>
+<path d="M0,180 L100,175 L200,182 L300,165 L400,170 L500,150 L600,160 L700,140 L800,145 L900,130 L1000,125" fill="none" stroke="#8c909f" stroke-dasharray="4" stroke-linecap="round" stroke-width="2"></path>
+</svg>
+</div>
+<div class="flex justify-between text-label-md text-on-surface-variant/60">
+<span>Oct 2023</span>
+<span>Nov 2023</span>
+<span>Dec 2023</span>
+<span>Jan 2024</span>
+<span>Feb 2024</span>
+<span>Mar 2024</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-sm">
+<div class="glass-card p-lg rounded-xl flex flex-col justify-center items-center text-center space-y-1">
+<span class="text-label-md text-on-surface-variant">Active Return</span>
+<span class="text-headline-md text-secondary">+4.2%</span>
+</div>
+<div class="glass-card p-lg rounded-xl flex flex-col justify-center items-center text-center space-y-1">
+<span class="text-label-md text-on-surface-variant">Tracking Error</span>
+<span class="text-headline-md text-on-surface">3.8%</span>
+</div>
+<div class="glass-card p-lg rounded-xl flex flex-col justify-center items-center text-center space-y-1">
+<span class="text-label-md text-on-surface-variant">Info Ratio</span>
+<span class="text-headline-md text-primary">1.10</span>
+</div>
+<div class="glass-card p-lg rounded-xl flex flex-col justify-center items-center text-center space-y-1">
+<span class="text-label-md text-on-surface-variant">Correlation</span>
+<span class="text-headline-md text-on-surface">0.88</span>
+</div>
+<div class="glass-card p-lg rounded-xl flex flex-col justify-center items-center text-center space-y-1">
+<span class="text-label-md text-on-surface-variant">Up Capture</span>
+<span class="text-headline-md text-secondary">108%</span>
+</div>
+<div class="glass-card p-lg rounded-xl flex flex-col justify-center items-center text-center space-y-1">
+<span class="text-label-md text-on-surface-variant">Down Capture</span>
+<span class="text-headline-md text-error">92%</span>
+</div>
+</div>
+</section>
+<!-- Risk & Drawdown Section -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+<!-- Risk Adjusted -->
+<div class="glass-panel p-xl rounded-2xl space-y-lg">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary">security</span>
+<h3 class="font-headline-sm text-headline-sm">Risk-Adjusted Metrics</h3>
+</div>
+<div class="space-y-md">
+<div class="flex justify-between items-center py-sm border-b border-outline-variant/10">
+<span class="text-body-md text-on-surface-variant">Sharpe Ratio</span>
+<span class="text-headline-sm text-primary font-numeric-data">1.42</span>
+</div>
+<div class="flex justify-between items-center py-sm border-b border-outline-variant/10">
+<span class="text-body-md text-on-surface-variant">Sortino Ratio</span>
+<span class="text-headline-sm text-on-surface font-numeric-data">1.85</span>
+</div>
+<div class="flex justify-between items-center py-sm border-b border-outline-variant/10">
+<span class="text-body-md text-on-surface-variant">Portfolio Beta</span>
+<span class="text-headline-sm text-on-surface font-numeric-data">1.05</span>
+</div>
+<div class="flex justify-between items-center py-sm border-b border-outline-variant/10">
+<span class="text-body-md text-on-surface-variant">Jensen's Alpha</span>
+<span class="text-headline-sm text-secondary font-numeric-data">4.2%</span>
+</div>
+</div>
+</div>
+<!-- Drawdown -->
+<div class="glass-panel p-xl rounded-2xl space-y-lg">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-error">warning</span>
+<h3 class="font-headline-sm text-headline-sm">Drawdown &amp; Volatility</h3>
+</div>
+<div class="space-y-md">
+<div class="flex justify-between items-center py-sm border-b border-outline-variant/10">
+<span class="text-body-md text-on-surface-variant">Max Drawdown</span>
+<span class="text-headline-sm text-error font-numeric-data">-12.4%</span>
+</div>
+<div class="flex justify-between items-center py-sm border-b border-outline-variant/10">
+<span class="text-body-md text-on-surface-variant">Current Drawdown</span>
+<span class="text-headline-sm text-on-surface font-numeric-data">-1.2%</span>
+</div>
+<div class="flex justify-between items-center py-sm border-b border-outline-variant/10">
+<span class="text-body-md text-on-surface-variant">Best Day</span>
+<span class="text-headline-sm text-secondary font-numeric-data">+4.2%</span>
+</div>
+<div class="flex justify-between items-center py-sm border-b border-outline-variant/10">
+<span class="text-body-md text-on-surface-variant">Worst Day</span>
+<span class="text-headline-sm text-error font-numeric-data">-3.8%</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Breakdowns Row 1 -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+<div class="glass-panel p-xl rounded-2xl space-y-lg">
+<h3 class="font-headline-sm text-headline-sm">Sector Allocation</h3>
+<div class="flex items-center gap-xl">
+<div class="relative w-40 h-40">
+<!-- Simplified Donut -->
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 36 36">
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#1e293b" stroke-width="3"></circle>
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#adc6ff" stroke-dasharray="40 100" stroke-width="3"></circle>
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#4edea3" stroke-dasharray="20 100" stroke-dashoffset="-40" stroke-width="3"></circle>
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#ffb95f" stroke-dasharray="15 100" stroke-dashoffset="-60" stroke-width="3"></circle>
+</svg>
+<div class="absolute inset-0 flex items-center justify-center flex-col">
+<span class="text-label-md text-on-surface-variant">Total</span>
+<span class="text-body-md font-bold">100%</span>
+</div>
+</div>
+<div class="flex-1 space-y-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-primary"></div>
+<span class="text-label-md">Technology</span>
+</div>
+<span class="text-label-md font-bold">40%</span>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+<span class="text-label-md">Financials</span>
+</div>
+<span class="text-label-md font-bold">20%</span>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-tertiary"></div>
+<span class="text-label-md">Consumer</span>
+</div>
+<span class="text-label-md font-bold">15%</span>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-outline"></div>
+<span class="text-label-md">Others</span>
+</div>
+<span class="text-label-md font-bold">25%</span>
+</div>
+</div>
+</div>
+</div>
+<div class="glass-panel p-xl rounded-2xl space-y-lg">
+<h3 class="font-headline-sm text-headline-sm">Country Exposure</h3>
+<div class="space-y-md">
+<div class="space-y-1">
+<div class="flex justify-between text-label-md">
+<span>USA</span>
+<span>80%</span>
+</div>
+<div class="h-2 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[80%]"></div>
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-label-md">
+<span>UK</span>
+<span>10%</span>
+</div>
+<div class="h-2 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-[10%]"></div>
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-label-md">
+<span>Switzerland</span>
+<span>5%</span>
+</div>
+<div class="h-2 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-tertiary w-[5%]"></div>
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-label-md">
+<span>Japan</span>
+<span>5%</span>
+</div>
+<div class="h-2 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-outline w-[5%]"></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Breakdowns Row 2 -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-gutter pb-xl">
+<div class="glass-panel p-xl rounded-2xl space-y-lg">
+<h3 class="font-headline-sm text-headline-sm">Asset Type Breakdown</h3>
+<div class="flex flex-col gap-md">
+<div class="h-12 w-full bg-surface-container rounded-xl overflow-hidden flex">
+<div class="h-full bg-primary flex items-center justify-center text-[10px] font-bold" style="width: 65%">Equity (65%)</div>
+<div class="h-full bg-tertiary flex items-center justify-center text-[10px] font-bold" style="width: 25%">Fixed Income (25%)</div>
+<div class="h-full bg-secondary flex items-center justify-center text-[10px] font-bold" style="width: 10%">Cash (10%)</div>
+</div>
+<div class="grid grid-cols-3 gap-md">
+<div class="glass-card p-md rounded-lg text-center">
+<span class="text-label-md text-on-surface-variant block">Avg Duration</span>
+<span class="text-body-md font-bold">5.4 yrs</span>
+</div>
+<div class="glass-card p-md rounded-lg text-center">
+<span class="text-label-md text-on-surface-variant block">Yield to Mat.</span>
+<span class="text-body-md font-bold">4.2%</span>
+</div>
+<div class="glass-card p-md rounded-lg text-center">
+<span class="text-label-md text-on-surface-variant block">Cash Yield</span>
+<span class="text-body-md font-bold">5.1%</span>
+</div>
+</div>
+</div>
+</div>
+<div class="glass-panel p-xl rounded-2xl space-y-lg overflow-hidden">
+<h3 class="font-headline-sm text-headline-sm">Correlation Matrix</h3>
+<div class="overflow-x-auto no-scrollbar">
+<table class="w-full text-label-md border-collapse">
+<thead>
+<tr>
+<th class="p-2"></th>
+<th class="p-2 text-on-surface-variant">AAPL</th>
+<th class="p-2 text-on-surface-variant">MSFT</th>
+<th class="p-2 text-on-surface-variant">BTC</th>
+<th class="p-2 text-on-surface-variant">GOLD</th>
+</tr>
+</thead>
+<tbody>
+<tr class="border-t border-outline-variant/10">
+<td class="p-2 text-on-surface-variant font-bold">AAPL</td>
+<td class="p-2 text-center bg-primary/40">1.00</td>
+<td class="p-2 text-center bg-primary/20">0.82</td>
+<td class="p-2 text-center bg-primary/5">0.45</td>
+<td class="p-2 text-center bg-error/10">-0.12</td>
+</tr>
+<tr class="border-t border-outline-variant/10">
+<td class="p-2 text-on-surface-variant font-bold">MSFT</td>
+<td class="p-2 text-center bg-primary/20">0.82</td>
+<td class="p-2 text-center bg-primary/40">1.00</td>
+<td class="p-2 text-center bg-primary/5">0.38</td>
+<td class="p-2 text-center bg-error/10">-0.15</td>
+</tr>
+<tr class="border-t border-outline-variant/10">
+<td class="p-2 text-on-surface-variant font-bold">BTC</td>
+<td class="p-2 text-center bg-primary/5">0.45</td>
+<td class="p-2 text-center bg-primary/5">0.38</td>
+<td class="p-2 text-center bg-primary/40">1.00</td>
+<td class="p-2 text-center bg-primary/10">0.22</td>
+</tr>
+<tr class="border-t border-outline-variant/10">
+<td class="p-2 text-on-surface-variant font-bold">GOLD</td>
+<td class="p-2 text-center bg-error/10">-0.12</td>
+<td class="p-2 text-center bg-error/10">-0.15</td>
+<td class="p-2 text-center bg-primary/10">0.22</td>
+<td class="p-2 text-center bg-primary/40">1.00</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+</div>
+</main>
+<script>
+    // Simple micro-interaction for cards
+    document.querySelectorAll('.glass-card').forEach(card => {
+      card.addEventListener('mouseenter', () => {
+        card.style.transform = 'translateY(-2px)';
+        card.style.transition = 'all 0.3s ease';
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = 'translateY(0)';
+      });
+    });
+
+    // Handle period switching
+    const periodButtons = document.querySelectorAll('button[class*="Period Tabs"]');
+    // Logic for UI feedback can be added here
+  </script>
+</body></html>

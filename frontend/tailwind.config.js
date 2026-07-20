@@ -15,6 +15,7 @@ export default {
         surface: {
           DEFAULT: "var(--bg)",
           card: "var(--surface-card)",
+          "card-elevated": "var(--surface-card-elevated)",
           hover: "var(--bg-subtle)",
           border: "var(--border)",
         },

@@ -31,29 +31,29 @@ const PaletteContext = createContext(null);
 const PlatformContext = createContext(null);
 
 const PALETTES = {
-  green: {
-    brand: "#059669", brandHover: "#047857", brandLight: "#D1FAE5", brandLightDark: "#064E3B",
-    bg: "#F6F8F7", bgSubtle: "#F0FDF4", sidebarActive: "#ECFDF5",
-  },
   blue: {
-    brand: "#2563EB", brandHover: "#1D4ED8", brandLight: "#DBEAFE", brandLightDark: "#1E3A8A",
-    bg: "#F5F7FA", bgSubtle: "#F1F5F9", sidebarActive: "#EFF6FF",
+    brand: "#3B82F6", brandHover: "#2563EB", brandLight: "#DBEAFE", brandLightDark: "#1E3A5F",
+    bg: "#F3F5FB", bgSubtle: "#E8ECF5", sidebarActive: "rgba(59,130,246,0.16)",
+  },
+  green: {
+    brand: "#34D399", brandHover: "#10B981", brandLight: "#D1FAE5", brandLightDark: "#0F3D30",
+    bg: "#F3F5FB", bgSubtle: "#E8ECF5", sidebarActive: "rgba(52,211,153,0.16)",
   },
   purple: {
-    brand: "#7C3AED", brandHover: "#6D28D9", brandLight: "#EDE9FE", brandLightDark: "#4C1D95",
-    bg: "#F7F6FB", bgSubtle: "#F5F3FF", sidebarActive: "#F5F3FF",
+    brand: "#A78BFA", brandHover: "#8B5CF6", brandLight: "#EDE9FE", brandLightDark: "#2E2555",
+    bg: "#F3F5FB", bgSubtle: "#E8ECF5", sidebarActive: "rgba(167,139,250,0.16)",
   },
 };
 
 // Neutral dark surfaces shared across all hues (the brand stays vivid in dark mode).
 // bgSubtle sits a step above the card so hover states / progress tracks stay visible.
 const DARK_SURFACES = {
-  bg: "#0F172A", bgSubtle: "#334155", surfaceCard: "#1E293B", border: "#334155",
-  ink: "#E2E8F0", muted: "#94A3B8", hairline: "#334155",
+  bg: "#020617", bgSubtle: "#0B1326", surfaceCard: "#131B2E", surfaceCardElevated: "#1F2435",
+  border: "#2A3245", ink: "#DAE2FD", muted: "#8A93B3", hairline: "#2A3245",
 };
 const LIGHT_TOKENS = {
-  surfaceCard: "#FFFFFF", border: "#E6EAF0",
-  ink: "#0B1220", muted: "#64748B", hairline: "#E6EAF0",
+  surfaceCard: "#FFFFFF", surfaceCardElevated: "#F7F9FD", border: "#DDE3F0",
+  ink: "#10162B", muted: "#6B7592", hairline: "#DDE3F0",
 };
 
 export function usePalette() {
@@ -78,10 +78,16 @@ function applyAppearance(name, isDark) {
   s.setProperty("--brand-light", isDark ? p.brandLightDark : p.brandLight);
   const t = isDark ? DARK_SURFACES : LIGHT_TOKENS;
   s.setProperty("--surface-card", t.surfaceCard);
+  s.setProperty("--surface-card-elevated", isDark ? DARK_SURFACES.surfaceCardElevated : LIGHT_TOKENS.surfaceCardElevated);
   s.setProperty("--border", t.border);
   s.setProperty("--ink", t.ink);
   s.setProperty("--muted", t.muted);
   s.setProperty("--hairline", t.hairline);
+  s.setProperty("--glass-border-alpha", isDark ? "rgba(255,255,255,0.06)" : "rgba(16,22,43,0.06)");
+  s.setProperty("--glass-overlay-alpha", isDark ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.5)");
+  s.setProperty("--shadow-ambient", isDark ? "0px 4px 20px rgba(0,0,0,0.5)" : "0px 4px 20px rgba(16,22,43,0.10)");
+  s.setProperty("--gain", isDark ? "#34D399" : "#10B981");
+  s.setProperty("--loss", isDark ? "#F87171" : "#EF4444");
   if (isDark) {
     s.setProperty("--bg", DARK_SURFACES.bg);
     s.setProperty("--bg-subtle", DARK_SURFACES.bgSubtle);

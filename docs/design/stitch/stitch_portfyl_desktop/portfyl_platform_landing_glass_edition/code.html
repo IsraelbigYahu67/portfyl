@@ -1,0 +1,345 @@
+<!DOCTYPE html><html class="dark" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Portfyl | My Portfolio</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@600;700;800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;family=Plus+Jakarta+Sans:wght@100..900&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary-container": "#4d8eff",
+                    "surface-dim": "#0b1326",
+                    "on-secondary-fixed": "#002113",
+                    "surface": "#0b1326",
+                    "on-error-container": "#ffdad6",
+                    "on-tertiary-container": "#3e2400",
+                    "on-tertiary": "#472a00",
+                    "on-primary-container": "#00285d",
+                    "surface-tint": "#adc6ff",
+                    "tertiary": "#ffb95f",
+                    "on-secondary-container": "#00311f",
+                    "on-primary-fixed": "#001a42",
+                    "surface-container": "#171f33",
+                    "outline": "#8c909f",
+                    "inverse-primary": "#005ac2",
+                    "on-background": "#dae2fd",
+                    "inverse-surface": "#dae2fd",
+                    "on-primary-fixed-variant": "#004395",
+                    "on-tertiary-fixed": "#2a1700",
+                    "primary": "#adc6ff",
+                    "on-secondary-fixed-variant": "#005236",
+                    "on-secondary": "#003824",
+                    "secondary-fixed": "#6ffbbe",
+                    "outline-variant": "#424754",
+                    "on-error": "#690005",
+                    "tertiary-fixed": "#ffddb8",
+                    "surface-variant": "#2d3449",
+                    "primary-fixed": "#d8e2ff",
+                    "tertiary-container": "#ca8100",
+                    "on-surface-variant": "#c2c6d6",
+                    "on-surface": "#dae2fd",
+                    "background": "#0b1326",
+                    "on-primary": "#002e6a",
+                    "primary-fixed-dim": "#adc6ff",
+                    "secondary": "#4edea3",
+                    "surface-container-high": "#222a3d",
+                    "error-container": "#93000a",
+                    "surface-container-highest": "#2d3449",
+                    "inverse-on-surface": "#283044",
+                    "surface-container-lowest": "#060e20",
+                    "error": "#ffb4ab",
+                    "secondary-container": "#00a572",
+                    "surface-bright": "#31394d",
+                    "secondary-fixed-dim": "#4edea3",
+                    "on-tertiary-fixed-variant": "#653e00",
+                    "tertiary-fixed-dim": "#ffb95f",
+                    "surface-container-low": "#131b2e"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "gutter": "20px",
+                    "xl": "32px",
+                    "unit": "4px",
+                    "margin-mobile": "16px",
+                    "lg": "24px",
+                    "max-width": "1440px",
+                    "xs": "4px",
+                    "margin-desktop": "40px",
+                    "sm": "8px",
+                    "md": "16px"
+            },
+            "fontFamily": {
+                    "body-lg": ["Inter"],
+                    "numeric-data": ["Inter"],
+                    "display-lg": ["Plus Jakarta Sans"],
+                    "body-md": ["Inter"],
+                    "headline-sm": ["Plus Jakarta Sans"],
+                    "label-md": ["Inter"],
+                    "headline-md": ["Plus Jakarta Sans"],
+                    "display-lg-mobile": ["Plus Jakarta Sans"]
+            },
+            "fontSize": {
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "numeric-data": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                    "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "display-lg-mobile": ["32px", {"lineHeight": "40px", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease-in-out;
+        }
+        .glass-card:hover {
+            background: rgba(15, 23, 42, 0.6);
+            transform: translateY(-4px);
+            border-color: var(--hover-color, rgba(59, 130, 246, 0.5));
+            box-shadow: 0 0 30px -10px var(--hover-glow, rgba(59, 130, 246, 0.3));
+        }
+        .glow-blue { --hover-color: #3b82f6; --hover-glow: rgba(59, 130, 246, 0.5); }
+        .glow-green { --hover-color: #4edea3; --hover-glow: rgba(78, 222, 163, 0.5); }
+        .glow-purple { --hover-color: #a855f7; --hover-glow: rgba(168, 85, 247, 0.5); }
+        
+        .modal-blur-bg {
+            background: rgba(2, 6, 23, 0.6);
+            backdrop-filter: blur(8px);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md min-h-screen">
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full bg-surface/70 dark:bg-surface/70 backdrop-blur-xl border-b border-outline-variant/30 shadow-md z-50">
+<div class="flex justify-between items-center px-gutter max-w-max-width mx-auto h-16">
+<div class="font-display-lg text-display-lg-mobile tracking-tighter text-primary">Portfyl</div>
+
+<div class="flex items-center gap-md">
+
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-white/5 p-2 rounded-full transition-colors">notifications</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-white/5 p-2 rounded-full transition-colors">settings</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant/30">
+<img alt="User profile" data-alt="Close-up portrait of a professional male investor in a dark setting, soft key lighting illuminating his face, modern corporate aesthetic with a focus on trust and precision, deep blue and charcoal color palette." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC7HS1z0ASatqtD6UH8MEehZUKCVZZ0e6wt-XWYwOoqgWZ0Ug9W0Ts6a6Q-pkLx4GtCMJpt9S2jzx1KXPUHaN2vxhVPfkMHnruE5DhMrceaPn1nD5hmXJgx9BGgjvPj9JWChO4Ec8xYDv9vHs9DZH6gXUGadPx7MB-gMKm00QvaFLg-y77mEfQKvnGuFXb2s2wKW0mz9vX85MWnvFfrrs4J_P0xK-7ldoIR6TiiNobnD9FV-T0t0JOIubGL_kCeNh9BtaM6jM-pCg">
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="pt-32 pb-xl px-gutter max-w-max-width mx-auto relative min-h-screen">
+<!-- Header Section -->
+<section class="text-center mb-xl">
+<h1 class="font-display-lg text-display-lg-mobile md:text-display-lg text-on-surface mb-xs">My Portfolio</h1>
+<p class="font-body-lg text-on-surface-variant opacity-80">Select a platform to view your real-time analytics and performance metrics.</p>
+</section>
+<!-- Bento Grid for Platforms -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-lg lg:gap-xl">
+<!-- Trading 212 Card -->
+<div class="glass-card glow-blue p-lg rounded-xl flex flex-col justify-between min-h-[220px] group cursor-pointer">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-md">
+<div class="w-12 h-12 rounded-lg bg-blue-500/20 border border-blue-500/40 flex items-center justify-center">
+<span class="material-symbols-outlined text-blue-400" style="font-variation-settings: 'FILL' 1;">account_balance</span>
+</div>
+<div>
+<h3 class="font-headline-sm text-on-surface">Trading 212</h3>
+<p class="font-label-md text-on-surface-variant">Equity &amp; ETF</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-blue-400 transition-colors">arrow_forward_ios</span>
+</div>
+<div class="mt-xl flex flex-col gap-xs">
+<div class="font-display-lg text-display-lg-mobile text-on-surface font-numeric-data">$1,245,920</div>
+<div class="flex items-center gap-md">
+<div class="flex items-center text-secondary gap-xs font-numeric-data">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+                            +12.4%
+                        </div>
+<div class="text-on-surface-variant font-label-md uppercase tracking-wider">24 Holdings</div>
+</div>
+</div>
+</div>
+<!-- Interactive Brokers Card -->
+<div class="glass-card glow-green p-lg rounded-xl flex flex-col justify-between min-h-[220px] group cursor-pointer">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-md">
+<div class="w-12 h-12 rounded-lg bg-secondary/20 border border-secondary/40 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">public</span>
+</div>
+<div>
+<h3 class="font-headline-sm text-on-surface">Interactive Brokers</h3>
+<p class="font-label-md text-on-surface-variant">Global Markets</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-secondary transition-colors">arrow_forward_ios</span>
+</div>
+<div class="mt-xl flex flex-col gap-xs">
+<div class="font-display-lg text-display-lg-mobile text-on-surface font-numeric-data">$842,105</div>
+<div class="flex items-center gap-md">
+<div class="flex items-center text-secondary gap-xs font-numeric-data">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+                            +8.2%
+                        </div>
+<div class="text-on-surface-variant font-label-md uppercase tracking-wider">Margin: 1.2x</div>
+</div>
+</div>
+</div>
+<!-- Polymarket Card -->
+<div class="glass-card glow-purple p-lg rounded-xl flex flex-col justify-between min-h-[220px] group cursor-pointer">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-md">
+<div class="w-12 h-12 rounded-lg bg-purple-500/20 border border-purple-500/40 flex items-center justify-center">
+<span class="material-symbols-outlined text-purple-400" style="font-variation-settings: 'FILL' 1;">insights</span>
+</div>
+<div>
+<h3 class="font-headline-sm text-on-surface">Polymarket</h3>
+<p class="font-label-md text-on-surface-variant">Prediction Markets</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-purple-400 transition-colors">arrow_forward_ios</span>
+</div>
+<div class="mt-xl flex flex-col gap-xs">
+<div class="font-display-lg text-display-lg-mobile text-on-surface font-numeric-data">$42,150</div>
+<div class="flex items-center gap-md">
+<div class="flex items-center text-secondary gap-xs font-numeric-data">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+                            +24.8%
+                        </div>
+<div class="text-on-surface-variant font-label-md uppercase tracking-wider">12 Open Positions</div>
+</div>
+</div>
+</div>
+<!-- Add Connector Card -->
+<button class="glass-card border-dashed border-2 border-outline-variant/50 p-lg rounded-xl flex flex-col items-center justify-center min-h-[220px] group hover:border-primary/50" onclick="document.getElementById('connector-modal').classList.remove('hidden')">
+<div class="w-16 h-16 rounded-full border-2 border-dashed border-outline-variant group-hover:border-primary flex items-center justify-center transition-colors">
+<span class="material-symbols-outlined text-4xl text-outline-variant group-hover:text-primary transition-colors">add</span>
+</div>
+<p class="mt-md font-headline-sm text-on-surface-variant group-hover:text-on-surface">Add connector</p>
+<p class="font-label-md text-outline-variant mt-xs">Sync more accounts</p>
+</button>
+</div>
+</main>
+<!-- Side Over Modal (Add Connector) -->
+<div class="fixed inset-0 z-[100] flex justify-end modal-blur-bg transition-all duration-300 hidden" id="connector-modal">
+<!-- Close trigger overlay -->
+<div class="absolute inset-0" onclick="document.getElementById('connector-modal').classList.add('hidden')"></div>
+<!-- Modal Content -->
+<div class="relative w-full max-w-md h-full bg-surface-container-low shadow-2xl border-l border-outline-variant/30 backdrop-blur-2xl p-xl flex flex-col gap-lg animate-slide-left overflow-y-auto">
+<div class="flex justify-between items-center">
+<h2 class="font-headline-md text-on-surface">Add Connector</h2>
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-white/5 p-2 rounded-full" onclick="document.getElementById('connector-modal').classList.add('hidden')">close</button>
+</div>
+<p class="font-body-md text-on-surface-variant">Connect your institutional accounts securely via Read-Only API or OAuth.</p>
+<div class="relative mt-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full bg-surface-container-highest border border-outline-variant rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 text-body-md text-on-surface" placeholder="Search exchanges or brokers..." type="text">
+</div>
+<div class="space-y-sm mt-md">
+<!-- Binance -->
+<div class="flex items-center justify-between p-md rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer group border border-transparent hover:border-outline-variant/30">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-full bg-[#F3BA2F]/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[#F3BA2F]" style="font-variation-settings: 'FILL' 1;">currency_bitcoin</span>
+</div>
+<div>
+<p class="font-body-lg text-on-surface">Binance</p>
+<p class="font-label-md text-on-surface-variant">Crypto Exchange</p>
+</div>
+</div>
+<span class="px-sm py-0.5 rounded-full bg-secondary-container/10 text-secondary text-label-md">Ready</span>
+</div>
+<!-- Coinbase -->
+<div class="flex items-center justify-between p-md rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer group border border-transparent hover:border-outline-variant/30">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-full bg-[#0052FF]/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[#0052FF]" style="font-variation-settings: 'FILL' 1;">wallet</span>
+</div>
+<div>
+<p class="font-body-lg text-on-surface">Coinbase</p>
+<p class="font-label-md text-on-surface-variant">Crypto &amp; Web3</p>
+</div>
+</div>
+<span class="px-sm py-0.5 rounded-full bg-secondary-container/10 text-secondary text-label-md">Ready</span>
+</div>
+<!-- Fidelity -->
+<div class="flex items-center justify-between p-md rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer group border border-transparent hover:border-outline-variant/30">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">account_balance</span>
+</div>
+<div>
+<p class="font-body-lg text-on-surface">Fidelity</p>
+<p class="font-label-md text-on-surface-variant">TradFi Institution</p>
+</div>
+</div>
+<span class="px-sm py-0.5 rounded-full bg-surface-variant/30 text-on-surface-variant text-label-md">Coming Soon</span>
+</div>
+<!-- Vanguard -->
+<div class="flex items-center justify-between p-md rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer group border border-transparent hover:border-outline-variant/30">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">monitoring</span>
+</div>
+<div>
+<p class="font-body-lg text-on-surface">Vanguard</p>
+<p class="font-label-md text-on-surface-variant">Passive Management</p>
+</div>
+</div>
+<span class="px-sm py-0.5 rounded-full bg-surface-variant/30 text-on-surface-variant text-label-md">Coming Soon</span>
+</div>
+</div>
+<div class="mt-auto pt-lg border-t border-outline-variant/20">
+<button class="w-full bg-primary text-on-primary font-headline-sm py-4 rounded-xl active:scale-95 transition-transform">Request a Connector</button>
+<p class="text-center font-label-md text-outline-variant mt-md italic">Security is our priority. All keys are encrypted with AES-256.</p>
+</div>
+</div>
+</div>
+<!-- Background Decorative Elements -->
+<div class="fixed top-0 left-0 w-full h-full -z-10 pointer-events-none opacity-30">
+<div class="absolute top-[10%] left-[10%] w-[30vw] h-[30vw] bg-primary/20 blur-[120px] rounded-full"></div>
+<div class="absolute bottom-[20%] right-[10%] w-[40vw] h-[40vw] bg-secondary/10 blur-[150px] rounded-full"></div>
+</div>
+<script>
+        // Simple micro-interaction for modal appearance
+        const modal = document.getElementById('connector-modal');
+        const modalContent = modal.querySelector('div:last-child');
+        
+        // Hide modal initially
+        modal.classList.add('hidden');
+
+        // Close on escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') modal.classList.add('hidden');
+        });
+    </script>
+<style>
+        @keyframes slideLeft {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        .animate-slide-left {
+            animation: slideLeft 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+    </style>
+
+
+</body></html>
