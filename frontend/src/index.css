@@ -96,14 +96,14 @@
   .shimmer {
     position: relative;
     overflow: hidden;
-    background: #EEF1F5;
+    background: var(--bg-subtle);
   }
   .shimmer::after {
     content: "";
     position: absolute;
     inset: 0;
     transform: translateX(-100%);
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent);
+    background: linear-gradient(90deg, transparent, var(--glass-overlay-alpha), transparent);
     animation: shimmer 1.4s ease-in-out infinite;
   }
   @keyframes shimmer { 100% { transform: translateX(100%); } }

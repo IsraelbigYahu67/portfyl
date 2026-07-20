@@ -12,8 +12,8 @@ export default function ErrorState({
     <div
       className={`flex flex-col items-center justify-center gap-2 py-6 text-center ${className}`}
     >
-      <AlertCircle size={20} className="text-red-500" />
-      <p className="text-sm text-slate-500">{message}</p>
+      <AlertCircle size={20} className="text-loss" />
+      <p className="text-sm text-muted">{message}</p>
       {onRetry && (
         <button
           type="button"

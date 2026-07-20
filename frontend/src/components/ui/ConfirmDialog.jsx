@@ -94,7 +94,8 @@ function ConfirmDialog({ title, message, confirmLabel, cancelLabel, danger, onRe
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4"
+      style={{ backdropFilter: "blur(var(--blur-overlay))" }}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onResolve(false);
       }}
@@ -108,7 +109,7 @@ function ConfirmDialog({ title, message, confirmLabel, cancelLabel, danger, onRe
       >
         <div className="flex items-start gap-3">
           {danger && (
-            <span className="shrink-0 mt-0.5 text-red-600">
+            <span className="shrink-0 mt-0.5 text-loss">
               <AlertTriangle size={20} />
             </span>
           )}
@@ -117,7 +118,7 @@ function ConfirmDialog({ title, message, confirmLabel, cancelLabel, danger, onRe
               {title}
             </h2>
             {message && (
-              <p id={descId} className="text-sm text-slate-500">
+              <p id={descId} className="text-sm text-muted">
                 {message}
               </p>
             )}
@@ -137,7 +138,10 @@ function ConfirmDialog({ title, message, confirmLabel, cancelLabel, danger, onRe
             type="button"
             onClick={() => onResolve(true)}
             className={`flex-1 rounded-lg px-4 py-2 font-semibold text-white transition-colors ${
-              danger ? "bg-red-600 hover:bg-red-700" : "bg-brand hover:bg-brand-dim"
+              danger
+                ? /* deliberately not --loss: destructive-action red is fixed, not tied to P&L semantics */
+                  "bg-red-600 hover:bg-red-700"
+                : "bg-brand hover:bg-brand-dim"
             }`}
           >
             {confirmLabel}

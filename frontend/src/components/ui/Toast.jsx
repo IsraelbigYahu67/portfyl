@@ -25,9 +25,9 @@ export function useToast() {
 let seq = 0;
 
 const VARIANTS = {
-  success: { Icon: CheckCircle, accent: "text-emerald-600", ring: "border-emerald-500/30" },
-  error: { Icon: AlertCircle, accent: "text-red-600", ring: "border-red-500/30" },
-  info: { Icon: Info, accent: "text-slate-500", ring: "border-surface-border" },
+  success: { Icon: CheckCircle, accent: "text-gain", ring: "border-emerald-500/30" },
+  error: { Icon: AlertCircle, accent: "text-loss", ring: "border-red-500/30" },
+  info: { Icon: Info, accent: "text-muted", ring: "border-surface-border" },
 };
 
 export function ToastProvider({ children }) {
@@ -75,12 +75,12 @@ export function ToastProvider({ children }) {
               className={`card pointer-events-auto flex items-start gap-2.5 border shadow-lg ${ring}`}
             >
               <Icon size={18} className={`mt-0.5 shrink-0 ${accent}`} />
-              <p className="flex-1 text-sm text-slate-700">{t.message}</p>
+              <p className="flex-1 text-sm text-ink">{t.message}</p>
               <button
                 type="button"
                 onClick={() => dismiss(t.id)}
                 aria-label="Dismiss notification"
-                className="shrink-0 text-slate-400 transition-colors hover:text-slate-700"
+                className="shrink-0 text-muted transition-colors hover:text-ink"
               >
                 <X size={15} />
               </button>

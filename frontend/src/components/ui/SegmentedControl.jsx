@@ -26,7 +26,7 @@ export default function SegmentedControl({
     <div
       role="group"
       aria-label={ariaLabel}
-      className={`${block ? "flex w-full" : "inline-flex"} gap-0.5 rounded-lg bg-slate-100 p-0.5 ${className}`}
+      className={`${block ? "flex w-full" : "inline-flex"} gap-0.5 rounded-lg bg-surface-hover p-0.5 ${className}`}
     >
       {options.map((opt) => {
         const active = opt.value === value;
@@ -41,8 +41,8 @@ export default function SegmentedControl({
             onClick={() => onChange(opt.value)}
             className={`rounded-md font-medium transition-colors ${block ? "flex-1 flex items-center justify-center" : ""} ${SIZES[size]} ${
               active
-                ? "bg-white font-semibold text-brand shadow-sm"
-                : "text-slate-500 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-slate-500"
+                ? "bg-surface-card-elevated font-semibold text-brand"
+                : "text-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-muted"
             }`}
           >
             {opt.label}
