@@ -11,6 +11,7 @@ import Heatmap from "../components/Heatmap";
 import { TickerLink } from "../components/StockDetail";
 import DashboardGrid from "../components/DashboardGrid";
 import PortfolioHero from "../components/PortfolioHero";
+import { CATEGORICAL } from "../lib/chartTheme";
 
 const MOVER_PERIODS = [
   { key: "1d", label: "Today" },
@@ -19,12 +20,14 @@ const MOVER_PERIODS = [
 ];
 
 const PERIODS = ["7D", "MTD", "1M", "3M", "YTD", "1Y", "All"];
+// Stable index-per-benchmark mapping so the same benchmark always gets the
+// same color across sessions.
 const BENCHMARKS = [
-  { key: "sp500", label: "S&P 500", color: "#f59e0b" },
-  { key: "nasdaq100", label: "NASDAQ 100", color: "#8b5cf6" },
-  { key: "dowjones", label: "Dow Jones", color: "#ec4899" },
-  { key: "stoxx50", label: "STOXX 50", color: "#06b6d4" },
-  { key: "bitcoin", label: "Bitcoin", color: "#f97316" },
+  { key: "sp500", label: "S&P 500", color: CATEGORICAL[0] },
+  { key: "nasdaq100", label: "NASDAQ 100", color: CATEGORICAL[1] },
+  { key: "dowjones", label: "Dow Jones", color: CATEGORICAL[2] },
+  { key: "stoxx50", label: "STOXX 50", color: CATEGORICAL[3] },
+  { key: "bitcoin", label: "Bitcoin", color: CATEGORICAL[4] },
 ];
 
 export default function Dashboard() {

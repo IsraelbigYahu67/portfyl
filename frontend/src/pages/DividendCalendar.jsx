@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import { useStockDetail } from "../components/StockDetail";
 import MetricCard from "../components/MetricCard";
+import { AXIS_TICK, GRID_STROKE } from "../lib/chartTheme";
 
 function fmtMoney(v) {
   if (v == null || isNaN(v)) return "—";
@@ -74,9 +75,9 @@ export default function DividendCalendar() {
           </h2>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: "#6b7280", fontSize: 11 }} />
-              <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} tickFormatter={(v) => v >= 1000 ? `$${(v/1000).toFixed(1)}k` : `$${v.toFixed(0)}`} width={64} />
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+              <XAxis dataKey="month" tick={AXIS_TICK} />
+              <YAxis tick={AXIS_TICK} tickFormatter={(v) => v >= 1000 ? `$${(v/1000).toFixed(1)}k` : `$${v.toFixed(0)}`} width={64} />
               <Tooltip
                 content={({ active, payload }) => {
                   if (!active || !payload?.length) return null;
@@ -99,7 +100,7 @@ export default function DividendCalendar() {
                 }}
                 cursor={{ fill: "rgba(255,255,255,0.03)" }}
               />
-              <Bar dataKey="total" fill="var(--brand, #059669)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="total" fill="var(--brand, #3B82F6)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

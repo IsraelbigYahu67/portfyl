@@ -2,7 +2,7 @@ import { AreaChart, Area, ResponsiveContainer, YAxis } from "recharts";
 
 export default function HeroSparkline({ data = [], positive = true }) {
   if (!Array.isArray(data) || data.length < 2) return null;
-  const color = positive ? "var(--brand)" : "#EF4444";
+  const color = positive ? "var(--brand)" : "var(--loss)";
   return (
     <div className="absolute inset-x-0 bottom-0 h-28 pointer-events-none opacity-[0.18] select-none" aria-hidden="true">
       <ResponsiveContainer width="100%" height="100%">

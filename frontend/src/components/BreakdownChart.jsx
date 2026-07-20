@@ -1,18 +1,12 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-
-const COLORS = [
-  "#6366f1", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6",
-  "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#a855f7",
-  "#eab308", "#3b82f6", "#e11d48", "#84cc16",
-];
+import { CATEGORICAL, NEUTRAL_COLOR } from "../lib/chartTheme";
 
 // Cash has no sector/country/asset-type of its own — give it a fixed neutral
 // slate color instead of whatever the palette-by-index lookup would assign,
 // so it visually reads as "not an equity" in every dimension it appears in.
 // "Other" (the grouped small-positions slice) is a catch-all the same way.
-const NEUTRAL_COLOR = "#94a3b8";
 const colorFor = (item, i) =>
-  item.name === "Cash" || item.name === "Other" ? NEUTRAL_COLOR : COLORS[i % COLORS.length];
+  item.name === "Cash" || item.name === "Other" ? NEUTRAL_COLOR : CATEGORICAL[i % CATEGORICAL.length];
 
 // legendColumns=2 flows the legend into two newspaper-style columns (read
 // down, then across) — used by the wide Positions card to halve its height.

@@ -13,6 +13,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { CATEGORICAL, GAIN_COLOR, AXIS_TICK, GRID_STROKE } from "../lib/chartTheme";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -145,9 +146,9 @@ function ForecastChart({ forecast, loading }) {
       <div className="rounded-xl border border-surface-border bg-surface-card p-4">
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={forecast.months} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-            <XAxis dataKey="month" tick={{ fill: "#6b7280", fontSize: 11 }} />
-            <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} tickFormatter={tickFormatter} width={56} />
+            <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+            <XAxis dataKey="month" tick={AXIS_TICK} />
+            <YAxis tick={AXIS_TICK} tickFormatter={tickFormatter} width={56} />
             <Tooltip content={<ForecastTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
             <Legend
               formatter={(v) => (
@@ -156,8 +157,8 @@ function ForecastChart({ forecast, loading }) {
                 </span>
               )}
             />
-            <Bar dataKey="paid" stackId="div" fill="#22c55e" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="estimated" stackId="div" fill="#7c3aed" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="paid" stackId="div" fill={GAIN_COLOR} radius={[0, 0, 0, 0]} />
+            <Bar dataKey="estimated" stackId="div" fill={CATEGORICAL[3]} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

@@ -1,5 +1,6 @@
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { formatMoney, formatShortDate } from "../lib/format";
+import { AXIS_TICK, GRID_STROKE } from "../lib/chartTheme";
 
 // Cash holds flat between events and jumps on each deposit/withdrawal/trade, so
 // a step curve is the honest shape — not a smoothed interpolation.
@@ -34,21 +35,21 @@ export default function CashBalanceChart({ data = [], currency = "USD" }) {
               <stop offset="100%" stopColor="var(--brand)" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid vertical={false} stroke="#EEF1F5" />
+          <CartesianGrid vertical={false} stroke={GRID_STROKE} />
           <XAxis
             dataKey="date"
             tickFormatter={(iso) => formatShortDate(iso)}
             axisLine={false}
             tickLine={false}
             minTickGap={32}
-            tick={{ fill: "#94A3B8", fontSize: 11, fontFamily: "JetBrains Mono Variable" }}
+            tick={{ ...AXIS_TICK, fontFamily: "JetBrains Mono Variable" }}
           />
           <YAxis
             tickFormatter={compact}
             axisLine={false}
             tickLine={false}
             width={44}
-            tick={{ fill: "#94A3B8", fontSize: 11, fontFamily: "JetBrains Mono Variable" }}
+            tick={{ ...AXIS_TICK, fontFamily: "JetBrains Mono Variable" }}
           />
           <Tooltip content={<CashTooltip currency={currency} />} />
           <Area

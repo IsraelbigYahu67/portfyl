@@ -2,6 +2,7 @@ import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { formatMoney, formatPercent } from "../lib/format";
+import { AXIS_TICK, GRID_STROKE, NEUTRAL_COLOR } from "../lib/chartTheme";
 
 function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }) {
   if (!active || !payload?.length) return null;
@@ -93,18 +94,18 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
               <stop offset="95%" stopColor="var(--brand)" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="colorInvested" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.15} />
-              <stop offset="95%" stopColor="#94a3b8" stopOpacity={0} />
+              <stop offset="5%" stopColor={NEUTRAL_COLOR} stopOpacity={0.15} />
+              <stop offset="95%" stopColor={NEUTRAL_COLOR} stopOpacity={0} />
             </linearGradient>
             <linearGradient id="colorGrowth" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="var(--brand)" stopOpacity={0.3} />
               <stop offset="95%" stopColor="var(--brand)" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke="var(--hairline)" vertical={false} />
+          <CartesianGrid stroke={GRID_STROKE} vertical={false} />
           <XAxis
             dataKey="date"
-            tick={{ fill: "#94a3b8", fontSize: 11, fontFamily: "JetBrains Mono Variable" }}
+            tick={{ ...AXIS_TICK, fontFamily: "JetBrains Mono Variable" }}
             tickFormatter={(v) => shortRange ? v.slice(5) : v.slice(0, 7)}
             minTickGap={60}
             axisLine={false}
@@ -114,7 +115,7 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
             <>
               <YAxis
                 yAxisId="pct"
-                tick={{ fill: "#94a3b8", fontSize: 11, fontFamily: "JetBrains Mono Variable" }}
+                tick={{ ...AXIS_TICK, fontFamily: "JetBrains Mono Variable" }}
                 tickFormatter={fmtPctAxis}
                 width={55}
                 domain={['dataMin', 'dataMax']}
@@ -159,7 +160,7 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
             <>
               <YAxis
                 yAxisId="value"
-                tick={{ fill: "#94a3b8", fontSize: 11, fontFamily: "JetBrains Mono Variable" }}
+                tick={{ ...AXIS_TICK, fontFamily: "JetBrains Mono Variable" }}
                 tickFormatter={fmtAxis}
                 width={currency === "CZK" ? 72 : 52}
                 domain={['dataMin', 'dataMax']}
@@ -170,7 +171,7 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                 <YAxis
                   yAxisId="pct"
                   orientation="right"
-                  tick={{ fill: "#94a3b8", fontSize: 11, fontFamily: "JetBrains Mono Variable" }}
+                  tick={{ ...AXIS_TICK, fontFamily: "JetBrains Mono Variable" }}
                   tickFormatter={fmtPctAxis}
                   width={50}
                   axisLine={false}
@@ -190,7 +191,7 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                   return <span className="text-xs text-slate-600">{v}</span>;
                 }}
               />
-              <Area yAxisId="value" type="monotone" dataKey="invested" stroke="#cbd5e1" fill="url(#colorInvested)" strokeWidth={1.5} dot={false} />
+              <Area yAxisId="value" type="monotone" dataKey="invested" stroke={NEUTRAL_COLOR} fill="url(#colorInvested)" strokeWidth={1.5} dot={false} />
               <Area yAxisId="value" type="monotone" dataKey="value" stroke="var(--brand)" fill="url(#colorValue)" strokeWidth={2.5} dot={false} />
               {benchmarkMeta.map((b) => (
                 <Line

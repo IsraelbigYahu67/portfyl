@@ -15,13 +15,11 @@ import {
 } from "recharts";
 import { Activity, RefreshCw, TrendingDown, TrendingUp, Shield, Target, Wallet } from "lucide-react";
 import { TickerLink } from "../components/StockDetail";
+import {
+  CATEGORICAL, GAIN_COLOR, NEUTRAL_COLOR, AXIS_TICK, GRID_STROKE, TOOLTIP_STYLE,
+} from "../lib/chartTheme";
 
 const PERIODS = ["3M", "6M", "1Y", "2Y"];
-const COLORS = [
-  "#22c55e", "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6",
-  "#06b6d4", "#ef4444", "#84cc16", "#f97316", "#a855f7",
-  "#14b8a6", "#f43f5e", "#6366f1", "#eab308", "#0ea5e9",
-];
 
 // Definitions + formulas surfaced via the (i) icon next to each metric.
 // Kept on the client so the API stays data-only and translations are easy.
@@ -432,17 +430,17 @@ export default function Analytics() {
                   </div>
                   <ResponsiveContainer width="100%" height={220}>
                     <LineChart data={comparison.series} margin={{ top: 4, right: 12, bottom: 0, left: -8 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                      <XAxis dataKey="date" tick={{ fill: "#6b7280", fontSize: 10 }} minTickGap={32} />
-                      <YAxis tick={{ fill: "#6b7280", fontSize: 10 }} tickFormatter={(v) => `${v}%`} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+                      <XAxis dataKey="date" tick={{ ...AXIS_TICK, fontSize: 10 }} minTickGap={32} />
+                      <YAxis tick={{ ...AXIS_TICK, fontSize: 10 }} tickFormatter={(v) => `${v}%`} />
                       <Tooltip
-                        contentStyle={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
-                        labelStyle={{ color: "#64748b", fontSize: 11 }}
+                        contentStyle={TOOLTIP_STYLE}
+                        labelStyle={{ color: "var(--muted, #8A93B3)", fontSize: 11 }}
                         formatter={(v, k) => [`${v}%`, k === "portfolio_pct" ? "Portfolio" : k === "benchmark_pct" ? benchName : "Active"]}
                       />
-                      <Line type="monotone" dataKey="portfolio_pct" stroke="#22c55e" strokeWidth={2} dot={false} />
-                      <Line type="monotone" dataKey="benchmark_pct" stroke="#9ca3af" strokeWidth={2} dot={false} />
-                      <Line type="monotone" dataKey="active_pct" stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 4" dot={false} />
+                      <Line type="monotone" dataKey="portfolio_pct" stroke={GAIN_COLOR} strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="benchmark_pct" stroke={NEUTRAL_COLOR} strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="active_pct" stroke={CATEGORICAL[0]} strokeWidth={1} strokeDasharray="4 4" dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -619,11 +617,11 @@ export default function Analytics() {
                     dataKey="value"
                   >
                     {sectors.sectors.map((_, i) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />
+                      <Cell key={i} fill={CATEGORICAL[i % CATEGORICAL.length]} stroke="transparent" />
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
+                    contentStyle={TOOLTIP_STYLE}
                     formatter={(v, _, props) => [`${fmtCur(v)} (${props.payload.weight}%)`, props.payload.name]}
                   />
                   <Legend
@@ -648,14 +646,14 @@ export default function Analytics() {
           ) : (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={sectors.countries} layout="vertical" margin={{ left: 0, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis type="number" tick={{ fill: "#6b7280", fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
-                <YAxis type="category" dataKey="name" tick={{ fill: "#64748b", fontSize: 11 }} width={100} />
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+                <XAxis type="number" tick={AXIS_TICK} tickFormatter={(v) => `${v}%`} />
+                <YAxis type="category" dataKey="name" tick={AXIS_TICK} width={100} />
                 <Tooltip
-                  contentStyle={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8 }}
+                  contentStyle={TOOLTIP_STYLE}
                   formatter={(v) => [`${v}%`, "Weight"]}
                 />
-                <Bar dataKey="weight" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="weight" fill={CATEGORICAL[0]} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -680,7 +678,7 @@ export default function Analytics() {
                     className="h-full rounded-full"
                     style={{
                       width: `${Math.min(100, row.weight)}%`,
-                      backgroundColor: COLORS[i % COLORS.length],
+                      backgroundColor: CATEGORICAL[i % CATEGORICAL.length],
                     }}
                   />
                 </div>

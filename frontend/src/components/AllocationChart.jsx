@@ -1,9 +1,5 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
-
-const COLORS = [
-  "#22c55e", "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6",
-  "#06b6d4", "#ef4444", "#84cc16", "#f97316", "#a855f7",
-];
+import { CATEGORICAL, TOOLTIP_STYLE } from "../lib/chartTheme";
 
 export default function AllocationChart({ holdings, currency = "USD", rate = null }) {
   const convert = (n) => (currency === "CZK" && rate ? n * rate : n);
@@ -33,11 +29,11 @@ export default function AllocationChart({ holdings, currency = "USD", rate = nul
           dataKey="value"
         >
           {data.map((_, i) => (
-            <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="transparent" />
+            <Cell key={i} fill={CATEGORICAL[i % CATEGORICAL.length]} stroke="transparent" />
           ))}
         </Pie>
         <Tooltip
-          contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8 }}
+          contentStyle={TOOLTIP_STYLE}
           formatter={(v, _name, props) => [
             `${fmtVal(v)}  (${props.payload.weight}%)`,
             props.payload.name,

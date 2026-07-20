@@ -14,21 +14,28 @@ const PERIODS = [
   { key: "5y", label: "5Y" },
 ];
 
+// Gain→loss gradient derived from the theme's --gain/--loss tokens via
+// color-mix() so heatmap tiles track the live theme/accent instead of an
+// independent hardcoded scale.
+const STOPS = [
+  { min: 3,    color: "color-mix(in srgb, var(--gain) 100%, black 15%)" },
+  { min: 1.5,  color: "var(--gain)" },
+  { min: 0.5,  color: "color-mix(in srgb, var(--gain) 70%, var(--surface-card) 30%)" },
+  { min: 0,    color: "color-mix(in srgb, var(--gain) 35%, var(--surface-card) 65%)" },
+  { min: -0.001, color: "var(--surface-card-elevated)" }, // ~0%, avoids float-equality edge case
+  { min: -0.5, color: "color-mix(in srgb, var(--loss) 35%, var(--surface-card) 65%)" },
+  { min: -1.5, color: "color-mix(in srgb, var(--loss) 70%, var(--surface-card) 30%)" },
+  { min: -3,   color: "var(--loss)" },
+  { min: -Infinity, color: "color-mix(in srgb, var(--loss) 100%, black 15%)" },
+];
+
 function getColor(pct) {
-  if (pct >= 3) return "#059669";
-  if (pct >= 1.5) return "#10B981";
-  if (pct >= 0.5) return "#34D399";
-  if (pct > 0) return "#6EE7B7";
-  if (pct === 0) return "#D1D5DB";
-  if (pct > -0.5) return "#FCA5A5";
-  if (pct > -1.5) return "#F87171";
-  if (pct > -3) return "#EF4444";
-  return "#DC2626";
+  return (STOPS.find((s) => pct >= s.min) || STOPS[STOPS.length - 1]).color;
 }
 
 function getTileTextColor(pct) {
-  if (pct >= 0.5 || pct <= -1.5) return "#FFFFFF";
-  return "#1E293B";
+  if (pct >= 0.5 || pct <= -1.5) return "text-white";
+  return "text-ink";
 }
 
 // Squarified treemap (Bruls/Huijing/van Wijk).
@@ -189,7 +196,7 @@ export default function Heatmap() {
                     top: `${t.y}px`,
                     width: `${t.w - 2}px`,
                     height: `${t.h - 2}px`,
-                    backgroundColor: "#E2E8F0",
+                    backgroundColor: "var(--bg-subtle)",
                   }}
                 >
                   <span className="text-slate-500 font-bold text-lg tracking-widest">...</span>
@@ -226,14 +233,13 @@ export default function Heatmap() {
               <div
                 key={t.item.ticker}
                 onClick={() => openStock(t.item.ticker)}
-                className="absolute rounded transition-opacity hover:opacity-80 cursor-pointer flex flex-col items-center justify-center overflow-hidden"
+                className={`absolute rounded transition-opacity hover:opacity-80 cursor-pointer flex flex-col items-center justify-center overflow-hidden ${getTileTextColor(t.item.change_pct)}`}
                 style={{
                   left: `${t.x}px`,
                   top: `${t.y}px`,
                   width: `${t.w - 2}px`,
                   height: `${t.h - 2}px`,
                   backgroundColor: getColor(t.item.change_pct),
-                  color: getTileTextColor(t.item.change_pct),
                 }}
                 title={`${t.item.ticker} | ${t.item.change_pct >= 0 ? "+" : ""}${t.item.change_pct}% | Weight: ${t.item.weight}%`}
               >

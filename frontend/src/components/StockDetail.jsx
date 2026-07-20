@@ -13,6 +13,9 @@ import {
 import { fetchHistory } from "../api";
 import { columnChanges } from "../lib/chartChanges";
 import useStockReportConfig, { ALL_SECTIONS } from "../hooks/useStockReportConfig";
+import {
+  CATEGORICAL, NEUTRAL_COLOR, GAIN_COLOR, LOSS_COLOR, AXIS_TICK, GRID_STROKE,
+} from "../lib/chartTheme";
 
 // ---------------------------------------------------------------------------
 // Navigation helpers
@@ -161,7 +164,7 @@ function ChangeTick({ x, y, payload, index, changes, fontSize = 10 }) {
   const change = changes?.[payload?.index ?? index] ?? null;
   return (
     <g transform={`translate(${x},${y})`}>
-      <text dy={10} textAnchor="middle" fill="#64748b" fontSize={fontSize}>
+      <text dy={10} textAnchor="middle" fill={AXIS_TICK.fill} fontSize={fontSize}>
         {payload.value}
       </text>
       {change != null && (
@@ -202,7 +205,7 @@ function TtmOverlay({ formattedGraphicalItems, yAxisMap, ttm, patternId }) {
     <g pointerEvents="none">
       <defs>
         <pattern id={patternId} width="6" height="6" patternUnits="userSpaceOnUse">
-          <circle cx="3" cy="3" r="2.4" fill="#8b5cf6" fillOpacity="0.55" />
+          <circle cx="3" cy="3" r="2.4" fill={CATEGORICAL[3]} fillOpacity="0.55" />
         </pattern>
       </defs>
       <rect x={target.x} y={top} width={target.width} height={height} fill={`url(#${patternId})`} />
@@ -211,7 +214,7 @@ function TtmOverlay({ formattedGraphicalItems, yAxisMap, ttm, patternId }) {
         x2={target.x + target.width}
         y1={yTtm}
         y2={yTtm}
-        stroke="#8b5cf6"
+        stroke={CATEGORICAL[3]}
         strokeWidth={1.5}
         strokeDasharray="3 2"
       />
@@ -301,25 +304,25 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
       <div className="h-32 mt-2">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rowsWithChange} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
-            <CartesianGrid strokeDasharray="2 4" stroke="#e2e8f0" vertical={false} />
+            <CartesianGrid strokeDasharray="2 4" stroke={GRID_STROKE} vertical={false} />
             <XAxis
               dataKey="year"
               tick={
                 showChangeLine ? (
                   <ChangeTick changes={changes} fontSize={isQuarterly ? 8 : 10} />
                 ) : (
-                  { fill: "#64748b", fontSize: isQuarterly ? 8 : 10 }
+                  { ...AXIS_TICK, fontSize: isQuarterly ? 8 : 10 }
                 )
               }
               tickLine={false}
-              axisLine={{ stroke: "#e2e8f0" }}
+              axisLine={{ stroke: GRID_STROKE }}
               interval={isQuarterly && data.length > 8 ? "preserveStartEnd" : 0}
               angle={isQuarterly && data.length > 6 ? -35 : 0}
               textAnchor={isQuarterly && data.length > 6 ? "end" : "middle"}
               height={showChangeLine ? 34 : isQuarterly && data.length > 6 ? 28 : 16}
             />
             <YAxis
-              tick={{ fill: "#64748b", fontSize: 9 }}
+              tick={{ ...AXIS_TICK, fontSize: 9 }}
               tickFormatter={(v) =>
                 isPerShare ? v.toFixed(1) : fmtCompact(v, "").replace("$", "")
               }
@@ -363,7 +366,7 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
             />
             <Bar dataKey="value" radius={[3, 3, 0, 0]}>
               {rows.map((d, i) => (
-                <Cell key={i} fill={isCount ? "#6366f1" : d.value >= 0 ? "#22c55e" : "#ef4444"} />
+                <Cell key={i} fill={isCount ? CATEGORICAL[3] : d.value >= 0 ? GAIN_COLOR : LOSS_COLOR} />
               ))}
             </Bar>
             {showTtmOverlay && (
@@ -1162,7 +1165,7 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
       : v < current
         ? "bg-red-500 text-red-50"
         : "bg-gray-500 text-gray-50";
-  const avgStroke = mean > current ? "#10b981" : mean < current ? "#ef4444" : "#9ca3af";
+  const avgStroke = mean > current ? GAIN_COLOR : mean < current ? LOSS_COLOR : NEUTRAL_COLOR;
 
   const lo = Math.min(low, current, mean);
   const hi = Math.max(high, current, mean);
@@ -1180,19 +1183,19 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
             data={data}
             margin={{ top: CONE_MARGIN_TOP, right: 96, bottom: CONE_MARGIN_BOTTOM, left: 4 }}
           >
-            <CartesianGrid strokeDasharray="2 4" stroke="#e2e8f0" vertical={false} />
+            <CartesianGrid strokeDasharray="2 4" stroke={GRID_STROKE} vertical={false} />
             <XAxis
               dataKey="label"
               height={CONE_XAXIS_HEIGHT}
-              tick={{ fill: "#64748b", fontSize: 11 }}
+              tick={AXIS_TICK}
               tickLine={false}
-              axisLine={{ stroke: "#e2e8f0" }}
+              axisLine={{ stroke: GRID_STROKE }}
             />
             <YAxis
               domain={[yMin, yMax]}
               allowDataOverflow={true}
               orientation="right"
-              tick={{ fill: "#64748b", fontSize: 10 }}
+              tick={{ ...AXIS_TICK, fontSize: 10 }}
               tickFormatter={(v) => `${cs}${v.toFixed(0)}`}
               tickLine={false}
               axisLine={false}
@@ -1231,13 +1234,13 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
             <Line
               type="linear"
               dataKey="current"
-              stroke="#3b82f6"
+              stroke={CATEGORICAL[0]}
               strokeWidth={2}
-              dot={{ fill: "#3b82f6", r: 4 }}
+              dot={{ fill: CATEGORICAL[0], r: 4 }}
               isAnimationActive={false}
             />
             <Tooltip
-              cursor={{ stroke: "#cbd5e1", strokeDasharray: "2 4" }}
+              cursor={{ stroke: GRID_STROKE, strokeDasharray: "2 4" }}
               content={({ active, payload }) => {
                 if (!active || !payload?.length) return null;
                 const row = payload[0]?.payload;
@@ -1469,25 +1472,25 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
       <div className="h-32 mt-2">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rowsWithChange} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
-            <CartesianGrid strokeDasharray="2 4" stroke="#e2e8f0" vertical={false} />
+            <CartesianGrid strokeDasharray="2 4" stroke={GRID_STROKE} vertical={false} />
             <XAxis
               dataKey="label"
               tick={
                 showChangeLine ? (
                   <ChangeTick changes={changes} fontSize={isQuarterly ? 8 : 10} />
                 ) : (
-                  { fill: "#64748b", fontSize: isQuarterly ? 8 : 10 }
+                  { ...AXIS_TICK, fontSize: isQuarterly ? 8 : 10 }
                 )
               }
               tickLine={false}
-              axisLine={{ stroke: "#e2e8f0" }}
+              axisLine={{ stroke: GRID_STROKE }}
               interval={isQuarterly && data.length > 8 ? "preserveStartEnd" : 0}
               angle={isQuarterly && data.length > 6 ? -35 : 0}
               textAnchor={isQuarterly && data.length > 6 ? "end" : "middle"}
               height={showChangeLine ? 34 : isQuarterly && data.length > 6 ? 32 : 16}
             />
             <YAxis
-              tick={{ fill: "#64748b", fontSize: 9 }}
+              tick={{ ...AXIS_TICK, fontSize: 9 }}
               tickFormatter={(v) => (isPerShare ? v.toFixed(1) : fmtCompact(v, "").replace("$", ""))}
               tickLine={false}
               axisLine={false}
@@ -1551,7 +1554,7 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
               {rows.map((d, i) => (
                 <Cell
                   key={i}
-                  fill={d.isEstimate ? "#3b82f6" : (d.value >= 0 ? "#22c55e" : "#ef4444")}
+                  fill={d.isEstimate ? CATEGORICAL[0] : (d.value >= 0 ? GAIN_COLOR : LOSS_COLOR)}
                   fillOpacity={d.isEstimate ? 0.75 : 1}
                 />
               ))}
@@ -1567,11 +1570,11 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
         </ResponsiveContainer>
       </div>
       <div className="flex items-center gap-3 mt-2 text-[10px] text-slate-500">
-        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-[#22c55e] rounded-sm" />Actual</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-gain rounded-sm" />Actual</span>
         {showTtm && (
           <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm border border-dashed border-violet-500 bg-violet-500/40" />TTM</span>
         )}
-        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-[#3b82f6] rounded-sm opacity-75" />Estimate</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm opacity-75" style={{ backgroundColor: CATEGORICAL[0] }} />Estimate</span>
       </div>
     </div>
   );
@@ -1630,11 +1633,7 @@ function TargetRangeBar({ low, high, mean, median, current, cs }) {
 
 // Distinct hues for the top-N institutional holders. "Other" + retail are
 // rendered with muted greys so the named holders pop.
-const OWNERSHIP_COLORS = [
-  "#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#8b5cf6",
-  "#06b6d4", "#ef4444", "#84cc16", "#f97316", "#a855f7",
-];
-const OWNERSHIP_OTHER_COLOR = "#6b7280";
+const OWNERSHIP_OTHER_COLOR = NEUTRAL_COLOR;
 const OWNERSHIP_RETAIL_COLOR = "#374151";
 
 function OwnershipSection({ ownership, currencyCode }) {
@@ -1665,7 +1664,7 @@ function OwnershipSection({ ownership, currencyCode }) {
       shares: h.shares,
       value: h.value,
       date: h.date_reported,
-      color: OWNERSHIP_COLORS[i % OWNERSHIP_COLORS.length],
+      color: CATEGORICAL[i % CATEGORICAL.length],
     });
   });
   if (instPct != null) {
@@ -1686,7 +1685,7 @@ function OwnershipSection({ ownership, currencyCode }) {
       kind: "insiders",
       name: "Insiders",
       pct: insiderPct,
-      color: "#facc15",
+      color: CATEGORICAL[6],
     });
   }
   const accountedPct = slices.reduce((s, x) => s + x.pct, 0);
@@ -1739,7 +1738,7 @@ function OwnershipSection({ ownership, currencyCode }) {
                     innerRadius={60}
                     outerRadius={110}
                     paddingAngle={1}
-                    stroke="#f1f5f9"
+                    stroke={GRID_STROKE}
                     strokeWidth={1}
                     isAnimationActive={false}
                   >
@@ -1804,7 +1803,7 @@ function OwnershipSection({ ownership, currencyCode }) {
                 >
                   <span
                     className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
-                    style={{ background: OWNERSHIP_COLORS[i % OWNERSHIP_COLORS.length] }}
+                    style={{ background: CATEGORICAL[i % CATEGORICAL.length] }}
                   />
                   <span className="flex-1 min-w-0 truncate text-slate-700" title={h.name}>
                     {h.name}
@@ -1941,18 +1940,18 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
               barGap={1}
               barCategoryGap="25%"
             >
-              <CartesianGrid strokeDasharray="2 4" stroke="#e2e8f0" vertical={false} />
+              <CartesianGrid strokeDasharray="2 4" stroke={GRID_STROKE} vertical={false} />
               <XAxis
                 dataKey="month"
                 tickFormatter={formatMonthTick}
-                tick={{ fill: "#64748b", fontSize: 11 }}
+                tick={AXIS_TICK}
                 tickLine={false}
-                axisLine={{ stroke: "#e2e8f0" }}
+                axisLine={{ stroke: GRID_STROKE }}
               />
               <YAxis
                 yAxisId="price"
                 domain={[Math.max(0, minClose - pad), maxClose + pad]}
-                tick={{ fill: "#64748b", fontSize: 10 }}
+                tick={{ ...AXIS_TICK, fontSize: 10 }}
                 tickFormatter={(v) => `${cs}${v.toFixed(2)}`}
                 tickLine={false}
                 axisLine={false}
@@ -1961,7 +1960,7 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
                   value: "Close Price",
                   angle: -90,
                   position: "insideLeft",
-                  fill: "#64748b",
+                  fill: AXIS_TICK.fill,
                   fontSize: 10,
                   offset: 10,
                 }}
@@ -1970,7 +1969,7 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
                 yAxisId="vol"
                 orientation="right"
                 domain={[0, maxVol > 0 ? maxVol : 1]}
-                tick={{ fill: "#64748b", fontSize: 10 }}
+                tick={{ ...AXIS_TICK, fontSize: 10 }}
                 tickFormatter={(v) => fmtCompact(v, "").replace("$", "")}
                 tickLine={false}
                 axisLine={false}
@@ -2004,13 +2003,13 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
                   );
                 }}
               />
-              <Bar yAxisId="vol" dataKey="sell" fill="#ef4444" radius={[2, 2, 0, 0]} maxBarSize={14} isAnimationActive={false} />
-              <Bar yAxisId="vol" dataKey="buy" fill="#22c55e" radius={[2, 2, 0, 0]} maxBarSize={14} isAnimationActive={false} />
+              <Bar yAxisId="vol" dataKey="sell" fill={LOSS_COLOR} radius={[2, 2, 0, 0]} maxBarSize={14} isAnimationActive={false} />
+              <Bar yAxisId="vol" dataKey="buy" fill={GAIN_COLOR} radius={[2, 2, 0, 0]} maxBarSize={14} isAnimationActive={false} />
               <Line
                 yAxisId="price"
                 type="monotone"
                 dataKey="close"
-                stroke="#3b82f6"
+                stroke={CATEGORICAL[0]}
                 strokeWidth={1.5}
                 dot={false}
                 isAnimationActive={false}
@@ -2025,9 +2024,9 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
                 wrapperStyle={{ paddingBottom: 4 }}
                 formatter={(v) => <span className="text-[10px] text-slate-500 uppercase tracking-wider">{v}</span>}
                 payload={[
-                  { value: "Close Price", type: "line", color: "#3b82f6" },
-                  { value: "Insider Buys", type: "square", color: "#22c55e" },
-                  { value: "Insider Sells", type: "square", color: "#ef4444" },
+                  { value: "Close Price", type: "line", color: CATEGORICAL[0] },
+                  { value: "Insider Buys", type: "square", color: GAIN_COLOR },
+                  { value: "Insider Sells", type: "square", color: LOSS_COLOR },
                 ]}
               />
             </ComposedChart>
