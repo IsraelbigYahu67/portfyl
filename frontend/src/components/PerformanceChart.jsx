@@ -17,20 +17,20 @@ function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }
 
   const line = (name, val, color) => (
     <div className="flex justify-between gap-6">
-      <span className="text-slate-600">{name}</span>
+      <span className="text-muted">{name}</span>
       <span className={`font-sans tabular-nums font-medium ${color}`}>{val}</span>
     </div>
   );
   const moneyColor = (v) => (v >= 0 ? "text-gain" : "text-loss");
 
   return (
-    <div className="bg-white border border-hairline rounded-xl shadow-pop px-3 py-2 text-xs">
-      <p className="text-slate-500 mb-1.5">{label}</p>
+    <div className="bg-surface-card-elevated border border-hairline rounded-xl shadow-pop px-3 py-2 text-xs">
+      <p className="text-muted mb-1.5">{label}</p>
       <div className="space-y-1">
         {mode === "value" && (
           <>
             {line("Value", formatMoney(row.value, currency), "text-ink")}
-            {line("Invested", formatMoney(row.invested, currency), "text-slate-400")}
+            {line("Invested", formatMoney(row.invested, currency), "text-muted")}
           </>
         )}
         {pnl != null && line("Period P&L", formatMoney(pnl, currency), moneyColor(pnl))}

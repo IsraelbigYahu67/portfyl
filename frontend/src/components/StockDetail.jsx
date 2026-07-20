@@ -344,9 +344,9 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
                 if (!active || !payload?.length) return null;
                 const row = payload[0].payload;
                 return (
-                  <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs shadow-lg">
-                    <div className="text-slate-500">{row.year}</div>
-                    <div className="font-semibold text-slate-800">{fmtVal(row.value)}</div>
+                  <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg">
+                    <div className="text-muted">{row.year}</div>
+                    <div className="font-semibold text-ink">{fmtVal(row.value)}</div>
                     {row.yoy != null && (
                       <div className={changeColor(row.yoy)}>
                         YoY {fmtPct(row.yoy, 2)}
@@ -1246,15 +1246,15 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
                 const row = payload[0]?.payload;
                 if (!row) return null;
                 return (
-                  <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs shadow-lg space-y-0.5">
-                    <div className="text-slate-500 mb-1">{row.label}</div>
+                  <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg space-y-0.5">
+                    <div className="text-muted mb-1">{row.label}</div>
                     {row.label === "Now" ? (
-                      <div className="text-slate-800">Current {cs}{current.toFixed(2)}</div>
+                      <div className="text-ink">Current {cs}{current.toFixed(2)}</div>
                     ) : (
                       <>
-                        <div className="text-emerald-600">Max {cs}{high.toFixed(2)} <span className="text-slate-500">({pct(upsideMax)})</span></div>
-                        <div className="text-green-600">Avg {cs}{mean.toFixed(2)} <span className="text-slate-500">({pct(upsideAvg)})</span></div>
-                        <div className="text-red-600">Min {cs}{low.toFixed(2)} <span className="text-slate-500">({pct(upsideMin)})</span></div>
+                        <div className="text-emerald-600">Max {cs}{high.toFixed(2)} <span className="text-muted">({pct(upsideMax)})</span></div>
+                        <div className="text-green-600">Avg {cs}{mean.toFixed(2)} <span className="text-muted">({pct(upsideAvg)})</span></div>
+                        <div className="text-red-600">Min {cs}{low.toFixed(2)} <span className="text-muted">({pct(upsideMin)})</span></div>
                       </>
                     )}
                   </div>
@@ -1510,11 +1510,11 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
                 if (!active || !payload?.length) return null;
                 const row = payload[0].payload;
                 return (
-                  <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs shadow-lg">
-                    <div className="text-slate-500">
+                  <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg">
+                    <div className="text-muted">
                       {row.label}{row.isEstimate ? " · estimate" : " · actual"}
                     </div>
-                    <div className="font-semibold text-slate-800">
+                    <div className="font-semibold text-ink">
                       {row.value == null
                         ? "—"
                         : isPerShare
@@ -1522,14 +1522,14 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
                           : fmtCompact(row.value, cs)}
                     </div>
                     {row.isEstimate && row.low != null && row.high != null && (
-                      <div className="text-slate-500 text-[10px]">
+                      <div className="text-muted text-[10px]">
                         Range {isPerShare
                           ? `${cs}${row.low.toFixed(2)}–${cs}${row.high.toFixed(2)}`
                           : `${fmtCompact(row.low, cs)}–${fmtCompact(row.high, cs)}`}
                       </div>
                     )}
                     {row.isEstimate && row.analysts > 0 && (
-                      <div className="text-slate-500 text-[10px]">{row.analysts} analysts</div>
+                      <div className="text-muted text-[10px]">{row.analysts} analysts</div>
                     )}
                     {row.growth != null && (
                       <div className={row.growth >= 0 ? "text-emerald-600 text-[10px]" : "text-red-600 text-[10px]"}>
@@ -1752,13 +1752,13 @@ function OwnershipSection({ ownership, currencyCode }) {
                       if (!active || !payload?.length) return null;
                       const row = payload[0].payload;
                       return (
-                        <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs shadow-lg max-w-xs">
-                          <div className="font-semibold text-slate-800 truncate">{row.name}</div>
-                          <div className="text-slate-600 tabular-nums">
+                        <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg max-w-xs">
+                          <div className="font-semibold text-ink truncate">{row.name}</div>
+                          <div className="text-muted tabular-nums">
                             {row.pct.toFixed(2)}% of shares
                           </div>
                           {row.shares != null && (
-                            <div className="text-slate-500 text-[10px] tabular-nums">
+                            <div className="text-muted text-[10px] tabular-nums">
                               {fmtCompact(row.shares, "")} shares
                               {row.value != null && (
                                 <> · {fmtCompact(row.value, cs)}</>
@@ -1766,7 +1766,7 @@ function OwnershipSection({ ownership, currencyCode }) {
                             </div>
                           )}
                           {row.date && (
-                            <div className="text-slate-400 text-[10px] mt-0.5">
+                            <div className="text-muted text-[10px] mt-0.5">
                               As of {row.date}
                             </div>
                           )}
@@ -1984,20 +1984,20 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
                   const dt = new Date(row.ts);
                   const heading = `${MONTH_LABELS[dt.getMonth()]} ${dt.getFullYear()}`;
                   return (
-                    <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs shadow-lg space-y-0.5">
-                      <div className="text-slate-600 font-semibold">{heading}</div>
+                    <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg space-y-0.5">
+                      <div className="text-ink font-semibold">{heading}</div>
                       {row.close != null && (
                         <div className="text-blue-600">Close {cs}{row.close.toFixed(2)}</div>
                       )}
                       <div className="text-emerald-600">
                         Buys {fmtCompact(row.buy, "")} sh
                         {row.buyValue > 0 && <> · {fmtCompact(row.buyValue, cs)}</>}
-                        {row.buyCount > 0 && <span className="text-slate-500"> · {row.buyCount} tx</span>}
+                        {row.buyCount > 0 && <span className="text-muted"> · {row.buyCount} tx</span>}
                       </div>
                       <div className="text-red-600">
                         Sells {fmtCompact(row.sell, "")} sh
                         {row.sellValue > 0 && <> · {fmtCompact(row.sellValue, cs)}</>}
-                        {row.sellCount > 0 && <span className="text-slate-500"> · {row.sellCount} tx</span>}
+                        {row.sellCount > 0 && <span className="text-muted"> · {row.sellCount} tx</span>}
                       </div>
                     </div>
                   );

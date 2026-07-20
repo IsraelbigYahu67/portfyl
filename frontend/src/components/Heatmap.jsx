@@ -202,23 +202,23 @@ export default function Heatmap() {
                   <span className="text-slate-500 font-bold text-lg tracking-widest">...</span>
                   {showSmallTooltip && (
                     <div
-                      className="absolute z-50 bg-white border border-slate-200 rounded-lg shadow-xl p-3 min-w-[240px] max-h-[300px] overflow-y-auto"
+                      className="absolute z-50 bg-surface-card-elevated border border-hairline rounded-lg shadow-xl p-3 min-w-[240px] max-h-[300px] overflow-y-auto"
                       style={{ bottom: "calc(100% + 8px)", right: 0 }}
                     >
-                      <div className="text-[10px] font-semibold text-slate-400 uppercase mb-2">Small positions (&lt;1%)</div>
+                      <div className="text-[10px] font-semibold text-muted uppercase mb-2">Small positions (&lt;1%)</div>
                       <div className="space-y-1.5">
                         {[...smallItems].sort((a, b) => b.weight - a.weight).map((s) => (
                           <div
                             key={s.ticker}
                             onClick={() => openStock(s.ticker)}
-                            className="flex items-center justify-between gap-3 text-xs cursor-pointer hover:bg-slate-50 rounded px-1 py-0.5"
+                            className="flex items-center justify-between gap-3 text-xs cursor-pointer hover:bg-surface-hover rounded px-1 py-0.5"
                           >
-                            <span className="font-mono font-semibold text-slate-800">{s.ticker}</span>
+                            <span className="font-mono font-semibold text-ink">{s.ticker}</span>
                             <div className="flex items-center gap-2">
                               <span className={`font-medium ${s.change_pct >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                                 {s.change_pct >= 0 ? "+" : ""}{s.change_pct}%
                               </span>
-                              <span className="text-slate-400 font-medium">{s.weight}%</span>
+                              <span className="text-muted font-medium">{s.weight}%</span>
                             </div>
                           </div>
                         ))}

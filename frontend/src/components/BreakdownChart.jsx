@@ -51,14 +51,14 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
                   if (!active || !payload?.length) return null;
                   const item = payload[0].payload;
                   return (
-                    <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs shadow-lg">
-                      <div className="font-semibold text-slate-800">
+                    <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg">
+                      <div className="font-semibold text-ink">
                         {item.name} · {item.weight}%
                       </div>
                       {/* Grouped slices (e.g. "Other" positions) carry their
                           members in `items` — list them on hover. */}
                       {item.items?.length > 0 && (
-                        <div className="flex flex-wrap gap-x-2 mt-1 max-w-[240px] text-slate-500">
+                        <div className="flex flex-wrap gap-x-2 mt-1 max-w-[240px] text-muted">
                           {item.items.map((sub) => (
                             <span key={sub.name} className="whitespace-nowrap">
                               {sub.name} {sub.weight}%

@@ -83,17 +83,17 @@ export default function DividendCalendar() {
                   if (!active || !payload?.length) return null;
                   const d = payload[0].payload;
                   return (
-                    <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs shadow-lg max-w-[240px]">
-                      <p className="text-slate-500 mb-1.5 font-medium">{d.month}</p>
+                    <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg max-w-[240px]">
+                      <p className="text-muted mb-1.5 font-medium">{d.month}</p>
                       <p className="text-brand font-semibold">{fmtMoney(d.total)}</p>
                       {d.items?.slice(0, 5).map((i) => (
-                        <p key={i.ticker} className="text-slate-500 flex justify-between gap-4 mt-1">
+                        <p key={i.ticker} className="text-muted flex justify-between gap-4 mt-1">
                           <span>{i.ticker}</span>
                           <span>{fmtMoney(i.est_payment)}</span>
                         </p>
                       ))}
                       {d.items?.length > 5 && (
-                        <p className="text-slate-400 mt-1">…and {d.items.length - 5} more</p>
+                        <p className="text-muted mt-1">…and {d.items.length - 5} more</p>
                       )}
                     </div>
                   );

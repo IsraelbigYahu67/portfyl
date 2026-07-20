@@ -175,8 +175,8 @@ function ForecastTooltip({ active, payload, label }) {
   const entries = row.entries ?? [];
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs shadow-lg max-w-[320px]">
-      <p className="text-slate-500 mb-1.5">{label}</p>
+    <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg max-w-[320px]">
+      <p className="text-muted mb-1.5">{label}</p>
 
       {entries.length > 0 ? (
         <div className="space-y-1 mb-2">
@@ -188,8 +188,8 @@ function ForecastTooltip({ active, payload, label }) {
                     e.status === "paid" ? "bg-emerald-600" : "bg-brand"
                   }`}
                 />
-                <span className="font-mono text-slate-800 shrink-0">{e.ticker}</span>
-                <span className="text-slate-500 truncate">{e.name}</span>
+                <span className="font-mono text-ink shrink-0">{e.ticker}</span>
+                <span className="text-muted truncate">{e.name}</span>
               </span>
               <span
                 className={`font-medium tabular-nums shrink-0 ${
@@ -204,25 +204,25 @@ function ForecastTooltip({ active, payload, label }) {
           ))}
         </div>
       ) : (
-        <p className="text-slate-400 mb-2">No dividends</p>
+        <p className="text-muted mb-2">No dividends</p>
       )}
 
       <div className="space-y-1 pt-1.5 border-t border-surface-border">
         {paid > 0 && (
           <div className="flex justify-between gap-6">
-            <span className="text-slate-500">Paid</span>
+            <span className="text-muted">Paid</span>
             <span className="font-medium text-emerald-600">{fmtMoney(paid)}</span>
           </div>
         )}
         {est > 0 && (
           <div className="flex justify-between gap-6">
-            <span className="text-slate-500">Estimated</span>
+            <span className="text-muted">Estimated</span>
             <span className="font-medium text-brand">{fmtMoney(est)}</span>
           </div>
         )}
         <div className="flex justify-between gap-6">
-          <span className="text-slate-500">Total</span>
-          <span className="font-medium text-slate-800">{fmtMoney(paid + est)}</span>
+          <span className="text-muted">Total</span>
+          <span className="font-medium text-ink">{fmtMoney(paid + est)}</span>
         </div>
       </div>
     </div>
