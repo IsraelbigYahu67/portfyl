@@ -126,5 +126,5 @@
  * thumb (drawn with hardcoded browser-native colors, not Tailwind utilities)
  * needs an explicit dark-mode repoint.
  * ------------------------------------------------------------------------- */
-.dark ::-webkit-scrollbar-thumb { background: var(--hairline); }
-.dark ::-webkit-scrollbar-thumb:hover { background: var(--bg-subtle); }
+.dark ::-webkit-scrollbar-thumb { background: var(--bg-subtle); }
+.dark ::-webkit-scrollbar-thumb:hover { background: var(--hairline); }
