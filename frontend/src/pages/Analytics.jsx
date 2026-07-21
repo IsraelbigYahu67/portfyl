@@ -158,7 +158,7 @@ function RatingBadge({ value, thresholds, labels }) {
   for (let i = 0; i < thresholds.length; i++) {
     if (value >= thresholds[i]) level = i + 1;
   }
-  const colors = ["text-red-600 bg-red-400/10", "text-yellow-400 bg-yellow-400/10", "text-emerald-600 bg-green-400/10", "text-emerald-400 bg-emerald-400/10"];
+  const colors = ["text-loss bg-red-400/10", "text-yellow-400 bg-yellow-400/10", "text-gain bg-green-400/10", "text-emerald-400 bg-emerald-400/10"];
   return (
     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${colors[Math.min(level, colors.length - 1)]}`}>
       {labels[Math.min(level, labels.length - 1)]}
@@ -184,7 +184,7 @@ function CorrelationMatrix({ tickers, matrix }) {
           <tr>
             <th className="px-2 py-1"></th>
             {tickers.map((t) => (
-              <th key={t} className="px-2 py-1 font-mono text-slate-500 font-medium">
+              <th key={t} className="px-2 py-1 font-mono text-muted font-medium">
                 <TickerLink ticker={t}>{t}</TickerLink>
               </th>
             ))}
@@ -193,12 +193,12 @@ function CorrelationMatrix({ tickers, matrix }) {
         <tbody>
           {tickers.map((t, i) => (
             <tr key={t}>
-              <td className="px-2 py-1 font-mono text-slate-500 font-medium">
+              <td className="px-2 py-1 font-mono text-muted font-medium">
                 <TickerLink ticker={t}>{t}</TickerLink>
               </td>
               {matrix[i].map((val, j) => (
                 <td key={j} className="px-1 py-1">
-                  <div className={`w-12 h-8 flex items-center justify-center rounded text-[11px] font-sans tabular-nums ${i === j ? "bg-slate-100 text-slate-400" : getColor(val) + " text-slate-800"}`}>
+                  <div className={`w-12 h-8 flex items-center justify-center rounded text-[11px] font-sans tabular-nums ${i === j ? "bg-surface-hover text-muted" : getColor(val) + " text-ink"}`}>
                     {val.toFixed(2)}
                   </div>
                 </td>
@@ -281,13 +281,13 @@ export default function Analytics() {
             <Activity size={20} className="text-brand" />
             Portfolio Analytics
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">Risk metrics, diversification, and correlations</p>
+          <p className="text-xs text-muted mt-0.5">Risk metrics, diversification, and correlations</p>
         </div>
         <div className="flex items-center gap-2">
           <select
             value={benchmarkId ?? ""}
             onChange={(e) => setBenchmarkId(e.target.value ? Number(e.target.value) : null)}
-            className="text-xs bg-surface border border-surface-hover rounded-md px-2 py-1 text-slate-800 hover:border-brand focus:outline-none focus:border-brand"
+            className="text-xs bg-surface border border-surface-hover rounded-md px-2 py-1 text-ink hover:border-brand focus:outline-none focus:border-brand"
             title="Benchmark for beta / alpha / tracking error"
           >
             {benchmarks?.map((b) => (
@@ -304,7 +304,7 @@ export default function Analytics() {
                 key={p}
                 onClick={() => setPeriod(p)}
                 className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
-                  period === p ? "bg-white text-brand font-semibold shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  period === p ? "bg-surface-card text-brand font-semibold shadow-sm" : "text-muted hover:text-ink"
                 }`}
               >
                 {p}
@@ -318,18 +318,18 @@ export default function Analytics() {
       </div>
 
       {ml ? (
-        <div className="card animate-pulse h-32 flex items-center justify-center text-slate-500">
+        <div className="card animate-pulse h-32 flex items-center justify-center text-muted">
           Calculating risk metrics…
         </div>
       ) : !metrics || metrics.sharpe_ratio == null ? (
-        <div className="card text-slate-500 text-sm text-center py-12">
+        <div className="card text-muted text-sm text-center py-12">
           Not enough data to compute risk metrics. Add more transactions and try again.
         </div>
       ) : (
         <>
           {metrics.lifetime && (
             <section>
-              <h2 className="text-sm font-semibold text-slate-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider flex items-center gap-2">
                 <Wallet size={14} className="text-brand" />
                 Lifetime — Money-Weighted (your actual cashflows)
               </h2>
@@ -369,7 +369,7 @@ export default function Analytics() {
           )}
 
           <section>
-            <h2 className="text-sm font-semibold text-slate-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider flex items-center gap-2">
               <Activity size={14} className="text-brand" />
               {period} — Time-Weighted (investment performance only)
             </h2>
@@ -406,23 +406,23 @@ export default function Analytics() {
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold text-slate-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider flex items-center gap-2">
               <TrendingUp size={14} className="text-brand" />
               vs {benchName} — Active Performance
             </h2>
             {bl ? (
-              <div className="card animate-pulse h-48 flex items-center justify-center text-slate-500">
+              <div className="card animate-pulse h-48 flex items-center justify-center text-muted">
                 Loading benchmark comparison…
               </div>
             ) : !comparison?.series?.length ? (
-              <div className="card text-slate-500 text-sm text-center py-8">
+              <div className="card text-muted text-sm text-center py-8">
                 No overlapping data with this benchmark over the selected window.
               </div>
             ) : (
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                 <div className="card xl:col-span-2">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-xs uppercase tracking-wider text-slate-500">Cumulative Return</h3>
+                    <h3 className="text-xs uppercase tracking-wider text-muted">Cumulative Return</h3>
                     <div className="flex items-center gap-3 text-[10px]">
                       <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-brand inline-block" />Portfolio</span>
                       <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-500 inline-block" />{benchName}</span>
@@ -491,100 +491,100 @@ export default function Analytics() {
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <div className="card">
-              <h2 className="text-sm font-semibold text-slate-500 mb-4 uppercase tracking-wider flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider flex items-center gap-2">
                 <Shield size={14} />
                 Risk-Adjusted Returns
               </h2>
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-slate-100 rounded-lg p-4">
+                <div className="bg-surface-hover rounded-lg p-4">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-slate-500 flex items-center gap-1.5">
+                    <span className="text-xs text-muted flex items-center gap-1.5">
                       Sharpe Ratio <InfoIcon info={INFO.sharpe} />
                     </span>
                     <RatingBadge value={metrics.sharpe_ratio} thresholds={[0, 1, 2]} labels={["Poor", "Below Avg", "Good", "Excellent"]} />
                   </div>
                   <span className="text-2xl font-bold tabular-nums">{metrics.sharpe_ratio}</span>
-                  <p className="text-[10px] text-slate-400 mt-1">Return per unit of total risk</p>
+                  <p className="text-[10px] text-muted mt-1">Return per unit of total risk</p>
                 </div>
-                <div className="bg-slate-100 rounded-lg p-4">
+                <div className="bg-surface-hover rounded-lg p-4">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-slate-500 flex items-center gap-1.5">
+                    <span className="text-xs text-muted flex items-center gap-1.5">
                       Sortino Ratio <InfoIcon info={INFO.sortino} />
                     </span>
                     <RatingBadge value={metrics.sortino_ratio} thresholds={[0, 1, 2]} labels={["Poor", "Below Avg", "Good", "Excellent"]} />
                   </div>
                   <span className="text-2xl font-bold tabular-nums">{metrics.sortino_ratio}</span>
-                  <p className="text-[10px] text-slate-400 mt-1">Return per unit of downside risk</p>
+                  <p className="text-[10px] text-muted mt-1">Return per unit of downside risk</p>
                 </div>
                 {metrics.beta != null && (
-                  <div className="bg-slate-100 rounded-lg p-4">
+                  <div className="bg-surface-hover rounded-lg p-4">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-slate-500 flex items-center gap-1.5">
+                      <span className="text-xs text-muted flex items-center gap-1.5">
                         Beta (vs {benchName}) <InfoIcon info={INFO.beta} />
                       </span>
                       <RatingBadge value={-Math.abs(metrics.beta - 1)} thresholds={[-1, -0.3, -0.1]} labels={["Aggressive", "Active", "Moderate", "Benchmark"]} />
                     </div>
                     <span className="text-2xl font-bold tabular-nums">{metrics.beta}</span>
-                    <p className="text-[10px] text-slate-400 mt-1">Benchmark sensitivity</p>
+                    <p className="text-[10px] text-muted mt-1">Benchmark sensitivity</p>
                   </div>
                 )}
                 {metrics.alpha != null && (
-                  <div className="bg-slate-100 rounded-lg p-4">
+                  <div className="bg-surface-hover rounded-lg p-4">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-slate-500 flex items-center gap-1.5">
+                      <span className="text-xs text-muted flex items-center gap-1.5">
                         Alpha (ann.) <InfoIcon info={INFO.alpha} />
                       </span>
                     </div>
-                    <span className={`text-2xl font-bold tabular-nums ${metrics.alpha >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                    <span className={`text-2xl font-bold tabular-nums ${metrics.alpha >= 0 ? "text-gain" : "text-loss"}`}>
                       {metrics.alpha >= 0 ? "+" : ""}{metrics.alpha}%
                     </span>
-                    <p className="text-[10px] text-slate-400 mt-1">Excess return vs {benchName}</p>
+                    <p className="text-[10px] text-muted mt-1">Excess return vs {benchName}</p>
                   </div>
                 )}
               </div>
             </div>
 
             <div className="card">
-              <h2 className="text-sm font-semibold text-slate-500 mb-4 uppercase tracking-wider flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider flex items-center gap-2">
                 <TrendingDown size={14} />
                 Drawdown Analysis
               </h2>
               <div className="space-y-4">
-                <div className="bg-slate-100 rounded-lg p-4">
+                <div className="bg-surface-hover rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-slate-500 flex items-center gap-1.5">
+                    <span className="text-xs text-muted flex items-center gap-1.5">
                       Maximum Drawdown <InfoIcon info={INFO.max_dd} />
                     </span>
                     <RatingBadge value={metrics.max_drawdown} thresholds={[-50, -30, -15]} labels={["Severe", "High", "Moderate", "Low"]} />
                   </div>
-                  <span className="text-3xl font-bold tabular-nums text-red-600">{metrics.max_drawdown}%</span>
+                  <span className="text-3xl font-bold tabular-nums text-loss">{metrics.max_drawdown}%</span>
                   {metrics.max_drawdown_start && (
-                    <p className="text-[10px] text-slate-400 mt-2">
+                    <p className="text-[10px] text-muted mt-2">
                       {metrics.max_drawdown_start} → {metrics.max_drawdown_end}
                       {metrics.max_drawdown_recovery && ` (recovered ${metrics.max_drawdown_recovery})`}
                     </p>
                   )}
                 </div>
-                <div className="bg-slate-100 rounded-lg p-4">
-                  <span className="text-xs text-slate-500 flex items-center gap-1.5 mb-1">
+                <div className="bg-surface-hover rounded-lg p-4">
+                  <span className="text-xs text-muted flex items-center gap-1.5 mb-1">
                     Current Drawdown <InfoIcon info={INFO.current_dd} />
                   </span>
-                  <span className={`text-xl font-bold tabular-nums ${metrics.current_drawdown < -5 ? "text-red-600" : metrics.current_drawdown < 0 ? "text-yellow-400" : "text-emerald-600"}`}>
+                  <span className={`text-xl font-bold tabular-nums ${metrics.current_drawdown < -5 ? "text-loss" : metrics.current_drawdown < 0 ? "text-yellow-400" : "text-gain"}`}>
                     {metrics.current_drawdown}%
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-slate-100 rounded-lg p-3">
-                    <span className="text-xs text-slate-500 flex items-center gap-1.5 mb-1">
+                  <div className="bg-surface-hover rounded-lg p-3">
+                    <span className="text-xs text-muted flex items-center gap-1.5 mb-1">
                       Best Day <InfoIcon info={INFO.best_day} />
                     </span>
-                    <span className="text-sm font-bold tabular-nums text-emerald-600">+{metrics.best_day}%</span>
+                    <span className="text-sm font-bold tabular-nums text-gain">+{metrics.best_day}%</span>
                   </div>
-                  <div className="bg-slate-100 rounded-lg p-3">
-                    <span className="text-xs text-slate-500 flex items-center gap-1.5 mb-1">
+                  <div className="bg-surface-hover rounded-lg p-3">
+                    <span className="text-xs text-muted flex items-center gap-1.5 mb-1">
                       Worst Day <InfoIcon info={INFO.worst_day} />
                     </span>
-                    <span className="text-sm font-bold tabular-nums text-red-600">{metrics.worst_day}%</span>
+                    <span className="text-sm font-bold tabular-nums text-loss">{metrics.worst_day}%</span>
                   </div>
                 </div>
               </div>
@@ -595,14 +595,14 @@ export default function Analytics() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="card">
-          <h2 className="text-sm font-semibold text-slate-500 mb-4 uppercase tracking-wider flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider flex items-center gap-2">
             <Target size={14} />
             Sector Allocation
           </h2>
           {sl ? (
-            <div className="h-64 flex items-center justify-center text-slate-500 text-sm animate-pulse">Loading sectors…</div>
+            <div className="h-64 flex items-center justify-center text-muted text-sm animate-pulse">Loading sectors…</div>
           ) : !sectors?.sectors?.length ? (
-            <div className="text-slate-500 text-sm">No sector data available.</div>
+            <div className="text-muted text-sm">No sector data available.</div>
           ) : (
             <div className="flex flex-col gap-4">
               <ResponsiveContainer width="100%" height={240}>
@@ -625,7 +625,7 @@ export default function Analytics() {
                     formatter={(v, _, props) => [`${fmtCur(v)} (${props.payload.weight}%)`, props.payload.name]}
                   />
                   <Legend
-                    formatter={(v) => <span className="text-xs text-slate-500">{v}</span>}
+                    formatter={(v) => <span className="text-xs text-muted">{v}</span>}
                     iconType="circle"
                     iconSize={8}
                   />
@@ -636,13 +636,13 @@ export default function Analytics() {
         </div>
 
         <div className="card">
-          <h2 className="text-sm font-semibold text-slate-500 mb-4 uppercase tracking-wider">
+          <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider">
             Country Exposure
           </h2>
           {sl ? (
-            <div className="h-64 flex items-center justify-center text-slate-500 text-sm animate-pulse">Loading…</div>
+            <div className="h-64 flex items-center justify-center text-muted text-sm animate-pulse">Loading…</div>
           ) : !sectors?.countries?.length ? (
-            <div className="text-slate-500 text-sm">No country data available.</div>
+            <div className="text-muted text-sm">No country data available.</div>
           ) : (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={sectors.countries} layout="vertical" margin={{ left: 0, right: 20 }}>
@@ -661,18 +661,18 @@ export default function Analytics() {
       </div>
 
       <div className="card">
-        <h2 className="text-sm font-semibold text-slate-500 mb-4 uppercase tracking-wider">
+        <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider">
           Asset Type Breakdown
         </h2>
         {sl ? (
-          <div className="h-24 flex items-center justify-center text-slate-500 text-sm animate-pulse">Loading…</div>
+          <div className="h-24 flex items-center justify-center text-muted text-sm animate-pulse">Loading…</div>
         ) : !sectors?.asset_types?.length ? (
-          <div className="text-slate-500 text-sm">No asset type data available.</div>
+          <div className="text-muted text-sm">No asset type data available.</div>
         ) : (
           <div className="space-y-2">
             {sectors.asset_types.map((row, i) => (
               <div key={row.name} className="flex items-center gap-3">
-                <span className="w-20 text-xs text-slate-500 shrink-0">{row.name}</span>
+                <span className="w-20 text-xs text-muted shrink-0">{row.name}</span>
                 <div className="flex-1 bg-surface rounded-full h-2 overflow-hidden">
                   <div
                     className="h-full rounded-full"
@@ -682,10 +682,10 @@ export default function Analytics() {
                     }}
                   />
                 </div>
-                <span className="w-20 text-right text-xs tabular-nums text-slate-500 shrink-0">
+                <span className="w-20 text-right text-xs tabular-nums text-muted shrink-0">
                   {fmtCur(row.value)}
                 </span>
-                <span className="w-14 text-right text-xs tabular-nums text-slate-500 shrink-0">
+                <span className="w-14 text-right text-xs tabular-nums text-muted shrink-0">
                   {row.weight}%
                 </span>
               </div>
@@ -695,16 +695,16 @@ export default function Analytics() {
       </div>
 
       <div className="card">
-        <h2 className="text-sm font-semibold text-slate-500 mb-4 uppercase tracking-wider">
+        <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider">
           Correlation Matrix
         </h2>
-        <p className="text-[10px] text-slate-400 mb-3">
+        <p className="text-[10px] text-muted mb-3">
           How your holdings move together. High correlation (red) means less diversification benefit.
         </p>
         {cl ? (
-          <div className="h-32 flex items-center justify-center text-slate-500 text-sm animate-pulse">Computing correlations…</div>
+          <div className="h-32 flex items-center justify-center text-muted text-sm animate-pulse">Computing correlations…</div>
         ) : !corr?.tickers?.length || corr.tickers.length < 2 ? (
-          <div className="text-slate-500 text-sm">Need at least 2 holdings for correlation analysis.</div>
+          <div className="text-muted text-sm">Need at least 2 holdings for correlation analysis.</div>
         ) : (
           <CorrelationMatrix tickers={corr.tickers} matrix={corr.matrix} />
         )}

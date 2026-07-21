@@ -38,7 +38,7 @@ export default function Search() {
   return (
     <div className="max-w-4xl mx-auto py-6">
       <h1 className="text-2xl font-bold mb-1">Search Stocks</h1>
-      <p className="text-sm text-slate-500 mb-6">
+      <p className="text-sm text-muted mb-6">
         Look up any ticker or company name to see fundamentals, ratios, and
         analyst targets.
       </p>
@@ -46,7 +46,7 @@ export default function Search() {
       <div className="relative">
         <SearchIcon
           size={18}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
         />
         <input
           ref={inputRef}
@@ -59,26 +59,26 @@ export default function Search() {
         {(isLoading || isFetching) && enabled && (
           <Loader2
             size={16}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 animate-spin"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted animate-spin"
           />
         )}
       </div>
 
       <div className="mt-6">
         {!enabled && (
-          <div className="text-center text-slate-400 py-12 text-sm">
+          <div className="text-center text-muted py-12 text-sm">
             Start typing to see suggestions.
           </div>
         )}
 
         {enabled && isError && (
-          <div className="text-center text-red-600 py-12 text-sm">
+          <div className="text-center text-loss py-12 text-sm">
             Search failed. Please try again.
           </div>
         )}
 
         {enabled && !isError && !isLoading && results.length === 0 && (
-          <div className="text-center text-slate-400 py-12 text-sm">
+          <div className="text-center text-muted py-12 text-sm">
             No matches for "{debounced}".
           </div>
         )}
@@ -96,13 +96,13 @@ export default function Search() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="truncate text-sm">{r.name}</div>
-                    <div className="text-[11px] text-slate-500 truncate">
+                    <div className="text-[11px] text-muted truncate">
                       {[r.exchange, r.type, r.sector].filter(Boolean).join(" · ")}
                     </div>
                   </div>
                   <ArrowRight
                     size={16}
-                    className="text-slate-400 group-hover:text-brand transition-colors"
+                    className="text-muted group-hover:text-brand transition-colors"
                   />
                 </Link>
               </li>

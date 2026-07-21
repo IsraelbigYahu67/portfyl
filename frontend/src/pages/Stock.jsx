@@ -43,7 +43,7 @@ function WatchlistMenu({ ticker }) {
         className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border transition-colors ${
           isWatching
             ? "bg-yellow-500/10 text-yellow-300 border-yellow-500/30"
-            : "bg-slate-50 text-slate-600 border-surface-border hover:bg-slate-100"
+            : "bg-surface-hover text-muted border-surface-border hover:bg-surface-hover"
         }`}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -58,12 +58,12 @@ function WatchlistMenu({ ticker }) {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-2 w-64 z-50 bg-white border border-surface-border rounded-lg shadow-lg overflow-hidden">
-            <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-slate-500 border-b border-surface-border">
+          <div className="absolute right-0 mt-2 w-64 z-50 bg-surface-card border border-surface-border rounded-lg shadow-lg overflow-hidden">
+            <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-muted border-b border-surface-border">
               Watchlists
             </div>
             {watchlists.length === 0 ? (
-              <div className="px-3 py-4 text-xs text-slate-500">
+              <div className="px-3 py-4 text-xs text-muted">
                 No watchlists yet.{" "}
                 <Link to="/watchlists" className="text-brand hover:underline">
                   Create one →
@@ -89,7 +89,7 @@ function WatchlistMenu({ ticker }) {
                             addMut.mutate({ id: w.id, t: ticker });
                           }
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 transition-colors text-left disabled:opacity-50"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface-hover transition-colors text-left disabled:opacity-50"
                       >
                         <div
                           className={`w-4 h-4 rounded border flex items-center justify-center ${
@@ -105,7 +105,7 @@ function WatchlistMenu({ ticker }) {
                           ) : null}
                         </div>
                         <span className="flex-1 truncate">{w.name}</span>
-                        <span className="text-[10px] text-slate-400">{w.count}</span>
+                        <span className="text-[10px] text-muted">{w.count}</span>
                       </button>
                     </li>
                   );
@@ -115,7 +115,7 @@ function WatchlistMenu({ ticker }) {
             <div className="border-t border-surface-border">
               <Link
                 to="/watchlists"
-                className="flex items-center gap-2 px-3 py-2 text-xs text-brand hover:bg-slate-50"
+                className="flex items-center gap-2 px-3 py-2 text-xs text-brand hover:bg-surface-hover"
                 onClick={() => setOpen(false)}
               >
                 <Plus size={12} />
@@ -154,23 +154,23 @@ export default function Stock() {
         <button
           type="button"
           onClick={goBack}
-          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800 transition-colors"
+          className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink transition-colors"
         >
           <ChevronLeft size={16} />
           Back
         </button>
       </div>
 
-      <div className="bg-white border border-surface-border rounded-xl shadow-lg">
+      <div className="bg-surface-card border border-surface-border rounded-xl shadow-lg">
         {isLoading ? (
-          <div className="h-96 flex items-center justify-center text-slate-500 text-sm animate-pulse">
+          <div className="h-96 flex items-center justify-center text-muted text-sm animate-pulse">
             Loading fundamentals for {ticker}…
           </div>
         ) : isError || !data ? (
-          <div className="p-10 text-center text-slate-500">
+          <div className="p-10 text-center text-muted">
             <h2 className="text-lg font-bold font-mono mb-2">{ticker}</h2>
             <p>Could not load fundamentals for {ticker}.</p>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-muted mt-1">
               {error?.response?.data?.detail || error?.message || "Try again later."}
             </p>
           </div>

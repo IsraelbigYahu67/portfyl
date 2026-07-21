@@ -230,8 +230,8 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
   if (!years?.length) {
     return (
       <div className="bg-surface rounded-lg p-4 flex flex-col h-full">
-        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{name}</h3>
-        <div className="flex-1 flex items-center justify-center text-slate-400 text-xs">
+        <h3 className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">{name}</h3>
+        <div className="flex-1 flex items-center justify-center text-muted text-xs">
           No data
         </div>
       </div>
@@ -251,7 +251,7 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
           ? `${cs}${v.toFixed(2)}`
           : fmtCompact(v, cs);
   const changeColor = (x) =>
-    isCount || x == null ? "text-slate-500" : x >= 0 ? "text-emerald-600" : "text-red-600";
+    isCount || x == null ? "text-muted" : x >= 0 ? "text-gain" : "text-loss";
   const data = years.map((y, i) => ({
     year: y,
     value: values[i],
@@ -284,15 +284,15 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
   return (
     <div className="bg-surface rounded-lg p-4 flex flex-col">
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{name}</h3>
+        <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">{name}</h3>
         <div className="flex flex-col items-end text-[10px] gap-0.5">
-          <span className="text-slate-500">
+          <span className="text-muted">
             CAGR{" "}
             <span className={changeColor(cagr)}>
               {cagr == null ? "—" : fmtPct(cagr, 1)}
             </span>
           </span>
-          <span className="text-slate-500">
+          <span className="text-muted">
             YoY{" "}
             <span className={changeColor(lastYoy)}>
               {lastYoy == null ? "—" : fmtPct(lastYoy, 1)}
@@ -383,7 +383,7 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
   );
 }
 
-function RatingPill({ children, color = "text-slate-600 bg-slate-600/10" }) {
+function RatingPill({ children, color = "text-muted bg-slate-600/10" }) {
   return (
     <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${color}`}>
       {children}
@@ -392,12 +392,12 @@ function RatingPill({ children, color = "text-slate-600 bg-slate-600/10" }) {
 }
 
 function ratingColor(score) {
-  if (score == null) return "text-slate-500 bg-slate-500/10";
-  if (score <= 1.5) return "text-emerald-600 bg-emerald-600/10";
+  if (score == null) return "text-muted bg-slate-500/10";
+  if (score <= 1.5) return "text-gain bg-gain/10";
   if (score <= 2.5) return "text-green-600 bg-green-600/10";
   if (score <= 3.5) return "text-yellow-600 bg-yellow-600/10";
   if (score <= 4.5) return "text-orange-600 bg-orange-600/10";
-  return "text-red-600 bg-red-600/10";
+  return "text-loss bg-loss/10";
 }
 
 function RatioRow({ label, value, sector, fmt, tooltip, lowerIsBetter, noSector }) {
@@ -407,9 +407,9 @@ function RatioRow({ label, value, sector, fmt, tooltip, lowerIsBetter, noSector 
   // direction depends on the metric (cheap multiples = lower is better, fat
   // margins = higher is better).
   const deltaColor = (() => {
-    if (delta == null) return "text-slate-400";
+    if (delta == null) return "text-muted";
     const favourable = lowerIsBetter ? delta < 0 : delta > 0;
-    return favourable ? "text-emerald-600" : "text-red-600";
+    return favourable ? "text-gain" : "text-loss";
   })();
   // Always close the description with which direction is "good", derived from
   // the same lowerIsBetter flag that drives the Δ-vs-sector colouring above so
@@ -418,13 +418,13 @@ function RatioRow({ label, value, sector, fmt, tooltip, lowerIsBetter, noSector 
   const titleText = tooltip ? `${tooltip}\n\n${direction}` : direction;
   return (
     <div className="flex items-center justify-between py-1.5 text-sm border-b border-surface-border last:border-0">
-      <div className="flex items-center gap-1 text-slate-500 cursor-help" title={titleText}>
+      <div className="flex items-center gap-1 text-muted cursor-help" title={titleText}>
         <span className="text-xs">{label}</span>
-        <Info size={11} className="text-slate-300 shrink-0" />
+        <Info size={11} className="text-muted shrink-0" />
       </div>
       <div className="flex items-center gap-3 tabular-nums">
-        <span className="text-slate-800 font-medium w-16 text-right">{fmt(value)}</span>
-        <span className="text-slate-500 w-16 text-right text-xs">
+        <span className="text-ink font-medium w-16 text-right">{fmt(value)}</span>
+        <span className="text-muted w-16 text-right text-xs">
           {noSector ? "—" : fmt(sectorVal)}
         </span>
         <span className={`w-14 text-right text-xs font-medium ${deltaColor}`}>
@@ -439,14 +439,14 @@ function AnalystBar({ label, count, total, color }) {
   const pct = total > 0 ? (count / total) * 100 : 0;
   return (
     <div className="flex items-center gap-2 text-xs">
-      <span className="w-20 text-slate-500">{label}</span>
+      <span className="w-20 text-muted">{label}</span>
       <div className="flex-1 bg-surface rounded-full h-2 overflow-hidden">
         <div
           className={`h-2 rounded-full transition-all ${color}`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="tabular-nums text-slate-600 w-6 text-right font-medium">{count}</span>
+      <span className="tabular-nums text-muted w-6 text-right font-medium">{count}</span>
     </div>
   );
 }
@@ -456,18 +456,18 @@ function AnalystBar({ label, count, total, color }) {
 // ---------------------------------------------------------------------------
 
 function upsideColor(u) {
-  if (u == null) return "text-slate-500";
-  if (u >= 20) return "text-emerald-600";
+  if (u == null) return "text-muted";
+  if (u >= 20) return "text-gain";
   if (u >= 5) return "text-green-600";
   if (u >= -5) return "text-yellow-600";
   if (u >= -20) return "text-orange-600";
-  return "text-red-600";
+  return "text-loss";
 }
 
 // Map a fair-value-vs-current pct into a heatmap bg color. Same scale as
 // upsideColor but rendered as a translucent fill suitable for a grid cell.
 function sensitivityBg(u) {
-  if (u == null) return "bg-slate-100/40";
+  if (u == null) return "bg-surface-hover/40";
   if (u >= 30) return "bg-emerald-500/30";
   if (u >= 15) return "bg-green-500/25";
   if (u >= 5) return "bg-green-500/15";
@@ -509,14 +509,14 @@ function ValuationMethodRow({ row, currentPrice, cs }) {
   return (
     <div className="grid grid-cols-[1fr_auto_auto] gap-3 items-baseline py-2 border-b border-surface-border last:border-0">
       <div className="min-w-0">
-        <div className="text-sm text-slate-700 font-medium">{row.method}</div>
+        <div className="text-sm text-ink font-medium">{row.method}</div>
         {inputBits.length > 0 && (
-          <div className="text-[10px] text-slate-500 mt-0.5 truncate" title={inputBits.join(" · ")}>
+          <div className="text-[10px] text-muted mt-0.5 truncate" title={inputBits.join(" · ")}>
             {inputBits.join(" · ")}
           </div>
         )}
       </div>
-      <div className="text-sm font-semibold tabular-nums text-slate-800 w-24 text-right">
+      <div className="text-sm font-semibold tabular-nums text-ink w-24 text-right">
         {fv == null ? "—" : `${cs}${fv.toFixed(2)}`}
       </div>
       <div className={`text-sm font-medium tabular-nums w-20 text-right ${upsideColor(upside)}`}>
@@ -534,14 +534,14 @@ function DcfSensitivityTable({ sensitivity, currentPrice, cs }) {
     <div className="bg-surface rounded-lg p-4">
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <div>
-          <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+          <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
             DCF Sensitivity
           </h3>
-          <div className="text-[10px] text-slate-400 mt-0.5">
+          <div className="text-[10px] text-muted mt-0.5">
             Fair value per share · g₁ {sensitivity.growth_pct.toFixed(1)}% · {sensitivity.years}y stage 1
           </div>
         </div>
-        <div className="text-[10px] text-slate-500 flex items-center gap-2">
+        <div className="text-[10px] text-muted flex items-center gap-2">
           <span className="inline-block w-3 h-3 rounded-sm bg-green-500/25" />Above price
           <span className="inline-block w-3 h-3 rounded-sm bg-yellow-500/15 ml-1" />~Fair
           <span className="inline-block w-3 h-3 rounded-sm bg-red-500/25 ml-1" />Below price
@@ -551,14 +551,14 @@ function DcfSensitivityTable({ sensitivity, currentPrice, cs }) {
         <table className="w-full text-xs tabular-nums">
           <thead>
             <tr>
-              <th className="text-left text-[10px] uppercase tracking-wider text-slate-400 font-medium px-2 py-1.5">
+              <th className="text-left text-[10px] uppercase tracking-wider text-muted font-medium px-2 py-1.5">
                 WACC ↓ / g∞ →
               </th>
               {terminal_growth_pct.map((t) => (
                 <th
                   key={t}
                   className={`text-right text-[10px] uppercase tracking-wider font-medium px-2 py-1.5 ${
-                    t === base_terminal_pct ? "text-slate-800" : "text-slate-400"
+                    t === base_terminal_pct ? "text-ink" : "text-muted"
                   }`}
                 >
                   {t.toFixed(1)}%
@@ -573,7 +573,7 @@ function DcfSensitivityTable({ sensitivity, currentPrice, cs }) {
                 <tr key={w}>
                   <td
                     className={`text-left text-[10px] uppercase tracking-wider font-medium px-2 py-1.5 ${
-                      w === base_wacc_pct ? "text-slate-800" : "text-slate-400"
+                      w === base_wacc_pct ? "text-ink" : "text-muted"
                     }`}
                   >
                     {w.toFixed(1)}%
@@ -595,7 +595,7 @@ function DcfSensitivityTable({ sensitivity, currentPrice, cs }) {
                             : `FV ${cs}${fv.toFixed(2)} · ${upside == null ? "" : fmtPct(upside, 1)} vs current`
                         }
                       >
-                        <div className="text-slate-800 font-medium">
+                        <div className="text-ink font-medium">
                           {fv == null ? "—" : `${cs}${fv.toFixed(0)}`}
                         </div>
                         {upside != null && (
@@ -636,17 +636,17 @@ function ValuationSection({ valuation, currencyCode }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
           Valuation Models
         </h3>
-        <div className="text-[10px] text-slate-500">
+        <div className="text-[10px] text-muted">
           Heuristic models, not investment advice. Inputs from yfinance.
         </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div className="bg-surface rounded-lg p-4">
-          <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-400 mb-1 pb-1 border-b border-surface-border">
+          <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted mb-1 pb-1 border-b border-surface-border">
             <span>Method</span>
             <div className="flex items-center">
               <span className="w-24 text-right">Fair Value</span>
@@ -654,7 +654,7 @@ function ValuationSection({ valuation, currencyCode }) {
             </div>
           </div>
           {methods.length === 0 ? (
-            <div className="text-slate-500 text-xs py-3 text-center">
+            <div className="text-muted text-xs py-3 text-center">
               Not enough data to compute valuation methods.
             </div>
           ) : (
@@ -669,14 +669,14 @@ function ValuationSection({ valuation, currencyCode }) {
           )}
           {fvs.length >= 2 && (
             <div className="mt-3 pt-3 border-t border-surface-border flex items-center justify-between text-xs">
-              <span className="text-slate-500">
+              <span className="text-muted">
                 Average · Range
               </span>
               <div className="flex items-center gap-3 tabular-nums">
-                <span className="text-slate-600">
+                <span className="text-muted">
                   {cs}{minFv.toFixed(2)}–{cs}{maxFv.toFixed(2)}
                 </span>
-                <span className="text-slate-800 font-semibold w-24 text-right">
+                <span className="text-ink font-semibold w-24 text-right">
                   {cs}{avgFv.toFixed(2)}
                 </span>
                 <span className={`font-medium w-20 text-right ${upsideColor(avgUpside)}`}>
@@ -704,7 +704,7 @@ function SectionCustomizer({ config, toggle, moveUp, moveDown, reset, isVisible 
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-lg border border-surface-border text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-lg border border-surface-border text-muted hover:text-ink hover:border-slate-300 transition-colors"
         title="Customize report sections"
       >
         <Settings2 size={14} />
@@ -713,13 +713,13 @@ function SectionCustomizer({ config, toggle, moveUp, moveDown, reset, isVisible 
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-2 w-72 z-50 bg-white border border-surface-border rounded-xl shadow-lg overflow-hidden">
+          <div className="absolute right-0 mt-2 w-72 z-50 bg-surface-card border border-surface-border rounded-xl shadow-lg overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-surface-border">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Report Sections</span>
+              <span className="text-xs font-semibold text-muted uppercase tracking-wider">Report Sections</span>
               <button
                 type="button"
                 onClick={reset}
-                className="inline-flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition-colors"
+                className="inline-flex items-center gap-1 text-[10px] text-muted hover:text-ink transition-colors"
               >
                 <RotateCcw size={10} /> Reset
               </button>
@@ -732,17 +732,17 @@ function SectionCustomizer({ config, toggle, moveUp, moveDown, reset, isVisible 
                 return (
                   <li
                     key={id}
-                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 transition-colors"
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-surface-hover transition-colors"
                   >
                     <button
                       type="button"
                       onClick={() => toggle(id)}
-                      className={`shrink-0 ${visible ? "text-brand" : "text-slate-300"}`}
+                      className={`shrink-0 ${visible ? "text-brand" : "text-muted"}`}
                       title={visible ? "Hide section" : "Show section"}
                     >
                       {visible ? <Eye size={14} /> : <EyeOff size={14} />}
                     </button>
-                    <span className={`flex-1 text-sm ${visible ? "text-slate-700" : "text-slate-400"}`}>
+                    <span className={`flex-1 text-sm ${visible ? "text-ink" : "text-muted"}`}>
                       {section.label}
                     </span>
                     <div className="flex items-center gap-0.5">
@@ -750,7 +750,7 @@ function SectionCustomizer({ config, toggle, moveUp, moveDown, reset, isVisible 
                         type="button"
                         onClick={() => moveUp(id)}
                         disabled={idx === 0}
-                        className="text-slate-400 hover:text-slate-600 disabled:opacity-20 transition-colors p-0.5"
+                        className="text-muted hover:text-ink disabled:opacity-20 transition-colors p-0.5"
                       >
                         <ChevronUp size={12} />
                       </button>
@@ -758,7 +758,7 @@ function SectionCustomizer({ config, toggle, moveUp, moveDown, reset, isVisible 
                         type="button"
                         onClick={() => moveDown(id)}
                         disabled={idx === config.order.length - 1}
-                        className="text-slate-400 hover:text-slate-600 disabled:opacity-20 transition-colors p-0.5"
+                        className="text-muted hover:text-ink disabled:opacity-20 transition-colors p-0.5"
                       >
                         <ChevronDown size={12} />
                       </button>
@@ -835,22 +835,22 @@ export function StockOverview({ data, headerTrailing = null }) {
 
     weekRange: range ? (
       <div className="bg-surface rounded-lg px-4 py-3">
-        <div className="flex items-center justify-between text-[10px] text-slate-500 uppercase tracking-wider mb-2">
+        <div className="flex items-center justify-between text-[10px] text-muted uppercase tracking-wider mb-2">
           <span>52-Week Range</span>
           {data.fifty_day_avg != null && (
             <span>50D Avg {cs}{data.fifty_day_avg.toFixed(2)} · 200D Avg {cs}{data.two_hundred_day_avg?.toFixed(2) ?? "—"}</span>
           )}
         </div>
-        <div className="relative h-2 bg-slate-100 rounded-full">
+        <div className="relative h-2 bg-surface-hover rounded-full">
           <div
             className="absolute top-0 h-2 w-1 bg-brand rounded"
             style={{ left: `calc(${range.pct}% - 2px)` }}
           />
         </div>
         <div className="flex items-center justify-between text-xs mt-1.5 tabular-nums">
-          <span className="text-red-600">{cs}{range.lo.toFixed(2)}</span>
-          <span className="text-slate-500">Current {cs}{data.price.toFixed(2)}</span>
-          <span className="text-emerald-600">{cs}{range.hi.toFixed(2)}</span>
+          <span className="text-loss">{cs}{range.lo.toFixed(2)}</span>
+          <span className="text-muted">Current {cs}{data.price.toFixed(2)}</span>
+          <span className="text-gain">{cs}{range.hi.toFixed(2)}</span>
         </div>
       </div>
     ) : null,
@@ -858,10 +858,10 @@ export function StockOverview({ data, headerTrailing = null }) {
     financials: (
       <div>
         <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-          <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+          <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
             {period === "quarterly" ? "Quarterly Financials" : "Annual Financials"}
             {periodsCount > 0 && (
-              <span className="ml-2 text-slate-400 normal-case tracking-normal">
+              <span className="ml-2 text-muted normal-case tracking-normal">
                 · {periodsCount} {period === "quarterly" ? "quarters" : "years"}
               </span>
             )}
@@ -872,8 +872,8 @@ export function StockOverview({ data, headerTrailing = null }) {
               onClick={() => setPeriod("annual")}
               className={`px-3 py-1 rounded transition-colors ${
                 period === "annual"
-                  ? "bg-white text-brand font-semibold shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
+                  ? "bg-surface-card text-brand font-semibold shadow-sm"
+                  : "text-muted hover:text-ink"
               }`}
             >
               Annual
@@ -884,8 +884,8 @@ export function StockOverview({ data, headerTrailing = null }) {
               disabled={!hasQuarterly}
               className={`px-3 py-1 rounded transition-colors ${
                 period === "quarterly"
-                  ? "bg-white text-brand font-semibold shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
+                  ? "bg-surface-card text-brand font-semibold shadow-sm"
+                  : "text-muted hover:text-ink"
               } ${!hasQuarterly ? "opacity-40 cursor-not-allowed" : ""}`}
               title={hasQuarterly ? "" : "No quarterly data available"}
             >
@@ -921,16 +921,16 @@ export function StockOverview({ data, headerTrailing = null }) {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div className="bg-surface rounded-lg p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+            <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
               Valuation & Quality
             </h3>
             {sector.sample_size > 0 && (
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[10px] text-muted">
                 Sector = median of {sector.sample_size} {data.sector}
               </span>
             )}
           </div>
-          <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-400 pb-1 border-b border-surface-border mb-1">
+          <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted pb-1 border-b border-surface-border mb-1">
             <span>Metric</span>
             <div className="flex items-center gap-3">
               <span className="w-16 text-right">Value</span>
@@ -962,7 +962,7 @@ export function StockOverview({ data, headerTrailing = null }) {
         <div className="flex flex-col gap-4">
           <div className="bg-surface rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+              <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
                 Analyst Rating
               </h3>
               {analyst.rating && (
@@ -975,7 +975,7 @@ export function StockOverview({ data, headerTrailing = null }) {
                   <span className="text-3xl font-bold tabular-nums">
                     {analyst.score != null ? analyst.score.toFixed(2) : "—"}
                   </span>
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-muted">
                     consensus · {analyst.total} analysts
                   </span>
                 </div>
@@ -988,17 +988,17 @@ export function StockOverview({ data, headerTrailing = null }) {
                 </div>
               </>
             ) : (
-              <div className="text-slate-400 text-xs">No analyst coverage available.</div>
+              <div className="text-muted text-xs">No analyst coverage available.</div>
             )}
           </div>
 
           <div className="bg-surface rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+              <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
                 Price Targets
               </h3>
               {analyst.target_mean != null && analyst.upside != null && (
-                <span className={`text-xs font-medium ${analyst.upside >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                <span className={`text-xs font-medium ${analyst.upside >= 0 ? "text-gain" : "text-loss"}`}>
                   {fmtPct(analyst.upside)} avg upside
                 </span>
               )}
@@ -1012,16 +1012,16 @@ export function StockOverview({ data, headerTrailing = null }) {
                 cs={cs}
               />
             ) : (
-              <div className="text-slate-400 text-xs">No price targets available.</div>
+              <div className="text-muted text-xs">No price targets available.</div>
             )}
           </div>
 
           {data.description && (
             <div className="bg-surface rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">
                 About
               </h3>
-              <p className="text-xs text-slate-500 leading-relaxed line-clamp-6">
+              <p className="text-xs text-muted leading-relaxed line-clamp-6">
                 {data.description}
               </p>
             </div>
@@ -1062,12 +1062,12 @@ export function StockOverview({ data, headerTrailing = null }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-3 flex-wrap">
             <h2 className="text-2xl font-bold font-mono">{data.ticker}</h2>
-            <span className="text-slate-600 text-base truncate">{data.name}</span>
+            <span className="text-muted text-base truncate">{data.name}</span>
             {data.exchange && (
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider">{data.exchange}</span>
+              <span className="text-[10px] text-muted uppercase tracking-wider">{data.exchange}</span>
             )}
           </div>
-          <div className="flex items-center gap-2 mt-1 text-xs text-slate-500 flex-wrap">
+          <div className="flex items-center gap-2 mt-1 text-xs text-muted flex-wrap">
             {data.sector && <span className="flex items-center gap-1"><Building2 size={11} />{data.sector}</span>}
             {data.industry && <span>· {data.industry}</span>}
             {data.country && <span className="flex items-center gap-1">· <Globe size={11} />{data.country}</span>}
@@ -1089,7 +1089,7 @@ export function StockOverview({ data, headerTrailing = null }) {
               {data.price != null ? `${cs}${data.price.toFixed(2)}` : "—"}
             </div>
             {priceChange != null && (
-              <div className={`text-sm font-medium flex items-center justify-end gap-1 ${priceUp ? "text-emerald-600" : "text-red-600"}`}>
+              <div className={`text-sm font-medium flex items-center justify-end gap-1 ${priceUp ? "text-gain" : "text-loss"}`}>
                 {priceUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                 {data.change != null && `${data.change >= 0 ? "+" : ""}${data.change.toFixed(2)} `}
                 ({fmtPct(priceChange)})
@@ -1116,7 +1116,7 @@ export function StockOverview({ data, headerTrailing = null }) {
 function QuickStat({ label, value }) {
   return (
     <div className="bg-surface rounded-lg px-3 py-2">
-      <div className="text-[10px] text-slate-500 uppercase tracking-wider">{label}</div>
+      <div className="text-[10px] text-muted uppercase tracking-wider">{label}</div>
       <div className="text-base font-bold tabular-nums truncate">{value}</div>
     </div>
   );
@@ -1252,9 +1252,9 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
                       <div className="text-ink">Current {cs}{current.toFixed(2)}</div>
                     ) : (
                       <>
-                        <div className="text-emerald-600">Max {cs}{high.toFixed(2)} <span className="text-muted">({pct(upsideMax)})</span></div>
+                        <div className="text-gain">Max {cs}{high.toFixed(2)} <span className="text-muted">({pct(upsideMax)})</span></div>
                         <div className="text-green-600">Avg {cs}{mean.toFixed(2)} <span className="text-muted">({pct(upsideAvg)})</span></div>
-                        <div className="text-red-600">Min {cs}{low.toFixed(2)} <span className="text-muted">({pct(upsideMin)})</span></div>
+                        <div className="text-loss">Min {cs}{low.toFixed(2)} <span className="text-muted">({pct(upsideMin)})</span></div>
                       </>
                     )}
                   </div>
@@ -1275,7 +1275,7 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
         yMax={yMax}
         cs={cs}
       />
-      <div className="absolute left-1/2 -translate-x-1/2 bottom-0 px-3 py-1 rounded-full bg-surface border border-surface-border text-[10px] uppercase tracking-wider text-slate-500">
+      <div className="absolute left-1/2 -translate-x-1/2 bottom-0 px-3 py-1 rounded-full bg-surface border border-surface-border text-[10px] uppercase tracking-wider text-muted">
         1Y Forecast
       </div>
     </div>
@@ -1392,8 +1392,8 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
   if (!data?.length) {
     return (
       <div className="bg-surface rounded-lg p-4 flex flex-col h-full">
-        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{name}</h3>
-        <div className="flex-1 flex items-center justify-center text-slate-400 text-xs">No data</div>
+        <h3 className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">{name}</h3>
+        <div className="flex-1 flex items-center justify-center text-muted text-xs">No data</div>
       </div>
     );
   }
@@ -1441,17 +1441,17 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
   return (
     <div className="bg-surface rounded-lg p-4 flex flex-col">
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{name}</h3>
+        <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">{name}</h3>
         <div className="flex flex-col items-end text-[10px] gap-0.5">
-          <span className="text-slate-500">
+          <span className="text-muted">
             CAGR{" "}
-            <span className={cagr == null ? "text-slate-500" : cagr >= 0 ? "text-emerald-600" : "text-red-600"}>
+            <span className={cagr == null ? "text-muted" : cagr >= 0 ? "text-gain" : "text-loss"}>
               {cagr == null ? "—" : fmtPct(cagr, 1)}
             </span>
           </span>
-          <span className="text-slate-500">
+          <span className="text-muted">
             YoY{" "}
-            <span className={lastActualYoy == null ? "text-slate-500" : lastActualYoy >= 0 ? "text-emerald-600" : "text-red-600"}>
+            <span className={lastActualYoy == null ? "text-muted" : lastActualYoy >= 0 ? "text-gain" : "text-loss"}>
               {lastActualYoy == null ? "—" : fmtPct(lastActualYoy, 1)}
             </span>
           </span>
@@ -1466,7 +1466,7 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
               : fmtCompact(lastActual.value, cs)}
         </div>
         {lastActual?.label && (
-          <div className="text-[10px] text-slate-500">{lastActual.label}</div>
+          <div className="text-[10px] text-muted">{lastActual.label}</div>
         )}
       </div>
       <div className="h-32 mt-2">
@@ -1532,12 +1532,12 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
                       <div className="text-muted text-[10px]">{row.analysts} analysts</div>
                     )}
                     {row.growth != null && (
-                      <div className={row.growth >= 0 ? "text-emerald-600 text-[10px]" : "text-red-600 text-[10px]"}>
+                      <div className={row.growth >= 0 ? "text-gain text-[10px]" : "text-loss text-[10px]"}>
                         {row.isEstimate ? "Fcst growth" : "YoY"} {fmtPct(row.growth, 2)}
                       </div>
                     )}
                     {isQuarterly && row.change != null && (
-                      <div className={row.change >= 0 ? "text-emerald-600 text-[10px]" : "text-red-600 text-[10px]"}>
+                      <div className={row.change >= 0 ? "text-gain text-[10px]" : "text-loss text-[10px]"}>
                         QoQ {fmtPct(row.change, 2)}
                       </div>
                     )}
@@ -1569,7 +1569,7 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <div className="flex items-center gap-3 mt-2 text-[10px] text-slate-500">
+      <div className="flex items-center gap-3 mt-2 text-[10px] text-muted">
         <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-gain rounded-sm" />Actual</span>
         {showTtm && (
           <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm border border-dashed border-violet-500 bg-violet-500/40" />TTM</span>
@@ -1589,7 +1589,7 @@ function TargetRangeBar({ low, high, mean, median, current, cs }) {
   const medianPct = median != null ? pct(median) : null;
   return (
     <div>
-      <div className="relative h-2 bg-slate-100 rounded-full">
+      <div className="relative h-2 bg-surface-hover rounded-full">
         <div
           className="absolute top-0 h-2 rounded-full bg-gradient-to-r from-red-500/30 via-yellow-500/30 to-green-500/30"
           style={{ left: 0, right: 0 }}
@@ -1612,11 +1612,11 @@ function TargetRangeBar({ low, high, mean, median, current, cs }) {
           title={`Current ${cs}${current.toFixed(2)}`}
         />
       </div>
-      <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2">
+      <div className="flex items-center justify-between text-[10px] text-muted mt-2">
         <span>Low {cs}{low.toFixed(2)}</span>
         <span>High {cs}{high.toFixed(2)}</span>
       </div>
-      <div className="flex items-center gap-3 text-[10px] text-slate-500 mt-1">
+      <div className="flex items-center gap-3 text-[10px] text-muted mt-1">
         <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-slate-800 rounded-sm" />Current</span>
         <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-brand rounded-sm" />Mean</span>
         {median != null && (
@@ -1702,7 +1702,7 @@ function OwnershipSection({ ownership, currencyCode }) {
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
+      <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-3">
         Ownership Breakdown
       </h3>
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -1778,7 +1778,7 @@ function OwnershipSection({ ownership, currencyCode }) {
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="h-72 flex items-center justify-center text-slate-400 text-xs">
+            <div className="h-72 flex items-center justify-center text-muted text-xs">
               No ownership data available.
             </div>
           )}
@@ -1786,14 +1786,14 @@ function OwnershipSection({ ownership, currencyCode }) {
 
         <div className="bg-surface rounded-lg p-4">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <h4 className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5">
               <Users size={12} />
               Top Institutional Holders
             </h4>
-            <span className="text-[10px] text-slate-400">% of shares · value</span>
+            <span className="text-[10px] text-muted">% of shares · value</span>
           </div>
           {holders.length === 0 ? (
-            <div className="text-slate-400 text-xs">No institutional holders reported.</div>
+            <div className="text-muted text-xs">No institutional holders reported.</div>
           ) : (
             <ul className="space-y-1 max-h-80 overflow-y-auto pr-1">
               {holders.map((h, i) => (
@@ -1805,13 +1805,13 @@ function OwnershipSection({ ownership, currencyCode }) {
                     className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
                     style={{ background: CATEGORICAL[i % CATEGORICAL.length] }}
                   />
-                  <span className="flex-1 min-w-0 truncate text-slate-700" title={h.name}>
+                  <span className="flex-1 min-w-0 truncate text-ink" title={h.name}>
                     {h.name}
                   </span>
-                  <span className="tabular-nums text-slate-800 w-14 text-right">
+                  <span className="tabular-nums text-ink w-14 text-right">
                     {h.pct_out != null ? `${h.pct_out.toFixed(2)}%` : "—"}
                   </span>
-                  <span className="tabular-nums text-slate-500 w-20 text-right">
+                  <span className="tabular-nums text-muted w-20 text-right">
                     {h.value != null ? fmtCompact(h.value, cs) : "—"}
                   </span>
                 </li>
@@ -1826,8 +1826,8 @@ function OwnershipSection({ ownership, currencyCode }) {
 
 function OwnershipStat({ label, value }) {
   return (
-    <div className="bg-white rounded-md px-3 py-2 border border-surface-border">
-      <div className="text-[10px] text-slate-500 uppercase tracking-wider">{label}</div>
+    <div className="bg-surface-card rounded-md px-3 py-2 border border-surface-border">
+      <div className="text-[10px] text-muted uppercase tracking-wider">{label}</div>
       <div className="text-base font-bold tabular-nums">{value}</div>
     </div>
   );
@@ -1928,7 +1928,7 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
+      <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-3">
         Insider Trading Volume
       </h3>
       <div className="bg-surface rounded-lg p-4">
@@ -1989,12 +1989,12 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
                       {row.close != null && (
                         <div className="text-blue-600">Close {cs}{row.close.toFixed(2)}</div>
                       )}
-                      <div className="text-emerald-600">
+                      <div className="text-gain">
                         Buys {fmtCompact(row.buy, "")} sh
                         {row.buyValue > 0 && <> · {fmtCompact(row.buyValue, cs)}</>}
                         {row.buyCount > 0 && <span className="text-muted"> · {row.buyCount} tx</span>}
                       </div>
-                      <div className="text-red-600">
+                      <div className="text-loss">
                         Sells {fmtCompact(row.sell, "")} sh
                         {row.sellValue > 0 && <> · {fmtCompact(row.sellValue, cs)}</>}
                         {row.sellCount > 0 && <span className="text-muted"> · {row.sellCount} tx</span>}
@@ -2022,7 +2022,7 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
                 iconType="square"
                 iconSize={9}
                 wrapperStyle={{ paddingBottom: 4 }}
-                formatter={(v) => <span className="text-[10px] text-slate-500 uppercase tracking-wider">{v}</span>}
+                formatter={(v) => <span className="text-[10px] text-muted uppercase tracking-wider">{v}</span>}
                 payload={[
                   { value: "Close Price", type: "line", color: CATEGORICAL[0] },
                   { value: "Insider Buys", type: "square", color: GAIN_COLOR },
@@ -2044,11 +2044,11 @@ function InsiderTransactionsSection({ transactions, currencyCode, currentPrice }
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
+      <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-3">
         Latest Insider Transactions
       </h3>
       <div className="bg-surface rounded-lg overflow-hidden">
-        <div className={`grid ${gridCols} gap-3 px-4 py-2 border-b border-surface-border text-[10px] uppercase tracking-wider text-slate-400 font-medium`}>
+        <div className={`grid ${gridCols} gap-3 px-4 py-2 border-b border-surface-border text-[10px] uppercase tracking-wider text-muted font-medium`}>
           <span>Insider</span>
           <span className="w-32 text-left">Type · Transaction</span>
           <span className="w-20 text-right">Shares</span>
@@ -2065,18 +2065,18 @@ function InsiderTransactionsSection({ transactions, currencyCode, currentPrice }
               ? "bg-green-500/10 hover:bg-green-500/15"
               : isSell
                 ? "bg-red-500/10 hover:bg-red-500/15"
-                : "hover:bg-slate-50";
+                : "hover:bg-surface-hover";
             const sideColor = isBuy
               ? "text-green-700"
               : isSell
                 ? "text-red-700"
-                : "text-slate-500";
+                : "text-muted";
             const sideLabel = isBuy ? "BUY" : isSell ? "SELL" : "OTHER";
             const sidePill = isBuy
               ? "bg-green-500/25 text-green-700 border-green-500/40"
               : isSell
                 ? "bg-red-500/25 text-red-700 border-red-500/40"
-                : "bg-slate-500/20 text-slate-600 border-slate-500/40";
+                : "bg-slate-500/20 text-muted border-slate-500/40";
             const Icon = isBuy ? ArrowUpRight : isSell ? ArrowDownRight : null;
 
             // Derive the executed price from value / shares. yfinance reports
@@ -2103,12 +2103,12 @@ function InsiderTransactionsSection({ transactions, currencyCode, currentPrice }
             }
             const pnlColor =
               pnl == null
-                ? "text-slate-500"
+                ? "text-muted"
                 : pnl > 0
-                  ? "text-emerald-600"
+                  ? "text-gain"
                   : pnl < 0
-                    ? "text-red-600"
-                    : "text-slate-600";
+                    ? "text-loss"
+                    : "text-muted";
             const pnlPrefix = pnl != null && pnl > 0 ? "+" : pnl != null && pnl < 0 ? "−" : "";
 
             return (
@@ -2117,11 +2117,11 @@ function InsiderTransactionsSection({ transactions, currencyCode, currentPrice }
                 className={`grid ${gridCols} gap-3 items-center px-4 py-2 border-b border-surface-border last:border-0 text-xs transition-colors ${rowBg}`}
               >
                 <div className="min-w-0">
-                  <div className="text-slate-800 truncate" title={t.insider || ""}>
+                  <div className="text-ink truncate" title={t.insider || ""}>
                     {t.insider || "—"}
                   </div>
                   {t.position && (
-                    <div className="text-[10px] text-slate-500 truncate" title={t.position}>
+                    <div className="text-[10px] text-muted truncate" title={t.position}>
                       {t.position}
                     </div>
                   )}
@@ -2139,12 +2139,12 @@ function InsiderTransactionsSection({ transactions, currencyCode, currentPrice }
                     {t.transaction || "—"}
                   </span>
                 </div>
-                <div className="w-20 text-right tabular-nums text-slate-700 flex items-center justify-end gap-1">
+                <div className="w-20 text-right tabular-nums text-ink flex items-center justify-end gap-1">
                   {Icon && <Icon size={11} className={sideColor} />}
                   {shares != null ? fmtCompact(shares, "") : "—"}
                 </div>
                 <div
-                  className="w-20 text-right tabular-nums text-slate-700"
+                  className="w-20 text-right tabular-nums text-ink"
                   title={
                     pricePerShare != null
                       ? `${cs}${pricePerShare.toFixed(4)} / share`
@@ -2179,7 +2179,7 @@ function InsiderTransactionsSection({ transactions, currencyCode, currentPrice }
                     </>
                   )}
                 </div>
-                <div className="w-20 text-right text-slate-500 tabular-nums text-[11px]">
+                <div className="w-20 text-right text-muted tabular-nums text-[11px]">
                   {t.date || "—"}
                 </div>
               </li>
@@ -2187,7 +2187,7 @@ function InsiderTransactionsSection({ transactions, currencyCode, currentPrice }
           })}
         </ul>
       </div>
-      <div className="text-[10px] text-slate-400 mt-2">
+      <div className="text-[10px] text-muted mt-2">
         Source: yfinance · transaction types from Form 4 filings · P&amp;L shown
         for buys only (held-to-now mark vs. current price).
       </div>
