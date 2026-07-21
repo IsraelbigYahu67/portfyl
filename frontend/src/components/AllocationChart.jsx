@@ -14,7 +14,7 @@ export default function AllocationChart({ holdings, currency = "USD", rate = nul
     .filter((h) => h.market_value > 0)
     .map((h) => ({ name: h.ticker, value: h.market_value, weight: h.weight }));
 
-  if (!data.length) return <div className="text-slate-500 text-sm">No holdings yet.</div>;
+  if (!data.length) return <div className="text-muted text-sm">No holdings yet.</div>;
 
   return (
     <ResponsiveContainer width="100%" height={280}>
@@ -40,7 +40,7 @@ export default function AllocationChart({ holdings, currency = "USD", rate = nul
           ]}
         />
         <Legend
-          formatter={(v) => <span className="text-xs text-slate-600">{v}</span>}
+          formatter={(v) => <span className="text-xs text-muted">{v}</span>}
           iconType="circle"
           iconSize={8}
         />

@@ -104,7 +104,7 @@ export default function DiscordSettings() {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://discord.com/api/webhooks/..."
-              className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none focus:border-brand"
+              className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-muted focus:outline-none focus:border-brand"
             />
             <p className="text-xs text-muted mt-1.5">
               Create a webhook in Discord: Server Settings &rarr; Integrations &rarr; Webhooks &rarr; New Webhook

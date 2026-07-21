@@ -55,7 +55,7 @@ function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }
 }
 
 export default function PerformanceChart({ data, currency = "USD", mode = "value", benchmarks = {}, benchmarkMeta = [] }) {
-  if (!data?.length) return <div className="text-slate-500 text-sm">No performance data yet.</div>;
+  if (!data?.length) return <div className="text-muted text-sm">No performance data yet.</div>;
 
   const merged = data.map((point) => {
     const row = { ...point };
@@ -128,10 +128,10 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                 align="right"
                 wrapperStyle={{ paddingBottom: '20px' }}
                 formatter={(v) => {
-                  if (v === "pnl_pct") return <span className="text-xs text-slate-600">Portfolio Growth</span>;
+                  if (v === "pnl_pct") return <span className="text-xs text-muted">Portfolio Growth</span>;
                   const bm = benchmarkMeta.find((b) => `bench_${b.key}` === v);
                   if (bm) return <span className="text-xs" style={{ color: bm.color }}>{bm.label}</span>;
-                  return <span className="text-xs text-slate-600">{v}</span>;
+                  return <span className="text-xs text-muted">{v}</span>;
                 }}
               />
               <Area
@@ -184,11 +184,11 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                 align="right"
                 wrapperStyle={{ paddingBottom: '20px' }}
                 formatter={(v) => {
-                  if (v === "value") return <span className="text-xs text-slate-600">Portfolio Value</span>;
-                  if (v === "invested") return <span className="text-xs text-slate-600">Invested</span>;
+                  if (v === "value") return <span className="text-xs text-muted">Portfolio Value</span>;
+                  if (v === "invested") return <span className="text-xs text-muted">Invested</span>;
                   const bm = benchmarkMeta.find((b) => `bench_${b.key}` === v);
                   if (bm) return <span className="text-xs" style={{ color: bm.color }}>{bm.label}</span>;
-                  return <span className="text-xs text-slate-600">{v}</span>;
+                  return <span className="text-xs text-muted">{v}</span>;
                 }}
               />
               <Area yAxisId="value" type="monotone" dataKey="invested" stroke={NEUTRAL_COLOR} fill="url(#colorInvested)" strokeWidth={1.5} dot={false} />

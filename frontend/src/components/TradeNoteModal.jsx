@@ -72,7 +72,7 @@ export default function TradeNoteModal({ transaction, onClose }) {
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="Why did you make this trade? What was your thesis?"
                 rows={4}
-                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none focus:border-brand resize-none"
+                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-muted focus:outline-none focus:border-brand resize-none"
               />
             </div>
 
@@ -100,7 +100,7 @@ export default function TradeNoteModal({ transaction, onClose }) {
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
                 placeholder="dip-buy, earnings, swing"
-                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none focus:border-brand"
+                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-muted focus:outline-none focus:border-brand"
               />
             </div>
 
