@@ -40,12 +40,12 @@ export default function DividendCalendar() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Forward Dividend Calendar</h1>
-          <p className="text-sm text-slate-500 mt-0.5">12-month dividend projection based on held positions</p>
+          <p className="text-sm text-muted mt-0.5">12-month dividend projection based on held positions</p>
         </div>
         <button
           onClick={() => refetch()}
           disabled={isFetching}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-card border border-surface-border text-sm text-slate-500 hover:text-slate-800 transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-card border border-surface-border text-sm text-muted hover:text-ink transition-colors disabled:opacity-50"
         >
           <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
           Refresh
@@ -70,7 +70,7 @@ export default function DividendCalendar() {
       {/* Monthly projection chart */}
       {chartData.length > 0 && (
         <div className="rounded-xl border border-surface-border bg-surface-card p-4">
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
             <DollarSign size={13} /> Monthly Projection
           </h2>
           <ResponsiveContainer width="100%" height={260}>
@@ -108,16 +108,16 @@ export default function DividendCalendar() {
 
       {/* Holdings table with dividend info */}
       {isLoading ? (
-        <div className="text-center py-20 text-slate-400">Loading dividend calendar…</div>
+        <div className="text-center py-20 text-muted">Loading dividend calendar…</div>
       ) : !tickers.length ? (
-        <div className="text-center py-20 text-slate-400">No holdings found. Import a portfolio first.</div>
+        <div className="text-center py-20 text-muted">No holdings found. Import a portfolio first.</div>
       ) : (
         <div className="rounded-xl border border-surface-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-border bg-surface-card">
                 {["Ticker", "Shares", "Freq.", "Amt/Share", "Next Ex-Date", "Est. Next Payment", "Annual Est.", "Yield"].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -128,13 +128,13 @@ export default function DividendCalendar() {
                   onClick={() => openStock(row.ticker)}
                   className="border-b border-surface-border last:border-0 hover:bg-surface-hover transition-colors cursor-pointer"
                 >
-                  <td className="px-4 py-3 font-mono font-semibold text-slate-800">{row.ticker}</td>
-                  <td className="px-4 py-3 text-slate-500 tabular-nums">{row.held_shares?.toLocaleString() ?? "—"}</td>
-                  <td className="px-4 py-3 text-slate-500">{row.frequency ?? "—"}</td>
-                  <td className="px-4 py-3 text-slate-500 tabular-nums">{fmtMoney(row.amount_per_share)}</td>
-                  <td className="px-4 py-3 text-slate-500 tabular-nums">{row.ex_date ?? "—"}</td>
-                  <td className="px-4 py-3 text-slate-800 font-medium tabular-nums">{fmtMoney(row.est_next_payment)}</td>
-                  <td className="px-4 py-3 text-slate-800 font-medium tabular-nums">{fmtMoney(row.amount_per_share != null && row.held_shares != null ? row.amount_per_share * row.held_shares * (row.frequency === "monthly" ? 12 : row.frequency === "quarterly" ? 4 : row.frequency === "semi-annual" ? 2 : 1) : null)}</td>
+                  <td className="px-4 py-3 font-mono font-semibold text-ink">{row.ticker}</td>
+                  <td className="px-4 py-3 text-muted tabular-nums">{row.held_shares?.toLocaleString() ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted">{row.frequency ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted tabular-nums">{fmtMoney(row.amount_per_share)}</td>
+                  <td className="px-4 py-3 text-muted tabular-nums">{row.ex_date ?? "—"}</td>
+                  <td className="px-4 py-3 text-ink font-medium tabular-nums">{fmtMoney(row.est_next_payment)}</td>
+                  <td className="px-4 py-3 text-ink font-medium tabular-nums">{fmtMoney(row.amount_per_share != null && row.held_shares != null ? row.amount_per_share * row.held_shares * (row.frequency === "monthly" ? 12 : row.frequency === "quarterly" ? 4 : row.frequency === "semi-annual" ? 2 : 1) : null)}</td>
                   <td className="px-4 py-3 tabular-nums">{row.trailing_yield_pct != null ? <span className="text-brand flex items-center gap-1"><TrendingUp size={11} />{row.trailing_yield_pct.toFixed(2)}%</span> : "—"}</td>
                 </tr>
               ))}
