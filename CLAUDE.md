@@ -13,6 +13,9 @@ tax reports, and an AI assistant across one or more portfolios. Single-user toda
   data via `yfinance`; `pandas`/`numpy` for calcs; `httpx` for outbound calls.
 - **Frontend**: React 18 + Vite 6, TailwindCSS, `recharts`, `@tanstack/react-query`,
   `axios`, `react-router-dom` 7. SPA in `frontend/src` (pages + components).
+  Visual design follows the Stitch-derived dark-glassmorphism token system
+  (`docs/design/stitch/`) — see `frontend/src/index.css` `:root` and `App.jsx`
+  `PALETTES`/`DARK_SURFACES`/`LIGHT_TOKENS` for the token source of truth.
 - **Deploy**: multi-stage `Dockerfile` → Cloud Run. SQLite lives on a mounted GCS
   volume in prod (`DATABASE_PATH`), never baked into the image.
 

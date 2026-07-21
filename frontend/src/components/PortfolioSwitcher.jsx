@@ -27,7 +27,7 @@ function NameModal({ title, initial = "", confirmLabel, busy, onCancel, onSubmit
       <form onSubmit={submit} className="card w-full max-w-sm space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-bold text-lg">{title}</h2>
-          <button type="button" onClick={onCancel} className="text-slate-500 hover:text-slate-800">
+          <button type="button" onClick={onCancel} className="text-muted hover:text-ink">
             <X size={18} />
           </button>
         </div>
@@ -169,11 +169,11 @@ export default function PortfolioSwitcher() {
                   </span>
                   <span className="truncate">{p.name}</span>
                   {p.is_default && (
-                    <span className="text-[10px] uppercase tracking-wider text-slate-400 ml-1">
+                    <span className="text-[10px] uppercase tracking-wider text-muted ml-1">
                       default
                     </span>
                   )}
-                  <span className="ml-auto text-[10px] text-slate-400 tabular-nums">
+                  <span className="ml-auto text-[10px] text-muted tabular-nums">
                     {p.transaction_count ?? 0}
                   </span>
                 </button>
@@ -186,7 +186,7 @@ export default function PortfolioSwitcher() {
                     setMode("rename");
                     setOpen(false);
                   }}
-                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-slate-500 hover:text-slate-800"
+                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted hover:text-ink"
                 >
                   <Pencil size={12} />
                 </button>
@@ -198,7 +198,7 @@ export default function PortfolioSwitcher() {
                     e.stopPropagation();
                     handleDelete(p);
                   }}
-                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-slate-400 hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed"
                 >
                   <Trash2 size={12} />
                 </button>

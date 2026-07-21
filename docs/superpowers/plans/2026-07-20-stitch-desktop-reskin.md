@@ -20,6 +20,11 @@
 - **`cd frontend && npm test` must stay green after every task.** If a test asserts a literal class name that a task changes, update the assertion in that same task — never defer it.
 - Reference assets live at `docs/design/stitch/` (Task 1 moves them there from the root-level zip).
 
+**Design decision (resolved after Task 7/8 review):** `--gain`/`--loss` are used both for
+literal P&L and for the broader "positive/negative" semantic (buy/sell direction, rating
+tiers, sentiment) — this is an intentional, accepted convention, not scope creep; no
+separate token pair was introduced.
+
 ### Design tokens (locked values — every later task references this table, do not invent new hex elsewhere)
 
 **Reconciliation note**: `DESIGN.md`'s YAML frontmatter and its prose section disagree on the canvas color (`#0b1326` vs `#020617`). Pixel-sampled ground truth from the actual screenshots (`portfyl_premium_dashboard/screen.png`) settles it: the true page canvas is `#020616` (≈ prose's `#020617`), and `#0b1326` is actually the *sidebar/base-card* tone, one step up the tonal ladder. The table below is the reconciled, verified system.

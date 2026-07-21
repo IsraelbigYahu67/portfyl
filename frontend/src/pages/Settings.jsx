@@ -288,7 +288,7 @@ export default function Settings() {
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder="Paste your Trading 212 API key"
-                  className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none focus:border-brand pr-10"
+                  className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-muted focus:outline-none focus:border-brand pr-10"
                 />
                 <button
                   type="button"
@@ -309,7 +309,7 @@ export default function Settings() {
                 value={apiSecret}
                 onChange={(e) => setApiSecret(e.target.value)}
                 placeholder="Paste your Trading 212 API secret"
-                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none focus:border-brand"
+                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-muted focus:outline-none focus:border-brand"
               />
             </div>
             <button
@@ -440,7 +440,7 @@ export default function Settings() {
                   value={ibkrToken}
                   onChange={(e) => setIbkrToken(e.target.value)}
                   placeholder="Paste your IBKR Flex Web Service token"
-                  className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none focus:border-brand pr-10"
+                  className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-muted focus:outline-none focus:border-brand pr-10"
                 />
                 <button
                   type="button"
@@ -461,7 +461,7 @@ export default function Settings() {
                 value={ibkrQueryId}
                 onChange={(e) => setIbkrQueryId(e.target.value)}
                 placeholder="Enter your Flex Query ID"
-                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none focus:border-brand"
+                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-muted focus:outline-none focus:border-brand"
               />
             </div>
             <button
@@ -595,7 +595,7 @@ export default function Settings() {
                 value={polyAddress}
                 onChange={(e) => setPolyAddress(e.target.value)}
                 placeholder="Your Polymarket wallet address (0x...)"
-                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none focus:border-brand font-mono"
+                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-muted focus:outline-none focus:border-brand font-mono"
               />
               <p className="text-xs text-muted mt-1.5">
                 Find your wallet address in your Polymarket profile. Position data is public — no API key needed.
