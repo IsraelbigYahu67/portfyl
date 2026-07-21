@@ -116,7 +116,7 @@ export default function SyncScheduleSettings() {
             <button
               onClick={() => saveMutation.mutate()}
               disabled={saveMutation.isPending}
-              className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand/90 transition-colors disabled:bg-brand-light disabled:text-muted disabled:cursor-not-allowed"
             >
               {saveMutation.isPending ? (
                 <Loader2 size={16} className="animate-spin" />

@@ -251,7 +251,7 @@ export default function Assistant() {
                     key={s}
                     onClick={() => send(s)}
                     disabled={!configured}
-                    className="text-xs text-muted border border-hairline rounded-full px-3 py-1.5 hover:border-brand hover:text-brand transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="text-xs text-muted border border-hairline rounded-full px-3 py-1.5 hover:border-brand hover:text-brand transition-colors disabled:cursor-not-allowed"
                   >
                     {s}
                   </button>

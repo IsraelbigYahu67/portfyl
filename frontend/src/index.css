@@ -81,7 +81,7 @@
     @apply border border-hairline hover:border-slate-300 text-slate-500 hover:text-slate-700 px-4 py-2 rounded-lg transition-colors;
   }
   .input {
-    @apply bg-slate-50 border border-hairline rounded-lg px-3 py-2 text-ink placeholder-slate-400 focus:outline-none focus:border-brand w-full;
+    @apply bg-surface border border-hairline rounded-lg px-3 py-2 text-ink placeholder-slate-400 focus:outline-none focus:border-brand w-full;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
   .input:focus { box-shadow: 0 0 0 3px var(--brand-light); }

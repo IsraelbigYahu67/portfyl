@@ -336,7 +336,7 @@ function PriceAlertsPanel({ prefillTicker, onConsumePrefill }) {
         <button
           type="submit"
           disabled={add.isPending || !form.ticker.trim() || !form.target_price}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand text-black text-sm font-medium disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand text-black text-sm font-medium disabled:bg-brand-light disabled:text-muted"
         >
           <Plus size={14} />
           Add alert
@@ -443,7 +443,7 @@ function NewWatchlistForm() {
       <button
         type="submit"
         disabled={!name.trim() || createMut.isPending}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand text-black text-sm font-medium disabled:opacity-50"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand text-black text-sm font-medium disabled:bg-brand-light disabled:text-muted"
       >
         <Plus size={14} />
         Create

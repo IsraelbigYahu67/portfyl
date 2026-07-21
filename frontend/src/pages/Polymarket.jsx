@@ -78,7 +78,7 @@ export default function Polymarket() {
         <button
           onClick={() => syncMutation.mutate()}
           disabled={syncMutation.isPending}
-          className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-4 py-2 rounded-lg hover:bg-brand/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-4 py-2 rounded-lg hover:bg-brand/90 transition-colors disabled:bg-brand-light disabled:text-muted disabled:cursor-not-allowed"
         >
           <RefreshCw size={15} className={syncMutation.isPending ? "animate-spin" : ""} />
           {syncMutation.isPending ? "Syncing..." : "Refresh"}

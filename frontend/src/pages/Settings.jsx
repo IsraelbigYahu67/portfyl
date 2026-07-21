@@ -315,7 +315,7 @@ export default function Settings() {
             <button
               onClick={() => connectMutation.mutate()}
               disabled={!apiKey.trim() || !apiSecret.trim() || busy}
-              className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand/90 transition-colors disabled:bg-brand-light disabled:text-muted disabled:cursor-not-allowed"
             >
               {connectMutation.isPending ? (
                 <Loader2 size={16} className="animate-spin" />
@@ -369,7 +369,7 @@ export default function Settings() {
               <button
                 onClick={() => syncMutation.mutate()}
                 disabled={busy}
-                className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand/90 transition-colors disabled:bg-brand-light disabled:text-muted disabled:cursor-not-allowed"
               >
                 {syncMutation.isPending ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -467,7 +467,7 @@ export default function Settings() {
             <button
               onClick={() => ibkrConnectMutation.mutate()}
               disabled={!ibkrToken.trim() || !ibkrQueryId.trim() || ibkrBusy}
-              className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand/90 transition-colors disabled:bg-brand-light disabled:text-muted disabled:cursor-not-allowed"
             >
               {ibkrConnectMutation.isPending ? (
                 <Loader2 size={16} className="animate-spin" />
@@ -521,7 +521,7 @@ export default function Settings() {
               <button
                 onClick={() => ibkrSyncMutation.mutate()}
                 disabled={ibkrBusy}
-                className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand/90 transition-colors disabled:bg-brand-light disabled:text-muted disabled:cursor-not-allowed"
               >
                 {ibkrSyncMutation.isPending ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -604,7 +604,7 @@ export default function Settings() {
             <button
               onClick={() => polyConnectMutation.mutate()}
               disabled={!polyAddress.trim() || polyBusy}
-              className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand/90 transition-colors disabled:bg-brand-light disabled:text-muted disabled:cursor-not-allowed"
             >
               {polyConnectMutation.isPending ? (
                 <Loader2 size={16} className="animate-spin" />
@@ -645,7 +645,7 @@ export default function Settings() {
               <button
                 onClick={() => polySyncMutation.mutate()}
                 disabled={polyBusy}
-                className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand/90 transition-colors disabled:bg-brand-light disabled:text-muted disabled:cursor-not-allowed"
               >
                 {polySyncMutation.isPending ? (
                   <Loader2 size={16} className="animate-spin" />

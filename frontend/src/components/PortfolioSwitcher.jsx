@@ -137,7 +137,7 @@ export default function PortfolioSwitcher() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Switch portfolio (current: ${current?.name ?? "none"})`}
-        className="w-full flex items-center gap-2 bg-slate-50 border border-surface-border rounded-lg px-3 py-2 text-left hover:border-slate-300 transition-colors"
+        className="w-full flex items-center gap-2 bg-surface border border-surface-border rounded-lg px-3 py-2 text-left hover:border-slate-300 transition-colors"
       >
         <Briefcase size={14} className="text-brand shrink-0" />
         <div className="flex-1 min-w-0">
@@ -156,7 +156,7 @@ export default function PortfolioSwitcher() {
             return (
               <div
                 key={p.id}
-                className={`flex items-center gap-2 px-2.5 py-1.5 text-sm group hover:bg-slate-50 ${
+                className={`flex items-center gap-2 px-2.5 py-1.5 text-sm group hover:bg-surface-hover ${
                   active ? "text-brand" : "text-slate-700"
                 }`}
               >
@@ -212,7 +212,7 @@ export default function PortfolioSwitcher() {
                 setMode("create");
                 setOpen(false);
               }}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-surface-hover"
             >
               <Plus size={14} />
               New portfolio
