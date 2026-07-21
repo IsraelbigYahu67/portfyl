@@ -12,22 +12,22 @@ function getFirstDayOfWeek(year, month) {
 }
 
 function getPnlColor(pnl) {
-  if (pnl === 0 || pnl == null) return "bg-slate-50";
+  if (pnl === 0 || pnl == null) return "bg-surface-hover";
   if (pnl > 0) {
-    if (pnl >= 500) return "bg-emerald-300";
-    if (pnl >= 200) return "bg-emerald-200";
-    if (pnl >= 50) return "bg-emerald-100";
-    return "bg-emerald-50";
+    if (pnl >= 500) return "bg-gain/40";
+    if (pnl >= 200) return "bg-gain/30";
+    if (pnl >= 50) return "bg-gain/20";
+    return "bg-gain/10";
   }
-  if (pnl <= -500) return "bg-red-300";
-  if (pnl <= -200) return "bg-red-200";
-  if (pnl <= -50) return "bg-red-100";
-  return "bg-red-50";
+  if (pnl <= -500) return "bg-loss/40";
+  if (pnl <= -200) return "bg-loss/30";
+  if (pnl <= -50) return "bg-loss/20";
+  return "bg-loss/10";
 }
 
 function getPnlTextColor(pnl) {
-  if (pnl == null || pnl === 0) return "text-slate-400";
-  return pnl > 0 ? "text-emerald-700" : "text-red-700";
+  if (pnl == null || pnl === 0) return "text-muted";
+  return pnl > 0 ? "text-gain" : "text-loss";
 }
 
 function formatPnl(pnl) {
@@ -110,14 +110,14 @@ export default function OptionsCalendar({ data = [] }) {
       <div className="flex items-center justify-between mb-4">
         <button
           onClick={prevMonth}
-          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-surface-hover text-muted hover:text-ink transition-colors"
         >
           <ChevronLeft size={18} />
         </button>
-        <h3 className="text-sm font-semibold text-slate-800">{monthName}</h3>
+        <h3 className="text-sm font-semibold text-ink">{monthName}</h3>
         <button
           onClick={nextMonth}
-          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-surface-hover text-muted hover:text-ink transition-colors"
         >
           <ChevronRight size={18} />
         </button>
@@ -126,7 +126,7 @@ export default function OptionsCalendar({ data = [] }) {
       {/* Day headers */}
       <div className="grid grid-cols-7 gap-1 mb-1">
         {DAY_HEADERS.map((d) => (
-          <div key={d} className="text-center text-[10px] font-semibold text-slate-400 uppercase py-1">
+          <div key={d} className="text-center text-[10px] font-semibold text-muted uppercase py-1">
             {d}
           </div>
         ))}
@@ -153,13 +153,13 @@ export default function OptionsCalendar({ data = [] }) {
                 ${getPnlColor(cell.pnl)}
               `}
             >
-              <span className="text-[11px] font-medium text-slate-600">{cell.day}</span>
+              <span className="text-[11px] font-medium text-muted">{cell.day}</span>
               {hasTrades && (
                 <>
                   <span className={`text-[10px] font-bold tabular-nums ${getPnlTextColor(cell.pnl)}`}>
                     {formatPnl(cell.pnl)}
                   </span>
-                  <span className="text-[9px] text-slate-400">
+                  <span className="text-[9px] text-muted">
                     {cell.trades_count} {cell.trades_count === 1 ? "trade" : "trades"}
                   </span>
                 </>
@@ -171,8 +171,8 @@ export default function OptionsCalendar({ data = [] }) {
 
       {/* Selected day detail */}
       {selectedDay && (
-        <div className="mt-3 p-3 rounded-lg bg-slate-50 border border-surface-border">
-          <p className="text-xs text-slate-500">
+        <div className="mt-3 p-3 rounded-lg bg-surface-hover border border-surface-border">
+          <p className="text-xs text-muted">
             {new Date(year, month, selectedDay).toLocaleDateString("en-US", {
               weekday: "long",
               month: "long",
@@ -186,10 +186,10 @@ export default function OptionsCalendar({ data = [] }) {
             if (!dayData) return null;
             return (
               <div className="flex items-center gap-4 mt-1.5">
-                <span className={`text-sm font-bold ${dayData.pnl >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                <span className={`text-sm font-bold ${dayData.pnl >= 0 ? "text-gain" : "text-loss"}`}>
                   {dayData.pnl >= 0 ? "+" : ""}${dayData.pnl?.toFixed(2)}
                 </span>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-muted">
                   {dayData.trades_count} {dayData.trades_count === 1 ? "trade" : "trades"} closed
                 </span>
               </div>
@@ -200,10 +200,10 @@ export default function OptionsCalendar({ data = [] }) {
 
       {/* Monthly total */}
       <div className="mt-4 pt-3 border-t border-surface-border flex items-center justify-between">
-        <span className="text-xs font-medium text-slate-500">Monthly Total</span>
+        <span className="text-xs font-medium text-muted">Monthly Total</span>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-400">{monthlyTrades} trades</span>
-          <span className={`text-sm font-bold tabular-nums ${monthlyTotal >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+          <span className="text-xs text-muted">{monthlyTrades} trades</span>
+          <span className={`text-sm font-bold tabular-nums ${monthlyTotal >= 0 ? "text-gain" : "text-loss"}`}>
             {monthlyTotal >= 0 ? "+" : ""}${monthlyTotal.toFixed(2)}
           </span>
         </div>

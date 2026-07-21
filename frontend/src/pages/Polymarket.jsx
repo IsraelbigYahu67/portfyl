@@ -72,7 +72,7 @@ export default function Polymarket() {
             <Hexagon size={20} className="text-brand" />
             <h1 className="text-xl font-semibold">Polymarket</h1>
           </div>
-          <p className="text-sm text-slate-500">Prediction market positions and P&L</p>
+          <p className="text-sm text-muted">Prediction market positions and P&L</p>
         </div>
         <button
           onClick={() => syncMutation.mutate()}
@@ -120,9 +120,9 @@ export default function Polymarket() {
 
       {/* Positions table */}
       {positionsLoading ? (
-        <div className="text-center py-16 text-slate-400">Loading positions...</div>
+        <div className="text-center py-16 text-muted">Loading positions...</div>
       ) : !sorted.length ? (
-        <div className="text-center py-16 text-slate-400">
+        <div className="text-center py-16 text-muted">
           No positions found. Connect Polymarket and sync to see positions here.
         </div>
       ) : (
@@ -134,7 +134,7 @@ export default function Polymarket() {
                   {["Market", "Outcome", "Size", "Avg Price", "Sell Price", "P&L", "Return", "Status"].map((h) => (
                     <th
                       key={h}
-                      className="text-left px-4 py-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider"
+                      className="text-left px-4 py-3 text-[10px] font-semibold text-muted uppercase tracking-wider"
                     >
                       {h}
                     </th>
@@ -148,7 +148,7 @@ export default function Polymarket() {
                     className="border-b border-surface-border last:border-0 hover:bg-surface-hover transition-colors"
                   >
                     <td className="px-4 py-3 max-w-[280px]">
-                      <span className="text-slate-800 truncate block" title={pos.question}>
+                      <span className="text-ink truncate block" title={pos.question}>
                         {pos.question}
                       </span>
                     </td>
@@ -156,22 +156,22 @@ export default function Polymarket() {
                       <span
                         className={`text-xs font-semibold px-2 py-0.5 rounded ${
                           pos.outcome?.toLowerCase() === "yes"
-                            ? "bg-emerald-50 text-emerald-600"
-                            : "bg-red-50 text-red-600"
+                            ? "bg-gain/10 text-gain"
+                            : "bg-loss/10 text-loss"
                         }`}
                       >
                         {pos.outcome}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-slate-600 tabular-nums">{pos.size}</td>
-                    <td className="px-4 py-3 text-slate-600 tabular-nums">{fmtCents(pos.avg_price)}</td>
-                    <td className="px-4 py-3 text-slate-600 tabular-nums">
+                    <td className="px-4 py-3 text-muted tabular-nums">{pos.size}</td>
+                    <td className="px-4 py-3 text-muted tabular-nums">{fmtCents(pos.avg_price)}</td>
+                    <td className="px-4 py-3 text-muted tabular-nums">
                       {fmtCents(pos.status === "closed" ? pos.resolved_price : pos.current_price)}
                     </td>
                     <td className="px-4 py-3">
                       <span
                         className={`font-bold tabular-nums ${
-                          (pos.pnl ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"
+                          (pos.pnl ?? 0) >= 0 ? "text-gain" : "text-loss"
                         }`}
                       >
                         {fmtMoney(pos.pnl)}
@@ -181,13 +181,13 @@ export default function Polymarket() {
                       {pctReturn(pos) != null ? (
                         <span
                           className={`font-semibold tabular-nums text-xs ${
-                            pctReturn(pos) >= 0 ? "text-emerald-600" : "text-red-600"
+                            pctReturn(pos) >= 0 ? "text-gain" : "text-loss"
                           }`}
                         >
                           {pctReturn(pos) >= 0 ? "+" : ""}{pctReturn(pos).toFixed(1)}%
                         </span>
                       ) : (
-                        <span className="text-slate-400">-</span>
+                        <span className="text-muted">-</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -205,15 +205,15 @@ export default function Polymarket() {
 }
 
 function StatusBadge({ status }) {
-  if (!status) return <span className="text-slate-400">-</span>;
+  if (!status) return <span className="text-muted">-</span>;
 
   const styles = {
     open: "bg-blue-50 text-blue-700",
-    resolved: "bg-slate-100 text-slate-600",
+    resolved: "bg-surface-hover text-muted",
     closed: "bg-yellow-50 text-yellow-700",
   };
 
-  const className = styles[status?.toLowerCase()] || "bg-slate-100 text-slate-600";
+  const className = styles[status?.toLowerCase()] || "bg-surface-hover text-muted";
 
   return (
     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase ${className}`}>
