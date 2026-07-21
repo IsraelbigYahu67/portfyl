@@ -46,36 +46,36 @@ export default function SyncScheduleSettings() {
     <div className="bg-surface-card border border-surface-border rounded-xl p-6 space-y-5">
       <div>
         <h2 className="text-lg font-semibold">Auto-sync schedule</h2>
-        <p className="text-sm text-slate-500 mt-0.5">
+        <p className="text-sm text-muted mt-0.5">
           When connected brokers with auto-sync enabled check for new trades.
           {schedule?.timezone && <> Times are in {schedule.timezone}.</>}
         </p>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+        <div className="flex items-center gap-2 text-sm text-loss bg-loss/10 border border-loss/30 rounded-lg px-4 py-3">
           <AlertCircle size={16} className="shrink-0" />
           {error}
         </div>
       )}
       {success && (
-        <div className="flex items-center gap-2 text-sm text-emerald-600 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+        <div className="flex items-center gap-2 text-sm text-gain bg-gain/10 border border-gain/30 rounded-lg px-4 py-3">
           <CheckCircle2 size={16} className="shrink-0" />
           {success}
         </div>
       )}
 
       {isError ? (
-        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+        <div className="flex items-center gap-2 text-sm text-loss bg-loss/10 border border-loss/30 rounded-lg px-4 py-3">
           <AlertCircle size={16} className="shrink-0" />
           Failed to load sync schedule
         </div>
       ) : isLoading || mode === null ? (
-        <Loader2 size={18} className="animate-spin text-slate-400" />
+        <Loader2 size={18} className="animate-spin text-muted" />
       ) : (
         <div className="space-y-4">
           <div className="space-y-3">
-            <label className="flex items-center gap-3 text-sm text-slate-700">
+            <label className="flex items-center gap-3 text-sm text-ink">
               <input
                 type="radio"
                 name="sync-mode"
@@ -88,10 +88,10 @@ export default function SyncScheduleSettings() {
                 value={dailyTime}
                 onChange={(e) => setDailyTime(e.target.value)}
                 disabled={mode !== "daily"}
-                className="bg-surface border border-surface-border rounded-lg px-3 py-1.5 text-sm text-slate-800 focus:outline-none focus:border-brand disabled:opacity-40"
+                className="bg-surface border border-surface-border rounded-lg px-3 py-1.5 text-sm text-ink focus:outline-none focus:border-brand disabled:opacity-40"
               />
             </label>
-            <label className="flex items-center gap-3 text-sm text-slate-700">
+            <label className="flex items-center gap-3 text-sm text-ink">
               <input
                 type="radio"
                 name="sync-mode"
@@ -106,7 +106,7 @@ export default function SyncScheduleSettings() {
                 value={intervalHours}
                 onChange={(e) => setIntervalHours(e.target.value)}
                 disabled={mode !== "interval"}
-                className="w-20 bg-surface border border-surface-border rounded-lg px-3 py-1.5 text-sm text-slate-800 focus:outline-none focus:border-brand disabled:opacity-40"
+                className="w-20 bg-surface border border-surface-border rounded-lg px-3 py-1.5 text-sm text-ink focus:outline-none focus:border-brand disabled:opacity-40"
               />
               <span>hours</span>
             </label>
@@ -125,7 +125,7 @@ export default function SyncScheduleSettings() {
               )}
               Save schedule
             </button>
-            <div className="text-xs text-slate-400 space-y-0.5">
+            <div className="text-xs text-muted space-y-0.5">
               <div>
                 Last sync:{" "}
                 {schedule?.last_run ? new Date(schedule.last_run).toLocaleString() : "never"}

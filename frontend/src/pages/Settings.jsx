@@ -234,11 +234,11 @@ export default function Settings() {
       <h1 className="text-2xl font-bold">Settings</h1>
 
       {currentPortfolio && (
-        <div className="flex items-center gap-2 text-sm text-slate-500 bg-surface-card border border-surface-border rounded-lg px-4 py-2.5">
+        <div className="flex items-center gap-2 text-sm text-muted bg-surface-card border border-surface-border rounded-lg px-4 py-2.5">
           <Briefcase size={14} className="text-brand" />
           <span>Managing connection for portfolio</span>
-          <span className="text-slate-800 font-medium">{currentPortfolio.name}</span>
-          <span className="text-xs text-slate-400 ml-auto">
+          <span className="text-ink font-medium">{currentPortfolio.name}</span>
+          <span className="text-xs text-muted ml-auto">
             Each portfolio holds its own Trading 212 API key — data is never mixed.
           </span>
         </div>
@@ -248,16 +248,16 @@ export default function Settings() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold">Trading 212</h2>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-sm text-muted mt-0.5">
               Connect your Trading 212 account to automatically import transactions into{" "}
-              <span className="text-slate-800">{currentPortfolio?.name ?? "this portfolio"}</span>
+              <span className="text-ink">{currentPortfolio?.name ?? "this portfolio"}</span>
             </p>
           </div>
           <span
             className={`text-xs font-medium px-2.5 py-1 rounded-full ${
               connected
-                ? "bg-green-100 text-emerald-600"
-                : "bg-slate-100 text-slate-500"
+                ? "bg-gain/10 text-gain"
+                : "bg-surface-hover text-muted"
             }`}
           >
             {isLoading ? "..." : connected ? "Connected" : "Not connected"}
@@ -265,14 +265,14 @@ export default function Settings() {
         </div>
 
         {error && (
-          <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-loss bg-loss/10 border border-loss/30 rounded-lg px-4 py-3">
             <AlertCircle size={16} className="shrink-0" />
             {error}
           </div>
         )}
 
         {success && (
-          <div className="flex items-center gap-2 text-sm text-emerald-600 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-gain bg-gain/10 border border-gain/30 rounded-lg px-4 py-3">
             <CheckCircle2 size={16} className="shrink-0" />
             {success}
           </div>
@@ -281,35 +281,35 @@ export default function Settings() {
         {!connected && !isLoading && (
           <div className="space-y-3">
             <div>
-              <label className="block text-sm text-slate-500 mb-1.5">API Key</label>
+              <label className="block text-sm text-muted mb-1.5">API Key</label>
               <div className="relative">
                 <input
                   type={showKey ? "text" : "password"}
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder="Paste your Trading 212 API key"
-                  className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-brand pr-10"
+                  className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none focus:border-brand pr-10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowKey(!showKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
                 >
                   {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              <p className="text-xs text-slate-400 mt-1.5">
+              <p className="text-xs text-muted mt-1.5">
                 Generate an API key in Trading 212 &rarr; Settings &rarr; API (beta)
               </p>
             </div>
             <div>
-              <label className="block text-sm text-slate-500 mb-1.5">API Secret</label>
+              <label className="block text-sm text-muted mb-1.5">API Secret</label>
               <input
                 type="password"
                 value={apiSecret}
                 onChange={(e) => setApiSecret(e.target.value)}
                 placeholder="Paste your Trading 212 API secret"
-                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-brand"
+                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none focus:border-brand"
               />
             </div>
             <button
@@ -329,31 +329,31 @@ export default function Settings() {
 
         {connected && !isLoading && (
           <div className="space-y-4">
-            <div className="bg-slate-100 rounded-lg p-4 space-y-2 text-sm">
+            <div className="bg-surface-hover rounded-lg p-4 space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-slate-500">API Key</span>
-                <span className="text-slate-700 font-mono">{status.api_key_preview}</span>
+                <span className="text-muted">API Key</span>
+                <span className="text-ink font-mono">{status.api_key_preview}</span>
               </div>
               {status.last_synced_at && (
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Last synced</span>
-                  <span className="text-slate-700">
+                  <span className="text-muted">Last synced</span>
+                  <span className="text-ink">
                     {new Date(status.last_synced_at).toLocaleString()}
                   </span>
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-slate-500">Connected since</span>
-                <span className="text-slate-700">
+                <span className="text-muted">Connected since</span>
+                <span className="text-ink">
                   {status.connected_at
                     ? new Date(status.connected_at).toLocaleDateString()
                     : "—"}
                 </span>
               </div>
               <div className="flex justify-between items-center pt-1">
-                <span className="text-slate-500">
+                <span className="text-muted">
                   Auto-sync
-                  <span className="text-xs text-slate-400 ml-2">checks for new trades on the auto-sync schedule below</span>
+                  <span className="text-xs text-muted ml-2">checks for new trades on the auto-sync schedule below</span>
                 </span>
                 <button
                   onClick={() => autoSyncMutation.mutate(!status.auto_sync)}
@@ -400,16 +400,16 @@ export default function Settings() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold">Interactive Brokers</h2>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-sm text-muted mt-0.5">
               Connect your IBKR Flex Web Service to import options trades into{" "}
-              <span className="text-slate-800">{currentPortfolio?.name ?? "this portfolio"}</span>
+              <span className="text-ink">{currentPortfolio?.name ?? "this portfolio"}</span>
             </p>
           </div>
           <span
             className={`text-xs font-medium px-2.5 py-1 rounded-full ${
               ibkrConnected
-                ? "bg-green-100 text-emerald-600"
-                : "bg-slate-100 text-slate-500"
+                ? "bg-gain/10 text-gain"
+                : "bg-surface-hover text-muted"
             }`}
           >
             {ibkrLoading ? "..." : ibkrConnected ? "Connected" : "Not connected"}
@@ -417,14 +417,14 @@ export default function Settings() {
         </div>
 
         {ibkrError && (
-          <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-loss bg-loss/10 border border-loss/30 rounded-lg px-4 py-3">
             <AlertCircle size={16} className="shrink-0" />
             {ibkrError}
           </div>
         )}
 
         {ibkrSuccess && (
-          <div className="flex items-center gap-2 text-sm text-emerald-600 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-gain bg-gain/10 border border-gain/30 rounded-lg px-4 py-3">
             <CheckCircle2 size={16} className="shrink-0" />
             {ibkrSuccess}
           </div>
@@ -433,35 +433,35 @@ export default function Settings() {
         {!ibkrConnected && !ibkrLoading && (
           <div className="space-y-3">
             <div>
-              <label className="block text-sm text-slate-500 mb-1.5">Flex Token</label>
+              <label className="block text-sm text-muted mb-1.5">Flex Token</label>
               <div className="relative">
                 <input
                   type={showIbkrToken ? "text" : "password"}
                   value={ibkrToken}
                   onChange={(e) => setIbkrToken(e.target.value)}
                   placeholder="Paste your IBKR Flex Web Service token"
-                  className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-brand pr-10"
+                  className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none focus:border-brand pr-10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowIbkrToken(!showIbkrToken)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
                 >
                   {showIbkrToken ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              <p className="text-xs text-slate-400 mt-1.5">
+              <p className="text-xs text-muted mt-1.5">
                 Generate a token in IBKR Account Management &rarr; Reports &rarr; Flex Queries &rarr; Manage Flex Web Service
               </p>
             </div>
             <div>
-              <label className="block text-sm text-slate-500 mb-1.5">Flex Query ID</label>
+              <label className="block text-sm text-muted mb-1.5">Flex Query ID</label>
               <input
                 type="text"
                 value={ibkrQueryId}
                 onChange={(e) => setIbkrQueryId(e.target.value)}
                 placeholder="Enter your Flex Query ID"
-                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-brand"
+                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none focus:border-brand"
               />
             </div>
             <button
@@ -481,31 +481,31 @@ export default function Settings() {
 
         {ibkrConnected && !ibkrLoading && (
           <div className="space-y-4">
-            <div className="bg-slate-100 rounded-lg p-4 space-y-2 text-sm">
+            <div className="bg-surface-hover rounded-lg p-4 space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-slate-500">Flex Token</span>
-                <span className="text-slate-700 font-mono">{ibkrStatus.token_preview}</span>
+                <span className="text-muted">Flex Token</span>
+                <span className="text-ink font-mono">{ibkrStatus.token_preview}</span>
               </div>
               {ibkrStatus.last_synced_at && (
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Last synced</span>
-                  <span className="text-slate-700">
+                  <span className="text-muted">Last synced</span>
+                  <span className="text-ink">
                     {new Date(ibkrStatus.last_synced_at).toLocaleString()}
                   </span>
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-slate-500">Connected since</span>
-                <span className="text-slate-700">
+                <span className="text-muted">Connected since</span>
+                <span className="text-ink">
                   {ibkrStatus.connected_at
                     ? new Date(ibkrStatus.connected_at).toLocaleDateString()
                     : "—"}
                 </span>
               </div>
               <div className="flex justify-between items-center pt-1">
-                <span className="text-slate-500">
+                <span className="text-muted">
                   Auto-sync
-                  <span className="text-xs text-slate-400 ml-2">checks for new trades on the auto-sync schedule below</span>
+                  <span className="text-xs text-muted ml-2">checks for new trades on the auto-sync schedule below</span>
                 </span>
                 <button
                   onClick={() => ibkrAutoSyncMutation.mutate(!ibkrStatus.auto_sync)}
@@ -556,16 +556,16 @@ export default function Settings() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold">Polymarket</h2>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-sm text-muted mt-0.5">
               Connect your Polymarket wallet to import prediction market positions into{" "}
-              <span className="text-slate-800">{currentPortfolio?.name ?? "this portfolio"}</span>
+              <span className="text-ink">{currentPortfolio?.name ?? "this portfolio"}</span>
             </p>
           </div>
           <span
             className={`text-xs font-medium px-2.5 py-1 rounded-full ${
               polyConnected
-                ? "bg-green-100 text-emerald-600"
-                : "bg-slate-100 text-slate-500"
+                ? "bg-gain/10 text-gain"
+                : "bg-surface-hover text-muted"
             }`}
           >
             {polyLoading ? "..." : polyConnected ? "Connected" : "Not connected"}
@@ -573,14 +573,14 @@ export default function Settings() {
         </div>
 
         {polyError && (
-          <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-loss bg-loss/10 border border-loss/30 rounded-lg px-4 py-3">
             <AlertCircle size={16} className="shrink-0" />
             {polyError}
           </div>
         )}
 
         {polySuccess && (
-          <div className="flex items-center gap-2 text-sm text-emerald-600 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-gain bg-gain/10 border border-gain/30 rounded-lg px-4 py-3">
             <CheckCircle2 size={16} className="shrink-0" />
             {polySuccess}
           </div>
@@ -589,15 +589,15 @@ export default function Settings() {
         {!polyConnected && !polyLoading && (
           <div className="space-y-3">
             <div>
-              <label className="block text-sm text-slate-500 mb-1.5">Wallet Address</label>
+              <label className="block text-sm text-muted mb-1.5">Wallet Address</label>
               <input
                 type="text"
                 value={polyAddress}
                 onChange={(e) => setPolyAddress(e.target.value)}
                 placeholder="Your Polymarket wallet address (0x...)"
-                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-brand font-mono"
+                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none focus:border-brand font-mono"
               />
-              <p className="text-xs text-slate-400 mt-1.5">
+              <p className="text-xs text-muted mt-1.5">
                 Find your wallet address in your Polymarket profile. Position data is public — no API key needed.
               </p>
             </div>
@@ -618,22 +618,22 @@ export default function Settings() {
 
         {polyConnected && !polyLoading && (
           <div className="space-y-4">
-            <div className="bg-slate-100 rounded-lg p-4 space-y-2 text-sm">
+            <div className="bg-surface-hover rounded-lg p-4 space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-slate-500">Wallet</span>
-                <span className="text-slate-700 font-mono">{polyStatus.address_preview}</span>
+                <span className="text-muted">Wallet</span>
+                <span className="text-ink font-mono">{polyStatus.address_preview}</span>
               </div>
               {polyStatus.last_synced_at && (
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Last synced</span>
-                  <span className="text-slate-700">
+                  <span className="text-muted">Last synced</span>
+                  <span className="text-ink">
                     {new Date(polyStatus.last_synced_at).toLocaleString()}
                   </span>
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-slate-500">Connected since</span>
-                <span className="text-slate-700">
+                <span className="text-muted">Connected since</span>
+                <span className="text-ink">
                   {polyStatus.connected_at
                     ? new Date(polyStatus.connected_at).toLocaleDateString()
                     : "—"}

@@ -114,7 +114,7 @@ export default function Import() {
 
       {/* Supported formats */}
       <div className="card space-y-5">
-        <h2 className="font-semibold text-sm text-slate-500 uppercase tracking-wider">
+        <h2 className="font-semibold text-sm text-muted uppercase tracking-wider">
           Supported formats
         </h2>
 
@@ -122,9 +122,9 @@ export default function Import() {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <FormatBadge label="Trading 212" color="bg-blue-100 text-blue-700" />
-            <span className="text-xs text-slate-500">— auto-detected, drop your export directly</span>
+            <span className="text-xs text-muted">— auto-detected, drop your export directly</span>
           </div>
-          <div className="bg-slate-100 rounded-lg p-3 overflow-x-auto">
+          <div className="bg-surface-hover rounded-lg p-3 overflow-x-auto">
             <code className="text-xs text-blue-600 font-mono whitespace-pre">
               {`Action,Time,ISIN,Ticker,Name,No. of shares,Price / share,Currency (Price / share),…
 Market buy,2024-01-15 09:30:00,US0378331005,AAPL,Apple Inc.,10,185.50,USD,…
@@ -132,12 +132,12 @@ Market sell,2024-06-01 14:00:00,US0378331005,AAPL,Apple Inc.,3,220.00,USD,…
 Dividend (Ordinary),2024-09-15 00:00:00,US5949181045,MSFT,Microsoft,5,0.75,USD,…`}
             </code>
           </div>
-          <div className="flex items-start gap-1.5 text-xs text-slate-500">
+          <div className="flex items-start gap-1.5 text-xs text-muted">
             <Info size={12} className="mt-0.5 shrink-0 text-blue-400" />
             <span>
               Imports the full history — trades, deposits, withdrawals, interest on cash,
               dividends, card debits, cashback and currency conversions (share lending
-              interest is ignored). <span className="font-medium text-slate-700">A Trading 212
+              interest is ignored). <span className="font-medium text-ink">A Trading 212
               import always replaces all existing data for this portfolio</span>, so the cash
               balance reconciles with your broker.
             </span>
@@ -150,20 +150,20 @@ Dividend (Ordinary),2024-09-15 00:00:00,US5949181045,MSFT,Microsoft,5,0.75,USD,�
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <FormatBadge label="Native" color="bg-green-100 text-green-700" />
-            <span className="text-xs text-slate-500">— simple format for manual entry or other brokers</span>
+            <span className="text-xs text-muted">— simple format for manual entry or other brokers</span>
           </div>
-          <div className="bg-slate-100 rounded-lg p-3 overflow-x-auto">
-            <code className="text-xs text-emerald-600 font-mono whitespace-pre">
+          <div className="bg-surface-hover rounded-lg p-3 overflow-x-auto">
+            <code className="text-xs text-gain font-mono whitespace-pre">
               {`date,ticker,type,shares,price,currency
 2024-01-15,AAPL,buy,10,185.50,USD
 2024-02-20,MSFT,sell,5,420.00,USD
 2024-06-01,AAPL,dividend,10,0.24,USD`}
             </code>
           </div>
-          <ul className="text-xs text-slate-500 space-y-1">
-            <li><span className="text-slate-700 font-mono">type</span> — <span className="text-emerald-600">buy</span>, <span className="text-red-600">sell</span>, or <span className="text-yellow-600">dividend</span></li>
-            <li><span className="text-slate-700 font-mono">price</span> — price per share (dividend: amount per share)</li>
-            <li><span className="text-slate-700 font-mono">currency</span> — optional, defaults to USD</li>
+          <ul className="text-xs text-muted space-y-1">
+            <li><span className="text-ink font-mono">type</span> — <span className="text-gain">buy</span>, <span className="text-loss">sell</span>, or <span className="text-yellow-600">dividend</span></li>
+            <li><span className="text-ink font-mono">price</span> — price per share (dividend: amount per share)</li>
+            <li><span className="text-ink font-mono">currency</span> — optional, defaults to USD</li>
           </ul>
         </div>
       </div>
@@ -176,19 +176,19 @@ Dividend (Ordinary),2024-09-15 00:00:00,US5949181045,MSFT,Microsoft,5,0.75,USD,�
         }`}
       >
         <input {...getInputProps()} />
-        <Upload size={32} className={isDragActive ? "text-brand" : "text-slate-500"} />
+        <Upload size={32} className={isDragActive ? "text-brand" : "text-muted"} />
         {file ? (
           <div className="text-center">
             <div className="flex items-center gap-2 text-sm font-medium">
               <FileText size={16} className="text-brand" />
               {file.name}
             </div>
-            <p className="text-xs text-slate-500 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
+            <p className="text-xs text-muted mt-1">{(file.size / 1024).toFixed(1)} KB</p>
           </div>
         ) : (
           <div className="text-center">
             <p className="text-sm font-medium">Drop your CSV here or click to browse</p>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-muted mt-1">
               Accepts Trading 212 exports or native format
             </p>
           </div>
@@ -205,10 +205,10 @@ Dividend (Ordinary),2024-09-15 00:00:00,US5949181045,MSFT,Microsoft,5,0.75,USD,�
               className="mt-0.5 accent-red-500 w-4 h-4 shrink-0"
             />
             <div>
-              <span className="text-sm font-medium group-hover:text-slate-800 transition-colors">
+              <span className="text-sm font-medium group-hover:text-ink transition-colors">
                 Replace existing portfolio
               </span>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 Deletes all current transactions before importing. Use this to start fresh with
                 your own data. (Trading 212 exports always replace, regardless of this setting.)
               </p>
@@ -235,23 +235,23 @@ Dividend (Ordinary),2024-09-15 00:00:00,US5949181045,MSFT,Microsoft,5,0.75,USD,�
       {result && (
         <div
           className={`card border ${
-            result.error ? "border-red-500/40 bg-red-50" : "border-green-500/40 bg-green-50"
+            result.error ? "border-red-500/40 bg-loss/10" : "border-green-500/40 bg-gain/10"
           }`}
         >
           {result.error ? (
             <div className="flex items-start gap-3">
-              <AlertCircle size={18} className="text-red-600 shrink-0 mt-0.5" />
+              <AlertCircle size={18} className="text-loss shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold text-red-600">Import failed</p>
-                <p className="text-sm text-red-500 mt-1">{result.error}</p>
+                <p className="font-semibold text-loss">Import failed</p>
+                <p className="text-sm text-loss mt-1">{result.error}</p>
               </div>
             </div>
           ) : (
             <div className="flex items-start gap-3">
-              <CheckCircle size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+              <CheckCircle size={18} className="text-gain shrink-0 mt-0.5" />
               <div className="flex-1 space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-semibold text-emerald-600">
+                  <p className="font-semibold text-gain">
                     {result.imported} transaction{result.imported !== 1 ? "s" : ""} imported
                   </p>
                   {result.format && (
@@ -266,7 +266,7 @@ Dividend (Ordinary),2024-09-15 00:00:00,US5949181045,MSFT,Microsoft,5,0.75,USD,�
                   )}
                 </div>
                 {result.skipped > 0 && (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted">
                     {result.skipped} non-trade row{result.skipped !== 1 ? "s" : ""} skipped
                     (deposits, withdrawals, cash interest, etc.)
                   </p>
@@ -278,7 +278,7 @@ Dividend (Ordinary),2024-09-15 00:00:00,US5949181045,MSFT,Microsoft,5,0.75,USD,�
                     </p>
                     <ul className="mt-1 space-y-0.5">
                       {result.errors.map((e, i) => (
-                        <li key={i} className="text-xs text-slate-500">• {e}</li>
+                        <li key={i} className="text-xs text-muted">• {e}</li>
                       ))}
                     </ul>
                   </div>
@@ -288,7 +288,7 @@ Dividend (Ordinary),2024-09-15 00:00:00,US5949181045,MSFT,Microsoft,5,0.75,USD,�
           )}
           <button
             onClick={() => { setFile(null); setResult(null); }}
-            className="mt-3 text-xs text-slate-500 hover:text-slate-800 transition-colors"
+            className="mt-3 text-xs text-muted hover:text-ink transition-colors"
           >
             Import another file →
           </button>

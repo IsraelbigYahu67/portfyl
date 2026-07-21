@@ -35,7 +35,7 @@ function CzechTaxYearCard({ y }) {
           <ShieldCheck size={14} className="text-brand" />
           Czech Tax — {y.tax_year}
         </h3>
-        <span className="text-[10px] text-slate-500">§4 ZDP · {y.trades} trade{y.trades === 1 ? "" : "s"}</span>
+        <span className="text-[10px] text-muted">§4 ZDP · {y.trades} trade{y.trades === 1 ? "" : "s"}</span>
       </div>
 
       {y.incomplete_fx && (
@@ -49,43 +49,43 @@ function CzechTaxYearCard({ y }) {
       )}
 
       <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="text-slate-500">Gross sale proceeds</div>
+        <div className="text-muted">Gross sale proceeds</div>
         <div className="text-right tabular-nums">{fmtCzk(y.gross_proceeds_czk)}</div>
 
-        <div className="text-slate-500">Value test (≤ {CZ.VALUE_TEST_LIMIT.toLocaleString("cs-CZ")} Kč)</div>
+        <div className="text-muted">Value test (≤ {CZ.VALUE_TEST_LIMIT.toLocaleString("cs-CZ")} Kč)</div>
         <div className="text-right">
           {y.value_test_passed ? (
-            <span className="text-emerald-600 font-medium">✓ Passed — fully exempt</span>
+            <span className="text-gain font-medium">✓ Passed — fully exempt</span>
           ) : (
-            <span className="text-slate-500">Above threshold</span>
+            <span className="text-muted">Above threshold</span>
           )}
         </div>
 
-        <div className="text-slate-500">Time-test exempt (&gt; 3 yrs)</div>
-        <div className="text-right tabular-nums text-emerald-600">{fmtCzk(y.time_test_exempt_gain_czk)}</div>
+        <div className="text-muted">Time-test exempt (&gt; 3 yrs)</div>
+        <div className="text-right tabular-nums text-gain">{fmtCzk(y.time_test_exempt_gain_czk)}</div>
 
         {y.time_test_cap_active && (
           <>
-            <div className="text-slate-500">40M cap status</div>
+            <div className="text-muted">40M cap status</div>
             <div className="text-right">
               {y.time_test_cap_excess_czk > 0 ? (
-                <span className="text-red-600">Exceeded by {fmtCzk(y.time_test_cap_excess_czk)}</span>
+                <span className="text-loss">Exceeded by {fmtCzk(y.time_test_cap_excess_czk)}</span>
               ) : (
-                <span className="text-emerald-600">Within cap</span>
+                <span className="text-gain">Within cap</span>
               )}
             </div>
           </>
         )}
 
-        <div className="text-slate-500">Pre-cap taxable gain (&lt; 3 yrs)</div>
-        <div className="text-right tabular-nums text-slate-500">{fmtCzk(y.taxable_gain_czk_pre_cap)}</div>
+        <div className="text-muted">Pre-cap taxable gain (&lt; 3 yrs)</div>
+        <div className="text-right tabular-nums text-muted">{fmtCzk(y.taxable_gain_czk_pre_cap)}</div>
       </div>
 
       <div className="border-t border-surface-border pt-3 grid grid-cols-2 gap-2 text-sm">
-        <div className="text-slate-500">Exempt total</div>
-        <div className="text-right tabular-nums font-bold text-emerald-600">{fmtCzk(y.exempt_total_czk)}</div>
-        <div className="text-slate-500">Taxable in CZ</div>
-        <div className={`text-right tabular-nums font-bold ${taxablePositive ? "text-orange-600" : "text-slate-500"}`}>
+        <div className="text-muted">Exempt total</div>
+        <div className="text-right tabular-nums font-bold text-gain">{fmtCzk(y.exempt_total_czk)}</div>
+        <div className="text-muted">Taxable in CZ</div>
+        <div className={`text-right tabular-nums font-bold ${taxablePositive ? "text-orange-600" : "text-muted"}`}>
           {fmtCzk(y.taxable_total_czk)}
         </div>
       </div>
@@ -100,7 +100,7 @@ function CzechTaxPanel({ years, year }) {
 
   return (
     <section>
-      <h2 className="text-sm font-semibold text-slate-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+      <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider flex items-center gap-2">
         <ShieldCheck size={14} className="text-brand" />
         Czech §4 Exemption Analysis
       </h2>
@@ -198,13 +198,13 @@ export default function TaxReport() {
             <FileText size={20} className="text-brand" />
             Tax Report
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">Capital gains, losses, and dividend income (FIFO method)</p>
+          <p className="text-xs text-muted mt-0.5">Capital gains, losses, and dividend income (FIFO method)</p>
         </div>
         <div className="flex items-center gap-2">
           <select
             value={year || ""}
             onChange={(e) => setYear(e.target.value ? parseInt(e.target.value) : null)}
-            className="bg-surface border border-surface-border rounded-lg px-3 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-brand"
+            className="bg-surface border border-surface-border rounded-lg px-3 py-1.5 text-sm text-ink focus:outline-none focus:ring-1 focus:ring-brand"
           >
             <option value="">All Years</option>
             {availableYears.map((y) => (
@@ -223,7 +223,7 @@ export default function TaxReport() {
       </div>
 
       {isLoading ? (
-        <div className="card animate-pulse h-32 flex items-center justify-center text-slate-500">
+        <div className="card animate-pulse h-32 flex items-center justify-center text-muted">
           Generating tax report…
         </div>
       ) : (
@@ -267,7 +267,7 @@ export default function TaxReport() {
                   className={`px-5 py-3 text-sm font-medium transition-colors ${
                     tab === t.key
                       ? "text-brand border-b-2 border-brand"
-                      : "text-slate-500 hover:text-slate-800"
+                      : "text-muted hover:text-ink"
                   }`}
                 >
                   {t.label}
@@ -281,7 +281,7 @@ export default function TaxReport() {
             {tab === "realized" && (
               <div className="overflow-x-auto">
                 {!gains.length ? (
-                  <div className="text-slate-500 text-sm text-center py-12">
+                  <div className="text-muted text-sm text-center py-12">
                     No realized gains or losses{year ? ` in ${year}` : ""}.
                   </div>
                 ) : (
@@ -289,7 +289,7 @@ export default function TaxReport() {
                     <thead className="border-b border-surface-border">
                       <tr>
                         {["Ticker", "Buy Date", "Sell Date", "Shares", "Cost Basis", "Proceeds", "Gain/Loss", "Gain %", "Days Held", "Term", "CZ Tax"].map((h) => (
-                          <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">{h}</th>
+                          <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -301,21 +301,21 @@ export default function TaxReport() {
                             <td className="px-4 py-3 font-mono font-bold text-sm">
                               <TickerLink ticker={g.ticker}>{g.ticker}</TickerLink>
                             </td>
-                            <td className="px-4 py-3 text-sm text-slate-600 tabular-nums">{g.buy_date}</td>
-                            <td className="px-4 py-3 text-sm text-slate-600 tabular-nums">{g.sell_date}</td>
+                            <td className="px-4 py-3 text-sm text-muted tabular-nums">{g.buy_date}</td>
+                            <td className="px-4 py-3 text-sm text-muted tabular-nums">{g.sell_date}</td>
                             <td className="px-4 py-3 text-sm text-right tabular-nums">{g.shares}</td>
                             <td className="px-4 py-3 text-sm text-right tabular-nums">{fmt(g.cost_basis)}</td>
                             <td className="px-4 py-3 text-sm text-right tabular-nums">{fmt(g.proceeds)}</td>
-                            <td className={`px-4 py-3 text-sm text-right tabular-nums font-medium ${up ? "text-emerald-600" : "text-red-600"}`}>
+                            <td className={`px-4 py-3 text-sm text-right tabular-nums font-medium ${up ? "text-gain" : "text-loss"}`}>
                               <span className="flex items-center justify-end gap-1">
                                 {up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                                 {fmt(g.gain)}
                               </span>
                             </td>
-                            <td className={`px-4 py-3 text-sm text-right tabular-nums ${up ? "text-emerald-600" : "text-red-600"}`}>
+                            <td className={`px-4 py-3 text-sm text-right tabular-nums ${up ? "text-gain" : "text-loss"}`}>
                               {fmtPct(g.gain_pct)}
                             </td>
-                            <td className="px-4 py-3 text-sm text-right tabular-nums text-slate-500">{g.holding_days}d</td>
+                            <td className="px-4 py-3 text-sm text-right tabular-nums text-muted">{g.holding_days}d</td>
                             <td className="px-4 py-3">
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
                                 g.term === "long"
@@ -328,7 +328,7 @@ export default function TaxReport() {
                             <td className="px-4 py-3">
                               {g.cz_exempt_time_test ? (
                                 <span
-                                  className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-600"
+                                  className="text-[10px] font-bold px-2 py-0.5 rounded bg-gain/10 text-gain"
                                   title={`Held >3 years (§4 ZDP) — exempt from CZ income tax. Acquired ${g.buy_date}, exempt from ${g.cz_exempt_date}.`}
                                 >
                                   EXEMPT 3Y
@@ -350,7 +350,7 @@ export default function TaxReport() {
                       <tr>
                         <td className="px-4 py-3 text-sm font-bold" colSpan={5}>Short-Term Total</td>
                         <td className="px-4 py-3 text-sm text-right tabular-nums">{fmt(shortGains.reduce((s, g) => s + g.proceeds, 0))}</td>
-                        <td className={`px-4 py-3 text-sm text-right tabular-nums font-bold ${summary.short_term_gains >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                        <td className={`px-4 py-3 text-sm text-right tabular-nums font-bold ${summary.short_term_gains >= 0 ? "text-gain" : "text-loss"}`}>
                           {fmtMoney(summary.short_term_gains, summary.short_term_gains_czk)}
                         </td>
                         <td colSpan={4}></td>
@@ -358,7 +358,7 @@ export default function TaxReport() {
                       <tr>
                         <td className="px-4 py-3 text-sm font-bold" colSpan={5}>Long-Term Total</td>
                         <td className="px-4 py-3 text-sm text-right tabular-nums">{fmt(longGains.reduce((s, g) => s + g.proceeds, 0))}</td>
-                        <td className={`px-4 py-3 text-sm text-right tabular-nums font-bold ${summary.long_term_gains >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                        <td className={`px-4 py-3 text-sm text-right tabular-nums font-bold ${summary.long_term_gains >= 0 ? "text-gain" : "text-loss"}`}>
                           {fmtMoney(summary.long_term_gains, summary.long_term_gains_czk)}
                         </td>
                         <td colSpan={4}></td>
@@ -372,13 +372,13 @@ export default function TaxReport() {
             {tab === "unrealized" && (
               <div className="overflow-x-auto">
                 {!unrealized.length ? (
-                  <div className="text-slate-500 text-sm text-center py-12">No open positions with lot data.</div>
+                  <div className="text-muted text-sm text-center py-12">No open positions with lot data.</div>
                 ) : (
                   <table className="w-full">
                     <thead className="border-b border-surface-border">
                       <tr>
                         {["Ticker", "Buy Date", "Shares", "Cost Basis", "Market Value", "Unrealized G/L", "Gain %", "Days Held", "Term", "Tax-free In"].map((h) => (
-                          <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">{h}</th>
+                          <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -390,20 +390,20 @@ export default function TaxReport() {
                             <td className="px-4 py-3 font-mono font-bold text-sm">
                               <TickerLink ticker={u.ticker}>{u.ticker}</TickerLink>
                             </td>
-                            <td className="px-4 py-3 text-sm text-slate-600 tabular-nums">{u.buy_date}</td>
+                            <td className="px-4 py-3 text-sm text-muted tabular-nums">{u.buy_date}</td>
                             <td className="px-4 py-3 text-sm text-right tabular-nums">{u.shares}</td>
                             <td className="px-4 py-3 text-sm text-right tabular-nums">{fmt(u.cost_basis)}</td>
                             <td className="px-4 py-3 text-sm text-right tabular-nums font-medium">{fmt(u.market_value)}</td>
-                            <td className={`px-4 py-3 text-sm text-right tabular-nums font-medium ${up ? "text-emerald-600" : "text-red-600"}`}>
+                            <td className={`px-4 py-3 text-sm text-right tabular-nums font-medium ${up ? "text-gain" : "text-loss"}`}>
                               <span className="flex items-center justify-end gap-1">
                                 {up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                                 {fmt(u.unrealized_gain)}
                               </span>
                             </td>
-                            <td className={`px-4 py-3 text-sm text-right tabular-nums ${up ? "text-emerald-600" : "text-red-600"}`}>
+                            <td className={`px-4 py-3 text-sm text-right tabular-nums ${up ? "text-gain" : "text-loss"}`}>
                               {fmtPct(u.gain_pct)}
                             </td>
-                            <td className="px-4 py-3 text-sm text-right tabular-nums text-slate-500">{u.holding_days}d</td>
+                            <td className="px-4 py-3 text-sm text-right tabular-nums text-muted">{u.holding_days}d</td>
                             <td className="px-4 py-3">
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
                                 u.term === "long"
@@ -415,7 +415,7 @@ export default function TaxReport() {
                             </td>
                             <td className="px-4 py-3 text-sm">
                               {u.cz_exempt_time_test ? (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-600" title={`Exempt from ${u.cz_exempt_date} (§4 ZDP)`}>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-gain/10 text-gain" title={`Exempt from ${u.cz_exempt_date} (§4 ZDP)`}>
                                   EXEMPT
                                 </span>
                               ) : (
@@ -425,7 +425,7 @@ export default function TaxReport() {
                                 >
                                   <Hourglass size={10} />
                                   {u.cz_days_to_exemption}d
-                                  <span className="text-slate-500">({u.cz_exempt_date})</span>
+                                  <span className="text-muted">({u.cz_exempt_date})</span>
                                 </span>
                               )}
                             </td>
@@ -439,7 +439,7 @@ export default function TaxReport() {
                         <td className="px-4 py-3 text-sm text-right tabular-nums font-medium">{fmt(unrealized.reduce((s, u) => s + u.cost_basis, 0))}</td>
                         <td className="px-4 py-3 text-sm text-right tabular-nums font-medium">{fmt(unrealized.reduce((s, u) => s + u.market_value, 0))}</td>
                         <td className={`px-4 py-3 text-sm text-right tabular-nums font-bold ${
-                          unrealized.reduce((s, u) => s + u.unrealized_gain, 0) >= 0 ? "text-emerald-600" : "text-red-600"
+                          unrealized.reduce((s, u) => s + u.unrealized_gain, 0) >= 0 ? "text-gain" : "text-loss"
                         }`}>
                           {fmt(unrealized.reduce((s, u) => s + u.unrealized_gain, 0))}
                         </td>
@@ -454,16 +454,16 @@ export default function TaxReport() {
             {tab === "dividends" && (
               <div className="overflow-x-auto">
                 {!dividendIncome.length ? (
-                  <div className="text-slate-500 text-sm text-center py-12">
+                  <div className="text-muted text-sm text-center py-12">
                     No dividend income{year ? ` in ${year}` : ""}.
                   </div>
                 ) : (
                   <table className="w-full">
                     <thead className="border-b border-surface-border">
                       <tr>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">Ticker</th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">Amount</th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">% of Total</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Ticker</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Amount</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">% of Total</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-border">
@@ -472,8 +472,8 @@ export default function TaxReport() {
                           <td className="px-4 py-3 font-mono font-bold text-sm">
                             <TickerLink ticker={d.ticker}>{d.ticker}</TickerLink>
                           </td>
-                          <td className="px-4 py-3 text-sm tabular-nums text-emerald-600 font-medium">{fmt(d.amount)}</td>
-                          <td className="px-4 py-3 text-sm text-slate-500">
+                          <td className="px-4 py-3 text-sm tabular-nums text-gain font-medium">{fmt(d.amount)}</td>
+                          <td className="px-4 py-3 text-sm text-muted">
                             <div className="flex items-center gap-2">
                               <div className="w-24 bg-surface-hover rounded-full h-1.5">
                                 <div
@@ -492,7 +492,7 @@ export default function TaxReport() {
                     <tfoot className="border-t-2 border-surface-border bg-surface">
                       <tr>
                         <td className="px-4 py-3 text-sm font-bold">Total</td>
-                        <td className="px-4 py-3 text-sm tabular-nums text-emerald-600 font-bold">{fmtMoney(summary.total_dividends, summary.total_dividends_czk)}</td>
+                        <td className="px-4 py-3 text-sm tabular-nums text-gain font-bold">{fmtMoney(summary.total_dividends, summary.total_dividends_czk)}</td>
                         <td></td>
                       </tr>
                     </tfoot>

@@ -72,24 +72,24 @@ export default function DiscordSettings() {
             </svg>
             Discord Notifications
           </h2>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <p className="text-sm text-muted mt-0.5">
             Get notified in Discord when trades execute, dividends arrive, or you hit milestones
           </p>
         </div>
-        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${connected ? "bg-indigo-100 text-indigo-600" : "bg-slate-100 text-slate-500"}`}>
+        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${connected ? "bg-indigo-100 text-indigo-600" : "bg-surface-hover text-muted"}`}>
           {isLoading ? "..." : connected ? "Active" : "Not configured"}
         </span>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+        <div className="flex items-center gap-2 text-sm text-loss bg-loss/10 border border-loss/30 rounded-lg px-4 py-3">
           <AlertCircle size={16} className="shrink-0" />
           {error}
         </div>
       )}
 
       {success && (
-        <div className="flex items-center gap-2 text-sm text-emerald-600 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+        <div className="flex items-center gap-2 text-sm text-gain bg-gain/10 border border-gain/30 rounded-lg px-4 py-3">
           <CheckCircle2 size={16} className="shrink-0" />
           {success}
         </div>
@@ -98,15 +98,15 @@ export default function DiscordSettings() {
       {!connected && !isLoading && (
         <div className="space-y-3">
           <div>
-            <label className="block text-sm text-slate-500 mb-1.5">Webhook URL</label>
+            <label className="block text-sm text-muted mb-1.5">Webhook URL</label>
             <input
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://discord.com/api/webhooks/..."
-              className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-brand"
+              className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none focus:border-brand"
             />
-            <p className="text-xs text-slate-400 mt-1.5">
+            <p className="text-xs text-muted mt-1.5">
               Create a webhook in Discord: Server Settings &rarr; Integrations &rarr; Webhooks &rarr; New Webhook
             </p>
           </div>
@@ -123,30 +123,30 @@ export default function DiscordSettings() {
 
       {connected && !isLoading && (
         <div className="space-y-4">
-          <div className="bg-slate-100 rounded-lg p-4 space-y-2 text-sm">
+          <div className="bg-surface-hover rounded-lg p-4 space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-slate-500">Webhook</span>
-              <span className="text-slate-700 font-mono text-xs">{webhook.webhook_url_preview}</span>
+              <span className="text-muted">Webhook</span>
+              <span className="text-ink font-mono text-xs">{webhook.webhook_url_preview}</span>
             </div>
             {webhook.created_at && (
               <div className="flex justify-between">
-                <span className="text-slate-500">Connected since</span>
-                <span className="text-slate-700">{new Date(webhook.created_at).toLocaleDateString()}</span>
+                <span className="text-muted">Connected since</span>
+                <span className="text-ink">{new Date(webhook.created_at).toLocaleDateString()}</span>
               </div>
             )}
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs text-slate-500 font-medium">Notification preferences</p>
+            <p className="text-xs text-muted font-medium">Notification preferences</p>
             {[
               { key: "notify_trades", label: "Trade executions", desc: "Buy/sell notifications" },
               { key: "notify_dividends", label: "Dividends", desc: "When dividends are received" },
               { key: "notify_milestones", label: "Milestones", desc: "Portfolio value milestones" },
             ].map(({ key, label, desc }) => (
-              <label key={key} className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 cursor-pointer">
+              <label key={key} className="flex items-center justify-between p-3 rounded-lg hover:bg-surface-hover cursor-pointer">
                 <div>
-                  <span className="text-sm text-slate-700 font-medium">{label}</span>
-                  <span className="text-xs text-slate-400 ml-2">{desc}</span>
+                  <span className="text-sm text-ink font-medium">{label}</span>
+                  <span className="text-xs text-muted ml-2">{desc}</span>
                 </div>
                 <button
                   onClick={() => toggleMut.mutate({ [key]: !webhook[key] })}
