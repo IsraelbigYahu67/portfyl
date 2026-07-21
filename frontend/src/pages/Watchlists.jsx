@@ -68,7 +68,7 @@ function AddTickerForm({ watchlistId }) {
       <div className="relative">
         <SearchIcon
           size={14}
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
         />
         <input
           type="text"
@@ -93,7 +93,7 @@ function AddTickerForm({ watchlistId }) {
         {(isFetching || addMut.isPending) && query && (
           <Loader2
             size={12}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 animate-spin"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted animate-spin"
           />
         )}
       </div>
@@ -111,9 +111,9 @@ function AddTickerForm({ watchlistId }) {
                   <span className="font-mono font-bold text-xs w-14 truncate">
                     {r.symbol}
                   </span>
-                  <span className="text-xs text-slate-700 truncate flex-1">{r.name}</span>
+                  <span className="text-xs text-ink truncate flex-1">{r.name}</span>
                   {r.exchange && (
-                    <span className="text-[10px] text-slate-500 ml-1">{r.exchange}</span>
+                    <span className="text-[10px] text-muted ml-1">{r.exchange}</span>
                   )}
                 </button>
               </li>
@@ -122,7 +122,7 @@ function AddTickerForm({ watchlistId }) {
         </>
       )}
       {addMut.isError && (
-        <div className="absolute right-0 mt-1 text-[10px] text-red-600">
+        <div className="absolute right-0 mt-1 text-[10px] text-loss">
           {addMut.error?.response?.data?.detail || "Add failed"}
         </div>
       )}
@@ -147,7 +147,7 @@ function WatchlistCard({ wl, onAlert }) {
       <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-surface-border">
         <div className="flex items-baseline gap-3">
           <h2 className="text-lg font-bold">{wl.name}</h2>
-          <span className="text-xs text-slate-500">{wl.count} {wl.count === 1 ? "stock" : "stocks"}</span>
+          <span className="text-xs text-muted">{wl.count} {wl.count === 1 ? "stock" : "stocks"}</span>
         </div>
         <div className="flex items-center gap-3">
           <AddTickerForm watchlistId={wl.id} />
@@ -156,7 +156,7 @@ function WatchlistCard({ wl, onAlert }) {
             onClick={() => {
               if (confirm(`Delete watchlist "${wl.name}"?`)) removeWlMut.mutate();
             }}
-            className="text-slate-500 hover:text-red-600 transition-colors"
+            className="text-muted hover:text-red-600 transition-colors"
             title="Delete watchlist"
             aria-label="Delete watchlist"
           >
@@ -166,7 +166,7 @@ function WatchlistCard({ wl, onAlert }) {
       </header>
 
       {wl.items.length === 0 ? (
-        <div className="py-8 text-center text-slate-400 text-sm">
+        <div className="py-8 text-center text-muted text-sm">
           No tickers yet. Use the search box above to add one.
         </div>
       ) : (
@@ -187,7 +187,7 @@ function WatchlistCard({ wl, onAlert }) {
                   <div className="w-20 font-mono font-bold text-sm shrink-0">{it.ticker}</div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm truncate">{q.name || it.ticker}</div>
-                    <div className="text-[11px] text-slate-500 truncate">
+                    <div className="text-[11px] text-muted truncate">
                       {[q.exchange, q.sector].filter(Boolean).join(" · ")}
                     </div>
                   </div>
@@ -197,16 +197,16 @@ function WatchlistCard({ wl, onAlert }) {
                   <div
                     className={`w-24 text-right tabular-nums text-xs font-medium flex items-center justify-end gap-1 ${
                       q.change_percent == null
-                        ? "text-slate-500"
+                        ? "text-muted"
                         : up
-                          ? "text-emerald-600"
-                          : "text-red-600"
+                          ? "text-gain"
+                          : "text-loss"
                     }`}
                   >
                     {q.change_percent != null && (up ? <TrendingUp size={11} /> : <TrendingDown size={11} />)}
                     {fmtPct(q.change_percent)}
                   </div>
-                  <div className="w-24 text-right tabular-nums text-xs text-slate-500 hidden md:block">
+                  <div className="w-24 text-right tabular-nums text-xs text-muted hidden md:block">
                     {fmtCompact(q.market_cap)}
                   </div>
                 </Link>
@@ -216,7 +216,7 @@ function WatchlistCard({ wl, onAlert }) {
                     e.stopPropagation();
                     onAlert?.(it.ticker);
                   }}
-                  className="text-slate-400 hover:text-brand p-1 transition-colors"
+                  className="text-muted hover:text-brand p-1 transition-colors"
                   title="Create a price alert for this ticker"
                   aria-label="Create price alert"
                 >
@@ -228,7 +228,7 @@ function WatchlistCard({ wl, onAlert }) {
                     e.stopPropagation();
                     removeItemMut.mutate(it.id);
                   }}
-                  className="text-slate-400 hover:text-red-600 p-1 transition-colors"
+                  className="text-muted hover:text-red-600 p-1 transition-colors"
                   title="Remove from watchlist"
                   aria-label="Remove from watchlist"
                 >
@@ -295,13 +295,13 @@ function PriceAlertsPanel({ prefillTicker, onConsumePrefill }) {
         <div className="flex items-center gap-2">
           <Bell size={16} className="text-brand" />
           <h2 className="text-lg font-bold">Price Alerts</h2>
-          <span className="text-xs text-slate-500">Discord notification when a price is crossed</span>
+          <span className="text-xs text-muted">Discord notification when a price is crossed</span>
         </div>
         <button
           type="button"
           onClick={() => check.mutate()}
           disabled={check.isPending || alerts.length === 0}
-          className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-brand disabled:opacity-40"
           title="Evaluate all alerts against live prices right now"
         >
           <RefreshCw size={13} className={check.isPending ? "animate-spin" : ""} />
@@ -342,16 +342,16 @@ function PriceAlertsPanel({ prefillTicker, onConsumePrefill }) {
           Add alert
         </button>
         {add.isError && (
-          <span className="text-xs text-red-600">
+          <span className="text-xs text-loss">
             {add.error?.response?.data?.detail || "Failed to add alert"}
           </span>
         )}
       </form>
 
       {isLoading ? (
-        <div className="py-6 text-center text-slate-400 text-sm animate-pulse">Loading alerts…</div>
+        <div className="py-6 text-center text-muted text-sm animate-pulse">Loading alerts…</div>
       ) : alerts.length === 0 ? (
-        <div className="py-6 text-center text-slate-400 text-sm">
+        <div className="py-6 text-center text-muted text-sm">
           No alerts yet. Add one above — you'll get a Discord message when it's crossed.
         </div>
       ) : (
@@ -361,22 +361,22 @@ function PriceAlertsPanel({ prefillTicker, onConsumePrefill }) {
             return (
               <li key={a.id} className="flex items-center gap-3 px-4 py-2.5">
                 <div className="w-20 font-mono font-bold text-sm shrink-0">{a.ticker}</div>
-                <div className="flex-1 text-sm text-slate-600">
+                <div className="flex-1 text-sm text-muted">
                   {a.direction === "above" ? "≥" : "≤"}{" "}
                   <span className="tabular-nums font-medium">{a.target_price}</span>
                   {a.current_price != null && (
-                    <span className="text-xs text-slate-400 ml-2 tabular-nums">
+                    <span className="text-xs text-muted ml-2 tabular-nums">
                       now {a.current_price.toFixed(2)}
                     </span>
                   )}
-                  {a.note && <span className="text-xs text-slate-400 ml-2 italic">{a.note}</span>}
+                  {a.note && <span className="text-xs text-muted ml-2 italic">{a.note}</span>}
                 </div>
                 {triggered ? (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">
                     <BellRing size={11} /> Triggered
                   </span>
                 ) : (
-                  <label className="inline-flex items-center gap-1 text-xs text-slate-500">
+                  <label className="inline-flex items-center gap-1 text-xs text-muted">
                     <input
                       type="checkbox"
                       checked={a.enabled}
@@ -389,7 +389,7 @@ function PriceAlertsPanel({ prefillTicker, onConsumePrefill }) {
                   <button
                     type="button"
                     onClick={() => reset.mutate(a.id)}
-                    className="text-slate-400 hover:text-brand p-1 transition-colors"
+                    className="text-muted hover:text-brand p-1 transition-colors"
                     title="Re-arm this alert"
                     aria-label="Re-arm alert"
                   >
@@ -399,7 +399,7 @@ function PriceAlertsPanel({ prefillTicker, onConsumePrefill }) {
                 <button
                   type="button"
                   onClick={() => remove.mutate(a.id)}
-                  className="text-slate-400 hover:text-red-600 p-1 transition-colors"
+                  className="text-muted hover:text-red-600 p-1 transition-colors"
                   title="Delete alert"
                   aria-label="Delete alert"
                 >
@@ -449,7 +449,7 @@ function NewWatchlistForm() {
         Create
       </button>
       {createMut.isError && (
-        <span className="text-xs text-red-600">
+        <span className="text-xs text-loss">
           {createMut.error?.response?.data?.detail || "Failed"}
         </span>
       )}
@@ -470,7 +470,7 @@ export default function Watchlists() {
       <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">Watchlists</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <p className="text-sm text-muted mt-0.5">
             Track stocks you don't (yet) own. Click any ticker to open its overview.
           </p>
         </div>
@@ -483,19 +483,19 @@ export default function Watchlists() {
       />
 
       {isLoading && (
-        <div className="text-center py-16 text-slate-500 text-sm animate-pulse">
+        <div className="text-center py-16 text-muted text-sm animate-pulse">
           Loading watchlists…
         </div>
       )}
 
       {isError && (
-        <div className="text-center py-16 text-red-600 text-sm">
+        <div className="text-center py-16 text-loss text-sm">
           Could not load watchlists.
         </div>
       )}
 
       {!isLoading && !isError && watchlists.length === 0 && (
-        <div className="text-center py-16 text-slate-500 text-sm">
+        <div className="text-center py-16 text-muted text-sm">
           No watchlists yet. Create one above to start tracking.
         </div>
       )}

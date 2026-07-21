@@ -25,7 +25,7 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
 
   return (
     <div className="card">
-      <h2 className="text-sm font-semibold text-slate-500 mb-4 uppercase tracking-wider">
+      <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider">
         {title}
       </h2>
       <div className="flex items-start gap-6">
@@ -84,11 +84,11 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
                 className="w-2.5 h-2.5 rounded-full shrink-0"
                 style={{ backgroundColor: colorFor(item, i) }}
               />
-              <span className="text-slate-700 truncate flex-1">{item.name}</span>
-              <span className="tabular-nums text-slate-500 w-14 text-right">
+              <span className="text-ink truncate flex-1">{item.name}</span>
+              <span className="tabular-nums text-muted w-14 text-right">
                 {item.weight}%
               </span>
-              <span className="tabular-nums text-slate-500 w-24 text-right">
+              <span className="tabular-nums text-muted w-24 text-right">
                 {fmt(item.value)}
               </span>
             </div>

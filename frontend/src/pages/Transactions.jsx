@@ -7,7 +7,7 @@ import TradeNoteModal from "../components/TradeNoteModal";
 import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/Toast";
 
-const TYPE_COLORS = { buy: "text-emerald-600", sell: "text-red-600", dividend: "text-yellow-600" };
+const TYPE_COLORS = { buy: "text-gain", sell: "text-loss", dividend: "text-yellow-600" };
 
 function AddModal({ onClose }) {
   const qc = useQueryClient();
@@ -39,16 +39,16 @@ function AddModal({ onClose }) {
       <div className="card w-full max-w-md space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-bold text-lg">Add Transaction</h2>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-800"><X size={18} /></button>
+          <button onClick={onClose} className="text-muted hover:text-ink"><X size={18} /></button>
         </div>
         <form onSubmit={submit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-slate-500 mb-1 block">Ticker *</label>
+              <label className="text-xs text-muted mb-1 block">Ticker *</label>
               <input className="input uppercase" placeholder="AAPL" value={form.ticker} onChange={set("ticker")} required />
             </div>
             <div>
-              <label className="text-xs text-slate-500 mb-1 block">Type *</label>
+              <label className="text-xs text-muted mb-1 block">Type *</label>
               <select className="input" value={form.type} onChange={set("type")}>
                 <option value="buy">Buy</option>
                 <option value="sell">Sell</option>
@@ -56,28 +56,28 @@ function AddModal({ onClose }) {
               </select>
             </div>
             <div>
-              <label className="text-xs text-slate-500 mb-1 block">Shares *</label>
+              <label className="text-xs text-muted mb-1 block">Shares *</label>
               <input className="input" type="number" step="any" placeholder="10" value={form.shares} onChange={set("shares")} required />
             </div>
             <div>
-              <label className="text-xs text-slate-500 mb-1 block">Price per share *</label>
+              <label className="text-xs text-muted mb-1 block">Price per share *</label>
               <input className="input" type="number" step="any" placeholder="185.50" value={form.price} onChange={set("price")} required />
             </div>
             <div>
-              <label className="text-xs text-slate-500 mb-1 block">Date *</label>
+              <label className="text-xs text-muted mb-1 block">Date *</label>
               <input className="input" type="date" value={form.date} onChange={set("date")} required />
             </div>
             <div>
-              <label className="text-xs text-slate-500 mb-1 block">Currency</label>
+              <label className="text-xs text-muted mb-1 block">Currency</label>
               <input className="input" placeholder="USD" value={form.currency} onChange={set("currency")} />
             </div>
           </div>
           <div>
-            <label className="text-xs text-slate-500 mb-1 block">Notes</label>
+            <label className="text-xs text-muted mb-1 block">Notes</label>
             <input className="input" placeholder="Optional" value={form.notes} onChange={set("notes")} />
           </div>
           {mut.error && (
-            <p className="text-red-600 text-xs">{mut.error.response?.data?.detail || "Failed to add transaction"}</p>
+            <p className="text-loss text-xs">{mut.error.response?.data?.detail || "Failed to add transaction"}</p>
           )}
           <div className="flex gap-2 pt-1">
             <button type="button" onClick={onClose} className="btn-ghost flex-1">Cancel</button>
@@ -151,9 +151,9 @@ export default function Transactions() {
       </div>
 
       {isLoading ? (
-        <div className="card animate-pulse h-40 flex items-center justify-center text-slate-500">Loading…</div>
+        <div className="card animate-pulse h-40 flex items-center justify-center text-muted">Loading…</div>
       ) : filtered.length === 0 ? (
-        <div className="card text-slate-500 text-sm text-center py-12">
+        <div className="card text-muted text-sm text-center py-12">
           No transactions yet. Import a CSV or add one manually.
         </div>
       ) : (
@@ -163,7 +163,7 @@ export default function Transactions() {
               <thead className="border-b border-surface-border">
                 <tr>
                   {["Date", "Ticker", "Type", "Shares", "Price", "Total", "Currency", "Notes", "Note", ""].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">
                       {h}
                     </th>
                   ))}
@@ -172,11 +172,11 @@ export default function Transactions() {
               <tbody className="divide-y divide-surface-border">
                 {filtered.map((t) => (
                   <tr key={t.id} className="hover:bg-surface-hover transition-colors">
-                    <td className="px-4 py-3 text-sm text-slate-700">{t.date}</td>
+                    <td className="px-4 py-3 text-sm text-ink">{t.date}</td>
                     <td className="px-4 py-3 font-mono font-bold text-sm">
                       <TickerLink ticker={t.ticker}>{t.ticker}</TickerLink>
                     </td>
-                    <td className={`px-4 py-3 text-sm font-medium capitalize ${TYPE_COLORS[t.type] || "text-slate-700"}`}>
+                    <td className={`px-4 py-3 text-sm font-medium capitalize ${TYPE_COLORS[t.type] || "text-ink"}`}>
                       {t.type}
                     </td>
                     <td className="px-4 py-3 tabular-nums text-sm text-right">{t.shares.toLocaleString()}</td>
@@ -184,12 +184,12 @@ export default function Transactions() {
                     <td className="px-4 py-3 tabular-nums text-sm text-right font-medium">
                       ${(t.shares * t.price).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-500">{t.currency}</td>
-                    <td className="px-4 py-3 text-sm text-slate-500 max-w-xs truncate">{t.notes || "—"}</td>
+                    <td className="px-4 py-3 text-sm text-muted">{t.currency}</td>
+                    <td className="px-4 py-3 text-sm text-muted max-w-xs truncate">{t.notes || "—"}</td>
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => setNoteTarget(t)}
-                        className={`transition-colors ${notesMap[t.id] ? "text-brand hover:text-brand/80" : "text-slate-300 hover:text-slate-500"}`}
+                        className={`transition-colors ${notesMap[t.id] ? "text-brand hover:text-brand/80" : "text-muted hover:text-ink"}`}
                         title={notesMap[t.id] ? "Edit note" : "Add note"}
                       >
                         <StickyNote size={14} />
@@ -199,7 +199,7 @@ export default function Transactions() {
                       <button
                         onClick={() => handleDelete(t)}
                         aria-label={`Delete ${t.type} ${t.ticker} on ${t.date}`}
-                        className="text-slate-400 hover:text-red-600 transition-colors"
+                        className="text-muted hover:text-red-600 transition-colors"
                       >
                         <Trash2 size={14} />
                       </button>

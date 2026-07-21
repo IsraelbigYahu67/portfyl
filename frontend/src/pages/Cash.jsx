@@ -41,7 +41,7 @@ function TypeBadge({ type }) {
   return (
     <span
       className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
-        inflow ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+        inflow ? "bg-gain/10 text-gain" : "bg-loss/10 text-loss"
       }`}
     >
       {TYPE_LABEL[type] || type}
@@ -167,7 +167,7 @@ export default function Cash() {
           </button>
         </form>
         {add.isError && (
-          <p className="text-red-600 text-xs mt-2">
+          <p className="text-loss text-xs mt-2">
             {add.error?.response?.data?.detail || "Failed to add cash flow"}
           </p>
         )}
@@ -184,17 +184,17 @@ export default function Cash() {
             <tbody>
               {rows.data.map((r) => (
                 <tr key={r.id} className="border-b border-hairline">
-                  <td className="py-2 text-slate-500">{r.date}</td>
+                  <td className="py-2 text-muted">{r.date}</td>
                   <td className="py-2"><TypeBadge type={r.type} /></td>
                   <td className={`py-2 font-sans tabular-nums text-right ${CASH_IN.has(r.type) ? "text-gain" : "text-loss"}`}>
                     {CASH_IN.has(r.type) ? "+" : "−"}{formatMoney(r.amount, r.currency)}
                   </td>
-                  <td className="py-2 text-slate-400">{r.note}</td>
+                  <td className="py-2 text-muted">{r.note}</td>
                   <td className="py-2 text-right">
                     <button
                       onClick={() => handleDelete(r)}
                       aria-label={`Delete ${r.type} on ${r.date}`}
-                      className="text-slate-400 hover:text-loss transition-colors"
+                      className="text-muted hover:text-red-600 transition-colors"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -249,7 +249,7 @@ function InterestRates() {
             value={(r.annual_rate * 100).toFixed(2)}
             onChange={(e) => set(i, { annual_rate: Number(e.target.value) / 100 })}
           />{" "}
-          <span className="text-xs text-slate-400">% p.a.</span>
+          <span className="text-xs text-muted">% p.a.</span>
           <label className="text-xs flex items-center gap-1">
             <input
               type="checkbox"

@@ -4,9 +4,9 @@ import { fetchTradeNote, upsertTradeNote, deleteTradeNote } from "../api";
 import { X, Loader2, TrendingUp, TrendingDown, Minus, Trash2 } from "lucide-react";
 
 const SENTIMENTS = [
-  { value: "bullish", label: "Bullish", icon: TrendingUp, color: "text-emerald-600 bg-emerald-50 border-emerald-200" },
-  { value: "neutral", label: "Neutral", icon: Minus, color: "text-slate-600 bg-slate-50 border-slate-200" },
-  { value: "bearish", label: "Bearish", icon: TrendingDown, color: "text-red-600 bg-red-50 border-red-200" },
+  { value: "bullish", label: "Bullish", icon: TrendingUp, color: "text-gain bg-gain/10 border-gain/30" },
+  { value: "neutral", label: "Neutral", icon: Minus, color: "text-muted bg-surface-hover border-hairline" },
+  { value: "bearish", label: "Bearish", icon: TrendingDown, color: "text-loss bg-loss/10 border-loss/30" },
 ];
 
 export default function TradeNoteModal({ transaction, onClose }) {
@@ -52,39 +52,39 @@ export default function TradeNoteModal({ transaction, onClose }) {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-bold text-lg">Trade Note</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-muted mt-0.5">
               {transaction.type.toUpperCase()} {transaction.shares} {transaction.ticker} @ ${transaction.price.toFixed(2)} &middot; {transaction.date}
             </p>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-800"><X size={18} /></button>
+          <button onClick={onClose} className="text-muted hover:text-ink"><X size={18} /></button>
         </div>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 size={20} className="animate-spin text-slate-400" />
+            <Loader2 size={20} className="animate-spin text-muted" />
           </div>
         ) : (
           <div className="space-y-4">
             <div>
-              <label className="text-xs text-slate-500 mb-1.5 block">Your notes</label>
+              <label className="text-xs text-muted mb-1.5 block">Your notes</label>
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="Why did you make this trade? What was your thesis?"
                 rows={4}
-                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-brand resize-none"
+                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none focus:border-brand resize-none"
               />
             </div>
 
             <div>
-              <label className="text-xs text-slate-500 mb-1.5 block">Sentiment</label>
+              <label className="text-xs text-muted mb-1.5 block">Sentiment</label>
               <div className="flex gap-2">
                 {SENTIMENTS.map(({ value, label, icon: Icon, color }) => (
                   <button
                     key={value}
                     onClick={() => setSentiment(sentiment === value ? null : value)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
-                      sentiment === value ? color : "text-slate-400 bg-white border-slate-200 hover:border-slate-300"
+                      sentiment === value ? color : "text-muted bg-surface-card border-hairline hover:border-slate-300"
                     }`}
                   >
                     <Icon size={13} />
@@ -95,12 +95,12 @@ export default function TradeNoteModal({ transaction, onClose }) {
             </div>
 
             <div>
-              <label className="text-xs text-slate-500 mb-1.5 block">Tags (comma-separated)</label>
+              <label className="text-xs text-muted mb-1.5 block">Tags (comma-separated)</label>
               <input
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
                 placeholder="dip-buy, earnings, swing"
-                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-brand"
+                className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-slate-400 focus:outline-none focus:border-brand"
               />
             </div>
 

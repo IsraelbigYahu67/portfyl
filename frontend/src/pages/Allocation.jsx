@@ -53,7 +53,7 @@ export default function Allocation() {
   const Th = ({ label, k }) => (
     <th
       onClick={() => toggle(k)}
-      className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-800 select-none"
+      className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider cursor-pointer hover:text-ink select-none"
     >
       {label}
       {sort.key === k && <span className="ml-1">{sort.dir === "asc" ? "↑" : "↓"}</span>}
@@ -75,7 +75,7 @@ export default function Allocation() {
       </div>
 
       {breakdownLoading || holdingsLoading ? (
-        <div className="card animate-pulse h-48 flex items-center justify-center text-slate-500">
+        <div className="card animate-pulse h-48 flex items-center justify-center text-muted">
           Loading allocation data...
         </div>
       ) : (
@@ -112,15 +112,15 @@ export default function Allocation() {
       )}
 
       <div>
-        <h2 className="text-sm font-semibold text-slate-500 mb-3 uppercase tracking-wider">
+        <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider">
           All Holdings
         </h2>
         {holdingsLoading ? (
-          <div className="card animate-pulse h-48 flex items-center justify-center text-slate-500">
+          <div className="card animate-pulse h-48 flex items-center justify-center text-muted">
             Loading live prices...
           </div>
         ) : holdings.length === 0 ? (
-          <div className="card text-slate-500 text-sm text-center py-12">
+          <div className="card text-muted text-sm text-center py-12">
             No holdings yet. Import a CSV or add transactions to get started.
           </div>
         ) : (
@@ -149,47 +149,47 @@ export default function Allocation() {
                       <tr
                         key={h.ticker}
                         onClick={() => openStock(h.ticker)}
-                        className={`hover:bg-surface-hover transition-colors cursor-pointer ${closed ? "bg-red-50" : ""}`}
+                        className={`hover:bg-surface-hover transition-colors cursor-pointer ${closed ? "bg-loss/10" : ""}`}
                       >
                         <td className="px-4 py-3 font-mono font-bold text-sm">
                           <TickerLink ticker={h.ticker} className="text-left">{h.ticker}</TickerLink>
-                          {closed && <span className="ml-1.5 text-[10px] font-medium text-red-600/80 uppercase">Sold</span>}
+                          {closed && <span className="ml-1.5 text-[10px] font-medium text-loss/80 uppercase">Sold</span>}
                         </td>
-                        <td className={`px-4 py-3 text-sm max-w-xs truncate ${closed ? "text-slate-500" : "text-slate-700"}`}>{h.name}</td>
-                        <td className={`px-4 py-3 tabular-nums text-sm text-right ${closed ? "text-slate-500" : ""}`}>
+                        <td className={`px-4 py-3 text-sm max-w-xs truncate ${closed ? "text-muted" : "text-ink"}`}>{h.name}</td>
+                        <td className={`px-4 py-3 tabular-nums text-sm text-right ${closed ? "text-muted" : ""}`}>
                           {closed ? "—" : h.shares.toLocaleString()}
                         </td>
-                        <td className={`px-4 py-3 tabular-nums text-sm text-right ${closed ? "text-slate-500" : ""}`}>{fmtNative(h.avg_cost, h.currency)}</td>
-                        <td className={`px-4 py-3 tabular-nums text-sm text-right font-medium ${closed ? "text-slate-500" : ""}`}>
+                        <td className={`px-4 py-3 tabular-nums text-sm text-right ${closed ? "text-muted" : ""}`}>{fmtNative(h.avg_cost, h.currency)}</td>
+                        <td className={`px-4 py-3 tabular-nums text-sm text-right font-medium ${closed ? "text-muted" : ""}`}>
                           <div>{fmtNative(h.current_price, h.currency)}</div>
                           {closed && h.live_price != null && (
-                            <div className="text-[10px] text-slate-400 leading-tight" title="Live market price today">
+                            <div className="text-[10px] text-muted leading-tight" title="Live market price today">
                               now {fmtNative(h.live_price, h.currency)}
                             </div>
                           )}
                         </td>
-                        <td className={`px-4 py-3 tabular-nums text-sm text-right font-semibold ${closed ? "text-slate-500" : ""}`}>
+                        <td className={`px-4 py-3 tabular-nums text-sm text-right font-semibold ${closed ? "text-muted" : ""}`}>
                           {closed ? "—" : fmt(h.market_value)}
                         </td>
-                        <td className={`px-4 py-3 tabular-nums text-sm text-right font-medium ${up ? "text-emerald-600" : "text-red-600"}`}>
+                        <td className={`px-4 py-3 tabular-nums text-sm text-right font-medium ${up ? "text-gain" : "text-loss"}`}>
                           <span className="flex items-center justify-end gap-1">
                             {up ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
                             {fmt(h.pnl)}
                           </span>
                           {closed && h.pnl_if_held != null && (
                             <div
-                              className={`text-[10px] leading-tight mt-0.5 font-normal ${h.pnl_if_held >= 0 ? "text-emerald-500" : "text-red-500"}`}
+                              className={`text-[10px] leading-tight mt-0.5 font-normal ${h.pnl_if_held >= 0 ? "text-gain" : "text-loss"}`}
                               title="P&L if you had held instead of sold (live price today)"
                             >
                               if held: {h.pnl_if_held >= 0 ? "+" : ""}{fmt(h.pnl_if_held)}
                             </div>
                           )}
                         </td>
-                        <td className={`px-4 py-3 tabular-nums text-sm text-right font-medium ${up ? "text-emerald-600" : "text-red-600"}`}>
+                        <td className={`px-4 py-3 tabular-nums text-sm text-right font-medium ${up ? "text-gain" : "text-loss"}`}>
                           {fmtPct(h.pnl_percent)}
                           {closed && h.pnl_if_held_pct != null && (
                             <div
-                              className={`text-[10px] leading-tight mt-0.5 font-normal ${h.pnl_if_held_pct >= 0 ? "text-emerald-500" : "text-red-500"}`}
+                              className={`text-[10px] leading-tight mt-0.5 font-normal ${h.pnl_if_held_pct >= 0 ? "text-gain" : "text-loss"}`}
                             >
                               if held: {fmtPct(h.pnl_if_held_pct)}
                             </div>
@@ -197,17 +197,17 @@ export default function Allocation() {
                         </td>
                         <td className="px-4 py-3 text-sm text-right">
                           {closed ? (
-                            <span className="text-slate-500 text-xs">—</span>
+                            <span className="text-muted text-xs">—</span>
                           ) : (
                             <div className="flex items-center justify-end gap-2">
-                              <div className="w-16 bg-slate-100 rounded-full h-1.5">
+                              <div className="w-16 bg-surface-hover rounded-full h-1.5">
                                 <div className="bg-brand rounded-full h-1.5" style={{ width: `${h.weight}%` }} />
                               </div>
-                              <span className="tabular-nums text-slate-500 w-10">{h.weight}%</span>
+                              <span className="tabular-nums text-muted w-10">{h.weight}%</span>
                             </div>
                           )}
                         </td>
-                        <td className={`px-4 py-3 tabular-nums text-sm text-right ${closed ? "text-slate-500" : "text-slate-500"}`}>
+                        <td className={`px-4 py-3 tabular-nums text-sm text-right ${closed ? "text-muted" : "text-muted"}`}>
                           {fmt(h.dividends)}
                         </td>
                       </tr>
