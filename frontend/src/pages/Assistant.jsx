@@ -121,19 +121,19 @@ export default function Assistant() {
             <Bot size={20} className="text-brand" />
             <h1 className="text-xl font-semibold">AI Assistant</h1>
           </div>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted">
             Powered by DeepSeek · aware of your active portfolio
           </p>
         </div>
         <div className="flex items-center gap-2">
           {configured && (
-            <span className="text-xs text-slate-400 font-mono hidden sm:inline">
+            <span className="text-xs text-muted font-mono hidden sm:inline">
               {config.model}
             </span>
           )}
           <button
             onClick={() => setShowConfig((s) => !s)}
-            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand border border-surface-border rounded-lg px-3 py-1.5 transition-colors"
+            className="flex items-center gap-1.5 text-sm text-muted hover:text-brand border border-surface-border rounded-lg px-3 py-1.5 transition-colors"
           >
             <SettingsIcon size={15} />
             Settings
@@ -143,10 +143,10 @@ export default function Assistant() {
 
       {/* Config panel */}
       {panelOpen && (
-        <div className="rounded-xl border border-surface-border bg-surface-card p-5 mb-4 space-y-4">
+        <div className="card mb-4 space-y-4">
           <div>
-            <h2 className="text-sm font-semibold text-slate-700">DeepSeek connection</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <h2 className="text-sm font-semibold text-ink">DeepSeek connection</h2>
+            <p className="text-xs text-muted mt-0.5">
               Create a key at{" "}
               <a
                 href="https://platform.deepseek.com/api_keys"
@@ -161,14 +161,14 @@ export default function Assistant() {
           </div>
 
           {configError && (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+            <div className="flex items-start gap-2 text-sm text-loss bg-loss/10 rounded-lg px-3 py-2">
               <AlertCircle size={15} className="mt-0.5 shrink-0" />
               <span>{configError}</span>
             </div>
           )}
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600">API key</label>
+            <label className="text-xs font-medium text-muted">API key</label>
             <div className="relative">
               <input
                 type={showKey ? "text" : "password"}
@@ -177,12 +177,12 @@ export default function Assistant() {
                 placeholder={
                   configured ? `Saved (${config.key_preview}) — enter a new key to replace` : "sk-..."
                 }
-                className="w-full border border-surface-border rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
+                className="input pr-10 text-sm"
               />
               <button
                 type="button"
                 onClick={() => setShowKey((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
               >
                 {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
@@ -190,11 +190,11 @@ export default function Assistant() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600">Model</label>
+            <label className="text-xs font-medium text-muted">Model</label>
             <select
               value={modelInput}
               onChange={(e) => setModelInput(e.target.value)}
-              className="w-full border border-surface-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/30"
+              className="input text-sm"
             >
               {MODELS.map((m) => (
                 <option key={m.value} value={m.value}>
@@ -239,10 +239,10 @@ export default function Assistant() {
               <div className="w-12 h-12 rounded-full bg-brand/10 flex items-center justify-center mb-3">
                 <Sparkles size={22} className="text-brand" />
               </div>
-              <p className="text-sm text-slate-600 font-medium mb-1">
+              <p className="text-sm text-ink font-medium mb-1">
                 Ask about your portfolio
               </p>
-              <p className="text-xs text-slate-400 mb-5 max-w-sm">
+              <p className="text-xs text-muted mb-5 max-w-sm">
                 I can see your current holdings, cost basis, and recent transactions.
               </p>
               <div className="flex flex-wrap gap-2 justify-center">
@@ -251,7 +251,7 @@ export default function Assistant() {
                     key={s}
                     onClick={() => send(s)}
                     disabled={!configured}
-                    className="text-xs text-slate-600 border border-surface-border rounded-full px-3 py-1.5 hover:border-brand hover:text-brand transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="text-xs text-muted border border-hairline rounded-full px-3 py-1.5 hover:border-brand hover:text-brand transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {s}
                   </button>
@@ -265,14 +265,14 @@ export default function Assistant() {
           ))}
 
           {chatMutation.isPending && (
-            <div className="flex items-center gap-2 text-sm text-slate-400">
+            <div className="flex items-center gap-2 text-sm text-muted">
               <Loader2 size={15} className="animate-spin" />
               Thinking…
             </div>
           )}
 
           {chatError && (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+            <div className="flex items-start gap-2 text-sm text-loss bg-loss/10 rounded-lg px-3 py-2">
               <AlertCircle size={15} className="mt-0.5 shrink-0" />
               <span>{chatError}</span>
             </div>
@@ -282,7 +282,7 @@ export default function Assistant() {
         {/* Input */}
         <div className="border-t border-surface-border p-3">
           {!configured && !configLoading ? (
-            <p className="text-xs text-slate-400 text-center py-2">
+            <p className="text-xs text-muted text-center py-2">
               Add a DeepSeek API key above to start chatting.
             </p>
           ) : (
@@ -294,7 +294,7 @@ export default function Assistant() {
                 rows={1}
                 placeholder="Ask about your holdings, allocation, recent trades…"
                 disabled={chatMutation.isPending}
-                className="flex-1 resize-none border border-surface-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 max-h-40 disabled:opacity-60"
+                className="input flex-1 resize-none max-h-40 text-sm disabled:opacity-60"
               />
               <button
                 onClick={() => send()}
@@ -323,7 +323,7 @@ function MessageBubble({ role, content }) {
         className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
           isUser
             ? "bg-brand text-white rounded-br-sm"
-            : "bg-slate-100 text-slate-800 rounded-bl-sm"
+            : "bg-surface-card-elevated text-ink rounded-bl-sm"
         }`}
       >
         {content}
