@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchPolymarketPositions, fetchPolymarketSummary, syncPolymarket } from "../api";
 import { Hexagon, RefreshCw, Wallet, TrendingUp, TrendingDown, Target, Layers } from "lucide-react";
 import MetricCard from "../components/MetricCard";
+import { CATEGORICAL } from "../lib/chartTheme";
 
 function fmtCents(v) {
   if (v == null) return "-";
@@ -153,15 +154,7 @@ export default function Polymarket() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span
-                        className={`text-xs font-semibold px-2 py-0.5 rounded ${
-                          pos.outcome?.toLowerCase() === "yes"
-                            ? "bg-gain/10 text-gain"
-                            : "bg-loss/10 text-loss"
-                        }`}
-                      >
-                        {pos.outcome}
-                      </span>
+                      <OutcomeBadge outcome={pos.outcome} />
                     </td>
                     <td className="px-4 py-3 text-muted tabular-nums">{pos.size}</td>
                     <td className="px-4 py-3 text-muted tabular-nums">{fmtCents(pos.avg_price)}</td>
@@ -201,6 +194,31 @@ export default function Polymarket() {
         </div>
       )}
     </div>
+  );
+}
+
+// Yes/No is a categorical outcome side, not a profit/loss result (a losing
+// "No" position and a winning "No" position are both just "No") — so this
+// must NOT use the gain/loss (P&L-semantic) tokens. Per the Stitch mockup
+// (stitch_portfyl_desktop/portfyl_polymarket_glass_edition/screen.png), YES
+// renders as a sky-blue pill and NO as an amber pill, so we borrow the fixed,
+// non-P&L "chart-5" (sky) / "chart-3" (amber) hues from the already-locked
+// chart-color token system (chartTheme.js) instead of inventing a new color.
+function OutcomeBadge({ outcome }) {
+  if (!outcome) return <span className="text-muted">-</span>;
+
+  const accent = outcome.toLowerCase() === "yes" ? CATEGORICAL[4] : CATEGORICAL[2];
+
+  return (
+    <span
+      className="text-xs font-semibold px-2 py-0.5 rounded"
+      style={{
+        backgroundColor: `color-mix(in srgb, ${accent} 15%, var(--surface-card, #F7F9FD) 85%)`,
+        color: accent,
+      }}
+    >
+      {outcome}
+    </span>
   );
 }
 
