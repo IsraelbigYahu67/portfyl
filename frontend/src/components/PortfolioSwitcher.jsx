@@ -141,12 +141,12 @@ export default function PortfolioSwitcher() {
       >
         <Briefcase size={14} className="text-brand shrink-0" />
         <div className="flex-1 min-w-0">
-          <div className="text-xs text-slate-400 leading-none mb-0.5">Portfolio</div>
+          <div className="text-xs text-muted leading-none mb-0.5">Portfolio</div>
           <div className="text-sm font-medium truncate">
             {current?.name ?? "—"}
           </div>
         </div>
-        <ChevronDown size={14} className={`text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown size={14} className={`text-muted transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
@@ -157,7 +157,7 @@ export default function PortfolioSwitcher() {
               <div
                 key={p.id}
                 className={`flex items-center gap-2 px-2.5 py-1.5 text-sm group hover:bg-surface-hover ${
-                  active ? "text-brand" : "text-slate-700"
+                  active ? "text-brand" : "text-ink"
                 }`}
               >
                 <button
@@ -212,7 +212,7 @@ export default function PortfolioSwitcher() {
                 setMode("create");
                 setOpen(false);
               }}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-surface-hover"
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-sm text-muted hover:bg-surface-hover"
             >
               <Plus size={14} />
               New portfolio
