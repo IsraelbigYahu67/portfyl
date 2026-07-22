@@ -1,0 +1,19 @@
+# Build-context filter for `gcloud run deploy --source .`
+# (governs what gets uploaded to Cloud Build; the Dockerfile itself must stay).
+#
+# Inherit everything git already ignores: node_modules/, .venv/, *.db,
+# frontend/dist/, __pycache__/ — none of that belongs in the build context
+# (npm ci + npm run build + pip install all run inside the image).
+#!include:.gitignore
+
+# VCS + agent/editor/tooling cruft — not needed to build the image.
+.git/
+.claude/
+.playwright-mcp/
+
+# Root-level screenshots / scratch captures (design QA, not app source).
+/*.png
+
+# Docs and deploy notes are not part of the image.
+deploy/
+docs/
