@@ -215,7 +215,17 @@ def dividend_calendar(
             base_date = date.today()
 
         gap_days = 365 // payments_per_year if payments_per_year > 0 else 90
+
+        # Don't project payments in the past. A suspended/delisted payer whose
+        # last ex-date is years old (e.g. LEU, last ex-date 2005) would otherwise
+        # flood monthly_projection with decades of stale months and inflate the
+        # "next 30 days" stat. Fast-forward the cadence to the current month,
+        # preserving the real payment phase (step size stays gap_days).
+        current_month_start = date.today().replace(day=1)
         projection = base_date
+        while gap_days > 0 and projection < current_month_start:
+            projection += timedelta(days=gap_days)
+
         while projection <= projection_end:
             month_key = projection.strftime("%Y-%m")
             month_label = projection.strftime("%b %Y")
