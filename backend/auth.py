@@ -69,6 +69,16 @@ def check_password(submitted: str) -> bool:
     return hmac.compare_digest((submitted or "").encode("utf-8"), APP_PASSWORD.encode("utf-8"))
 
 
+def login_token(password: str) -> str | None:
+    """Password in, signed session token out -- the building block for the JSON
+    login endpoint the native app uses. Returns None on a wrong password. The
+    token is the same value the session cookie carries, so it verifies through
+    verify_session() / is_authenticated() with no separate token store."""
+    if not check_password(password):
+        return None
+    return issue_session()
+
+
 # --- scheduler machine token (Cloud Scheduler) --------------------------------
 SCHEDULER_TOKEN = os.getenv("SCHEDULER_TOKEN")  # no dev fallback; unset => disabled
 
@@ -119,8 +129,24 @@ def verify_session(token: str) -> str | None:
         return None
 
 
+def _bearer_token(request: Request) -> str | None:
+    """The token from an 'Authorization: Bearer <token>' header, or None. The
+    native app (Capacitor, cross-origin) can't rely on the lax session cookie, so
+    it sends the same signed session value as a bearer token instead."""
+    scheme, _, token = request.headers.get("Authorization", "").partition(" ")
+    if scheme.lower() == "bearer" and token.strip():
+        return token.strip()
+    return None
+
+
 def is_authenticated(request: Request) -> bool:
-    return verify_session(request.cookies.get(SESSION_COOKIE, "")) is not None
+    """True if the request carries a valid session -- the signed httponly cookie
+    (browser) or an 'Authorization: Bearer <token>' header (native app). Both are
+    verified by the same signature + 30-day age check via verify_session()."""
+    if verify_session(request.cookies.get(SESSION_COOKIE, "")) is not None:
+        return True
+    token = _bearer_token(request)
+    return token is not None and verify_session(token) is not None
 
 
 def set_session_cookie(response: Response, owner_id: str = DEFAULT_OWNER_ID) -> None:

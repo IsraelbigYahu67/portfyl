@@ -339,7 +339,7 @@ app = FastAPI(title="Portfyl API", version="1.0.0")
 # Paths reachable without a session: the login screen and its POST, logout, the
 # Cloud Run health check, and the scheduler sync endpoint (which authenticates
 # with its own SCHEDULER_TOKEN instead of the session cookie).
-_PUBLIC_PATHS = {"/health", "/login", "/logout", "/api/broker/ibkr/scheduler-sync"}
+_PUBLIC_PATHS = {"/health", "/login", "/logout", "/api/auth/login", "/api/broker/ibkr/scheduler-sync"}
 
 
 @app.middleware("http")
@@ -355,13 +355,19 @@ async def require_login(request: Request, call_next):
 
 
 # CORS is added after the gate so it wraps it and its headers apply to every
-# response (including the 401 above). Prod is same-origin so CORS is mostly moot,
-# but it stays configurable (Section 4 wires FRONTEND_ORIGIN).
-_cors_origins = ["http://localhost:5173", "http://localhost:3000"]
+# response (including the 401 above). The desktop SPA is same-origin (baked into
+# the image), but the native app calls cross-origin from Capacitor's local
+# origins, so those are allowed here; FRONTEND_ORIGIN adds any extras.
+_cors_origins = [
+    "http://localhost:5173",   # Vite dev server
+    "http://localhost:3000",
+    "https://localhost",       # Capacitor Android (androidScheme: "https")
+    "capacitor://localhost",   # Capacitor default / iOS scheme
+]
 _frontend_origin = os.getenv("FRONTEND_ORIGIN")
 if _frontend_origin:
-    # Optional extra allowed origin (prod is same-origin, so usually unset).
-    _cors_origins.append(_frontend_origin.strip())
+    # Optional extra allowed origin(s), comma-separated (e.g. a hosted frontend).
+    _cors_origins.extend(o.strip() for o in _frontend_origin.split(",") if o.strip())
 
 app.add_middleware(
     CORSMiddleware,
@@ -387,6 +393,27 @@ async def login_submit(request: Request):
     response = RedirectResponse("/", status_code=303)
     auth.set_session_cookie(response)
     return response
+
+
+@app.post("/api/auth/login", include_in_schema=False)
+async def api_login(request: Request):
+    """JSON login for native clients: {"password": ...} -> {"token": ...}.
+
+    The token is the same signed session value the cookie carries; the app stores
+    it and sends it back as `Authorization: Bearer <token>`, which the auth gate
+    accepts via auth.is_authenticated(). Cross-origin, so cookies aren't used here.
+    """
+    body: dict = {}
+    try:
+        parsed = await request.json()
+        if isinstance(parsed, dict):
+            body = parsed
+    except Exception:
+        pass
+    token = auth.login_token(body.get("password", ""))
+    if token is None:
+        return JSONResponse({"detail": "Incorrect password"}, status_code=401)
+    return JSONResponse({"token": token})
 
 
 @app.get("/logout", include_in_schema=False)
