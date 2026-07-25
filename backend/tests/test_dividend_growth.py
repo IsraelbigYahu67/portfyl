@@ -95,3 +95,20 @@ def test_yfinance_exception_is_swallowed(monkeypatch):
     monkeypatch.setattr(dividend_growth.yf, "Ticker", _Boom)
     g = dividend_growth.compute_dividend_growth("BOOM", _current_year=2026)
     assert g["annual"] == [] and g["streak_years"] == 0
+
+
+def test_streak_breaks_on_gap_year(monkeypatch):
+    # 2020 suspended entirely -> the pre-2020 raises must NOT count toward the streak.
+    s = _series([("2018-06-01", 1.0), ("2019-06-01", 1.1), ("2021-06-01", 1.3),
+                 ("2022-06-01", 1.4), ("2023-06-01", 1.5)])
+    _patch_ticker(monkeypatch, s, {})
+    g = dividend_growth.compute_dividend_growth("GAP", _current_year=2026)
+    # From 2023 back: 2023>2022 (+1), 2022>2021 (+1), 2021 vs 2019 is a gap -> stop. Streak = 2.
+    assert g["streak_years"] == 2
+
+
+def test_empty_history_still_reports_payout(monkeypatch):
+    _patch_ticker(monkeypatch, pd.Series(dtype=float), {"payoutRatio": 0.30})
+    g = dividend_growth.compute_dividend_growth("EMPTYPAY", _current_year=2026)
+    assert g["annual"] == [] and g["payments"] == []
+    assert g["payout_ratio_pct"] == 30.0

@@ -45,7 +45,7 @@ def _streak(annual: list[dict], current_year: int) -> int:
     closed = _closed(annual, current_year)
     streak = 0
     for i in range(len(closed) - 1, 0, -1):
-        if closed[i]["dps"] > closed[i - 1]["dps"]:
+        if closed[i]["dps"] > closed[i - 1]["dps"] and closed[i]["year"] == closed[i - 1]["year"] + 1:
             streak += 1
         else:
             break
@@ -109,14 +109,18 @@ def compute_dividend_growth(symbol: str, _current_year: int | None = None) -> di
     if div is None or getattr(div, "empty", True):
         return {**empty, "payout_ratio_pct": payout}
 
-    annual = _annual_dps(div)
-    payments = sorted(
-        (
-            {"ex_date": pd.Timestamp(ts).date().isoformat(), "amount": round(float(a), 4)}
-            for ts, a in div.items()
-        ),
-        key=lambda p: p["ex_date"],
-    )
+    try:
+        annual = _annual_dps(div)
+        payments = sorted(
+            (
+                {"ex_date": pd.Timestamp(ts).date().isoformat(), "amount": round(float(a), 4)}
+                for ts, a in div.items()
+            ),
+            key=lambda p: p["ex_date"],
+        )
+    except Exception:
+        return {**empty, "payout_ratio_pct": payout}
+
     cagr_pct, years_used = _cagr(annual, current_year)
     return {
         "ticker": symbol,
