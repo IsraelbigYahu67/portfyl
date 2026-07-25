@@ -86,8 +86,8 @@ the `snowball.auth` logger name, and the `snowball-dev` dev-password fallback
 
 ## Backend tests (`backend/tests/`)
 
-- **pytest** suite (7 modules: `test_portfolio`, `test_analytics`, `test_broker`,
-  `test_cache`, `test_fx`, `test_dividend_calendar`, `test_market`). Run from
+- **pytest** suite (8 modules: `test_portfolio`, `test_analytics`, `test_broker`,
+  `test_cache`, `test_fx`, `test_dividend_calendar`, `test_market`, `test_dividend_growth`). Run from
   `backend/`: `python -m pytest tests/ -v`.
 - **pytest is NOT in `requirements.txt`** — install it into the venv separately
   (`uv pip install pytest` / `pip install pytest`) before running the suite.
