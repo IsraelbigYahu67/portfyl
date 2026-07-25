@@ -139,10 +139,6 @@ export const fetchHeatmap = (period = "1d") =>
 export const fetchInsiderBuys = () =>
   api.get("/portfolio/insider-buys").then((r) => r.data);
 
-// ----- Dividend Calendar (forward-looking, from analytics) -----------------
-export const fetchDividendCalendar = (months = 12) =>
-  api.get(`/analytics/dividend-calendar`, { params: { months } }).then((r) => r.data);
-
 // ----- Stock Screener ------------------------------------------------------
 export const fetchScreener = (params = {}) =>
   api.get(`/market/screener`, { params }).then((r) => r.data);

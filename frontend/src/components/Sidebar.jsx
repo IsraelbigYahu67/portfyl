@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, PieChart, ArrowLeftRight, Upload, Loader2, CalendarDays, Activity, FileText, Settings, Search, Star, Target, ArrowLeft, Hexagon, Bot, Sun, Moon, Monitor, CalendarCheck, Filter, Wallet } from "lucide-react";
+import { LayoutDashboard, PieChart, ArrowLeftRight, Upload, Loader2, CalendarDays, Activity, FileText, Settings, Search, Star, Target, ArrowLeft, Hexagon, Bot, Sun, Moon, Monitor, Filter, Wallet } from "lucide-react";
 import { useCurrency, usePalette, usePlatform } from "../App";
 import PortfolioSwitcher from "./PortfolioSwitcher";
 import SegmentedControl from "./ui/SegmentedControl";
@@ -13,7 +13,6 @@ const T212_LINKS = [
   { to: "/watchlists", label: "Watchlists", icon: Star },
   { to: "/import", label: "Import CSV", icon: Upload },
   { to: "/dividends", label: "Dividends", icon: CalendarDays },
-  { to: "/dividend-calendar", label: "Div. Calendar", icon: CalendarCheck },
   { to: "/analytics", label: "Analytics", icon: Activity },
   { to: "/tax-report", label: "Tax Report", icon: FileText },
   { to: "/screener", label: "Screener", icon: Filter },

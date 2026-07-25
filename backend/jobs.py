@@ -29,13 +29,17 @@ import logging
 import os
 import re
 from datetime import date, datetime, timedelta, timezone
+from typing import Any
 from zoneinfo import ZoneInfo
 
+import pandas as pd
+import yfinance as yf
 from sqlalchemy.orm import Session
 
 from app_settings import get_setting, set_setting
 from models import BrokerConnection, DiscordWebhook, DividendNotification, Transaction
 from routers.discord import send_discord_notification
+from ticker_map import yf_symbol
 
 log = logging.getLogger("portfyl.jobs")
 
@@ -230,12 +234,130 @@ async def autosync_tick(db: Session, now: datetime | None = None) -> list[dict]:
     return results
 
 
+def _next_dividend_info(symbol: str) -> dict[str, Any]:
+    """Best-effort fetch of next dividend for a single ticker.
+
+    Returns:
+        ex_date:   expected next ex-dividend date (or last known)
+        pay_date:  expected next pay date (or None)
+        amount:    latest dividend per share
+        frequency: 'monthly', 'quarterly', 'semi-annual', 'annual', or 'unknown'
+        yield_pct: trailing dividend yield percent
+    """
+    try:
+        stock = yf.Ticker(yf_symbol(symbol))
+        info = stock.info or {}
+    except Exception:
+        return {"ticker": symbol, "ex_date": None, "amount": None, "error": "yfinance unavailable"}
+
+    # yfinance dividend yield — >=0.2.44 returns percent directly
+    div_yield = info.get("dividendYield")
+    if div_yield is not None:
+        try:
+            div_yield = round(float(div_yield), 2)
+        except (TypeError, ValueError):
+            div_yield = None
+
+    # Trailing annual dividend rate
+    div_rate = info.get("dividendRate")
+    if div_rate is not None:
+        try:
+            div_rate = round(float(div_rate), 2)
+        except (TypeError, ValueError):
+            div_rate = None
+
+    # Pull the dividend history to find the most recent dividend and estimate
+    # ex-date / pay-date for the next one.
+    ex_date: date | None = None
+    pay_date_val: date | None = None
+    amount: float | None = None
+    frequency = "unknown"
+
+    try:
+        hist = stock.dividends
+        if hist is not None and not hist.empty:
+            # hist index is the ex-date
+            last_ex = hist.index[-1]
+            amount = float(hist.iloc[-1])
+
+            if hasattr(last_ex, "date"):
+                ex_date = last_ex.date()
+            elif hasattr(last_ex, "strftime"):
+                ex_date = pd.Timestamp(last_ex).date()
+
+            # Estimate frequency from the gap between the last two dividends
+            if len(hist) >= 2:
+                gap = (hist.index[-1] - hist.index[-2]).days
+                if gap < 50:
+                    frequency = "monthly"
+                elif gap < 100:
+                    frequency = "quarterly"
+                elif gap < 250:
+                    frequency = "semi-annual"
+                else:
+                    frequency = "annual"
+            elif div_rate and amount and amount > 0:
+                implied_payments = round(div_rate / amount)
+                if implied_payments >= 10:
+                    frequency = "monthly"
+                elif implied_payments >= 3:
+                    frequency = "quarterly"
+                elif implied_payments >= 1:
+                    frequency = "annual"
+
+            # Estimate next ex-date: last ex-date + gap days
+            if ex_date and len(hist) >= 2:
+                gap = (hist.index[-1] - hist.index[-2]).days
+                next_ex_est = ex_date + timedelta(days=gap)
+                # Only show dates in the forward-looking window
+                if next_ex_est > date.today():
+                    ex_date = next_ex_est
+
+            # Estimate pay date from calendar if available
+            try:
+                cal = stock.calendar
+                if cal is not None:
+                    if isinstance(cal, dict):
+                        raw_pay = cal.get("Dividend Date")
+                    elif isinstance(cal, pd.DataFrame) and not cal.empty:
+                        cal_dict = cal.to_dict()
+                        raw_pay = None
+                        for key, col in cal_dict.items():
+                            val = list(col.values())
+                            if val and isinstance(val[0], (pd.Timestamp, pd.datetime)):
+                                raw_pay = val[0]
+                                break
+                            elif val:
+                                raw_pay = val[0]
+                    else:
+                        raw_pay = None
+                    if raw_pay is not None:
+                        pay_date_val = pd.Timestamp(raw_pay).date()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # Fallback amount from yfinance rate if history is empty
+    if amount is None and div_rate is not None:
+        amount = round(div_rate / 4, 4) if frequency == "quarterly" else round(div_rate, 4)
+
+    return {
+        "ticker": symbol,
+        "ex_date": ex_date.isoformat() if ex_date else None,
+        "pay_date": pay_date_val.isoformat() if pay_date_val else None,
+        "amount_per_share": round(amount, 4) if amount is not None else None,
+        "frequency": frequency,
+        "trailing_yield_pct": div_yield,
+        "dividend_rate_annual": div_rate,
+    }
+
+
 # -------- Dividend ex-date notifications ------------------------------------
 
 def _upcoming_dividends(db: Session, pid: int, today: date, lead_days: int) -> list[dict]:
     """Open holdings of `pid` whose next ex-date falls within [today, today+lead]."""
-    # Lazy imports for the same reason as above (portfolio pulls market_data).
-    from routers.dividend_calendar import _next_dividend_info
+    # Lazy import for the same reason as above (portfolio pulls market_data).
     from routers.portfolio import _build_holdings
 
     txns = (db.query(Transaction)

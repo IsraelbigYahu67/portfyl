@@ -1,7 +1,6 @@
 // Shared chart color tokens — every recharts consumer imports from here instead
 // of hardcoding hex, so chart colors follow the active theme/accent automatically
-// (SVG fill/stroke accept CSS var() strings directly; DividendCalendar.jsx already
-// proved this pattern works in this codebase).
+// (SVG fill/stroke accept CSS var() strings directly).
 export const CATEGORICAL = [
   "var(--chart-1, #3B82F6)",
   "var(--chart-2, #4EDEA3)",

@@ -11,7 +11,6 @@ import Options from "./pages/Options";
 import Polymarket from "./pages/Polymarket";
 import Import from "./pages/Import";
 import Dividends from "./pages/Dividends";
-import DividendCalendar from "./pages/DividendCalendar";
 import Analytics from "./pages/Analytics";
 import TaxReport from "./pages/TaxReport";
 import Settings from "./pages/Settings";
@@ -309,7 +308,6 @@ function AppLayout() {
               <Route path="/cash" element={<Cash />} />
               <Route path="/import" element={<Import />} />
               <Route path="/dividends" element={<Dividends />} />
-              <Route path="/dividend-calendar" element={<DividendCalendar />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/tax-report" element={<TaxReport />} />
               <Route path="/search" element={<Search />} />

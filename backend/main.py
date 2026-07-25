@@ -15,7 +15,7 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 from database import engine, SessionLocal
 from models import Base, Transaction, Portfolio, Benchmark, BenchmarkComponent, OptionsTrade, PolymarketPosition, DiscordWebhook, TradeNote, BrokerBalance, AppSetting
-from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, dividend_calendar, cash, alerts, settings
+from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, cash, alerts, settings
 from fx import bulk_fetch_fx
 import auth
 
@@ -436,7 +436,6 @@ app.include_router(polymarket.router, prefix="/api")
 app.include_router(discord.router, prefix="/api")
 app.include_router(notes.router, prefix="/api")
 app.include_router(assistant.router, prefix="/api")
-app.include_router(dividend_calendar.router, prefix="/api")
 app.include_router(cash.router, prefix="/api")
 app.include_router(alerts.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")

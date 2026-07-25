@@ -188,7 +188,7 @@ def test_dividend_pass_announces_upcoming_exdate(db_session, pid):
     _seed_holding(db_session, pid)
     today = date(2026, 7, 12)
     sent = AsyncMock()
-    with patch("routers.dividend_calendar._next_dividend_info", _div_info(date(2026, 7, 14))), \
+    with patch("jobs._next_dividend_info", _div_info(date(2026, 7, 14))), \
          patch("jobs.send_discord_notification", sent):
         announced = _run(dividend_exdate_pass(db_session, today=today, lead_days=3))
     assert len(announced) == 1
@@ -206,7 +206,7 @@ def test_dividend_pass_never_announces_twice(db_session, pid):
     _seed_holding(db_session, pid)
     today = date(2026, 7, 12)
     sent = AsyncMock()
-    with patch("routers.dividend_calendar._next_dividend_info", _div_info(date(2026, 7, 14))), \
+    with patch("jobs._next_dividend_info", _div_info(date(2026, 7, 14))), \
          patch("jobs.send_discord_notification", sent):
         first = _run(dividend_exdate_pass(db_session, today=today, lead_days=3))
         second = _run(dividend_exdate_pass(db_session, today=today, lead_days=3))
@@ -222,13 +222,13 @@ def test_dividend_pass_ignores_exdates_outside_window(db_session, pid):
     today = date(2026, 7, 12)
     sent = AsyncMock()
     # Ex-date 10 days out, window is 3 — nothing to announce (yet).
-    with patch("routers.dividend_calendar._next_dividend_info", _div_info(date(2026, 7, 22))), \
+    with patch("jobs._next_dividend_info", _div_info(date(2026, 7, 22))), \
          patch("jobs.send_discord_notification", sent):
         announced = _run(dividend_exdate_pass(db_session, today=today, lead_days=3))
     assert announced == []
     sent.assert_not_awaited()
     # A past ex-date must not be announced either.
-    with patch("routers.dividend_calendar._next_dividend_info", _div_info(date(2026, 7, 10))), \
+    with patch("jobs._next_dividend_info", _div_info(date(2026, 7, 10))), \
          patch("jobs.send_discord_notification", sent):
         announced = _run(dividend_exdate_pass(db_session, today=today, lead_days=3))
     assert announced == []
@@ -238,7 +238,7 @@ def test_dividend_pass_respects_notify_dividends_flag(db_session, pid):
     _webhook(db_session, pid, notify_dividends=False)
     _seed_holding(db_session, pid)
     sent = AsyncMock()
-    with patch("routers.dividend_calendar._next_dividend_info", _div_info(date(2026, 7, 14))), \
+    with patch("jobs._next_dividend_info", _div_info(date(2026, 7, 14))), \
          patch("jobs.send_discord_notification", sent):
         announced = _run(dividend_exdate_pass(db_session, today=date(2026, 7, 12)))
     assert announced == []
@@ -260,7 +260,7 @@ def test_dividend_lookup_runs_off_event_loop(db_session, pid):
             seen["on_loop"] = False
         return {"ticker": ticker, "ex_date": None, "amount_per_share": None}
 
-    with patch("routers.dividend_calendar._next_dividend_info", probing_info), \
+    with patch("jobs._next_dividend_info", probing_info), \
          patch("jobs.send_discord_notification", AsyncMock()):
         _run(dividend_exdate_pass(db_session, today=date(2026, 7, 12)))
     assert seen["on_loop"] is False
@@ -272,14 +272,14 @@ def test_dividend_dedup_not_written_when_delivery_fails(db_session, pid):
     _webhook(db_session, pid, notify_dividends=True)
     _seed_holding(db_session, pid)
     today = date(2026, 7, 12)
-    with patch("routers.dividend_calendar._next_dividend_info", _div_info(date(2026, 7, 14))), \
+    with patch("jobs._next_dividend_info", _div_info(date(2026, 7, 14))), \
          patch("jobs.send_discord_notification", AsyncMock(return_value=False)):
         announced = _run(dividend_exdate_pass(db_session, today=today, lead_days=3))
     assert announced == []
     assert db_session.query(DividendNotification).count() == 0
 
     # Webhook back up: the same dividend is announced and deduped normally.
-    with patch("routers.dividend_calendar._next_dividend_info", _div_info(date(2026, 7, 14))), \
+    with patch("jobs._next_dividend_info", _div_info(date(2026, 7, 14))), \
          patch("jobs.send_discord_notification", AsyncMock(return_value=True)):
         announced = _run(dividend_exdate_pass(db_session, today=today, lead_days=3))
     assert len(announced) == 1
@@ -290,7 +290,7 @@ def test_dividend_pass_skips_tickers_without_exdate(db_session, pid):
     _webhook(db_session, pid, notify_dividends=True)
     _seed_holding(db_session, pid)
     sent = AsyncMock()
-    with patch("routers.dividend_calendar._next_dividend_info", _div_info(None)), \
+    with patch("jobs._next_dividend_info", _div_info(None)), \
          patch("jobs.send_discord_notification", sent):
         announced = _run(dividend_exdate_pass(db_session, today=date(2026, 7, 12)))
     assert announced == []
