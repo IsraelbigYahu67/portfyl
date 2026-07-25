@@ -104,6 +104,10 @@ export const removeWatchlistItem = (watchlistId, itemId) =>
 export const fetchDividends = () => api.get("/portfolio/dividends").then((r) => r.data);
 export const fetchDividendForecast = () =>
   api.get("/portfolio/dividends/forecast").then((r) => r.data);
+export const fetchDividendGrowth = () =>
+  api.get("/portfolio/dividends/growth").then((r) => r.data);
+export const fetchStockDividendGrowth = (ticker) =>
+  api.get(`/market/dividend-growth/${ticker}`).then((r) => r.data);
 export const fetchTaxReport = (year) =>
   api.get(`/analytics/tax-report`, { params: year ? { year } : {} }).then((r) => r.data);
 export const fetchRiskMetrics = (period = "1y", benchmarkId = null) =>

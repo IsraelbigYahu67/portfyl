@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchDividends, fetchDividendForecast } from "../api";
+import { fetchDividends, fetchDividendForecast, fetchDividendGrowth } from "../api";
 import { CalendarDays, RefreshCw, TrendingUp, DollarSign } from "lucide-react";
 import { useStockDetail } from "../components/StockDetail";
 import MetricCard from "../components/MetricCard";
@@ -57,6 +57,12 @@ export default function Dividends() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: growth, isLoading: growthLoading } = useQuery({
+    queryKey: ["dividend-growth"],
+    queryFn: fetchDividendGrowth,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const upcoming = data?.filter((d) => d.ex_date && d.ex_date >= today) ?? [];
   const past = data?.filter((d) => !d.ex_date || d.ex_date < today) ?? [];
 
@@ -84,6 +90,8 @@ export default function Dividends() {
       </div>
 
       <ForecastChart forecast={forecast} loading={forecastLoading} />
+
+      <GrowthSection rows={growth} loading={growthLoading} />
 
       {isLoading ? (
         <div className="text-center py-20 text-muted">Loading dividend data…</div>
@@ -280,5 +288,71 @@ function Table({ rows }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+function fmtPct(v) {
+  if (v == null) return <span className="text-muted">—</span>;
+  const cls = v > 0 ? "text-gain" : v < 0 ? "text-loss" : "text-muted";
+  return <span className={`tabular-nums ${cls}`}>{v > 0 ? "+" : ""}{v.toFixed(1)}%</span>;
+}
+
+function GrowthSection({ rows, loading }) {
+  const { openStock } = useStockDetail();
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-surface-border bg-surface-card p-4 text-sm text-muted">
+        Loading dividend growth…
+      </div>
+    );
+  }
+  if (!rows?.length) return null;
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-2">
+        <TrendingUp size={13} /> Dividend growth
+      </h2>
+      <div className="rounded-xl border border-surface-border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-surface-border bg-surface-card">
+              {["Ticker", "Company", "Streak", "CAGR", "YoY", "Payout"].map((h) => (
+                <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr
+                key={r.ticker}
+                onClick={() => openStock(r.ticker)}
+                className="border-b border-surface-border last:border-0 hover:bg-surface-hover transition-colors cursor-pointer"
+              >
+                <td className="px-4 py-3 font-mono font-semibold text-ink">{r.ticker}</td>
+                <td className="px-4 py-3 text-muted max-w-[180px] truncate">{r.name}</td>
+                <td className="px-4 py-3 text-ink tabular-nums">
+                  {r.streak_years > 0 ? `${r.streak_years} yrs` : <span className="text-muted">—</span>}
+                </td>
+                <td className="px-4 py-3">
+                  {r.cagr_pct != null ? (
+                    <span className="flex items-baseline gap-1">
+                      {fmtPct(r.cagr_pct)}
+                      <span className="text-[10px] text-muted">{r.cagr_years_used}yr</span>
+                    </span>
+                  ) : <span className="text-muted">—</span>}
+                </td>
+                <td className="px-4 py-3">{fmtPct(r.yoy_pct)}</td>
+                <td className="px-4 py-3 tabular-nums text-muted">
+                  {r.payout_ratio_pct != null ? `${r.payout_ratio_pct.toFixed(0)}%` : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
