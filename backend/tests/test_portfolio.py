@@ -308,3 +308,34 @@ class TestLiveFxFallback:
 
         assert "AAPL" in warmed
         assert "USDCZK=X" in warmed
+
+
+def test_dividends_growth_lists_only_payers(db_session, pid, monkeypatch):
+    from routers.portfolio import get_dividend_growth
+    from tests.helpers import make_txn
+    import dividend_growth
+
+    db_session.add(make_txn("AAPL", "buy", 10, 150.0, portfolio_id=pid))
+    db_session.add(make_txn("ZZZZ", "buy", 5, 20.0, portfolio_id=pid))
+    db_session.commit()
+
+    def fake_growth(symbol, _current_year=None):
+        if symbol == "AAPL":
+            return {"ticker": "AAPL", "streak_years": 3, "cagr_pct": 7.5,
+                    "cagr_years_used": 5, "yoy_pct": 5.0, "payout_ratio_pct": 25.0,
+                    "annual": [{"year": 2023, "dps": 0.9}], "payments": []}
+        return {"ticker": symbol, "streak_years": 0, "cagr_pct": None,
+                "cagr_years_used": 0, "yoy_pct": None, "payout_ratio_pct": None,
+                "annual": [], "payments": []}
+
+    monkeypatch.setattr(dividend_growth, "compute_dividend_growth", fake_growth)
+    rows = get_dividend_growth(db=db_session, pid=pid)
+    assert [r["ticker"] for r in rows] == ["AAPL"]      # ZZZZ (no history) filtered out
+    assert rows[0]["name"] == "AAPL"
+    assert rows[0]["streak_years"] == 3
+    assert "annual" not in rows[0] and "payments" not in rows[0]   # lightweight payload
+
+
+def test_dividends_growth_empty_portfolio(db_session, pid):
+    from routers.portfolio import get_dividend_growth
+    assert get_dividend_growth(db=db_session, pid=pid) == []

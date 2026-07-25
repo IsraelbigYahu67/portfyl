@@ -938,6 +938,44 @@ def get_dividend_forecast(
     }
 
 
+@router.get("/dividends/growth")
+def get_dividend_growth(
+    db: Session = Depends(get_db),
+    pid: int = Depends(require_portfolio),
+):
+    """Per-holding dividend-growth stats (streak / CAGR / YoY / payout) for the
+    active portfolio. Only dividend-paying holdings are returned."""
+    from dividend_growth import compute_dividend_growth
+
+    transactions = (
+        db.query(Transaction)
+        .filter(Transaction.portfolio_id == pid)
+        .order_by(Transaction.date)
+        .all()
+    )
+    if not transactions:
+        return []
+
+    active = _build_holdings(transactions)
+    names = {t.ticker: t.name for t in transactions if t.ticker}
+
+    rows = []
+    for ticker in sorted(active.keys()):
+        g = compute_dividend_growth(ticker)
+        if not g.get("annual"):
+            continue  # not a dividend payer — skip
+        rows.append({
+            "ticker": ticker,
+            "name": names.get(ticker, ticker),
+            "streak_years": g["streak_years"],
+            "cagr_pct": g["cagr_pct"],
+            "cagr_years_used": g["cagr_years_used"],
+            "yoy_pct": g["yoy_pct"],
+            "payout_ratio_pct": g["payout_ratio_pct"],
+        })
+    return rows
+
+
 def _xirr(flows: list[tuple], guess: float = 0.1) -> float:
     if not flows or len(flows) < 2:
         return 0.0
