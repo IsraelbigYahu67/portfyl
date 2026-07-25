@@ -957,7 +957,12 @@ def get_dividend_growth(
         return []
 
     active = _build_holdings(transactions)
-    names = {t.ticker: t.name for t in transactions if t.ticker}
+    # First-wins: earliest non-null name per ticker (buy rows carry real names;
+    # later dividend rows from API syncs carry name=ticker and must not overwrite).
+    names: dict[str, str] = {}
+    for t in transactions:
+        if t.ticker and t.ticker not in names and t.name:
+            names[t.ticker] = t.name
 
     rows = []
     for ticker in sorted(active.keys()):

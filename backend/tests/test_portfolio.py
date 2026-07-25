@@ -315,7 +315,12 @@ def test_dividends_growth_lists_only_payers(db_session, pid, monkeypatch):
     from tests.helpers import make_txn
     import dividend_growth
 
-    db_session.add(make_txn("AAPL", "buy", 10, 150.0, portfolio_id=pid))
+    # Buy with real company name, then later dividend row with name=ticker.
+    # Test ensures real name wins (first-wins logic), not the later bare-ticker name.
+    db_session.add(make_txn("AAPL", "buy", 10, 150.0, name="Apple Inc.",
+                            date=date(2024, 1, 2), portfolio_id=pid))
+    db_session.add(make_txn("AAPL", "dividend", 10, 0.24, name="AAPL",
+                            date=date(2024, 6, 1), portfolio_id=pid))
     db_session.add(make_txn("ZZZZ", "buy", 5, 20.0, portfolio_id=pid))
     db_session.commit()
 
@@ -331,7 +336,7 @@ def test_dividends_growth_lists_only_payers(db_session, pid, monkeypatch):
     monkeypatch.setattr(dividend_growth, "compute_dividend_growth", fake_growth)
     rows = get_dividend_growth(db=db_session, pid=pid)
     assert [r["ticker"] for r in rows] == ["AAPL"]      # ZZZZ (no history) filtered out
-    assert rows[0]["name"] == "AAPL"
+    assert rows[0]["name"] == "Apple Inc."              # first-wins real name, not later name=ticker dividend
     assert rows[0]["streak_years"] == 3
     assert "annual" not in rows[0] and "payments" not in rows[0]   # lightweight payload
 
