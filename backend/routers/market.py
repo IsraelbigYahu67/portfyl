@@ -1278,6 +1278,14 @@ def get_fundamentals(ticker: str):
     return payload
 
 
+@router.get("/dividend-growth/{ticker}")
+def stock_dividend_growth(ticker: str):
+    """Full dividend-growth payload for one ticker (annual series + per-payment
+    history for the chart, plus streak/CAGR/YoY/payout)."""
+    from dividend_growth import compute_dividend_growth
+    return compute_dividend_growth(ticker)
+
+
 # ---------------------------------------------------------------------------
 # Stock screener: filter a list of tickers by fundamental criteria
 # ---------------------------------------------------------------------------

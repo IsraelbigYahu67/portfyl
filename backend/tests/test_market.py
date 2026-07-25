@@ -166,3 +166,19 @@ class TestGetInfosTimeout:
 
         assert len(calls) == 1  # second call served from the empty-TTL cache
         assert "NODATA" in market_data._cache
+
+
+def test_stock_dividend_growth_returns_full_payload(monkeypatch):
+    from routers.market import stock_dividend_growth
+    import dividend_growth
+
+    payload = {"ticker": "AAPL", "streak_years": 12, "cagr_pct": 8.0,
+               "cagr_years_used": 5, "yoy_pct": 6.0, "payout_ratio_pct": 15.0,
+               "annual": [{"year": 2023, "dps": 0.96}],
+               "payments": [{"ex_date": "2023-02-10", "amount": 0.23}]}
+    monkeypatch.setattr(dividend_growth, "compute_dividend_growth",
+                        lambda symbol: {**payload, "ticker": symbol})
+    out = stock_dividend_growth("AAPL")
+    assert out["ticker"] == "AAPL"
+    assert out["payments"] == [{"ex_date": "2023-02-10", "amount": 0.23}]
+    assert out["annual"][0]["year"] == 2023
