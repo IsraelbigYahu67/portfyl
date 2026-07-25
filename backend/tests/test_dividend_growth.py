@@ -112,3 +112,15 @@ def test_empty_history_still_reports_payout(monkeypatch):
     g = dividend_growth.compute_dividend_growth("EMPTYPAY", _current_year=2026)
     assert g["annual"] == [] and g["payments"] == []
     assert g["payout_ratio_pct"] == 30.0
+
+
+def test_malformed_series_degrades_to_empty(monkeypatch):
+    # Non-empty series whose amount can't be parsed: _annual_dps skips it per-item,
+    # then the payments comprehension's float(...) raises — the post-fetch guard must
+    # catch it and return the well-formed empty shape (never propagate), payout kept.
+    bad = pd.Series(["not-a-number"], index=pd.to_datetime(["2023-06-01"]))
+    _patch_ticker(monkeypatch, bad, {"payoutRatio": 0.20})
+    g = dividend_growth.compute_dividend_growth("BAD", _current_year=2026)
+    assert g["annual"] == [] and g["payments"] == []
+    assert g["payout_ratio_pct"] == 20.0
+    assert g["streak_years"] == 0 and g["cagr_pct"] is None
