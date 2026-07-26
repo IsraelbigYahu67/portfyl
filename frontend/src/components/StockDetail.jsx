@@ -784,7 +784,7 @@ export function DividendGrowthSection({ ticker, currency = "USD" }) {
 
   if (isLoading || !data || !data.payments?.length) return null;
 
-  const sym = currency === "USD" ? "$" : "";
+  const sym = currencySymbol(currency);
   const tiles = [
     { label: "Growth streak", value: data.streak_years > 0 ? `${data.streak_years} yrs` : "—" },
     { label: `${data.cagr_years_used || 5}yr CAGR`, value: data.cagr_pct != null ? `${data.cagr_pct.toFixed(1)}%` : "—" },
