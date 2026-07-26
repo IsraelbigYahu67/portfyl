@@ -57,7 +57,11 @@ export default function Dividends() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: growth, isLoading: growthLoading } = useQuery({
+  const {
+    data: growth,
+    isLoading: growthLoading,
+    refetch: refetchGrowth,
+  } = useQuery({
     queryKey: ["dividend-growth"],
     queryFn: fetchDividendGrowth,
     staleTime: 5 * 60 * 1000,
@@ -70,6 +74,7 @@ export default function Dividends() {
   const refreshAll = () => {
     refetch();
     refetchForecast();
+    refetchGrowth();
   };
 
   return (
