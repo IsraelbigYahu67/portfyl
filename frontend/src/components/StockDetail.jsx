@@ -10,7 +10,7 @@ import {
   ExternalLink, Eye, EyeOff, Globe, Info, RotateCcw, Settings2,
   TrendingDown, TrendingUp, Users,
 } from "lucide-react";
-import { fetchHistory } from "../api";
+import { fetchHistory, fetchStockDividendGrowth } from "../api";
 import { columnChanges } from "../lib/chartChanges";
 import useStockReportConfig, { ALL_SECTIONS } from "../hooks/useStockReportConfig";
 import {
@@ -774,6 +774,53 @@ function SectionCustomizer({ config, toggle, moveUp, moveDown, reset, isVisible 
   );
 }
 
+export function DividendGrowthSection({ ticker, currency = "USD" }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["dividend-growth", ticker],
+    queryFn: () => fetchStockDividendGrowth(ticker),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!ticker,
+  });
+
+  if (isLoading || !data || !data.payments?.length) return null;
+
+  const sym = currency === "USD" ? "$" : "";
+  const tiles = [
+    { label: "Growth streak", value: data.streak_years > 0 ? `${data.streak_years} yrs` : "—" },
+    { label: `${data.cagr_years_used || 5}yr CAGR`, value: data.cagr_pct != null ? `${data.cagr_pct.toFixed(1)}%` : "—" },
+    { label: "YoY", value: data.yoy_pct != null ? `${data.yoy_pct.toFixed(1)}%` : "—" },
+  ];
+
+  return (
+    <section className="space-y-3">
+      <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">Dividend history</h3>
+      <div className="grid grid-cols-3 gap-3">
+        {tiles.map((t) => (
+          <div key={t.label} className="rounded-lg border border-surface-border bg-surface-card px-3 py-2">
+            <p className="text-[10px] text-muted uppercase tracking-wider">{t.label}</p>
+            <p className="text-sm font-semibold text-ink tabular-nums">{t.value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="rounded-xl border border-surface-border bg-surface-card p-4">
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={data.payments} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+            <XAxis dataKey="ex_date" tick={AXIS_TICK} tickFormatter={(d) => String(d).slice(0, 7)} minTickGap={24} />
+            <YAxis tick={AXIS_TICK} width={52} tickFormatter={(v) => `${sym}${v}`} />
+            <Tooltip
+              cursor={{ fill: "rgba(255,255,255,0.03)" }}
+              contentStyle={{ background: "var(--surface-card-elevated)", border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 12 }}
+              formatter={(v) => [`${sym}${v}`, "Per share"]}
+            />
+            <Bar dataKey="amount" fill={GAIN_COLOR} radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
 // Shared content shell: pure rendering, no fetching. Used by the
 // standalone /stock/:ticker page.
 export function StockOverview({ data, headerTrailing = null }) {
@@ -854,6 +901,8 @@ export function StockOverview({ data, headerTrailing = null }) {
         </div>
       </div>
     ) : null,
+
+    dividendGrowth: <DividendGrowthSection ticker={data.ticker} currency={data.currency} />,
 
     financials: (
       <div>

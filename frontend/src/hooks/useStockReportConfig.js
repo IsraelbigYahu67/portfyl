@@ -5,6 +5,7 @@ const STORAGE_KEY = "sb_stock_report_sections";
 export const ALL_SECTIONS = [
   { id: "quickStats", label: "Quick Stats" },
   { id: "weekRange", label: "52-Week Range" },
+  { id: "dividendGrowth", label: "Dividend History" },
   { id: "financials", label: "Financials" },
   { id: "ratiosAnalyst", label: "Ratios & Analyst" },
   { id: "insiderVolume", label: "Insider Volume" },
@@ -32,8 +33,12 @@ function save(config) {
 export default function useStockReportConfig() {
   const [config, setConfig] = useState(() => {
     const stored = load();
+    const storedOrder = stored?.order;
+    const order = storedOrder
+      ? [...storedOrder, ...DEFAULT_ORDER.filter((id) => !storedOrder.includes(id))]
+      : DEFAULT_ORDER;
     return {
-      order: stored?.order ?? DEFAULT_ORDER,
+      order,
       hidden: new Set(stored?.hidden ?? []),
     };
   });
