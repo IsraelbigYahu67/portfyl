@@ -1038,18 +1038,28 @@ def _classify_country(info: dict) -> str:
     return "Other"
 
 
-@router.get("/sector-breakdown")
-def sector_breakdown(
-    currency: str = "USD",
-    db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
-):
+def _weighted(totals: dict) -> list:
+    """[{name, value, weight%}] sorted desc; weight base is the dict's own sum."""
+    denom = sum(totals.values())
+    return [
+        {"name": name, "value": round(value, 2),
+         "weight": round(value / denom * 100, 2) if denom > 0 else 0}
+        for name, value in sorted(totals.items(), key=lambda x: -x[1])
+    ]
+
+
+def _allocation_totals(db: Session, pid: int, display_ccy: str) -> dict:
+    """Raw (un-weighted) per-dimension market-value totals for one portfolio,
+    in `display_ccy` ('CZK' or 'USD'). Cash is folded into sectors/asset_types/
+    currencies (never countries), matching get_summary's Cash figure. This is the
+    shared core behind both /sector-breakdown and the cross-portfolio Overview."""
     from fx import folded_cash_display
     from models import CashInterestRate
 
-    transactions = _get_transactions(db, pid)
-    in_czk = currency.upper() == "CZK"
+    in_czk = display_ccy.upper() == "CZK"
     display_ccy = "CZK" if in_czk else "USD"
+
+    transactions = _get_transactions(db, pid)
 
     # Cash bucket: guarded on external cashflows (deposit/withdrawal rows), same
     # semantic as get_summary -- a portfolio with none does not get a Cash bucket
@@ -1082,25 +1092,16 @@ def sector_breakdown(
         cash_total = 0.0
         has_cash = False
 
-    def _weighted(totals: dict) -> list:
-        """[{name, value, weight%}] sorted desc; weight base is the dict's own sum."""
-        denom = sum(totals.values())
-        return [
-            {"name": name, "value": round(value, 2),
-             "weight": round(value / denom * 100, 2) if denom > 0 else 0}
-            for name, value in sorted(totals.items(), key=lambda x: -x[1])
-        ]
-
     if not transactions:
         # Cash-only portfolio (no trades yet): still surface the Cash slice —
         # it's 100% of the (non-holdings) allocation -- but only when the guard
         # above found an actual deposit/withdrawal (has_cash already reflects it).
         # Countries stays empty: cash has no country, so it's excluded from that
         # dimension entirely (holdings-only pie).
-        cash_only = [{"name": "Cash", "value": round(cash_total, 2), "weight": 100.0}] if has_cash else []
-        currencies = _weighted(cash_by_ccy_display) if has_cash else []
-        return {"sectors": cash_only, "countries": [], "asset_types": cash_only,
-                "currencies": currencies, "total_value": 0.0}
+        sectors = {"Cash": round(cash_total, 2)} if has_cash else {}
+        return {"sectors": sectors, "countries": {}, "asset_types": dict(sectors),
+                "currencies": dict(cash_by_ccy_display) if has_cash else {},
+                "total_value": 0.0}
 
     from routers.portfolio import _build_holdings, _live_fx_to_czk, _live_to_usd
 
@@ -1155,12 +1156,29 @@ def sector_breakdown(
             currency_totals[ccy] += v
 
     return {
+        "sectors": dict(sector_totals),
+        "countries": dict(country_totals),
+        "asset_types": dict(type_totals),
+        "currencies": dict(currency_totals),
+        "total_value": total_value,
+    }
+
+
+@router.get("/sector-breakdown")
+def sector_breakdown(
+    currency: str = "USD",
+    db: Session = Depends(get_db),
+    pid: int = Depends(require_portfolio),
+):
+    display_ccy = "CZK" if currency.upper() == "CZK" else "USD"
+    raw = _allocation_totals(db, pid, display_ccy)
+    return {
         "currency": display_ccy,
-        "sectors": _weighted(sector_totals),
-        "countries": _weighted(country_totals),
-        "asset_types": _weighted(type_totals),
-        "currencies": _weighted(currency_totals),
-        "total_value": round(total_value, 2),
+        "sectors": _weighted(raw["sectors"]),
+        "countries": _weighted(raw["countries"]),
+        "asset_types": _weighted(raw["asset_types"]),
+        "currencies": _weighted(raw["currencies"]),
+        "total_value": round(raw["total_value"], 2),
     }
 
 

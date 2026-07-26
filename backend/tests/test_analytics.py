@@ -210,3 +210,35 @@ class TestCzechTax:
         assert len(years) == 2
         assert years[0]["tax_year"] == 2023
         assert years[1]["tax_year"] == 2024
+
+
+def test_allocation_totals_returns_raw_values(db_session, pid):
+    # market_data.get_infos is patched directly (matching the pattern already used
+    # by sector_breakdown's own holdings tests in test_currency_and_history.py) --
+    # the shared `mock_yfinance` MockTicker has no .history(), which market_data's
+    # _raw_info requires before trusting .info, so it can't be used for this.
+    from unittest.mock import patch
+    from routers.analytics import _allocation_totals
+    from tests.helpers import make_txn
+
+    db_session.add(make_txn("AAPL", "buy", 10, 150.0, portfolio_id=pid))
+    db_session.commit()
+
+    with patch("market_data.get_infos", return_value={
+        "AAPL": {"currentPrice": 180.0, "currency": "USD", "sector": "Technology", "quoteType": "EQUITY"},
+    }):
+        raw = _allocation_totals(db_session, pid, "USD")
+    # raw values are un-weighted market values (mock price 180 * 10 = 1800), not percentages
+    assert raw["total_value"] > 0
+    assert sum(raw["sectors"].values()) == pytest.approx(raw["total_value"], rel=0.01)
+    # Technology sector from the mock info
+    assert "Technology" in raw["sectors"]
+
+
+def test_weighted_is_module_level_and_percentizes():
+    from routers.analytics import _weighted
+    out = _weighted({"A": 30.0, "B": 10.0})
+    by_name = {r["name"]: r for r in out}
+    assert by_name["A"]["weight"] == 75.0
+    assert by_name["B"]["weight"] == 25.0
+    assert out[0]["name"] == "A"  # sorted desc by value
