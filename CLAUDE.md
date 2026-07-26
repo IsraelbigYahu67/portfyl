@@ -39,8 +39,7 @@ tax reports, and an AI assistant across one or more portfolios. Single-user toda
 
 - **All API routes are under `/api`** (mounted with that prefix in `main.py`).
   Routers live in `backend/routers/`: portfolio(s), market, analytics, broker,
-  ibkr, watchlists, benchmarks, options, polymarket, discord, notes, assistant,
-  dividend_calendar.
+  ibkr, watchlists, benchmarks, options, polymarket, discord, notes, assistant.
 - **Portfolio scoping is implicit.** The axios interceptor in `frontend/src/api.js`
   auto-injects `portfolio_id` from the active portfolio into every request —
   call sites never pass it. **Exceptions**: prefixes in `PORTFOLIO_AGNOSTIC_PREFIXES`
@@ -70,7 +69,7 @@ tax reports, and an AI assistant across one or more portfolios. Single-user toda
   are **git-ignored** — don't commit them. (They were tracked in an earlier import
   and scrubbed on export; see `.gitignore`.)
 - Pages: `frontend/src/pages/` (Dashboard, Allocation, Analytics, Dividends,
-  Dividend Calendar, Options, Polymarket, Screener, TaxReport, Transactions,
+  Options, Polymarket, Screener, TaxReport, Transactions,
   Watchlists, Import, Settings, Stock, Search, Assistant, PlatformLanding).
   Reusable charts/widgets in `frontend/src/components/`.
 - Sample import data: `sample_portfolio.csv` at the project root.
@@ -86,8 +85,8 @@ the `snowball.auth` logger name, and the `snowball-dev` dev-password fallback
 
 ## Backend tests (`backend/tests/`)
 
-- **pytest** suite (8 modules: `test_portfolio`, `test_analytics`, `test_broker`,
-  `test_cache`, `test_fx`, `test_dividend_calendar`, `test_market`, `test_dividend_growth`). Run from
+- **pytest** suite (7 modules: `test_portfolio`, `test_analytics`, `test_broker`,
+  `test_cache`, `test_fx`, `test_market`, `test_dividend_growth`). Run from
   `backend/`: `python -m pytest tests/ -v`.
 - **pytest is NOT in `requirements.txt`** — install it into the venv separately
   (`uv pip install pytest` / `pip install pytest`) before running the suite.

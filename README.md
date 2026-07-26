@@ -86,11 +86,9 @@ portfyl/
 │   │   ├── polymarket.py             # Polymarket prediction-market positions
 │   │   ├── discord.py                # Discord webhook notifications
 │   │   ├── notes.py                   # Per-trade / per-ticker notes
-│   │   ├── assistant.py               # AI portfolio assistant (LLM chat over your data)
-│   │   └── dividend_calendar.py      # Forward dividend calendar: ex-date, frequency, amount
-│   │                                 #   per holding, monthly projection, annual estimate
+│   │   └── assistant.py               # AI portfolio assistant (LLM chat over your data)
 │   └── tests/                        # 54 tests across 7 modules (holdings, FIFO, tax,
-│                                     #   broker, cache, FX, screener, dividend calendar)
+│                                     #   broker, cache, FX, screener)
 ├── frontend/                         # React 18 + Vite + Tailwind CSS + Recharts + React Query
 │   ├── src/
 │   │   ├── App.jsx                   # Routes, theme/palette/portfolio/currency providers, AutoLoad
@@ -110,7 +108,6 @@ portfyl/
 │   │       ├── Transactions.jsx      # Transaction list + add/delete
 │   │       ├── Import.jsx            # CSV upload (T212 + native), drag-and-drop
 │   │       ├── Dividends.jsx         # Historical dividend calendar + YTD forecast chart
-│   │       ├── DividendCalendar.jsx  # **Forward-looking 12-month dividend projection**
 │   │       ├── Analytics.jsx         # Performance charts, risk metrics, benchmark comparison
 │   │       ├── Options.jsx           # Options positions (IBKR platform)
 │   │       ├── Polymarket.jsx        # Prediction-market positions (Polymarket platform)
@@ -200,7 +197,6 @@ The backend has **149 tests** across 14 modules:
 | `test_currency_and_history.py` | FX exposure breakdown, cash history series |
 | `test_t212_import.py` | CSV import legs, settlement cash, display-currency conversion, interest accrual |
 | `test_cache.py` / `test_fx.py` | TTL cache semantics; ticker map and FX shortcuts |
-| `test_dividend_calendar.py` | Forward dividend calendar structure |
 | `test_day_change.py` | Day-change and movers calculations |
 | `test_market.py` | Screener: `_in_range`, full preset universes, row cache, custom tickers |
 
@@ -236,7 +232,6 @@ is running. Key groups:
 | `/api/market` | `market.py` | Search, quotes, history, fundamentals, **screener** |
 | `/api/analytics` | `analytics.py` | Performance, risk, tax report, sector breakdown, correlation |
 | `/api/analytics/benchmarks` | `benchmarks.py` | Benchmark CRUD, comparison |
-| `/api/analytics/dividend-calendar` | `dividend_calendar.py` | Forward dividend projection |
 | `/api/alerts` | `alerts.py` | Price alerts (CRUD, manual check; background poller fires Discord notifications) |
 | `/api/broker` | `broker.py` | Trading 212 connect/disconnect/sync |
 | `/api/ibkr` | `ibkr.py` | Interactive Brokers Flex Query import/sync |
