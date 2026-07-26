@@ -1,11 +1,12 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, PieChart, ArrowLeftRight, Upload, Loader2, CalendarDays, Activity, FileText, Settings, Search, Star, Target, ArrowLeft, Hexagon, Bot, Sun, Moon, Monitor, Filter, Wallet } from "lucide-react";
+import { LayoutDashboard, PieChart, ArrowLeftRight, Upload, Loader2, CalendarDays, Activity, FileText, Settings, Search, Star, Target, ArrowLeft, Hexagon, Bot, Sun, Moon, Monitor, Filter, Wallet, Layers } from "lucide-react";
 import { useCurrency, usePalette, usePlatform } from "../App";
 import PortfolioSwitcher from "./PortfolioSwitcher";
 import SegmentedControl from "./ui/SegmentedControl";
 
 const T212_LINKS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/overview", label: "Overview", icon: Layers },
   { to: "/allocation", label: "Allocation", icon: PieChart },
   { to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { to: "/cash", label: "Cash", icon: Wallet },

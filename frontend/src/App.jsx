@@ -4,6 +4,7 @@ import { Routes, Route } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import PlatformLanding from "./pages/PlatformLanding";
 import Dashboard from "./pages/Dashboard";
+import Overview from "./pages/Overview";
 import Allocation from "./pages/Allocation";
 import Transactions from "./pages/Transactions";
 import Cash from "./pages/Cash";
@@ -303,6 +304,7 @@ function AppLayout() {
           {platform === "t212" && (
             <>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/overview" element={<Overview />} />
               <Route path="/allocation" element={<Allocation />} />
               <Route path="/transactions" element={<Transactions />} />
               <Route path="/cash" element={<Cash />} />
