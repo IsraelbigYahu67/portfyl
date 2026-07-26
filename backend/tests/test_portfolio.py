@@ -344,3 +344,51 @@ def test_dividends_growth_lists_only_payers(db_session, pid, monkeypatch):
 def test_dividends_growth_empty_portfolio(db_session, pid):
     from routers.portfolio import get_dividend_growth
     assert get_dividend_growth(db=db_session, pid=pid) == []
+
+
+def test_portfolios_overview_sums_across_portfolios(db_session, monkeypatch):
+    from unittest.mock import patch
+    import pandas as pd
+    import yfinance as yf
+    from models import Portfolio
+    from routers.portfolios import portfolios_overview
+    from routers.portfolio import get_summary
+    from tests.helpers import make_txn
+
+    # Keep _two_day_closes (day-change calc) offline/deterministic too --
+    # it calls yf.download() directly, outside the market_data.get_infos
+    # patch below, and would otherwise hit the live network.
+    monkeypatch.setattr(yf, "download", lambda *a, **kw: pd.DataFrame())
+
+    p1 = Portfolio(name="zubik", is_default=True)
+    p2 = Portfolio(name="mama")
+    db_session.add_all([p1, p2])
+    db_session.commit()
+    db_session.add(make_txn("AAPL", "buy", 10, 150.0, portfolio_id=p1.id))
+    db_session.add(make_txn("MSFT", "buy", 5, 300.0, portfolio_id=p2.id))
+    db_session.commit()
+
+    def fake_infos(tickers, **kwargs):
+        return {t: {"currentPrice": 200.0, "regularMarketPrice": 200.0,
+                    "currency": "USD", "sector": "Technology",
+                    "quoteType": "EQUITY"} for t in tickers}
+
+    with patch("market_data.get_infos", side_effect=fake_infos):
+        s1 = get_summary(currency="USD", db=db_session, pid=p1.id)
+        s2 = get_summary(currency="USD", db=db_session, pid=p2.id)
+        ov = portfolios_overview(currency="USD", db=db_session)
+
+    assert ov["portfolio_count"] == 2
+    assert ov["total_net_worth"] == round(s1["net_worth"] + s2["net_worth"], 2)
+    assert ov["currency"] == "USD"
+    # both holdings are Technology in the mock -> one weighted sector at 100%
+    assert ov["sectors"] and abs(sum(s["weight"] for s in ov["sectors"]) - 100.0) < 0.1
+
+
+def test_portfolios_overview_empty_db(db_session):
+    from routers.portfolios import portfolios_overview
+    ov = portfolios_overview(currency="USD", db=db_session)
+    assert ov["portfolio_count"] == 0
+    assert ov["total_net_worth"] == 0.0
+    assert ov["sectors"] == []
+    assert ov["total_day_change_percent"] is None

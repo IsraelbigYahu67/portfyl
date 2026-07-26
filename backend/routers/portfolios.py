@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -113,6 +115,57 @@ def delete_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
             db.commit()
 
     return {"ok": True, "deleted_id": portfolio_id}
+
+
+@router.get("/overview")
+def portfolios_overview(
+    currency: str = "USD",
+    db: Session = Depends(get_db),
+):
+    """Cross-portfolio summary: total net worth + daily change (summed over all
+    portfolios) and combined sector/country/asset-type allocation. Deliberately
+    NOT portfolio-scoped — /portfolios is in PORTFOLIO_AGNOSTIC_PREFIXES."""
+    from routers.portfolio import get_summary
+    from routers.analytics import _allocation_totals, _weighted
+
+    display_ccy = "CZK" if currency.upper() == "CZK" else "USD"
+    portfolios = db.query(Portfolio).all()
+
+    total_nw = 0.0
+    total_dc = 0.0
+    sectors: dict[str, float] = defaultdict(float)
+    countries: dict[str, float] = defaultdict(float)
+    asset_types: dict[str, float] = defaultdict(float)
+
+    for p in portfolios:
+        summary = get_summary(currency=currency, db=db, pid=p.id)
+        total_nw += summary.get("net_worth") or 0.0
+        total_dc += summary.get("day_change") or 0.0
+
+        raw = _allocation_totals(db, p.id, display_ccy)
+        for name, value in raw["sectors"].items():
+            sectors[name] += value
+        for name, value in raw["countries"].items():
+            countries[name] += value
+        for name, value in raw["asset_types"].items():
+            asset_types[name] += value
+
+    # Combined day-change %: today's change over yesterday's net worth
+    # (net worth minus today's change). Cash has no intraday move, so this is
+    # the net-worth-basis analogue of each portfolio's own day_change_percent.
+    base = total_nw - total_dc
+    dc_pct = round(total_dc / base * 100, 2) if base > 0 else None
+
+    return {
+        "currency": display_ccy,
+        "total_net_worth": round(total_nw, 2),
+        "total_day_change": round(total_dc, 2),
+        "total_day_change_percent": dc_pct,
+        "portfolio_count": len(portfolios),
+        "sectors": _weighted(sectors),
+        "countries": _weighted(countries),
+        "asset_types": _weighted(asset_types),
+    }
 
 
 # ----------------------------------------------------------------------------
