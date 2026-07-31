@@ -32,6 +32,8 @@
     --chart-6: #FB7185;
     --chart-7: #FACC15;
     --chart-8: #64748B;
+    --radius-card: 0.5rem;
+    --shadow-inset: none;
   }
   body {
     @apply bg-surface text-ink font-sans;
@@ -62,7 +64,7 @@
 
 @layer components {
   .card {
-    @apply bg-surface-card rounded-lg border border-hairline p-5;
+    @apply bg-surface-card border border-hairline p-5 rounded-[var(--radius-card)];
     background-image: linear-gradient(to bottom right, var(--glass-overlay-alpha), transparent 40%);
     backdrop-filter: blur(var(--blur-card));
     box-shadow: var(--shadow-ambient);
@@ -75,17 +77,17 @@
     border-color: color-mix(in srgb, var(--brand) 30%, var(--hairline));
   }
   .btn-primary {
-    @apply bg-brand hover:bg-brand-dim text-white font-semibold px-4 py-2 rounded-lg transition-colors;
+    @apply bg-brand hover:bg-brand-dim text-white font-semibold px-4 py-2 rounded-[var(--radius-card)] transition-colors;
   }
   .btn-ghost {
     /* hover:border-slate-300 stays literal: hover:border-hairline would equal the
        resting border color and erase the hover affordance entirely (same call
        Task 7a made for DashboardGrid's Reset button — no token exists for a
        "slightly darker than hairline" border today). */
-    @apply border border-hairline hover:border-slate-300 text-muted hover:text-ink px-4 py-2 rounded-lg transition-colors;
+    @apply border border-hairline hover:border-slate-300 text-muted hover:text-ink px-4 py-2 rounded-[var(--radius-card)] transition-colors;
   }
   .input {
-    @apply bg-surface border border-hairline rounded-lg px-3 py-2 text-ink placeholder-muted focus:outline-none focus:border-brand w-full;
+    @apply bg-surface border border-hairline rounded-[var(--radius-card)] px-3 py-2 text-ink placeholder-muted focus:outline-none focus:border-brand w-full;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
   .input:focus { box-shadow: 0 0 0 3px var(--brand-light); }
