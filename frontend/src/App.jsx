@@ -56,6 +56,21 @@ const LIGHT_TOKENS = {
   ink: "#10162B", muted: "#6B7592", hairline: "#DDE3F0",
 };
 
+// Soft Neumorphism — one fixed light appearance (no dark variant, no accent
+// palettes); see docs/superpowers/specs/2026-07-30-neumorphism-theme-style-design.md.
+const NEU_TOKENS = {
+  bg: "#EDEAE3", bgSubtle: "#E4E0D7", surfaceCard: "#EDEAE3", surfaceCardElevated: "#F1EEE8",
+  border: "rgba(58,54,46,0.06)", hairline: "rgba(58,54,46,0.06)",
+  ink: "#3A362E", muted: "#8A8478",
+  brand: "#4FBA95", brandHover: "#3FA382", brandLight: "#D9F1E8",
+  gain: "#4FBA95", loss: "#E88A72",
+  shadowAmbient: "6px 6px 14px rgba(190,178,158,0.55), -6px -6px 14px rgba(255,255,255,0.85)",
+  shadowInset: "inset 3px 3px 8px rgba(190,178,158,0.5), inset -3px -3px 8px rgba(255,255,255,0.8)",
+  radiusCard: "1.5rem",
+  chart: ["#4FBA95", "#E88A72", "#E3B873", "#B6A7D1", "#8FC5D6", "#E3A6B0", "#D9C9A6", "#A69C8C"],
+};
+const GLASS_CHART = ["var(--brand)", "#4EDEA3", "#FFB95F", "#A78BFA", "#38BDF8", "#FB7185", "#FACC15", "#64748B"];
+
 export function usePalette() {
   return useContext(PaletteContext);
 }
@@ -70,9 +85,37 @@ export function resolveDark(theme) {
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
-function applyAppearance(name, isDark) {
-  const p = PALETTES[name] || PALETTES.green;
+function applyAppearance(name, isDark, themeStyle) {
   const s = document.documentElement.style;
+
+  if (themeStyle === "neu") {
+    s.setProperty("--brand", NEU_TOKENS.brand);
+    s.setProperty("--brand-hover", NEU_TOKENS.brandHover);
+    s.setProperty("--brand-light", NEU_TOKENS.brandLight);
+    s.setProperty("--bg", NEU_TOKENS.bg);
+    s.setProperty("--bg-subtle", NEU_TOKENS.bgSubtle);
+    s.setProperty("--sidebar-active", NEU_TOKENS.brandLight);
+    s.setProperty("--surface-card", NEU_TOKENS.surfaceCard);
+    s.setProperty("--surface-card-elevated", NEU_TOKENS.surfaceCardElevated);
+    s.setProperty("--border", NEU_TOKENS.border);
+    s.setProperty("--hairline", NEU_TOKENS.hairline);
+    s.setProperty("--ink", NEU_TOKENS.ink);
+    s.setProperty("--muted", NEU_TOKENS.muted);
+    s.setProperty("--gain", NEU_TOKENS.gain);
+    s.setProperty("--loss", NEU_TOKENS.loss);
+    s.setProperty("--glass-border-alpha", "rgba(0,0,0,0)");
+    s.setProperty("--glass-overlay-alpha", "rgba(255,255,255,0)");
+    s.setProperty("--blur-card", "0px");
+    s.setProperty("--blur-overlay", "0px");
+    s.setProperty("--shadow-ambient", NEU_TOKENS.shadowAmbient);
+    s.setProperty("--shadow-inset", NEU_TOKENS.shadowInset);
+    s.setProperty("--radius-card", NEU_TOKENS.radiusCard);
+    NEU_TOKENS.chart.forEach((color, i) => s.setProperty(`--chart-${i + 1}`, color));
+    document.documentElement.classList.toggle("dark", false);
+    return;
+  }
+
+  const p = PALETTES[name] || PALETTES.green;
   s.setProperty("--brand", p.brand);
   s.setProperty("--brand-hover", p.brandHover);
   s.setProperty("--brand-light", isDark ? p.brandLightDark : p.brandLight);
@@ -85,9 +128,14 @@ function applyAppearance(name, isDark) {
   s.setProperty("--hairline", t.hairline);
   s.setProperty("--glass-border-alpha", isDark ? "rgba(255,255,255,0.06)" : "rgba(16,22,43,0.06)");
   s.setProperty("--glass-overlay-alpha", isDark ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.5)");
+  s.setProperty("--blur-card", "12px");
+  s.setProperty("--blur-overlay", "20px");
   s.setProperty("--shadow-ambient", isDark ? "0px 4px 20px rgba(0,0,0,0.5)" : "0px 4px 20px rgba(16,22,43,0.10)");
+  s.setProperty("--shadow-inset", "none");
+  s.setProperty("--radius-card", "0.5rem");
   s.setProperty("--gain", isDark ? "#34D399" : "#10B981");
   s.setProperty("--loss", isDark ? "#F87171" : "#EF4444");
+  GLASS_CHART.forEach((color, i) => s.setProperty(`--chart-${i + 1}`, color));
   if (isDark) {
     s.setProperty("--bg", DARK_SURFACES.bg);
     s.setProperty("--bg-subtle", DARK_SURFACES.bgSubtle);
@@ -211,6 +259,9 @@ function PaletteProvider({ children }) {
   const [theme, setThemeState] = useState(
     () => localStorage.getItem("sb_theme") || "system"
   );
+  const [themeStyle, setThemeStyleState] = useState(
+    () => localStorage.getItem("sb_theme_style") || "glass"
+  );
 
   const setPalette = (p) => {
     localStorage.setItem("sb_palette", p);
@@ -222,19 +273,27 @@ function PaletteProvider({ children }) {
     setThemeState(t);
   };
 
+  const setThemeStyle = (style) => {
+    localStorage.setItem("sb_theme_style", style);
+    setThemeStyleState(style);
+  };
+
   useEffect(() => {
-    const apply = () => applyAppearance(palette, resolveDark(theme));
+    const apply = () => applyAppearance(palette, resolveDark(theme), themeStyle);
     apply();
-    // Follow OS changes only while on "system".
-    if (theme === "system") {
+    // Follow OS changes only while on "system" AND on the classic glass
+    // style — Neumorphism ignores Light/Dark/System entirely.
+    if (theme === "system" && themeStyle === "glass") {
       const mq = window.matchMedia("(prefers-color-scheme: dark)");
       mq.addEventListener("change", apply);
       return () => mq.removeEventListener("change", apply);
     }
-  }, [palette, theme]);
+  }, [palette, theme, themeStyle]);
 
   return (
-    <PaletteContext.Provider value={{ palette, setPalette, theme, setTheme, palettes: PALETTES }}>
+    <PaletteContext.Provider
+      value={{ palette, setPalette, theme, setTheme, themeStyle, setThemeStyle, palettes: PALETTES }}
+    >
       {children}
     </PaletteContext.Provider>
   );
