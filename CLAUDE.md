@@ -83,7 +83,9 @@ localStorage keys (theme/palette/currency prefs), the `sb_session` auth cookie,
 the `snowball.auth` logger name, and the `snowball-dev` dev-password fallback
 (`APP_PASSWORD` overrides it). Don't "finish" the rename on these.
 
-## Backend tests (`backend/tests/`)
+## Tests
+
+### Backend (`backend/tests/`)
 
 - **pytest** suite (7 modules: `test_portfolio`, `test_analytics`, `test_broker`,
   `test_cache`, `test_fx`, `test_market`, `test_dividend_growth`). Run from
@@ -95,6 +97,18 @@ the `snowball.auth` logger name, and the `snowball-dev` dev-password fallback
   middleware is bypassed and no live server / real DB is needed.
 - `tests/conftest.py` patches `os.rename` **before** importing `database.py` so the
   legacy `snowball.db → portfyl.db` startup rename doesn't touch the real filesystem.
+
+### Frontend (`frontend/src/**/*.test.{js,jsx}`)
+
+- **Vitest** suite, configured in `vite.config.js`'s `test` block
+  (`environment: "jsdom"`, `setupFiles: "./src/test/setup.js"`). Uses
+  `@testing-library/react` + `@testing-library/jest-dom`.
+- Run from `frontend/`: `npm test` for a single run, `npm run test:watch` for
+  watch mode.
+- 11 test files exist today, e.g. `src/pages/Overview.test.jsx`,
+  `src/components/ui/primitives.test.jsx`, `src/lib/format.test.js` — a
+  reasonable starting point for existing patterns.
+- Run both `npm run build` and `npm test` for frontend changes going forward.
 
 ## Verifying UI changes
 
