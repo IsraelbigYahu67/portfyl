@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchDiscordWebhook, createDiscordWebhook, updateDiscordWebhook, deleteDiscordWebhook, testDiscordWebhook } from "../api";
 import { Loader2, Unlink, CheckCircle2, AlertCircle, Send, Bell, BellOff } from "lucide-react";
+import Toggle from "./ui/Toggle";
 
 export default function DiscordSettings() {
   const queryClient = useQueryClient();
@@ -148,12 +149,12 @@ export default function DiscordSettings() {
                   <span className="text-sm text-ink font-medium">{label}</span>
                   <span className="text-xs text-muted ml-2">{desc}</span>
                 </div>
-                <button
-                  onClick={() => toggleMut.mutate({ [key]: !webhook[key] })}
-                  className={`w-9 h-5 rounded-full transition-colors relative ${webhook[key] ? "bg-[#5865F2]" : "bg-slate-300"}`}
-                >
-                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${webhook[key] ? "left-[18px]" : "left-0.5"}`} />
-                </button>
+                <Toggle
+                  checked={webhook[key]}
+                  onChange={(v) => toggleMut.mutate({ [key]: v })}
+                  activeClassName="bg-[#5865F2]"
+                  aria-label={label}
+                />
               </label>
             ))}
           </div>

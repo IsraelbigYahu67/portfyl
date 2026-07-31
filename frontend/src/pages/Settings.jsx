@@ -5,6 +5,7 @@ import { Loader2, Link, Unlink, RefreshCw, CheckCircle2, AlertCircle, Eye, EyeOf
 import { usePortfolio } from "../App";
 import DiscordSettings from "../components/DiscordSettings";
 import SyncScheduleSettings from "../components/SyncScheduleSettings";
+import Toggle from "../components/ui/Toggle";
 
 export default function Settings() {
   const queryClient = useQueryClient();
@@ -355,13 +356,12 @@ export default function Settings() {
                   Auto-sync
                   <span className="text-xs text-muted ml-2">checks for new trades on the auto-sync schedule below</span>
                 </span>
-                <button
-                  onClick={() => autoSyncMutation.mutate(!status.auto_sync)}
+                <Toggle
+                  checked={status.auto_sync}
+                  onChange={(v) => autoSyncMutation.mutate(v)}
                   disabled={autoSyncMutation.isPending}
-                  className={`w-9 h-5 rounded-full transition-colors relative ${status.auto_sync ? "bg-brand" : "bg-slate-300"}`}
-                >
-                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${status.auto_sync ? "left-[18px]" : "left-0.5"}`} />
-                </button>
+                  aria-label="T212 auto-sync"
+                />
               </div>
             </div>
 
@@ -507,13 +507,12 @@ export default function Settings() {
                   Auto-sync
                   <span className="text-xs text-muted ml-2">checks for new trades on the auto-sync schedule below</span>
                 </span>
-                <button
-                  onClick={() => ibkrAutoSyncMutation.mutate(!ibkrStatus.auto_sync)}
+                <Toggle
+                  checked={ibkrStatus.auto_sync}
+                  onChange={(v) => ibkrAutoSyncMutation.mutate(v)}
                   disabled={ibkrAutoSyncMutation.isPending}
-                  className={`w-9 h-5 rounded-full transition-colors relative ${ibkrStatus.auto_sync ? "bg-brand" : "bg-slate-300"}`}
-                >
-                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${ibkrStatus.auto_sync ? "left-[18px]" : "left-0.5"}`} />
-                </button>
+                  aria-label="IBKR auto-sync"
+                />
               </div>
             </div>
 
