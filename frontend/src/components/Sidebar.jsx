@@ -39,7 +39,7 @@ const PALETTE_OPTIONS = [
 
 export default function Sidebar() {
   const { currency, setCurrency, rate, rateLoading } = useCurrency();
-  const { palette, setPalette, theme, setTheme } = usePalette();
+  const { palette, setPalette, theme, setTheme, themeStyle, setThemeStyle } = usePalette();
   const { platform, setPlatform } = usePlatform();
   const navigate = useNavigate();
   const czk_unavailable = !rateLoading && rate === null;
@@ -96,8 +96,25 @@ export default function Sidebar() {
       </nav>
 
       <div className="mt-auto pb-3 space-y-3">
-        {/* Appearance (light / dark / system) */}
+        {/* Theme style (Classic glass vs Soft Neumorphism) */}
         <div className="px-4">
+          <p className="text-[10px] text-muted mb-1.5 pl-0.5">Style</p>
+          <SegmentedControl
+            block
+            size="sm"
+            aria-label="Theme style"
+            value={themeStyle}
+            onChange={setThemeStyle}
+            options={[
+              { value: "glass", label: "Classic", title: "Classic glass theme" },
+              { value: "neu", label: "Neumorphism", title: "Soft Neumorphism theme" },
+            ]}
+          />
+        </div>
+
+        {/* Appearance (light / dark / system) — inert while Neumorphism is
+            active, which ships as the one fixed light appearance. */}
+        <div className={`px-4 ${themeStyle === "neu" ? "opacity-40 pointer-events-none" : ""}`}>
           <p className="text-[10px] text-muted mb-1.5 pl-0.5">Appearance</p>
           <SegmentedControl
             block
@@ -113,8 +130,8 @@ export default function Sidebar() {
           />
         </div>
 
-        {/* Palette switcher */}
-        <div className="px-4">
+        {/* Palette switcher — same rationale as Appearance above. */}
+        <div className={`px-4 ${themeStyle === "neu" ? "opacity-40 pointer-events-none" : ""}`}>
           <p className="text-[10px] text-muted mb-1.5 pl-0.5">Accent</p>
           <div className="flex gap-1.5">
             {PALETTE_OPTIONS.map(({ key, label }) => (
