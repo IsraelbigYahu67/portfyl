@@ -40,6 +40,11 @@ describe("buildWeeklyBuckets", () => {
       Date.UTC(2026, 0, 1),
     ]);
   });
+
+  it("defaults to 52 weeks when not specified", () => {
+    const buckets = buildWeeklyBuckets([{ date: "2026-01-01", close: 100 }]);
+    expect(buckets).toHaveLength(52);
+  });
 });
 
 describe("assignTransactionsToWeeks", () => {
@@ -87,6 +92,26 @@ describe("assignTransactionsToWeeks", () => {
       buckets,
     );
     expect(out).toEqual([]);
+  });
+
+  it("drops transactions after the bucket range", () => {
+    const out = assignTransactionsToWeeks(
+      [{ insider: "Frank", date: "2026-02-01", side: "buy", shares: 10, value: 100 }],
+      buckets,
+    );
+    expect(out).toEqual([]);
+  });
+
+  it("drops transactions with an unparseable date", () => {
+    const out = assignTransactionsToWeeks(
+      [{ insider: "Grace", date: "not-a-date", side: "buy", shares: 10, value: 100 }],
+      buckets,
+    );
+    expect(out).toEqual([]);
+  });
+
+  it("returns an empty array for missing transactions", () => {
+    expect(assignTransactionsToWeeks(null, buckets)).toEqual([]);
   });
 
   it("drops non buy/sell sides", () => {

@@ -1902,10 +1902,11 @@ function formatWeekTick(ts) {
 // shape's payload instead of the Scatter item's own richer object, breaking
 // hover state and the info box for that series. Drawing dots ourselves
 // avoids the per-series data-length coincidence entirely.
-function InsiderDotsLayer({ xAxisMap, yAxisMap, dots, hoveredDot, onEnter, onLeave }) {
+function InsiderDotsLayer({ xAxisMap, yAxisMap, offset, dots, hoveredDot, onEnter, onLeave }) {
   const xScale = xAxisMap && Object.values(xAxisMap)[0]?.scale;
   const yScale = yAxisMap && Object.values(yAxisMap)[0]?.scale;
   if (!xScale || !yScale || !dots.length) return null;
+  const rightEdge = (offset?.left ?? 0) + (offset?.width ?? 0) * 0.65;
 
   return (
     <g>
@@ -1927,8 +1928,9 @@ function InsiderDotsLayer({ xAxisMap, yAxisMap, dots, hoveredDot, onEnter, onLea
             stroke={color}
             strokeOpacity={isHovered ? 0.5 : 0}
             strokeWidth={isHovered ? 2 : 0}
+            pointerEvents={faded ? "none" : "auto"}
             style={{ cursor: "pointer", transition: "fill-opacity 120ms ease" }}
-            onMouseEnter={() => onEnter({ ...dot, cx, cy })}
+            onMouseEnter={() => onEnter({ ...dot, cx, cy, flipX: cx > rightEdge })}
             onMouseLeave={onLeave}
           />
         );
@@ -2041,7 +2043,11 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
           {hoveredDot && (
             <div
               className="absolute z-10 pointer-events-none bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg space-y-0.5 whitespace-nowrap"
-              style={{ left: hoveredDot.cx, top: hoveredDot.cy, transform: "translate(14px, -50%)" }}
+              style={{
+                left: hoveredDot.cx,
+                top: hoveredDot.cy,
+                transform: hoveredDot.flipX ? "translate(calc(-100% - 14px), -50%)" : "translate(14px, -50%)",
+              }}
             >
               <div className="text-ink font-semibold truncate max-w-[180px]">
                 {hoveredDot.insider || "—"}
