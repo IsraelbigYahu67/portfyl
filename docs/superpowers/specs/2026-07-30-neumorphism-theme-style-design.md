@@ -72,9 +72,18 @@ today but need to for neu:
 | `--surface-card-elevated` | " | `#F1EEE8` |
 | `--border` / `--hairline` | " | `rgba(58,54,46,0.06)` (near-invisible — neu reads through shadow, not borders) |
 | `--ink` | " | `#3A362E` |
-| `--muted` | " | `#8A8478` |
-| `--brand` / `--brand-hover` / `--brand-light` | per accent palette | `#4FBA95` / `#3FA382` / `#D9F1E8` |
-| `--gain` / `--loss` | `#10B981` / `#EF4444` | `#4FBA95` / `#E88A72` |
+| `--muted` | " | `#6B665A` |
+| `--brand` / `--brand-hover` / `--brand-light` | per accent palette | `#27805F` / `#1F6A4E` / `#D9F1E8` |
+| `--gain` / `--loss` | `#10B981` / `#EF4444` | `#27805F` / `#C05437` |
+
+The four text-bearing values above are darkened from the moodboard's pastels
+(`#8A8478` / `#4FBA95` / `#E88A72`). Measured on the `#EDEAE3` card, the
+moodboard set gave muted 3.09, brand/gain 1.99, loss 2.10 — muted being the
+only sub-AA value in *any* Portfyl style, and all four below their Classic-light
+counterparts. The shipped values measure 4.76 / 4.03 / 3.83 (and 4.84 for white
+button labels on `--brand`), clearing Classic light's 4.58 / 3.68 / 3.76 on
+every token. The pastels remain in `--chart-*`, where they are large fills
+rather than 11px table text.
 | `--chart-1`…`--chart-8` | existing | `#4FBA95, #E88A72, #E3B873, #B6A7D1, #8FC5D6, #E3A6B0, #D9C9A6, #A69C8C` |
 | `--shadow-ambient` | existing single ambient shadow | `6px 6px 14px rgba(190,178,158,0.55), -6px -6px 14px rgba(255,255,255,0.85)` (the embossed dual shadow — same var, no new name needed since it already holds an arbitrary box-shadow value) |
 | `--blur-card` / `--blur-overlay` | `12px` / `20px` | `0px` (no-ops the existing `backdrop-filter: blur(var(...))` rules without touching their CSS) |

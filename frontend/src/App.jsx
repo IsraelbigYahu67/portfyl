@@ -61,9 +61,14 @@ const LIGHT_TOKENS = {
 const NEU_TOKENS = {
   bg: "#EDEAE3", bgSubtle: "#E4E0D7", surfaceCard: "#EDEAE3", surfaceCardElevated: "#F1EEE8",
   border: "rgba(58,54,46,0.06)", hairline: "rgba(58,54,46,0.06)",
-  ink: "#3A362E", muted: "#8A8478",
-  brand: "#4FBA95", brandHover: "#3FA382", brandLight: "#D9F1E8",
-  gain: "#4FBA95", loss: "#E88A72",
+  // Text-bearing tokens are darkened from the moodboard's pastels so every one
+  // clears its Classic-light counterpart's contrast on the #EDEAE3 card:
+  // muted 4.76 (was 3.09, the only sub-AA value in any style), brand/gain 4.03,
+  // loss 3.83 — plus 4.84 for white button labels on --brand. The pastels stay
+  // in `chart` below, where they're large fills rather than 11px table text.
+  ink: "#3A362E", muted: "#6B665A",
+  brand: "#27805F", brandHover: "#1F6A4E", brandLight: "#D9F1E8",
+  gain: "#27805F", loss: "#C05437",
   shadowAmbient: "6px 6px 14px rgba(190,178,158,0.55), -6px -6px 14px rgba(255,255,255,0.85)",
   shadowInset: "inset 3px 3px 8px rgba(190,178,158,0.5), inset -3px -3px 8px rgba(255,255,255,0.8)",
   radiusCard: "1.5rem",
