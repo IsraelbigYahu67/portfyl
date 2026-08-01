@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Area, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Customized, Legend,
-  Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Line, Pie, PieChart, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
   ArrowDownRight, ArrowUpRight, Building2, ChevronDown, ChevronUp,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { fetchHistory, fetchStockDividendGrowth } from "../api";
 import { columnChanges } from "../lib/chartChanges";
+import { buildWeeklyBuckets, assignTransactionsToWeeks, jitterOffsetPx } from "../lib/insiderWeekly";
 import useStockReportConfig, { ALL_SECTIONS } from "../hooks/useStockReportConfig";
 import {
   CATEGORICAL, NEUTRAL_COLOR, GAIN_COLOR, LOSS_COLOR, AXIS_TICK, GRID_STROKE,
@@ -1882,53 +1883,46 @@ function OwnershipStat({ label, value }) {
   );
 }
 
-// Aggregate raw insider transactions into per-month buy/sell share counts.
-// Months are keyed as "YYYY-MM" and gap-filled across the requested range so
-// the bar chart aligns with the close-price line even when a month has zero
-// activity. Returns rows in chronological order.
-function aggregateInsiderByMonth(transactions, months = 12) {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
-  const byMonth = new Map();
-  for (let i = 0; i < months; i++) {
-    const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    byMonth.set(key, { month: key, ts: d.getTime(), buy: 0, sell: 0, buyValue: 0, sellValue: 0, buyCount: 0, sellCount: 0 });
-  }
-
-  (transactions || []).forEach((t) => {
-    if (!t.date || (t.side !== "buy" && t.side !== "sell")) return;
-    const d = new Date(t.date);
-    if (Number.isNaN(d.getTime()) || d < start) return;
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const row = byMonth.get(key);
-    if (!row) return;
-    const shares = Math.abs(Number(t.shares) || 0);
-    const value = Math.abs(Number(t.value) || 0);
-    if (t.side === "buy") {
-      row.buy += shares;
-      row.buyValue += value;
-      row.buyCount += 1;
-    } else {
-      row.sell += shares;
-      row.sellValue += value;
-      row.sellCount += 1;
-    }
-  });
-
-  return Array.from(byMonth.values()).sort((a, b) => a.ts - b.ts);
-}
-
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function formatMonthTick(monthKey) {
-  const [, m] = monthKey.split("-");
-  const idx = Number(m) - 1;
-  return MONTH_LABELS[idx] ?? monthKey;
+function formatWeekTick(ts) {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "";
+  return MONTH_LABELS[d.getUTCMonth()];
+}
+
+// Custom Scatter `shape`: renders one buy/sell dot, applying the hover-fade
+// (opposite side fades to near-zero opacity) and hover-enlarge behavior.
+// Handlers live directly on the circle (not on <Scatter>) so they have
+// cx/cy in scope, which is what positions the info-box overlay.
+function makeDotShape({ side, color, hoveredKey, hoveredSide, onEnter, onLeave }) {
+  return function DotShape(props) {
+    const { cx, cy, payload } = props;
+    if (cx == null || cy == null) return null;
+    const jitterY = cy + jitterOffsetPx(payload.jitterIndex);
+    const isHovered = hoveredKey === payload.key;
+    const faded = hoveredSide != null && hoveredSide !== side;
+    return (
+      <circle
+        cx={cx}
+        cy={jitterY}
+        r={isHovered ? 7 : 4}
+        fill={color}
+        fillOpacity={faded ? 0.05 : 1}
+        stroke={color}
+        strokeOpacity={isHovered ? 0.5 : 0}
+        strokeWidth={isHovered ? 2 : 0}
+        style={{ cursor: "pointer", transition: "fill-opacity 120ms ease" }}
+        onMouseEnter={() => onEnter({ ...payload, cx, cy: jitterY })}
+        onMouseLeave={onLeave}
+      />
+    );
+  };
 }
 
 function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
   const cs = currencySymbol(currencyCode);
+  const [hoveredDot, setHoveredDot] = useState(null);
 
   const { data: hist } = useQuery({
     queryKey: ["history", ticker, "1y"],
@@ -1938,39 +1932,31 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
     enabled: Boolean(ticker),
   });
 
-  const monthly = useMemo(() => aggregateInsiderByMonth(transactions, 12), [transactions]);
+  const buckets = useMemo(() => buildWeeklyBuckets(hist?.data, 52), [hist]);
 
-  const chartData = useMemo(() => {
-    // Index price points by month key, then weave them into the monthly bar
-    // rows. We pick the closest trading-day close to the 15th of each month
-    // so the line snaps to bar-centres rather than wandering off-axis.
-    const series = hist?.data || [];
-    const pickByMonth = new Map();
-    for (const pt of series) {
-      const d = new Date(pt.date);
-      if (Number.isNaN(d.getTime())) continue;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const dist = Math.abs(d.getDate() - 15);
-      const prev = pickByMonth.get(key);
-      if (!prev || dist < prev.dist) {
-        pickByMonth.set(key, { close: pt.close, dist });
-      }
-    }
-    return monthly.map((row) => ({
-      ...row,
-      close: pickByMonth.get(row.month)?.close ?? null,
-      // Recharts stacks positive values upward; rendering sells as a negative
-      // would be tempting but breaks the shared y-axis. Keep both positive
-      // and rely on color (red sell / green buy) to disambiguate.
-    }));
-  }, [monthly, hist]);
+  const chartData = useMemo(
+    () => buckets.map((b) => ({ x: b.weekTs, y: b.close })),
+    [buckets],
+  );
 
-  const hasAnyActivity = monthly.some((m) => m.buy > 0 || m.sell > 0);
-  if (!hasAnyActivity && (!hist || !hist.data?.length)) return null;
+  const dots = useMemo(() => {
+    const raw = assignTransactionsToWeeks(transactions, buckets);
+    const groupCounts = new Map();
+    return raw.map((d) => {
+      const groupKey = `${d.weekKey}_${d.side}`;
+      const idx = groupCounts.get(groupKey) ?? 0;
+      groupCounts.set(groupKey, idx + 1);
+      return { ...d, x: d.weekTs, y: d.close, jitterIndex: idx };
+    });
+  }, [transactions, buckets]);
 
-  // Volume axis max — buys + sells per month; line axis uses close range.
-  const maxVol = chartData.reduce((m, r) => Math.max(m, r.buy, r.sell), 0);
-  const closes = chartData.map((r) => r.close).filter((v) => v != null);
+  const buyDots = useMemo(() => dots.filter((d) => d.side === "buy"), [dots]);
+  const sellDots = useMemo(() => dots.filter((d) => d.side === "sell"), [dots]);
+
+  const hasPriceData = chartData.some((r) => r.y != null);
+  if (!dots.length && !hasPriceData) return null;
+
+  const closes = chartData.map((r) => r.y).filter((v) => v != null);
   const minClose = closes.length ? Math.min(...closes) : 0;
   const maxClose = closes.length ? Math.max(...closes) : 1;
   const pad = (maxClose - minClose) * 0.1 || maxClose * 0.05 || 1;
@@ -1981,88 +1967,61 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
         Insider Trading Volume
       </h3>
       <div className="bg-surface rounded-lg p-4">
-        <div className="h-72">
+        <div className="relative h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
-              data={chartData}
-              margin={{ top: 8, right: 48, bottom: 8, left: 8 }}
-              barGap={1}
-              barCategoryGap="25%"
-            >
+            <ComposedChart data={chartData} margin={{ top: 8, right: 24, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="2 4" stroke={GRID_STROKE} vertical={false} />
               <XAxis
-                dataKey="month"
-                tickFormatter={formatMonthTick}
+                dataKey="x"
+                type="number"
+                domain={["dataMin", "dataMax"]}
+                tickFormatter={formatWeekTick}
                 tick={AXIS_TICK}
                 tickLine={false}
                 axisLine={{ stroke: GRID_STROKE }}
               />
               <YAxis
-                yAxisId="price"
                 domain={[Math.max(0, minClose - pad), maxClose + pad]}
                 tick={{ ...AXIS_TICK, fontSize: 10 }}
                 tickFormatter={(v) => `${cs}${v.toFixed(2)}`}
                 tickLine={false}
                 axisLine={false}
                 width={64}
-                label={{
-                  value: "Close Price",
-                  angle: -90,
-                  position: "insideLeft",
-                  fill: AXIS_TICK.fill,
-                  fontSize: 10,
-                  offset: 10,
-                }}
               />
-              <YAxis
-                yAxisId="vol"
-                orientation="right"
-                domain={[0, maxVol > 0 ? maxVol : 1]}
-                tick={{ ...AXIS_TICK, fontSize: 10 }}
-                tickFormatter={(v) => fmtCompact(v, "").replace("$", "")}
-                tickLine={false}
-                axisLine={false}
-                width={44}
-              />
-              <Tooltip
-                cursor={{ fill: "rgba(0,0,0,0.04)" }}
-                content={({ active, payload, label }) => {
-                  if (!active || !payload?.length) return null;
-                  const row = payload[0]?.payload;
-                  if (!row) return null;
-                  const dt = new Date(row.ts);
-                  const heading = `${MONTH_LABELS[dt.getMonth()]} ${dt.getFullYear()}`;
-                  return (
-                    <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg space-y-0.5">
-                      <div className="text-ink font-semibold">{heading}</div>
-                      {row.close != null && (
-                        <div className="text-blue-600">Close {cs}{row.close.toFixed(2)}</div>
-                      )}
-                      <div className="text-gain">
-                        Buys {fmtCompact(row.buy, "")} sh
-                        {row.buyValue > 0 && <> · {fmtCompact(row.buyValue, cs)}</>}
-                        {row.buyCount > 0 && <span className="text-muted"> · {row.buyCount} tx</span>}
-                      </div>
-                      <div className="text-loss">
-                        Sells {fmtCompact(row.sell, "")} sh
-                        {row.sellValue > 0 && <> · {fmtCompact(row.sellValue, cs)}</>}
-                        {row.sellCount > 0 && <span className="text-muted"> · {row.sellCount} tx</span>}
-                      </div>
-                    </div>
-                  );
-                }}
-              />
-              <Bar yAxisId="vol" dataKey="sell" fill={LOSS_COLOR} radius={[2, 2, 0, 0]} maxBarSize={14} isAnimationActive={false} />
-              <Bar yAxisId="vol" dataKey="buy" fill={GAIN_COLOR} radius={[2, 2, 0, 0]} maxBarSize={14} isAnimationActive={false} />
               <Line
-                yAxisId="price"
                 type="monotone"
-                dataKey="close"
+                dataKey="y"
                 stroke={CATEGORICAL[0]}
                 strokeWidth={1.5}
                 dot={false}
                 isAnimationActive={false}
                 connectNulls
+              />
+              <Scatter
+                data={buyDots}
+                dataKey="y"
+                isAnimationActive={false}
+                shape={makeDotShape({
+                  side: "buy",
+                  color: GAIN_COLOR,
+                  hoveredKey: hoveredDot?.key,
+                  hoveredSide: hoveredDot?.side,
+                  onEnter: setHoveredDot,
+                  onLeave: () => setHoveredDot(null),
+                })}
+              />
+              <Scatter
+                data={sellDots}
+                dataKey="y"
+                isAnimationActive={false}
+                shape={makeDotShape({
+                  side: "sell",
+                  color: LOSS_COLOR,
+                  hoveredKey: hoveredDot?.key,
+                  hoveredSide: hoveredDot?.side,
+                  onEnter: setHoveredDot,
+                  onLeave: () => setHoveredDot(null),
+                })}
               />
               <Legend
                 verticalAlign="top"
@@ -2080,6 +2039,23 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
               />
             </ComposedChart>
           </ResponsiveContainer>
+          {hoveredDot && (
+            <div
+              className="absolute z-10 pointer-events-none bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg space-y-0.5 whitespace-nowrap"
+              style={{ left: hoveredDot.cx, top: hoveredDot.cy, transform: "translate(14px, -50%)" }}
+            >
+              <div className="text-ink font-semibold truncate max-w-[180px]">
+                {hoveredDot.insider || "—"}
+              </div>
+              <div className="text-muted">{hoveredDot.date}</div>
+              <div className="text-ink">
+                {hoveredDot.shares != null ? fmtCompact(hoveredDot.shares, "") : "—"} sh
+              </div>
+              <div className={hoveredDot.side === "buy" ? "text-gain" : "text-loss"}>
+                {hoveredDot.value != null ? fmtCompact(hoveredDot.value, cs) : "—"}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
