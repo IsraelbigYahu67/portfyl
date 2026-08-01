@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Area, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Customized, Legend,
-  Line, Pie, PieChart, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis,
+  Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
   ArrowDownRight, ArrowUpRight, Building2, ChevronDown, ChevronUp,
@@ -1891,33 +1891,50 @@ function formatWeekTick(ts) {
   return MONTH_LABELS[d.getUTCMonth()];
 }
 
-// Custom Scatter `shape`: renders one buy/sell dot, applying the hover-fade
-// (opposite side fades to near-zero opacity) and hover-enlarge behavior.
-// Handlers live directly on the circle (not on <Scatter>) so they have
-// cx/cy in scope, which is what positions the info-box overlay.
-function makeDotShape({ side, color, hoveredKey, hoveredSide, onEnter, onLeave }) {
-  return function DotShape(props) {
-    const { cx, cy, payload } = props;
-    if (cx == null || cy == null) return null;
-    const jitterY = cy + jitterOffsetPx(payload.jitterIndex);
-    const isHovered = hoveredKey === payload.key;
-    const faded = hoveredSide != null && hoveredSide !== side;
-    return (
-      <circle
-        cx={cx}
-        cy={jitterY}
-        r={isHovered ? 7 : 4}
-        fill={color}
-        fillOpacity={faded ? 0.05 : 1}
-        stroke={color}
-        strokeOpacity={isHovered ? 0.5 : 0}
-        strokeWidth={isHovered ? 2 : 0}
-        style={{ cursor: "pointer", transition: "fill-opacity 120ms ease" }}
-        onMouseEnter={() => onEnter({ ...payload, cx, cy: jitterY })}
-        onMouseLeave={onLeave}
-      />
-    );
-  };
+// Renders every insider buy/sell dot directly onto the chart's SVG via
+// Recharts' Customized layer (the same technique TtmOverlay uses above),
+// converting each dot's (x, y) data value to pixel space with the axis
+// scales Recharts hands us. This sidesteps a Recharts <Scatter> quirk: when
+// a Scatter's own `data` array happens to have the same length as the
+// ComposedChart's shared `data` array (a real, non-contrived collision —
+// e.g. a ticker with exactly one buy per week over the 52-week window),
+// Recharts silently substitutes the chart-level row object as the custom
+// shape's payload instead of the Scatter item's own richer object, breaking
+// hover state and the info box for that series. Drawing dots ourselves
+// avoids the per-series data-length coincidence entirely.
+function InsiderDotsLayer({ xAxisMap, yAxisMap, dots, hoveredDot, onEnter, onLeave }) {
+  const xScale = xAxisMap && Object.values(xAxisMap)[0]?.scale;
+  const yScale = yAxisMap && Object.values(yAxisMap)[0]?.scale;
+  if (!xScale || !yScale || !dots.length) return null;
+
+  return (
+    <g>
+      {dots.map((dot) => {
+        const cx = xScale(dot.x);
+        const cy = yScale(dot.y) + jitterOffsetPx(dot.jitterIndex);
+        if (!Number.isFinite(cx) || !Number.isFinite(cy)) return null;
+        const color = dot.side === "buy" ? GAIN_COLOR : LOSS_COLOR;
+        const isHovered = hoveredDot?.key === dot.key;
+        const faded = hoveredDot != null && hoveredDot.side !== dot.side;
+        return (
+          <circle
+            key={dot.key}
+            cx={cx}
+            cy={cy}
+            r={isHovered ? 7 : 4}
+            fill={color}
+            fillOpacity={faded ? 0.05 : 1}
+            stroke={color}
+            strokeOpacity={isHovered ? 0.5 : 0}
+            strokeWidth={isHovered ? 2 : 0}
+            style={{ cursor: "pointer", transition: "fill-opacity 120ms ease" }}
+            onMouseEnter={() => onEnter({ ...dot, cx, cy })}
+            onMouseLeave={onLeave}
+          />
+        );
+      })}
+    </g>
+  );
 }
 
 function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
@@ -1949,9 +1966,6 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
       return { ...d, x: d.weekTs, y: d.close, jitterIndex: idx };
     });
   }, [transactions, buckets]);
-
-  const buyDots = useMemo(() => dots.filter((d) => d.side === "buy"), [dots]);
-  const sellDots = useMemo(() => dots.filter((d) => d.side === "sell"), [dots]);
 
   const hasPriceData = chartData.some((r) => r.y != null);
   if (!dots.length && !hasPriceData) return null;
@@ -1997,31 +2011,16 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
                 isAnimationActive={false}
                 connectNulls
               />
-              <Scatter
-                data={buyDots}
-                dataKey="y"
-                isAnimationActive={false}
-                shape={makeDotShape({
-                  side: "buy",
-                  color: GAIN_COLOR,
-                  hoveredKey: hoveredDot?.key,
-                  hoveredSide: hoveredDot?.side,
-                  onEnter: setHoveredDot,
-                  onLeave: () => setHoveredDot(null),
-                })}
-              />
-              <Scatter
-                data={sellDots}
-                dataKey="y"
-                isAnimationActive={false}
-                shape={makeDotShape({
-                  side: "sell",
-                  color: LOSS_COLOR,
-                  hoveredKey: hoveredDot?.key,
-                  hoveredSide: hoveredDot?.side,
-                  onEnter: setHoveredDot,
-                  onLeave: () => setHoveredDot(null),
-                })}
+              <Customized
+                component={(cp) => (
+                  <InsiderDotsLayer
+                    {...cp}
+                    dots={dots}
+                    hoveredDot={hoveredDot}
+                    onEnter={setHoveredDot}
+                    onLeave={() => setHoveredDot(null)}
+                  />
+                )}
               />
               <Legend
                 verticalAlign="top"
