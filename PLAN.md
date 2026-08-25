@@ -30,7 +30,7 @@ které už existují a fungují. Zdroj dat: [Shibui Finance](https://shibui.fina
 
 ---
 
-## Fáze 1 — SEC filings & insider aktivita (nejvyšší priorita, dnes chybí úplně)
+## Fáze 1 — SEC filings & insider aktivita (nejvyšší priorita, dnes chybí úplně) — ✅ backend + frontend implementováno (1a–1e, 1g)
 
 ### 1a. Filings feed pro tiker
 
@@ -224,7 +224,11 @@ dřívější návrh (žádná `jobs.py` pass, žádná `PoliticianTradeCache` t
   pokud si appka žádá o data jen k tikrům, co si vážně chceš prohlédnout. Kdyby přesto nestačilo
   (hodně kliknutí za den), další krok je placený Alpha Vantage tarif — ne něco, co plán řeší teď.
 
-#### 1g-ii. Tečky na cenovém grafu (zelená nákup, červená prodej)
+#### 1g-ii. Tečky na cenovém grafu (zelená nákup, červená prodej) — ⏸ neuděláno, stačila tabulka
+
+Implementovaná verze (`PoliticalTradesSection` v `StockDetail.jsx`) je zatím jen tabulka
+(politik/strana/typ/částka/datum + `is_likely_option` badge), ne graf s tečkami přes cenu —
+tenhle konkrétní vizuál (viz návrh níže) je vědomě odložený stretch goal, ne udělaný.
 
 Stávající cenový graf na Stock stránce je `InsiderVolumeChart` v `StockDetail.jsx:1930` —
 `ComposedChart` (recharts) s `Line` pro close cenu (`CATEGORICAL[0]`) a bary pro insider
@@ -295,7 +299,7 @@ pásmo, a u option-flagged navíc badge + surový popis + caveat výše.
 
 ---
 
-## Fáze 2 — Earnings analýza — ✅ backend implementován (2a, 2e), frontend zatím ne
+## Fáze 2 — Earnings analýza — ✅ backend + frontend implementován (2a, 2e)
 
 ### 2a. EPS beat/miss historie — plně podporováno
 
@@ -357,12 +361,12 @@ je opravdu jen best-effort, jak plán předjímal ("částečná podpora") — `
 `latest_revenue_surprise_pct` se často vrátí `null`, ne vymyšlené číslo. `source` v payloadu je
 `"shibui+yfinance"` jen když se `-1q` skutečně podařilo najít, jinak `"shibui"`.
 
-**UI (zatím neuděláno):** nová karta/tab "Earnings" na Stock stránce — poslední report nahoře
-(beat/miss badge), historie surprise % jako mini-graf, odkaz na filing.
+**UI:** ✅ hotovo — `EarningsRecapSection` v `StockDetail.jsx`: poslední report nahoře (beat/miss
+badge), historie surprise % jako sloupcový graf, odkaz na 8-K filing, buyback trend.
 
 ---
 
-## Fáze 3 — Short interest
+## Fáze 3 — Short interest — ✅ implementováno (backend + frontend)
 
 `GET /market/shibui/ownership/{ticker}`
 
@@ -375,7 +379,8 @@ LIMIT 1
 
 **UI:** přidat řádek "Short interest: X % of float" do stávajícího ownership bloku na Stock
 stránce (`_build_ownership` v `market.py`) — jednoduché doplnění, ne náhrada (Shibui nemá jmenný
-seznam top holderů jako yfinance, takže tabulka top-holderů zůstává z yfinance).
+seznam top holderů jako yfinance, takže tabulka top-holderů zůstává z yfinance). ✅ Hotovo —
+4. dlaždice "Short interest" v `OwnershipSection` (`StockDetail.jsx`).
 
 ---
 
@@ -557,7 +562,7 @@ def _pick_granularity(range_days: int) -> str:
 — granularitu si endpoint zvolí sám podle `years`, nejde o parametr od uživatele. Response
 vrací i zvolenou granularitu (`"granularity": "month"`), ať to frontend může napsat k grafu.
 
-### UI návrh
+### UI návrh — ✅ implementováno (`ValuationHistorySection` v `StockDetail.jsx`)
 
 - Nová karta "Valuation history" na Stock stránce, vedle/pod stávajícím ratio blokem.
 - Přepínač rozsahu: 1Y / 5Y / 10Y / Max. Databázový floor pro `valuation`/`fundamentals_derived_daily`
