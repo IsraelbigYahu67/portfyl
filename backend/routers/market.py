@@ -692,7 +692,7 @@ def _shibui_fundamentals(sym: str) -> Optional[dict]:
 
     annual_sql = (
         f"SELECT {_SHIBUI_ANNUAL_FIELDS} FROM shibui.fundamentals_yearly "
-        f"WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 5"
+        f"WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 10"
     )
     try:
         annual_rows = shibui_client.query(annual_sql, f"Annual financial statements for {sym}")
@@ -703,7 +703,7 @@ def _shibui_fundamentals(sym: str) -> Optional[dict]:
 
     quarterly_sql = (
         f"SELECT {_SHIBUI_QUARTERLY_FIELDS} FROM shibui.fundamentals_quarterly "
-        f"WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 8"
+        f"WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 20"
     )
     try:
         quarterly_rows = shibui_client.query(quarterly_sql, f"Quarterly financial statements for {sym}")
@@ -1030,10 +1030,11 @@ def get_history(ticker: str, period: str = "1y"):
 def get_fundamentals(ticker: str):
     """Comprehensive fundamentals for the stock-detail modal.
 
-    Returns 5y of revenue / EPS / net income / FCF / debt / cash plus YoY and
-    CAGR, valuation & quality ratios, sector-average ratios, and consensus
-    analyst data. Each field is best-effort: missing data comes back as null
-    so the frontend can render an em-dash."""
+    Returns up to 10y (annual) / 5y (quarterly) of revenue / EPS / net income
+    / FCF / debt / cash when Shibui covers the ticker, plus YoY and CAGR,
+    valuation & quality ratios, sector-average ratios, and consensus analyst
+    data. Each field is best-effort: missing data comes back as null so the
+    frontend can render an em-dash."""
     sym = ticker.upper()
     yf_sym = yf_symbol(sym)
 
