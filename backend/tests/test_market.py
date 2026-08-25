@@ -88,6 +88,96 @@ class TestShibuiTickerValidation:
             assert not _SHIBUI_TICKER_RE.match(t), f"{t} should be rejected"
 
 
+class TestEscapeSqlString:
+    """_escape_sql_string -- used for the one Shibui query (search fallback,
+    PLAN.md 4b) that takes free text rather than a value _SHIBUI_TICKER_RE
+    can validate outright."""
+
+    def test_doubles_embedded_quotes(self):
+        from routers.market import _escape_sql_string
+        assert _escape_sql_string("O'Reilly") == "O''Reilly"
+
+    def test_neutralizes_quote_breakout_attempt(self):
+        from routers.market import _escape_sql_string
+        raw = "x'; DROP TABLE shibui.general_info; --"
+        escaped = _escape_sql_string(raw)
+        # Embedding `'{escaped}'` must keep the whole payload inside ONE
+        # string literal -- i.e. un-escaping the doubled quotes recovers
+        # exactly the original text, with no stray unescaped `'` that could
+        # have closed the literal early and let "; DROP TABLE ..." run as
+        # its own statement.
+        rebuilt = f"'{escaped}'"
+        assert rebuilt[1:-1].replace("''", "'") == raw
+        assert "''" in escaped  # the one embedded quote was doubled, not dropped
+
+    def test_plain_text_is_unchanged(self):
+        from routers.market import _escape_sql_string
+        assert _escape_sql_string("apple inc") == "apple inc"
+
+
+class TestShibuiSearchFallback:
+    """search_tickers falls back to Shibui's general_info only when Yahoo
+    finds nothing (PLAN.md 4b) -- never on a hot search-as-you-type path."""
+
+    def setup_method(self):
+        from cache import cache_clear
+        import routers.market as market
+        cache_clear()
+        market._SEARCH_CACHE.clear()
+
+    def test_does_not_query_shibui_when_yahoo_has_results(self, monkeypatch):
+        import routers.market as market
+
+        monkeypatch.setattr(market, "_yahoo_search", lambda q, limit: [
+            {"symbol": "AAPL", "longname": "Apple Inc.", "exchDisp": "NASDAQ", "quoteType": "EQUITY"},
+        ])
+
+        def boom(q, limit):
+            raise AssertionError("should not fall back to Shibui when Yahoo has results")
+
+        monkeypatch.setattr(market, "_shibui_search", boom)
+        out = market.search_tickers("apple")
+        assert out["source"] == "yahoo"
+        assert out["results"][0]["symbol"] == "AAPL"
+
+    def test_falls_back_to_shibui_when_yahoo_returns_nothing(self, monkeypatch):
+        import routers.market as market
+
+        monkeypatch.setattr(market, "_yahoo_search", lambda q, limit: [])
+        monkeypatch.setattr(market, "_shibui_search", lambda q, limit: [
+            {"ticker": "THIN", "name": "Thin Micro-Cap Inc", "exchange": "NASDAQ",
+             "type": "Common Stock", "gics_sector": "Industrials", "gics_industry": "Machinery"},
+        ])
+        out = market.search_tickers("thin micro")
+        assert out["source"] == "shibui_fallback"
+        assert out["results"] == [{
+            "symbol": "THIN", "name": "Thin Micro-Cap Inc", "exchange": "NASDAQ",
+            "type": "Common Stock", "sector": "Industrials", "industry": "Machinery",
+        }]
+
+    def test_both_empty_returns_empty_with_yahoo_source(self, monkeypatch):
+        import routers.market as market
+
+        monkeypatch.setattr(market, "_yahoo_search", lambda q, limit: [])
+        monkeypatch.setattr(market, "_shibui_search", lambda q, limit: [])
+        out = market.search_tickers("zzzznonexistentzzzz")
+        assert out["results"] == []
+        assert out["source"] == "yahoo"
+
+    def test_shibui_error_does_not_break_search(self, monkeypatch):
+        import routers.market as market
+        import shibui_client
+
+        def raise_error(sql, prompt):
+            raise shibui_client.ShibuiError("boom")
+
+        monkeypatch.setattr(market, "_yahoo_search", lambda q, limit: [])
+        monkeypatch.setattr(market.shibui_client, "query", raise_error)
+        out = market.search_tickers("whatever")
+        assert out["results"] == []
+        assert out["source"] == "yahoo"
+
+
 class TestScreenerRowBounded:
     """_ticker_screener_row must route through market_data's bounded, cached
     get_info — a raw yf.Ticker(...).info call can hang for ~10 minutes on one

@@ -33,6 +33,14 @@ _FX_TTL = 600                # 10 minutes
 _SHIBUI_TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
 
 
+def _escape_sql_string(s: str) -> str:
+    """Escape a value for safe interpolation into a single-quoted SQL string
+    literal (doubles embedded quotes) -- for the rare Shibui query that takes
+    free text (e.g. a search term) rather than a value _SHIBUI_TICKER_RE can
+    validate outright."""
+    return s.replace("'", "''")
+
+
 # ---------------------------------------------------------------------------
 # Fundamentals helpers
 # ---------------------------------------------------------------------------
@@ -867,11 +875,34 @@ def _yahoo_search(q: str, safe_limit: int) -> list[dict]:
     return quotes
 
 
+def _shibui_search(q: str, safe_limit: int) -> list[dict]:
+    """Fallback search against Shibui's general_info (PLAN.md 4b) -- only
+    called when Yahoo's autocomplete finds nothing, for the thinner/newer
+    NYSE/NASDAQ tickers yfinance's lookup sometimes misses entirely (see
+    CLAUDE.md's "yfinance is noisy" note). Free-text input, so it goes
+    through _escape_sql_string rather than _SHIBUI_TICKER_RE."""
+    escaped = _escape_sql_string(q.strip())
+    if not escaped:
+        return []
+    sql = (
+        "SELECT ticker, name, exchange, type, gics_sector, gics_industry"
+        " FROM shibui.general_info"
+        f" WHERE name ILIKE '%{escaped}%' OR ticker ILIKE '%{escaped}%'"
+        f" ORDER BY (ticker ILIKE '{escaped}') DESC, name"
+        f" LIMIT {safe_limit}"
+    )
+    try:
+        return shibui_client.query(sql, f"Ticker/company search fallback for '{q}'")
+    except shibui_client.ShibuiError:
+        return []
+
+
 @router.get("/search")
 @ttl_cache(_SEARCH_TTL)
 def search_tickers(q: str, limit: int = 10):
     """Search for stocks/ETFs by name or symbol. Backed by yfinance's lookup
-    API (Yahoo's autocomplete service). Returns up to `limit` matches with
+    API (Yahoo's autocomplete service), with a Shibui fallback (NYSE/NASDAQ
+    only) when Yahoo finds nothing. Returns up to `limit` matches with
     enough metadata to render a search dropdown."""
     q = (q or "").strip()
     if len(q) < 1:
@@ -905,7 +936,28 @@ def search_tickers(q: str, limit: int = 10):
             "sector": r.get("sectorDisp") or r.get("sector"),
             "industry": r.get("industryDisp") or r.get("industry"),
         })
-    return {"query": q, "results": results}
+
+    source = "yahoo"
+    if not results:
+        # Bound this the same way as the Yahoo call -- a slow/degraded
+        # Shibui must not hang a search request either.
+        shibui_rows = market_data.run_bounded(_shibui_search, q, safe_limit, timeout=5.0, default=None) or []
+        for r in shibui_rows:
+            symbol = r.get("ticker")
+            if not symbol:
+                continue
+            results.append({
+                "symbol": symbol,
+                "name": r.get("name") or symbol,
+                "exchange": r.get("exchange"),
+                "type": r.get("type"),
+                "sector": r.get("gics_sector"),
+                "industry": r.get("gics_industry"),
+            })
+        if results:
+            source = "shibui_fallback"
+
+    return {"query": q, "results": results, "source": source}
 
 
 @router.get("/fx/{pair}")

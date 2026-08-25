@@ -396,11 +396,17 @@ earnings-quality flags, forward PEG).
   Shibui pokryje všechna pole, co dnes frontend používá (target_mean, rating, analyst_count —
   šlo by dotáhnout z `analyst_estimates`).
 
-### 4b. Search — Shibui jen jako fallback, ne živě na každý keystroke
+### 4b. ✅ Implementováno — Search fallback (jen na Yahoo miss, ne živě na keystroke)
 
-**Důležitá korekce oproti dřívějšímu doporučení:** `shibui_client.query()` dnes dělá 3 roundtripy
-na server (viz "Latence" výše) — pro search-as-you-type je to moc pomalé oproti Yahoo
-autocomplete. Doporučení:
+`search_tickers` teď zkusí Shibui `general_info` (`_shibui_search`) jen když Yahoo vrátí 0
+výsledků — ověřeno živě ("carvana" → Yahoo nic nenašel v testu s vynuceně prázdným Yahoo
+výsledkem, Shibui fallback našel `CVNA`). Response má nové pole `"source": "yahoo"` nebo
+`"shibui_fallback"`. Protože `q` je volný text (ne validovatelný přes `_SHIBUI_TICKER_RE`),
+přidána `_escape_sql_string` (doubluje `'`) — jediné místo v celém projektu, kde Shibui SQL
+dostává neregexovaný uživatelský vstup. `shibui_client.query()` navíc mezitím zjednodušen
+(viz úvod plánu — latence "Ověřeno živě" sekce), takže i tenhle fallback je teď jen 1 roundtrip,
+ne 3 jako v době, kdy vznikla tahle poznámka.
+
 - Použít Shibui `general_info` (`WHERE name ILIKE '%q%' OR ticker ILIKE '%q%' LIMIT 10`) jen
   jako **fallback**, když Yahoo vrátí 0 výsledků (typicky tenčí/nové tikry, kde je yfinance
   nespolehlivé — viz CLAUDE.md poznámka o "yfinance is noisy").
@@ -450,13 +456,14 @@ appka umí jen srovnání proti sektoru "teď", ne proti vlastní historii. To j
 feature, nic takového dnes neexistuje.
 
 `GET /market/shibui/valuation-history/{ticker}?years=N` implementován přesně podle návrhu níže
-(žebříček granularity, DATE_TRUNC/biweekly bucket SQL, PERCENT_RANK). Ověřeno živě pro day/week/
-biweekly/quarter granularitu (roky 1, 4, 7, 10) — čísla i bucket rozestupy sedí. Granularitu
-"month" (roky ~15) se nepovedlo ověřit živě kvůli výpadku veřejného Shibui MCP serveru během
-implementace (`MCPError code=-32603`, přetrvávalo přes 90s napříč čerstvými spojeními, netýkalo
-se jen tohohle query — i predtím fungující jednoduchý dotaz začal padat stejně) — SQL vzorec je
-ale identický (`DATE_TRUNC('month', v.date)`) jako u již ověřeného `week`/`quarter`, takže riziko
-je nízké. Stojí za rychlou živou kontrolu, až se server zase zvedne.
+(žebříček granularity, DATE_TRUNC/biweekly bucket SQL, PERCENT_RANK). Ověřeno živě pro všech
+5 úrovní granularity na AAPL — `years=1` → week (365 dní), `years=4`/`years=7` → biweekly
+(1460/2555 dní), `years=14` → month (5110 dní), `years=50` (Max) → quarter — čísla i bucket
+rozestupy (přesně 14 dní u biweekly, kalendářní měsíce/kvartály u zbytku) sedí ve všech
+případech. Přesné hraniční hodnoty žebříčku (190/1300/2600/5400 dní, včetně `day` pro krátké
+rozsahy) ověřeny samostatně jednotkovým testem na `_pick_valuation_granularity`. (Krátký výpadek
+veřejného Shibui MCP serveru během implementace — `MCPError code=-32603` na několik minut,
+netýkalo se jen tohohle endpointu — se mezitím sám opravil.)
 
 ### Multiply k zobrazení (5 základních, všechny denně od 1993)
 
