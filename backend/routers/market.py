@@ -2204,6 +2204,145 @@ def _in_range(val: float | None, lo: float | None, hi: float | None) -> bool:
     return True
 
 
+# ---------------------------------------------------------------------------
+# Shibui: whole-market screener (PLAN.md phase 4a-i). Additive alongside the
+# yfinance-basket screener above, not a replacement: that one is capped to a
+# handful of hand-picked ~500-name preset lists (one yfinance call each);
+# this scans the ENTIRE market (~10,344 symbols, Common Stock only) in a
+# single query, and exposes ROE/operating margin/Piotroski F-score, which
+# the yfinance path has no clean equivalent for at this scale.
+# ---------------------------------------------------------------------------
+
+_SHIBUI_SCREENER_SORT_COLUMNS = {
+    "market_cap": "v.market_cap",
+    "pe": "dd.trailing_pe",
+    "ps": "dd.price_to_sales",
+    "pfcf": "dd.price_to_cash_flow",
+    "ev_ebitda": "dd.ev_ebitda",
+    "div_yield": "dd.dividend_yield",
+    "roe": "dq.return_on_equity",
+    "operating_margin": "dq.operating_margin",
+    "piotroski": "fq.piotroski_f_score",
+}
+
+
+def _shibui_screener(
+    *, min_pe, max_pe, min_market_cap, max_market_cap, min_roe, max_roe,
+    min_ps, max_ps, min_operating_margin, max_operating_margin, min_piotroski,
+    sector, sort_by, sort_desc, limit,
+) -> dict:
+    safe_limit = max(1, min(int(limit or 50), 200))
+
+    conditions = ["g.type = 'Common Stock'"]
+    default_floor_applied = False
+    if min_market_cap is not None:
+        conditions.append(f"v.market_cap >= {float(min_market_cap)}")
+    else:
+        # Matches Shibui's own screening guidance: an unscoped whole-market
+        # scan defaults to a $500M floor unless the caller overrides it, so
+        # a first-time "just show me something" call isn't swamped with
+        # micro-cap noise. Reported back via default_market_cap_floor_applied.
+        conditions.append("v.market_cap >= 500e6")
+        default_floor_applied = True
+    if max_market_cap is not None:
+        conditions.append(f"v.market_cap <= {float(max_market_cap)}")
+    if min_pe is not None:
+        conditions.append(f"dd.trailing_pe >= {float(min_pe)}")
+    if max_pe is not None:
+        conditions.append(f"dd.trailing_pe <= {float(max_pe)}")
+    if min_ps is not None:
+        conditions.append(f"dd.price_to_sales >= {float(min_ps)}")
+    if max_ps is not None:
+        conditions.append(f"dd.price_to_sales <= {float(max_ps)}")
+    if min_roe is not None:
+        conditions.append(f"dq.return_on_equity >= {float(min_roe) / 100}")
+    if max_roe is not None:
+        conditions.append(f"dq.return_on_equity <= {float(max_roe) / 100}")
+    if min_operating_margin is not None:
+        conditions.append(f"dq.operating_margin >= {float(min_operating_margin) / 100}")
+    if max_operating_margin is not None:
+        conditions.append(f"dq.operating_margin <= {float(max_operating_margin) / 100}")
+    if min_piotroski is not None:
+        conditions.append(f"fq.piotroski_f_score >= {int(min_piotroski)}")
+    if sector:
+        conditions.append(f"g.gics_sector = '{_escape_sql_string(sector)}'")
+
+    sort_col = _SHIBUI_SCREENER_SORT_COLUMNS.get(sort_by, "v.market_cap")
+    direction = "DESC" if sort_desc else "ASC"
+
+    sql = (
+        "WITH latest_val AS ("
+        "  SELECT symbol, market_cap,"
+        "    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn"
+        "  FROM shibui.valuation WHERE date >= CURRENT_DATE - INTERVAL '7 days'"
+        "), latest_dd AS ("
+        "  SELECT symbol, trailing_pe, price_to_sales, price_to_cash_flow, ev_ebitda, dividend_yield,"
+        "    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn"
+        "  FROM shibui.fundamentals_derived_daily WHERE date >= CURRENT_DATE - INTERVAL '7 days'"
+        "), latest_dq AS ("
+        "  SELECT symbol, return_on_equity, return_on_assets, operating_margin, gross_margin, debt_to_equity,"
+        "    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn"
+        "  FROM shibui.fundamentals_derived_quarterly WHERE date >= CURRENT_DATE - INTERVAL '6 months'"
+        "), latest_fq AS ("
+        "  SELECT symbol, piotroski_f_score, current_ratio,"
+        "    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn"
+        "  FROM shibui.fundamentals_quarterly WHERE date >= CURRENT_DATE - INTERVAL '6 months'"
+        ") "
+        "SELECT g.ticker, g.name, g.gics_sector, g.gics_industry, v.market_cap,"
+        "  dd.trailing_pe, dd.price_to_sales, dd.price_to_cash_flow, dd.ev_ebitda, dd.dividend_yield,"
+        "  dq.return_on_equity, dq.return_on_assets, dq.operating_margin, dq.gross_margin, dq.debt_to_equity,"
+        "  fq.piotroski_f_score, fq.current_ratio"
+        " FROM shibui.general_info g"
+        " INNER JOIN latest_val v ON g.symbol = v.symbol AND v.rn = 1"
+        " INNER JOIN latest_dd dd ON g.symbol = dd.symbol AND dd.rn = 1"
+        " LEFT JOIN latest_dq dq ON g.symbol = dq.symbol AND dq.rn = 1"
+        " LEFT JOIN latest_fq fq ON g.symbol = fq.symbol AND fq.rn = 1"
+        f" WHERE {' AND '.join(conditions)}"
+        f" ORDER BY {sort_col} {direction} NULLS LAST"
+        f" LIMIT {safe_limit}"
+    )
+    try:
+        rows = shibui_client.query(sql, "Whole-market screener scan (Shibui, Common Stock)")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui screener query failed: {e}")
+
+    results = [
+        {
+            "ticker": r.get("ticker"),
+            "name": r.get("name"),
+            "sector": r.get("gics_sector"),
+            "industry": r.get("gics_industry"),
+            "market_cap": _f(r.get("market_cap")),
+            "pe": _f(r.get("trailing_pe")),
+            "ps": _f(r.get("price_to_sales")),
+            "pfcf": _f(r.get("price_to_cash_flow")),
+            "ev_ebitda": _f(r.get("ev_ebitda")),
+            "div_yield": _to_pct(_f(r.get("dividend_yield"))),
+            "roe": _to_pct(_f(r.get("return_on_equity"))),
+            "roa": _to_pct(_f(r.get("return_on_assets"))),
+            "operating_margin": _to_pct(_f(r.get("operating_margin"))),
+            "gross_margin": _to_pct(_f(r.get("gross_margin"))),
+            "de": _f(r.get("debt_to_equity")),
+            "piotroski_f_score": _f(r.get("piotroski_f_score")),
+            "current_ratio": _f(r.get("current_ratio")),
+        }
+        for r in rows
+    ]
+    return {
+        "universe": "all",
+        "source": "shibui",
+        "results": results,
+        # "total" here is just len(results) (rows returned, <= safe_limit),
+        # NOT a market-wide match count -- Shibui's 200-row cap means we
+        # can't cheaply know how many rows exist beyond what's returned.
+        # capped_at_limit signals when there may be more.
+        "total": len(results),
+        "capped_at_limit": len(results) == safe_limit,
+        "filters_applied": True,
+        "default_market_cap_floor_applied": default_floor_applied,
+    }
+
+
 @router.get("/screener")
 def stock_screener(
     universe: str = "sp500",
@@ -2228,6 +2367,10 @@ def stock_screener(
     sort_by: str = "market_cap",
     sort_desc: bool = True,
     limit: int = 50,
+    source: str = "yfinance",
+    min_operating_margin: float = None,
+    max_operating_margin: float = None,
+    min_piotroski: float = None,
 ):
     """Stock screener: filter a universe of tickers by valuation/fundamental criteria.
 
@@ -2237,6 +2380,11 @@ def stock_screener(
       - `dividend_aristocrats` → S&P 500 Dividend Aristocrats (~65 names)
       - `tech_large`           → 10 tech megacaps (also the fallback universe)
       - Custom via `tickers` parameter (comma-separated symbols)
+
+    `source="shibui"` (PLAN.md 4a-i) ignores `universe`/`tickers` entirely and
+    instead screens the WHOLE market (~10,344 symbols, Common Stock only) in
+    one Shibui query -- also exposes `min_operating_margin`/
+    `max_operating_margin`/`min_piotroski`, which the yfinance path can't.
 
     The first scan of a full index is slow (one yfinance lookup per name);
     rows are then cached for an hour so re-filtering is instant.
@@ -2248,6 +2396,14 @@ def stock_screener(
 
     Results sorted by `sort_by` field, capped at `limit`.
     """
+    if source == "shibui":
+        return _shibui_screener(
+            min_pe=min_pe, max_pe=max_pe, min_market_cap=min_market_cap, max_market_cap=max_market_cap,
+            min_roe=min_roe, max_roe=max_roe, min_ps=min_ps, max_ps=max_ps,
+            min_operating_margin=min_operating_margin, max_operating_margin=max_operating_margin,
+            min_piotroski=min_piotroski, sector=sector, sort_by=sort_by, sort_desc=sort_desc, limit=limit,
+        )
+
     safe_limit = max(1, min(int(limit or 50), 200))
     tickers_list: list[str] = []
 

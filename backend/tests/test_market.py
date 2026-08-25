@@ -73,6 +73,180 @@ class TestStockScreener:
         assert result["total"] >= 0
 
 
+class TestShibuiScreener:
+    """source="shibui" whole-market screener (PLAN.md 4a-i) -- additive
+    alongside the yfinance-basket screener above, not a replacement."""
+
+    def setup_method(self):
+        from cache import cache_clear
+        cache_clear()
+
+    def _row(self, ticker="AAPL", **overrides):
+        row = {
+            "ticker": ticker, "name": f"{ticker} Inc", "gics_sector": "Information Technology",
+            "gics_industry": "Software", "market_cap": 1e12, "trailing_pe": 20.0,
+            "price_to_sales": 5.0, "price_to_cash_flow": 15.0, "ev_ebitda": 12.0,
+            "dividend_yield": 0.01, "return_on_equity": 0.25, "return_on_assets": 0.1,
+            "operating_margin": 0.3, "gross_margin": 0.6, "debt_to_equity": 0.5,
+            "piotroski_f_score": 7.0, "current_ratio": 1.5,
+        }
+        row.update(overrides)
+        return row
+
+    def test_dispatches_from_stock_screener_via_source_param(self, monkeypatch):
+        import routers.market as market
+
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: [self._row()])
+        out = market.stock_screener(source="shibui", limit=5)
+        assert out["universe"] == "all"
+        assert out["source"] == "shibui"
+        assert out["results"][0]["ticker"] == "AAPL"
+
+    def test_default_market_cap_floor_applied_when_unset(self, monkeypatch):
+        import routers.market as market
+
+        captured = {}
+
+        def fake_query(sql, prompt):
+            captured["sql"] = sql
+            return []
+
+        monkeypatch.setattr(market.shibui_client, "query", fake_query)
+        out = market._shibui_screener(
+            min_pe=None, max_pe=None, min_market_cap=None, max_market_cap=None,
+            min_roe=None, max_roe=None, min_ps=None, max_ps=None,
+            min_operating_margin=None, max_operating_margin=None, min_piotroski=None,
+            sector="", sort_by="market_cap", sort_desc=True, limit=10,
+        )
+        assert out["default_market_cap_floor_applied"] is True
+        assert "v.market_cap >= 500e6" in captured["sql"]
+
+    def test_explicit_market_cap_disables_default_floor(self, monkeypatch):
+        import routers.market as market
+
+        captured = {}
+
+        def fake_query(sql, prompt):
+            captured["sql"] = sql
+            return []
+
+        monkeypatch.setattr(market.shibui_client, "query", fake_query)
+        out = market._shibui_screener(
+            min_pe=None, max_pe=None, min_market_cap=1e9, max_market_cap=None,
+            min_roe=None, max_roe=None, min_ps=None, max_ps=None,
+            min_operating_margin=None, max_operating_margin=None, min_piotroski=None,
+            sector="", sort_by="market_cap", sort_desc=True, limit=10,
+        )
+        assert out["default_market_cap_floor_applied"] is False
+        assert "v.market_cap >= 1000000000.0" in captured["sql"]
+        assert "500e6" not in captured["sql"]
+
+    def test_roe_and_operating_margin_percent_converted_to_fraction(self, monkeypatch):
+        import routers.market as market
+
+        captured = {}
+
+        def fake_query(sql, prompt):
+            captured["sql"] = sql
+            return []
+
+        monkeypatch.setattr(market.shibui_client, "query", fake_query)
+        market._shibui_screener(
+            min_pe=None, max_pe=None, min_market_cap=None, max_market_cap=None,
+            min_roe=15, max_roe=None, min_ps=None, max_ps=None,
+            min_operating_margin=30, max_operating_margin=None, min_piotroski=7,
+            sector="", sort_by="roe", sort_desc=True, limit=10,
+        )
+        assert "dq.return_on_equity >= 0.15" in captured["sql"]
+        assert "dq.operating_margin >= 0.3" in captured["sql"]
+        assert "fq.piotroski_f_score >= 7" in captured["sql"]
+
+    def test_sector_is_escaped(self, monkeypatch):
+        import routers.market as market
+
+        captured = {}
+
+        def fake_query(sql, prompt):
+            captured["sql"] = sql
+            return []
+
+        monkeypatch.setattr(market.shibui_client, "query", fake_query)
+        market._shibui_screener(
+            min_pe=None, max_pe=None, min_market_cap=None, max_market_cap=None,
+            min_roe=None, max_roe=None, min_ps=None, max_ps=None,
+            min_operating_margin=None, max_operating_margin=None, min_piotroski=None,
+            sector="Tech'; DROP TABLE x; --", sort_by="market_cap", sort_desc=True, limit=10,
+        )
+        assert "g.gics_sector = 'Tech''; DROP TABLE x; --'" in captured["sql"]
+
+    def test_invalid_sort_by_falls_back_to_market_cap(self, monkeypatch):
+        import routers.market as market
+
+        captured = {}
+
+        def fake_query(sql, prompt):
+            captured["sql"] = sql
+            return []
+
+        monkeypatch.setattr(market.shibui_client, "query", fake_query)
+        market._shibui_screener(
+            min_pe=None, max_pe=None, min_market_cap=None, max_market_cap=None,
+            min_roe=None, max_roe=None, min_ps=None, max_ps=None,
+            min_operating_margin=None, max_operating_margin=None, min_piotroski=None,
+            sector="", sort_by="'; DROP TABLE x; --", sort_desc=True, limit=10,
+        )
+        assert "ORDER BY v.market_cap DESC" in captured["sql"]
+
+    def test_capped_at_limit_flag(self, monkeypatch):
+        import routers.market as market
+
+        rows = [self._row(ticker=f"T{i}") for i in range(3)]
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: rows)
+        out = market._shibui_screener(
+            min_pe=None, max_pe=None, min_market_cap=None, max_market_cap=None,
+            min_roe=None, max_roe=None, min_ps=None, max_ps=None,
+            min_operating_margin=None, max_operating_margin=None, min_piotroski=None,
+            sector="", sort_by="market_cap", sort_desc=True, limit=3,
+        )
+        assert out["total"] == 3
+        assert out["capped_at_limit"] is True  # returned == limit -- there may be more
+
+    def test_shibui_error_raises_502(self, monkeypatch):
+        import routers.market as market
+        import shibui_client
+        from fastapi import HTTPException
+
+        def raise_error(sql, prompt):
+            raise shibui_client.ShibuiError("boom")
+
+        monkeypatch.setattr(market.shibui_client, "query", raise_error)
+        with pytest.raises(HTTPException) as exc_info:
+            market._shibui_screener(
+                min_pe=None, max_pe=None, min_market_cap=None, max_market_cap=None,
+                min_roe=None, max_roe=None, min_ps=None, max_ps=None,
+                min_operating_margin=None, max_operating_margin=None, min_piotroski=None,
+                sector="", sort_by="market_cap", sort_desc=True, limit=10,
+            )
+        assert exc_info.value.status_code == 502
+
+    def test_result_row_shape_and_unit_conversion(self, monkeypatch):
+        import routers.market as market
+
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: [self._row()])
+        out = market._shibui_screener(
+            min_pe=None, max_pe=None, min_market_cap=None, max_market_cap=None,
+            min_roe=None, max_roe=None, min_ps=None, max_ps=None,
+            min_operating_margin=None, max_operating_margin=None, min_piotroski=None,
+            sector="", sort_by="market_cap", sort_desc=True, limit=10,
+        )
+        row = out["results"][0]
+        assert row["roe"] == 25.0       # fraction 0.25 -> percent
+        assert row["operating_margin"] == 30.0
+        assert row["div_yield"] == 1.0  # fraction 0.01 -> percent
+        assert row["pe"] == 20.0        # already a ratio, passthrough
+        assert row["piotroski_f_score"] == 7.0
+
+
 class TestShibuiTickerValidation:
     """_SHIBUI_TICKER_RE guards the f-string-interpolated SQL sent to Shibui's
     MCP server -- must reject anything that isn't a bare ticker shape."""

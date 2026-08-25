@@ -381,17 +381,29 @@ seznam top holderů jako yfinance, takže tabulka top-holderů zůstává z yfin
 
 ## Fáze 4 — Vylepšení existujících funkcí
 
-### 4a. Screener — přidat Shibui jako rychlejší, širší zdroj (ne rovnou nahradit)
+### 4a. ✅ Fáze 4a-i implementována — Screener: Shibui jako rychlejší, širší zdroj (ne náhrada)
 
-Dnešní `/market/screener` skenuje až 500 tikrů přes `ThreadPoolExecutor(12)` živě na yfinance
-(`market.py:1439`), cache 1 h. Shibui zvládne **celý univerz** (~10 344 symbolů) jedním SQL
-dotazem za sekundy, plus filtry co dnes nejdou vůbec (Piotroski F-score, operating P/E,
-earnings-quality flags, forward PEG).
+Dnešní `/market/screener` skenuje až 500 tikrů přes `ThreadPoolExecutor(12)` živě na yfinance,
+cache 1 h. Shibui zvládne **celý univerz** (~10 344 symbolů) jedním SQL dotazem za sekundy, plus
+filtry co dnes nejdou vůbec (Piotroski F-score, operating margin, ROE bez yfinance `.info`).
 
-- **Fáze 4a-i (bezpečná, rovnou přidat):** nový volitelný `?source=shibui&universe=all` mód
-  vedle stávajícího — screen přes celý trh, ne jen presetové listy (sp500/nasdaq100/...).
-  Vzor P4 z query patterns jako základ, rozšířit o `fundamentals_derived_quarterly` (ROE,
-  operating_margin) a `fundamentals_quarterly.piotroski_f_score`.
+- **Fáze 4a-i:** `?source=shibui` na stávajícím `/market/screener` (ignoruje `universe`/`tickers`,
+  vždy `universe: "all"` ve výstupu) — screen přes celý trh (`g.type = 'Common Stock'`), založeno
+  na P4 vzoru z query patterns (`latest_val`/`latest_dd`/`latest_dq`/`latest_fq` CTE se
+  `ROW_NUMBER()`, INNER JOIN pro core valuation, LEFT JOIN pro bonus ROE/margin/Piotroski pole).
+  Nové filtry: `min_operating_margin`/`max_operating_margin`, `min_piotroski`. Bez explicitního
+  `min_market_cap` se aplikuje default $500M floor (podle vlastního doporučení Shibui schématu
+  pro neomezené market-wide dotazy) — reportováno zpět jako `default_market_cap_floor_applied`.
+  Protože Shibui má tvrdý 200-řádkový limit, `total` v odpovědi je jen "kolik řádků se vrátilo"
+  (ne "kolik jich v celém trhu sedí na filtr") — signalizováno navíc přes `capped_at_limit`.
+
+  **Ověřeno živě caveat:** `operating_margin`/`return_on_equity` u firem s téměř nulovými tržbami
+  (pre-revenue biotechy, mikro-cap těžařské firmy) můžou vyjít absurdně vysoké (stovky až tisíce
+  %) kvůli dělení blízko nuly — přesně to, na co schema dokumentace upozorňuje u `trailing_pe`/
+  `ev_ebitda`. Screener to nijak nefiltruje (stejně jako stávající yfinance screener nefiltruje
+  vlastní ratio-outliery) — řazení/filtrování podle `operating_margin` může vytáhnout nahoru
+  tyhle degenerované případy, ne "opravdu ziskové firmy". Stálo by za zvážení sanity cap
+  (např. `operating_margin BETWEEN -100 AND 200` procent) při skutečném UI použití.
 - **Fáze 4a-ii (později, až 4a-i dozraje):** zvážit úplné nahrazení yfinance cesty, pokud
   Shibui pokryje všechna pole, co dnes frontend používá (target_mean, rating, analyst_count —
   šlo by dotáhnout z `analyst_estimates`).
