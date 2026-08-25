@@ -401,13 +401,38 @@ autocomplete. Doporučení:
   do lokální SQLite tabulky a fulltextově hledat lokálně — žádná latence, ale je to nová
   synchronizační úloha navíc.
 
-### 4c. Fundamentals fallback při selhání yfinance
+### 4c. ✅ Implementováno — jde dál než původní návrh: Shibui jako primární zdroj, ne jen fallback
 
-V `get_fundamentals` (`market.py:766`) — když `info` vyjde prázdné (dnešní `404 Unknown ticker`
-větev), než se vyhodí 404, zkusit Shibui (`general_info` + poslední `fundamentals_yearly` +
-poslední `valuation`) jako záchrannou síť. Payload označit `"data_source": "shibui_fallback"`,
-ať frontend může zobrazit poznámku, že jde o SEC-based data, ne yfinance. Spouštět **jen** při
-skutečném selhání (ne na každý request) — nesmí zpomalit běžnou cestu.
+Původní návrh (Shibui jen když `info` vyjde prázdné) byl nahrazen širším řešením: `get_fundamentals`
+teď volá `_shibui_fundamentals(sym)` **vždy** (ne jen při selhání) a pokud Shibui tiker pokrývá
+(NYSE/NASDAQ common stock — gate na neprázdný výsledek z `fundamentals_yearly`), jeho data **vyhrávají**
+nad yfinance pro:
+
+- **Financials (roční i kvartální)**: revenue, cost_of_revenue, gross_profit, operating_income,
+  ebitda, net_income, EPS (diluted s fallbackem na basic), FCF, debt, cash, shares_outstanding —
+  z `fundamentals_yearly`/`fundamentals_quarterly`, nahrazuje yfinance statement-row-name-guessing.
+- **Ratios**: P/E, P/S, P/B, P/FCF, EV/EBITDA, D/E, ROE, ROA, ROIC, gross/operating/net margin,
+  dividend yield, payout ratio, current ratio, quick ratio (dopočítáno z raw balance-sheet polí) —
+  z `fundamentals_derived_daily` + `valuation` + `fundamentals_derived_quarterly`. Plus nové pole
+  **`piotroski_f_score`** (0-9), co dřív appka vůbec neměla.
+- **Ownership %**: `insider_pct`/`institutional_pct` (v `_build_ownership`) teď taky z Shibui
+  `ownership_stats`, ne z yfinance `info`.
+
+yfinance zůstává **jediný** zdroj (Shibui to nemá vůbec) pro: analyst buy/hold/sell rozložení
+a price targets, revenue consensus estimates, jmenovitý seznam institucionálních holderů,
+a živou cenu/market cap (Shibui `valuation` má ~1denní lag, žádné intradenní ceny) — ty zůstávají
+beze změny na headline statech stránky. Existující yfinance-statement-based fallbacky (ROIC,
+quick ratio, margins) zůstávají jako druhá vrstva pro tikery, co Shibui nepokrývá vůbec (cizí
+burzy jako LSE/TSE — appka je multi-market, `_SHIBUI_TICKER_RE` na ně sedí tvarem, ale Shibui
+pro ně vrátí prázdný výsledek → čistý fallback na starou yfinance cestu, ověřeno živě na `HSBA.L`).
+Payload má nové pole `"fundamentals_source": "shibui" | "yfinance"`.
+
+**Neřešeno v tomhle kroku (vědomě odloženo)**: analyst estimates (EPS/revenue forward křivka,
+target price rozsah, rating) zůstávají čistě na yfinance — Shibui má sice `analyst_estimates`
+tabulku, ale jen current/next year+quarter EPS + `wall_street_target_price` (jedno číslo, ne
+high/low/median), žádné rating counts (strongBuy/buy/hold/sell), žádný revenue estimate. Nahradit
+by znamenalo viditelně ochudit stávající forward-estimate graf na Stock stránce — stálo by za
+samostatné promyšlení/rozhodnutí, ne tichou náhradu.
 
 ---
 

@@ -192,6 +192,25 @@ def _metric_block(name: str, raw: Optional[pd.Series], freq: str = "Y") -> dict:
     }
 
 
+def _shibui_metric_block(name: str, periods: list[str], values: list[float], freq: str = "Y") -> dict:
+    """Same output shape as _metric_block, built from already-extracted
+    (period_label, value) pairs -- oldest to newest -- instead of a yfinance
+    statement Series. Used for Shibui-sourced financials."""
+    if freq == "Q":
+        yoy = _yoy(values, lag=4)
+        cagr = _cagr(values, periods_per_year=4)
+    else:
+        yoy = _yoy(values, lag=1)
+        cagr = _cagr(values, periods_per_year=1)
+    return {
+        "name": name,
+        "years": periods,
+        "values": values,
+        "yoy": yoy,
+        "cagr": cagr,
+    }
+
+
 def _to_pct(v: Optional[float]) -> Optional[float]:
     """Decimal fraction (0.45) → percent (45.0). yfinance returns margins,
     ROE, ROA, payout ratio as decimals."""
@@ -523,26 +542,23 @@ def _fmt_date(v: Any) -> Optional[str]:
     return None
 
 
-def _shibui_short_interest(sym: str) -> tuple[Optional[float], Optional[float]]:
-    """Best-effort (short_percent_float, shares_float) from Shibui's
-    ownership_stats -- yfinance doesn't expose short interest. Supplementary
-    data only: any failure (bad ticker, Shibui down, no row) returns
-    (None, None) rather than raising, so it never breaks the fundamentals
-    endpoint this feeds into."""
+def _shibui_ownership_stats(sym: str) -> dict:
+    """Best-effort row from Shibui's ownership_stats (insider %, institutional
+    %, short interest). Returns {} on any failure (bad ticker, Shibui down,
+    no row for this symbol) rather than raising -- supplementary/preferred
+    data only, the fundamentals endpoint must keep working without it."""
     if not _SHIBUI_TICKER_RE.match(sym):
-        return None, None
+        return {}
     sql = (
-        "SELECT short_percent_float, shares_float FROM shibui.ownership_stats "
-        f"WHERE ticker = '{sym}' LIMIT 1"
+        "SELECT percent_insiders, percent_institutions, short_percent_float, shares_float"
+        " FROM shibui.ownership_stats"
+        f" WHERE ticker = '{sym}' LIMIT 1"
     )
     try:
-        rows = shibui_client.query(sql, f"Short interest for {sym}")
+        rows = shibui_client.query(sql, f"Ownership stats for {sym}")
     except shibui_client.ShibuiError:
-        return None, None
-    if not rows:
-        return None, None
-    row = rows[0]
-    return _f(row.get("short_percent_float")), _f(row.get("shares_float"))
+        return {}
+    return rows[0] if rows else {}
 
 
 def _build_ownership(stock: yf.Ticker, info: dict, sym: str) -> dict:
@@ -551,12 +567,21 @@ def _build_ownership(stock: yf.Ticker, info: dict, sym: str) -> dict:
     Returns headline percentages (insider %, institutional %) plus the top
     institutional holders table. Each holder includes the dollar value, share
     count, and % of shares outstanding so the UI can render a hover-tooltip
-    pie chart. Short interest (yfinance doesn't have it) comes from Shibui --
-    see _shibui_short_interest."""
-    insider_pct = _to_pct(_f(info.get("heldPercentInsiders")))
-    inst_pct = _to_pct(_f(info.get("heldPercentInstitutions")))
+    pie chart. Insider/institutional % and short interest (yfinance doesn't
+    have the latter at all) prefer Shibui's ownership_stats, falling back to
+    yfinance's `info` when Shibui has no row for this ticker."""
+    stats = _shibui_ownership_stats(sym)
+    # Shibui's percent_insiders/percent_institutions are already percentages
+    # (50.0 = 50%); yfinance's info fields are fractions (0.5 = 50%).
+    insider_pct = _f(stats.get("percent_insiders"))
+    if insider_pct is None:
+        insider_pct = _to_pct(_f(info.get("heldPercentInsiders")))
+    inst_pct = _f(stats.get("percent_institutions"))
+    if inst_pct is None:
+        inst_pct = _to_pct(_f(info.get("heldPercentInstitutions")))
     institutions_count = None
-    short_percent_float, short_shares_float = _shibui_short_interest(sym)
+    short_percent_float = _f(stats.get("short_percent_float"))
+    short_shares_float = _f(stats.get("shares_float"))
 
     holders: list[dict] = []
     try:
@@ -590,6 +615,158 @@ def _build_ownership(stock: yf.Ticker, info: dict, sym: str) -> dict:
         "short_percent_float": short_percent_float,
         "short_shares_float": short_shares_float,
         "top_institutional_holders": holders,
+    }
+
+
+def _shibui_financials_from_rows(rows: list[dict], freq: str) -> dict:
+    """Build the same metric-block dict shape _build_financials produces
+    (revenue/net_income/eps/fcf/debt/cash/shares_outstanding, plus bonus
+    cost_of_revenue/gross_profit/operating_income/ebitda), from Shibui
+    fundamentals_yearly/fundamentals_quarterly rows. `rows` need not be
+    sorted; this sorts oldest-to-newest itself."""
+    ordered = sorted(rows, key=lambda r: (r["year"], r.get("quarter") or 0))
+
+    def _label(r: dict) -> str:
+        if freq == "Q":
+            return f"Q{r['quarter']} '{r['year'] % 100:02d}"
+        return str(r["year"])
+
+    def _block(col: str, name: str, fallback_col: Optional[str] = None) -> dict:
+        periods, values = [], []
+        for r in ordered:
+            v = _f(r.get(col))
+            if v is None and fallback_col:
+                v = _f(r.get(fallback_col))
+            if v is None:
+                continue
+            periods.append(_label(r))
+            values.append(v)
+        return _shibui_metric_block(name, periods, values, freq=freq)
+
+    return {
+        "revenue": _block("revenue", "Revenue"),
+        "cost_of_revenue": _block("cost_of_revenue", "Cost of Revenue"),
+        "gross_profit": _block("gross_profit", "Gross Profit"),
+        "operating_income": _block("operating_income", "Operating Income"),
+        "ebitda": _block("ebitda", "EBITDA"),
+        "net_income": _block("net_income", "Net Income"),
+        "eps": _block("eps_diluted", "Diluted EPS", fallback_col="eps"),
+        "fcf": _block("free_cash_flow", "Free Cash Flow"),
+        "debt": _block("debt", "Total Debt"),
+        "cash": _block("cash_and_equivalents", "Cash & Equivalents"),
+        "shares_outstanding": _block("shares_outstanding", "Shares Outstanding"),
+    }
+
+
+_SHIBUI_STATEMENT_COLUMNS = (
+    "revenue, cost_of_revenue, gross_profit, operating_income, ebitda, "
+    "net_income, eps, eps_diluted, free_cash_flow, debt, cash_and_equivalents, shares_outstanding"
+)
+_SHIBUI_ANNUAL_FIELDS = f"year, {_SHIBUI_STATEMENT_COLUMNS}"
+_SHIBUI_QUARTERLY_FIELDS = (
+    f"year, quarter, {_SHIBUI_STATEMENT_COLUMNS}, "
+    "current_ratio, profit_margin, piotroski_f_score, current_assets, inventory, current_liabilities"
+)
+
+
+def _shibui_fundamentals(sym: str) -> Optional[dict]:
+    """Best-effort annual/quarterly financials + latest-ratio snapshot from
+    Shibui, for get_fundamentals to prefer over yfinance's statement-scraping
+    (PLAN.md follow-up: Shibui as primary source, not just a fallback).
+
+    Shibui only covers NYSE/NASDAQ common stock, so this returns None
+    (triggering the existing yfinance-only path, unchanged) for anything it
+    doesn't have -- foreign listings, delisted tickers, thinly-covered names.
+    Presence is gated on the annual query alone: if that's empty, the ticker
+    isn't Shibui-covered and we don't bother with the other two calls."""
+    if not _SHIBUI_TICKER_RE.match(sym):
+        return None
+
+    annual_sql = (
+        f"SELECT {_SHIBUI_ANNUAL_FIELDS} FROM shibui.fundamentals_yearly "
+        f"WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 5"
+    )
+    try:
+        annual_rows = shibui_client.query(annual_sql, f"Annual financial statements for {sym}")
+    except shibui_client.ShibuiError:
+        return None
+    if not annual_rows:
+        return None
+
+    quarterly_sql = (
+        f"SELECT {_SHIBUI_QUARTERLY_FIELDS} FROM shibui.fundamentals_quarterly "
+        f"WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 8"
+    )
+    try:
+        quarterly_rows = shibui_client.query(quarterly_sql, f"Quarterly financial statements for {sym}")
+    except shibui_client.ShibuiError:
+        quarterly_rows = []
+
+    ratios_sql = (
+        "SELECT"
+        f" (SELECT market_cap FROM shibui.valuation WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS market_cap,"
+        f" (SELECT enterprise_value FROM shibui.valuation WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS enterprise_value,"
+        f" (SELECT price_to_book FROM shibui.valuation WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS price_to_book,"
+        f" (SELECT trailing_pe FROM shibui.fundamentals_derived_daily WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS trailing_pe,"
+        f" (SELECT price_to_sales FROM shibui.fundamentals_derived_daily WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS price_to_sales,"
+        f" (SELECT price_to_cash_flow FROM shibui.fundamentals_derived_daily WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS price_to_cash_flow,"
+        f" (SELECT ev_ebitda FROM shibui.fundamentals_derived_daily WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS ev_ebitda,"
+        f" (SELECT dividend_yield FROM shibui.fundamentals_derived_daily WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS dividend_yield,"
+        f" (SELECT payout_ratio FROM shibui.fundamentals_derived_daily WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS payout_ratio,"
+        f" (SELECT return_on_equity_ttm FROM shibui.fundamentals_derived_quarterly WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS return_on_equity_ttm,"
+        f" (SELECT return_on_assets FROM shibui.fundamentals_derived_quarterly WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS return_on_assets,"
+        f" (SELECT return_on_invested_capital FROM shibui.fundamentals_derived_quarterly WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS return_on_invested_capital,"
+        f" (SELECT debt_to_equity FROM shibui.fundamentals_derived_quarterly WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS debt_to_equity,"
+        f" (SELECT gross_margin FROM shibui.fundamentals_derived_quarterly WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS gross_margin,"
+        f" (SELECT operating_margin FROM shibui.fundamentals_derived_quarterly WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS operating_margin,"
+        f" (SELECT profit_margin_ttm FROM shibui.fundamentals_derived_quarterly WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS profit_margin_ttm"
+        " LIMIT 1"
+    )
+    try:
+        ratio_rows = shibui_client.query(ratios_sql, f"Valuation ratio snapshot for {sym}")
+    except shibui_client.ShibuiError:
+        ratio_rows = []
+    ratio_row = ratio_rows[0] if ratio_rows else {}
+
+    current_ratio = quick_ratio = piotroski = None
+    if quarterly_rows:
+        latest_q = quarterly_rows[0]  # ORDER BY date DESC -> most recent quarter first
+        current_ratio = _f(latest_q.get("current_ratio"))
+        piotroski = _f(latest_q.get("piotroski_f_score"))
+        ca, inventory, cl = (
+            _f(latest_q.get("current_assets")),
+            _f(latest_q.get("inventory")) or 0.0,
+            _f(latest_q.get("current_liabilities")),
+        )
+        if ca is not None and cl:
+            quick_ratio = round((ca - inventory) / cl, 2)
+
+    ratios = {
+        "pe": _f(ratio_row.get("trailing_pe")),
+        "ps": _f(ratio_row.get("price_to_sales")),
+        "pb": _f(ratio_row.get("price_to_book")),
+        "pfcf": _f(ratio_row.get("price_to_cash_flow")),
+        "ev_ebitda": _f(ratio_row.get("ev_ebitda")),
+        "de": _f(ratio_row.get("debt_to_equity")),
+        "current_ratio": current_ratio,
+        "quick_ratio": quick_ratio,
+        "roe": _to_pct(_f(ratio_row.get("return_on_equity_ttm"))),
+        "roa": _to_pct(_f(ratio_row.get("return_on_assets"))),
+        "roic": _to_pct(_f(ratio_row.get("return_on_invested_capital"))),
+        "gross_margin": _to_pct(_f(ratio_row.get("gross_margin"))),
+        "operating_margin": _to_pct(_f(ratio_row.get("operating_margin"))),
+        "net_margin": _to_pct(_f(ratio_row.get("profit_margin_ttm"))),
+        "div_yield": _to_pct(_f(ratio_row.get("dividend_yield"))),
+        "payout_ratio": _to_pct(_f(ratio_row.get("payout_ratio"))),
+        "piotroski_f_score": piotroski,
+    }
+
+    return {
+        "annual": _shibui_financials_from_rows(annual_rows, "Y"),
+        "quarterly": _shibui_financials_from_rows(quarterly_rows, "Q") if quarterly_rows else {},
+        "ratios": ratios,
+        "market_cap": _f(ratio_row.get("market_cap")),
+        "enterprise_value": _f(ratio_row.get("enterprise_value")),
     }
 
 
@@ -881,8 +1058,20 @@ def get_fundamentals(ticker: str):
             ),
         }
 
-    financials = _build_financials(income, balance, cashflow, freq="Y")
-    financials_quarterly = _build_financials(q_income, q_balance, q_cashflow, freq="Q")
+    # Prefer Shibui's structured statement data over yfinance's row-name
+    # guessing wherever Shibui covers this ticker (NYSE/NASDAQ common stock);
+    # `shibui_data` is None for anything it doesn't cover (foreign listings,
+    # delisted tickers, etc.), in which case every block below behaves
+    # exactly as before. income/balance/cashflow are still fetched above
+    # regardless -- they remain the fallback for whatever Shibui doesn't
+    # have below (ROIC, quick ratio inputs, margins), and the sole source
+    # when shibui_data is None.
+    shibui_data = _shibui_fundamentals(sym)
+    financials = shibui_data["annual"] if shibui_data else _build_financials(income, balance, cashflow, freq="Y")
+    financials_quarterly = (
+        shibui_data["quarterly"] if shibui_data and shibui_data.get("quarterly")
+        else _build_financials(q_income, q_balance, q_cashflow, freq="Q")
+    )
 
     # ---- TTM (trailing twelve months) for flow metrics -------------------
     # Sum the last four reported quarters so each TTM figure is computed the
@@ -914,6 +1103,12 @@ def get_fundamentals(ticker: str):
     market_cap = _f(info.get("marketCap"))
 
     ratios = _ratios_from_info(info)
+    if shibui_data:
+        # Shibui's own precomputed ratios win over yfinance's `info` fields
+        # wherever it has a value; anything it lacks (peg, forward_pe,
+        # ev_revenue -- see _shibui_fundamentals) keeps falling through the
+        # existing info/statement-based fallback chain below unchanged.
+        ratios.update({k: v for k, v in shibui_data["ratios"].items() if v is not None})
 
     # ---- Fill any missing ratios from the underlying statements ----------
     # yfinance's .info dict can be patchy for smaller-cap or foreign listings;
@@ -975,7 +1170,8 @@ def get_fundamentals(ticker: str):
 
         # ROIC = NOPAT / invested capital. Statement-based and more accurate
         # than the P/B-implied approximation in _ratios_from_info, so it
-        # overrides that for the focal stock when the inputs are available.
+        # overrides that for the focal stock when the inputs are available --
+        # but only when Shibui hasn't already supplied a (preferred) value.
         # NOPAT = operating income (EBIT) × (1 − effective tax rate);
         # invested capital = total debt + equity − cash.
         op_row_roic = _row(income, "Operating Income", "Total Operating Income As Reported")
@@ -988,7 +1184,7 @@ def get_fundamentals(ticker: str):
             if tp is not None and pt and pt > 0:
                 tax_rate = min(max(tp / pt, 0.0), 0.5)
         invested_cap = (last_debt or 0.0) + (equity or 0.0) - (_f(info.get("totalCash")) or 0.0)
-        if ebit is not None and invested_cap > 0:
+        if ratios.get("roic") is None and ebit is not None and invested_cap > 0:
             ratios["roic"] = round(ebit * (1 - tax_rate) / invested_cap * 100, 2)
     except Exception:
         pass
@@ -1010,8 +1206,13 @@ def get_fundamentals(ticker: str):
     except Exception:
         pass
 
-    # EV/EBITDA fallback from enterprise value + EBITDA.
-    ev = _f(info.get("enterpriseValue"))
+    # EV/EBITDA fallback from enterprise value + EBITDA. Prefer Shibui's own
+    # enterprise_value (feeds the ev_revenue fallback below too) when covered.
+    ev = None
+    if shibui_data:
+        ev = shibui_data.get("enterprise_value")
+    if ev is None:
+        ev = _f(info.get("enterpriseValue"))
     ebitda = _f(info.get("ebitda"))
     if ratios.get("ev_ebitda") is None and ev is not None and ebitda and ebitda > 0:
         ratios["ev_ebitda"] = round(ev / ebitda, 2)
@@ -1306,6 +1507,7 @@ def get_fundamentals(ticker: str):
         "analyst_estimates_quarterly": analyst_estimates_quarterly,
         "ownership": ownership,
         "insider_transactions": insider_transactions,
+        "fundamentals_source": "shibui" if shibui_data else "yfinance",
     }
     _FUND_CACHE[sym] = (time.time(), payload)
     return payload

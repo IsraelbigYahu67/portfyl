@@ -359,30 +359,28 @@ class TestShibuiBeneficialOwnership:
         assert out == {"ticker": "AAPL", "source": "shibui", "investors": []}
 
 
-class TestShibuiShortInterest:
-    """_shibui_short_interest (PLAN.md phase 3) -- supplementary data folded
-    into _build_ownership; must never raise."""
+class TestShibuiOwnershipStats:
+    """_shibui_ownership_stats (PLAN.md phase 3 + fundamentals-primary-source
+    follow-up) -- supplementary data folded into _build_ownership; must never
+    raise, since the fundamentals endpoint has to keep working without it."""
 
-    def test_returns_values_from_shibui(self, monkeypatch):
+    def test_returns_row_from_shibui(self, monkeypatch):
         import routers.market as market
-        monkeypatch.setattr(
-            market.shibui_client, "query",
-            lambda sql, prompt: [{"short_percent_float": 0.0097, "shares_float": 14569223952.0}],
-        )
-        pct, shares = market._shibui_short_interest("AAPL")
-        assert pct == 0.0097
-        assert shares == 14569223952.0
+        row = {"percent_insiders": 5.2, "percent_institutions": 61.3,
+               "short_percent_float": 0.0097, "shares_float": 14569223952.0}
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: [row])
+        assert market._shibui_ownership_stats("AAPL") == row
 
-    def test_invalid_ticker_returns_none_without_querying(self, monkeypatch):
+    def test_invalid_ticker_returns_empty_without_querying(self, monkeypatch):
         import routers.market as market
 
         def boom(sql, prompt):
             raise AssertionError("should not query Shibui for an invalid ticker")
 
         monkeypatch.setattr(market.shibui_client, "query", boom)
-        assert market._shibui_short_interest("'; DROP TABLE x; --") == (None, None)
+        assert market._shibui_ownership_stats("'; DROP TABLE x; --") == {}
 
-    def test_shibui_error_returns_none(self, monkeypatch):
+    def test_shibui_error_returns_empty(self, monkeypatch):
         import routers.market as market
         import shibui_client
 
@@ -390,7 +388,233 @@ class TestShibuiShortInterest:
             raise shibui_client.ShibuiError("boom")
 
         monkeypatch.setattr(market.shibui_client, "query", raise_error)
-        assert market._shibui_short_interest("AAPL") == (None, None)
+        assert market._shibui_ownership_stats("AAPL") == {}
+
+    def test_build_ownership_prefers_shibui_percentages_over_yfinance_info(self, monkeypatch):
+        import routers.market as market
+
+        monkeypatch.setattr(
+            market, "_shibui_ownership_stats",
+            lambda sym: {"percent_insiders": 5.2, "percent_institutions": 61.3,
+                         "short_percent_float": 0.0097, "shares_float": 14569223952.0},
+        )
+        info = {"heldPercentInsiders": 0.99, "heldPercentInstitutions": 0.01}  # should be ignored
+        out = market._build_ownership(stock=None, info=info, sym="AAPL")
+        assert out["insider_pct"] == 5.2
+        assert out["institutional_pct"] == 61.3
+        assert out["short_percent_float"] == 0.0097
+
+    def test_build_ownership_falls_back_to_yfinance_info_when_shibui_empty(self, monkeypatch):
+        import routers.market as market
+
+        monkeypatch.setattr(market, "_shibui_ownership_stats", lambda sym: {})
+        info = {"heldPercentInsiders": 0.05, "heldPercentInstitutions": 0.60}
+        out = market._build_ownership(stock=None, info=info, sym="XYZ")
+        assert out["insider_pct"] == 5.0
+        assert out["institutional_pct"] == 60.0
+        assert out["short_percent_float"] is None
+
+
+class TestShibuiFinancialsFromRows:
+    """_shibui_financials_from_rows (fundamentals-as-primary-source
+    follow-up) -- reshapes Shibui fundamentals_yearly/quarterly rows into
+    the same metric-block shape _build_financials produces from yfinance."""
+
+    def test_annual_labels_and_sorting(self):
+        from routers.market import _shibui_financials_from_rows
+        rows = [
+            {"year": 2025, "revenue": 300.0, "net_income": 30.0},
+            {"year": 2023, "revenue": 100.0, "net_income": 10.0},
+            {"year": 2024, "revenue": 200.0, "net_income": 20.0},
+        ]
+        out = _shibui_financials_from_rows(rows, "Y")
+        assert out["revenue"]["years"] == ["2023", "2024", "2025"]
+        assert out["revenue"]["values"] == [100.0, 200.0, 300.0]
+        assert out["net_income"]["values"] == [10.0, 20.0, 30.0]
+
+    def test_quarterly_labels(self):
+        from routers.market import _shibui_financials_from_rows
+        rows = [
+            {"year": 2025, "quarter": 2, "revenue": 20.0},
+            {"year": 2025, "quarter": 1, "revenue": 10.0},
+        ]
+        out = _shibui_financials_from_rows(rows, "Q")
+        assert out["revenue"]["years"] == ["Q1 '25", "Q2 '25"]
+        assert out["revenue"]["values"] == [10.0, 20.0]
+
+    def test_eps_falls_back_to_basic_when_diluted_missing(self):
+        from routers.market import _shibui_financials_from_rows
+        rows = [{"year": 2025, "eps_diluted": None, "eps": 4.2}]
+        out = _shibui_financials_from_rows(rows, "Y")
+        assert out["eps"]["values"] == [4.2]
+
+    def test_missing_values_are_dropped_not_nulled(self):
+        from routers.market import _shibui_financials_from_rows
+        rows = [{"year": 2024, "revenue": 100.0}, {"year": 2025, "revenue": None}]
+        out = _shibui_financials_from_rows(rows, "Y")
+        assert out["revenue"]["years"] == ["2024"]
+        assert out["revenue"]["values"] == [100.0]
+
+
+class TestShibuiFundamentals:
+    """_shibui_fundamentals (fundamentals-as-primary-source follow-up) --
+    gates on the annual query alone; None means 'not Shibui-covered', in
+    which case get_fundamentals must fall back to its existing yfinance path
+    untouched."""
+
+    def setup_method(self):
+        from cache import cache_clear
+        cache_clear()
+
+    def test_returns_none_when_annual_query_is_empty(self, monkeypatch):
+        import routers.market as market
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: [])
+        assert market._shibui_fundamentals("HSBA.L") is None
+
+    def test_returns_none_on_invalid_ticker_without_querying(self, monkeypatch):
+        import routers.market as market
+
+        def boom(sql, prompt):
+            raise AssertionError("should not query Shibui for an invalid ticker")
+
+        monkeypatch.setattr(market.shibui_client, "query", boom)
+        assert market._shibui_fundamentals("'; DROP TABLE x; --") is None
+
+    def test_full_success_path_scales_units_correctly(self, monkeypatch):
+        import routers.market as market
+
+        annual_rows = [{"year": 2025, "revenue": 400.0, "cost_of_revenue": 200.0, "gross_profit": 200.0,
+                        "operating_income": 130.0, "ebitda": 140.0, "net_income": 100.0, "eps": 6.0,
+                        "eps_diluted": 5.9, "free_cash_flow": 90.0, "debt": 80.0,
+                        "cash_and_equivalents": 50.0, "shares_outstanding": 15.0}]
+        quarterly_rows = [{"year": 2025, "quarter": 4, "revenue": 100.0, "current_ratio": 1.2,
+                           "profit_margin": 0.25, "piotroski_f_score": 7.0,
+                           "current_assets": 60.0, "inventory": 10.0, "current_liabilities": 50.0}]
+        ratio_row = {"market_cap": 3000.0, "enterprise_value": 3030.0, "price_to_book": 40.0,
+                     "trailing_pe": 30.0, "price_to_sales": 7.5, "price_to_cash_flow": 33.3,
+                     "ev_ebitda": 21.6, "dividend_yield": 0.005, "payout_ratio": 0.12,
+                     "return_on_equity_ttm": 1.2, "return_on_assets": 0.08,
+                     "return_on_invested_capital": 0.45, "debt_to_equity": 0.78,
+                     "gross_margin": 0.5, "operating_margin": 0.325, "profit_margin_ttm": 0.25}
+
+        calls = [annual_rows, quarterly_rows, [ratio_row]]
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: calls.pop(0))
+
+        out = market._shibui_fundamentals("AAPL")
+        assert out is not None
+        assert out["annual"]["revenue"]["values"] == [400.0]
+        assert out["annual"]["eps"]["values"] == [5.9]  # prefers diluted
+        # Decimal-fraction Shibui fields must land as PERCENT to match the
+        # rest of the `ratios` dict's convention (yfinance-sourced values).
+        assert out["ratios"]["roe"] == 120.0
+        assert out["ratios"]["roa"] == 8.0
+        assert out["ratios"]["roic"] == 45.0
+        assert out["ratios"]["gross_margin"] == 50.0
+        assert out["ratios"]["operating_margin"] == 32.5
+        assert out["ratios"]["net_margin"] == 25.0
+        assert out["ratios"]["div_yield"] == 0.5
+        assert out["ratios"]["payout_ratio"] == 12.0
+        # debt_to_equity is already a multiple in Shibui -- passed through raw.
+        assert out["ratios"]["de"] == 0.78
+        # trailing_pe / price_to_sales / price_to_book / ev_ebitda are already
+        # ratio numbers in Shibui -- passed through raw, no scaling.
+        assert out["ratios"]["pe"] == 30.0
+        assert out["ratios"]["ps"] == 7.5
+        assert out["ratios"]["pb"] == 40.0
+        assert out["ratios"]["ev_ebitda"] == 21.6
+        assert out["ratios"]["piotroski_f_score"] == 7.0
+        assert out["ratios"]["current_ratio"] == 1.2
+        assert out["ratios"]["quick_ratio"] == 1.0  # (60-10)/50
+        assert out["market_cap"] == 3000.0
+        assert out["enterprise_value"] == 3030.0
+
+    def test_quarterly_or_ratio_failure_still_returns_annual(self, monkeypatch):
+        """If Shibui gives annual data but errors on the other two calls, the
+        ticker is still treated as Shibui-covered -- annual financials are
+        used, quarterly/ratios/ownership just come back empty/None instead
+        of taking down the whole result."""
+        import routers.market as market
+        import shibui_client
+
+        annual_rows = [{"year": 2025, "revenue": 400.0}]
+        calls = [annual_rows]
+
+        def fake_query(sql, prompt):
+            if calls:
+                return calls.pop(0)
+            raise shibui_client.ShibuiError("boom")
+
+        monkeypatch.setattr(market.shibui_client, "query", fake_query)
+        out = market._shibui_fundamentals("AAPL")
+        assert out is not None
+        assert out["quarterly"] == {}
+        assert out["market_cap"] is None
+        assert all(v is None for v in out["ratios"].values())
+
+
+class TestFundamentalsPreferShibui:
+    """get_fundamentals (fundamentals-as-primary-source follow-up): when
+    Shibui covers the ticker its financials/ratios win over yfinance's,
+    without breaking coverage for tickers Shibui doesn't have (foreign
+    listings, delisted, etc.)."""
+
+    def setup_method(self):
+        from cache import cache_clear
+        import routers.market as market
+        cache_clear()
+        market._FUND_CACHE.clear()
+
+    def _stub_yf_ticker(self, monkeypatch):
+        import routers.market as market
+
+        class _StubTicker:
+            def __getattr__(self, name):
+                import pandas as pd
+                return pd.DataFrame()
+
+        monkeypatch.setattr(market.yf, "Ticker", lambda sym: _StubTicker())
+
+    def test_prefers_shibui_financials_and_does_not_clobber_roic(self, monkeypatch):
+        import routers.market as market
+
+        self._stub_yf_ticker(monkeypatch)
+        monkeypatch.setattr(market.market_data, "get_info",
+                            lambda sym, timeout=None: {"symbol": "AAPL", "currentPrice": 200.0, "marketCap": 3e12})
+        block = lambda: {"name": "x", "years": ["2024", "2025"], "values": [1.0, 2.0], "yoy": [None, 100.0], "cagr": 100.0}
+        shibui_fixture = {
+            "annual": {k: block() for k in (
+                "revenue", "cost_of_revenue", "gross_profit", "operating_income", "ebitda",
+                "net_income", "eps", "fcf", "debt", "cash", "shares_outstanding")},
+            "quarterly": {},
+            "ratios": {"pe": 11.11, "roic": 42.0, "piotroski_f_score": 7.0},
+            "market_cap": 3.1e12,
+            "enterprise_value": 3.2e12,
+        }
+        monkeypatch.setattr(market, "_shibui_fundamentals", lambda sym: shibui_fixture)
+        monkeypatch.setattr(market, "_shibui_ownership_stats", lambda sym: {})
+
+        payload = market.get_fundamentals("AAPL")
+        assert payload["fundamentals_source"] == "shibui"
+        assert payload["financials"]["revenue"]["values"] == [1.0, 2.0]
+        assert payload["ratios"]["pe"] == 11.11
+        # The statement-based ROIC fallback must not override Shibui's value
+        # (income_stmt is empty here anyway, but this is the behavior that
+        # matters even when statements ARE available).
+        assert payload["ratios"]["roic"] == 42.0
+        assert payload["ratios"]["piotroski_f_score"] == 7.0
+
+    def test_falls_back_to_yfinance_when_shibui_has_no_coverage(self, monkeypatch):
+        import routers.market as market
+
+        self._stub_yf_ticker(monkeypatch)
+        monkeypatch.setattr(market.market_data, "get_info",
+                            lambda sym, timeout=None: {"symbol": "HSBA.L", "currentPrice": 1500.0, "marketCap": 1e11})
+        monkeypatch.setattr(market, "_shibui_fundamentals", lambda sym: None)
+        monkeypatch.setattr(market, "_shibui_ownership_stats", lambda sym: {})
+
+        payload = market.get_fundamentals("HSBA.L")
+        assert payload["fundamentals_source"] == "yfinance"
+        assert payload["financials"]["revenue"]["values"] == []
 
 
 class TestPoliticianTrades:
