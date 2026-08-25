@@ -91,6 +91,26 @@ export const fetchFundamentals = (ticker) =>
 export const searchTickers = (q, limit = 10) =>
   api.get(`/market/search`, { params: { q, limit } }).then((r) => r.data);
 
+// ----- Shibui-backed stock data (SEC filings, insiders, earnings, etc.) ----
+export const fetchShibuiFilings = (ticker, formTypes, years = 2) =>
+  api
+    .get(`/market/shibui/filings/${ticker}`, {
+      params: { years, ...(formTypes ? { form_types: formTypes } : {}) },
+    })
+    .then((r) => r.data);
+export const fetchShibuiInsiders = (ticker, months = 12) =>
+  api.get(`/market/shibui/insiders/${ticker}`, { params: { months } }).then((r) => r.data);
+export const fetchShibuiActivistStakes = (ticker) =>
+  api.get(`/market/shibui/activist-stakes/${ticker}`).then((r) => r.data);
+export const fetchShibuiStrategicInvestors = (ticker) =>
+  api.get(`/market/shibui/strategic-investors/${ticker}`).then((r) => r.data);
+export const fetchShibuiEarningsRecap = (ticker) =>
+  api.get(`/market/shibui/earnings-recap/${ticker}`).then((r) => r.data);
+export const fetchShibuiValuationHistory = (ticker, years = 10) =>
+  api.get(`/market/shibui/valuation-history/${ticker}`, { params: { years } }).then((r) => r.data);
+export const fetchPoliticianTrades = (ticker) =>
+  api.get(`/market/politician-trades/${ticker}`).then((r) => r.data);
+
 // ----- Watchlists (global, not portfolio-scoped) ----------------------------
 export const fetchWatchlists = () => api.get("/watchlists").then((r) => r.data);
 export const createWatchlist = (data) =>
