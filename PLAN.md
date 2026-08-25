@@ -443,11 +443,20 @@ samostatné promyšlení/rozhodnutí, ne tichou náhradu.
 
 ---
 
-## Fáze 5 — Historická valuace u více multiplů (podrobný návrh)
+## Fáze 5 — Historická valuace u více multiplů — ✅ backend implementován
 
 Cíl: ukázat ne jen dnešní P/E, ale **jak se násobek vyvíjel v čase vůči sobě samému** — dnes
 appka umí jen srovnání proti sektoru "teď", ne proti vlastní historii. To je diferencující
 feature, nic takového dnes neexistuje.
+
+`GET /market/shibui/valuation-history/{ticker}?years=N` implementován přesně podle návrhu níže
+(žebříček granularity, DATE_TRUNC/biweekly bucket SQL, PERCENT_RANK). Ověřeno živě pro day/week/
+biweekly/quarter granularitu (roky 1, 4, 7, 10) — čísla i bucket rozestupy sedí. Granularitu
+"month" (roky ~15) se nepovedlo ověřit živě kvůli výpadku veřejného Shibui MCP serveru během
+implementace (`MCPError code=-32603`, přetrvávalo přes 90s napříč čerstvými spojeními, netýkalo
+se jen tohohle query — i predtím fungující jednoduchý dotaz začal padat stejně) — SQL vzorec je
+ale identický (`DATE_TRUNC('month', v.date)`) jako u již ověřeného `week`/`quarter`, takže riziko
+je nízké. Stojí za rychlou živou kontrolu, až se server zase zvedne.
 
 ### Multiply k zobrazení (5 základních, všechny denně od 1993)
 

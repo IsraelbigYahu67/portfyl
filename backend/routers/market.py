@@ -1966,6 +1966,96 @@ def get_shibui_earnings_recap(ticker: str):
     }
 
 
+# ---------------------------------------------------------------------------
+# Shibui: historical valuation multiples (PLAN.md phase 5). Answers "is this
+# multiple cheap or expensive vs. how this company usually trades" -- not
+# just vs. the sector today, which is all the app could show before.
+# ---------------------------------------------------------------------------
+
+_SHIBUI_VALUATION_HISTORY_TTL = 3600 * 12  # daily EOD data; no point refetching same-day
+
+# Finest bucket that keeps the row count under Shibui's 200-row cap for a
+# given date range. Pure function of the range, not a user-facing knob --
+# the endpoint picks it, the response reports which one it picked.
+_VALUATION_GRANULARITY_LADDER = [
+    ("day", 190),
+    ("week", 1300),
+    ("biweekly", 2600),
+    ("month", 5400),
+    ("quarter", None),
+]
+
+# DuckDB has no native DATE_TRUNC for 2-week windows, so "biweekly" buckets
+# manually via integer division from a fixed epoch (verified live: gives
+# clean 14-day-apart buckets). The others use native DATE_TRUNC.
+_VALUATION_BUCKET_EXPR = {
+    "day": "v.date",
+    "week": "DATE_TRUNC('week', v.date)",
+    "biweekly": "DATE '1990-01-01' + (((v.date - DATE '1990-01-01') / 14)::INTEGER * 14)",
+    "month": "DATE_TRUNC('month', v.date)",
+    "quarter": "DATE_TRUNC('quarter', v.date)",
+}
+
+
+def _pick_valuation_granularity(range_days: int) -> str:
+    for label, max_days in _VALUATION_GRANULARITY_LADDER:
+        if max_days is None or range_days <= max_days:
+            return label
+    return "quarter"
+
+
+@router.get("/shibui/valuation-history/{ticker}")
+@ttl_cache(_SHIBUI_VALUATION_HISTORY_TTL)
+def get_shibui_valuation_history(ticker: str, years: int = 10):
+    """Historical trailing P/E, EV/EBITDA, P/S, P/FCF, and P/B for `ticker`,
+    each bucketed point tagged with its percentile rank within the requested
+    window (0 = cheapest the stock has been on that multiple, 1 = priciest).
+    Granularity (day/week/biweekly/month/quarter) is chosen automatically
+    from `years` -- not a caller-supplied parameter -- to stay under
+    Shibui's 200-row cap; the response's `granularity` field reports which
+    one was used. Data floor is 1993-06-30 (per-ticker history may be
+    shorter, e.g. later IPOs)."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+    safe_years = max(1, min(int(years or 10), 50))
+    granularity = _pick_valuation_granularity(safe_years * 365)
+    bucket_expr = _VALUATION_BUCKET_EXPR[granularity]
+
+    sql = (
+        "WITH bucketed AS ("
+        f"  SELECT {bucket_expr} AS bucket,"
+        "    arg_max(v.market_cap, v.date) AS market_cap,"
+        "    arg_max(dd.trailing_pe, v.date) AS trailing_pe,"
+        "    arg_max(dd.ev_ebitda, v.date) AS ev_ebitda,"
+        "    arg_max(dd.price_to_sales, v.date) AS price_to_sales,"
+        "    arg_max(dd.price_to_cash_flow, v.date) AS price_to_cash_flow,"
+        "    arg_max(v.price_to_book, v.date) AS price_to_book"
+        "  FROM shibui.valuation v"
+        "  INNER JOIN shibui.fundamentals_derived_daily dd ON dd.symbol = v.symbol AND dd.date = v.date"
+        f"  WHERE v.ticker = '{sym}' AND v.date >= CURRENT_DATE - INTERVAL '{safe_years} years'"
+        "  GROUP BY 1"
+        ") "
+        "SELECT bucket, market_cap, trailing_pe, ev_ebitda, price_to_sales, price_to_cash_flow, price_to_book,"
+        "  PERCENT_RANK() OVER (ORDER BY trailing_pe)         AS pe_pctile,"
+        "  PERCENT_RANK() OVER (ORDER BY ev_ebitda)           AS ev_ebitda_pctile,"
+        "  PERCENT_RANK() OVER (ORDER BY price_to_sales)      AS ps_pctile,"
+        "  PERCENT_RANK() OVER (ORDER BY price_to_cash_flow)  AS pfcf_pctile,"
+        "  PERCENT_RANK() OVER (ORDER BY price_to_book)       AS pb_pctile"
+        " FROM bucketed"
+        " ORDER BY bucket"
+        " LIMIT 200"
+    )
+    try:
+        rows = shibui_client.query(sql, f"Historical valuation multiples for {sym} ({granularity} granularity)")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui query failed for {ticker}: {e}")
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No Shibui valuation history for {ticker}")
+
+    return {"ticker": sym, "source": "shibui", "years": safe_years, "granularity": granularity, "points": rows}
+
+
 @router.get("/dividend-growth/{ticker}")
 def stock_dividend_growth(ticker: str):
     """Full dividend-growth payload for one ticker (annual series + per-payment

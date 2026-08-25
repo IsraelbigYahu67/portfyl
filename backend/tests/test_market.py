@@ -778,6 +778,92 @@ class TestShibuiEarningsRecap:
         assert out["source"] == "shibui"
 
 
+class TestValuationGranularityLadder:
+    """_pick_valuation_granularity (PLAN.md phase 5) -- pure function of the
+    requested date range, picking the finest bucket that stays under
+    Shibui's 200-row cap. Boundary values verified live against the actual
+    ladder cutoffs in PLAN.md (190/1300/2600/5400 days)."""
+
+    def test_boundaries(self):
+        from routers.market import _pick_valuation_granularity
+        cases = {
+            189: "day", 190: "day", 191: "week",
+            1299: "week", 1300: "week", 1301: "biweekly",
+            2599: "biweekly", 2600: "biweekly", 2601: "month",
+            5399: "month", 5400: "month", 5401: "quarter",
+            20000: "quarter",
+        }
+        for days, expected in cases.items():
+            assert _pick_valuation_granularity(days) == expected, f"{days} days"
+
+
+class TestShibuiValuationHistory:
+    """GET /market/shibui/valuation-history/{ticker} (PLAN.md phase 5)."""
+
+    def setup_method(self):
+        from cache import cache_clear
+        cache_clear()
+
+    def test_rejects_invalid_ticker(self):
+        from fastapi import HTTPException
+        from routers.market import get_shibui_valuation_history
+        with pytest.raises(HTTPException) as exc_info:
+            get_shibui_valuation_history("'; DROP TABLE x; --")
+        assert exc_info.value.status_code == 400
+
+    def test_empty_result_is_404(self, monkeypatch):
+        import routers.market as market
+        from fastapi import HTTPException
+
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: [])
+        with pytest.raises(HTTPException) as exc_info:
+            market.get_shibui_valuation_history("AAPL")
+        assert exc_info.value.status_code == 404
+
+    def test_picks_granularity_from_years_and_reports_it(self, monkeypatch):
+        import routers.market as market
+
+        captured = {}
+
+        def fake_query(sql, prompt):
+            captured["sql"] = sql
+            return [{"bucket": "2024-01-01", "trailing_pe": 20.0}]
+
+        monkeypatch.setattr(market.shibui_client, "query", fake_query)
+
+        out = market.get_shibui_valuation_history("AAPL", years=1)
+        assert out["granularity"] == "week"
+        assert "DATE_TRUNC('week', v.date)" in captured["sql"]
+        assert out["years"] == 1
+        assert out["points"] == [{"bucket": "2024-01-01", "trailing_pe": 20.0}]
+
+    def test_max_range_uses_quarterly_bucket(self, monkeypatch):
+        import routers.market as market
+
+        captured = {}
+
+        def fake_query(sql, prompt):
+            captured["sql"] = sql
+            return [{"bucket": "2024-01-01"}]
+
+        monkeypatch.setattr(market.shibui_client, "query", fake_query)
+        out = market.get_shibui_valuation_history("AAPL", years=50)
+        assert out["granularity"] == "quarter"
+        assert "DATE_TRUNC('quarter', v.date)" in captured["sql"]
+        # years is capped at 50 -- a caller passing something silly doesn't
+        # produce an absurd WHERE clause.
+        assert "INTERVAL '50 years'" in captured["sql"]
+
+    def test_years_capped_to_sane_bounds(self, monkeypatch):
+        import routers.market as market
+
+        captured = {}
+        monkeypatch.setattr(market.shibui_client, "query",
+                            lambda sql, prompt: captured.setdefault("sql", sql) or [{"bucket": "x"}])
+        market.get_shibui_valuation_history("AAPL", years=9999)
+        assert "INTERVAL '50 years'" in captured["sql"]
+
+
 def test_stock_dividend_growth_returns_full_payload(monkeypatch):
     from routers.market import stock_dividend_growth
     import dividend_growth
