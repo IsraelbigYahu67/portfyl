@@ -295,7 +295,7 @@ pásmo, a u option-flagged navíc badge + surový popis + caveat výše.
 
 ---
 
-## Fáze 2 — Earnings analýza
+## Fáze 2 — Earnings analýza — ✅ backend implementován (2a, 2e), frontend zatím ne
 
 ### 2a. EPS beat/miss historie — plně podporováno
 
@@ -346,12 +346,19 @@ Realizované odkupy (cash-flow, retrospektivně) **ano**:
 čistý odkup ten kvartál/rok). Nové **oznámení autorizace** odkupu (forward-looking event)
 **není** strukturovaná data — stejná caveat jako guidance (8-K item 8.01, jen odkaz).
 
-### 2e. Kombinovaný "earnings recap" endpoint
+### 2e. Kombinovaný "earnings recap" endpoint — ✅ implementováno
 
 `GET /market/shibui/earnings-recap/{ticker}` — spojí 2a (EPS) + 2b (revenue, kombinovaný zdroj)
 + 2c (odkaz na nejbližší 8-K) + 2d (`equity_issuance_repayment` trend) do jednoho payloadu.
-**UI:** nová karta/tab "Earnings" na Stock stránce — poslední report nahoře (beat/miss badge),
-historie surprise % jako mini-graf, odkaz na filing.
+
+**Poznámka k 2b při implementaci:** yfinance `revenue_estimate` v praxi téměř nikdy nemá `-1q`
+period (ověřeno živě na AAPL — index byl jen `['0q', '+1q', '0y', '+1y']`), takže "revenue surprise"
+je opravdu jen best-effort, jak plán předjímal ("částečná podpora") — `latest_revenue_estimate`/
+`latest_revenue_surprise_pct` se často vrátí `null`, ne vymyšlené číslo. `source` v payloadu je
+`"shibui+yfinance"` jen když se `-1q` skutečně podařilo najít, jinak `"shibui"`.
+
+**UI (zatím neuděláno):** nová karta/tab "Earnings" na Stock stránce — poslední report nahoře
+(beat/miss badge), historie surprise % jako mini-graf, odkaz na filing.
 
 ---
 

@@ -1830,6 +1830,142 @@ async def get_politician_trades(ticker: str):
     }
 
 
+# ---------------------------------------------------------------------------
+# Shibui: earnings (PLAN.md phase 2). EPS beat/miss is fully Shibui-native;
+# revenue beat/miss has to borrow yfinance's estimate snapshot since Shibui
+# only has actuals (see get_shibui_earnings_recap docstring for the caveat).
+# ---------------------------------------------------------------------------
+
+_SHIBUI_EARNINGS_TTL = 3600 * 6  # earnings land a few times a year per ticker
+
+
+@router.get("/shibui/earnings/{ticker}")
+@ttl_cache(_SHIBUI_EARNINGS_TTL)
+def get_shibui_earnings(ticker: str, quarters: int = 20):
+    """EPS actual/estimate/surprise history for `ticker`, from Shibui's
+    earnings_quarterly (SEC-filing-derived, not yfinance's scraped estimates)."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+    safe_quarters = max(1, min(int(quarters or 20), 40))
+
+    sql = (
+        "SELECT date, report_date, before_after_market, eps_actual, eps_estimate,"
+        " eps_difference, surprise_percent, year, quarter"
+        " FROM shibui.earnings_quarterly"
+        f" WHERE ticker = '{sym}' AND eps_actual IS NOT NULL"
+        " ORDER BY date DESC"
+        f" LIMIT {safe_quarters}"
+    )
+    try:
+        rows = shibui_client.query(sql, f"EPS beat/miss history for {sym}")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui query failed for {ticker}: {e}")
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No Shibui earnings history for {ticker}")
+
+    return {"ticker": sym, "source": "shibui", "quarters": rows}
+
+
+@router.get("/shibui/earnings-recap/{ticker}")
+def get_shibui_earnings_recap(ticker: str):
+    """Combined earnings snapshot: EPS beat/miss history + actual revenue per
+    quarter (Shibui), a buyback trend (equity_issuance_repayment -- negative
+    means net repurchase), and a link to the nearest 8-K filed with item
+    2.02 ("results of operations") around the latest report -- guidance
+    commentary usually lives in that press release, which Shibui only has a
+    URL for, not parsed content (PLAN.md 2c).
+
+    Revenue beat/miss is inherently partial: Shibui has no revenue consensus
+    estimate at all (only EPS), and yfinance's revenue_estimate only ever
+    exposes a *current* snapshot -- no historical point-in-time estimates to
+    diff actuals against. The best available signal is yfinance's "-1q"
+    period (the estimate for the most-recently-reported quarter), which is
+    only sometimes still exposed after that quarter's report lands; when
+    it isn't, `latest_revenue_estimate`/`latest_revenue_surprise_pct` come
+    back null rather than a guess."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+
+    sql = (
+        "SELECT e.date AS earnings_date, e.report_date, e.before_after_market,"
+        " e.year, e.quarter, e.eps_actual, e.eps_estimate, e.eps_difference, e.surprise_percent,"
+        " f.revenue AS revenue_actual"
+        " FROM shibui.earnings_quarterly e"
+        " LEFT JOIN shibui.fundamentals_quarterly f"
+        "   ON f.symbol = e.symbol AND f.year = e.year AND f.quarter = e.quarter"
+        f" WHERE e.ticker = '{sym}' AND e.eps_actual IS NOT NULL"
+        " ORDER BY e.date DESC"
+        " LIMIT 12"
+    )
+    try:
+        quarters_rows = shibui_client.query(sql, f"Earnings recap (EPS + revenue) for {sym}")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui query failed for {ticker}: {e}")
+    if not quarters_rows:
+        raise HTTPException(status_code=404, detail=f"No Shibui earnings history for {ticker}")
+
+    buyback_sql = (
+        "SELECT year, quarter, equity_issuance_repayment"
+        " FROM shibui.fundamentals_quarterly"
+        f" WHERE ticker = '{sym}'"
+        " ORDER BY date DESC"
+        " LIMIT 12"
+    )
+    try:
+        buyback_trend = shibui_client.query(buyback_sql, f"Buyback (equity issuance/repayment) trend for {sym}")
+    except shibui_client.ShibuiError:
+        buyback_trend = []
+
+    latest_report_date = quarters_rows[0].get("report_date") or quarters_rows[0].get("earnings_date")
+    nearest_8k = None
+    if latest_report_date:
+        filing_sql = (
+            "SELECT sf.filing_date, sf.filing_url"
+            " FROM shibui.sec_filings sf"
+            f" WHERE sf.cik = (SELECT g.cik FROM shibui.general_info g WHERE g.ticker = '{sym}')"
+            "   AND sf.form_type = '8-K'"
+            "   AND list_contains(sf.items, '2.02')"
+            f"   AND sf.filing_date >= DATE '{latest_report_date}' - INTERVAL '30 days'"
+            f"   AND sf.filing_date <= DATE '{latest_report_date}' + INTERVAL '30 days'"
+            f" ORDER BY ABS(sf.filing_date - DATE '{latest_report_date}')"
+            " LIMIT 1"
+        )
+        try:
+            filing_rows = shibui_client.query(filing_sql, f"Nearest 8-K item 2.02 to {sym}'s latest earnings")
+            nearest_8k = filing_rows[0] if filing_rows else None
+        except shibui_client.ShibuiError:
+            nearest_8k = None
+
+    # Best-effort revenue estimate for the most-recently-reported quarter --
+    # see docstring caveat. Never lets a yfinance hiccup fail the endpoint.
+    latest_revenue_estimate = None
+    try:
+        rev_est_df = yf.Ticker(yf_symbol(sym)).revenue_estimate
+        if rev_est_df is not None and not rev_est_df.empty and "-1q" in rev_est_df.index:
+            latest_revenue_estimate = _f(rev_est_df.loc["-1q"].get("avg"))
+    except Exception:
+        pass
+
+    latest_revenue_actual = quarters_rows[0].get("revenue_actual")
+    latest_revenue_surprise_pct = None
+    if latest_revenue_estimate and latest_revenue_actual and latest_revenue_estimate > 0:
+        latest_revenue_surprise_pct = round(
+            (latest_revenue_actual - latest_revenue_estimate) / latest_revenue_estimate * 100, 2
+        )
+
+    return {
+        "ticker": sym,
+        "source": "shibui+yfinance" if latest_revenue_estimate is not None else "shibui",
+        "quarters": quarters_rows,
+        "buyback_trend": buyback_trend,
+        "latest_revenue_estimate": latest_revenue_estimate,
+        "latest_revenue_surprise_pct": latest_revenue_surprise_pct,
+        "nearest_8k_2_02": nearest_8k,
+    }
+
+
 @router.get("/dividend-growth/{ticker}")
 def stock_dividend_growth(ticker: str):
     """Full dividend-growth payload for one ticker (annual series + per-payment

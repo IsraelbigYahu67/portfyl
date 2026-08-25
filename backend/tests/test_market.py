@@ -661,6 +661,123 @@ class TestPoliticianTrades:
         assert out["total_count"] == 3
 
 
+class TestShibuiEarnings:
+    """GET /market/shibui/earnings/{ticker} (PLAN.md 2a)."""
+
+    def setup_method(self):
+        from cache import cache_clear
+        cache_clear()
+
+    def test_rejects_invalid_ticker(self):
+        from fastapi import HTTPException
+        from routers.market import get_shibui_earnings
+        with pytest.raises(HTTPException) as exc_info:
+            get_shibui_earnings("'; DROP TABLE x; --")
+        assert exc_info.value.status_code == 400
+
+    def test_empty_result_is_404(self, monkeypatch):
+        import routers.market as market
+        from fastapi import HTTPException
+
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: [])
+        with pytest.raises(HTTPException) as exc_info:
+            market.get_shibui_earnings("AAPL")
+        assert exc_info.value.status_code == 404
+
+    def test_returns_quarters(self, monkeypatch):
+        import routers.market as market
+
+        rows = [{"date": "2026-06-30", "eps_actual": 2.02, "eps_estimate": 1.88}]
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: rows)
+        out = market.get_shibui_earnings("AAPL")
+        assert out["ticker"] == "AAPL"
+        assert out["quarters"] == rows
+
+
+class TestShibuiEarningsRecap:
+    """GET /market/shibui/earnings-recap/{ticker} (PLAN.md 2e)."""
+
+    def setup_method(self):
+        from cache import cache_clear
+        cache_clear()
+
+    def test_rejects_invalid_ticker(self):
+        from fastapi import HTTPException
+        from routers.market import get_shibui_earnings_recap
+        with pytest.raises(HTTPException) as exc_info:
+            get_shibui_earnings_recap("'; DROP TABLE x; --")
+        assert exc_info.value.status_code == 400
+
+    def test_empty_quarters_is_404(self, monkeypatch):
+        import routers.market as market
+        from fastapi import HTTPException
+
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: [])
+        with pytest.raises(HTTPException) as exc_info:
+            market.get_shibui_earnings_recap("AAPL")
+        assert exc_info.value.status_code == 404
+
+    def test_combines_quarters_buyback_and_filing_link(self, monkeypatch):
+        import routers.market as market
+
+        quarters = [{"earnings_date": "2026-06-30", "report_date": "2026-07-30",
+                    "eps_actual": 2.02, "eps_estimate": 1.88, "revenue_actual": 1000.0}]
+        buyback = [{"year": 2026, "quarter": 3, "equity_issuance_repayment": -500.0}]
+        filing = [{"filing_date": "2026-07-30", "filing_url": "https://sec.gov/x"}]
+        calls = [quarters, buyback, filing]
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: calls.pop(0))
+
+        class _NoRevenueEstimateTicker:
+            revenue_estimate = None
+
+        monkeypatch.setattr(market.yf, "Ticker", lambda sym: _NoRevenueEstimateTicker())
+
+        out = market.get_shibui_earnings_recap("AAPL")
+        assert out["quarters"] == quarters
+        assert out["buyback_trend"] == buyback
+        assert out["nearest_8k_2_02"] == filing[0]
+        assert out["latest_revenue_estimate"] is None
+        assert out["latest_revenue_surprise_pct"] is None
+        assert out["source"] == "shibui"
+
+    def test_computes_revenue_surprise_when_yfinance_has_minus_1q(self, monkeypatch):
+        import routers.market as market
+        import pandas as pd
+
+        quarters = [{"earnings_date": "2026-06-30", "report_date": "2026-07-30",
+                    "eps_actual": 2.02, "eps_estimate": 1.88, "revenue_actual": 110.0}]
+        calls = [quarters, [], []]
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: calls.pop(0))
+
+        rev_est_df = pd.DataFrame({"avg": [100.0]}, index=["-1q"])
+
+        class _StubTicker:
+            revenue_estimate = rev_est_df
+
+        monkeypatch.setattr(market.yf, "Ticker", lambda sym: _StubTicker())
+
+        out = market.get_shibui_earnings_recap("AAPL")
+        assert out["latest_revenue_estimate"] == 100.0
+        assert out["latest_revenue_surprise_pct"] == 10.0  # (110-100)/100 * 100
+        assert out["source"] == "shibui+yfinance"
+
+    def test_yfinance_failure_does_not_break_the_endpoint(self, monkeypatch):
+        import routers.market as market
+
+        quarters = [{"earnings_date": "2026-06-30", "report_date": "2026-07-30",
+                    "eps_actual": 2.02, "eps_estimate": 1.88, "revenue_actual": 110.0}]
+        calls = [quarters, [], []]
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: calls.pop(0))
+
+        def boom(sym):
+            raise RuntimeError("yfinance is down")
+
+        monkeypatch.setattr(market.yf, "Ticker", boom)
+        out = market.get_shibui_earnings_recap("AAPL")
+        assert out["latest_revenue_estimate"] is None
+        assert out["source"] == "shibui"
+
+
 def test_stock_dividend_growth_returns_full_payload(monkeypatch):
     from routers.market import stock_dividend_growth
     import dividend_growth
