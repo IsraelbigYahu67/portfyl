@@ -73,6 +73,21 @@ class TestStockScreener:
         assert result["total"] >= 0
 
 
+class TestShibuiTickerValidation:
+    """_SHIBUI_TICKER_RE guards the f-string-interpolated SQL sent to Shibui's
+    MCP server -- must reject anything that isn't a bare ticker shape."""
+
+    def test_accepts_plain_tickers(self):
+        from routers.market import _SHIBUI_TICKER_RE
+        for t in ("AAPL", "MSFT", "BRK.B", "BF-B", "F", "T"):
+            assert _SHIBUI_TICKER_RE.match(t), f"{t} should be accepted"
+
+    def test_rejects_injection_attempts(self):
+        from routers.market import _SHIBUI_TICKER_RE
+        for t in ("AAPL'; DROP TABLE x; --", "AAPL OR 1=1", "", "'", " AAPL", "AAPL "):
+            assert not _SHIBUI_TICKER_RE.match(t), f"{t} should be rejected"
+
+
 class TestScreenerRowBounded:
     """_ticker_screener_row must route through market_data's bounded, cached
     get_info — a raw yf.Ticker(...).info call can hang for ~10 minutes on one
@@ -166,6 +181,260 @@ class TestGetInfosTimeout:
 
         assert len(calls) == 1  # second call served from the empty-TTL cache
         assert "NODATA" in market_data._cache
+
+
+class TestShibuiFilings:
+    """GET /market/shibui/filings/{ticker} (PLAN.md 1a)."""
+
+    def setup_method(self):
+        from cache import cache_clear
+        cache_clear()
+
+    def test_rejects_form_types_outside_whitelist(self):
+        from routers.market import get_shibui_filings
+        import pytest as _pytest
+        from fastapi import HTTPException
+        with _pytest.raises(HTTPException) as exc_info:
+            get_shibui_filings("AAPL", form_types="AAPL'; DROP TABLE x; --")
+        assert exc_info.value.status_code == 400
+
+    def test_rejects_invalid_ticker(self):
+        from routers.market import get_shibui_filings
+        import pytest as _pytest
+        from fastapi import HTTPException
+        with _pytest.raises(HTTPException) as exc_info:
+            get_shibui_filings("'; DROP TABLE x; --")
+        assert exc_info.value.status_code == 400
+
+    def test_valid_request_filters_and_shapes_payload(self, monkeypatch):
+        import routers.market as market
+
+        captured_sql = {}
+
+        def fake_query(sql, user_prompt):
+            captured_sql["sql"] = sql
+            return [{"filing_date": "2026-01-01", "form_type": "10-K", "raw_form_type": "10-K",
+                     "is_amendment": False, "report_date": "2025-12-31", "items": [],
+                     "filing_url": "https://sec.gov/x", "acceptance_datetime": "2026-01-01T00:00:00"}]
+
+        monkeypatch.setattr(market.shibui_client, "query", fake_query)
+        out = market.get_shibui_filings("aapl", form_types="10-K, bogus-type")
+        assert out["ticker"] == "AAPL"
+        assert out["form_types"] == ["10-K"]  # bogus-type silently dropped
+        assert len(out["filings"]) == 1
+        assert "'AAPL'" in captured_sql["sql"]
+        assert "'10-K'" in captured_sql["sql"]
+
+    def test_empty_result_is_404(self, monkeypatch):
+        import routers.market as market
+        from fastapi import HTTPException
+        import pytest as _pytest
+
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: [])
+        with _pytest.raises(HTTPException) as exc_info:
+            market.get_shibui_filings("AAPL")
+        assert exc_info.value.status_code == 404
+
+
+class TestClusterBuyDetection:
+    """_is_cluster_candidate / _detect_cluster_buys (PLAN.md 1c) -- pure
+    Python logic over insider-transaction rows, no network involved."""
+
+    def _buy(self, owner_cik, tx_date, **overrides):
+        row = {
+            "tx_code": "P", "is_derivative": False, "is_auto_plan": False,
+            "is_estate": False, "price_per_share": 100.0, "security_title": "Common Stock",
+            "owner_cik": owner_cik, "owner_canonical_name": f"Owner {owner_cik}", "tx_date": tx_date,
+        }
+        row.update(overrides)
+        return row
+
+    def test_filters_out_noise_transactions(self):
+        from routers.market import _is_cluster_candidate
+        assert not _is_cluster_candidate(self._buy("1", "2026-01-01", tx_code="S"))
+        assert not _is_cluster_candidate(self._buy("1", "2026-01-01", is_derivative=True))
+        assert not _is_cluster_candidate(self._buy("1", "2026-01-01", is_auto_plan=True))
+        assert not _is_cluster_candidate(self._buy("1", "2026-01-01", is_estate=True))
+        assert not _is_cluster_candidate(self._buy("1", "2026-01-01", price_per_share=None))
+        assert not _is_cluster_candidate(self._buy("1", "2026-01-01", security_title="Options"))
+        assert _is_cluster_candidate(self._buy("1", "2026-01-01"))
+
+    def test_detects_cluster_of_three_distinct_owners_within_window(self):
+        from routers.market import _detect_cluster_buys
+        rows = [
+            self._buy("1", "2026-01-01"),
+            self._buy("2", "2026-01-10"),
+            self._buy("3", "2026-01-20"),
+        ]
+        clusters = _detect_cluster_buys(rows)
+        assert len(clusters) == 1
+        assert clusters[0]["start"] == "2026-01-01"
+        assert clusters[0]["end"] == "2026-01-20"
+        assert len(clusters[0]["buyers"]) == 3
+
+    def test_no_cluster_when_fewer_than_three_owners(self):
+        from routers.market import _detect_cluster_buys
+        rows = [self._buy("1", "2026-01-01"), self._buy("2", "2026-01-10")]
+        assert _detect_cluster_buys(rows) == []
+
+    def test_no_cluster_when_owners_spread_beyond_window(self):
+        from routers.market import _detect_cluster_buys
+        rows = [
+            self._buy("1", "2026-01-01"),
+            self._buy("2", "2026-02-15"),
+            self._buy("3", "2026-04-01"),
+        ]
+        assert _detect_cluster_buys(rows) == []
+
+    def test_same_owner_buying_repeatedly_does_not_count_as_a_cluster(self):
+        from routers.market import _detect_cluster_buys
+        rows = [self._buy("1", d) for d in ("2026-01-01", "2026-01-05", "2026-01-10")]
+        assert _detect_cluster_buys(rows) == []
+
+
+class TestShibuiInsiders:
+    """GET /market/shibui/insiders/{ticker} (PLAN.md 1b) -- replaces the
+    yfinance-scraped insider table with Shibui's structured Form 4/5 data."""
+
+    def setup_method(self):
+        from cache import cache_clear
+        cache_clear()
+
+    def test_returns_transactions_and_cluster_buys(self, monkeypatch):
+        import routers.market as market
+
+        rows = [
+            {"tx_date": "2026-01-01", "owner_cik": "1", "owner_canonical_name": "A",
+             "tx_code": "P", "is_derivative": False, "is_auto_plan": False, "is_estate": False,
+             "price_per_share": 10.0, "security_title": "Common Stock"},
+            {"tx_date": "2026-01-10", "owner_cik": "2", "owner_canonical_name": "B",
+             "tx_code": "P", "is_derivative": False, "is_auto_plan": False, "is_estate": False,
+             "price_per_share": 11.0, "security_title": "Common Stock"},
+            {"tx_date": "2026-01-15", "owner_cik": "3", "owner_canonical_name": "C",
+             "tx_code": "P", "is_derivative": False, "is_auto_plan": False, "is_estate": False,
+             "price_per_share": 12.0, "security_title": "Common Stock"},
+        ]
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: rows)
+        out = market.get_shibui_insiders("NVDA", months=12)
+        assert out["ticker"] == "NVDA"
+        assert len(out["transactions"]) == 3
+        assert len(out["cluster_buys"]) == 1
+
+    def test_empty_result_is_404(self, monkeypatch):
+        import routers.market as market
+        from fastapi import HTTPException
+        import pytest as _pytest
+
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: [])
+        with _pytest.raises(HTTPException) as exc_info:
+            market.get_shibui_insiders("NVDA")
+        assert exc_info.value.status_code == 404
+
+
+class TestShibuiBeneficialOwnership:
+    """GET /market/shibui/activist-stakes/{ticker} and
+    /market/shibui/strategic-investors/{ticker} (PLAN.md 1d/1e)."""
+
+    def setup_method(self):
+        from cache import cache_clear
+        cache_clear()
+
+    def test_activist_stakes_404s_on_empty(self, monkeypatch):
+        import routers.market as market
+        from fastapi import HTTPException
+        import pytest as _pytest
+
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: [])
+        with _pytest.raises(HTTPException) as exc_info:
+            market.get_shibui_activist_stakes("AAPL")
+        assert exc_info.value.status_code == 404
+
+    def test_strategic_investors_returns_empty_list_not_404(self, monkeypatch):
+        """Most tickers have no corporate strategic investor -- that's the
+        expected common case, not an error (unlike the other Shibui endpoints)."""
+        import routers.market as market
+
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: [])
+        out = market.get_shibui_strategic_investors("AAPL")
+        assert out == {"ticker": "AAPL", "source": "shibui", "investors": []}
+
+
+class TestShibuiShortInterest:
+    """_shibui_short_interest (PLAN.md phase 3) -- supplementary data folded
+    into _build_ownership; must never raise."""
+
+    def test_returns_values_from_shibui(self, monkeypatch):
+        import routers.market as market
+        monkeypatch.setattr(
+            market.shibui_client, "query",
+            lambda sql, prompt: [{"short_percent_float": 0.0097, "shares_float": 14569223952.0}],
+        )
+        pct, shares = market._shibui_short_interest("AAPL")
+        assert pct == 0.0097
+        assert shares == 14569223952.0
+
+    def test_invalid_ticker_returns_none_without_querying(self, monkeypatch):
+        import routers.market as market
+
+        def boom(sql, prompt):
+            raise AssertionError("should not query Shibui for an invalid ticker")
+
+        monkeypatch.setattr(market.shibui_client, "query", boom)
+        assert market._shibui_short_interest("'; DROP TABLE x; --") == (None, None)
+
+    def test_shibui_error_returns_none(self, monkeypatch):
+        import routers.market as market
+        import shibui_client
+
+        def raise_error(sql, prompt):
+            raise shibui_client.ShibuiError("boom")
+
+        monkeypatch.setattr(market.shibui_client, "query", raise_error)
+        assert market._shibui_short_interest("AAPL") == (None, None)
+
+
+class TestPoliticianTrades:
+    """GET /market/politician-trades/{ticker} (PLAN.md 1g) -- Alpha Vantage
+    backed, gated behind ALPHA_VANTAGE_API_KEY, on-demand only."""
+
+    def setup_method(self):
+        from cache import cache_clear
+        cache_clear()
+
+    def test_503_when_api_key_not_configured(self, monkeypatch):
+        import asyncio
+        import routers.market as market
+        from fastapi import HTTPException
+
+        monkeypatch.setattr(market.alphavantage_client, "ALPHA_VANTAGE_API_KEY", None)
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(market.get_politician_trades("NVDA"))
+        assert exc_info.value.status_code == 503
+
+    def test_flags_likely_option_trades(self, monkeypatch):
+        import asyncio
+        import routers.market as market
+
+        async def fake_congress_trades(symbol):
+            return {
+                "trades": [
+                    {"asset_name": "NVIDIA Corporation - Common Stock (NVDA) [ST]",
+                     "asset_type_code": "ST", "transaction_type": "SELL"},
+                    {"asset_name": "Bloom Energy Corporation Class A Common Stock (BE) [OP]",
+                     "asset_type_code": "OP", "transaction_type": "SELL"},
+                    {"asset_name": "Purchased 50 call options with NVIDIA Corporation (NVDA) [OP]",
+                     "asset_type_code": "OP", "transaction_type": "PURCHASE"},
+                ],
+                "trades_total_count": 3,
+                "trades_truncated": False,
+            }
+
+        monkeypatch.setattr(market.alphavantage_client, "ALPHA_VANTAGE_API_KEY", "fake-key")
+        monkeypatch.setattr(market.alphavantage_client, "congress_trades", fake_congress_trades)
+        out = asyncio.run(market.get_politician_trades("NVDA"))
+        flags = [t["is_likely_option"] for t in out["trades"]]
+        assert flags == [False, False, True]
+        assert out["total_count"] == 3
 
 
 def test_stock_dividend_growth_returns_full_payload(monkeypatch):

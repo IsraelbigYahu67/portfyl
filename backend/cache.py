@@ -16,6 +16,7 @@ next request rather than being remembered for the full TTL.
 """
 from __future__ import annotations
 
+import asyncio
 import threading
 import time
 from functools import wraps
@@ -40,6 +41,22 @@ def ttl_cache(seconds: float) -> Callable:
     """
 
     def decorator(fn):
+        if asyncio.iscoroutinefunction(fn):
+            @wraps(fn)
+            async def async_wrapper(*args, **kwargs):
+                key = _make_key(fn.__name__, args, kwargs)
+                now = time.monotonic()
+                with _lock:
+                    entry = _store.get(key)
+                    if entry is not None and entry[0] > now:
+                        return entry[1]
+                result = await fn(*args, **kwargs)
+                with _lock:
+                    _store[key] = (now + seconds, result)
+                return result
+
+            return async_wrapper
+
         @wraps(fn)
         def wrapper(*args, **kwargs):
             key = _make_key(fn.__name__, args, kwargs)

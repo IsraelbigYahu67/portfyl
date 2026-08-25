@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from statistics import median
 import datetime
 import math
+import re
 import time
 
 import pandas as pd
@@ -11,6 +12,8 @@ import yfinance as yf
 
 from ticker_map import yf_symbol
 import market_data
+import shibui_client
+import alphavantage_client
 from cache import ttl_cache
 
 router = APIRouter(prefix="/market", tags=["market"])
@@ -24,6 +27,10 @@ _HISTORY_TTL = 1800          # 30 minutes
 _SEARCH_TTL = 1800           # 30 minutes
 _QUOTE_TTL = 120             # 2 minutes
 _FX_TTL = 600                # 10 minutes
+
+# Guards every f-string-interpolated ticker sent to Shibui's stock_data_query
+# (that server takes a finished SQL string, not parametrized queries).
+_SHIBUI_TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
 
 
 # ---------------------------------------------------------------------------
@@ -516,16 +523,40 @@ def _fmt_date(v: Any) -> Optional[str]:
     return None
 
 
-def _build_ownership(stock: yf.Ticker, info: dict) -> dict:
+def _shibui_short_interest(sym: str) -> tuple[Optional[float], Optional[float]]:
+    """Best-effort (short_percent_float, shares_float) from Shibui's
+    ownership_stats -- yfinance doesn't expose short interest. Supplementary
+    data only: any failure (bad ticker, Shibui down, no row) returns
+    (None, None) rather than raising, so it never breaks the fundamentals
+    endpoint this feeds into."""
+    if not _SHIBUI_TICKER_RE.match(sym):
+        return None, None
+    sql = (
+        "SELECT short_percent_float, shares_float FROM shibui.ownership_stats "
+        f"WHERE ticker = '{sym}' LIMIT 1"
+    )
+    try:
+        rows = shibui_client.query(sql, f"Short interest for {sym}")
+    except shibui_client.ShibuiError:
+        return None, None
+    if not rows:
+        return None, None
+    row = rows[0]
+    return _f(row.get("short_percent_float")), _f(row.get("shares_float"))
+
+
+def _build_ownership(stock: yf.Ticker, info: dict, sym: str) -> dict:
     """Institutional / insider ownership breakdown.
 
     Returns headline percentages (insider %, institutional %) plus the top
     institutional holders table. Each holder includes the dollar value, share
     count, and % of shares outstanding so the UI can render a hover-tooltip
-    pie chart."""
+    pie chart. Short interest (yfinance doesn't have it) comes from Shibui --
+    see _shibui_short_interest."""
     insider_pct = _to_pct(_f(info.get("heldPercentInsiders")))
     inst_pct = _to_pct(_f(info.get("heldPercentInstitutions")))
     institutions_count = None
+    short_percent_float, short_shares_float = _shibui_short_interest(sym)
 
     holders: list[dict] = []
     try:
@@ -556,6 +587,8 @@ def _build_ownership(stock: yf.Ticker, info: dict) -> dict:
         "insider_pct": insider_pct,
         "institutional_pct": inst_pct,
         "institutions_count": institutions_count,
+        "short_percent_float": short_percent_float,
+        "short_shares_float": short_shares_float,
         "top_institutional_holders": holders,
     }
 
@@ -1233,7 +1266,7 @@ def get_fundamentals(ticker: str):
     sector = info.get("sector")
     sector_avg = _sector_avg(sector)
     valuation = _build_valuation(info, financials, ratios, sector_avg, fwd_eps_rows)
-    ownership = _build_ownership(stock, info)
+    ownership = _build_ownership(stock, info, sym)
     insider_transactions = _build_insider_transactions(stock)
 
     payload = {
@@ -1276,6 +1309,323 @@ def get_fundamentals(ticker: str):
     }
     _FUND_CACHE[sym] = (time.time(), payload)
     return payload
+
+
+_SHIBUI_FINANCIALS_TTL = 3600  # Shibui's fundamentals update only as filings arrive
+
+
+@router.get("/shibui/financials/{ticker}")
+@ttl_cache(_SHIBUI_FINANCIALS_TTL)
+def get_shibui_financials(ticker: str, years: int = 5):
+    """Annual revenue/earnings/cash-flow trend for `ticker`, sourced from Shibui
+    Finance (NYSE/NASDAQ, SEC-filing-derived) via its public MCP server. An
+    independent data source alongside the yfinance-backed /fundamentals/{ticker}
+    above -- useful when yfinance is missing or disagrees on a name."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+    safe_years = max(1, min(int(years or 5), 20))
+
+    sql = (
+        "SELECT date, revenue, cost_of_revenue, gross_profit, operating_income, "
+        "ebitda, net_income, free_cash_flow, "
+        "ROUND(profit_margin * 100, 2) AS net_margin_pct "
+        "FROM shibui.fundamentals_yearly "
+        f"WHERE ticker = '{sym}' AND date >= CURRENT_DATE - INTERVAL '{safe_years} years' "
+        f"ORDER BY date DESC LIMIT {safe_years}"
+    )
+    try:
+        rows = shibui_client.query(sql, f"Annual revenue and financials trend for {sym}")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui query failed for {ticker}: {e}")
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No Shibui financials for {ticker}")
+
+    return {"ticker": sym, "source": "shibui", "annual": list(reversed(rows))}
+
+
+# ---------------------------------------------------------------------------
+# Shibui: SEC filings, insider transactions, beneficial ownership (PLAN.md
+# phase 1). All of these go through shibui_client.query(), which f-string
+# interpolates the ticker/params straight into SQL -- every one MUST run the
+# ticker through _SHIBUI_TICKER_RE first.
+# ---------------------------------------------------------------------------
+
+_SHIBUI_FILINGS_TTL = 3600 * 3  # new filings land at most a few times/week
+_SHIBUI_INSIDERS_TTL = 3600     # Form 4/5 filings arrive within days of the trade
+_SHIBUI_OWNERSHIP_TTL = 3600 * 6  # 13D/13G filings are rare, changes are slow
+
+# Curated subset of the ~250 EDGAR form_type codes Shibui tracks -- the rest
+# (fund N-1A/N-2 registration forms, exchange-listing admin forms, etc.) don't
+# apply to the NYSE/NASDAQ operating companies this app covers. Confirmed
+# live against shibui.sec_filings (2026-08-25). Amendments are represented via
+# the separate `is_amendment` flag, not a distinct "/A"-suffixed form_type.
+_SHIBUI_FORM_TYPES = {
+    "10-K", "10-Q", "20-F", "6-K", "8-K", "11-K", "40-F",
+    "3", "4", "5",
+    "DEF 14A", "DEF 14C", "DEFA14A", "DEFA14C", "DEFM14A", "DEFM14C", "DFAN14A",
+    "SC 13G", "SC 13D",
+    "424A", "424B1", "424B2", "424B3", "424B4", "424B5", "424B7", "424B8", "425",
+    "FWP", "S-1", "S-3", "S-8", "F-1", "F-3", "F-4", "F-6",
+    "13F-HR", "13F-NT", "13F-E", "13FCONP",
+    "ARS", "D", "CB",
+}
+_SHIBUI_DEFAULT_FORM_TYPES = "10-K,10-Q,8-K,DEF 14A"
+
+
+@router.get("/shibui/filings/{ticker}")
+@ttl_cache(_SHIBUI_FILINGS_TTL)
+def get_shibui_filings(ticker: str, form_types: str = _SHIBUI_DEFAULT_FORM_TYPES, years: int = 2):
+    """Recent SEC filings for `ticker` (up to 20 per requested form type),
+    sourced from Shibui's EDGAR filing-metadata table. `form_types` is a
+    comma-separated list checked against a whitelist -- never forwarded
+    to SQL raw."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+    safe_years = max(1, min(int(years or 2), 20))
+
+    requested = [t.strip().upper() for t in (form_types or "").split(",") if t.strip()]
+    valid_types = [t for t in requested if t in _SHIBUI_FORM_TYPES]
+    if not valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No valid form_types given. Allowed: {sorted(_SHIBUI_FORM_TYPES)}",
+        )
+    form_types_sql = ", ".join(f"'{t}'" for t in valid_types)
+
+    sql = (
+        "WITH recent AS ("
+        "  SELECT sf.filing_date, sf.acceptance_datetime, sf.form_type, sf.raw_form_type,"
+        "         sf.is_amendment, sf.report_date, sf.filing_url, sf.items,"
+        "         ROW_NUMBER() OVER (PARTITION BY sf.form_type ORDER BY sf.filing_date DESC) AS rn"
+        "  FROM shibui.sec_filings sf"
+        f"  WHERE sf.cik = (SELECT g.cik FROM shibui.general_info g WHERE g.ticker = '{sym}')"
+        f"    AND sf.filing_date >= CURRENT_DATE - INTERVAL '{safe_years} years'"
+        f"    AND sf.form_type IN ({form_types_sql})"
+        ") "
+        "SELECT filing_date, acceptance_datetime, form_type, raw_form_type, is_amendment,"
+        "  report_date, items, filing_url "
+        "FROM recent WHERE rn <= 20 "
+        "ORDER BY form_type, filing_date DESC "
+        "LIMIT 200"
+    )
+    try:
+        rows = shibui_client.query(sql, f"Recent SEC filings for {sym}")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui query failed for {ticker}: {e}")
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No Shibui filings for {ticker}")
+
+    return {"ticker": sym, "source": "shibui", "form_types": valid_types, "years": safe_years, "filings": rows}
+
+
+_CLUSTER_WINDOW_DAYS = 30
+_CLUSTER_MIN_OWNERS = 3
+
+
+def _is_cluster_candidate(row: dict) -> bool:
+    """Open-market common-stock buys only -- excludes 10b5-1 auto-plans,
+    estate transfers, and derivative (option/RSU) transactions, which don't
+    reflect a discretionary "I think this is cheap" decision."""
+    return (
+        row.get("tx_code") == "P"
+        and not row.get("is_derivative")
+        and not row.get("is_auto_plan")
+        and not row.get("is_estate")
+        and row.get("price_per_share") is not None
+        and "common" in (row.get("security_title") or "").lower()
+    )
+
+
+def _detect_cluster_buys(rows: list[dict]) -> list[dict]:
+    """Sliding 30-day window over qualifying buys (see _is_cluster_candidate);
+    flags stretches where >= 3 distinct insiders (by CIK) bought within the
+    same window -- a conviction signal no single transaction shows on its
+    own. Adjacent qualifying windows are merged into one cluster event."""
+    candidates = sorted(
+        (r for r in rows if _is_cluster_candidate(r)),
+        key=lambda r: r["tx_date"],
+    )
+    clusters: list[dict] = []
+    active: Optional[dict] = None
+    for i, tx in enumerate(candidates):
+        tx_date = datetime.date.fromisoformat(str(tx["tx_date"])[:10])
+        window = [
+            c for c in candidates[: i + 1]
+            if (tx_date - datetime.date.fromisoformat(str(c["tx_date"])[:10])).days <= _CLUSTER_WINDOW_DAYS
+        ]
+        if len({c.get("owner_cik") for c in window}) < _CLUSTER_MIN_OWNERS:
+            continue
+        buyers = sorted({c.get("owner_canonical_name") for c in window if c.get("owner_canonical_name")})
+        if active is not None and (tx_date - active["_last_date"]).days <= _CLUSTER_WINDOW_DAYS:
+            active["end"] = tx["tx_date"]
+            active["_last_date"] = tx_date
+            active["buyers"] = sorted(set(active["buyers"]) | set(buyers))
+        else:
+            if active is not None:
+                active.pop("_last_date")
+                clusters.append(active)
+            active = {"start": window[0]["tx_date"], "end": tx["tx_date"], "buyers": buyers, "_last_date": tx_date}
+    if active is not None:
+        active.pop("_last_date")
+        clusters.append(active)
+    return clusters
+
+
+@router.get("/shibui/insiders/{ticker}")
+@ttl_cache(_SHIBUI_INSIDERS_TTL)
+def get_shibui_insiders(ticker: str, months: int = 12):
+    """Structured Form 4/5 insider transactions for `ticker` from Shibui --
+    replaces the yfinance-scraped, regex-classified insider table
+    (_build_insider_transactions below) with the SEC's own transaction codes
+    plus noise flags (10b5-1 plans, tax withholding, gifts, estates, average
+    pricing). Also flags open-market buy clusters (see _detect_cluster_buys)."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+    safe_months = max(1, min(int(months or 12), 60))
+
+    sql = (
+        "SELECT t.tx_date, t.owner_cik, t.owner_canonical_name, t.officer_title, t.tx_code,"
+        "  CASE WHEN t.acquired_or_disposed = 'A' THEN 'buy' ELSE 'sell' END AS direction,"
+        "  t.shares, t.price_per_share, ROUND(t.shares * t.price_per_share, 0) AS value,"
+        "  t.shares_after_tx, t.is_10b5_1, t.is_tax_withholding, t.is_gift, t.is_estate,"
+        "  t.is_auto_plan, t.is_avg_price, t.is_derivative, t.security_title,"
+        "  t.is_director, t.is_officer, t.is_ten_pct_owner"
+        " FROM shibui.insider_transactions t"
+        " WHERE NOT t.is_superseded"
+        f"  AND t.issuer_ticker = '{sym}'"
+        f"  AND t.tx_date >= CURRENT_DATE - INTERVAL '{safe_months} months'"
+        " ORDER BY t.tx_date DESC"
+        " LIMIT 100"
+    )
+    try:
+        rows = shibui_client.query(sql, f"Insider Form 4/5 transactions for {sym}")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui query failed for {ticker}: {e}")
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No Shibui insider transactions for {ticker}")
+
+    return {
+        "ticker": sym,
+        "source": "shibui",
+        "months": safe_months,
+        "transactions": rows,
+        "cluster_buys": _detect_cluster_buys(rows),
+    }
+
+
+@router.get("/shibui/activist-stakes/{ticker}")
+@ttl_cache(_SHIBUI_OWNERSHIP_TTL)
+def get_shibui_activist_stakes(ticker: str):
+    """SC 13D/13G beneficial-ownership filings against `ticker`. 13D signals
+    an active/activist stake, 13G a passive position (>5% of float)."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+
+    sql = (
+        "SELECT filer_name, filer_canonical_name, filer_entity_type,"
+        "  filer_is_activist, filer_activist_group, schedule_type, filing_date"
+        " FROM shibui.beneficial_ownership"
+        f" WHERE subject_ticker = '{sym}' AND NOT is_superseded"
+        " ORDER BY filing_date DESC"
+        " LIMIT 50"
+    )
+    try:
+        rows = shibui_client.query(sql, f"Activist/beneficial ownership stakes in {sym}")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui query failed for {ticker}: {e}")
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No Shibui beneficial ownership filings for {ticker}")
+
+    return {"ticker": sym, "source": "shibui", "stakes": rows}
+
+
+@router.get("/shibui/strategic-investors/{ticker}")
+@ttl_cache(_SHIBUI_OWNERSHIP_TTL)
+def get_shibui_strategic_investors(ticker: str):
+    """Beneficial-ownership filers against `ticker` that are themselves a
+    publicly traded company (direct corporate stakes, e.g. NVIDIA's 13G in
+    CoreWeave) -- a join of beneficial_ownership.filer_cik to general_info.
+
+    Misses stakes routed through a private venture arm (e.g. Alphabet's
+    CapitalG holding in Freshworks isn't filed under Alphabet's own CIK) --
+    see PLAN.md phase 1e for the verified example and the proposed
+    known-VC-arm mapping follow-up. Empty results are the common case (most
+    tickers have no such investor), so this returns 200 with an empty list
+    rather than 404."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+
+    sql = (
+        "SELECT bo.filer_name, g2.ticker AS filer_ticker, bo.schedule_type, bo.filing_date"
+        " FROM shibui.beneficial_ownership bo"
+        " INNER JOIN shibui.general_info g2 ON g2.cik = bo.filer_cik"
+        f" WHERE bo.subject_ticker = '{sym}' AND NOT bo.is_superseded"
+        " ORDER BY bo.filing_date DESC"
+        " LIMIT 50"
+    )
+    try:
+        rows = shibui_client.query(sql, f"Corporate strategic investors in {sym}")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui query failed for {ticker}: {e}")
+
+    return {"ticker": sym, "source": "shibui", "investors": rows}
+
+
+# ---------------------------------------------------------------------------
+# Alpha Vantage: congressional (STOCK Act) trades (PLAN.md phase 1g). A
+# different data source from Shibui -- plain REST, not MCP -- and gated
+# behind an optional API key. The frontend must only call this on explicit
+# user action (a button), never auto-prefetch: see PLAN.md 1g-i for why
+# (25 req/day free-tier quota).
+# ---------------------------------------------------------------------------
+
+_POLITICIAN_TRADES_TTL = 3600 * 24
+
+
+@router.get("/politician-trades/{ticker}")
+@ttl_cache(_POLITICIAN_TRADES_TTL)
+async def get_politician_trades(ticker: str):
+    """Disclosed congressional trades referencing `ticker`, via Alpha
+    Vantage's free CONGRESS_TRADES endpoint. 503s with a clear message if
+    ALPHA_VANTAGE_API_KEY isn't configured, rather than failing generically.
+
+    Adds a best-effort `is_likely_option` flag per trade -- Alpha Vantage's
+    `asset_type_code` alone doesn't reliably distinguish options from stock
+    (see PLAN.md 1g-iii); strike/expiry aren't available from this source at
+    all, so no "deep ITM" detection is attempted."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+    if not alphavantage_client.ALPHA_VANTAGE_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="ALPHA_VANTAGE_API_KEY is not configured. Get a free key at alphavantage.co "
+                   "and set it as an environment variable to enable political trades data.",
+        )
+
+    try:
+        data = await alphavantage_client.congress_trades(sym)
+    except alphavantage_client.AlphaVantageError as e:
+        raise HTTPException(status_code=502, detail=f"Alpha Vantage query failed for {ticker}: {e}")
+
+    trades = data.get("trades") or []
+    for t in trades:
+        t["is_likely_option"] = (
+            t.get("asset_type_code") == "OP" and "option" in (t.get("asset_name") or "").lower()
+        )
+
+    return {
+        "ticker": sym,
+        "source": "alpha_vantage",
+        "trades": trades,
+        "total_count": data.get("trades_total_count", len(trades)),
+        "truncated": bool(data.get("trades_truncated", False)),
+    }
 
 
 @router.get("/dividend-growth/{ticker}")
