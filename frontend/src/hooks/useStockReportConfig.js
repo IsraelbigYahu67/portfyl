@@ -7,11 +7,17 @@ export const ALL_SECTIONS = [
   { id: "weekRange", label: "52-Week Range" },
   { id: "dividendGrowth", label: "Dividend History" },
   { id: "financials", label: "Financials" },
+  { id: "earningsRecap", label: "Earnings" },
   { id: "ratiosAnalyst", label: "Ratios & Analyst" },
+  { id: "valuationHistory", label: "Valuation History" },
+  { id: "shibuiFilings", label: "SEC Filings" },
   { id: "insiderVolume", label: "Insider Volume" },
   { id: "insiderTx", label: "Insider Transactions" },
+  { id: "shibuiInsiderActivity", label: "Insider Activity (SEC)" },
+  { id: "politicalTrades", label: "Political Trades" },
   { id: "valuation", label: "Valuation Models" },
   { id: "ownership", label: "Ownership" },
+  { id: "shibuiOwnershipFilings", label: "Beneficial Ownership (13D/13G)" },
 ];
 
 const DEFAULT_ORDER = ALL_SECTIONS.map((s) => s.id);

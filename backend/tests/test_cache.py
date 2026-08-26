@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 
 import pytest
@@ -108,3 +109,23 @@ class TestTTLCache:
         cache_clear()
         assert fn() == 42
         assert call_count == 2
+
+    def test_async_function_is_awaited_and_cached(self):
+        """ttl_cache must detect `async def` functions and await them --
+        otherwise it caches (and returns) an unawaited coroutine object,
+        which is what the political-trades endpoint (an async FastAPI route)
+        needs this decorator to support correctly."""
+        call_count = 0
+
+        @ttl_cache(seconds=60)
+        async def fetch(a):
+            nonlocal call_count
+            call_count += 1
+            return a * 2
+
+        assert asyncio.run(fetch(3)) == 6
+        assert call_count == 1
+        assert asyncio.run(fetch(3)) == 6
+        assert call_count == 1  # cache hit, not a coroutine object
+        assert asyncio.run(fetch(4)) == 8
+        assert call_count == 2  # different args, miss
