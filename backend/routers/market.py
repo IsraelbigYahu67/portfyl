@@ -2224,12 +2224,18 @@ _SHIBUI_SCREENER_SORT_COLUMNS = {
     "roe": "dq.return_on_equity",
     "operating_margin": "dq.operating_margin",
     "piotroski": "fq.piotroski_f_score",
+    "price": "px.close",
+    "forward_pe": "ae.forward_pe",
+    "pb": "v.price_to_book",
+    "net_margin": "dq.profit_margin_ttm",
+    "target_mean": "ae.wall_street_target_price",
 }
 
 
 def _shibui_screener(
     *, min_pe, max_pe, min_market_cap, max_market_cap, min_roe, max_roe,
     min_ps, max_ps, min_operating_margin, max_operating_margin, min_piotroski,
+    min_forward_pe, max_forward_pe, min_pb, max_pb, min_net_margin, max_net_margin,
     sector, sort_by, sort_desc, limit,
 ) -> dict:
     safe_limit = max(1, min(int(limit or 50), 200))
@@ -2265,6 +2271,18 @@ def _shibui_screener(
         conditions.append(f"dq.operating_margin <= {float(max_operating_margin) / 100}")
     if min_piotroski is not None:
         conditions.append(f"fq.piotroski_f_score >= {int(min_piotroski)}")
+    if min_forward_pe is not None:
+        conditions.append(f"ae.forward_pe >= {float(min_forward_pe)}")
+    if max_forward_pe is not None:
+        conditions.append(f"ae.forward_pe <= {float(max_forward_pe)}")
+    if min_pb is not None:
+        conditions.append(f"v.price_to_book >= {float(min_pb)}")
+    if max_pb is not None:
+        conditions.append(f"v.price_to_book <= {float(max_pb)}")
+    if min_net_margin is not None:
+        conditions.append(f"dq.profit_margin_ttm >= {float(min_net_margin) / 100}")
+    if max_net_margin is not None:
+        conditions.append(f"dq.profit_margin_ttm <= {float(max_net_margin) / 100}")
     if sector:
         conditions.append(f"g.gics_sector = '{_escape_sql_string(sector)}'")
 
@@ -2273,15 +2291,20 @@ def _shibui_screener(
 
     sql = (
         "WITH latest_val AS ("
-        "  SELECT symbol, market_cap,"
+        "  SELECT symbol, market_cap, price_to_book,"
         "    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn"
         "  FROM shibui.valuation WHERE date >= CURRENT_DATE - INTERVAL '7 days'"
         "), latest_dd AS ("
         "  SELECT symbol, trailing_pe, price_to_sales, price_to_cash_flow, ev_ebitda, dividend_yield,"
         "    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn"
         "  FROM shibui.fundamentals_derived_daily WHERE date >= CURRENT_DATE - INTERVAL '7 days'"
+        "), latest_px AS ("
+        "  SELECT symbol, close,"
+        "    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn"
+        "  FROM shibui.stock_quotes WHERE date >= CURRENT_DATE - INTERVAL '7 days'"
         "), latest_dq AS ("
         "  SELECT symbol, return_on_equity, return_on_assets, operating_margin, gross_margin, debt_to_equity,"
+        "    profit_margin_ttm,"
         "    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn"
         "  FROM shibui.fundamentals_derived_quarterly WHERE date >= CURRENT_DATE - INTERVAL '6 months'"
         "), latest_fq AS ("
@@ -2289,15 +2312,19 @@ def _shibui_screener(
         "    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn"
         "  FROM shibui.fundamentals_quarterly WHERE date >= CURRENT_DATE - INTERVAL '6 months'"
         ") "
-        "SELECT g.ticker, g.name, g.gics_sector, g.gics_industry, v.market_cap,"
-        "  dd.trailing_pe, dd.price_to_sales, dd.price_to_cash_flow, dd.ev_ebitda, dd.dividend_yield,"
+        "SELECT g.ticker, g.name, g.gics_sector, g.gics_industry, v.market_cap, px.close AS price,"
+        "  dd.trailing_pe, ae.forward_pe, v.price_to_book, dd.price_to_sales, dd.price_to_cash_flow,"
+        "  dd.ev_ebitda, dd.dividend_yield,"
         "  dq.return_on_equity, dq.return_on_assets, dq.operating_margin, dq.gross_margin, dq.debt_to_equity,"
+        "  dq.profit_margin_ttm, ae.wall_street_target_price AS target_mean,"
         "  fq.piotroski_f_score, fq.current_ratio"
         " FROM shibui.general_info g"
         " INNER JOIN latest_val v ON g.symbol = v.symbol AND v.rn = 1"
         " INNER JOIN latest_dd dd ON g.symbol = dd.symbol AND dd.rn = 1"
+        " LEFT JOIN latest_px px ON g.symbol = px.symbol AND px.rn = 1"
         " LEFT JOIN latest_dq dq ON g.symbol = dq.symbol AND dq.rn = 1"
         " LEFT JOIN latest_fq fq ON g.symbol = fq.symbol AND fq.rn = 1"
+        " LEFT JOIN shibui.analyst_estimates ae ON ae.symbol = g.symbol"
         f" WHERE {' AND '.join(conditions)}"
         f" ORDER BY {sort_col} {direction} NULLS LAST"
         f" LIMIT {safe_limit}"
@@ -2314,16 +2341,21 @@ def _shibui_screener(
             "sector": r.get("gics_sector"),
             "industry": r.get("gics_industry"),
             "market_cap": _f(r.get("market_cap")),
+            "price": _f(r.get("price")),
             "pe": _f(r.get("trailing_pe")),
+            "forward_pe": _f(r.get("forward_pe")),
+            "pb": _f(r.get("price_to_book")),
             "ps": _f(r.get("price_to_sales")),
             "pfcf": _f(r.get("price_to_cash_flow")),
             "ev_ebitda": _f(r.get("ev_ebitda")),
             "div_yield": _to_pct(_f(r.get("dividend_yield"))),
             "roe": _to_pct(_f(r.get("return_on_equity"))),
             "roa": _to_pct(_f(r.get("return_on_assets"))),
+            "net_margin": _to_pct(_f(r.get("profit_margin_ttm"))),
             "operating_margin": _to_pct(_f(r.get("operating_margin"))),
             "gross_margin": _to_pct(_f(r.get("gross_margin"))),
             "de": _f(r.get("debt_to_equity")),
+            "target_mean": _f(r.get("target_mean")),
             "piotroski_f_score": _f(r.get("piotroski_f_score")),
             "current_ratio": _f(r.get("current_ratio")),
         }
@@ -2382,10 +2414,12 @@ def stock_screener(
       - `tech_large`           → 10 tech megacaps (also the fallback universe)
       - Custom via `tickers` parameter (comma-separated symbols)
 
-    `source="shibui"` (PLAN.md 4a-i) ignores `universe`/`tickers` entirely and
-    instead screens the WHOLE market (~10,344 symbols, Common Stock only) in
+    `source="shibui"` (PLAN.md 4a-i/4a-ii) ignores `universe`/`tickers` entirely
+    and instead screens the WHOLE market (~10,344 symbols, Common Stock only) in
     one Shibui query -- also exposes `min_operating_margin`/
-    `max_operating_margin`/`min_piotroski`, which the yfinance path can't.
+    `max_operating_margin`/`min_piotroski`, which the yfinance path can't, and
+    returns price/forward_pe/pb/net_margin/target_mean alongside them (no
+    rating/analyst_count -- Shibui's schema has no equivalent).
 
     The first scan of a full index is slow (one yfinance lookup per name);
     rows are then cached for an hour so re-filtering is instant.
@@ -2402,7 +2436,9 @@ def stock_screener(
             min_pe=min_pe, max_pe=max_pe, min_market_cap=min_market_cap, max_market_cap=max_market_cap,
             min_roe=min_roe, max_roe=max_roe, min_ps=min_ps, max_ps=max_ps,
             min_operating_margin=min_operating_margin, max_operating_margin=max_operating_margin,
-            min_piotroski=min_piotroski, sector=sector, sort_by=sort_by, sort_desc=sort_desc, limit=limit,
+            min_piotroski=min_piotroski, min_forward_pe=min_forward_pe, max_forward_pe=max_forward_pe,
+            min_pb=min_pb, max_pb=max_pb, min_net_margin=min_net_margin, max_net_margin=max_net_margin,
+            sector=sector, sort_by=sort_by, sort_desc=sort_desc, limit=limit,
         )
 
     safe_limit = max(1, min(int(limit or 50), 200))
