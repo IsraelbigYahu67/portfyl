@@ -391,7 +391,7 @@ seznam top holderů jako yfinance, takže tabulka top-holderů zůstává z yfin
 
 ## Fáze 4 — Vylepšení existujících funkcí
 
-### 4a. ✅ Fáze 4a-i implementována — Screener: Shibui jako rychlejší, širší zdroj (ne náhrada)
+### 4a. ✅ Fáze 4a-i a 4a-ii implementovány — Screener: Shibui jako rychlejší, širší zdroj (ne náhrada)
 
 Dnešní `/market/screener` skenuje až 500 tikrů přes `ThreadPoolExecutor(12)` živě na yfinance,
 cache 1 h. Shibui zvládne **celý univerz** (~10 344 symbolů) jedním SQL dotazem za sekundy, plus
@@ -417,6 +417,24 @@ filtry co dnes nejdou vůbec (Piotroski F-score, operating margin, ROE bez yfina
 - **Fáze 4a-ii (později, až 4a-i dozraje):** zvážit úplné nahrazení yfinance cesty, pokud
   Shibui pokryje všechna pole, co dnes frontend používá (target_mean, rating, analyst_count —
   šlo by dotáhnout z `analyst_estimates`).
+
+- ✅ **Fáze 4a-ii implementována — rozšíření Shibui screeneru, ne náhrada yfinance cesty.**
+  Živé ověření pokrytí (2026-08-26, přes MCP server): `target_mean`
+  (`analyst_estimates.wall_street_target_price`, ~79 % pokrytí), `forward_pe`
+  (`analyst_estimates.forward_pe`), `price` (`stock_quotes.close`, nejnovější řádek za 7 dní),
+  `pb` (`valuation.price_to_book`) a `net_margin` (`fundamentals_derived_quarterly.profit_margin_ttm`)
+  ve schématu JSOU a byly živě vráceny se správnými hodnotami (celotrhový screen: 50 řádků za
+  0,6 s, P/E≤25 na celém trhu = 1 537 firem). **`rating`/`analyst_count` NEJSOU** nikde ve schématu
+  a klasická 1Y/5Y `beta` v Shibui nemá ekvivalent (`technical_indicators.beta_5` je 5denní
+  rolling beta, ne totéž) — **plná náhrada yfinance cesty proto zamítnuta**, shibui mód místo
+  toho rozšířen o těch 5 chybějících polí a je teď nadmnožina yfinance kromě ratingu/beta.
+  Backend: `_shibui_screener` má nové CTE `latest_px` (nad `shibui.stock_quotes`), `price_to_book`
+  přidán do `latest_val`, `profit_margin_ttm` do `latest_dq`, LEFT JOIN na `shibui.analyst_estimates`
+  (snapshot tabulka — nutně LEFT JOIN, INNER by zahodil symboly bez analyst coverage). Volitelně
+  přidány i paritní filtry `min_forward_pe`/`max_forward_pe`/`min_pb`/`max_pb`/`min_net_margin`/
+  `max_net_margin` a odpovídající sort sloupce. Frontend: Screener.jsx teď v shibui módu
+  zobrazuje Price/Fwd PE/P/B/Net Margin/Target stejně jako v yfinance módu; Rating a Beta
+  zůstávají jen yfinance (Shibui je nemá).
 
 ### 4b. ✅ Implementováno — Search fallback (jen na Yahoo miss, ne živě na keystroke)
 

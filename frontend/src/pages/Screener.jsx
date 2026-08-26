@@ -16,10 +16,13 @@ const SORT_OPTIONS = [
   { value: "market_cap", label: "Market Cap" },
   { value: "pe", label: "P/E" },
   { value: "forward_pe", label: "Fwd P/E" },
+  { value: "pb", label: "P/B" },
   { value: "div_yield", label: "Div Yield" },
   { value: "roe", label: "ROE" },
+  { value: "net_margin", label: "Net Margin" },
   { value: "operating_margin", label: "Operating Margin (Shibui)" },
   { value: "piotroski", label: "Piotroski F-Score (Shibui)" },
+  { value: "target_mean", label: "Analyst Target" },
   { value: "beta", label: "Beta" },
   { value: "price", label: "Price" },
 ];
@@ -292,31 +295,24 @@ export default function Screener() {
                 <tr className="border-b border-surface-border bg-surface-card">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Ticker</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Name</th>
-                  {!shibuiMode && (
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Price</th>
-                  )}
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Price</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Mkt Cap</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">P/E</th>
-                  {!shibuiMode && (
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Fwd P/E</th>
-                  )}
-                  {!shibuiMode && (
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">P/B</th>
-                  )}
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Fwd P/E</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">P/B</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">P/S</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Div Yield</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">ROE</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Net Margin</th>
                   {shibuiMode ? (
                     <>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Op. Margin</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider" title="Piotroski F-Score (0-9)">Piotroski</th>
                     </>
                   ) : (
-                    <>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Net Margin</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Beta</th>
-                    </>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Beta</th>
                   )}
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Target</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Sector</th>
                   {!shibuiMode && (
                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Rating</th>
@@ -332,17 +328,11 @@ export default function Screener() {
                   >
                     <td className="px-4 py-3 font-mono font-semibold text-ink">{r.ticker}</td>
                     <td className="px-4 py-3 text-muted max-w-[160px] truncate">{r.name}</td>
-                    {!shibuiMode && (
-                      <td className="px-4 py-3 text-right tabular-nums text-ink font-medium">{fmtMoney(r.price)}</td>
-                    )}
+                    <td className="px-4 py-3 text-right tabular-nums text-ink font-medium">{fmtMoney(r.price)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtMoney(r.market_cap)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.pe)}</td>
-                    {!shibuiMode && (
-                      <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.forward_pe)}</td>
-                    )}
-                    {!shibuiMode && (
-                      <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.pb)}</td>
-                    )}
+                    <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.forward_pe)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.pb)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.ps)}</td>
                     <td className="px-4 py-3 text-right tabular-nums">
                       {r.div_yield != null ? (
@@ -350,17 +340,16 @@ export default function Screener() {
                       ) : "—"}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtPct(r.roe)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtPct(r.net_margin)}</td>
                     {shibuiMode ? (
                       <>
                         <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtPct(r.operating_margin)}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-muted">{r.piotroski_f_score ?? "—"}</td>
                       </>
                     ) : (
-                      <>
-                        <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtPct(r.net_margin)}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.beta)}</td>
-                      </>
+                      <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.beta)}</td>
                     )}
+                    <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtMoney(r.target_mean)}</td>
                     <td className="px-4 py-3 text-muted max-w-[120px] truncate">{r.sector ?? "—"}</td>
                     {!shibuiMode && (
                       <td className="px-4 py-3">
