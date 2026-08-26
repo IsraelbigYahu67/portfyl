@@ -75,4 +75,16 @@ def query(sql: str, user_prompt: str) -> list[dict[str, Any]]:
     required observability field -- the user-facing reason for the query.
     Raises ShibuiError on failure; never returns partial/garbage rows.
     """
-    return asyncio.run(_query_async(sql, user_prompt))
+    try:
+        return asyncio.run(_query_async(sql, user_prompt))
+    except ShibuiError:
+        raise
+    except Exception as e:
+        # Session-level failures (rate limiting, dropped connections, protocol
+        # errors during initialize()) surface from the mcp/anyio machinery as
+        # MCPError / (Base)ExceptionGroup, not ShibuiError -- every call site
+        # in routers/market.py only catches ShibuiError, so an unwrapped
+        # transport failure here escaped as a raw 500 instead of the graceful
+        # degrade (empty/None -> yfinance fallback, or a clean 404/502)
+        # callers expect. Normalize every failure mode at this one choke point.
+        raise ShibuiError(f"Shibui MCP request failed: {e}") from e
