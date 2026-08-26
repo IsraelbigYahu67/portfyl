@@ -1135,6 +1135,23 @@ export function StockOverview({ data, headerTrailing = null }) {
             {data.exchange && (
               <span className="text-[10px] text-muted uppercase tracking-wider">{data.exchange}</span>
             )}
+            {data.fundamentals_source && (
+              <span
+                title={
+                  data.fundamentals_source === "shibui"
+                    ? "Financials and ratios below are sourced from Shibui Finance (analyst rating/estimates are always from yfinance -- Shibui doesn't cover those)."
+                    : "Shibui doesn't cover this ticker, or is unavailable right now (e.g. rate-limited) -- financials and ratios below fell back to yfinance."
+                }
+                className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full uppercase tracking-wider cursor-help ${
+                  data.fundamentals_source === "shibui"
+                    ? "bg-brand/10 text-brand"
+                    : "bg-amber-500/15 text-amber-500"
+                }`}
+              >
+                <Info size={10} />
+                {data.fundamentals_source === "shibui" ? "Shibui" : "yfinance fallback"}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 mt-1 text-xs text-muted flex-wrap">
             {data.sector && <span className="flex items-center gap-1"><Building2 size={11} />{data.sector}</span>}
