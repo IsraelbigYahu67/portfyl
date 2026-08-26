@@ -1117,7 +1117,9 @@ export function StockOverview({ data, headerTrailing = null }) {
       <ShibuiInsiderActivitySection ticker={data.ticker} currencyCode={data.currency} />
     ),
 
-    politicalTrades: <PoliticalTradesSection ticker={data.ticker} currencyCode={data.currency} />,
+    politicalTrades: (
+      <PoliticalTradesSection ticker={data.ticker} currencyCode={data.currency} currentPrice={data.price} />
+    ),
 
     shibuiOwnershipFilings: <ShibuiOwnershipFilingsSection ticker={data.ticker} />,
   };
@@ -1947,6 +1949,7 @@ const EIGHT_K_ITEM_LABELS = {
 };
 
 function ShibuiFilingsSection({ ticker }) {
+  const [expanded, setExpanded] = useState(false);
   const { data, isLoading, isError } = useQuery({
     queryKey: ["shibui-filings", ticker],
     queryFn: () => fetchShibuiFilings(ticker),
@@ -1959,44 +1962,57 @@ function ShibuiFilingsSection({ ticker }) {
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-3">
-        SEC Filings
-      </h3>
-      <div className="bg-surface rounded-lg overflow-hidden">
-        <div className="grid grid-cols-[5.5rem_1fr_3.5rem] gap-3 px-4 py-2 border-b border-surface-border text-[10px] uppercase tracking-wider text-muted font-medium">
-          <span>Date</span>
-          <span>Type</span>
-          <span className="text-right">Link</span>
-        </div>
-        <ul className="max-h-96 overflow-y-auto">
-          {data.filings.map((f, i) => (
-            <li
-              key={`${f.filing_url}-${i}`}
-              className="grid grid-cols-[5.5rem_1fr_3.5rem] gap-3 items-center px-4 py-2 text-xs border-b border-surface-border last:border-0 hover:bg-surface-hover"
-            >
-              <span className="tabular-nums text-muted">{f.filing_date}</span>
-              <span className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-ink font-medium">{f.raw_form_type}</span>
-                <span className="text-muted">{FORM_TYPE_LABELS[f.form_type] || ""}</span>
-                {f.is_amendment && <Chip>Amended</Chip>}
-                {(f.items || []).map((code) => (
-                  <Chip key={code} tone="brand" title={EIGHT_K_ITEM_LABELS[code] || code}>
-                    {code}
-                  </Chip>
-                ))}
-              </span>
-              <a
-                href={f.filing_url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-right text-brand hover:underline inline-flex items-center justify-end gap-0.5"
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="flex items-center gap-2 mb-3 group"
+      >
+        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider group-hover:text-ink transition-colors">
+          SEC Filings
+        </h3>
+        <span className="text-[10px] text-muted">({data.filings.length})</span>
+        {expanded ? (
+          <ChevronUp size={14} className="text-muted group-hover:text-ink transition-colors" />
+        ) : (
+          <ChevronDown size={14} className="text-muted group-hover:text-ink transition-colors" />
+        )}
+      </button>
+      {expanded && (
+        <div className="bg-surface rounded-lg overflow-hidden">
+          <div className="grid grid-cols-[5.5rem_1fr_3.5rem] gap-3 px-4 py-2 border-b border-surface-border text-[10px] uppercase tracking-wider text-muted font-medium">
+            <span>Date</span>
+            <span>Type</span>
+            <span className="text-right">Link</span>
+          </div>
+          <ul className="max-h-96 overflow-y-auto">
+            {data.filings.map((f, i) => (
+              <li
+                key={`${f.filing_url}-${i}`}
+                className="grid grid-cols-[5.5rem_1fr_3.5rem] gap-3 items-center px-4 py-2 text-xs border-b border-surface-border last:border-0 hover:bg-surface-hover"
               >
-                View <ExternalLink size={10} />
-              </a>
-            </li>
-          ))}
-        </ul>
-      </div>
+                <span className="tabular-nums text-muted">{f.filing_date}</span>
+                <span className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-ink font-medium">{f.raw_form_type}</span>
+                  <span className="text-muted">{FORM_TYPE_LABELS[f.form_type] || ""}</span>
+                  {f.is_amendment && <Chip>Amended</Chip>}
+                  {(f.items || []).map((code) => (
+                    <Chip key={code} tone="brand" title={EIGHT_K_ITEM_LABELS[code] || code}>
+                      {code}
+                    </Chip>
+                  ))}
+                </span>
+                <a
+                  href={f.filing_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-right text-brand hover:underline inline-flex items-center justify-end gap-0.5"
+                >
+                  View <ExternalLink size={10} />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -2198,18 +2214,54 @@ function daysBetween(earlier, later) {
 }
 
 // Custom ReferenceDot marker: circle for a plain stock trade, diamond for an
-// option-flagged one (PLAN.md 1g-iii); color = buy/sell direction.
-function TradeMarker({ cx, cy, fill, isOption, onClick }) {
+// option-flagged one (PLAN.md 1g-iii); color = buy/sell direction. Hover
+// info uses a native SVG <title> (real OS tooltip on mouseover) rather than
+// a custom-positioned tooltip, since recharts' own Tooltip doesn't attach to
+// ReferenceDot annotations.
+function TradeMarker({ cx, cy, fill, isOption, onClick, tooltip }) {
   if (cx == null || cy == null) return null;
   const common = { fill, stroke: "#fff", strokeWidth: 1, onClick, style: { cursor: "pointer" } };
   if (isOption) {
     const r = 6;
-    return <polygon points={`${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`} {...common} />;
+    return (
+      <polygon points={`${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`} {...common}>
+        <title>{tooltip}</title>
+      </polygon>
+    );
   }
-  return <circle cx={cx} cy={cy} r={5} {...common} />;
+  return (
+    <circle cx={cx} cy={cy} r={5} {...common}>
+      <title>{tooltip}</title>
+    </circle>
+  );
 }
 
-function PoliticalTradesChart({ ticker, trades, currencyCode, onSelect }) {
+// "$ value" and "shares" aren't in the disclosed data -- STOCK Act only
+// publishes an amount BAND, never an exact figure, and share count isn't
+// published at all. Both are estimated here from the band midpoint and the
+// stock's closing price on the trade date, and clearly marked with "~" so
+// they never read as more precise than they are.
+function formatTradeTooltip(t, cs) {
+  const name = t.politician_canonical || t.politician;
+  const midValue = (Number(t.amount_min) + Number(t.amount_max)) / 2;
+  const lines = [name, t.transaction_date];
+
+  if (Number.isFinite(midValue) && t.tradePrice > 0) {
+    const estShares = midValue / t.tradePrice;
+    lines.push(`~${cs}${Math.round(midValue).toLocaleString()} · ~${Math.round(estShares).toLocaleString()} sh`);
+    if (t.isBuy && t.currentPrice != null) {
+      const pnlDollar = estShares * (t.currentPrice - t.tradePrice);
+      const pnlPct = (t.currentPrice / t.tradePrice - 1) * 100;
+      const sign = pnlDollar >= 0 ? "+" : "";
+      lines.push(`Unrealized: ${sign}${cs}${Math.round(pnlDollar).toLocaleString()} (${sign}${pnlPct.toFixed(1)}%)`);
+    } else if (!t.isBuy) {
+      lines.push("Position sold — no unrealized P&L");
+    }
+  }
+  return lines.join("\n");
+}
+
+function PoliticalTradesChart({ ticker, trades, currencyCode, currentPrice, onSelect }) {
   const cs = currencySymbol(currencyCode);
   const { data: hist } = useQuery({
     queryKey: ["history", ticker, "1y"],
@@ -2232,7 +2284,7 @@ function PoliticalTradesChart({ ticker, trades, currencyCode, onSelect }) {
         y = p.close;
       }
       if (y == null) return null;
-      return { ...t, x: t.transaction_date, y, isBuy: isPoliticalTradeBuy(t) };
+      return { ...t, x: t.transaction_date, y, tradePrice: y, currentPrice, isBuy: isPoliticalTradeBuy(t) };
     })
     .filter(Boolean);
 
@@ -2262,6 +2314,7 @@ function PoliticalTradesChart({ ticker, trades, currencyCode, onSelect }) {
                     {...props}
                     fill={d.isBuy ? GAIN_COLOR : LOSS_COLOR}
                     isOption={d.is_likely_option}
+                    tooltip={formatTradeTooltip(d, cs)}
                     onClick={() => onSelect(d)}
                   />
                 )}
@@ -2271,8 +2324,8 @@ function PoliticalTradesChart({ ticker, trades, currencyCode, onSelect }) {
         </ResponsiveContainer>
       </div>
       <p className="text-[10px] text-muted mt-2">
-        ● stock trade · ◆ option-flagged trade · green = buy, red = sell — click a marker (or a
-        table row below) for details.
+        ● stock trade · ◆ option-flagged trade · green = buy, red = sell — hover a marker for
+        name/date/value/shares/unrealized P&amp;L, click it (or a table row below) for full details.
       </p>
     </div>
   );
@@ -2341,7 +2394,7 @@ function TradeDetailCard({ trade, onClose }) {
   );
 }
 
-function PoliticalTradesSection({ ticker, currencyCode }) {
+function PoliticalTradesSection({ ticker, currencyCode, currentPrice }) {
   const [enabled, setEnabled] = useState(false);
   const [selected, setSelected] = useState(null);
   const { data, isLoading, isError, error } = useQuery({
@@ -2393,6 +2446,7 @@ function PoliticalTradesSection({ ticker, currencyCode }) {
             ticker={ticker}
             trades={data.trades}
             currencyCode={currencyCode}
+            currentPrice={currentPrice}
             onSelect={setSelected}
           />
           {selected && <TradeDetailCard trade={selected} onClose={() => setSelected(null)} />}
