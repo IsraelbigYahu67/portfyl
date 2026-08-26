@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Customized, Legend,
-  Line, Pie, PieChart, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Line, Pie, PieChart, ReferenceArea, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
   ArrowDownRight, ArrowUpRight, Building2, ChevronDown, ChevronUp,
@@ -1117,7 +1117,7 @@ export function StockOverview({ data, headerTrailing = null }) {
       <ShibuiInsiderActivitySection ticker={data.ticker} currencyCode={data.currency} />
     ),
 
-    politicalTrades: <PoliticalTradesSection ticker={data.ticker} />,
+    politicalTrades: <PoliticalTradesSection ticker={data.ticker} currencyCode={data.currency} />,
 
     shibuiOwnershipFilings: <ShibuiOwnershipFilingsSection ticker={data.ticker} />,
   };
@@ -2185,8 +2185,165 @@ function ShibuiOwnershipFilingsSection({ ticker }) {
   );
 }
 
-function PoliticalTradesSection({ ticker }) {
+function isPoliticalTradeBuy(t) {
+  const type = (t.transaction_type || "").toUpperCase();
+  return type.includes("PURCHASE") || type === "BUY";
+}
+
+function daysBetween(earlier, later) {
+  const d1 = new Date(earlier);
+  const d2 = new Date(later);
+  if (Number.isNaN(d1.getTime()) || Number.isNaN(d2.getTime())) return null;
+  return Math.round((d2.getTime() - d1.getTime()) / 86400000);
+}
+
+// Custom ReferenceDot marker: circle for a plain stock trade, diamond for an
+// option-flagged one (PLAN.md 1g-iii); color = buy/sell direction.
+function TradeMarker({ cx, cy, fill, isOption, onClick }) {
+  if (cx == null || cy == null) return null;
+  const common = { fill, stroke: "#fff", strokeWidth: 1, onClick, style: { cursor: "pointer" } };
+  if (isOption) {
+    const r = 6;
+    return <polygon points={`${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`} {...common} />;
+  }
+  return <circle cx={cx} cy={cy} r={5} {...common} />;
+}
+
+function PoliticalTradesChart({ ticker, trades, currencyCode, onSelect }) {
+  const cs = currencySymbol(currencyCode);
+  const { data: hist } = useQuery({
+    queryKey: ["history", ticker, "1y"],
+    queryFn: () => fetchHistory(ticker, "1y"),
+    staleTime: 30 * 60 * 1000,
+    enabled: !!ticker,
+  });
+
+  const points = hist?.data;
+  if (!points?.length) return null;
+
+  // Match each trade to the closing price on its date, falling back to the
+  // nearest earlier trading day (STOCK Act dates are trading days, so this
+  // should usually be an exact hit).
+  const dots = trades
+    .map((t) => {
+      let y = null;
+      for (const p of points) {
+        if (p.date > t.transaction_date) break;
+        y = p.close;
+      }
+      if (y == null) return null;
+      return { ...t, x: t.transaction_date, y, isBuy: isPoliticalTradeBuy(t) };
+    })
+    .filter(Boolean);
+
+  if (!dots.length) return null;
+
+  return (
+    <div className="bg-surface rounded-lg p-4 mb-3">
+      <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+        Trades on price chart
+      </h4>
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+            <XAxis dataKey="date" tick={AXIS_TICK} tickFormatter={(d) => String(d).slice(0, 7)} minTickGap={40} />
+            <YAxis tick={AXIS_TICK} width={52} domain={["auto", "auto"]} tickFormatter={(v) => `${cs}${v}`} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${cs}${v}`, "Close"]} />
+            <Line type="monotone" dataKey="close" stroke={NEUTRAL_COLOR} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+            {dots.map((d, i) => (
+              <ReferenceDot
+                key={i}
+                x={d.x}
+                y={d.y}
+                isFront
+                shape={(props) => (
+                  <TradeMarker
+                    {...props}
+                    fill={d.isBuy ? GAIN_COLOR : LOSS_COLOR}
+                    isOption={d.is_likely_option}
+                    onClick={() => onSelect(d)}
+                  />
+                )}
+              />
+            ))}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      <p className="text-[10px] text-muted mt-2">
+        ● stock trade · ◆ option-flagged trade · green = buy, red = sell — click a marker (or a
+        table row below) for details.
+      </p>
+    </div>
+  );
+}
+
+function TradeDetailCard({ trade, onClose }) {
+  const isBuy = isPoliticalTradeBuy(trade);
+  const reportLag = daysBetween(trade.transaction_date, trade.filed_date);
+
+  return (
+    <div className="bg-surface rounded-lg p-4 mb-3 border border-brand/30">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-ink">
+            {trade.politician_canonical || trade.politician}
+          </div>
+          <div className="text-xs text-muted mt-0.5">
+            {trade.party} · {trade.chamber}
+            {trade.state ? ` · ${trade.state}` : ""}
+            {trade.state_district ? ` (${trade.state_district})` : ""}
+          </div>
+        </div>
+        <button onClick={onClose} className="text-muted hover:text-ink text-xs">
+          ✕
+        </button>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+        <div>
+          <div className="text-[10px] text-muted uppercase tracking-wider">Type</div>
+          <div className={`text-xs font-semibold ${isBuy ? "text-gain" : "text-loss"}`}>
+            {isBuy ? "BUY" : "SELL"}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] text-muted uppercase tracking-wider">Amount</div>
+          <div className="text-xs text-ink tabular-nums">
+            ${Number(trade.amount_min).toLocaleString()}–${Number(trade.amount_max).toLocaleString()}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] text-muted uppercase tracking-wider">Owner</div>
+          <div className="text-xs text-ink">{trade.owner_code || "—"}</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-muted uppercase tracking-wider">Transaction date</div>
+          <div className="text-xs text-ink tabular-nums">{trade.transaction_date}</div>
+        </div>
+      </div>
+      {trade.filed_date && (
+        <p className="text-[11px] text-muted mt-2">
+          Reported {trade.filed_date}
+          {reportLag != null && reportLag > 0 && ` — ${reportLag} day${reportLag === 1 ? "" : "s"} after the trade`}
+        </p>
+      )}
+      {trade.is_likely_option && (
+        <div className="mt-3 pt-3 border-t border-surface-border">
+          <Chip tone="warn">Options trade</Chip>
+          <p className="text-[11px] text-muted mt-1.5">{trade.asset_name}</p>
+          <p className="text-[10px] text-muted mt-1">
+            Exact strike/expiration aren't in the data available here — can't automatically tell
+            if this is a "deep ITM" style bet.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PoliticalTradesSection({ ticker, currencyCode }) {
   const [enabled, setEnabled] = useState(false);
+  const [selected, setSelected] = useState(null);
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["politician-trades", ticker],
     queryFn: () => fetchPoliticianTrades(ticker),
@@ -2231,57 +2388,66 @@ function PoliticalTradesSection({ ticker }) {
       )}
 
       {enabled && data && data.trades.length > 0 && (
-        <div className="bg-surface rounded-lg overflow-hidden">
-          <div className="grid grid-cols-[1fr_3.5rem_3.5rem_9rem_5.5rem] gap-3 px-4 py-2 border-b border-surface-border text-[10px] uppercase tracking-wider text-muted font-medium">
-            <span>Politician</span>
-            <span className="text-center">Party</span>
-            <span className="text-center">Type</span>
-            <span className="text-right">Amount</span>
-            <span className="text-right">Date</span>
-          </div>
-          <ul className="max-h-96 overflow-y-auto">
-            {data.trades.map((t, i) => {
-              const type = (t.transaction_type || "").toUpperCase();
-              const isBuy = type.includes("PURCHASE") || type === "BUY";
-              return (
-                <li
-                  key={i}
-                  className="grid grid-cols-[1fr_3.5rem_3.5rem_9rem_5.5rem] gap-3 items-center px-4 py-2 text-xs border-b border-surface-border last:border-0 hover:bg-surface-hover"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-ink font-medium">
-                      {t.politician_canonical || t.politician}
-                    </div>
-                    <div className="text-[10px] text-muted truncate">
-                      {t.chamber} · {t.state}
-                      {t.state_district ? ` (${t.state_district})` : ""} · {t.owner_code}
-                      {t.is_likely_option && <span className="ml-1 text-amber-500">◆ Option</span>}
-                    </div>
-                  </div>
-                  <span className="text-center text-muted">{t.party}</span>
-                  <span
-                    className={`text-center text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded border ${
-                      isBuy
-                        ? "bg-green-500/25 text-green-700 border-green-500/40"
-                        : "bg-red-500/25 text-red-700 border-red-500/40"
-                    }`}
-                  >
-                    {isBuy ? "BUY" : "SELL"}
-                  </span>
-                  <span className="text-right tabular-nums text-muted">
-                    ${Number(t.amount_min).toLocaleString()}–${Number(t.amount_max).toLocaleString()}
-                  </span>
-                  <span className="text-right tabular-nums text-muted">{t.transaction_date}</span>
-                </li>
-              );
-            })}
-          </ul>
-          {data.truncated && (
-            <div className="px-4 py-2 text-[10px] text-muted border-t border-surface-border">
-              Showing a partial list — {data.total_count} total trades found.
+        <>
+          <PoliticalTradesChart
+            ticker={ticker}
+            trades={data.trades}
+            currencyCode={currencyCode}
+            onSelect={setSelected}
+          />
+          {selected && <TradeDetailCard trade={selected} onClose={() => setSelected(null)} />}
+          <div className="bg-surface rounded-lg overflow-hidden">
+            <div className="grid grid-cols-[1fr_3.5rem_3.5rem_9rem_5.5rem] gap-3 px-4 py-2 border-b border-surface-border text-[10px] uppercase tracking-wider text-muted font-medium">
+              <span>Politician</span>
+              <span className="text-center">Party</span>
+              <span className="text-center">Type</span>
+              <span className="text-right">Amount</span>
+              <span className="text-right">Date</span>
             </div>
-          )}
-        </div>
+            <ul className="max-h-96 overflow-y-auto">
+              {data.trades.map((t, i) => {
+                const isBuy = isPoliticalTradeBuy(t);
+                return (
+                  <li
+                    key={i}
+                    onClick={() => setSelected(t)}
+                    className="grid grid-cols-[1fr_3.5rem_3.5rem_9rem_5.5rem] gap-3 items-center px-4 py-2 text-xs border-b border-surface-border last:border-0 hover:bg-surface-hover cursor-pointer"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-ink font-medium">
+                        {t.politician_canonical || t.politician}
+                      </div>
+                      <div className="text-[10px] text-muted truncate">
+                        {t.chamber} · {t.state}
+                        {t.state_district ? ` (${t.state_district})` : ""} · {t.owner_code}
+                        {t.is_likely_option && <span className="ml-1 text-amber-500">◆ Option</span>}
+                      </div>
+                    </div>
+                    <span className="text-center text-muted">{t.party}</span>
+                    <span
+                      className={`text-center text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded border ${
+                        isBuy
+                          ? "bg-green-500/25 text-green-700 border-green-500/40"
+                          : "bg-red-500/25 text-red-700 border-red-500/40"
+                      }`}
+                    >
+                      {isBuy ? "BUY" : "SELL"}
+                    </span>
+                    <span className="text-right tabular-nums text-muted">
+                      ${Number(t.amount_min).toLocaleString()}–${Number(t.amount_max).toLocaleString()}
+                    </span>
+                    <span className="text-right tabular-nums text-muted">{t.transaction_date}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            {data.truncated && (
+              <div className="px-4 py-2 text-[10px] text-muted border-t border-surface-border">
+                Showing a partial list — {data.total_count} total trades found.
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

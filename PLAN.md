@@ -224,11 +224,16 @@ dřívější návrh (žádná `jobs.py` pass, žádná `PoliticianTradeCache` t
   pokud si appka žádá o data jen k tikrům, co si vážně chceš prohlédnout. Kdyby přesto nestačilo
   (hodně kliknutí za den), další krok je placený Alpha Vantage tarif — ne něco, co plán řeší teď.
 
-#### 1g-ii. Tečky na cenovém grafu (zelená nákup, červená prodej) — ⏸ neuděláno, stačila tabulka
+#### 1g-ii. Tečky na cenovém grafu (zelená nákup, červená prodej) — ✅ implementováno
 
-Implementovaná verze (`PoliticalTradesSection` v `StockDetail.jsx`) je zatím jen tabulka
-(politik/strana/typ/částka/datum + `is_likely_option` badge), ne graf s tečkami přes cenu —
-tenhle konkrétní vizuál (viz návrh níže) je vědomě odložený stretch goal, ne udělaný.
+`PoliticalTradesChart` v `StockDetail.jsx`: `ComposedChart` nad `fetchHistory(ticker, "1y")`
+(denní `{date, close}`, ověřeno živě vzestupně seřazené), `ReferenceDot` s vlastním `shape`
+(kruh pro akcii, kosočtverec pro `is_likely_option`), barva podle buy/sell. Klik na tečku i na
+řádek tabulky otevře `TradeDetailCard` (politik, strana/stát/komora, typ, částkové pásmo,
+owner_code, "reported N days after the trade", a u option-flagged navíc badge + syrový
+`asset_name` + caveat text). Nebylo možné vizuálně ověřit v prohlížeči (žádné Chrome rozšíření
+v tomhle sezení) — `npm run build`/`npm run test` procházejí a datový tvar (`date`/`close`
+pole, `filed_date`/`asset_name` v Alpha Vantage payloadu) ověřen živě proti běžícímu backendu.
 
 Stávající cenový graf na Stock stránce je `InsiderVolumeChart` v `StockDetail.jsx:1930` —
 `ComposedChart` (recharts) s `Line` pro close cenu (`CATEGORICAL[0]`) a bary pro insider
