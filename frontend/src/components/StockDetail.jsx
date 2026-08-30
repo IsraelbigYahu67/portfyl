@@ -766,10 +766,7 @@ export function DividendGrowthSection({ ticker, currency = "USD" }) {
       <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">Dividend history</h3>
       <div className="grid grid-cols-3 gap-3">
         {tiles.map((t) => (
-          <div key={t.label} className="rounded-lg border border-surface-border bg-surface-card px-3 py-2">
-            <p className="text-[10px] text-muted uppercase tracking-wider">{t.label}</p>
-            <p className="text-sm font-semibold text-ink tabular-nums">{t.value}</p>
-          </div>
+          <KpiBox key={t.label} size="sm" label={t.label} value={t.value} />
         ))}
       </div>
       <div className="rounded-xl border border-surface-border bg-surface-card p-4">
@@ -1751,15 +1748,18 @@ function OwnershipSection({ ownership, currencyCode }) {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div className="bg-surface rounded-lg p-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-            <OwnershipStat
+            <KpiBox
+              size="sm"
               label="Institutions"
               value={instPct != null ? `${instPct.toFixed(1)}%` : "—"}
             />
-            <OwnershipStat
+            <KpiBox
+              size="sm"
               label="Insiders"
               value={insiderPct != null ? `${insiderPct.toFixed(1)}%` : "—"}
             />
-            <OwnershipStat
+            <KpiBox
+              size="sm"
               label="Top holders"
               value={
                 ownership.institutions_count != null
@@ -1767,7 +1767,8 @@ function OwnershipSection({ ownership, currencyCode }) {
                   : "—"
               }
             />
-            <OwnershipStat
+            <KpiBox
+              size="sm"
               label="Short interest"
               value={shortPct != null ? `${(shortPct * 100).toFixed(2)}%` : "—"}
             />
@@ -1867,15 +1868,6 @@ function OwnershipSection({ ownership, currencyCode }) {
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function OwnershipStat({ label, value }) {
-  return (
-    <div className="bg-surface-card rounded-md px-3 py-2 border border-surface-border">
-      <div className="text-[10px] text-muted uppercase tracking-wider">{label}</div>
-      <div className="text-base font-bold tabular-nums">{value}</div>
     </div>
   );
 }
