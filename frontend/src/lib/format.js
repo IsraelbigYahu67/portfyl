@@ -1,4 +1,4 @@
-const DASH = "—";
+﻿const DASH = "—";
 
 // Prefix/suffix per currency. Note GBp/GBX (London pence) is distinct from GBP
 // (pounds) and must be checked on the raw code before upper-casing collapses them.
@@ -63,7 +63,7 @@ export function formatNumberSpaced(n, digits = 0) {
   if (n == null || Number.isNaN(n)) return DASH;
   const sign = n < 0 ? "-" : "";
   const [intPart, fracPart] = Math.abs(n).toFixed(digits).split(".");
-  const spacedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const spacedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, "\u00A0");
   return fracPart != null ? `${sign}${spacedInt},${fracPart}` : `${sign}${spacedInt}`;
 }
 
