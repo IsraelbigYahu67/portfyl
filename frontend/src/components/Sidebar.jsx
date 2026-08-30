@@ -39,7 +39,7 @@ const PALETTE_OPTIONS = [
 
 export default function Sidebar() {
   const { currency, setCurrency, rate, rateLoading } = useCurrency();
-  const { palette, setPalette, theme, setTheme } = usePalette();
+  const { palette, setPalette, theme, setTheme, themeStyle, setThemeStyle } = usePalette();
   const { platform, setPlatform } = usePlatform();
   const navigate = useNavigate();
   const czk_unavailable = !rateLoading && rate === null;
@@ -96,8 +96,25 @@ export default function Sidebar() {
       </nav>
 
       <div className="mt-auto pb-3 space-y-3">
-        {/* Appearance (light / dark / system) */}
+        {/* Theme style (Classic glass vs Premium warm glass-hybrid) */}
         <div className="px-4">
+          <p className="text-[10px] text-muted mb-1.5 pl-0.5">Style</p>
+          <SegmentedControl
+            block
+            size="sm"
+            aria-label="Theme style"
+            value={themeStyle}
+            onChange={setThemeStyle}
+            options={[
+              { value: "glass", label: "Classic", title: "Classic glass theme" },
+              { value: "neu", label: "Premium", title: "Warm glass-hybrid theme" },
+            ]}
+          />
+        </div>
+
+        {/* Appearance (light / dark / system) -- inert while Premium is
+            active, which ships as one fixed light appearance. */}
+        <div className={`px-4 ${themeStyle === "neu" ? "opacity-40 pointer-events-none" : ""}`}>
           <p className="text-[10px] text-muted mb-1.5 pl-0.5">Appearance</p>
           <SegmentedControl
             block
@@ -106,21 +123,22 @@ export default function Sidebar() {
             value={theme}
             onChange={setTheme}
             options={[
-              { value: "light", label: <Sun size={13} />, title: "Light" },
-              { value: "dark", label: <Moon size={13} />, title: "Dark" },
-              { value: "system", label: <Monitor size={13} />, title: "System" },
+              { value: "light", label: <Sun size={13} />, title: "Light", disabled: themeStyle === "neu" },
+              { value: "dark", label: <Moon size={13} />, title: "Dark", disabled: themeStyle === "neu" },
+              { value: "system", label: <Monitor size={13} />, title: "System", disabled: themeStyle === "neu" },
             ]}
           />
         </div>
 
-        {/* Palette switcher */}
-        <div className="px-4">
+        {/* Palette switcher -- same rationale as Appearance above. */}
+        <div className={`px-4 ${themeStyle === "neu" ? "opacity-40 pointer-events-none" : ""}`}>
           <p className="text-[10px] text-muted mb-1.5 pl-0.5">Accent</p>
           <div className="flex gap-1.5">
             {PALETTE_OPTIONS.map(({ key, label }) => (
               <button
                 key={key}
                 onClick={() => setPalette(key)}
+                disabled={themeStyle === "neu"}
                 title={label}
                 aria-label={`Theme: ${label}`}
                 aria-pressed={palette === key}
@@ -136,7 +154,7 @@ export default function Sidebar() {
         {/* Currency toggle */}
         <div className="px-4 space-y-2">
           <p className="text-[10px] text-muted pl-0.5">Display currency</p>
-          <div className="flex items-center gap-0.5 bg-surface-hover rounded-lg p-0.5">
+          <div className="flex items-center gap-0.5 bg-surface-hover rounded-[var(--radius-card)] p-0.5">
             {["USD", "CZK"].map((c) => (
               <button
                 key={c}
@@ -145,7 +163,7 @@ export default function Sidebar() {
                 title={c === "CZK" && czk_unavailable ? "Rate unavailable" : undefined}
                 aria-label={`Display currency: ${c}`}
                 aria-pressed={currency === c}
-                className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ${
+                className={`flex-1 text-xs py-1.5 rounded-[var(--radius-card)] font-semibold transition-colors ${
                   currency === c
                     ? "bg-brand text-white"
                     : czk_unavailable && c === "CZK"
