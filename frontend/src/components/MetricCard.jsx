@@ -1,4 +1,6 @@
 import { Info } from "lucide-react";
+import SpotlightCard from "./reactbits/SpotlightCard";
+import { useCountUp } from "../hooks/useCountUp";
 
 function InfoIcon({ info }) {
   if (!info) return null;
@@ -31,11 +33,20 @@ function InfoIcon({ info }) {
   );
 }
 
+// `value` is normally a pre-formatted string (every current caller already
+// formats via lib/format.js before passing it in). Passing a raw number
+// instead opts into a count-up animation -- additive, backward compatible.
+function MetricValue({ value }) {
+  const isNumber = typeof value === "number" && Number.isFinite(value);
+  const animated = useCountUp(isNumber ? value : 0, { enabled: isNumber });
+  return isNumber ? animated.toLocaleString("en-US", { maximumFractionDigits: 0 }) : value;
+}
+
 export default function MetricCard({ icon: Icon, label, value, sub, positive, negative, loading, info }) {
   const subColor = positive ? "text-gain" : negative ? "text-loss" : "text-muted";
 
   return (
-    <div className="card !bg-surface-card-elevated relative flex flex-col gap-1 min-w-0">
+    <SpotlightCard className="card !bg-surface-card-elevated relative flex flex-col gap-1.5 min-w-0">
       {Icon && (
         <span className="absolute top-4 right-4 grid place-items-center w-7 h-7 rounded-lg bg-brand/10 text-brand">
           <Icon size={14} />
@@ -48,10 +59,12 @@ export default function MetricCard({ icon: Icon, label, value, sub, positive, ne
       {loading ? (
         <div className="h-8 w-28 bg-surface-hover rounded animate-pulse mt-1" />
       ) : (
-        <span className="text-2xl font-display font-bold tabular-nums truncate tracking-tight text-ink">{value}</span>
+        <span className="text-2xl font-display font-bold tabular-nums truncate tracking-tight text-ink">
+          <MetricValue value={value} />
+        </span>
       )}
       {sub && !loading && <span className={`text-[13px] font-semibold tabular-nums ${subColor}`}>{sub}</span>}
-    </div>
+    </SpotlightCard>
   );
 }
 
