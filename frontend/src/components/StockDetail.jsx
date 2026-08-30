@@ -20,6 +20,7 @@ import useStockReportConfig, { ALL_SECTIONS } from "../hooks/useStockReportConfi
 import {
   CATEGORICAL, NEUTRAL_COLOR, GAIN_COLOR, LOSS_COLOR, AXIS_TICK, GRID_STROKE, TOOLTIP_STYLE,
 } from "../lib/chartTheme";
+import { KpiBox } from "./ui";
 
 // ---------------------------------------------------------------------------
 // Navigation helpers
@@ -875,17 +876,17 @@ export function StockOverview({ data, headerTrailing = null }) {
   const sections = {
     quickStats: (
       <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-        <QuickStat label="Market Cap" value={fmtCompact(data.market_cap, cs)} />
-        <QuickStat label="P/E (TTM)" value={fmtRatio(ratios.pe)} />
-        <QuickStat label="EPS (TTM)" value={ttm.eps != null ? `${cs}${ttm.eps.toFixed(2)}` : "—"} />
-        <QuickStat label="Div Yield" value={ratios.div_yield != null ? `${ratios.div_yield.toFixed(2)}%` : "—"} />
-        <QuickStat label="Beta" value={fmtRatio(data.beta)} />
-        <QuickStat label="EV/EBITDA" value={fmtRatio(ratios.ev_ebitda)} />
+        <KpiBox size="sm" label="Market Cap" value={fmtCompact(data.market_cap, cs)} />
+        <KpiBox size="sm" label="P/E (TTM)" value={fmtRatio(ratios.pe)} />
+        <KpiBox size="sm" label="EPS (TTM)" value={ttm.eps != null ? `${cs}${ttm.eps.toFixed(2)}` : "—"} />
+        <KpiBox size="sm" label="Div Yield" value={ratios.div_yield != null ? `${ratios.div_yield.toFixed(2)}%` : "—"} />
+        <KpiBox size="sm" label="Beta" value={fmtRatio(data.beta)} />
+        <KpiBox size="sm" label="EV/EBITDA" value={fmtRatio(ratios.ev_ebitda)} />
       </div>
     ),
 
     weekRange: range ? (
-      <div className="bg-surface rounded-lg px-4 py-3">
+      <div className="bg-surface rounded-[var(--radius-card)] px-4 py-3">
         <div className="flex items-center justify-between text-[10px] text-muted uppercase tracking-wider mb-2">
           <span>52-Week Range</span>
           {data.fifty_day_avg != null && (
@@ -1196,15 +1197,6 @@ export function StockOverview({ data, headerTrailing = null }) {
         })}
       </div>
     </>
-  );
-}
-
-function QuickStat({ label, value }) {
-  return (
-    <div className="bg-surface rounded-lg px-3 py-2">
-      <div className="text-[10px] text-muted uppercase tracking-wider">{label}</div>
-      <div className="text-base font-bold tabular-nums truncate">{value}</div>
-    </div>
   );
 }
 
