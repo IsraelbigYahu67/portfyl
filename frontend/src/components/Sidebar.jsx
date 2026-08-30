@@ -154,7 +154,7 @@ export default function Sidebar() {
         {/* Currency toggle */}
         <div className="px-4 space-y-2">
           <p className="text-[10px] text-muted pl-0.5">Display currency</p>
-          <div className="flex items-center gap-0.5 bg-surface-hover rounded-[var(--radius-card)] p-0.5">
+          <div className="flex items-center gap-0.5 bg-surface-hover rounded-lg p-0.5">
             {["USD", "CZK"].map((c) => (
               <button
                 key={c}
@@ -163,7 +163,7 @@ export default function Sidebar() {
                 title={c === "CZK" && czk_unavailable ? "Rate unavailable" : undefined}
                 aria-label={`Display currency: ${c}`}
                 aria-pressed={currency === c}
-                className={`flex-1 text-xs py-1.5 rounded-[var(--radius-card)] font-semibold transition-colors ${
+                className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ${
                   currency === c
                     ? "bg-brand text-white"
                     : czk_unavailable && c === "CZK"
