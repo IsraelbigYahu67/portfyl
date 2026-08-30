@@ -405,41 +405,6 @@ function ratingColor(score) {
   return "text-loss bg-loss/10";
 }
 
-function RatioRow({ label, value, sector, fmt, tooltip, lowerIsBetter, noSector }) {
-  const sectorVal = noSector ? null : sector;
-  const delta = value != null && sectorVal != null ? value - sectorVal : null;
-  // Green when the focal stock is on the "better" side of the sector median;
-  // direction depends on the metric (cheap multiples = lower is better, fat
-  // margins = higher is better).
-  const deltaColor = (() => {
-    if (delta == null) return "text-muted";
-    const favourable = lowerIsBetter ? delta < 0 : delta > 0;
-    return favourable ? "text-gain" : "text-loss";
-  })();
-  // Always close the description with which direction is "good", derived from
-  // the same lowerIsBetter flag that drives the Δ-vs-sector colouring above so
-  // the two can never disagree.
-  const direction = lowerIsBetter ? "Lower is better." : "Higher is better.";
-  const titleText = tooltip ? `${tooltip}\n\n${direction}` : direction;
-  return (
-    <div className="flex items-center justify-between py-1.5 text-sm border-b border-surface-border last:border-0">
-      <div className="flex items-center gap-1 text-muted cursor-help" title={titleText}>
-        <span className="text-xs">{label}</span>
-        <Info size={11} className="text-muted shrink-0" />
-      </div>
-      <div className="flex items-center gap-3 tabular-nums">
-        <span className="text-ink font-medium w-16 text-right">{fmt(value)}</span>
-        <span className="text-muted w-16 text-right text-xs">
-          {noSector ? "—" : fmt(sectorVal)}
-        </span>
-        <span className={`w-14 text-right text-xs font-medium ${deltaColor}`}>
-          {delta == null ? "—" : fmtSignedNumber(delta, 2)}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 function AnalystBar({ label, count, total, color }) {
   const pct = total > 0 ? (count / total) * 100 : 0;
   return (
@@ -973,7 +938,7 @@ export function StockOverview({ data, headerTrailing = null }) {
 
     ratiosAnalyst: (
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div className="bg-surface rounded-lg p-4">
+        <div className="bg-surface rounded-[var(--radius-card)] p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
               Valuation & Quality
@@ -984,33 +949,32 @@ export function StockOverview({ data, headerTrailing = null }) {
               </span>
             )}
           </div>
-          <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted pb-1 border-b border-surface-border mb-1">
-            <span>Metric</span>
-            <div className="flex items-center gap-3">
-              <span className="w-16 text-right">Value</span>
-              <span className="w-16 text-right">Sector</span>
-              <span className="w-14 text-right">Δ</span>
-            </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {RATIO_ROWS.map((r) => {
+              const year = r.yearKey ? ratios[r.yearKey] : null;
+              const label =
+                r.labelYearSuffix && year != null
+                  ? `${r.label} (${year})`
+                  : r.label;
+              const fmt = r.pct ? fmtPctValue : fmtRatio;
+              const value = ratios[r.key];
+              const sectorVal = r.noSector ? null : sector[r.key];
+              const delta = value != null && sectorVal != null ? value - sectorVal : null;
+              const favourable = delta == null ? null : (r.lowerIsBetter ? delta < 0 : delta > 0);
+              const direction = r.lowerIsBetter ? "Lower is better." : "Higher is better.";
+              return (
+                <KpiBox
+                  key={r.key}
+                  size="sm"
+                  label={label}
+                  value={fmt(value)}
+                  info={r.tooltip ? { title: label, what: r.tooltip, note: direction } : { title: label, what: direction }}
+                  sub={r.noSector ? null : `Sector ${fmt(sectorVal)} · Δ ${delta == null ? "—" : fmtSignedNumber(delta, 2)}`}
+                  subTone={favourable == null ? "muted" : favourable ? "gain" : "loss"}
+                />
+              );
+            })}
           </div>
-          {RATIO_ROWS.map((r) => {
-            const year = r.yearKey ? ratios[r.yearKey] : null;
-            const label =
-              r.labelYearSuffix && year != null
-                ? `${r.label} (${year})`
-                : r.label;
-            return (
-              <RatioRow
-                key={r.key}
-                label={label}
-                value={ratios[r.key]}
-                sector={sector[r.key]}
-                fmt={r.pct ? fmtPctValue : fmtRatio}
-                tooltip={r.tooltip}
-                lowerIsBetter={r.lowerIsBetter}
-                noSector={r.noSector}
-              />
-            );
-          })}
         </div>
 
         <div className="flex flex-col gap-4">
