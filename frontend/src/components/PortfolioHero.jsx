@@ -2,6 +2,7 @@ import { useCountUp } from "../hooks/useCountUp";
 import { formatMoney, formatCompact, formatNumber } from "../lib/format";
 import { DeltaPill, Skeleton, SkeletonMetric } from "./ui";
 import HeroSparkline from "./HeroSparkline";
+import ShinyText from "./reactbits/ShinyText";
 
 function Chip({ label, value, positive, negative }) {
   const valueColor = positive ? "text-gain" : negative ? "text-loss" : "text-ink";
@@ -24,7 +25,7 @@ export default function PortfolioHero({ summary, loading, currency = "USD", seri
       <div className="relative">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="eyebrow">Net Worth</p>
+            <p className="eyebrow"><ShinyText text="Net Worth" /></p>
             {loading || summary == null ? (
               <div className="mt-2"><Skeleton h="2.75rem" w="16rem" /></div>
             ) : (
