@@ -1,4 +1,4 @@
-import { formatMoney, formatPercent, formatCompact, formatNumber, formatShortDate } from "./format";
+import { formatMoney, formatPercent, formatCompact, formatNumber, formatShortDate, formatNumberSpaced, formatMoneySpaced } from "./format";
 
 describe("formatMoney", () => {
   it("formats USD with symbol and 2dp", () => {
@@ -68,5 +68,36 @@ describe("formatShortDate", () => {
   it("returns an em dash for missing input", () => {
     expect(formatShortDate(null)).toBe("—");
     expect(formatShortDate("")).toBe("—");
+  });
+});
+
+describe("formatNumberSpaced", () => {
+  it("groups thousands with a non-breaking space and a comma decimal", () => {
+    expect(formatNumberSpaced(1234567.89, 2)).toBe("1 234 567,89");
+  });
+  it("defaults to 0 decimals", () => {
+    expect(formatNumberSpaced(1234)).toBe("1 234");
+  });
+  it("keeps the minus sign before the digits", () => {
+    expect(formatNumberSpaced(-1234.5, 2)).toBe("-1 234,50");
+  });
+  it("returns an em dash for null/NaN", () => {
+    expect(formatNumberSpaced(null)).toBe("—");
+    expect(formatNumberSpaced(NaN)).toBe("—");
+  });
+});
+
+describe("formatMoneySpaced", () => {
+  it("formats CZK with the spaced-group suffix style", () => {
+    expect(formatMoneySpaced(1234567.89, "CZK")).toBe("1 234 567,89 Kč");
+  });
+  it("formats USD with the $ prefix", () => {
+    expect(formatMoneySpaced(1234.5, "USD")).toBe("$1 234,50");
+  });
+  it("puts the sign before the prefix for negatives", () => {
+    expect(formatMoneySpaced(-12, "USD")).toBe("-$12,00");
+  });
+  it("returns an em dash for null", () => {
+    expect(formatMoneySpaced(null)).toBe("—");
   });
 });
