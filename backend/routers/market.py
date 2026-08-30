@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from statistics import median
 import datetime
 import math
+import re
 import time
 
 import pandas as pd
@@ -11,6 +12,8 @@ import yfinance as yf
 
 from ticker_map import yf_symbol
 import market_data
+import shibui_client
+import alphavantage_client
 from cache import ttl_cache
 
 router = APIRouter(prefix="/market", tags=["market"])
@@ -24,6 +27,18 @@ _HISTORY_TTL = 1800          # 30 minutes
 _SEARCH_TTL = 1800           # 30 minutes
 _QUOTE_TTL = 120             # 2 minutes
 _FX_TTL = 600                # 10 minutes
+
+# Guards every f-string-interpolated ticker sent to Shibui's stock_data_query
+# (that server takes a finished SQL string, not parametrized queries).
+_SHIBUI_TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
+
+
+def _escape_sql_string(s: str) -> str:
+    """Escape a value for safe interpolation into a single-quoted SQL string
+    literal (doubles embedded quotes) -- for the rare Shibui query that takes
+    free text (e.g. a search term) rather than a value _SHIBUI_TICKER_RE can
+    validate outright."""
+    return s.replace("'", "''")
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +185,25 @@ def _cagr(values: list[float], periods_per_year: int = 1) -> Optional[float]:
 
 def _metric_block(name: str, raw: Optional[pd.Series], freq: str = "Y") -> dict:
     periods, values = _series_periods(raw, freq=freq, n=40 if freq == "Q" else 20)
+    if freq == "Q":
+        yoy = _yoy(values, lag=4)
+        cagr = _cagr(values, periods_per_year=4)
+    else:
+        yoy = _yoy(values, lag=1)
+        cagr = _cagr(values, periods_per_year=1)
+    return {
+        "name": name,
+        "years": periods,
+        "values": values,
+        "yoy": yoy,
+        "cagr": cagr,
+    }
+
+
+def _shibui_metric_block(name: str, periods: list[str], values: list[float], freq: str = "Y") -> dict:
+    """Same output shape as _metric_block, built from already-extracted
+    (period_label, value) pairs -- oldest to newest -- instead of a yfinance
+    statement Series. Used for Shibui-sourced financials."""
     if freq == "Q":
         yoy = _yoy(values, lag=4)
         cagr = _cagr(values, periods_per_year=4)
@@ -516,16 +550,46 @@ def _fmt_date(v: Any) -> Optional[str]:
     return None
 
 
-def _build_ownership(stock: yf.Ticker, info: dict) -> dict:
+def _shibui_ownership_stats(sym: str) -> dict:
+    """Best-effort row from Shibui's ownership_stats (insider %, institutional
+    %, short interest). Returns {} on any failure (bad ticker, Shibui down,
+    no row for this symbol) rather than raising -- supplementary/preferred
+    data only, the fundamentals endpoint must keep working without it."""
+    if not _SHIBUI_TICKER_RE.match(sym):
+        return {}
+    sql = (
+        "SELECT percent_insiders, percent_institutions, short_percent_float, shares_float"
+        " FROM shibui.ownership_stats"
+        f" WHERE ticker = '{sym}' LIMIT 1"
+    )
+    try:
+        rows = shibui_client.query(sql, f"Ownership stats for {sym}")
+    except shibui_client.ShibuiError:
+        return {}
+    return rows[0] if rows else {}
+
+
+def _build_ownership(stock: yf.Ticker, info: dict, sym: str) -> dict:
     """Institutional / insider ownership breakdown.
 
     Returns headline percentages (insider %, institutional %) plus the top
     institutional holders table. Each holder includes the dollar value, share
     count, and % of shares outstanding so the UI can render a hover-tooltip
-    pie chart."""
-    insider_pct = _to_pct(_f(info.get("heldPercentInsiders")))
-    inst_pct = _to_pct(_f(info.get("heldPercentInstitutions")))
+    pie chart. Insider/institutional % and short interest (yfinance doesn't
+    have the latter at all) prefer Shibui's ownership_stats, falling back to
+    yfinance's `info` when Shibui has no row for this ticker."""
+    stats = _shibui_ownership_stats(sym)
+    # Shibui's percent_insiders/percent_institutions are already percentages
+    # (50.0 = 50%); yfinance's info fields are fractions (0.5 = 50%).
+    insider_pct = _f(stats.get("percent_insiders"))
+    if insider_pct is None:
+        insider_pct = _to_pct(_f(info.get("heldPercentInsiders")))
+    inst_pct = _f(stats.get("percent_institutions"))
+    if inst_pct is None:
+        inst_pct = _to_pct(_f(info.get("heldPercentInstitutions")))
     institutions_count = None
+    short_percent_float = _f(stats.get("short_percent_float"))
+    short_shares_float = _f(stats.get("shares_float"))
 
     holders: list[dict] = []
     try:
@@ -556,7 +620,161 @@ def _build_ownership(stock: yf.Ticker, info: dict) -> dict:
         "insider_pct": insider_pct,
         "institutional_pct": inst_pct,
         "institutions_count": institutions_count,
+        "short_percent_float": short_percent_float,
+        "short_shares_float": short_shares_float,
         "top_institutional_holders": holders,
+    }
+
+
+def _shibui_financials_from_rows(rows: list[dict], freq: str) -> dict:
+    """Build the same metric-block dict shape _build_financials produces
+    (revenue/net_income/eps/fcf/debt/cash/shares_outstanding, plus bonus
+    cost_of_revenue/gross_profit/operating_income/ebitda), from Shibui
+    fundamentals_yearly/fundamentals_quarterly rows. `rows` need not be
+    sorted; this sorts oldest-to-newest itself."""
+    ordered = sorted(rows, key=lambda r: (r["year"], r.get("quarter") or 0))
+
+    def _label(r: dict) -> str:
+        if freq == "Q":
+            return f"Q{r['quarter']} '{r['year'] % 100:02d}"
+        return str(r["year"])
+
+    def _block(col: str, name: str, fallback_col: Optional[str] = None) -> dict:
+        periods, values = [], []
+        for r in ordered:
+            v = _f(r.get(col))
+            if v is None and fallback_col:
+                v = _f(r.get(fallback_col))
+            if v is None:
+                continue
+            periods.append(_label(r))
+            values.append(v)
+        return _shibui_metric_block(name, periods, values, freq=freq)
+
+    return {
+        "revenue": _block("revenue", "Revenue"),
+        "cost_of_revenue": _block("cost_of_revenue", "Cost of Revenue"),
+        "gross_profit": _block("gross_profit", "Gross Profit"),
+        "operating_income": _block("operating_income", "Operating Income"),
+        "ebitda": _block("ebitda", "EBITDA"),
+        "net_income": _block("net_income", "Net Income"),
+        "eps": _block("eps_diluted", "Diluted EPS", fallback_col="eps"),
+        "fcf": _block("free_cash_flow", "Free Cash Flow"),
+        "debt": _block("debt", "Total Debt"),
+        "cash": _block("cash_and_equivalents", "Cash & Equivalents"),
+        "shares_outstanding": _block("shares_outstanding", "Shares Outstanding"),
+    }
+
+
+_SHIBUI_STATEMENT_COLUMNS = (
+    "revenue, cost_of_revenue, gross_profit, operating_income, ebitda, "
+    "net_income, eps, eps_diluted, free_cash_flow, debt, cash_and_equivalents, shares_outstanding"
+)
+_SHIBUI_ANNUAL_FIELDS = f"year, {_SHIBUI_STATEMENT_COLUMNS}"
+_SHIBUI_QUARTERLY_FIELDS = (
+    f"year, quarter, {_SHIBUI_STATEMENT_COLUMNS}, "
+    "current_ratio, profit_margin, piotroski_f_score, current_assets, inventory, current_liabilities"
+)
+
+
+def _shibui_fundamentals(sym: str) -> Optional[dict]:
+    """Best-effort annual/quarterly financials + latest-ratio snapshot from
+    Shibui, for get_fundamentals to prefer over yfinance's statement-scraping
+    (PLAN.md follow-up: Shibui as primary source, not just a fallback).
+
+    Shibui only covers NYSE/NASDAQ common stock, so this returns None
+    (triggering the existing yfinance-only path, unchanged) for anything it
+    doesn't have -- foreign listings, delisted tickers, thinly-covered names.
+    Presence is gated on the annual query alone: if that's empty, the ticker
+    isn't Shibui-covered and we don't bother with the other two calls."""
+    if not _SHIBUI_TICKER_RE.match(sym):
+        return None
+
+    annual_sql = (
+        f"SELECT {_SHIBUI_ANNUAL_FIELDS} FROM shibui.fundamentals_yearly "
+        f"WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 10"
+    )
+    try:
+        annual_rows = shibui_client.query(annual_sql, f"Annual financial statements for {sym}")
+    except shibui_client.ShibuiError:
+        return None
+    if not annual_rows:
+        return None
+
+    quarterly_sql = (
+        f"SELECT {_SHIBUI_QUARTERLY_FIELDS} FROM shibui.fundamentals_quarterly "
+        f"WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 20"
+    )
+    try:
+        quarterly_rows = shibui_client.query(quarterly_sql, f"Quarterly financial statements for {sym}")
+    except shibui_client.ShibuiError:
+        quarterly_rows = []
+
+    ratios_sql = (
+        "SELECT"
+        f" (SELECT market_cap FROM shibui.valuation WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS market_cap,"
+        f" (SELECT enterprise_value FROM shibui.valuation WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS enterprise_value,"
+        f" (SELECT price_to_book FROM shibui.valuation WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS price_to_book,"
+        f" (SELECT trailing_pe FROM shibui.fundamentals_derived_daily WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS trailing_pe,"
+        f" (SELECT price_to_sales FROM shibui.fundamentals_derived_daily WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS price_to_sales,"
+        f" (SELECT price_to_cash_flow FROM shibui.fundamentals_derived_daily WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS price_to_cash_flow,"
+        f" (SELECT ev_ebitda FROM shibui.fundamentals_derived_daily WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS ev_ebitda,"
+        f" (SELECT dividend_yield FROM shibui.fundamentals_derived_daily WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS dividend_yield,"
+        f" (SELECT payout_ratio FROM shibui.fundamentals_derived_daily WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS payout_ratio,"
+        f" (SELECT return_on_equity_ttm FROM shibui.fundamentals_derived_quarterly WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS return_on_equity_ttm,"
+        f" (SELECT return_on_assets FROM shibui.fundamentals_derived_quarterly WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS return_on_assets,"
+        f" (SELECT return_on_invested_capital FROM shibui.fundamentals_derived_quarterly WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS return_on_invested_capital,"
+        f" (SELECT debt_to_equity FROM shibui.fundamentals_derived_quarterly WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS debt_to_equity,"
+        f" (SELECT gross_margin FROM shibui.fundamentals_derived_quarterly WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS gross_margin,"
+        f" (SELECT operating_margin FROM shibui.fundamentals_derived_quarterly WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS operating_margin,"
+        f" (SELECT profit_margin_ttm FROM shibui.fundamentals_derived_quarterly WHERE ticker = '{sym}' ORDER BY date DESC LIMIT 1) AS profit_margin_ttm"
+        " LIMIT 1"
+    )
+    try:
+        ratio_rows = shibui_client.query(ratios_sql, f"Valuation ratio snapshot for {sym}")
+    except shibui_client.ShibuiError:
+        ratio_rows = []
+    ratio_row = ratio_rows[0] if ratio_rows else {}
+
+    current_ratio = quick_ratio = piotroski = None
+    if quarterly_rows:
+        latest_q = quarterly_rows[0]  # ORDER BY date DESC -> most recent quarter first
+        current_ratio = _f(latest_q.get("current_ratio"))
+        piotroski = _f(latest_q.get("piotroski_f_score"))
+        ca, inventory, cl = (
+            _f(latest_q.get("current_assets")),
+            _f(latest_q.get("inventory")) or 0.0,
+            _f(latest_q.get("current_liabilities")),
+        )
+        if ca is not None and cl:
+            quick_ratio = round((ca - inventory) / cl, 2)
+
+    ratios = {
+        "pe": _f(ratio_row.get("trailing_pe")),
+        "ps": _f(ratio_row.get("price_to_sales")),
+        "pb": _f(ratio_row.get("price_to_book")),
+        "pfcf": _f(ratio_row.get("price_to_cash_flow")),
+        "ev_ebitda": _f(ratio_row.get("ev_ebitda")),
+        "de": _f(ratio_row.get("debt_to_equity")),
+        "current_ratio": current_ratio,
+        "quick_ratio": quick_ratio,
+        "roe": _to_pct(_f(ratio_row.get("return_on_equity_ttm"))),
+        "roa": _to_pct(_f(ratio_row.get("return_on_assets"))),
+        "roic": _to_pct(_f(ratio_row.get("return_on_invested_capital"))),
+        "gross_margin": _to_pct(_f(ratio_row.get("gross_margin"))),
+        "operating_margin": _to_pct(_f(ratio_row.get("operating_margin"))),
+        "net_margin": _to_pct(_f(ratio_row.get("profit_margin_ttm"))),
+        "div_yield": _to_pct(_f(ratio_row.get("dividend_yield"))),
+        "payout_ratio": _to_pct(_f(ratio_row.get("payout_ratio"))),
+        "piotroski_f_score": piotroski,
+    }
+
+    return {
+        "annual": _shibui_financials_from_rows(annual_rows, "Y"),
+        "quarterly": _shibui_financials_from_rows(quarterly_rows, "Q") if quarterly_rows else {},
+        "ratios": ratios,
+        "market_cap": _f(ratio_row.get("market_cap")),
+        "enterprise_value": _f(ratio_row.get("enterprise_value")),
     }
 
 
@@ -657,11 +875,34 @@ def _yahoo_search(q: str, safe_limit: int) -> list[dict]:
     return quotes
 
 
+def _shibui_search(q: str, safe_limit: int) -> list[dict]:
+    """Fallback search against Shibui's general_info (PLAN.md 4b) -- only
+    called when Yahoo's autocomplete finds nothing, for the thinner/newer
+    NYSE/NASDAQ tickers yfinance's lookup sometimes misses entirely (see
+    CLAUDE.md's "yfinance is noisy" note). Free-text input, so it goes
+    through _escape_sql_string rather than _SHIBUI_TICKER_RE."""
+    escaped = _escape_sql_string(q.strip())
+    if not escaped:
+        return []
+    sql = (
+        "SELECT ticker, name, exchange, type, gics_sector, gics_industry"
+        " FROM shibui.general_info"
+        f" WHERE name ILIKE '%{escaped}%' OR ticker ILIKE '%{escaped}%'"
+        f" ORDER BY (ticker ILIKE '{escaped}') DESC, name"
+        f" LIMIT {safe_limit}"
+    )
+    try:
+        return shibui_client.query(sql, f"Ticker/company search fallback for '{q}'")
+    except shibui_client.ShibuiError:
+        return []
+
+
 @router.get("/search")
 @ttl_cache(_SEARCH_TTL)
 def search_tickers(q: str, limit: int = 10):
     """Search for stocks/ETFs by name or symbol. Backed by yfinance's lookup
-    API (Yahoo's autocomplete service). Returns up to `limit` matches with
+    API (Yahoo's autocomplete service), with a Shibui fallback (NYSE/NASDAQ
+    only) when Yahoo finds nothing. Returns up to `limit` matches with
     enough metadata to render a search dropdown."""
     q = (q or "").strip()
     if len(q) < 1:
@@ -695,7 +936,28 @@ def search_tickers(q: str, limit: int = 10):
             "sector": r.get("sectorDisp") or r.get("sector"),
             "industry": r.get("industryDisp") or r.get("industry"),
         })
-    return {"query": q, "results": results}
+
+    source = "yahoo"
+    if not results:
+        # Bound this the same way as the Yahoo call -- a slow/degraded
+        # Shibui must not hang a search request either.
+        shibui_rows = market_data.run_bounded(_shibui_search, q, safe_limit, timeout=5.0, default=None) or []
+        for r in shibui_rows:
+            symbol = r.get("ticker")
+            if not symbol:
+                continue
+            results.append({
+                "symbol": symbol,
+                "name": r.get("name") or symbol,
+                "exchange": r.get("exchange"),
+                "type": r.get("type"),
+                "sector": r.get("gics_sector"),
+                "industry": r.get("gics_industry"),
+            })
+        if results:
+            source = "shibui_fallback"
+
+    return {"query": q, "results": results, "source": source}
 
 
 @router.get("/fx/{pair}")
@@ -768,10 +1030,11 @@ def get_history(ticker: str, period: str = "1y"):
 def get_fundamentals(ticker: str):
     """Comprehensive fundamentals for the stock-detail modal.
 
-    Returns 5y of revenue / EPS / net income / FCF / debt / cash plus YoY and
-    CAGR, valuation & quality ratios, sector-average ratios, and consensus
-    analyst data. Each field is best-effort: missing data comes back as null
-    so the frontend can render an em-dash."""
+    Returns up to 10y (annual) / 5y (quarterly) of revenue / EPS / net income
+    / FCF / debt / cash when Shibui covers the ticker, plus YoY and CAGR,
+    valuation & quality ratios, sector-average ratios, and consensus analyst
+    data. Each field is best-effort: missing data comes back as null so the
+    frontend can render an em-dash."""
     sym = ticker.upper()
     yf_sym = yf_symbol(sym)
 
@@ -848,8 +1111,20 @@ def get_fundamentals(ticker: str):
             ),
         }
 
-    financials = _build_financials(income, balance, cashflow, freq="Y")
-    financials_quarterly = _build_financials(q_income, q_balance, q_cashflow, freq="Q")
+    # Prefer Shibui's structured statement data over yfinance's row-name
+    # guessing wherever Shibui covers this ticker (NYSE/NASDAQ common stock);
+    # `shibui_data` is None for anything it doesn't cover (foreign listings,
+    # delisted tickers, etc.), in which case every block below behaves
+    # exactly as before. income/balance/cashflow are still fetched above
+    # regardless -- they remain the fallback for whatever Shibui doesn't
+    # have below (ROIC, quick ratio inputs, margins), and the sole source
+    # when shibui_data is None.
+    shibui_data = _shibui_fundamentals(sym)
+    financials = shibui_data["annual"] if shibui_data else _build_financials(income, balance, cashflow, freq="Y")
+    financials_quarterly = (
+        shibui_data["quarterly"] if shibui_data and shibui_data.get("quarterly")
+        else _build_financials(q_income, q_balance, q_cashflow, freq="Q")
+    )
 
     # ---- TTM (trailing twelve months) for flow metrics -------------------
     # Sum the last four reported quarters so each TTM figure is computed the
@@ -881,6 +1156,12 @@ def get_fundamentals(ticker: str):
     market_cap = _f(info.get("marketCap"))
 
     ratios = _ratios_from_info(info)
+    if shibui_data:
+        # Shibui's own precomputed ratios win over yfinance's `info` fields
+        # wherever it has a value; anything it lacks (peg, forward_pe,
+        # ev_revenue -- see _shibui_fundamentals) keeps falling through the
+        # existing info/statement-based fallback chain below unchanged.
+        ratios.update({k: v for k, v in shibui_data["ratios"].items() if v is not None})
 
     # ---- Fill any missing ratios from the underlying statements ----------
     # yfinance's .info dict can be patchy for smaller-cap or foreign listings;
@@ -942,7 +1223,8 @@ def get_fundamentals(ticker: str):
 
         # ROIC = NOPAT / invested capital. Statement-based and more accurate
         # than the P/B-implied approximation in _ratios_from_info, so it
-        # overrides that for the focal stock when the inputs are available.
+        # overrides that for the focal stock when the inputs are available --
+        # but only when Shibui hasn't already supplied a (preferred) value.
         # NOPAT = operating income (EBIT) × (1 − effective tax rate);
         # invested capital = total debt + equity − cash.
         op_row_roic = _row(income, "Operating Income", "Total Operating Income As Reported")
@@ -955,7 +1237,7 @@ def get_fundamentals(ticker: str):
             if tp is not None and pt and pt > 0:
                 tax_rate = min(max(tp / pt, 0.0), 0.5)
         invested_cap = (last_debt or 0.0) + (equity or 0.0) - (_f(info.get("totalCash")) or 0.0)
-        if ebit is not None and invested_cap > 0:
+        if ratios.get("roic") is None and ebit is not None and invested_cap > 0:
             ratios["roic"] = round(ebit * (1 - tax_rate) / invested_cap * 100, 2)
     except Exception:
         pass
@@ -977,8 +1259,13 @@ def get_fundamentals(ticker: str):
     except Exception:
         pass
 
-    # EV/EBITDA fallback from enterprise value + EBITDA.
-    ev = _f(info.get("enterpriseValue"))
+    # EV/EBITDA fallback from enterprise value + EBITDA. Prefer Shibui's own
+    # enterprise_value (feeds the ev_revenue fallback below too) when covered.
+    ev = None
+    if shibui_data:
+        ev = shibui_data.get("enterprise_value")
+    if ev is None:
+        ev = _f(info.get("enterpriseValue"))
     ebitda = _f(info.get("ebitda"))
     if ratios.get("ev_ebitda") is None and ev is not None and ebitda and ebitda > 0:
         ratios["ev_ebitda"] = round(ev / ebitda, 2)
@@ -1233,7 +1520,7 @@ def get_fundamentals(ticker: str):
     sector = info.get("sector")
     sector_avg = _sector_avg(sector)
     valuation = _build_valuation(info, financials, ratios, sector_avg, fwd_eps_rows)
-    ownership = _build_ownership(stock, info)
+    ownership = _build_ownership(stock, info, sym)
     insider_transactions = _build_insider_transactions(stock)
 
     payload = {
@@ -1273,9 +1560,553 @@ def get_fundamentals(ticker: str):
         "analyst_estimates_quarterly": analyst_estimates_quarterly,
         "ownership": ownership,
         "insider_transactions": insider_transactions,
+        "fundamentals_source": "shibui" if shibui_data else "yfinance",
     }
     _FUND_CACHE[sym] = (time.time(), payload)
     return payload
+
+
+_SHIBUI_FINANCIALS_TTL = 3600  # Shibui's fundamentals update only as filings arrive
+
+
+@router.get("/shibui/financials/{ticker}")
+@ttl_cache(_SHIBUI_FINANCIALS_TTL)
+def get_shibui_financials(ticker: str, years: int = 5):
+    """Annual revenue/earnings/cash-flow trend for `ticker`, sourced from Shibui
+    Finance (NYSE/NASDAQ, SEC-filing-derived) via its public MCP server. An
+    independent data source alongside the yfinance-backed /fundamentals/{ticker}
+    above -- useful when yfinance is missing or disagrees on a name."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+    safe_years = max(1, min(int(years or 5), 20))
+
+    sql = (
+        "SELECT date, revenue, cost_of_revenue, gross_profit, operating_income, "
+        "ebitda, net_income, free_cash_flow, "
+        "ROUND(profit_margin * 100, 2) AS net_margin_pct "
+        "FROM shibui.fundamentals_yearly "
+        f"WHERE ticker = '{sym}' AND date >= CURRENT_DATE - INTERVAL '{safe_years} years' "
+        f"ORDER BY date DESC LIMIT {safe_years}"
+    )
+    try:
+        rows = shibui_client.query(sql, f"Annual revenue and financials trend for {sym}")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui query failed for {ticker}: {e}")
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No Shibui financials for {ticker}")
+
+    return {"ticker": sym, "source": "shibui", "annual": list(reversed(rows))}
+
+
+# ---------------------------------------------------------------------------
+# Shibui: SEC filings, insider transactions, beneficial ownership (PLAN.md
+# phase 1). All of these go through shibui_client.query(), which f-string
+# interpolates the ticker/params straight into SQL -- every one MUST run the
+# ticker through _SHIBUI_TICKER_RE first.
+# ---------------------------------------------------------------------------
+
+_SHIBUI_FILINGS_TTL = 3600 * 3  # new filings land at most a few times/week
+_SHIBUI_INSIDERS_TTL = 3600     # Form 4/5 filings arrive within days of the trade
+_SHIBUI_OWNERSHIP_TTL = 3600 * 6  # 13D/13G filings are rare, changes are slow
+
+# Curated subset of the ~250 EDGAR form_type codes Shibui tracks -- the rest
+# (fund N-1A/N-2 registration forms, exchange-listing admin forms, etc.) don't
+# apply to the NYSE/NASDAQ operating companies this app covers. Confirmed
+# live against shibui.sec_filings (2026-08-25). Amendments are represented via
+# the separate `is_amendment` flag, not a distinct "/A"-suffixed form_type.
+_SHIBUI_FORM_TYPES = {
+    "10-K", "10-Q", "20-F", "6-K", "8-K", "11-K", "40-F",
+    "3", "4", "5",
+    "DEF 14A", "DEF 14C", "DEFA14A", "DEFA14C", "DEFM14A", "DEFM14C", "DFAN14A",
+    "SC 13G", "SC 13D",
+    "424A", "424B1", "424B2", "424B3", "424B4", "424B5", "424B7", "424B8", "425",
+    "FWP", "S-1", "S-3", "S-8", "F-1", "F-3", "F-4", "F-6",
+    "13F-HR", "13F-NT", "13F-E", "13FCONP",
+    "ARS", "D", "CB",
+}
+_SHIBUI_DEFAULT_FORM_TYPES = "10-K,10-Q,8-K,DEF 14A"
+
+
+@router.get("/shibui/filings/{ticker}")
+@ttl_cache(_SHIBUI_FILINGS_TTL)
+def get_shibui_filings(ticker: str, form_types: str = _SHIBUI_DEFAULT_FORM_TYPES, years: int = 2):
+    """Recent SEC filings for `ticker` (up to 20 per requested form type),
+    sourced from Shibui's EDGAR filing-metadata table. `form_types` is a
+    comma-separated list checked against a whitelist -- never forwarded
+    to SQL raw."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+    safe_years = max(1, min(int(years or 2), 20))
+
+    requested = [t.strip().upper() for t in (form_types or "").split(",") if t.strip()]
+    valid_types = [t for t in requested if t in _SHIBUI_FORM_TYPES]
+    if not valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No valid form_types given. Allowed: {sorted(_SHIBUI_FORM_TYPES)}",
+        )
+    form_types_sql = ", ".join(f"'{t}'" for t in valid_types)
+
+    sql = (
+        "WITH recent AS ("
+        "  SELECT sf.filing_date, sf.acceptance_datetime, sf.form_type, sf.raw_form_type,"
+        "         sf.is_amendment, sf.report_date, sf.filing_url, sf.items,"
+        "         ROW_NUMBER() OVER (PARTITION BY sf.form_type ORDER BY sf.filing_date DESC) AS rn"
+        "  FROM shibui.sec_filings sf"
+        f"  WHERE sf.cik = (SELECT g.cik FROM shibui.general_info g WHERE g.ticker = '{sym}')"
+        f"    AND sf.filing_date >= CURRENT_DATE - INTERVAL '{safe_years} years'"
+        f"    AND sf.form_type IN ({form_types_sql})"
+        ") "
+        "SELECT filing_date, acceptance_datetime, form_type, raw_form_type, is_amendment,"
+        "  report_date, items, filing_url "
+        "FROM recent WHERE rn <= 20 "
+        "ORDER BY form_type, filing_date DESC "
+        "LIMIT 200"
+    )
+    try:
+        rows = shibui_client.query(sql, f"Recent SEC filings for {sym}")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui query failed for {ticker}: {e}")
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No Shibui filings for {ticker}")
+
+    return {"ticker": sym, "source": "shibui", "form_types": valid_types, "years": safe_years, "filings": rows}
+
+
+_CLUSTER_WINDOW_DAYS = 30
+_CLUSTER_MIN_OWNERS = 3
+
+
+def _is_cluster_candidate(row: dict) -> bool:
+    """Open-market common-stock buys only -- excludes 10b5-1 auto-plans,
+    estate transfers, and derivative (option/RSU) transactions, which don't
+    reflect a discretionary "I think this is cheap" decision."""
+    return (
+        row.get("tx_code") == "P"
+        and not row.get("is_derivative")
+        and not row.get("is_auto_plan")
+        and not row.get("is_estate")
+        and row.get("price_per_share") is not None
+        and "common" in (row.get("security_title") or "").lower()
+    )
+
+
+def _detect_cluster_buys(rows: list[dict]) -> list[dict]:
+    """Sliding 30-day window over qualifying buys (see _is_cluster_candidate);
+    flags stretches where >= 3 distinct insiders (by CIK) bought within the
+    same window -- a conviction signal no single transaction shows on its
+    own. Adjacent qualifying windows are merged into one cluster event."""
+    candidates = sorted(
+        (r for r in rows if _is_cluster_candidate(r)),
+        key=lambda r: r["tx_date"],
+    )
+    clusters: list[dict] = []
+    active: Optional[dict] = None
+    for i, tx in enumerate(candidates):
+        tx_date = datetime.date.fromisoformat(str(tx["tx_date"])[:10])
+        window = [
+            c for c in candidates[: i + 1]
+            if (tx_date - datetime.date.fromisoformat(str(c["tx_date"])[:10])).days <= _CLUSTER_WINDOW_DAYS
+        ]
+        if len({c.get("owner_cik") for c in window}) < _CLUSTER_MIN_OWNERS:
+            continue
+        buyers = sorted({c.get("owner_canonical_name") for c in window if c.get("owner_canonical_name")})
+        if active is not None and (tx_date - active["_last_date"]).days <= _CLUSTER_WINDOW_DAYS:
+            active["end"] = tx["tx_date"]
+            active["_last_date"] = tx_date
+            active["buyers"] = sorted(set(active["buyers"]) | set(buyers))
+        else:
+            if active is not None:
+                active.pop("_last_date")
+                clusters.append(active)
+            active = {"start": window[0]["tx_date"], "end": tx["tx_date"], "buyers": buyers, "_last_date": tx_date}
+    if active is not None:
+        active.pop("_last_date")
+        clusters.append(active)
+    return clusters
+
+
+@router.get("/shibui/insiders/{ticker}")
+@ttl_cache(_SHIBUI_INSIDERS_TTL)
+def get_shibui_insiders(ticker: str, months: int = 12):
+    """Structured Form 4/5 insider transactions for `ticker` from Shibui --
+    replaces the yfinance-scraped, regex-classified insider table
+    (_build_insider_transactions below) with the SEC's own transaction codes
+    plus noise flags (10b5-1 plans, tax withholding, gifts, estates, average
+    pricing). Also flags open-market buy clusters (see _detect_cluster_buys)."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+    safe_months = max(1, min(int(months or 12), 60))
+
+    sql = (
+        "SELECT t.tx_date, t.owner_cik, t.owner_canonical_name, t.officer_title, t.tx_code,"
+        "  CASE WHEN t.acquired_or_disposed = 'A' THEN 'buy' ELSE 'sell' END AS direction,"
+        "  t.shares, t.price_per_share, ROUND(t.shares * t.price_per_share, 0) AS value,"
+        "  t.shares_after_tx, t.is_10b5_1, t.is_tax_withholding, t.is_gift, t.is_estate,"
+        "  t.is_auto_plan, t.is_avg_price, t.is_derivative, t.security_title,"
+        "  t.is_director, t.is_officer, t.is_ten_pct_owner"
+        " FROM shibui.insider_transactions t"
+        " WHERE NOT t.is_superseded"
+        f"  AND t.issuer_ticker = '{sym}'"
+        f"  AND t.tx_date >= CURRENT_DATE - INTERVAL '{safe_months} months'"
+        " ORDER BY t.tx_date DESC"
+        " LIMIT 100"
+    )
+    try:
+        rows = shibui_client.query(sql, f"Insider Form 4/5 transactions for {sym}")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui query failed for {ticker}: {e}")
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No Shibui insider transactions for {ticker}")
+
+    return {
+        "ticker": sym,
+        "source": "shibui",
+        "months": safe_months,
+        "transactions": rows,
+        "cluster_buys": _detect_cluster_buys(rows),
+    }
+
+
+@router.get("/shibui/activist-stakes/{ticker}")
+@ttl_cache(_SHIBUI_OWNERSHIP_TTL)
+def get_shibui_activist_stakes(ticker: str):
+    """SC 13D/13G beneficial-ownership filings against `ticker`. 13D signals
+    an active/activist stake, 13G a passive position (>5% of float)."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+
+    sql = (
+        "SELECT filer_name, filer_canonical_name, filer_entity_type,"
+        "  filer_is_activist, filer_activist_group, schedule_type, filing_date"
+        " FROM shibui.beneficial_ownership"
+        f" WHERE subject_ticker = '{sym}' AND NOT is_superseded"
+        " ORDER BY filing_date DESC"
+        " LIMIT 50"
+    )
+    try:
+        rows = shibui_client.query(sql, f"Activist/beneficial ownership stakes in {sym}")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui query failed for {ticker}: {e}")
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No Shibui beneficial ownership filings for {ticker}")
+
+    return {"ticker": sym, "source": "shibui", "stakes": rows}
+
+
+@router.get("/shibui/strategic-investors/{ticker}")
+@ttl_cache(_SHIBUI_OWNERSHIP_TTL)
+def get_shibui_strategic_investors(ticker: str):
+    """Beneficial-ownership filers against `ticker` that are themselves a
+    publicly traded company (direct corporate stakes, e.g. NVIDIA's 13G in
+    CoreWeave) -- a join of beneficial_ownership.filer_cik to general_info.
+
+    Misses stakes routed through a private venture arm (e.g. Alphabet's
+    CapitalG holding in Freshworks isn't filed under Alphabet's own CIK) --
+    see PLAN.md phase 1e for the verified example and the proposed
+    known-VC-arm mapping follow-up. Empty results are the common case (most
+    tickers have no such investor), so this returns 200 with an empty list
+    rather than 404."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+
+    sql = (
+        "SELECT bo.filer_name, g2.ticker AS filer_ticker, bo.schedule_type, bo.filing_date"
+        " FROM shibui.beneficial_ownership bo"
+        " INNER JOIN shibui.general_info g2 ON g2.cik = bo.filer_cik"
+        f" WHERE bo.subject_ticker = '{sym}' AND NOT bo.is_superseded"
+        " ORDER BY bo.filing_date DESC"
+        " LIMIT 50"
+    )
+    try:
+        rows = shibui_client.query(sql, f"Corporate strategic investors in {sym}")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui query failed for {ticker}: {e}")
+
+    return {"ticker": sym, "source": "shibui", "investors": rows}
+
+
+# ---------------------------------------------------------------------------
+# Alpha Vantage: congressional (STOCK Act) trades (PLAN.md phase 1g). A
+# different data source from Shibui -- plain REST, not MCP -- and gated
+# behind an optional API key. The frontend must only call this on explicit
+# user action (a button), never auto-prefetch: see PLAN.md 1g-i for why
+# (25 req/day free-tier quota).
+# ---------------------------------------------------------------------------
+
+_POLITICIAN_TRADES_TTL = 3600 * 24
+
+
+@router.get("/politician-trades/{ticker}")
+@ttl_cache(_POLITICIAN_TRADES_TTL)
+async def get_politician_trades(ticker: str):
+    """Disclosed congressional trades referencing `ticker`, via Alpha
+    Vantage's free CONGRESS_TRADES endpoint. 503s with a clear message if
+    ALPHA_VANTAGE_API_KEY isn't configured, rather than failing generically.
+
+    Adds a best-effort `is_likely_option` flag per trade -- Alpha Vantage's
+    `asset_type_code` alone doesn't reliably distinguish options from stock
+    (see PLAN.md 1g-iii); strike/expiry aren't available from this source at
+    all, so no "deep ITM" detection is attempted."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+    if not alphavantage_client.ALPHA_VANTAGE_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="ALPHA_VANTAGE_API_KEY is not configured. Get a free key at alphavantage.co "
+                   "and set it as an environment variable to enable political trades data.",
+        )
+
+    try:
+        data = await alphavantage_client.congress_trades(sym)
+    except alphavantage_client.AlphaVantageError as e:
+        raise HTTPException(status_code=502, detail=f"Alpha Vantage query failed for {ticker}: {e}")
+
+    trades = data.get("trades") or []
+    for t in trades:
+        t["is_likely_option"] = (
+            t.get("asset_type_code") == "OP" and "option" in (t.get("asset_name") or "").lower()
+        )
+
+    return {
+        "ticker": sym,
+        "source": "alpha_vantage",
+        "trades": trades,
+        "total_count": data.get("trades_total_count", len(trades)),
+        "truncated": bool(data.get("trades_truncated", False)),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Shibui: earnings (PLAN.md phase 2). EPS beat/miss is fully Shibui-native;
+# revenue beat/miss has to borrow yfinance's estimate snapshot since Shibui
+# only has actuals (see get_shibui_earnings_recap docstring for the caveat).
+# ---------------------------------------------------------------------------
+
+_SHIBUI_EARNINGS_TTL = 3600 * 6  # earnings land a few times a year per ticker
+
+
+@router.get("/shibui/earnings/{ticker}")
+@ttl_cache(_SHIBUI_EARNINGS_TTL)
+def get_shibui_earnings(ticker: str, quarters: int = 20):
+    """EPS actual/estimate/surprise history for `ticker`, from Shibui's
+    earnings_quarterly (SEC-filing-derived, not yfinance's scraped estimates)."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+    safe_quarters = max(1, min(int(quarters or 20), 40))
+
+    sql = (
+        "SELECT date, report_date, before_after_market, eps_actual, eps_estimate,"
+        " eps_difference, surprise_percent, year, quarter"
+        " FROM shibui.earnings_quarterly"
+        f" WHERE ticker = '{sym}' AND eps_actual IS NOT NULL"
+        " ORDER BY date DESC"
+        f" LIMIT {safe_quarters}"
+    )
+    try:
+        rows = shibui_client.query(sql, f"EPS beat/miss history for {sym}")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui query failed for {ticker}: {e}")
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No Shibui earnings history for {ticker}")
+
+    return {"ticker": sym, "source": "shibui", "quarters": rows}
+
+
+@router.get("/shibui/earnings-recap/{ticker}")
+def get_shibui_earnings_recap(ticker: str):
+    """Combined earnings snapshot: EPS beat/miss history + actual revenue per
+    quarter (Shibui), a buyback trend (equity_issuance_repayment -- negative
+    means net repurchase), and a link to the nearest 8-K filed with item
+    2.02 ("results of operations") around the latest report -- guidance
+    commentary usually lives in that press release, which Shibui only has a
+    URL for, not parsed content (PLAN.md 2c).
+
+    Revenue beat/miss is inherently partial: Shibui has no revenue consensus
+    estimate at all (only EPS), and yfinance's revenue_estimate only ever
+    exposes a *current* snapshot -- no historical point-in-time estimates to
+    diff actuals against. The best available signal is yfinance's "-1q"
+    period (the estimate for the most-recently-reported quarter), which is
+    only sometimes still exposed after that quarter's report lands; when
+    it isn't, `latest_revenue_estimate`/`latest_revenue_surprise_pct` come
+    back null rather than a guess."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+
+    sql = (
+        "SELECT e.date AS earnings_date, e.report_date, e.before_after_market,"
+        " e.year, e.quarter, e.eps_actual, e.eps_estimate, e.eps_difference, e.surprise_percent,"
+        " f.revenue AS revenue_actual"
+        " FROM shibui.earnings_quarterly e"
+        " LEFT JOIN shibui.fundamentals_quarterly f"
+        "   ON f.symbol = e.symbol AND f.year = e.year AND f.quarter = e.quarter"
+        f" WHERE e.ticker = '{sym}' AND e.eps_actual IS NOT NULL"
+        " ORDER BY e.date DESC"
+        " LIMIT 12"
+    )
+    try:
+        quarters_rows = shibui_client.query(sql, f"Earnings recap (EPS + revenue) for {sym}")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui query failed for {ticker}: {e}")
+    if not quarters_rows:
+        raise HTTPException(status_code=404, detail=f"No Shibui earnings history for {ticker}")
+
+    buyback_sql = (
+        "SELECT year, quarter, equity_issuance_repayment"
+        " FROM shibui.fundamentals_quarterly"
+        f" WHERE ticker = '{sym}'"
+        " ORDER BY date DESC"
+        " LIMIT 12"
+    )
+    try:
+        buyback_trend = shibui_client.query(buyback_sql, f"Buyback (equity issuance/repayment) trend for {sym}")
+    except shibui_client.ShibuiError:
+        buyback_trend = []
+
+    latest_report_date = quarters_rows[0].get("report_date") or quarters_rows[0].get("earnings_date")
+    nearest_8k = None
+    if latest_report_date:
+        filing_sql = (
+            "SELECT sf.filing_date, sf.filing_url"
+            " FROM shibui.sec_filings sf"
+            f" WHERE sf.cik = (SELECT g.cik FROM shibui.general_info g WHERE g.ticker = '{sym}')"
+            "   AND sf.form_type = '8-K'"
+            "   AND list_contains(sf.items, '2.02')"
+            f"   AND sf.filing_date >= DATE '{latest_report_date}' - INTERVAL '30 days'"
+            f"   AND sf.filing_date <= DATE '{latest_report_date}' + INTERVAL '30 days'"
+            f" ORDER BY ABS(sf.filing_date - DATE '{latest_report_date}')"
+            " LIMIT 1"
+        )
+        try:
+            filing_rows = shibui_client.query(filing_sql, f"Nearest 8-K item 2.02 to {sym}'s latest earnings")
+            nearest_8k = filing_rows[0] if filing_rows else None
+        except shibui_client.ShibuiError:
+            nearest_8k = None
+
+    # Best-effort revenue estimate for the most-recently-reported quarter --
+    # see docstring caveat. Never lets a yfinance hiccup fail the endpoint.
+    latest_revenue_estimate = None
+    try:
+        rev_est_df = yf.Ticker(yf_symbol(sym)).revenue_estimate
+        if rev_est_df is not None and not rev_est_df.empty and "-1q" in rev_est_df.index:
+            latest_revenue_estimate = _f(rev_est_df.loc["-1q"].get("avg"))
+    except Exception:
+        pass
+
+    latest_revenue_actual = quarters_rows[0].get("revenue_actual")
+    latest_revenue_surprise_pct = None
+    if latest_revenue_estimate and latest_revenue_actual and latest_revenue_estimate > 0:
+        latest_revenue_surprise_pct = round(
+            (latest_revenue_actual - latest_revenue_estimate) / latest_revenue_estimate * 100, 2
+        )
+
+    return {
+        "ticker": sym,
+        "source": "shibui+yfinance" if latest_revenue_estimate is not None else "shibui",
+        "quarters": quarters_rows,
+        "buyback_trend": buyback_trend,
+        "latest_revenue_estimate": latest_revenue_estimate,
+        "latest_revenue_surprise_pct": latest_revenue_surprise_pct,
+        "nearest_8k_2_02": nearest_8k,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Shibui: historical valuation multiples (PLAN.md phase 5). Answers "is this
+# multiple cheap or expensive vs. how this company usually trades" -- not
+# just vs. the sector today, which is all the app could show before.
+# ---------------------------------------------------------------------------
+
+_SHIBUI_VALUATION_HISTORY_TTL = 3600 * 12  # daily EOD data; no point refetching same-day
+
+# Finest bucket that keeps the row count under Shibui's 200-row cap for a
+# given date range. Pure function of the range, not a user-facing knob --
+# the endpoint picks it, the response reports which one it picked.
+_VALUATION_GRANULARITY_LADDER = [
+    ("day", 190),
+    ("week", 1300),
+    ("biweekly", 2600),
+    ("month", 5400),
+    ("quarter", None),
+]
+
+# DuckDB has no native DATE_TRUNC for 2-week windows, so "biweekly" buckets
+# manually via integer division from a fixed epoch (verified live: gives
+# clean 14-day-apart buckets). The others use native DATE_TRUNC.
+_VALUATION_BUCKET_EXPR = {
+    "day": "v.date",
+    "week": "DATE_TRUNC('week', v.date)",
+    "biweekly": "DATE '1990-01-01' + (((v.date - DATE '1990-01-01') / 14)::INTEGER * 14)",
+    "month": "DATE_TRUNC('month', v.date)",
+    "quarter": "DATE_TRUNC('quarter', v.date)",
+}
+
+
+def _pick_valuation_granularity(range_days: int) -> str:
+    for label, max_days in _VALUATION_GRANULARITY_LADDER:
+        if max_days is None or range_days <= max_days:
+            return label
+    return "quarter"
+
+
+@router.get("/shibui/valuation-history/{ticker}")
+@ttl_cache(_SHIBUI_VALUATION_HISTORY_TTL)
+def get_shibui_valuation_history(ticker: str, years: int = 10):
+    """Historical trailing P/E, EV/EBITDA, P/S, P/FCF, and P/B for `ticker`,
+    each bucketed point tagged with its percentile rank within the requested
+    window (0 = cheapest the stock has been on that multiple, 1 = priciest).
+    Granularity (day/week/biweekly/month/quarter) is chosen automatically
+    from `years` -- not a caller-supplied parameter -- to stay under
+    Shibui's 200-row cap; the response's `granularity` field reports which
+    one was used. Data floor is 1993-06-30 (per-ticker history may be
+    shorter, e.g. later IPOs)."""
+    sym = ticker.upper()
+    if not _SHIBUI_TICKER_RE.match(sym):
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
+    safe_years = max(1, min(int(years or 10), 50))
+    granularity = _pick_valuation_granularity(safe_years * 365)
+    bucket_expr = _VALUATION_BUCKET_EXPR[granularity]
+
+    sql = (
+        "WITH bucketed AS ("
+        f"  SELECT {bucket_expr} AS bucket,"
+        "    arg_max(v.market_cap, v.date) AS market_cap,"
+        "    arg_max(dd.trailing_pe, v.date) AS trailing_pe,"
+        "    arg_max(dd.ev_ebitda, v.date) AS ev_ebitda,"
+        "    arg_max(dd.price_to_sales, v.date) AS price_to_sales,"
+        "    arg_max(dd.price_to_cash_flow, v.date) AS price_to_cash_flow,"
+        "    arg_max(v.price_to_book, v.date) AS price_to_book"
+        "  FROM shibui.valuation v"
+        "  INNER JOIN shibui.fundamentals_derived_daily dd ON dd.symbol = v.symbol AND dd.date = v.date"
+        f"  WHERE v.ticker = '{sym}' AND v.date >= CURRENT_DATE - INTERVAL '{safe_years} years'"
+        "  GROUP BY 1"
+        ") "
+        "SELECT bucket, market_cap, trailing_pe, ev_ebitda, price_to_sales, price_to_cash_flow, price_to_book,"
+        "  PERCENT_RANK() OVER (ORDER BY trailing_pe)         AS pe_pctile,"
+        "  PERCENT_RANK() OVER (ORDER BY ev_ebitda)           AS ev_ebitda_pctile,"
+        "  PERCENT_RANK() OVER (ORDER BY price_to_sales)      AS ps_pctile,"
+        "  PERCENT_RANK() OVER (ORDER BY price_to_cash_flow)  AS pfcf_pctile,"
+        "  PERCENT_RANK() OVER (ORDER BY price_to_book)       AS pb_pctile"
+        " FROM bucketed"
+        " ORDER BY bucket"
+        " LIMIT 200"
+    )
+    try:
+        rows = shibui_client.query(sql, f"Historical valuation multiples for {sym} ({granularity} granularity)")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui query failed for {ticker}: {e}")
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No Shibui valuation history for {ticker}")
+
+    return {"ticker": sym, "source": "shibui", "years": safe_years, "granularity": granularity, "points": rows}
 
 
 @router.get("/dividend-growth/{ticker}")
@@ -1374,6 +2205,177 @@ def _in_range(val: float | None, lo: float | None, hi: float | None) -> bool:
     return True
 
 
+# ---------------------------------------------------------------------------
+# Shibui: whole-market screener (PLAN.md phase 4a-i). Additive alongside the
+# yfinance-basket screener above, not a replacement: that one is capped to a
+# handful of hand-picked ~500-name preset lists (one yfinance call each);
+# this scans the ENTIRE market (~10,344 symbols, Common Stock only) in a
+# single query, and exposes ROE/operating margin/Piotroski F-score, which
+# the yfinance path has no clean equivalent for at this scale.
+# ---------------------------------------------------------------------------
+
+_SHIBUI_SCREENER_SORT_COLUMNS = {
+    "market_cap": "v.market_cap",
+    "pe": "dd.trailing_pe",
+    "ps": "dd.price_to_sales",
+    "pfcf": "dd.price_to_cash_flow",
+    "ev_ebitda": "dd.ev_ebitda",
+    "div_yield": "dd.dividend_yield",
+    "roe": "dq.return_on_equity",
+    "operating_margin": "dq.operating_margin",
+    "piotroski": "fq.piotroski_f_score",
+    "price": "px.close",
+    "forward_pe": "ae.forward_pe",
+    "pb": "v.price_to_book",
+    "net_margin": "dq.profit_margin_ttm",
+    "target_mean": "ae.wall_street_target_price",
+}
+
+
+def _shibui_screener(
+    *, min_pe, max_pe, min_market_cap, max_market_cap, min_roe, max_roe,
+    min_ps, max_ps, min_operating_margin, max_operating_margin, min_piotroski,
+    min_forward_pe, max_forward_pe, min_pb, max_pb, min_net_margin, max_net_margin,
+    sector, sort_by, sort_desc, limit,
+) -> dict:
+    safe_limit = max(1, min(int(limit or 50), 200))
+
+    conditions = ["g.type = 'Common Stock'"]
+    default_floor_applied = False
+    if min_market_cap is not None:
+        conditions.append(f"v.market_cap >= {float(min_market_cap)}")
+    else:
+        # Matches Shibui's own screening guidance: an unscoped whole-market
+        # scan defaults to a $500M floor unless the caller overrides it, so
+        # a first-time "just show me something" call isn't swamped with
+        # micro-cap noise. Reported back via default_market_cap_floor_applied.
+        conditions.append("v.market_cap >= 500e6")
+        default_floor_applied = True
+    if max_market_cap is not None:
+        conditions.append(f"v.market_cap <= {float(max_market_cap)}")
+    if min_pe is not None:
+        conditions.append(f"dd.trailing_pe >= {float(min_pe)}")
+    if max_pe is not None:
+        conditions.append(f"dd.trailing_pe <= {float(max_pe)}")
+    if min_ps is not None:
+        conditions.append(f"dd.price_to_sales >= {float(min_ps)}")
+    if max_ps is not None:
+        conditions.append(f"dd.price_to_sales <= {float(max_ps)}")
+    if min_roe is not None:
+        conditions.append(f"dq.return_on_equity >= {float(min_roe) / 100}")
+    if max_roe is not None:
+        conditions.append(f"dq.return_on_equity <= {float(max_roe) / 100}")
+    if min_operating_margin is not None:
+        conditions.append(f"dq.operating_margin >= {float(min_operating_margin) / 100}")
+    if max_operating_margin is not None:
+        conditions.append(f"dq.operating_margin <= {float(max_operating_margin) / 100}")
+    if min_piotroski is not None:
+        conditions.append(f"fq.piotroski_f_score >= {int(min_piotroski)}")
+    if min_forward_pe is not None:
+        conditions.append(f"ae.forward_pe >= {float(min_forward_pe)}")
+    if max_forward_pe is not None:
+        conditions.append(f"ae.forward_pe <= {float(max_forward_pe)}")
+    if min_pb is not None:
+        conditions.append(f"v.price_to_book >= {float(min_pb)}")
+    if max_pb is not None:
+        conditions.append(f"v.price_to_book <= {float(max_pb)}")
+    if min_net_margin is not None:
+        conditions.append(f"dq.profit_margin_ttm >= {float(min_net_margin) / 100}")
+    if max_net_margin is not None:
+        conditions.append(f"dq.profit_margin_ttm <= {float(max_net_margin) / 100}")
+    if sector:
+        conditions.append(f"g.gics_sector = '{_escape_sql_string(sector)}'")
+
+    sort_col = _SHIBUI_SCREENER_SORT_COLUMNS.get(sort_by, "v.market_cap")
+    direction = "DESC" if sort_desc else "ASC"
+
+    sql = (
+        "WITH latest_val AS ("
+        "  SELECT symbol, market_cap, price_to_book,"
+        "    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn"
+        "  FROM shibui.valuation WHERE date >= CURRENT_DATE - INTERVAL '7 days'"
+        "), latest_dd AS ("
+        "  SELECT symbol, trailing_pe, price_to_sales, price_to_cash_flow, ev_ebitda, dividend_yield,"
+        "    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn"
+        "  FROM shibui.fundamentals_derived_daily WHERE date >= CURRENT_DATE - INTERVAL '7 days'"
+        "), latest_px AS ("
+        "  SELECT symbol, close,"
+        "    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn"
+        "  FROM shibui.stock_quotes WHERE date >= CURRENT_DATE - INTERVAL '7 days'"
+        "), latest_dq AS ("
+        "  SELECT symbol, return_on_equity, return_on_assets, operating_margin, gross_margin, debt_to_equity,"
+        "    profit_margin_ttm,"
+        "    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn"
+        "  FROM shibui.fundamentals_derived_quarterly WHERE date >= CURRENT_DATE - INTERVAL '6 months'"
+        "), latest_fq AS ("
+        "  SELECT symbol, piotroski_f_score, current_ratio,"
+        "    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn"
+        "  FROM shibui.fundamentals_quarterly WHERE date >= CURRENT_DATE - INTERVAL '6 months'"
+        ") "
+        "SELECT g.ticker, g.name, g.gics_sector, g.gics_industry, v.market_cap, px.close AS price,"
+        "  dd.trailing_pe, ae.forward_pe, v.price_to_book, dd.price_to_sales, dd.price_to_cash_flow,"
+        "  dd.ev_ebitda, dd.dividend_yield,"
+        "  dq.return_on_equity, dq.return_on_assets, dq.operating_margin, dq.gross_margin, dq.debt_to_equity,"
+        "  dq.profit_margin_ttm, ae.wall_street_target_price AS target_mean,"
+        "  fq.piotroski_f_score, fq.current_ratio"
+        " FROM shibui.general_info g"
+        " INNER JOIN latest_val v ON g.symbol = v.symbol AND v.rn = 1"
+        " INNER JOIN latest_dd dd ON g.symbol = dd.symbol AND dd.rn = 1"
+        " LEFT JOIN latest_px px ON g.symbol = px.symbol AND px.rn = 1"
+        " LEFT JOIN latest_dq dq ON g.symbol = dq.symbol AND dq.rn = 1"
+        " LEFT JOIN latest_fq fq ON g.symbol = fq.symbol AND fq.rn = 1"
+        " LEFT JOIN shibui.analyst_estimates ae ON ae.symbol = g.symbol"
+        f" WHERE {' AND '.join(conditions)}"
+        f" ORDER BY {sort_col} {direction} NULLS LAST"
+        f" LIMIT {safe_limit}"
+    )
+    try:
+        rows = shibui_client.query(sql, "Whole-market screener scan (Shibui, Common Stock)")
+    except shibui_client.ShibuiError as e:
+        raise HTTPException(status_code=502, detail=f"Shibui screener query failed: {e}")
+
+    results = [
+        {
+            "ticker": r.get("ticker"),
+            "name": r.get("name"),
+            "sector": r.get("gics_sector"),
+            "industry": r.get("gics_industry"),
+            "market_cap": _f(r.get("market_cap")),
+            "price": _f(r.get("price")),
+            "pe": _f(r.get("trailing_pe")),
+            "forward_pe": _f(r.get("forward_pe")),
+            "pb": _f(r.get("price_to_book")),
+            "ps": _f(r.get("price_to_sales")),
+            "pfcf": _f(r.get("price_to_cash_flow")),
+            "ev_ebitda": _f(r.get("ev_ebitda")),
+            "div_yield": _to_pct(_f(r.get("dividend_yield"))),
+            "roe": _to_pct(_f(r.get("return_on_equity"))),
+            "roa": _to_pct(_f(r.get("return_on_assets"))),
+            "net_margin": _to_pct(_f(r.get("profit_margin_ttm"))),
+            "operating_margin": _to_pct(_f(r.get("operating_margin"))),
+            "gross_margin": _to_pct(_f(r.get("gross_margin"))),
+            "de": _f(r.get("debt_to_equity")),
+            "target_mean": _f(r.get("target_mean")),
+            "piotroski_f_score": _f(r.get("piotroski_f_score")),
+            "current_ratio": _f(r.get("current_ratio")),
+        }
+        for r in rows
+    ]
+    return {
+        "universe": "all",
+        "source": "shibui",
+        "results": results,
+        # "total" here is just len(results) (rows returned, <= safe_limit),
+        # NOT a market-wide match count -- Shibui's 200-row cap means we
+        # can't cheaply know how many rows exist beyond what's returned.
+        # capped_at_limit signals when there may be more.
+        "total": len(results),
+        "capped_at_limit": len(results) == safe_limit,
+        "filters_applied": True,
+        "default_market_cap_floor_applied": default_floor_applied,
+    }
+
+
 @router.get("/screener")
 def stock_screener(
     universe: str = "sp500",
@@ -1398,6 +2400,10 @@ def stock_screener(
     sort_by: str = "market_cap",
     sort_desc: bool = True,
     limit: int = 50,
+    source: str = "yfinance",
+    min_operating_margin: float = None,
+    max_operating_margin: float = None,
+    min_piotroski: float = None,
 ):
     """Stock screener: filter a universe of tickers by valuation/fundamental criteria.
 
@@ -1407,6 +2413,13 @@ def stock_screener(
       - `dividend_aristocrats` → S&P 500 Dividend Aristocrats (~65 names)
       - `tech_large`           → 10 tech megacaps (also the fallback universe)
       - Custom via `tickers` parameter (comma-separated symbols)
+
+    `source="shibui"` (PLAN.md 4a-i/4a-ii) ignores `universe`/`tickers` entirely
+    and instead screens the WHOLE market (~10,344 symbols, Common Stock only) in
+    one Shibui query -- also exposes `min_operating_margin`/
+    `max_operating_margin`/`min_piotroski`, which the yfinance path can't, and
+    returns price/forward_pe/pb/net_margin/target_mean alongside them (no
+    rating/analyst_count -- Shibui's schema has no equivalent).
 
     The first scan of a full index is slow (one yfinance lookup per name);
     rows are then cached for an hour so re-filtering is instant.
@@ -1418,6 +2431,16 @@ def stock_screener(
 
     Results sorted by `sort_by` field, capped at `limit`.
     """
+    if source == "shibui":
+        return _shibui_screener(
+            min_pe=min_pe, max_pe=max_pe, min_market_cap=min_market_cap, max_market_cap=max_market_cap,
+            min_roe=min_roe, max_roe=max_roe, min_ps=min_ps, max_ps=max_ps,
+            min_operating_margin=min_operating_margin, max_operating_margin=max_operating_margin,
+            min_piotroski=min_piotroski, min_forward_pe=min_forward_pe, max_forward_pe=max_forward_pe,
+            min_pb=min_pb, max_pb=max_pb, min_net_margin=min_net_margin, max_net_margin=max_net_margin,
+            sector=sector, sort_by=sort_by, sort_desc=sort_desc, limit=limit,
+        )
+
     safe_limit = max(1, min(int(limit or 50), 200))
     tickers_list: list[str] = []
 

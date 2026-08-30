@@ -2,20 +2,24 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  Area, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Customized, Legend,
-  Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Customized, Legend,
+  Line, Pie, PieChart, ReferenceArea, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
   ArrowDownRight, ArrowUpRight, Building2, ChevronDown, ChevronUp,
-  ExternalLink, Eye, EyeOff, Globe, Info, RotateCcw, Settings2,
+  ExternalLink, Eye, EyeOff, Flame, Globe, Info, Landmark, RotateCcw, Settings2,
   TrendingDown, TrendingUp, Users,
 } from "lucide-react";
-import { fetchHistory, fetchStockDividendGrowth } from "../api";
+import {
+  fetchHistory, fetchStockDividendGrowth, fetchShibuiFilings, fetchShibuiInsiders,
+  fetchShibuiActivistStakes, fetchShibuiStrategicInvestors, fetchShibuiEarningsRecap,
+  fetchShibuiValuationHistory, fetchPoliticianTrades,
+} from "../api";
 import { columnChanges } from "../lib/chartChanges";
 import { buildWeeklyBuckets, assignTransactionsToWeeks, jitterOffsetPx } from "../lib/insiderWeekly";
 import useStockReportConfig, { ALL_SECTIONS } from "../hooks/useStockReportConfig";
 import {
-  CATEGORICAL, NEUTRAL_COLOR, GAIN_COLOR, LOSS_COLOR, AXIS_TICK, GRID_STROKE,
+  CATEGORICAL, NEUTRAL_COLOR, GAIN_COLOR, LOSS_COLOR, AXIS_TICK, GRID_STROKE, TOOLTIP_STYLE,
 } from "../lib/chartTheme";
 
 // ---------------------------------------------------------------------------
@@ -1103,6 +1107,22 @@ export function StockOverview({ data, headerTrailing = null }) {
     ownership: (
       <OwnershipSection ownership={data.ownership} currencyCode={data.currency} />
     ),
+
+    earningsRecap: <EarningsRecapSection ticker={data.ticker} currencyCode={data.currency} />,
+
+    valuationHistory: <ValuationHistorySection ticker={data.ticker} />,
+
+    shibuiFilings: <ShibuiFilingsSection ticker={data.ticker} />,
+
+    shibuiInsiderActivity: (
+      <ShibuiInsiderActivitySection ticker={data.ticker} currencyCode={data.currency} />
+    ),
+
+    politicalTrades: (
+      <PoliticalTradesSection ticker={data.ticker} currencyCode={data.currency} currentPrice={data.price} />
+    ),
+
+    shibuiOwnershipFilings: <ShibuiOwnershipFilingsSection ticker={data.ticker} />,
   };
 
   return (
@@ -1115,6 +1135,23 @@ export function StockOverview({ data, headerTrailing = null }) {
             <span className="text-muted text-base truncate">{data.name}</span>
             {data.exchange && (
               <span className="text-[10px] text-muted uppercase tracking-wider">{data.exchange}</span>
+            )}
+            {data.fundamentals_source && (
+              <span
+                title={
+                  data.fundamentals_source === "shibui"
+                    ? "Financials and ratios below are sourced from Shibui Finance (analyst rating/estimates are always from yfinance -- Shibui doesn't cover those)."
+                    : "Shibui doesn't cover this ticker, or is unavailable right now (e.g. rate-limited) -- financials and ratios below fell back to yfinance."
+                }
+                className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full uppercase tracking-wider cursor-help ${
+                  data.fundamentals_source === "shibui"
+                    ? "bg-brand/10 text-brand"
+                    : "bg-amber-500/15 text-amber-500"
+                }`}
+              >
+                <Info size={10} />
+                {data.fundamentals_source === "shibui" ? "Shibui" : "yfinance fallback"}
+              </span>
             )}
           </div>
           <div className="flex items-center gap-2 mt-1 text-xs text-muted flex-wrap">
@@ -1692,8 +1729,9 @@ function OwnershipSection({ ownership, currencyCode }) {
   const holders = ownership.top_institutional_holders || [];
   const instPct = ownership.institutional_pct;
   const insiderPct = ownership.insider_pct;
+  const shortPct = ownership.short_percent_float;
 
-  if (!holders.length && instPct == null && insiderPct == null) return null;
+  if (!holders.length && instPct == null && insiderPct == null && shortPct == null) return null;
 
   // Build the pie slices. Each named institution carves its own slice out of
   // the total institutional ownership %; whatever's left of institutions
@@ -1757,7 +1795,7 @@ function OwnershipSection({ ownership, currencyCode }) {
       </h3>
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div className="bg-surface rounded-lg p-4">
-          <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
             <OwnershipStat
               label="Institutions"
               value={instPct != null ? `${instPct.toFixed(1)}%` : "—"}
@@ -1773,6 +1811,10 @@ function OwnershipSection({ ownership, currencyCode }) {
                   ? `${ownership.institutions_count}`
                   : "—"
               }
+            />
+            <OwnershipStat
+              label="Short interest"
+              value={shortPct != null ? `${(shortPct * 100).toFixed(2)}%` : "—"}
             />
           </div>
           {slices.length > 0 ? (
@@ -1879,6 +1921,860 @@ function OwnershipStat({ label, value }) {
     <div className="bg-surface-card rounded-md px-3 py-2 border border-surface-border">
       <div className="text-[10px] text-muted uppercase tracking-wider">{label}</div>
       <div className="text-base font-bold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shibui-backed sections: SEC filings, structured insider activity + cluster
+// buys, beneficial ownership (13D/13G), earnings recap, historical
+// valuation multiples, and (button-gated) political trades. Each fetches
+// its own data independently (same pattern as DividendGrowthSection above)
+// and renders nothing when Shibui doesn't cover the ticker, so these are
+// silent no-ops for foreign/delisted/thinly-covered names.
+// ---------------------------------------------------------------------------
+
+function Chip({ children, title, tone = "neutral" }) {
+  const toneClass =
+    tone === "brand"
+      ? "bg-brand/15 text-brand border-brand/30"
+      : tone === "warn"
+        ? "bg-amber-500/20 text-amber-600 border-amber-500/40"
+        : tone === "danger"
+          ? "bg-red-500/20 text-red-700 border-red-500/40"
+          : "bg-slate-500/20 text-muted border-slate-500/40";
+  return (
+    <span
+      title={title}
+      className={`text-[9px] uppercase px-1.5 py-0.5 rounded border shrink-0 ${toneClass}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+const FORM_TYPE_LABELS = {
+  "10-K": "Annual report", "10-Q": "Quarterly report", "20-F": "Foreign annual report",
+  "6-K": "Foreign current report", "8-K": "Current report", "DEF 14A": "Proxy statement",
+  "DEF 14C": "Information statement", "SC 13G": "Passive stake (>5%)", "SC 13D": "Activist stake (>5%)",
+  "S-1": "IPO registration", "S-3": "Shelf registration", "S-8": "Employee stock plan",
+  "4": "Insider transaction", "3": "Initial insider ownership", "5": "Annual insider ownership",
+};
+
+const EIGHT_K_ITEM_LABELS = {
+  "1.01": "Entry into agreement", "2.02": "Results of operations", "5.02": "Officer/director change",
+  "7.01": "Reg FD disclosure", "8.01": "Other events", "9.01": "Financial exhibits",
+};
+
+function ShibuiFilingsSection({ ticker }) {
+  const [expanded, setExpanded] = useState(false);
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["shibui-filings", ticker],
+    queryFn: () => fetchShibuiFilings(ticker),
+    staleTime: 60 * 60 * 1000,
+    enabled: !!ticker,
+    retry: false,
+  });
+
+  if (isLoading || isError || !data?.filings?.length) return null;
+
+  return (
+    <div>
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="flex items-center gap-2 mb-3 group"
+      >
+        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider group-hover:text-ink transition-colors">
+          SEC Filings
+        </h3>
+        <span className="text-[10px] text-muted">({data.filings.length})</span>
+        {expanded ? (
+          <ChevronUp size={14} className="text-muted group-hover:text-ink transition-colors" />
+        ) : (
+          <ChevronDown size={14} className="text-muted group-hover:text-ink transition-colors" />
+        )}
+      </button>
+      {expanded && (
+        <div className="bg-surface rounded-lg overflow-hidden">
+          <div className="grid grid-cols-[5.5rem_1fr_3.5rem] gap-3 px-4 py-2 border-b border-surface-border text-[10px] uppercase tracking-wider text-muted font-medium">
+            <span>Date</span>
+            <span>Type</span>
+            <span className="text-right">Link</span>
+          </div>
+          <ul className="max-h-96 overflow-y-auto">
+            {data.filings.map((f, i) => (
+              <li
+                key={`${f.filing_url}-${i}`}
+                className="grid grid-cols-[5.5rem_1fr_3.5rem] gap-3 items-center px-4 py-2 text-xs border-b border-surface-border last:border-0 hover:bg-surface-hover"
+              >
+                <span className="tabular-nums text-muted">{f.filing_date}</span>
+                <span className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-ink font-medium">{f.raw_form_type}</span>
+                  <span className="text-muted">{FORM_TYPE_LABELS[f.form_type] || ""}</span>
+                  {f.is_amendment && <Chip>Amended</Chip>}
+                  {(f.items || []).map((code) => (
+                    <Chip key={code} tone="brand" title={EIGHT_K_ITEM_LABELS[code] || code}>
+                      {code}
+                    </Chip>
+                  ))}
+                </span>
+                <a
+                  href={f.filing_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-right text-brand hover:underline inline-flex items-center justify-end gap-0.5"
+                >
+                  View <ExternalLink size={10} />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const TX_CODE_LABELS = {
+  P: "Open-market buy", S: "Open-market sale", A: "Grant/award", D: "Disposition to issuer",
+  F: "Tax-withholding disposition", M: "Option/derivative exercise", G: "Gift",
+  C: "Conversion of derivative", X: "In-the-money option exercise",
+};
+
+function ShibuiInsiderActivitySection({ ticker, currencyCode }) {
+  const cs = currencySymbol(currencyCode);
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["shibui-insiders", ticker],
+    queryFn: () => fetchShibuiInsiders(ticker),
+    staleTime: 30 * 60 * 1000,
+    enabled: !!ticker,
+    retry: false,
+  });
+
+  if (isLoading || isError || !data?.transactions?.length) return null;
+  const clusters = data.cluster_buys || [];
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
+          Insider Activity (SEC)
+        </h3>
+        <span className="text-[10px] text-muted">Form 4/5 · last {data.months} months</span>
+      </div>
+
+      {clusters.length > 0 && (
+        <div className="mb-3 space-y-2">
+          {clusters.map((c, i) => (
+            <div
+              key={i}
+              className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs"
+            >
+              <Flame size={14} className="text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-ink">Cluster buy detected</span>
+                <span className="text-muted">
+                  {" "}— {c.buyers.length} insiders bought between {c.start} and {c.end}:{" "}
+                </span>
+                <span className="text-ink">{c.buyers.join(", ")}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="bg-surface rounded-lg overflow-hidden">
+        <div className="grid grid-cols-[1fr_4rem_5rem_6rem_5rem] gap-3 px-4 py-2 border-b border-surface-border text-[10px] uppercase tracking-wider text-muted font-medium">
+          <span>Insider</span>
+          <span className="text-center">Code</span>
+          <span className="text-right">Shares</span>
+          <span className="text-right">Value</span>
+          <span className="text-right">Date</span>
+        </div>
+        <ul className="max-h-96 overflow-y-auto">
+          {data.transactions.map((t, i) => {
+            const isBuy = t.direction === "buy";
+            const rowBg = isBuy ? "bg-green-500/10 hover:bg-green-500/15" : "bg-red-500/10 hover:bg-red-500/15";
+            return (
+              <li
+                key={i}
+                className={`grid grid-cols-[1fr_4rem_5rem_6rem_5rem] gap-3 items-center px-4 py-2 text-xs ${rowBg}`}
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-ink font-medium">{t.owner_canonical_name || "—"}</div>
+                  <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                    {t.officer_title && <span className="text-[10px] text-muted">{t.officer_title}</span>}
+                    {t.is_director && <Chip>Director</Chip>}
+                    {t.is_officer && <Chip>Officer</Chip>}
+                    {t.is_ten_pct_owner && <Chip>10%+ owner</Chip>}
+                    {t.is_10b5_1 && <Chip title="Pre-scheduled 10b5-1 trading plan">10b5-1</Chip>}
+                    {t.is_gift && <Chip>Gift</Chip>}
+                    {t.is_tax_withholding && <Chip>Tax withholding</Chip>}
+                    {t.is_auto_plan && <Chip>Auto plan</Chip>}
+                    {t.is_avg_price && <Chip title="Executed at a volume-weighted average price">Avg price</Chip>}
+                  </div>
+                </div>
+                <span className="text-center">
+                  <span
+                    title={TX_CODE_LABELS[t.tx_code] || t.tx_code}
+                    className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded border ${
+                      isBuy
+                        ? "bg-green-500/25 text-green-700 border-green-500/40"
+                        : "bg-red-500/25 text-red-700 border-red-500/40"
+                    }`}
+                  >
+                    {t.tx_code}
+                  </span>
+                </span>
+                <span className="text-right tabular-nums text-ink">
+                  {t.shares != null ? Math.round(t.shares).toLocaleString() : "—"}
+                </span>
+                <span className="text-right tabular-nums text-muted">
+                  {t.value ? fmtCompact(t.value, cs) : "—"}
+                </span>
+                <span className="text-right tabular-nums text-muted">{t.tx_date}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function ShibuiOwnershipFilingsSection({ ticker }) {
+  const stakesQ = useQuery({
+    queryKey: ["shibui-activist-stakes", ticker],
+    queryFn: () => fetchShibuiActivistStakes(ticker),
+    staleTime: 60 * 60 * 1000,
+    enabled: !!ticker,
+    retry: false,
+  });
+  const investorsQ = useQuery({
+    queryKey: ["shibui-strategic-investors", ticker],
+    queryFn: () => fetchShibuiStrategicInvestors(ticker),
+    staleTime: 60 * 60 * 1000,
+    enabled: !!ticker,
+    retry: false,
+  });
+
+  const stakes = stakesQ.data?.stakes || [];
+  const investors = investorsQ.data?.investors || [];
+  if (!stakes.length && !investors.length) return null;
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
+        Beneficial Ownership (13D/13G)
+      </h3>
+
+      {investors.length > 0 && (
+        <div className="bg-surface rounded-lg p-4">
+          <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <Landmark size={12} /> Corporate strategic investors
+          </h4>
+          <ul className="space-y-1.5">
+            {investors.map((inv, i) => (
+              <li
+                key={i}
+                className="flex items-center justify-between gap-3 text-xs py-1 border-b border-surface-border last:border-0"
+              >
+                <span className="text-ink truncate">
+                  {inv.filer_name}{" "}
+                  <TickerLink ticker={inv.filer_ticker} className="text-brand font-mono text-[11px]" />
+                </span>
+                <span className="flex items-center gap-2 text-muted shrink-0">
+                  <Chip>{inv.schedule_type}</Chip>
+                  <span className="tabular-nums">{inv.filing_date}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {stakes.length > 0 && (
+        <div className="bg-surface rounded-lg p-4">
+          <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+            13D/13G filers (up to 50 most recent)
+          </h4>
+          <ul className="max-h-64 overflow-y-auto space-y-1">
+            {stakes.map((s, i) => (
+              <li
+                key={i}
+                className="flex items-center justify-between gap-3 text-xs py-1 border-b border-surface-border last:border-0"
+              >
+                <span className="text-ink truncate">{s.filer_canonical_name || s.filer_name}</span>
+                <span className="flex items-center gap-2 text-muted shrink-0">
+                  {s.filer_is_activist && <Chip tone="danger">Activist</Chip>}
+                  <Chip tone={s.schedule_type === "13D" ? "warn" : "neutral"}>{s.schedule_type}</Chip>
+                  <span className="tabular-nums">{s.filing_date}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function isPoliticalTradeBuy(t) {
+  const type = (t.transaction_type || "").toUpperCase();
+  return type.includes("PURCHASE") || type === "BUY";
+}
+
+function daysBetween(earlier, later) {
+  const d1 = new Date(earlier);
+  const d2 = new Date(later);
+  if (Number.isNaN(d1.getTime()) || Number.isNaN(d2.getTime())) return null;
+  return Math.round((d2.getTime() - d1.getTime()) / 86400000);
+}
+
+// Custom ReferenceDot marker: circle for a plain stock trade, diamond for an
+// option-flagged one (PLAN.md 1g-iii); color = buy/sell direction. Hover
+// info uses a native SVG <title> (real OS tooltip on mouseover) rather than
+// a custom-positioned tooltip, since recharts' own Tooltip doesn't attach to
+// ReferenceDot annotations.
+function TradeMarker({ cx, cy, fill, isOption, onClick, tooltip }) {
+  if (cx == null || cy == null) return null;
+  const common = { fill, stroke: "#fff", strokeWidth: 1, onClick, style: { cursor: "pointer" } };
+  if (isOption) {
+    const r = 6;
+    return (
+      <polygon points={`${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`} {...common}>
+        <title>{tooltip}</title>
+      </polygon>
+    );
+  }
+  return (
+    <circle cx={cx} cy={cy} r={5} {...common}>
+      <title>{tooltip}</title>
+    </circle>
+  );
+}
+
+// "$ value" and "shares" aren't in the disclosed data -- STOCK Act only
+// publishes an amount BAND, never an exact figure, and share count isn't
+// published at all. Both are estimated here from the band midpoint and the
+// stock's closing price on the trade date, and clearly marked with "~" so
+// they never read as more precise than they are.
+function formatTradeTooltip(t, cs) {
+  const name = t.politician_canonical || t.politician;
+  const midValue = (Number(t.amount_min) + Number(t.amount_max)) / 2;
+  const lines = [name, t.transaction_date];
+
+  if (Number.isFinite(midValue) && t.tradePrice > 0) {
+    const estShares = midValue / t.tradePrice;
+    lines.push(`~${cs}${Math.round(midValue).toLocaleString()} · ~${Math.round(estShares).toLocaleString()} sh`);
+    if (t.isBuy && t.currentPrice != null) {
+      const pnlDollar = estShares * (t.currentPrice - t.tradePrice);
+      const pnlPct = (t.currentPrice / t.tradePrice - 1) * 100;
+      const sign = pnlDollar >= 0 ? "+" : "";
+      lines.push(`Unrealized: ${sign}${cs}${Math.round(pnlDollar).toLocaleString()} (${sign}${pnlPct.toFixed(1)}%)`);
+    } else if (!t.isBuy) {
+      lines.push("Position sold — no unrealized P&L");
+    }
+  }
+  return lines.join("\n");
+}
+
+function PoliticalTradesChart({ ticker, trades, currencyCode, currentPrice, onSelect }) {
+  const cs = currencySymbol(currencyCode);
+  const { data: hist } = useQuery({
+    queryKey: ["history", ticker, "1y"],
+    queryFn: () => fetchHistory(ticker, "1y"),
+    staleTime: 30 * 60 * 1000,
+    enabled: !!ticker,
+  });
+
+  const points = hist?.data;
+  if (!points?.length) return null;
+
+  // Match each trade to the closing price on its date, falling back to the
+  // nearest earlier trading day (STOCK Act dates are trading days, so this
+  // should usually be an exact hit).
+  const dots = trades
+    .map((t) => {
+      let y = null;
+      for (const p of points) {
+        if (p.date > t.transaction_date) break;
+        y = p.close;
+      }
+      if (y == null) return null;
+      return { ...t, x: t.transaction_date, y, tradePrice: y, currentPrice, isBuy: isPoliticalTradeBuy(t) };
+    })
+    .filter(Boolean);
+
+  if (!dots.length) return null;
+
+  return (
+    <div className="bg-surface rounded-lg p-4 mb-3">
+      <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+        Trades on price chart
+      </h4>
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+            <XAxis dataKey="date" tick={AXIS_TICK} tickFormatter={(d) => String(d).slice(0, 7)} minTickGap={40} />
+            <YAxis tick={AXIS_TICK} width={52} domain={["auto", "auto"]} tickFormatter={(v) => `${cs}${v}`} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${cs}${v}`, "Close"]} />
+            <Line type="monotone" dataKey="close" stroke={NEUTRAL_COLOR} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+            {dots.map((d, i) => (
+              <ReferenceDot
+                key={i}
+                x={d.x}
+                y={d.y}
+                isFront
+                shape={(props) => (
+                  <TradeMarker
+                    {...props}
+                    fill={d.isBuy ? GAIN_COLOR : LOSS_COLOR}
+                    isOption={d.is_likely_option}
+                    tooltip={formatTradeTooltip(d, cs)}
+                    onClick={() => onSelect(d)}
+                  />
+                )}
+              />
+            ))}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      <p className="text-[10px] text-muted mt-2">
+        ● stock trade · ◆ option-flagged trade · green = buy, red = sell — hover a marker for
+        name/date/value/shares/unrealized P&amp;L, click it (or a table row below) for full details.
+      </p>
+    </div>
+  );
+}
+
+function TradeDetailCard({ trade, onClose }) {
+  const isBuy = isPoliticalTradeBuy(trade);
+  const reportLag = daysBetween(trade.transaction_date, trade.filed_date);
+
+  return (
+    <div className="bg-surface rounded-lg p-4 mb-3 border border-brand/30">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-ink">
+            {trade.politician_canonical || trade.politician}
+          </div>
+          <div className="text-xs text-muted mt-0.5">
+            {trade.party} · {trade.chamber}
+            {trade.state ? ` · ${trade.state}` : ""}
+            {trade.state_district ? ` (${trade.state_district})` : ""}
+          </div>
+        </div>
+        <button onClick={onClose} className="text-muted hover:text-ink text-xs">
+          ✕
+        </button>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+        <div>
+          <div className="text-[10px] text-muted uppercase tracking-wider">Type</div>
+          <div className={`text-xs font-semibold ${isBuy ? "text-gain" : "text-loss"}`}>
+            {isBuy ? "BUY" : "SELL"}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] text-muted uppercase tracking-wider">Amount</div>
+          <div className="text-xs text-ink tabular-nums">
+            ${Number(trade.amount_min).toLocaleString()}–${Number(trade.amount_max).toLocaleString()}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] text-muted uppercase tracking-wider">Owner</div>
+          <div className="text-xs text-ink">{trade.owner_code || "—"}</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-muted uppercase tracking-wider">Transaction date</div>
+          <div className="text-xs text-ink tabular-nums">{trade.transaction_date}</div>
+        </div>
+      </div>
+      {trade.filed_date && (
+        <p className="text-[11px] text-muted mt-2">
+          Reported {trade.filed_date}
+          {reportLag != null && reportLag > 0 && ` — ${reportLag} day${reportLag === 1 ? "" : "s"} after the trade`}
+        </p>
+      )}
+      {trade.is_likely_option && (
+        <div className="mt-3 pt-3 border-t border-surface-border">
+          <Chip tone="warn">Options trade</Chip>
+          <p className="text-[11px] text-muted mt-1.5">{trade.asset_name}</p>
+          <p className="text-[10px] text-muted mt-1">
+            Exact strike/expiration aren't in the data available here — can't automatically tell
+            if this is a "deep ITM" style bet.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PoliticalTradesSection({ ticker, currencyCode, currentPrice }) {
+  const [enabled, setEnabled] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["politician-trades", ticker],
+    queryFn: () => fetchPoliticianTrades(ticker),
+    enabled: enabled && !!ticker,
+    staleTime: 24 * 60 * 60 * 1000,
+    retry: false,
+  });
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">Political Trades</h3>
+        {!enabled && (
+          <button
+            onClick={() => setEnabled(true)}
+            className="text-xs px-3 py-1.5 rounded-md bg-surface hover:bg-surface-hover border border-surface-border text-ink transition-colors"
+          >
+            Load political trades
+          </button>
+        )}
+      </div>
+
+      {!enabled && (
+        <p className="text-xs text-muted">
+          Congressional (STOCK Act) trades referencing this ticker. Loaded only on request —
+          never fetched automatically.
+        </p>
+      )}
+
+      {enabled && isLoading && <p className="text-xs text-muted">Loading…</p>}
+
+      {enabled && isError && (
+        <p className="text-xs text-muted">
+          {error?.response?.status === 503
+            ? "Political trades aren't configured — set ALPHA_VANTAGE_API_KEY on the backend to enable this."
+            : "Could not load political trades."}
+        </p>
+      )}
+
+      {enabled && data && data.trades.length === 0 && (
+        <p className="text-xs text-muted">No disclosed congressional trades found for this ticker.</p>
+      )}
+
+      {enabled && data && data.trades.length > 0 && (
+        <>
+          <PoliticalTradesChart
+            ticker={ticker}
+            trades={data.trades}
+            currencyCode={currencyCode}
+            currentPrice={currentPrice}
+            onSelect={setSelected}
+          />
+          {selected && <TradeDetailCard trade={selected} onClose={() => setSelected(null)} />}
+          <div className="bg-surface rounded-lg overflow-hidden">
+            <div className="grid grid-cols-[1fr_3.5rem_3.5rem_9rem_5.5rem] gap-3 px-4 py-2 border-b border-surface-border text-[10px] uppercase tracking-wider text-muted font-medium">
+              <span>Politician</span>
+              <span className="text-center">Party</span>
+              <span className="text-center">Type</span>
+              <span className="text-right">Amount</span>
+              <span className="text-right">Date</span>
+            </div>
+            <ul className="max-h-96 overflow-y-auto">
+              {data.trades.map((t, i) => {
+                const isBuy = isPoliticalTradeBuy(t);
+                return (
+                  <li
+                    key={i}
+                    onClick={() => setSelected(t)}
+                    className="grid grid-cols-[1fr_3.5rem_3.5rem_9rem_5.5rem] gap-3 items-center px-4 py-2 text-xs border-b border-surface-border last:border-0 hover:bg-surface-hover cursor-pointer"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-ink font-medium">
+                        {t.politician_canonical || t.politician}
+                      </div>
+                      <div className="text-[10px] text-muted truncate">
+                        {t.chamber} · {t.state}
+                        {t.state_district ? ` (${t.state_district})` : ""} · {t.owner_code}
+                        {t.is_likely_option && <span className="ml-1 text-amber-500">◆ Option</span>}
+                      </div>
+                    </div>
+                    <span className="text-center text-muted">{t.party}</span>
+                    <span
+                      className={`text-center text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded border ${
+                        isBuy
+                          ? "bg-green-500/25 text-green-700 border-green-500/40"
+                          : "bg-red-500/25 text-red-700 border-red-500/40"
+                      }`}
+                    >
+                      {isBuy ? "BUY" : "SELL"}
+                    </span>
+                    <span className="text-right tabular-nums text-muted">
+                      ${Number(t.amount_min).toLocaleString()}–${Number(t.amount_max).toLocaleString()}
+                    </span>
+                    <span className="text-right tabular-nums text-muted">{t.transaction_date}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            {data.truncated && (
+              <div className="px-4 py-2 text-[10px] text-muted border-t border-surface-border">
+                Showing a partial list — {data.total_count} total trades found.
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function EarningsRecapSection({ ticker, currencyCode }) {
+  const cs = currencySymbol(currencyCode);
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["shibui-earnings-recap", ticker],
+    queryFn: () => fetchShibuiEarningsRecap(ticker),
+    staleTime: 60 * 60 * 1000,
+    enabled: !!ticker,
+    retry: false,
+  });
+
+  if (isLoading || isError || !data?.quarters?.length) return null;
+  const latest = data.quarters[0];
+  const beat = latest.surprise_percent != null && latest.surprise_percent >= 0;
+  const chartData = [...data.quarters].reverse().map((q) => ({
+    label: `Q${q.quarter} '${String(q.year).slice(2)}`,
+    surprise: q.surprise_percent,
+  }));
+  const recentBuyback = data.buyback_trend?.[0];
+
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-3">Earnings</h3>
+
+      <div className="bg-surface rounded-lg p-4 mb-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <div className="text-[10px] text-muted uppercase tracking-wider">
+              Latest report · Q{latest.quarter} {latest.year} · {latest.report_date}
+            </div>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span
+                className={`text-xs font-semibold uppercase px-2 py-0.5 rounded border ${
+                  beat
+                    ? "bg-green-500/25 text-green-700 border-green-500/40"
+                    : "bg-red-500/25 text-red-700 border-red-500/40"
+                }`}
+              >
+                {beat ? "Beat" : "Miss"}
+              </span>
+              <span className="text-sm text-ink tabular-nums">
+                EPS {cs}
+                {latest.eps_actual?.toFixed(2)} vs {cs}
+                {latest.eps_estimate?.toFixed(2)} est.
+              </span>
+              {latest.surprise_percent != null && (
+                <span className={`text-xs tabular-nums ${beat ? "text-gain" : "text-loss"}`}>
+                  ({latest.surprise_percent >= 0 ? "+" : ""}
+                  {latest.surprise_percent.toFixed(1)}%)
+                </span>
+              )}
+            </div>
+          </div>
+          {data.nearest_8k_2_02 && (
+            <a
+              href={data.nearest_8k_2_02.filing_url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-brand hover:underline inline-flex items-center gap-1"
+            >
+              8-K press release <ExternalLink size={10} />
+            </a>
+          )}
+        </div>
+        {latest.revenue_actual != null && (
+          <div className="text-xs text-muted mt-2 tabular-nums">
+            Revenue: {fmtCompact(latest.revenue_actual, cs)}
+            {data.latest_revenue_estimate != null && (
+              <>
+                {" "}
+                vs est. {fmtCompact(data.latest_revenue_estimate, cs)}
+                {data.latest_revenue_surprise_pct != null && (
+                  <span className={data.latest_revenue_surprise_pct >= 0 ? "text-gain" : "text-loss"}>
+                    {" "}
+                    ({data.latest_revenue_surprise_pct >= 0 ? "+" : ""}
+                    {data.latest_revenue_surprise_pct.toFixed(1)}%)
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-surface rounded-lg p-4 mb-3">
+        <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+          EPS surprise history
+        </h4>
+        <div className="h-40">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+              <XAxis dataKey="label" tick={AXIS_TICK} minTickGap={16} />
+              <YAxis tick={AXIS_TICK} width={36} tickFormatter={(v) => `${v}%`} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v?.toFixed(1)}%`, "Surprise"]} />
+              <Bar dataKey="surprise" radius={[3, 3, 0, 0]}>
+                {chartData.map((d, i) => (
+                  <Cell key={i} fill={d.surprise >= 0 ? GAIN_COLOR : LOSS_COLOR} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {recentBuyback && (
+        <div className="bg-surface rounded-lg p-4">
+          <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">
+            Buyback trend
+          </h4>
+          <p className="text-xs text-muted">
+            Q{recentBuyback.quarter} {recentBuyback.year}: net{" "}
+            {recentBuyback.equity_issuance_repayment < 0 ? "repurchase" : "issuance"} of{" "}
+            {fmtCompact(Math.abs(recentBuyback.equity_issuance_repayment), cs)}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const VALUATION_MULTIPLES = [
+  { key: "trailing_pe", label: "P/E", pctileKey: "pe_pctile", fmt: (v) => v?.toFixed(1) },
+  { key: "ev_ebitda", label: "EV/EBITDA", pctileKey: "ev_ebitda_pctile", fmt: (v) => v?.toFixed(1) },
+  { key: "price_to_sales", label: "P/S", pctileKey: "ps_pctile", fmt: (v) => v?.toFixed(2) },
+  { key: "price_to_cash_flow", label: "P/FCF", pctileKey: "pfcf_pctile", fmt: (v) => v?.toFixed(1) },
+  { key: "price_to_book", label: "P/B", pctileKey: "pb_pctile", fmt: (v) => v?.toFixed(2) },
+];
+
+const VALUATION_RANGES = [
+  { label: "1Y", years: 1 },
+  { label: "5Y", years: 5 },
+  { label: "10Y", years: 10 },
+  { label: "Max", years: 33 },
+];
+
+function ordinal(n) {
+  const suffixes = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return `${n}${suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]}`;
+}
+
+function ValuationHistorySection({ ticker }) {
+  const [range, setRange] = useState(VALUATION_RANGES[2]);
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["shibui-valuation-history", ticker, range.years],
+    queryFn: () => fetchShibuiValuationHistory(ticker, range.years),
+    staleTime: 60 * 60 * 1000,
+    enabled: !!ticker,
+    retry: false,
+  });
+
+  if (isError) return null;
+  const points = data?.points || [];
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
+          Valuation History
+          {data?.granularity && (
+            <span className="ml-2 text-muted normal-case tracking-normal">
+              · {data.granularity} points
+            </span>
+          )}
+        </h3>
+        <div className="inline-flex bg-surface rounded-md p-0.5 text-xs">
+          {VALUATION_RANGES.map((r) => (
+            <button
+              key={r.label}
+              onClick={() => setRange(r)}
+              className={`px-2.5 py-1 rounded transition-colors ${
+                range.label === r.label ? "bg-brand text-white" : "text-muted hover:text-ink"
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {isLoading && <p className="text-xs text-muted">Loading…</p>}
+      {!isLoading && points.length === 0 && (
+        <p className="text-xs text-muted">No valuation history available.</p>
+      )}
+
+      {points.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+          {VALUATION_MULTIPLES.map((m) => (
+            <ValuationSparkline key={m.key} multiple={m} points={points} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ValuationSparkline({ multiple, points }) {
+  const series = points
+    .map((p) => ({ bucket: p.bucket, value: p[multiple.key] }))
+    .filter((p) => p.value != null);
+
+  if (!series.length) {
+    return (
+      <div className="bg-surface rounded-lg p-3">
+        <div className="text-[10px] text-muted uppercase tracking-wider">{multiple.label}</div>
+        <div className="text-xs text-muted mt-2">No data</div>
+      </div>
+    );
+  }
+
+  const last = points[points.length - 1];
+  const currentValue = last?.[multiple.key];
+  const currentPctile = last?.[multiple.pctileKey];
+  const sortedValues = series.map((p) => p.value).slice().sort((a, b) => a - b);
+  const bandLo = sortedValues[Math.max(0, Math.round(0.1 * (sortedValues.length - 1)))];
+  const bandHi = sortedValues[Math.max(0, Math.round(0.9 * (sortedValues.length - 1)))];
+
+  return (
+    <div className="bg-surface rounded-lg p-3">
+      <div className="text-[10px] text-muted uppercase tracking-wider">{multiple.label}</div>
+      <div className="text-lg font-bold tabular-nums text-ink">
+        {currentValue != null ? multiple.fmt(currentValue) : "—"}
+      </div>
+      <div className="text-[10px] text-muted mb-1">
+        {currentPctile != null
+          ? `${ordinal(Math.round(currentPctile * 100))} percentile`
+          : "—"}
+      </div>
+      <div className="h-16">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={series} margin={{ top: 2, right: 2, left: 2, bottom: 0 }}>
+            <YAxis hide domain={["dataMin", "dataMax"]} />
+            <ReferenceArea y1={bandLo} y2={bandHi} fill={NEUTRAL_COLOR} fillOpacity={0.15} strokeWidth={0} />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke={CATEGORICAL[0]}
+              strokeWidth={1.5}
+              fill="none"
+              isAnimationActive={false}
+              dot={false}
+            />
+            <Tooltip
+              contentStyle={TOOLTIP_STYLE}
+              labelFormatter={(l) => l}
+              formatter={(v) => [multiple.fmt(v), multiple.label]}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
