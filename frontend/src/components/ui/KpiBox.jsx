@@ -5,8 +5,8 @@ import { useCountUp } from "../../hooks/useCountUp";
 
 const SUB_TONE = { gain: "text-gain", loss: "text-loss", muted: "text-muted" };
 
-function KpiValue({ value, format }) {
-  const isNumber = typeof value === "number" && Number.isFinite(value);
+function KpiValue({ value, format, countUp }) {
+  const isNumber = countUp && typeof value === "number" && Number.isFinite(value);
   const animated = useCountUp(isNumber ? value : 0, { enabled: isNumber });
   if (!isNumber) return value ?? null;
   return format(animated);
@@ -24,6 +24,7 @@ export default function KpiBox({
   loading = false,
   size = "md",
   className = "",
+  countUp = false,
 }) {
   const dense = size === "sm";
   return (
@@ -45,7 +46,7 @@ export default function KpiBox({
         <div className="h-7 w-24 bg-surface-hover rounded animate-pulse mt-1" />
       ) : (
         <span className={`font-display font-bold tabular-nums tracking-tight text-ink ${dense ? "text-base" : "text-2xl"}`}>
-          <KpiValue value={value} format={format} />
+          <KpiValue value={value} format={format} countUp={countUp} />
         </span>
       )}
       {delta && !loading && (

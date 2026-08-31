@@ -35,14 +35,14 @@ function InfoIcon({ info }) {
 
 // `value` is normally a pre-formatted string (every current caller already
 // formats via lib/format.js before passing it in). Passing a raw number
-// instead opts into a count-up animation -- additive, backward compatible.
-function MetricValue({ value }) {
-  const isNumber = typeof value === "number" && Number.isFinite(value);
+// AND countUp opts into a count-up animation -- additive, backward compatible.
+function MetricValue({ value, countUp }) {
+  const isNumber = countUp && typeof value === "number" && Number.isFinite(value);
   const animated = useCountUp(isNumber ? value : 0, { enabled: isNumber });
   return isNumber ? animated.toLocaleString("en-US", { maximumFractionDigits: 0 }) : value;
 }
 
-export default function MetricCard({ icon: Icon, label, value, sub, positive, negative, loading, info }) {
+export default function MetricCard({ icon: Icon, label, value, sub, positive, negative, loading, info, countUp = false }) {
   const subColor = positive ? "text-gain" : negative ? "text-loss" : "text-muted";
 
   return (
@@ -60,7 +60,7 @@ export default function MetricCard({ icon: Icon, label, value, sub, positive, ne
         <div className="h-8 w-28 bg-surface-hover rounded animate-pulse mt-1" />
       ) : (
         <span className="text-2xl font-display font-bold tabular-nums truncate tracking-tight text-ink">
-          <MetricValue value={value} />
+          <MetricValue value={value} countUp={countUp} />
         </span>
       )}
       {sub && !loading && <span className={`text-[13px] font-semibold tabular-nums ${subColor}`}>{sub}</span>}

@@ -21,7 +21,6 @@ import {
   CATEGORICAL, NEUTRAL_COLOR, GAIN_COLOR, LOSS_COLOR, AXIS_TICK, GRID_STROKE, TOOLTIP_STYLE,
 } from "../lib/chartTheme";
 import { KpiBox } from "./ui";
-import Reveal from "./reactbits/Reveal";
 import ShinyText from "./reactbits/ShinyText";
 
 // ---------------------------------------------------------------------------
@@ -977,7 +976,7 @@ export function StockOverview({ data, headerTrailing = null }) {
         </div>
 
         <div className="flex flex-col gap-4">
-          <div className="bg-surface rounded-lg p-4">
+          <div className="bg-surface rounded-[var(--radius-card)] p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
                 Analyst Rating
@@ -1091,7 +1090,7 @@ export function StockOverview({ data, headerTrailing = null }) {
   return (
     <>
       {/* ----- Header (always visible) ----- */}
-      <Reveal className="flex items-start justify-between px-6 py-4 border-b border-surface-border">
+      <div className="flex items-start justify-between px-6 py-4 border-b border-surface-border">
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-3 flex-wrap">
             <h2 className="text-2xl font-bold font-mono"><ShinyText text={data.ticker} /></h2>
@@ -1149,7 +1148,7 @@ export function StockOverview({ data, headerTrailing = null }) {
           <SectionCustomizer {...reportConfig} />
           {headerTrailing}
         </div>
-      </Reveal>
+      </div>
 
       <div className="p-6 space-y-6">
         {reportConfig.config.order.map((id) => {

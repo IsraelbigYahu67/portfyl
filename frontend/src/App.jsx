@@ -76,9 +76,10 @@ export const NEU_TOKENS = {
   radiusCard: "1.25rem",
   chart: ["#A9AB88", "#DBAA89", "#D4C3A1", "#B7AFA3", "#7C8A5A", "#C08457", "#9E8E6E", "#8A8478"],
 };
-// Classic's chart series was previously hardcoded inline inside
-// applyAppearance(); pulled out to a constant so both branches follow the
-// same "array of 8 -> --chart-1..8" pattern below.
+// Classic's chart series previously lived only in index.css's :root block
+// (--chart-1..8); pulled into this constant so applyAppearance() can reset
+// them inline the same way both branches reset every other token, since an
+// inline style always outranks a :root declaration.
 const GLASS_CHART = ["var(--brand)", "#4EDEA3", "#FFB95F", "#A78BFA", "#38BDF8", "#FB7185", "#FACC15", "#64748B"];
 
 export function usePalette() {

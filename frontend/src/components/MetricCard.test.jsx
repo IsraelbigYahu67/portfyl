@@ -13,7 +13,7 @@ describe("MetricCard", () => {
       addEventListener() {}, removeEventListener() {},
       addListener() {}, removeListener() {}, dispatchEvent() { return false; },
     });
-    render(<MetricCard label="Holdings" value={12345} />);
+    render(<MetricCard label="Holdings" value={12345} countUp />);
     expect(screen.getByText("12,345")).toBeInTheDocument();
   });
 
@@ -21,5 +21,10 @@ describe("MetricCard", () => {
     const { container } = render(<MetricCard label="Beta" value="1.2" loading />);
     expect(container.querySelector(".animate-pulse")).toBeTruthy();
     expect(screen.queryByText("1.2")).not.toBeInTheDocument();
+  });
+
+  it("renders a raw number as-is (not integer-rounded) when countUp is not requested", () => {
+    render(<MetricCard label="Info Ratio" value={0.874} />);
+    expect(screen.getByText("0.874")).toBeInTheDocument();
   });
 });

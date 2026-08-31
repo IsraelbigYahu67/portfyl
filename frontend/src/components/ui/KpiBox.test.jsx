@@ -14,7 +14,7 @@ describe("KpiBox", () => {
       addEventListener() {}, removeEventListener() {},
       addListener() {}, removeListener() {}, dispatchEvent() { return false; },
     });
-    render(<KpiBox label="Market Cap" value={1234} format={(v) => `$${Math.round(v)}`} />);
+    render(<KpiBox label="Market Cap" value={1234} format={(v) => `$${Math.round(v)}`} countUp />);
     expect(screen.getByText("$1234")).toBeInTheDocument();
   });
 
