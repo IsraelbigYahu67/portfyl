@@ -1,5 +1,47 @@
-import { render, screen } from "@testing-library/react";
-import MetricCard from "./MetricCard";
+import { fireEvent, render, screen } from "@testing-library/react";
+import MetricCard, { InfoIcon } from "./MetricCard";
+
+describe("InfoIcon", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders its hovered tooltip in a fixed top-level layer outside clipping ancestors", () => {
+    render(
+      <div data-testid="clipping-parent" style={{ overflow: "hidden" }}>
+        <InfoIcon info={{ title: "Sharpe Ratio", what: "Risk-adjusted return." }} />
+      </div>
+    );
+
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "What is Sharpe Ratio?" }));
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(screen.getByTestId("clipping-parent")).not.toContainElement(tooltip);
+    expect(tooltip.parentElement).toBe(document.body);
+    expect(tooltip).toHaveStyle({ position: "fixed", zIndex: "2147483647" });
+  });
+
+  it("keeps the tooltip inside the viewport near the bottom-right corner", () => {
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(320);
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(240);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function () {
+      if (this.getAttribute("role") === "tooltip") {
+        return { left: 0, top: 0, right: 288, bottom: 100, width: 288, height: 100, x: 0, y: 0, toJSON() {} };
+      }
+      if (this.getAttribute("aria-label") === "What is Beta?") {
+        return { left: 300, top: 220, right: 312, bottom: 232, width: 12, height: 12, x: 300, y: 220, toJSON() {} };
+      }
+      return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0, toJSON() {} };
+    });
+
+    render(<InfoIcon info={{ title: "Beta", what: "Market sensitivity." }} />);
+    const trigger = screen.getByRole("button", { name: "What is Beta?" });
+
+    fireEvent.mouseEnter(trigger);
+
+    expect(screen.getByRole("tooltip")).toHaveStyle({ left: "20px", top: "112px" });
+  });
+});
 
 describe("MetricCard", () => {
   it("renders a pre-formatted string value unchanged (existing call sites)", () => {
