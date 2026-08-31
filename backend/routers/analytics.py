@@ -8,8 +8,8 @@ import numpy as np
 
 from database import get_db
 from models import Transaction, Benchmark, BenchmarkComponent
-from cash_ledger import (TRADE_TYPES, EXTERNAL_FLOW_TYPES, has_external_cashflows,
-                         cash_balance_by_currency, signed_cash)
+from cash_ledger import (TRADE_TYPES, POSITION_TYPES, EXTERNAL_FLOW_TYPES,
+                         has_external_cashflows, cash_balance_by_currency, signed_cash)
 from routers.portfolios import require_portfolio
 from ticker_map import yf_symbol
 from routers.portfolio import _xirr, _live_to_usd
@@ -22,16 +22,17 @@ TRADING_DAYS = 252
 
 
 def _load_close_panel(yf_tickers: list[str], start: date) -> pd.DataFrame:
-    """Download adjusted close prices for the given Yahoo symbols. Returns a
+    """Download actual close prices for the given Yahoo symbols. Returns a
     DataFrame indexed by trading day, columns = yf_tickers (or fewer if Yahoo
-    has no data for some). Empty DataFrame on failure."""
+    has no data for some). Dividends are represented by cash transactions, so
+    adjusted closes would double-count them. Empty DataFrame on failure."""
     if not yf_tickers:
         return pd.DataFrame()
     try:
         raw = yf.download(
             yf_tickers,
             start=start.isoformat(),
-            auto_adjust=True,
+            auto_adjust=False,
             progress=False,
         )
     except Exception:
@@ -111,6 +112,27 @@ def _price_to_usd(price: float, ccy: str, fx_series: dict[str, pd.Series], idx) 
     if not pd.notna(rate) or rate <= 0:
         return float("nan")
     return (float(price) / divisor) * rate
+
+
+def _usd_series_to_display(
+    V: pd.Series,
+    C: pd.Series,
+    start_date: date,
+    display_currency: str,
+) -> tuple[pd.Series, pd.Series]:
+    """Convert aligned USD value/flow series to the dashboard display currency."""
+    if display_currency.upper() != "CZK":
+        return V, C
+    czk_usd = _fx_to_usd_series({"CZK"}, start_date, V.index).get("CZK")
+    if czk_usd is None:
+        fallback = _ccy_to_usd("CZK")
+        if fallback <= 0:
+            return V, C
+        factor = pd.Series(1.0 / fallback, index=V.index)
+    else:
+        factor = 1.0 / czk_usd.replace(0, np.nan)
+    factor = factor.reindex(V.index, method="ffill").ffill().bfill()
+    return V * factor, C * factor
 
 
 def _get_transactions(db: Session, pid: int):
@@ -439,27 +461,38 @@ def _compute_unrealized_gains(transactions: list):
     return unrealized
 
 
-PERIOD_DAYS = {"3m": 90, "6m": 180, "1y": 365, "2y": 730, "all": 3650}
+PERIOD_DAYS = {"7d": 7, "1m": 30, "3m": 90, "6m": 180, "1y": 365, "2y": 730}
 
 
 def _resolve_window(transactions: list, period: str) -> tuple[date, date] | None:
     """Returns (start_date_for_data_pull, window_start_for_trimming) or None."""
-    days = PERIOD_DAYS.get(period, 365)
     first_txn_date = min(t.date for t in transactions)
-    window_start = date.today() - timedelta(days=days)
+    key = period.lower()
+    if key == "all":
+        window_start = first_txn_date
+    elif key == "mtd":
+        window_start = date.today().replace(day=1)
+    elif key == "ytd":
+        window_start = date.today().replace(month=1, day=1)
+    else:
+        window_start = date.today() - timedelta(days=PERIOD_DAYS.get(key, 365))
     # Pull a couple extra days so we have a valid V_{t-1} baseline for the
     # first transaction inside the requested window.
     start_date = max(first_txn_date - timedelta(days=5), window_start - timedelta(days=5))
     return start_date, window_start
 
 
-def _build_value_cashflow_series(transactions: list, start_date: date):
-    """Construct the USD V (market value) and C (external cashflow) series
+def _build_value_cashflow_series(
+    transactions: list,
+    start_date: date,
+    display_currency: str = "USD",
+):
+    """Construct V (net worth) and C (external cashflow) series
     over every trading day on/after start_date. Returns (V, C, closes_index)
     or (None, None, None) if there's no usable price data.
 
-    auto_adjust=True bakes dividend reinvestment into V_t, so dividend
-    transactions are NOT counted as external cashflow.
+    V uses actual closes and the cash ledger, so dividends, interest and lending
+    income raise net worth while fees reduce it. None of those events enter C.
 
     When the portfolio has deposit/withdrawal rows (has_external_cashflows),
     C switches to deposit(+)/withdrawal(-) and V additionally folds in the
@@ -467,7 +500,7 @@ def _build_value_cashflow_series(transactions: list, start_date: date):
     than holdings-only -- buys/sells become internal reallocation between
     cash and positions instead of external cashflow. Portfolios with zero
     deposit/withdrawal rows take the untouched original path (else branch)."""
-    held_tickers = sorted({t.ticker for t in transactions if t.type in ("buy", "sell")})
+    held_tickers = sorted({t.ticker for t in transactions if t.type in POSITION_TYPES and t.ticker})
     if not held_tickers:
         return None, None, None
 
@@ -499,25 +532,28 @@ def _build_value_cashflow_series(transactions: list, start_date: date):
             elif txn.type == "sell":
                 prev = holdings.get(txn.ticker, 0)
                 holdings[txn.ticker] = max(0.0, prev - min(txn.shares, prev))
+            elif txn.type == "split_close":
+                holdings[txn.ticker] = max(0.0, holdings.get(txn.ticker, 0) - txn.shares)
+            elif txn.type == "split_open":
+                holdings[txn.ticker] = holdings.get(txn.ticker, 0) + txn.shares
 
     if has_external_cashflows(transactions):
         # Cash-aware path: deposits(+)/withdrawals(-) are the external
         # cashflow; buys/sells are internal reallocation (cash <-> positions)
         # so they no longer feed C. V additionally folds in the running cash
         # balance (from cash_balance_by_currency, walked forward over the
-        # date index) so it reflects whole-portfolio net worth. Dividends are
-        # excluded from that cash balance -- same reason dividends are
-        # excluded from C above: auto_adjust already prices the dividend into
-        # the holdings series, so crediting the cash again would double-count.
+        # date index) so it reflects whole-portfolio net worth. Actual closes
+        # are used, therefore dividend settlement belongs in cash and is not
+        # double-counted in the position price.
         # Settlement currencies: signed_cash routes trades through their
         # cash_currency (CZK for T212), so build the FX set from it, not from
         # the trade's price currency.
-        cash_ccys = {signed_cash(t)[0] for t in transactions if t.type != "dividend"}
+        cash_ccys = {signed_cash(t)[0] for t in transactions}
         extra_ccys = cash_ccys - set(fx_series.keys()) - {"USD"}
         cash_fx_series = _fx_to_usd_series(extra_ccys, start_date, closes.index) if extra_ccys else {}
         combined_fx = {**fx_series, **cash_fx_series}
 
-        pre_window_cash = [t for t in transactions if t.date < first_trading_day and t.type != "dividend"]
+        pre_window_cash = [t for t in transactions if t.date < first_trading_day]
         cash_txns_to_date: list = list(pre_window_cash)
 
         values: list[float] = []
@@ -529,24 +565,26 @@ def _build_value_cashflow_series(transactions: list, start_date: date):
                 for txn in txns_by_date.pop(d_key):
                     if txn.type == "buy":
                         holdings[txn.ticker] = holdings.get(txn.ticker, 0) + txn.shares
-                        cash_txns_to_date.append(txn)
                     elif txn.type == "sell":
                         prev = holdings.get(txn.ticker, 0)
                         sold = min(txn.shares, prev)
                         holdings[txn.ticker] = max(0.0, prev - sold)
-                        cash_txns_to_date.append(txn)
-                    elif txn.type in EXTERNAL_FLOW_TYPES:
+                    elif txn.type == "split_close":
+                        holdings[txn.ticker] = max(
+                            0.0, holdings.get(txn.ticker, 0) - txn.shares
+                        )
+                    elif txn.type == "split_open":
+                        holdings[txn.ticker] = holdings.get(txn.ticker, 0) + txn.shares
+
+                    if txn.type in EXTERNAL_FLOW_TYPES:
                         # deposit/cashback add external money; withdrawal/card
                         # debit remove it.
                         amt_usd = _price_to_usd(txn.amount, (txn.currency or "USD").upper(), combined_fx, date_idx)
                         if pd.notna(amt_usd):
                             cf_today += amt_usd if txn.type in ("deposit", "cashback") else -amt_usd
-                        cash_txns_to_date.append(txn)
-                    elif txn.type in ("fee", "interest", "fx_in", "fx_out"):
-                        # cash-only internal events: move the balance, not C.
-                        cash_txns_to_date.append(txn)
-                    # dividend: excluded from the cash balance (see docstring
-                    # above) -- already priced into V via the auto_adjust close.
+                    # Every transaction participates in the cash ledger. Split
+                    # rows contribute zero; income/fees/dividends move V but not C.
+                    cash_txns_to_date.append(txn)
 
             v = 0.0
             for tk, sh in holdings.items():
@@ -571,6 +609,7 @@ def _build_value_cashflow_series(transactions: list, start_date: date):
 
         V = pd.Series(values, index=closes.index)
         C = pd.Series(cashflows, index=closes.index)
+        V, C = _usd_series_to_display(V, C, start_date, display_currency)
         return V, C, closes.index
     else:
         values: list[float] = []
@@ -611,6 +650,7 @@ def _build_value_cashflow_series(transactions: list, start_date: date):
 
         V = pd.Series(values, index=closes.index)
         C = pd.Series(cashflows, index=closes.index)
+        V, C = _usd_series_to_display(V, C, start_date, display_currency)
         return V, C, closes.index
 
 
@@ -645,8 +685,9 @@ def _modified_dietz_daily_returns(V: pd.Series, C: pd.Series, window_start: date
         r = (curr - prev - cf) / denom
         if not np.isfinite(r):
             continue
-        # Reject obvious unadjusted corporate-action days; >50% one-day moves on
-        # a diversified portfolio are nearly always data glitches (split, etc).
+        # Keep the existing data-quality guard for genuinely broken price
+        # series. Correctly imported split legs now prevent normal splits from
+        # reaching this branch as false >50% returns.
         if abs(r) > 0.5:
             continue
         out_vals.append(r)
@@ -771,7 +812,12 @@ def risk_metrics(
 ):
     """Time-weighted return based risk metrics, plus benchmark-relative metrics
     against the chosen (or portfolio-default) benchmark."""
-    transactions = _get_transactions(db, pid)
+    transactions = (
+        db.query(Transaction)
+        .filter(Transaction.portfolio_id == pid)
+        .order_by(Transaction.date)
+        .all()
+    )
     if not transactions:
         return {}
 

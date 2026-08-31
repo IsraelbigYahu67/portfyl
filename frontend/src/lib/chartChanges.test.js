@@ -1,4 +1,4 @@
-import { columnChanges } from "./chartChanges";
+import { columnChanges, ttmUnderlayRect } from "./chartChanges";
 
 const rows = (...values) => values.map((value) => ({ value }));
 
@@ -38,5 +38,21 @@ describe("columnChanges", () => {
   it("uses abs(base) when crossing from negative to positive", () => {
     // -10 -> 5 is a +150% swing relative to |−10|.
     expect(columnChanges(rows(-10, 5))).toEqual([null, 150]);
+  });
+});
+
+describe("ttmUnderlayRect", () => {
+  const yScale = (value) => 100 - value;
+
+  it("draws a positive TTM value from the zero baseline", () => {
+    expect(ttmUnderlayRect(yScale, 60)).toEqual({ y: 40, height: 60 });
+  });
+
+  it("draws a negative TTM value from the zero baseline", () => {
+    expect(ttmUnderlayRect(yScale, -30)).toEqual({ y: 100, height: 30 });
+  });
+
+  it("omits an empty underlay at zero", () => {
+    expect(ttmUnderlayRect(yScale, 0)).toBeNull();
   });
 });

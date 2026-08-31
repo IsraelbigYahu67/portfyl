@@ -35,7 +35,7 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const refreshing = useIsFetching() > 0;
   const [period, setPeriod] = useState("All");
-  const [chartMode, setChartMode] = useState("value");
+  const [chartMode, setChartMode] = useState("growth");
   const [activeBenchmarks, setActiveBenchmarks] = useState([]);
   const [moverPeriod, setMoverPeriod] = useState("1d");
   const [moverSort, setMoverSort] = useState("pct");

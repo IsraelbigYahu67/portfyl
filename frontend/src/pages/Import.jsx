@@ -126,7 +126,7 @@ export default function Import() {
           </div>
           <div className="bg-surface-hover rounded-lg p-3 overflow-x-auto">
             <code className="text-xs text-blue-600 font-mono whitespace-pre">
-              {`Action,Time,ISIN,Ticker,Name,No. of shares,Price / share,Currency (Price / share),…
+              {`Action,Time (UTC),ISIN,Ticker,Name,No. of shares,Price / share,Currency (Price / share),…
 Market buy,2024-01-15 09:30:00,US0378331005,AAPL,Apple Inc.,10,185.50,USD,…
 Market sell,2024-06-01 14:00:00,US0378331005,AAPL,Apple Inc.,3,220.00,USD,…
 Dividend (Ordinary),2024-09-15 00:00:00,US5949181045,MSFT,Microsoft,5,0.75,USD,…`}
@@ -135,9 +135,9 @@ Dividend (Ordinary),2024-09-15 00:00:00,US5949181045,MSFT,Microsoft,5,0.75,USD,�
           <div className="flex items-start gap-1.5 text-xs text-muted">
             <Info size={12} className="mt-0.5 shrink-0 text-blue-400" />
             <span>
-              Imports the full history — trades, deposits, withdrawals, interest on cash,
-              dividends, card debits, cashback and currency conversions (share lending
-              interest is ignored). <span className="font-medium text-ink">A Trading 212
+              Imports the full history — trades, deposits, withdrawals, cash and lending
+              interest, dividends, ADR fees, stock splits, card debits, cashback and currency
+              conversions. <span className="font-medium text-ink">A Trading 212
               import always replaces all existing data for this portfolio</span>, so the cash
               balance reconciles with your broker.
             </span>
@@ -252,7 +252,9 @@ Dividend (Ordinary),2024-09-15 00:00:00,US5949181045,MSFT,Microsoft,5,0.75,USD,�
               <div className="flex-1 space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-semibold text-gain">
-                    {result.imported} transaction{result.imported !== 1 ? "s" : ""} imported
+                    {result.processed_events != null
+                      ? `${result.processed_events} event${result.processed_events !== 1 ? "s" : ""} processed (${result.imported} ledger rows)`
+                      : `${result.imported} transaction${result.imported !== 1 ? "s" : ""} imported`}
                   </p>
                   {result.format && (
                     <FormatBadge

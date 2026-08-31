@@ -46,12 +46,17 @@ _T212_ROWS = [
     'Withdrawal,2026-03-09 17:48:08,,,,,019cd3b6-a49f-7866-9cce-5e5335c2f5d5,,,,,,,-500.00,"CZK",,,,,,,,,,',
     'Currency conversion,2026-06-03 11:13:59,,,,"5.00 USD -> 104.08 CZK",TZZIPQ4HBW4VFBP5,,,,,,,-0.16,"CZK",,,5.00,"USD",104.08,"CZK",-0.16,"CZK",,',
     'Lending interest,2026-03-20 05:07:50,,,,"Share lending interest",019d09a4-84d1-7b82-af12-79fcb320cd22,,,,,,,0.06,"CZK",,,,,,,,,,',
+    'ADR Fee,2026-08-25 13:28:09,US83013J1051,SKHY,"Sky Harbour Group",,,0.40000000,-0.02000000,USD,,,,0.00,,,,,,,,,,,',
+    'Stock split open,2026-07-16 07:32:21,US46116X1019,GNPX,"Genprex",,,0.6818181800,45.7893334600,USD,0.04818109,,,646.40,CZK,,,,,,,,,,',
+    'Stock split close,2026-07-16 07:32:21,US46116X1019,GNPX,"Genprex",,,15.0000000000,2.0813333300,USD,0.04818109,,,646.40,CZK,,,,,,,,,,',
 ]
 
 # Hand-computed CZK cash impact of the fixture (Total column, signed by type):
-# +68050 +6.76 -1162.88 +462.24 +837.08 +6.05 -388 +5.82 -500 +104.08 -0.16
-_EXPECTED_CZK = 67420.99
+# +68050 +6.76 -1162.88 +462.24 +837.08 +6.05 -388 +5.82 -500
+# +104.08 -0.16 +0.06. ADR fee is 0.008 USD; split rows have no cash impact.
+_EXPECTED_CZK = 67421.05
 _EXPECTED_USD = -5.00  # the fx_out leg of the currency conversion
+_EXPECTED_USD_WITH_ADR_FEE = -5.008
 
 
 def _normalized_rows():
@@ -69,17 +74,41 @@ def _by_type(rows):
 
 
 class TestNormalizeT212:
-    def test_row_counts_and_lending_interest_skipped(self):
+    def test_time_utc_header_is_accepted(self):
+        csv_text = (_T212_HEADER.replace("Time", "Time (UTC)") + "\n" + _T212_ROWS[0])
+        df = pd.read_csv(io.StringIO(csv_text))
+        df.columns = df.columns.str.lower().str.strip()
+
+        assert _is_t212(set(df.columns))
+        rows, skipped = _normalize_t212(df)
+        assert skipped == 0
+        assert rows[0]["date"] == date(2026, 1, 19)
+
+    def test_all_recognized_events_are_normalized(self):
         rows, skipped = _normalized_rows()
         types = _by_type(rows)
-        assert skipped == 1  # exactly the Lending interest row
-        assert len(rows) == 12
+        assert skipped == 0
+        assert len(rows) == 16
         assert len(types["buy"]) == 1
         assert len(types["sell"]) == 2  # Market sell + Limit sell
         assert len(types["dividend"]) == 1
-        for t in ("deposit", "withdrawal", "interest", "card_debit", "cashback",
-                  "fx_in", "fx_out", "fee"):
+        assert len(types["interest"]) == 2  # cash interest + share-lending income
+        assert len(types["fee"]) == 2       # FX conversion fee + ADR fee
+        assert len(types["split_open"]) == 1
+        assert len(types["split_close"]) == 1
+        for t in ("deposit", "withdrawal", "card_debit", "cashback", "fx_in", "fx_out"):
             assert len(types[t]) == 1, t
+
+    def test_lending_income_and_adr_fee_are_internal_cash_events(self):
+        rows, _ = _normalized_rows()
+        types = _by_type(rows)
+        lending = [r for r in types["interest"] if "lending" in r["notes"].lower()][0]
+        adr = [r for r in types["fee"] if "adr" in r["notes"].lower()][0]
+
+        assert lending["amount"] == pytest.approx(0.06)
+        assert lending["currency"] == "CZK"
+        assert adr["amount"] == pytest.approx(0.008)
+        assert adr["currency"] == "USD"
 
     def test_buy_settlement_and_exact_fx(self):
         rows, _ = _normalized_rows()
@@ -135,7 +164,7 @@ class TestSettlementSignedCash:
     def test_balance_reconciles_with_broker_totals(self):
         balances = cash_balance_by_currency(self._txns())
         assert balances["CZK"] == pytest.approx(_EXPECTED_CZK, abs=0.01)
-        assert balances["USD"] == pytest.approx(_EXPECTED_USD, abs=0.01)
+        assert balances["USD"] == pytest.approx(_EXPECTED_USD_WITH_ADR_FEE, abs=0.001)
 
     def test_buy_pulls_settlement_currency(self):
         buy = make_txn(type="buy", shares=0.67, price=83.50, currency="USD",

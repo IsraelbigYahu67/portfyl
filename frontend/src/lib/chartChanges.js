@@ -20,3 +20,15 @@ export function columnChanges(rows) {
     return ((curr - base) / Math.abs(base)) * 100;
   });
 }
+
+// Convert a TTM value into a full SVG bar from the zero baseline. The actual
+// fiscal-year bar is drawn above this underlay so both values remain visible.
+export function ttmUnderlayRect(yScale, ttmValue) {
+  if (typeof yScale !== "function" || ttmValue == null) return null;
+  const yZero = yScale(0);
+  const yTtm = yScale(ttmValue);
+  const y = Math.min(yZero, yTtm);
+  const height = Math.abs(yZero - yTtm);
+  if (!Number.isFinite(y) || !Number.isFinite(height) || height <= 0) return null;
+  return { y, height };
+}

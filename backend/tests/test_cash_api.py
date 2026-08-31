@@ -16,8 +16,13 @@ from routers.cash import (
     create_cash, list_cash, update_cash, delete_cash, CashCreate,
     get_rates, put_rates, get_balance, RatesPayload, RateItem,
 )
-from routers.portfolio import get_summary, get_transactions
-from routers.analytics import sector_breakdown, _build_value_cashflow_series, _lifetime_money_weighted
+from routers.portfolio import get_summary, get_transactions, get_performance
+from routers.analytics import (
+    sector_breakdown,
+    _build_value_cashflow_series,
+    _lifetime_money_weighted,
+    _modified_dietz_daily_returns,
+)
 from cash_ledger import has_external_cashflows, TRADE_TYPES
 from tests.helpers import make_txn
 
@@ -485,3 +490,96 @@ def test_returns_use_deposits_as_external_cashflows(db_session, pid):
     # (+2150 @ frozen "today"), reflecting contributed capital rather than
     # the trade.
     assert lifetime["xirr"] == pytest.approx(134.32, abs=0.01)
+
+
+def test_daily_net_worth_counts_dividends_interest_and_fees_as_return():
+    """Dropping any internal cash event from V must change the expected 1.3% return."""
+    txns = [
+        make_txn(ticker=None, type="deposit", shares=0, price=0, amount=1000,
+                 currency="USD", date=date(2024, 1, 1)),
+        make_txn("AAPL", "buy", 10, 100, currency="USD", cash_amount=1000,
+                 cash_currency="USD", date=date(2024, 1, 1)),
+        make_txn("AAPL", "dividend", 10, 1, currency="USD", cash_amount=10,
+                 cash_currency="USD", date=date(2024, 1, 2)),
+        make_txn(ticker=None, type="interest", shares=0, price=0, amount=5,
+                 currency="USD", date=date(2024, 1, 2)),
+        make_txn(ticker=None, type="fee", shares=0, price=0, amount=2,
+                 currency="USD", date=date(2024, 1, 2)),
+    ]
+    idx = pd.date_range("2024-01-01", periods=2, freq="D")
+    with patch("routers.analytics.yf.download", return_value=_mock_price_panel(idx, [100, 100])), \
+         patch("routers.analytics.market_data.get_infos", return_value={"AAPL": {"currency": "USD"}}):
+        V, C, _ = _build_value_cashflow_series(txns, date(2024, 1, 1))
+        daily = _modified_dietz_daily_returns(V, C, date(2024, 1, 1))
+
+    assert V.tolist() == pytest.approx([1000, 1013])
+    assert C.tolist() == pytest.approx([1000, 0])
+    assert daily.tolist() == pytest.approx([0.013])
+
+
+def test_stock_split_preserves_value_and_cost_without_cashflow():
+    """Ignoring either split leg must distort the ending shares or daily return."""
+    txns = [
+        make_txn(ticker=None, type="deposit", shares=0, price=0, amount=1000,
+                 currency="USD", date=date(2024, 1, 1)),
+        make_txn("GNPX", "buy", 10, 100, currency="USD", cash_amount=1000,
+                 cash_currency="USD", date=date(2024, 1, 1)),
+        make_txn("GNPX", "split_open", 5, 200, currency="USD", date=date(2024, 1, 2)),
+        make_txn("GNPX", "split_close", 10, 100, currency="USD", date=date(2024, 1, 2)),
+    ]
+    idx = pd.date_range("2024-01-01", periods=2, freq="D")
+    with patch("routers.analytics.yf.download", return_value=_mock_price_panel(idx, [100, 200])), \
+         patch("routers.analytics.market_data.get_infos", return_value={"GNPX": {"currency": "USD"}}):
+        V, C, _ = _build_value_cashflow_series(txns, date(2024, 1, 1))
+        daily = _modified_dietz_daily_returns(V, C, date(2024, 1, 1))
+
+    holding = _build_holdings(txns)["GNPX"]
+    assert holding["shares"] == pytest.approx(5)
+    assert holding["cost"] == pytest.approx(1000)
+    assert V.tolist() == pytest.approx([1000, 1000])
+    assert C.tolist() == pytest.approx([1000, 0])
+    assert daily.tolist() == pytest.approx([0])
+
+
+def test_modified_dietz_weights_external_flow_and_geometrically_links_days():
+    """Treating cashback as return or arithmetically summing days breaks this literal."""
+    txns = [
+        make_txn(ticker=None, type="deposit", shares=0, price=0, amount=1000,
+                 currency="USD", date=date(2024, 1, 1)),
+        make_txn("AAPL", "buy", 10, 100, currency="USD", cash_amount=1000,
+                 cash_currency="USD", date=date(2024, 1, 1)),
+        make_txn(ticker=None, type="cashback", shares=0, price=0, amount=100,
+                 currency="USD", date=date(2024, 1, 2)),
+    ]
+    idx = pd.date_range("2024-01-01", periods=3, freq="D")
+    with patch("routers.analytics.yf.download", return_value=_mock_price_panel(idx, [100, 110, 121])), \
+         patch("routers.analytics.market_data.get_infos", return_value={"AAPL": {"currency": "USD"}}):
+        V, C, _ = _build_value_cashflow_series(txns, date(2024, 1, 1))
+        daily = _modified_dietz_daily_returns(V, C, date(2024, 1, 1))
+
+    assert V.tolist() == pytest.approx([1000, 1200, 1310])
+    assert C.tolist() == pytest.approx([1000, 100, 0])
+    assert daily.tolist() == pytest.approx([0.0952380952, 0.0916666667])
+    assert float((1 + daily).prod() - 1) == pytest.approx(0.1956349206)
+
+
+def test_performance_endpoint_returns_net_worth_and_cumulative_twr(db_session, pid):
+    """Using holdings-only value or treating cashback as return breaks the endpoint."""
+    txns = [
+        make_txn(ticker=None, type="deposit", shares=0, price=0, amount=1000,
+                 currency="USD", date=date(2024, 1, 1), portfolio_id=pid),
+        make_txn("AAPL", "buy", 10, 100, currency="USD", cash_amount=1000,
+                 cash_currency="USD", date=date(2024, 1, 1), portfolio_id=pid),
+        make_txn(ticker=None, type="cashback", shares=0, price=0, amount=100,
+                 currency="USD", date=date(2024, 1, 2), portfolio_id=pid),
+    ]
+    db_session.add_all(txns)
+    db_session.commit()
+    idx = pd.date_range("2024-01-01", periods=3, freq="D")
+
+    with patch("routers.analytics.yf.download", return_value=_mock_price_panel(idx, [100, 110, 121])), \
+         patch("routers.analytics.market_data.get_infos", return_value={"AAPL": {"currency": "USD"}}):
+        result = get_performance(currency="USD", period="all", db=db_session, pid=pid)
+
+    assert [row["value"] for row in result] == pytest.approx([1000, 1200, 1310])
+    assert [row["pnl_pct"] for row in result] == pytest.approx([0, 9.52, 19.56], abs=0.01)

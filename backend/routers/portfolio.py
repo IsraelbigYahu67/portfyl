@@ -10,7 +10,7 @@ from datetime import datetime
 
 from database import get_db
 from models import Transaction
-from cash_ledger import TRADE_TYPES
+from cash_ledger import TRADE_TYPES, POSITION_TYPES
 from schemas import TransactionCreate, TransactionResponse
 from fx import fetch_fx_to_czk, bulk_fetch_fx
 from routers.portfolios import require_portfolio
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 # Trading 212 CSV normalisation
 # ---------------------------------------------------------------------------
 
-_T212_SIGNATURE = {"action", "time", "no. of shares", "price / share", "ticker"}
+_T212_SIGNATURE = {"action", "no. of shares", "price / share", "ticker"}
 
 _T212_BUY_ACTIONS = {
     "market buy", "limit buy", "stop buy", "buy"
@@ -36,17 +36,17 @@ _T212_CASH_ACTIONS = {
     "deposit": "deposit",
     "withdrawal": "withdrawal",
     "interest on cash": "interest",
+    "lending interest": "interest",
     "card debit": "card_debit",
     "spending cashback": "cashback",
 }
-# Recognised and deliberately ignored (user decision: share lending is out of scope).
 _T212_SKIP_ACTIONS = {
-    "lending interest", "cash in", "cash out", "result from positions",
+    "cash in", "cash out", "result from positions",
 }
 
 
 def _is_t212(cols: set) -> bool:
-    return _T212_SIGNATURE.issubset(cols)
+    return _T212_SIGNATURE.issubset(cols) and bool({"time", "time (utc)"} & cols)
 
 
 def _t212_action_to_type(action: str) -> str | None:
@@ -95,7 +95,10 @@ def _normalize_t212(df: pd.DataFrame) -> tuple[list[dict], int]:
     for _, row in df.iterrows():
         raw_action = str(row.get("action", "")).strip()
         try:
-            txn_date = pd.to_datetime(str(row["time"])).date()
+            raw_time = row.get("time (utc)")
+            if raw_time is None or pd.isna(raw_time):
+                raw_time = row.get("time")
+            txn_date = pd.to_datetime(str(raw_time), utc=True).date()
         except Exception:
             skipped += 1
             continue
@@ -103,6 +106,47 @@ def _normalize_t212(df: pd.DataFrame) -> tuple[list[dict], int]:
         total = _t212_num(row, "total")
         total_ccy = _t212_str(row, "currency (total)", "CZK").upper()
         action_lc = raw_action.lower()
+
+        if action_lc == "adr fee":
+            shares = _t212_num(row, "no. of shares") or 0.0
+            price = _t212_num(row, "price / share") or 0.0
+            amount = abs(total) if total else abs(shares * price)
+            currency = total_ccy if total and total_ccy else \
+                _t212_str(row, "currency (price / share)", "USD").upper()
+            if amount <= 0:
+                skipped += 1
+                continue
+            ticker = _t212_str(row, "ticker").upper()
+            rows.append({"ticker": None, "name": None, "type": "fee",
+                         "shares": 0.0, "price": 0.0, "amount": amount,
+                         "currency": currency, "date": txn_date,
+                         "notes": f"T212: ADR fee{f' ({ticker})' if ticker else ''}"})
+            continue
+
+        if action_lc in {"stock split open", "stock split close"}:
+            ticker = _t212_str(row, "ticker").upper()
+            shares = _t212_num(row, "no. of shares")
+            price = _t212_num(row, "price / share")
+            if not ticker or shares is None or price is None:
+                skipped += 1
+                continue
+            currency = _t212_str(row, "currency (price / share)", "USD").upper()
+            rate = _t212_num(row, "exchange rate")
+            fx_to_czk = 1.0 if currency == "CZK" else (1.0 / rate if rate else None)
+            rows.append({
+                "ticker": ticker,
+                "name": _t212_str(row, "name", ticker),
+                "type": "split_open" if action_lc.endswith("open") else "split_close",
+                "shares": abs(shares),
+                "price": abs(price),
+                "currency": currency,
+                "date": txn_date,
+                "notes": f"T212: {raw_action}",
+                "fx_to_czk": fx_to_czk,
+                "cash_amount": None,
+                "cash_currency": None,
+            })
+            continue
 
         if action_lc == "currency conversion":
             from_amt = _t212_num(row, "currency conversion from amount")
@@ -206,7 +250,7 @@ def _pence_to_pounds(price: float, ccy: str) -> tuple[float, str]:
     return price, ccy
 
 
-_TXN_TYPE_ORDER = {"buy": 0, "dividend": 1, "sell": 2}
+_TXN_TYPE_ORDER = {"buy": 0, "split_close": 1, "split_open": 2, "dividend": 3, "sell": 4}
 
 
 def _portfolio_txns(db: Session, pid: int):
@@ -224,7 +268,7 @@ def _build_holdings(transactions: list, include_closed: bool = False,
     disp_rate = _live_fx_to_czk(display_ccy, fx_fallback) if display_ccy else None
     holdings: dict[str, dict] = {}
     for txn in sorted(transactions, key=lambda t: (t.date, _TXN_TYPE_ORDER.get(t.type, 1))):
-        if txn.type not in TRADE_TYPES or not txn.ticker:
+        if txn.type not in POSITION_TYPES or not txn.ticker:
             continue  # cash rows (deposit/withdrawal/fee/interest/...) never affect holdings
         t = txn.ticker
         if disp_rate:
@@ -254,6 +298,10 @@ def _build_holdings(transactions: list, include_closed: bool = False,
                 holdings[t]["shares"] = max(0.0, holdings[t]["shares"])
                 holdings[t]["cost"] = max(0.0, holdings[t]["cost"])
                 holdings[t]["cost_native"] = max(0.0, holdings[t]["cost_native"])
+        elif txn.type == "split_close":
+            holdings[t]["shares"] = max(0.0, holdings[t]["shares"] - txn.shares)
+        elif txn.type == "split_open":
+            holdings[t]["shares"] += txn.shares
         elif txn.type == "dividend":
             holdings[t]["dividends"] += txn.shares * txn.price * fx
     if include_closed:
@@ -420,26 +468,38 @@ async def import_csv(
     # `replace` deletes the existing rows in the SAME transaction as the insert
     # so a malformed upload can never wipe the portfolio and leave nothing
     # behind (previously the delete was committed up-front).
-    if replace:
-        _portfolio_txns(db, pid).delete(synchronize_session=False)
-
     # Backfill FX only where the normaliser couldn't derive an exact rate from
     # the file itself (T212 rows carry their own; CZK rows are 1.0).
     fx_needed = {(r["currency"], r["date"]) for r in new_rows if not r.get("fx_to_czk")}
     fx_map = bulk_fetch_fx(fx_needed)
+    prepared: list[Transaction] = []
     for r in new_rows:
         try:
             if not r.get("fx_to_czk"):
                 ccy = r["currency"].upper()
                 r["fx_to_czk"] = 1.0 if ccy == "CZK" else fx_map.get((ccy, r["date"]))
-            db.add(Transaction(**r, portfolio_id=pid))
-            imported += 1
+            r["source"] = "csv"
+            prepared.append(Transaction(**r, portfolio_id=pid))
         except Exception as e:
             errors.append(str(e))
 
-    db.commit()
+    if errors:
+        db.rollback()
+        raise HTTPException(status_code=400, detail={"message": "CSV validation failed", "errors": errors})
+
+    try:
+        if replace:
+            _portfolio_txns(db, pid).delete(synchronize_session=False)
+        db.add_all(prepared)
+        db.flush()
+        imported = len(prepared)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Import rolled back: {e}")
+
     return {"imported": imported, "skipped": skipped, "errors": errors, "format": fmt,
-            "replaced": replace}
+            "replaced": replace, "events": len(df), "processed_events": len(df) - skipped}
 
 
 @router.get("/holdings")
@@ -597,6 +657,12 @@ def get_summary(
     total_dividends = sum(
         t.shares * t.price * _txn_fx(t) for t in transactions if t.type == "dividend"
     )
+    total_interest = sum(
+        (t.amount or 0.0) * _txn_fx(t) for t in transactions if t.type == "interest"
+    )
+    total_fees = sum(
+        (t.amount or 0.0) * _txn_fx(t) for t in transactions if t.type == "fee"
+    )
 
     # Realized P&L from FIFO-style avg-cost matching, mirroring the per-date
     # logic in /performance so the metric card matches the chart's latest point.
@@ -618,8 +684,14 @@ def get_summary(
                 realized_pnl += sold * (txn.price * fx - avg)
                 shares_open[txn.ticker] = prev - sold
                 cost_open[txn.ticker] = max(0.0, cost_open.get(txn.ticker, 0.0) - sold * avg)
+        elif txn.type == "split_close":
+            shares_open[txn.ticker] = max(
+                0.0, shares_open.get(txn.ticker, 0.0) - txn.shares
+            )
+        elif txn.type == "split_open":
+            shares_open[txn.ticker] = shares_open.get(txn.ticker, 0.0) + txn.shares
 
-    total_pnl = unrealized_pnl + realized_pnl + total_dividends
+    total_pnl = unrealized_pnl + realized_pnl + total_dividends + total_interest - total_fees
     total_pnl_pct = (total_pnl / cum_buys_cost * 100) if cum_buys_cost > 0 else 0
 
     # Day change — authoritative, reuses the movers 2-day-close logic across ALL
@@ -1066,178 +1138,50 @@ def get_performance(
     transactions = _portfolio_txns(db, pid).order_by(Transaction.date).all()
     if not transactions:
         return []
+    # Imported full-history portfolios contain their actual cash ledger. Reuse
+    # the analytics engine so this chart and risk metrics share one definition:
+    # V = positions + cash in every currency; C = external flows only.
+    from routers.analytics import (
+        _build_value_cashflow_series,
+        _modified_dietz_daily_returns,
+        _resolve_window,
+    )
 
-    tickers = list({t.ticker for t in transactions if t.type in ("buy", "sell")})
-    if not tickers:
+    start_date, window_start = _resolve_window(transactions, period)
+    V, C, _ = _build_value_cashflow_series(
+        transactions, start_date, display_currency=currency
+    )
+    if V is None or V.empty:
         return []
 
-    # Map broker symbol -> Yahoo symbol; download under Yahoo's name, then
-    # rename the result columns back so the rest of the loop matches by the
-    # user's stored ticker.
-    yf_to_orig: dict[str, str] = {}
-    for t in tickers:
-        yf_to_orig.setdefault(yf_symbol(t), t)
-    yf_tickers = list(yf_to_orig.keys())
-
-    start_date = _resolve_start_date(period, transactions[0].date)
-
-    try:
-        first_date = start_date.strftime("%Y-%m-%d")
-        raw = yf.download(yf_tickers, start=first_date, auto_adjust=True, progress=False)
-        if len(yf_tickers) == 1:
-            closes = raw[["Close"]].rename(columns={"Close": yf_tickers[0]})
-        else:
-            closes = raw["Close"] if "Close" in raw.columns else raw
-        closes = closes.rename(columns=yf_to_orig)
-    except Exception:
+    mask = V.index >= pd.Timestamp(window_start)
+    window_values = V.loc[mask]
+    if window_values.empty:
         return []
+    window_flows = C.reindex(window_values.index).fillna(0.0)
+    daily_returns = _modified_dietz_daily_returns(V, C, window_start)
 
-    closes = closes.ffill().dropna(how="all")
-
-    fx_rates: pd.Series | None = None
-    if currency.upper() == "CZK":
-        try:
-            fx_raw = yf.download("USDCZK=X", start=first_date, auto_adjust=True, progress=False)
-            if not fx_raw.empty:
-                close_col = fx_raw["Close"]
-                if hasattr(close_col, "squeeze"):
-                    close_col = close_col.squeeze()
-                fx_rates = close_col.reindex(closes.index, method="ffill").ffill()
-        except Exception:
-            fx_rates = None
-
-    result = []
-
-    for date_idx in closes.index:
-        date_str = str(date_idx.date())
-        curr_date = date_idx.date()
-        holdings: dict[str, float] = {}
-        cost_basis: dict[str, float] = {}
-        realized_to_date = 0.0
-        dividends_to_date = 0.0
-        cum_buys_cost = 0.0
-
-        for txn in transactions:
-            if txn.date > curr_date:
-                break
-            if txn.type == "buy":
-                holdings[txn.ticker] = holdings.get(txn.ticker, 0) + txn.shares
-                cost_basis[txn.ticker] = cost_basis.get(txn.ticker, 0) + txn.shares * txn.price
-                cum_buys_cost += txn.shares * txn.price
-            elif txn.type == "sell":
-                prev = holdings.get(txn.ticker, 0)
-                if prev > 0:
-                    avg = cost_basis.get(txn.ticker, 0) / prev
-                    sold = min(txn.shares, prev)
-                    realized_to_date += sold * (txn.price - avg)
-                    holdings[txn.ticker] = prev - sold
-                    cost_basis[txn.ticker] = max(0.0, cost_basis.get(txn.ticker, 0) - sold * avg)
-            elif txn.type == "dividend":
-                dividends_to_date += txn.shares * txn.price
-
-        invested = sum(cost_basis.values())
-
-        portfolio_value = 0.0
-        for ticker, shares in holdings.items():
-            if shares <= 0:
-                continue
-            try:
-                price = float(closes.loc[date_idx, ticker]) if ticker in closes.columns else 0
-                if pd.notna(price):
-                    portfolio_value += shares * price
-            except Exception:
-                pass
-
-        fx_rate = 1.0
-        if fx_rates is not None:
-            try:
-                r = float(fx_rates.loc[date_idx])
-                if pd.notna(r) and r > 0:
-                    fx_rate = r
-            except Exception:
-                pass
-
-        unrealized = portfolio_value - invested
-        total_pnl_native = unrealized + realized_to_date + dividends_to_date
-        total_pnl_pct = (total_pnl_native / cum_buys_cost * 100) if cum_buys_cost > 0 else 0.0
-
+    baseline = float(window_values.iloc[0])
+    cumulative_external = 0.0
+    cumulative_twr = 1.0
+    result: list[dict] = []
+    for i, (date_idx, value) in enumerate(window_values.items()):
+        if i > 0:
+            cumulative_external += float(window_flows.loc[date_idx])
+            if date_idx in daily_returns.index:
+                cumulative_twr *= 1.0 + float(daily_returns.loc[date_idx])
+        pnl = float(value) - baseline - cumulative_external
+        pnl_pct = (cumulative_twr - 1.0) * 100.0
+        invested = baseline + cumulative_external
         result.append({
-            "date": date_str,
-            "value": round(portfolio_value * fx_rate, 2),
-            "invested": round(invested * fx_rate, 2),
-            "total_pnl": round(total_pnl_native * fx_rate, 2),
-            "total_pnl_pct": round(total_pnl_pct, 2),
+            "date": str(date_idx.date()),
+            "value": round(float(value), 2),
+            "invested": round(invested, 2),
+            "pnl": round(pnl, 2),
+            "pnl_pct": round(pnl_pct, 2),
+            "total_pnl": round(pnl, 2),
+            "total_pnl_pct": round(pnl_pct, 2),
         })
-
-    # Period-rebased metrics: pnl & pnl_pct reflect growth since the first day
-    # of the selected timeframe, not lifetime. This keeps tooltip numbers
-    # consistent across 7D/MTD/1M/3M/YTD/1Y/All and comparable to benchmarks.
-    from bisect import bisect_left
-
-    def _fx(d):
-        if fx_rates is None:
-            return 1.0
-        try:
-            idx = pd.Timestamp(d)
-            earlier = fx_rates[fx_rates.index <= idx]
-            if not earlier.empty:
-                v = float(earlier.iloc[-1])
-                return v if pd.notna(v) and v > 0 else 1.0
-        except Exception:
-            pass
-        return 1.0
-
-    result_dates = [
-        datetime.strptime(r["date"], "%Y-%m-%d").date()
-        if isinstance(r["date"], str) else r["date"]
-        for r in result
-    ]
-    baseline_date = result_dates[0] if result_dates else None
-
-    # Bucket each buy/sell as an external contribution into the result row on or
-    # after the txn date, and dividends as portfolio return (cash that augments
-    # value without changing capital base). Flows on the baseline day itself
-    # are folded into V0 (the opening value) and excluded here.
-    bucketed_contribs = [0.0] * len(result)
-    bucketed_divs = [0.0] * len(result)
-    for txn in transactions:
-        if baseline_date is None or txn.date <= baseline_date:
-            continue
-        idx = bisect_left(result_dates, txn.date)
-        if idx >= len(result_dates):
-            continue
-        fx = (txn.fx_to_czk or _fx(txn.date)) if currency.upper() == "CZK" else 1.0
-        amt = txn.shares * txn.price * fx
-        if txn.type == "buy":
-            bucketed_contribs[idx] += amt
-        elif txn.type == "sell":
-            bucketed_contribs[idx] -= amt
-        elif txn.type == "dividend":
-            bucketed_divs[idx] += amt
-
-    V0 = result[0]["value"] if result else 0.0
-    cum_contrib = 0.0
-    cum_div = 0.0
-    prev_value = V0
-    cum_twr = 1.0
-
-    for i, r in enumerate(result):
-        if i == 0:
-            r["pnl"] = 0.0
-            r["pnl_pct"] = 0.0
-            prev_value = r["value"]
-            continue
-        today_contrib = bucketed_contribs[i]
-        today_div = bucketed_divs[i]
-        cum_contrib += today_contrib
-        cum_div += today_div
-        v = r["value"]
-        base = prev_value + today_contrib
-        if base > 0:
-            cum_twr *= (1 + (v + today_div - base) / base)
-        r["pnl"] = round(v - V0 - cum_contrib + cum_div, 2)
-        r["pnl_pct"] = round((cum_twr - 1) * 100, 2)
-        prev_value = v
 
     return result
 

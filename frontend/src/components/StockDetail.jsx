@@ -8,14 +8,15 @@ import {
 import {
   ArrowDownRight, ArrowUpRight, Building2, ChevronDown, ChevronUp,
   ExternalLink, Eye, EyeOff, Flame, Globe, Info, Landmark, RotateCcw, Settings2,
-  TrendingDown, TrendingUp, Users,
+  TrendingDown, TrendingUp, Users, X,
 } from "lucide-react";
 import {
   fetchHistory, fetchStockDividendGrowth, fetchShibuiFilings, fetchShibuiInsiders,
   fetchShibuiActivistStakes, fetchShibuiStrategicInvestors, fetchShibuiEarningsRecap,
   fetchShibuiValuationHistory, fetchPoliticianTrades,
 } from "../api";
-import { columnChanges } from "../lib/chartChanges";
+import { columnChanges, ttmUnderlayRect } from "../lib/chartChanges";
+import { formatShortDate } from "../lib/format";
 import { buildWeeklyBuckets, assignTransactionsToWeeks, jitterOffsetPx } from "../lib/insiderWeekly";
 import useStockReportConfig, { ALL_SECTIONS } from "../hooks/useStockReportConfig";
 import {
@@ -23,6 +24,10 @@ import {
 } from "../lib/chartTheme";
 import { KpiBox } from "./ui";
 import ShinyText from "./reactbits/ShinyText";
+
+const TTM_COLOR = "#9b7bd1";
+const TTM_SIDE_REVEAL = 2;
+const TTM_RADIUS = 4;
 
 // ---------------------------------------------------------------------------
 // Navigation helpers
@@ -65,15 +70,15 @@ export function TickerLink({ ticker, className = "", children }) {
 // Formatting helpers
 // ---------------------------------------------------------------------------
 
-function fmtCompact(v, currencySymbol = "$") {
+function fmtCompact(v, currencySymbol = "$", decimals = 2) {
   if (v == null) return "—";
   const abs = Math.abs(v);
   const sign = v < 0 ? "-" : "";
-  if (abs >= 1e12) return `${sign}${currencySymbol}${(abs / 1e12).toFixed(2)}T`;
-  if (abs >= 1e9) return `${sign}${currencySymbol}${(abs / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `${sign}${currencySymbol}${(abs / 1e6).toFixed(2)}M`;
-  if (abs >= 1e3) return `${sign}${currencySymbol}${(abs / 1e3).toFixed(2)}K`;
-  return `${sign}${currencySymbol}${abs.toFixed(2)}`;
+  if (abs >= 1e12) return `${sign}${currencySymbol}${(abs / 1e12).toFixed(decimals)}T`;
+  if (abs >= 1e9) return `${sign}${currencySymbol}${(abs / 1e9).toFixed(decimals)}B`;
+  if (abs >= 1e6) return `${sign}${currencySymbol}${(abs / 1e6).toFixed(decimals)}M`;
+  if (abs >= 1e3) return `${sign}${currencySymbol}${(abs / 1e3).toFixed(decimals)}K`;
+  return `${sign}${currencySymbol}${abs.toFixed(decimals)}`;
 }
 
 function fmtMoney(v, currencySymbol = "$") {
@@ -167,7 +172,7 @@ function currencySymbol(code) {
 // change inside the tick keeps it centred under its column at any chart
 // width. The change line uses the darker 700-shade green/red plus a bold
 // weight so it stays readable at chart-axis size.
-function ChangeTick({ x, y, payload, index, changes, fontSize = 10 }) {
+function ChangeTick({ x, y, payload, index, changes, fontSize = 11, changeFontSize = 11, changeDecimals = 1 }) {
   const change = changes?.[payload?.index ?? index] ?? null;
   return (
     <g transform={`translate(${x},${y})`}>
@@ -179,51 +184,40 @@ function ChangeTick({ x, y, payload, index, changes, fontSize = 10 }) {
           dy={24}
           textAnchor="middle"
           fill={change >= 0 ? "#047857" : "#b91c1c"}
-          fontSize={10}
+          fontSize={changeFontSize}
           fontWeight={700}
         >
-          {fmtPct(change, 1)}
+          {fmtPct(change, changeDecimals)}
         </text>
       )}
     </g>
   );
 }
 
-// Dotted, semi-transparent purple overlay marking the TTM level on top of the
-// last full-year bar (annual view) — TTM shares that column instead of getting
-// its own. Rendered through recharts' Customized layer: formattedGraphicalItems
-// carries the Bar's computed rectangles, so the overlay aligns exactly with
-// the bar it decorates, and a dashed line pins the precise TTM level.
-function TtmOverlay({ formattedGraphicalItems, yAxisMap, ttm, patternId }) {
+// Rounded TTM backplate drawn underneath the latest actual bar. Its two-pixel
+// shoulders stay visible even when TTM is lower, while the actual bar remains
+// intact on top and naturally hides the shared centre of the underlay.
+function TtmUnderlay({ formattedGraphicalItems, yAxisMap, ttm }) {
   if (ttm == null) return null;
   const rects = formattedGraphicalItems?.[0]?.props?.data;
   const yScale = yAxisMap && Object.values(yAxisMap)[0]?.scale;
   if (!rects?.length || !yScale) return null;
   const target = rects.find((r) => r?.payload?.hasTtmOverlay);
   if (!target || target.x == null || target.width == null) return null;
-  const yZero = yScale(0);
-  const yTtm = yScale(ttm);
-  const top = Math.min(yZero, yTtm);
-  const height = Math.abs(yZero - yTtm);
-  if (!Number.isFinite(top) || !Number.isFinite(height) || height <= 0) return null;
+  const underlay = ttmUnderlayRect(yScale, ttm);
+  if (!underlay) return null;
   return (
     // Decoration only — must not swallow hover events meant for the bar
     // underneath (the tooltip would otherwise never fire on this column).
     <g pointerEvents="none">
-      <defs>
-        <pattern id={patternId} width="6" height="6" patternUnits="userSpaceOnUse">
-          <circle cx="3" cy="3" r="2.4" fill={CATEGORICAL[3]} fillOpacity="0.55" />
-        </pattern>
-      </defs>
-      <rect x={target.x} y={top} width={target.width} height={height} fill={`url(#${patternId})`} />
-      <line
-        x1={target.x}
-        x2={target.x + target.width}
-        y1={yTtm}
-        y2={yTtm}
-        stroke={CATEGORICAL[3]}
-        strokeWidth={1.5}
-        strokeDasharray="3 2"
+      <rect
+        x={target.x - TTM_SIDE_REVEAL}
+        y={underlay.y}
+        width={target.width + TTM_SIDE_REVEAL * 2}
+        height={underlay.height}
+        rx={TTM_RADIUS}
+        ry={TTM_RADIUS}
+        fill={TTM_COLOR}
       />
     </g>
   );
@@ -237,8 +231,8 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
   if (!years?.length) {
     return (
       <div className="bg-surface rounded-lg p-4 flex flex-col h-full">
-        <h3 className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">{name}</h3>
-        <div className="flex-1 flex items-center justify-center text-muted text-xs">
+        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-1">{name}</h3>
+        <div className="flex-1 flex items-center justify-center text-muted text-sm">
           No data
         </div>
       </div>
@@ -264,8 +258,8 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
     value: values[i],
     yoy: yoy?.[i] ?? null,
   }));
-  // TTM doesn't get its own column — it overlays the last full-year bar as a
-  // dotted purple level (annual view only), keeping the axis to real periods.
+  // TTM doesn't get its own column — a rounded purple underlay shares the last
+  // full-year column and remains visible at its sides (annual view only).
   const showTtmOverlay = ttm != null && !isQuarterly && !isCount && data.length > 0;
   const rows = data;
   // Change vs the previous column (YoY annual / QoQ quarterly), shown as a
@@ -291,7 +285,7 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
   return (
     <div className="bg-surface rounded-lg p-4 flex flex-col">
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">{name}</h3>
+        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">{name}</h3>
         <div className="flex flex-col items-end text-[10px] gap-0.5">
           <span className="text-muted">
             CAGR{" "}
@@ -307,8 +301,8 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
           </span>
         </div>
       </div>
-      <div className="text-lg font-bold tabular-nums">{fmtVal(values[values.length - 1])}</div>
-      <div className="h-32 mt-2">
+      <div className="text-xl font-bold tabular-nums">{fmtVal(values[values.length - 1])}</div>
+      <div className="h-36 mt-2">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rowsWithChange} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
             <CartesianGrid strokeDasharray="2 4" stroke={GRID_STROKE} vertical={false} />
@@ -316,9 +310,14 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
               dataKey="year"
               tick={
                 showChangeLine ? (
-                  <ChangeTick changes={changes} fontSize={isQuarterly ? 8 : 10} />
+                  <ChangeTick
+                    changes={changes}
+                    fontSize={isQuarterly ? 9 : 11}
+                    changeFontSize={rows.length > 7 ? 9 : 11}
+                    changeDecimals={rows.length > 7 ? 0 : 1}
+                  />
                 ) : (
-                  { ...AXIS_TICK, fontSize: isQuarterly ? 8 : 10 }
+                  { ...AXIS_TICK, fontSize: isQuarterly ? 9 : 11 }
                 )
               }
               tickLine={false}
@@ -329,13 +328,13 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
               height={showChangeLine ? 34 : isQuarterly && data.length > 6 ? 28 : 16}
             />
             <YAxis
-              tick={{ ...AXIS_TICK, fontSize: 9 }}
+              tick={{ ...AXIS_TICK, fontSize: 10 }}
               tickFormatter={(v) =>
-                isPerShare ? v.toFixed(1) : fmtCompact(v, "").replace("$", "")
+                isPerShare ? v.toFixed(1) : fmtCompact(v, "", 0)
               }
               tickLine={false}
               axisLine={false}
-              width={40}
+              width={48}
               // The TTM overlay isn't a bar, so when it exceeds every bar the
               // domain must be widened by hand (with 5% headroom) or the
               // overlay would draw past the plot area.
@@ -351,7 +350,7 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
                 if (!active || !payload?.length) return null;
                 const row = payload[0].payload;
                 return (
-                  <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg">
+                  <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-sm shadow-lg">
                     <div className="text-muted">{row.year}</div>
                     <div className="font-semibold text-ink">{fmtVal(row.value)}</div>
                     {row.yoy != null && (
@@ -365,24 +364,22 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
                       </div>
                     )}
                     {row.hasTtmOverlay && (
-                      <div className="text-violet-600">TTM {fmtVal(ttm)}</div>
+                      <div style={{ color: TTM_COLOR }}>TTM {fmtVal(ttm)}</div>
                     )}
                   </div>
                 );
               }}
             />
+            {showTtmOverlay && (
+              <Customized
+                component={(cp) => <TtmUnderlay {...cp} ttm={ttm} />}
+              />
+            )}
             <Bar dataKey="value" radius={[3, 3, 0, 0]}>
               {rows.map((d, i) => (
                 <Cell key={i} fill={isCount ? CATEGORICAL[3] : d.value >= 0 ? GAIN_COLOR : LOSS_COLOR} />
               ))}
             </Bar>
-            {showTtmOverlay && (
-              <Customized
-                component={(cp) => (
-                  <TtmOverlay {...cp} ttm={ttm} patternId={`ttm-dots-${name.replace(/\W+/g, "-")}`} />
-                )}
-              />
-            )}
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -410,7 +407,7 @@ function ratingColor(score) {
 function AnalystBar({ label, count, total, color }) {
   const pct = total > 0 ? (count / total) * 100 : 0;
   return (
-    <div className="flex items-center gap-2 text-xs">
+    <div className="flex items-center gap-2 text-sm">
       <span className="w-20 text-muted">{label}</span>
       <div className="flex-1 bg-surface rounded-full h-2 overflow-hidden">
         <div
@@ -481,17 +478,17 @@ function ValuationMethodRow({ row, currentPrice, cs }) {
   return (
     <div className="grid grid-cols-[1fr_auto_auto] gap-3 items-baseline py-2 border-b border-surface-border last:border-0">
       <div className="min-w-0">
-        <div className="text-sm text-ink font-medium">{row.method}</div>
+        <div className="text-base text-ink font-medium">{row.method}</div>
         {inputBits.length > 0 && (
           <div className="text-[10px] text-muted mt-0.5 truncate" title={inputBits.join(" · ")}>
             {inputBits.join(" · ")}
           </div>
         )}
       </div>
-      <div className="text-sm font-semibold tabular-nums text-ink w-24 text-right">
+      <div className="text-base font-semibold tabular-nums text-ink w-24 text-right">
         {fv == null ? "—" : `${cs}${fv.toFixed(2)}`}
       </div>
-      <div className={`text-sm font-medium tabular-nums w-20 text-right ${upsideColor(upside)}`}>
+      <div className={`text-base font-medium tabular-nums w-20 text-right ${upsideColor(upside)}`}>
         {upside == null ? "—" : fmtPct(upside, 1)}
       </div>
     </div>
@@ -506,7 +503,7 @@ function DcfSensitivityTable({ sensitivity, currentPrice, cs }) {
     <div className="bg-surface rounded-lg p-4">
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <div>
-          <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
+          <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
             DCF Sensitivity
           </h3>
           <div className="text-[10px] text-muted mt-0.5">
@@ -520,7 +517,7 @@ function DcfSensitivityTable({ sensitivity, currentPrice, cs }) {
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs tabular-nums">
+        <table className="w-full text-sm tabular-nums">
           <thead>
             <tr>
               <th className="text-left text-[10px] uppercase tracking-wider text-muted font-medium px-2 py-1.5">
@@ -608,7 +605,7 @@ function ValuationSection({ valuation, currencyCode }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
+        <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
           Valuation Models
         </h3>
         <div className="text-[10px] text-muted">
@@ -626,7 +623,7 @@ function ValuationSection({ valuation, currencyCode }) {
             </div>
           </div>
           {methods.length === 0 ? (
-            <div className="text-muted text-xs py-3 text-center">
+            <div className="text-muted text-sm py-3 text-center">
               Not enough data to compute valuation methods.
             </div>
           ) : (
@@ -640,7 +637,7 @@ function ValuationSection({ valuation, currencyCode }) {
             ))
           )}
           {fvs.length >= 2 && (
-            <div className="mt-3 pt-3 border-t border-surface-border flex items-center justify-between text-xs">
+            <div className="mt-3 pt-3 border-t border-surface-border flex items-center justify-between text-sm">
               <span className="text-muted">
                 Average · Range
               </span>
@@ -676,7 +673,7 @@ function SectionCustomizer({ config, toggle, moveUp, moveDown, reset, isVisible 
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-lg border border-surface-border text-muted hover:text-ink hover:border-slate-300 transition-colors"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-base rounded-lg border border-surface-border text-muted hover:text-ink hover:border-slate-300 transition-colors"
         title="Customize report sections"
       >
         <Settings2 size={14} />
@@ -687,7 +684,7 @@ function SectionCustomizer({ config, toggle, moveUp, moveDown, reset, isVisible 
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute right-0 mt-2 w-72 z-50 bg-surface-card border border-surface-border rounded-xl shadow-lg overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-surface-border">
-              <span className="text-xs font-semibold text-muted uppercase tracking-wider">Report Sections</span>
+              <span className="text-sm font-semibold text-muted uppercase tracking-wider">Report Sections</span>
               <button
                 type="button"
                 onClick={reset}
@@ -714,7 +711,7 @@ function SectionCustomizer({ config, toggle, moveUp, moveDown, reset, isVisible 
                     >
                       {visible ? <Eye size={14} /> : <EyeOff size={14} />}
                     </button>
-                    <span className={`flex-1 text-sm ${visible ? "text-ink" : "text-muted"}`}>
+                    <span className={`flex-1 text-base ${visible ? "text-ink" : "text-muted"}`}>
                       {section.label}
                     </span>
                     <div className="flex items-center gap-0.5">
@@ -765,7 +762,7 @@ export function DividendGrowthSection({ ticker, currency = "USD" }) {
 
   return (
     <section className="space-y-3">
-      <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">Dividend history</h3>
+      <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">Dividend history</h3>
       <div className="grid grid-cols-3 gap-3">
         {tiles.map((t) => (
           <KpiBox key={t.label} size="sm" label={t.label} value={t.value} />
@@ -775,11 +772,11 @@ export function DividendGrowthSection({ ticker, currency = "USD" }) {
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={data.payments} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
-            <XAxis dataKey="ex_date" tick={AXIS_TICK} tickFormatter={(d) => String(d).slice(0, 7)} minTickGap={24} />
-            <YAxis tick={AXIS_TICK} width={52} tickFormatter={(v) => `${sym}${v}`} />
+            <XAxis dataKey="ex_date" tick={{ ...AXIS_TICK, fontSize: 12 }} tickFormatter={(d) => String(d).slice(0, 7)} minTickGap={24} />
+            <YAxis tick={{ ...AXIS_TICK, fontSize: 12 }} width={52} tickFormatter={(v) => `${sym}${v}`} />
             <Tooltip
               cursor={{ fill: "rgba(255,255,255,0.03)" }}
-              contentStyle={{ background: "var(--surface-card-elevated)", border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 12 }}
+              contentStyle={{ background: "var(--surface-card-elevated)", border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 13 }}
               formatter={(v) => [`${sym}${v}`, "Per share"]}
             />
             <Bar dataKey="amount" fill={GAIN_COLOR} radius={[3, 3, 0, 0]} />
@@ -863,7 +860,7 @@ export function StockOverview({ data, headerTrailing = null }) {
             style={{ left: `calc(${range.pct}% - 2px)` }}
           />
         </div>
-        <div className="flex items-center justify-between text-xs mt-1.5 tabular-nums">
+        <div className="flex items-center justify-between text-sm mt-1.5 tabular-nums">
           <span className="text-loss">{cs}{range.lo.toFixed(2)}</span>
           <span className="text-muted">Current {cs}{data.price.toFixed(2)}</span>
           <span className="text-gain">{cs}{range.hi.toFixed(2)}</span>
@@ -876,7 +873,7 @@ export function StockOverview({ data, headerTrailing = null }) {
     financials: (
       <div>
         <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-          <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
+          <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
             {period === "quarterly" ? "Quarterly Financials" : "Annual Financials"}
             {periodsCount > 0 && (
               <span className="ml-2 text-muted normal-case tracking-normal">
@@ -884,7 +881,7 @@ export function StockOverview({ data, headerTrailing = null }) {
               </span>
             )}
           </h3>
-          <div className="inline-flex bg-surface rounded-md p-0.5 text-xs">
+          <div className="inline-flex bg-surface rounded-md p-0.5 text-sm">
             <button
               type="button"
               onClick={() => setPeriod("annual")}
@@ -939,7 +936,7 @@ export function StockOverview({ data, headerTrailing = null }) {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div className="bg-surface rounded-[var(--radius-card)] p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
+            <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
               Valuation & Quality
             </h3>
             {sector.sample_size > 0 && (
@@ -979,7 +976,7 @@ export function StockOverview({ data, headerTrailing = null }) {
         <div className="flex flex-col gap-4">
           <div className="bg-surface rounded-[var(--radius-card)] p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
+              <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
                 Analyst Rating
               </h3>
               {analyst.rating && (
@@ -989,10 +986,10 @@ export function StockOverview({ data, headerTrailing = null }) {
             {analyst.total > 0 ? (
               <>
                 <div className="flex items-baseline gap-3 mb-3">
-                  <span className="text-3xl font-bold tabular-nums">
+                  <span className="text-4xl font-bold tabular-nums">
                     {analyst.score != null ? analyst.score.toFixed(2) : "—"}
                   </span>
-                  <span className="text-xs text-muted">
+                  <span className="text-sm text-muted">
                     consensus · {analyst.total} analysts
                   </span>
                 </div>
@@ -1005,17 +1002,17 @@ export function StockOverview({ data, headerTrailing = null }) {
                 </div>
               </>
             ) : (
-              <div className="text-muted text-xs">No analyst coverage available.</div>
+              <div className="text-muted text-sm">No analyst coverage available.</div>
             )}
           </div>
 
           <div className="bg-surface rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
+              <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
                 Price Targets
               </h3>
               {analyst.target_mean != null && analyst.upside != null && (
-                <span className={`text-xs font-medium ${analyst.upside >= 0 ? "text-gain" : "text-loss"}`}>
+                <span className={`text-sm font-medium ${analyst.upside >= 0 ? "text-gain" : "text-loss"}`}>
                   {fmtPct(analyst.upside)} avg upside
                 </span>
               )}
@@ -1029,16 +1026,16 @@ export function StockOverview({ data, headerTrailing = null }) {
                 cs={cs}
               />
             ) : (
-              <div className="text-muted text-xs">No price targets available.</div>
+              <div className="text-muted text-sm">No price targets available.</div>
             )}
           </div>
 
           {data.description && (
             <div className="bg-surface rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">
+              <h3 className="text-base font-semibold text-muted uppercase tracking-wider mb-2">
                 About
               </h3>
-              <p className="text-xs text-muted leading-relaxed line-clamp-6">
+              <p className="text-sm text-muted leading-relaxed line-clamp-6">
                 {data.description}
               </p>
             </div>
@@ -1094,8 +1091,8 @@ export function StockOverview({ data, headerTrailing = null }) {
       <div className="flex items-start justify-between px-6 py-4 border-b border-surface-border">
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-3 flex-wrap">
-            <h2 className="text-2xl font-bold font-mono"><ShinyText text={data.ticker} /></h2>
-            <span className="text-muted text-base truncate">{data.name}</span>
+            <h2 className="text-3xl font-bold font-mono"><ShinyText text={data.ticker} /></h2>
+            <span className="text-muted text-lg truncate">{data.name}</span>
             {data.exchange && (
               <span className="text-[10px] text-muted uppercase tracking-wider">{data.exchange}</span>
             )}
@@ -1117,7 +1114,7 @@ export function StockOverview({ data, headerTrailing = null }) {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 mt-1 text-xs text-muted flex-wrap">
+          <div className="flex items-center gap-2 mt-1 text-sm text-muted flex-wrap">
             {data.sector && <span className="flex items-center gap-1"><Building2 size={11} />{data.sector}</span>}
             {data.industry && <span>· {data.industry}</span>}
             {data.country && <span className="flex items-center gap-1">· <Globe size={11} />{data.country}</span>}
@@ -1135,11 +1132,11 @@ export function StockOverview({ data, headerTrailing = null }) {
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <div className="text-2xl font-bold tabular-nums">
+            <div className="text-3xl font-bold tabular-nums">
               {data.price != null ? `${cs}${data.price.toFixed(2)}` : "—"}
             </div>
             {priceChange != null && (
-              <div className={`text-sm font-medium flex items-center justify-end gap-1 ${priceUp ? "text-gain" : "text-loss"}`}>
+              <div className={`text-base font-medium flex items-center justify-end gap-1 ${priceUp ? "text-gain" : "text-loss"}`}>
                 {priceUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                 {data.change != null && `${data.change >= 0 ? "+" : ""}${data.change.toFixed(2)} `}
                 ({fmtPct(priceChange)})
@@ -1228,7 +1225,7 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
             <XAxis
               dataKey="label"
               height={CONE_XAXIS_HEIGHT}
-              tick={AXIS_TICK}
+              tick={{ ...AXIS_TICK, fontSize: 12 }}
               tickLine={false}
               axisLine={{ stroke: GRID_STROKE }}
             />
@@ -1236,7 +1233,7 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
               domain={[yMin, yMax]}
               allowDataOverflow={true}
               orientation="right"
-              tick={{ ...AXIS_TICK, fontSize: 10 }}
+              tick={{ ...AXIS_TICK, fontSize: 11 }}
               tickFormatter={(v) => `${cs}${v.toFixed(0)}`}
               tickLine={false}
               axisLine={false}
@@ -1287,7 +1284,7 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
                 const row = payload[0]?.payload;
                 if (!row) return null;
                 return (
-                  <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg space-y-0.5">
+                  <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-sm shadow-lg space-y-0.5">
                     <div className="text-muted mb-1">{row.label}</div>
                     {row.label === "Now" ? (
                       <div className="text-ink">Current {cs}{current.toFixed(2)}</div>
@@ -1433,8 +1430,8 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
   if (!data?.length) {
     return (
       <div className="bg-surface rounded-lg p-4 flex flex-col h-full">
-        <h3 className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">{name}</h3>
-        <div className="flex-1 flex items-center justify-center text-muted text-xs">No data</div>
+        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-1">{name}</h3>
+        <div className="flex-1 flex items-center justify-center text-muted text-sm">No data</div>
       </div>
     );
   }
@@ -1455,9 +1452,8 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
   const lastActual = actuals[actuals.length - 1];
   const lastActualYoy = lastActual?.growth;
 
-  // TTM doesn't get its own column — it overlays the latest actual bar as a
-  // dotted purple level (annual view only), so estimates sit directly next to
-  // the real fiscal years.
+  // TTM doesn't get its own column — a rounded purple underlay shares the latest
+  // actual column (annual view only), so estimates stay next to real fiscal years.
   const showTtm = ttm != null && !isQuarterly && actuals.length > 0;
   const lastActualIdx = data.reduce((k, d, i) => (d.isEstimate ? k : i), -1);
   const rows = data;
@@ -1471,6 +1467,11 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
     hasTtmOverlay: showTtm && i === lastActualIdx,
   }));
   const showChangeLine = !(isQuarterly && data.length > 6) && rows.length <= 10;
+  // Estimate years carry a trailing "E" (e.g. "2027E"), one character wider
+  // than a plain year — past ~8 columns that no longer fits the horizontal
+  // pitch of a 3-up card, so angle the labels the same way dense quarterly
+  // views already do.
+  const denseLabels = isQuarterly ? data.length > 6 : data.length > 8;
   // Only widen the y-domain when the TTM level falls outside the bars' own
   // range — a functional domain costs recharts its nice round ticks, so keep
   // the default auto axis whenever the overlay already fits.
@@ -1482,7 +1483,7 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
   return (
     <div className="bg-surface rounded-lg p-4 flex flex-col">
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">{name}</h3>
+        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">{name}</h3>
         <div className="flex flex-col items-end text-[10px] gap-0.5">
           <span className="text-muted">
             CAGR{" "}
@@ -1499,7 +1500,7 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
         </div>
       </div>
       <div className="flex items-baseline gap-2">
-        <div className="text-lg font-bold tabular-nums">
+        <div className="text-xl font-bold tabular-nums">
           {lastActual?.value == null
             ? "—"
             : isPerShare
@@ -1510,7 +1511,7 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
           <div className="text-[10px] text-muted">{lastActual.label}</div>
         )}
       </div>
-      <div className="h-32 mt-2">
+      <div className="h-36 mt-2">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rowsWithChange} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
             <CartesianGrid strokeDasharray="2 4" stroke={GRID_STROKE} vertical={false} />
@@ -1518,24 +1519,29 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
               dataKey="label"
               tick={
                 showChangeLine ? (
-                  <ChangeTick changes={changes} fontSize={isQuarterly ? 8 : 10} />
+                  <ChangeTick
+                    changes={changes}
+                    fontSize={isQuarterly ? 9 : 11}
+                    changeFontSize={rows.length > 7 ? 9 : 11}
+                    changeDecimals={rows.length > 7 ? 0 : 1}
+                  />
                 ) : (
-                  { ...AXIS_TICK, fontSize: isQuarterly ? 8 : 10 }
+                  { ...AXIS_TICK, fontSize: isQuarterly ? 9 : 11 }
                 )
               }
               tickLine={false}
               axisLine={{ stroke: GRID_STROKE }}
               interval={isQuarterly && data.length > 8 ? "preserveStartEnd" : 0}
-              angle={isQuarterly && data.length > 6 ? -35 : 0}
-              textAnchor={isQuarterly && data.length > 6 ? "end" : "middle"}
-              height={showChangeLine ? 34 : isQuarterly && data.length > 6 ? 32 : 16}
+              angle={denseLabels ? -35 : 0}
+              textAnchor={denseLabels ? "end" : "middle"}
+              height={showChangeLine ? 34 : denseLabels ? 32 : 16}
             />
             <YAxis
-              tick={{ ...AXIS_TICK, fontSize: 9 }}
-              tickFormatter={(v) => (isPerShare ? v.toFixed(1) : fmtCompact(v, "").replace("$", ""))}
+              tick={{ ...AXIS_TICK, fontSize: 10 }}
+              tickFormatter={(v) => (isPerShare ? v.toFixed(1) : fmtCompact(v, "", 0))}
               tickLine={false}
               axisLine={false}
-              width={40}
+              width={48}
               // The TTM overlay isn't a bar, so when it exceeds every bar the
               // domain must be widened by hand (with 5% headroom) or the
               // overlay would draw past the plot area.
@@ -1551,7 +1557,7 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
                 if (!active || !payload?.length) return null;
                 const row = payload[0].payload;
                 return (
-                  <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg">
+                  <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-sm shadow-lg">
                     <div className="text-muted">
                       {row.label}{row.isEstimate ? " · estimate" : " · actual"}
                     </div>
@@ -1583,7 +1589,7 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
                       </div>
                     )}
                     {row.hasTtmOverlay && (
-                      <div className="text-violet-600">
+                      <div style={{ color: TTM_COLOR }}>
                         TTM {isPerShare ? `${cs}${ttm.toFixed(2)}` : fmtCompact(ttm, cs)}
                       </div>
                     )}
@@ -1591,6 +1597,11 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
                 );
               }}
             />
+            {showTtm && (
+              <Customized
+                component={(cp) => <TtmUnderlay {...cp} ttm={ttm} />}
+              />
+            )}
             <Bar dataKey="value" radius={[3, 3, 0, 0]}>
               {rows.map((d, i) => (
                 <Cell
@@ -1600,20 +1611,13 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
                 />
               ))}
             </Bar>
-            {showTtm && (
-              <Customized
-                component={(cp) => (
-                  <TtmOverlay {...cp} ttm={ttm} patternId={`ttm-dots-${name.replace(/\W+/g, "-")}`} />
-                )}
-              />
-            )}
           </BarChart>
         </ResponsiveContainer>
       </div>
       <div className="flex items-center gap-3 mt-2 text-[10px] text-muted">
         <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-gain rounded-sm" />Actual</span>
         {showTtm && (
-          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm border border-dashed border-violet-500 bg-violet-500/40" />TTM</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: TTM_COLOR }} />TTM</span>
         )}
         <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm opacity-75" style={{ backgroundColor: CATEGORICAL[0] }} />Estimate</span>
       </div>
@@ -1744,7 +1748,7 @@ function OwnershipSection({ ownership, currencyCode }) {
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-3">
+      <h3 className="text-base font-semibold text-muted uppercase tracking-wider mb-3">
         Ownership Breakdown
       </h3>
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -1802,7 +1806,7 @@ function OwnershipSection({ ownership, currencyCode }) {
                       if (!active || !payload?.length) return null;
                       const row = payload[0].payload;
                       return (
-                        <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg max-w-xs">
+                        <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-sm shadow-lg max-w-xs">
                           <div className="font-semibold text-ink truncate">{row.name}</div>
                           <div className="text-muted tabular-nums">
                             {row.pct.toFixed(2)}% of shares
@@ -1828,7 +1832,7 @@ function OwnershipSection({ ownership, currencyCode }) {
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="h-72 flex items-center justify-center text-muted text-xs">
+            <div className="h-72 flex items-center justify-center text-muted text-sm">
               No ownership data available.
             </div>
           )}
@@ -1836,20 +1840,20 @@ function OwnershipSection({ ownership, currencyCode }) {
 
         <div className="bg-surface rounded-lg p-4">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5">
+            <h4 className="text-sm font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5">
               <Users size={12} />
               Top Institutional Holders
             </h4>
             <span className="text-[10px] text-muted">% of shares · value</span>
           </div>
           {holders.length === 0 ? (
-            <div className="text-muted text-xs">No institutional holders reported.</div>
+            <div className="text-muted text-sm">No institutional holders reported.</div>
           ) : (
             <ul className="space-y-1 max-h-80 overflow-y-auto pr-1">
               {holders.map((h, i) => (
                 <li
                   key={`${h.name}-${i}`}
-                  className="flex items-center gap-2 text-xs py-1 border-b border-surface-border last:border-0"
+                  className="flex items-center gap-2 text-sm py-1 border-b border-surface-border last:border-0"
                 >
                   <span
                     className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
@@ -1915,6 +1919,74 @@ const EIGHT_K_ITEM_LABELS = {
   "7.01": "Reg FD disclosure", "8.01": "Other events", "9.01": "Financial exhibits",
 };
 
+// Multi-select transaction-type filter, shared by the yfinance and Shibui
+// insider tables below. An empty `active` set means "no filter, show all" --
+// clicking a chip while every type is showing isolates to just that one;
+// further clicks add/remove types; selecting everything (or clicking "All")
+// collapses back to the empty-set "show all" state.
+export function toggleSetValue(active, value, totalCount) {
+  if (active.size === 0) return new Set([value]);
+  const next = new Set(active);
+  if (next.has(value)) next.delete(value);
+  else next.add(value);
+  return next.size === 0 || next.size === totalCount ? new Set() : next;
+}
+
+const FILTER_CHIP_TONE_ON = {
+  buy: "bg-green-500/25 text-green-700 border-green-500/40",
+  sell: "bg-red-500/25 text-red-700 border-red-500/40",
+  neutral: "bg-slate-500/30 text-ink border-slate-500/50",
+};
+const FILTER_CHIP_OFF =
+  "bg-surface-hover text-muted border-transparent hover:text-ink hover:bg-surface-card-elevated";
+
+function TypeFilterChips({ options, active, onToggle, onReset, className = "" }) {
+  if (!options || options.length <= 1) return null;
+  const noFilter = active.size === 0;
+  return (
+    <div className={`flex items-center gap-1.5 flex-wrap ${className}`}>
+      <button
+        type="button"
+        onClick={onReset}
+        aria-pressed={noFilter}
+        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border transition-colors ${
+          noFilter ? "bg-brand/15 text-brand border-brand/30" : FILTER_CHIP_OFF
+        }`}
+      >
+        All
+      </button>
+      {options.map((opt) => {
+        const isOn = noFilter || active.has(opt.value);
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            title={opt.description}
+            aria-pressed={isOn}
+            onClick={() => onToggle(opt.value)}
+            className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border transition-colors ${
+              isOn ? FILTER_CHIP_TONE_ON[opt.tone] || FILTER_CHIP_TONE_ON.neutral : FILTER_CHIP_OFF
+            }`}
+          >
+            {opt.label}
+            <span className="ml-1 font-normal normal-case opacity-60">{opt.count}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+const YF_TYPE_META = {
+  buy: { label: "Buy", tone: "buy", description: "Insider purchased shares in the open market." },
+  sell: { label: "Sell", tone: "sell", description: "Insider sold shares in the open market." },
+  other: {
+    label: "Other",
+    tone: "neutral",
+    description: "Grants, option exercises, gifts, and other non-market Form 4 transactions.",
+  },
+};
+
 function ShibuiFilingsSection({ ticker }) {
   const [expanded, setExpanded] = useState(false);
   const { data, isLoading, isError } = useQuery({
@@ -1933,7 +2005,7 @@ function ShibuiFilingsSection({ ticker }) {
         onClick={() => setExpanded((v) => !v)}
         className="flex items-center gap-2 mb-3 group"
       >
-        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider group-hover:text-ink transition-colors">
+        <h3 className="text-base font-semibold text-muted uppercase tracking-wider group-hover:text-ink transition-colors">
           SEC Filings
         </h3>
         <span className="text-[10px] text-muted">({data.filings.length})</span>
@@ -1954,7 +2026,7 @@ function ShibuiFilingsSection({ ticker }) {
             {data.filings.map((f, i) => (
               <li
                 key={`${f.filing_url}-${i}`}
-                className="grid grid-cols-[5.5rem_1fr_3.5rem] gap-3 items-center px-4 py-2 text-xs border-b border-surface-border last:border-0 hover:bg-surface-hover"
+                className="grid grid-cols-[5.5rem_1fr_3.5rem] gap-3 items-center px-4 py-2 text-sm border-b border-surface-border last:border-0 hover:bg-surface-hover"
               >
                 <span className="tabular-nums text-muted">{f.filing_date}</span>
                 <span className="flex items-center gap-1.5 flex-wrap">
@@ -1992,6 +2064,7 @@ const TX_CODE_LABELS = {
 
 function ShibuiInsiderActivitySection({ ticker, currencyCode }) {
   const cs = currencySymbol(currencyCode);
+  const [activeTypes, setActiveTypes] = useState(() => new Set());
   const { data, isLoading, isError } = useQuery({
     queryKey: ["shibui-insiders", ticker],
     queryFn: () => fetchShibuiInsiders(ticker),
@@ -2003,21 +2076,50 @@ function ShibuiInsiderActivitySection({ ticker, currencyCode }) {
   if (isLoading || isError || !data?.transactions?.length) return null;
   const clusters = data.cluster_buys || [];
 
+  const codeCounts = data.transactions.reduce((acc, t) => {
+    acc[t.tx_code] = (acc[t.tx_code] || 0) + 1;
+    return acc;
+  }, {});
+  const codeOrder = [...new Set([...Object.keys(TX_CODE_LABELS), ...Object.keys(codeCounts)])];
+  const typeOptions = codeOrder
+    .filter((code) => codeCounts[code])
+    .map((code) => ({
+      value: code,
+      label: code,
+      count: codeCounts[code],
+      description: TX_CODE_LABELS[code] || "SEC Form 4/5 transaction code",
+      tone: code === "P" ? "buy" : code === "S" ? "sell" : "neutral",
+    }));
+  const toggleType = (value) =>
+    setActiveTypes((prev) => toggleSetValue(prev, value, typeOptions.length));
+  const visibleTransactions =
+    activeTypes.size === 0
+      ? data.transactions
+      : data.transactions.filter((t) => activeTypes.has(t.tx_code));
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
+        <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
           Insider Activity (SEC)
         </h3>
         <span className="text-[10px] text-muted">Form 4/5 · last {data.months} months</span>
       </div>
+
+      <TypeFilterChips
+        options={typeOptions}
+        active={activeTypes}
+        onToggle={toggleType}
+        onReset={() => setActiveTypes(new Set())}
+        className="mb-3"
+      />
 
       {clusters.length > 0 && (
         <div className="mb-3 space-y-2">
           {clusters.map((c, i) => (
             <div
               key={i}
-              className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs"
+              className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
             >
               <Flame size={14} className="text-amber-500 shrink-0 mt-0.5" />
               <div>
@@ -2041,13 +2143,18 @@ function ShibuiInsiderActivitySection({ ticker, currencyCode }) {
           <span className="text-right">Date</span>
         </div>
         <ul className="max-h-96 overflow-y-auto">
-          {data.transactions.map((t, i) => {
+          {!visibleTransactions.length && (
+            <li className="px-4 py-6 text-center text-sm text-muted">
+              No transactions match the selected filter.
+            </li>
+          )}
+          {visibleTransactions.map((t, i) => {
             const isBuy = t.direction === "buy";
             const rowBg = isBuy ? "bg-green-500/10 hover:bg-green-500/15" : "bg-red-500/10 hover:bg-red-500/15";
             return (
               <li
                 key={i}
-                className={`grid grid-cols-[1fr_4rem_5rem_6rem_5rem] gap-3 items-center px-4 py-2 text-xs ${rowBg}`}
+                className={`grid grid-cols-[1fr_4rem_5rem_6rem_5rem] gap-3 items-center px-4 py-2 text-sm ${rowBg}`}
               >
                 <div className="min-w-0">
                   <div className="truncate text-ink font-medium">{t.owner_canonical_name || "—"}</div>
@@ -2113,20 +2220,20 @@ function ShibuiOwnershipFilingsSection({ ticker }) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
+      <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
         Beneficial Ownership (13D/13G)
       </h3>
 
       {investors.length > 0 && (
         <div className="bg-surface rounded-lg p-4">
-          <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <Landmark size={12} /> Corporate strategic investors
           </h4>
           <ul className="space-y-1.5">
             {investors.map((inv, i) => (
               <li
                 key={i}
-                className="flex items-center justify-between gap-3 text-xs py-1 border-b border-surface-border last:border-0"
+                className="flex items-center justify-between gap-3 text-sm py-1 border-b border-surface-border last:border-0"
               >
                 <span className="text-ink truncate">
                   {inv.filer_name}{" "}
@@ -2144,14 +2251,14 @@ function ShibuiOwnershipFilingsSection({ ticker }) {
 
       {stakes.length > 0 && (
         <div className="bg-surface rounded-lg p-4">
-          <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+          <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">
             13D/13G filers (up to 50 most recent)
           </h4>
           <ul className="max-h-64 overflow-y-auto space-y-1">
             {stakes.map((s, i) => (
               <li
                 key={i}
-                className="flex items-center justify-between gap-3 text-xs py-1 border-b border-surface-border last:border-0"
+                className="flex items-center justify-between gap-3 text-sm py-1 border-b border-surface-border last:border-0"
               >
                 <span className="text-ink truncate">{s.filer_canonical_name || s.filer_name}</span>
                 <span className="flex items-center gap-2 text-muted shrink-0">
@@ -2259,15 +2366,15 @@ function PoliticalTradesChart({ ticker, trades, currencyCode, currentPrice, onSe
 
   return (
     <div className="bg-surface rounded-lg p-4 mb-3">
-      <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+      <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">
         Trades on price chart
       </h4>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
-            <XAxis dataKey="date" tick={AXIS_TICK} tickFormatter={(d) => String(d).slice(0, 7)} minTickGap={40} />
-            <YAxis tick={AXIS_TICK} width={52} domain={["auto", "auto"]} tickFormatter={(v) => `${cs}${v}`} />
+            <XAxis dataKey="date" tick={{ ...AXIS_TICK, fontSize: 12 }} tickFormatter={(d) => String(d).slice(0, 7)} minTickGap={40} />
+            <YAxis tick={{ ...AXIS_TICK, fontSize: 12 }} width={52} domain={["auto", "auto"]} tickFormatter={(v) => `${cs}${v}`} />
             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${cs}${v}`, "Close"]} />
             <Line type="monotone" dataKey="close" stroke={NEUTRAL_COLOR} strokeWidth={1.5} dot={false} isAnimationActive={false} />
             {dots.map((d, i) => (
@@ -2306,39 +2413,39 @@ function TradeDetailCard({ trade, onClose }) {
     <div className="bg-surface rounded-lg p-4 mb-3 border border-brand/30">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-sm font-semibold text-ink">
+          <div className="text-base font-semibold text-ink">
             {trade.politician_canonical || trade.politician}
           </div>
-          <div className="text-xs text-muted mt-0.5">
+          <div className="text-sm text-muted mt-0.5">
             {trade.party} · {trade.chamber}
             {trade.state ? ` · ${trade.state}` : ""}
             {trade.state_district ? ` (${trade.state_district})` : ""}
           </div>
         </div>
-        <button onClick={onClose} className="text-muted hover:text-ink text-xs">
+        <button onClick={onClose} className="text-muted hover:text-ink text-sm">
           ✕
         </button>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
         <div>
           <div className="text-[10px] text-muted uppercase tracking-wider">Type</div>
-          <div className={`text-xs font-semibold ${isBuy ? "text-gain" : "text-loss"}`}>
+          <div className={`text-sm font-semibold ${isBuy ? "text-gain" : "text-loss"}`}>
             {isBuy ? "BUY" : "SELL"}
           </div>
         </div>
         <div>
           <div className="text-[10px] text-muted uppercase tracking-wider">Amount</div>
-          <div className="text-xs text-ink tabular-nums">
+          <div className="text-sm text-ink tabular-nums">
             ${Number(trade.amount_min).toLocaleString()}–${Number(trade.amount_max).toLocaleString()}
           </div>
         </div>
         <div>
           <div className="text-[10px] text-muted uppercase tracking-wider">Owner</div>
-          <div className="text-xs text-ink">{trade.owner_code || "—"}</div>
+          <div className="text-sm text-ink">{trade.owner_code || "—"}</div>
         </div>
         <div>
           <div className="text-[10px] text-muted uppercase tracking-wider">Transaction date</div>
-          <div className="text-xs text-ink tabular-nums">{trade.transaction_date}</div>
+          <div className="text-sm text-ink tabular-nums">{trade.transaction_date}</div>
         </div>
       </div>
       {trade.filed_date && (
@@ -2375,11 +2482,11 @@ function PoliticalTradesSection({ ticker, currencyCode, currentPrice }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">Political Trades</h3>
+        <h3 className="text-base font-semibold text-muted uppercase tracking-wider">Political Trades</h3>
         {!enabled && (
           <button
             onClick={() => setEnabled(true)}
-            className="text-xs px-3 py-1.5 rounded-md bg-surface hover:bg-surface-hover border border-surface-border text-ink transition-colors"
+            className="text-sm px-3 py-1.5 rounded-md bg-surface hover:bg-surface-hover border border-surface-border text-ink transition-colors"
           >
             Load political trades
           </button>
@@ -2387,16 +2494,16 @@ function PoliticalTradesSection({ ticker, currencyCode, currentPrice }) {
       </div>
 
       {!enabled && (
-        <p className="text-xs text-muted">
+        <p className="text-sm text-muted">
           Congressional (STOCK Act) trades referencing this ticker. Loaded only on request —
           never fetched automatically.
         </p>
       )}
 
-      {enabled && isLoading && <p className="text-xs text-muted">Loading…</p>}
+      {enabled && isLoading && <p className="text-sm text-muted">Loading…</p>}
 
       {enabled && isError && (
-        <p className="text-xs text-muted">
+        <p className="text-sm text-muted">
           {error?.response?.status === 503
             ? "Political trades aren't configured — set ALPHA_VANTAGE_API_KEY on the backend to enable this."
             : "Could not load political trades."}
@@ -2404,7 +2511,7 @@ function PoliticalTradesSection({ ticker, currencyCode, currentPrice }) {
       )}
 
       {enabled && data && data.trades.length === 0 && (
-        <p className="text-xs text-muted">No disclosed congressional trades found for this ticker.</p>
+        <p className="text-sm text-muted">No disclosed congressional trades found for this ticker.</p>
       )}
 
       {enabled && data && data.trades.length > 0 && (
@@ -2432,7 +2539,7 @@ function PoliticalTradesSection({ ticker, currencyCode, currentPrice }) {
                   <li
                     key={i}
                     onClick={() => setSelected(t)}
-                    className="grid grid-cols-[1fr_3.5rem_3.5rem_9rem_5.5rem] gap-3 items-center px-4 py-2 text-xs border-b border-surface-border last:border-0 hover:bg-surface-hover cursor-pointer"
+                    className="grid grid-cols-[1fr_3.5rem_3.5rem_9rem_5.5rem] gap-3 items-center px-4 py-2 text-sm border-b border-surface-border last:border-0 hover:bg-surface-hover cursor-pointer"
                   >
                     <div className="min-w-0">
                       <div className="truncate text-ink font-medium">
@@ -2495,7 +2602,7 @@ function EarningsRecapSection({ ticker, currencyCode }) {
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-3">Earnings</h3>
+      <h3 className="text-base font-semibold text-muted uppercase tracking-wider mb-3">Earnings</h3>
 
       <div className="bg-surface rounded-lg p-4 mb-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
@@ -2505,7 +2612,7 @@ function EarningsRecapSection({ ticker, currencyCode }) {
             </div>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span
-                className={`text-xs font-semibold uppercase px-2 py-0.5 rounded border ${
+                className={`text-sm font-semibold uppercase px-2 py-0.5 rounded border ${
                   beat
                     ? "bg-green-500/25 text-green-700 border-green-500/40"
                     : "bg-red-500/25 text-red-700 border-red-500/40"
@@ -2513,13 +2620,13 @@ function EarningsRecapSection({ ticker, currencyCode }) {
               >
                 {beat ? "Beat" : "Miss"}
               </span>
-              <span className="text-sm text-ink tabular-nums">
+              <span className="text-base text-ink tabular-nums">
                 EPS {cs}
                 {latest.eps_actual?.toFixed(2)} vs {cs}
                 {latest.eps_estimate?.toFixed(2)} est.
               </span>
               {latest.surprise_percent != null && (
-                <span className={`text-xs tabular-nums ${beat ? "text-gain" : "text-loss"}`}>
+                <span className={`text-sm tabular-nums ${beat ? "text-gain" : "text-loss"}`}>
                   ({latest.surprise_percent >= 0 ? "+" : ""}
                   {latest.surprise_percent.toFixed(1)}%)
                 </span>
@@ -2531,14 +2638,14 @@ function EarningsRecapSection({ ticker, currencyCode }) {
               href={data.nearest_8k_2_02.filing_url}
               target="_blank"
               rel="noreferrer"
-              className="text-xs text-brand hover:underline inline-flex items-center gap-1"
+              className="text-sm text-brand hover:underline inline-flex items-center gap-1"
             >
               8-K press release <ExternalLink size={10} />
             </a>
           )}
         </div>
         {latest.revenue_actual != null && (
-          <div className="text-xs text-muted mt-2 tabular-nums">
+          <div className="text-sm text-muted mt-2 tabular-nums">
             Revenue: {fmtCompact(latest.revenue_actual, cs)}
             {data.latest_revenue_estimate != null && (
               <>
@@ -2558,15 +2665,15 @@ function EarningsRecapSection({ ticker, currencyCode }) {
       </div>
 
       <div className="bg-surface rounded-lg p-4 mb-3">
-        <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+        <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">
           EPS surprise history
         </h4>
         <div className="h-40">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
-              <XAxis dataKey="label" tick={AXIS_TICK} minTickGap={16} />
-              <YAxis tick={AXIS_TICK} width={36} tickFormatter={(v) => `${v}%`} />
+              <XAxis dataKey="label" tick={{ ...AXIS_TICK, fontSize: 12 }} minTickGap={16} />
+              <YAxis tick={{ ...AXIS_TICK, fontSize: 12 }} width={36} tickFormatter={(v) => `${v}%`} />
               <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v?.toFixed(1)}%`, "Surprise"]} />
               <Bar dataKey="surprise" radius={[3, 3, 0, 0]}>
                 {chartData.map((d, i) => (
@@ -2580,10 +2687,10 @@ function EarningsRecapSection({ ticker, currencyCode }) {
 
       {recentBuyback && (
         <div className="bg-surface rounded-lg p-4">
-          <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">
+          <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-1">
             Buyback trend
           </h4>
-          <p className="text-xs text-muted">
+          <p className="text-sm text-muted">
             Q{recentBuyback.quarter} {recentBuyback.year}: net{" "}
             {recentBuyback.equity_issuance_repayment < 0 ? "repurchase" : "issuance"} of{" "}
             {fmtCompact(Math.abs(recentBuyback.equity_issuance_repayment), cs)}
@@ -2631,7 +2738,7 @@ function ValuationHistorySection({ ticker }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">
+        <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
           Valuation History
           {data?.granularity && (
             <span className="ml-2 text-muted normal-case tracking-normal">
@@ -2639,7 +2746,7 @@ function ValuationHistorySection({ ticker }) {
             </span>
           )}
         </h3>
-        <div className="inline-flex bg-surface rounded-md p-0.5 text-xs">
+        <div className="inline-flex bg-surface rounded-md p-0.5 text-sm">
           {VALUATION_RANGES.map((r) => (
             <button
               key={r.label}
@@ -2654,9 +2761,9 @@ function ValuationHistorySection({ ticker }) {
         </div>
       </div>
 
-      {isLoading && <p className="text-xs text-muted">Loading…</p>}
+      {isLoading && <p className="text-sm text-muted">Loading…</p>}
       {!isLoading && points.length === 0 && (
-        <p className="text-xs text-muted">No valuation history available.</p>
+        <p className="text-sm text-muted">No valuation history available.</p>
       )}
 
       {points.length > 0 && (
@@ -2670,7 +2777,32 @@ function ValuationHistorySection({ ticker }) {
   );
 }
 
+function BucketDateTooltip({ active, payload, valueFormatter }) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0].payload;
+  return (
+    <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-sm shadow-lg">
+      <div className="text-muted">
+        {formatShortDate(point.bucket, { year: "numeric", month: "short", day: "numeric" })}
+      </div>
+      {valueFormatter && point.value != null && (
+        <div className="font-semibold text-ink mt-0.5">{valueFormatter(point.value)}</div>
+      )}
+    </div>
+  );
+}
+
+// Trailing multiples can blow way past a normal 2-digit range (a company
+// freshly back to profitability can print a P/E in the thousands), so the
+// axis needs to size itself to the actual label text instead of a constant
+// that only works for the common case.
+function estimateAxisWidth(labels, charWidth = 6.5, minWidth = 28, padding = 10) {
+  const maxLen = labels.reduce((max, s) => Math.max(max, String(s).length), 0);
+  return Math.max(minWidth, maxLen * charWidth + padding);
+}
+
 function ValuationSparkline({ multiple, points }) {
+  const [expanded, setExpanded] = useState(false);
   const series = points
     .map((p) => ({ bucket: p.bucket, value: p[multiple.key] }))
     .filter((p) => p.value != null);
@@ -2679,7 +2811,7 @@ function ValuationSparkline({ multiple, points }) {
     return (
       <div className="bg-surface rounded-lg p-3">
         <div className="text-[10px] text-muted uppercase tracking-wider">{multiple.label}</div>
-        <div className="text-xs text-muted mt-2">No data</div>
+        <div className="text-sm text-muted mt-2">No data</div>
       </div>
     );
   }
@@ -2690,11 +2822,26 @@ function ValuationSparkline({ multiple, points }) {
   const sortedValues = series.map((p) => p.value).slice().sort((a, b) => a - b);
   const bandLo = sortedValues[Math.max(0, Math.round(0.1 * (sortedValues.length - 1)))];
   const bandHi = sortedValues[Math.max(0, Math.round(0.9 * (sortedValues.length - 1)))];
+  const minValue = sortedValues[0];
+  const maxValue = sortedValues[sortedValues.length - 1];
+  // A few evenly-spaced labels between the extremes, in addition to the exact
+  // min/max -- plain tickCount would round to "nice" numbers that can fall
+  // outside the true min/max and hide the very values the chart exists to show.
+  const yTicks =
+    maxValue > minValue
+      ? [minValue, minValue + (maxValue - minValue) / 3, minValue + (2 * (maxValue - minValue)) / 3, maxValue]
+      : [minValue];
+  const yAxisWidth = estimateAxisWidth(yTicks.map((v) => multiple.fmt(v)));
+  const expandedYAxisWidth = estimateAxisWidth([minValue, maxValue].map((v) => multiple.fmt(v)), 7, 44, 14);
 
   return (
-    <div className="bg-surface rounded-lg p-3">
+    <div
+      className="bg-surface rounded-lg p-3 cursor-pointer transition-colors hover:bg-surface-hover"
+      onClick={() => setExpanded(true)}
+      title="Click to expand"
+    >
       <div className="text-[10px] text-muted uppercase tracking-wider">{multiple.label}</div>
-      <div className="text-lg font-bold tabular-nums text-ink">
+      <div className="text-xl font-bold tabular-nums text-ink">
         {currentValue != null ? multiple.fmt(currentValue) : "—"}
       </div>
       <div className="text-[10px] text-muted mb-1">
@@ -2704,8 +2851,15 @@ function ValuationSparkline({ multiple, points }) {
       </div>
       <div className="h-16">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={series} margin={{ top: 2, right: 2, left: 2, bottom: 0 }}>
-            <YAxis hide domain={["dataMin", "dataMax"]} />
+          <AreaChart data={series} margin={{ top: 6, right: 2, left: 0, bottom: 6 }}>
+            <YAxis
+              domain={[minValue, maxValue]}
+              ticks={yTicks}
+              interval={0}
+              tick={AXIS_TICK}
+              width={yAxisWidth}
+              tickFormatter={(v) => multiple.fmt(v)}
+            />
             <ReferenceArea y1={bandLo} y2={bandHi} fill={NEUTRAL_COLOR} fillOpacity={0.15} strokeWidth={0} />
             <Area
               type="monotone"
@@ -2716,14 +2870,68 @@ function ValuationSparkline({ multiple, points }) {
               isAnimationActive={false}
               dot={false}
             />
-            <Tooltip
-              contentStyle={TOOLTIP_STYLE}
-              labelFormatter={(l) => l}
-              formatter={(v) => [multiple.fmt(v), multiple.label]}
-            />
+            <Tooltip content={<BucketDateTooltip valueFormatter={multiple.fmt} />} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
+
+      {expanded && (
+        <div
+          className="fixed inset-0 z-50 bg-surface flex flex-col p-6 sm:p-10 cursor-default"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => setExpanded(false)}
+            className="absolute top-4 right-4 sm:top-6 sm:right-6 p-2 rounded-full text-muted hover:text-ink hover:bg-surface-hover transition-colors"
+          >
+            <X size={22} />
+          </button>
+          <div className="mb-4 px-12">
+            <h3 className="text-base font-bold text-muted uppercase tracking-wider text-center">
+              {multiple.label} Valuation History
+            </h3>
+            <div className="text-3xl font-bold tabular-nums text-ink mt-1 text-center">
+              {currentValue != null ? multiple.fmt(currentValue) : "—"}
+              {currentPctile != null && (
+                <span className="text-sm font-normal text-muted ml-2">
+                  {ordinal(Math.round(currentPctile * 100))} percentile
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex-1 min-h-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={series} margin={{ top: 10, right: 24, left: 10, bottom: 10 }}>
+                <CartesianGrid stroke={GRID_STROKE} strokeDasharray="3 3" vertical={false} />
+                <XAxis
+                  dataKey="bucket"
+                  tick={{ ...AXIS_TICK, fontSize: 12 }}
+                  tickFormatter={(b) => formatShortDate(b, { month: "short", year: "numeric" })}
+                  minTickGap={40}
+                />
+                <YAxis
+                  domain={[minValue, maxValue]}
+                  tick={{ ...AXIS_TICK, fontSize: 12 }}
+                  width={expandedYAxisWidth}
+                  tickFormatter={(v) => multiple.fmt(v)}
+                />
+                <ReferenceArea y1={bandLo} y2={bandHi} fill={NEUTRAL_COLOR} fillOpacity={0.15} strokeWidth={0} />
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke={CATEGORICAL[0]}
+                  strokeWidth={2}
+                  fill={CATEGORICAL[0]}
+                  fillOpacity={0.08}
+                  isAnimationActive={false}
+                  dot={false}
+                />
+                <Tooltip content={<BucketDateTooltip valueFormatter={multiple.fmt} />} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2737,7 +2945,7 @@ function formatWeekTick(ts) {
 }
 
 // Renders every insider buy/sell dot directly onto the chart's SVG via
-// Recharts' Customized layer (the same technique TtmOverlay uses above),
+// Recharts' Customized layer (the same technique TtmUnderlay uses above),
 // converting each dot's (x, y) data value to pixel space with the axis
 // scales Recharts hands us. This sidesteps a Recharts <Scatter> quirk: when
 // a Scatter's own `data` array happens to have the same length as the
@@ -2824,7 +3032,7 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-3">
+      <h3 className="text-base font-semibold text-muted uppercase tracking-wider mb-3">
         Insider Trading Volume
       </h3>
       <div className="bg-surface rounded-lg p-4">
@@ -2837,13 +3045,13 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
                 type="number"
                 domain={["dataMin", "dataMax"]}
                 tickFormatter={formatWeekTick}
-                tick={AXIS_TICK}
+                tick={{ ...AXIS_TICK, fontSize: 12 }}
                 tickLine={false}
                 axisLine={{ stroke: GRID_STROKE }}
               />
               <YAxis
                 domain={[Math.max(0, minClose - pad), maxClose + pad]}
-                tick={{ ...AXIS_TICK, fontSize: 10 }}
+                tick={{ ...AXIS_TICK, fontSize: 11 }}
                 tickFormatter={(v) => `${cs}${v.toFixed(2)}`}
                 tickLine={false}
                 axisLine={false}
@@ -2887,7 +3095,7 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
           </ResponsiveContainer>
           {hoveredDot && (
             <div
-              className="absolute z-10 pointer-events-none bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg space-y-0.5 whitespace-nowrap"
+              className="absolute z-10 pointer-events-none bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-sm shadow-lg space-y-0.5 whitespace-nowrap"
               style={{
                 left: hoveredDot.cx,
                 top: hoveredDot.cy,
@@ -2912,16 +3120,40 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
   );
 }
 
+const insiderTypeOf = (t) => (t.side === "buy" ? "buy" : t.side === "sell" ? "sell" : "other");
+
 function InsiderTransactionsSection({ transactions, currencyCode, currentPrice }) {
+  const [activeTypes, setActiveTypes] = useState(() => new Set());
   if (!transactions || !transactions.length) return null;
   const cs = currencySymbol(currencyCode);
   const gridCols = "grid-cols-[1fr_auto_auto_auto_auto_auto_auto]";
 
+  const typeCounts = transactions.reduce((acc, t) => {
+    const key = insiderTypeOf(t);
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const typeOptions = Object.keys(YF_TYPE_META)
+    .filter((key) => typeCounts[key])
+    .map((key) => ({ value: key, count: typeCounts[key], ...YF_TYPE_META[key] }));
+  const toggleType = (value) =>
+    setActiveTypes((prev) => toggleSetValue(prev, value, typeOptions.length));
+  const visibleTransactions =
+    activeTypes.size === 0 ? transactions : transactions.filter((t) => activeTypes.has(insiderTypeOf(t)));
+
   return (
     <div>
-      <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-3">
-        Latest Insider Transactions
-      </h3>
+      <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+        <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
+          Latest Insider Transactions
+        </h3>
+        <TypeFilterChips
+          options={typeOptions}
+          active={activeTypes}
+          onToggle={toggleType}
+          onReset={() => setActiveTypes(new Set())}
+        />
+      </div>
       <div className="bg-surface rounded-lg overflow-hidden">
         <div className={`grid ${gridCols} gap-3 px-4 py-2 border-b border-surface-border text-[10px] uppercase tracking-wider text-muted font-medium`}>
           <span>Insider</span>
@@ -2933,7 +3165,12 @@ function InsiderTransactionsSection({ transactions, currencyCode, currentPrice }
           <span className="w-20 text-right">Date</span>
         </div>
         <ul className="max-h-96 overflow-y-auto">
-          {transactions.map((t, i) => {
+          {!visibleTransactions.length && (
+            <li className="px-4 py-6 text-center text-sm text-muted">
+              No transactions match the selected filter.
+            </li>
+          )}
+          {visibleTransactions.map((t, i) => {
             const isBuy = t.side === "buy";
             const isSell = t.side === "sell";
             const rowBg = isBuy
@@ -2989,7 +3226,7 @@ function InsiderTransactionsSection({ transactions, currencyCode, currentPrice }
             return (
               <li
                 key={i}
-                className={`grid ${gridCols} gap-3 items-center px-4 py-2 border-b border-surface-border last:border-0 text-xs transition-colors ${rowBg}`}
+                className={`grid ${gridCols} gap-3 items-center px-4 py-2 border-b border-surface-border last:border-0 text-sm transition-colors ${rowBg}`}
               >
                 <div className="min-w-0">
                   <div className="text-ink truncate" title={t.insider || ""}>

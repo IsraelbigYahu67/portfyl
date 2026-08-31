@@ -9,6 +9,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 TRADE_TYPES = frozenset({"buy", "sell", "dividend"})
+# Corporate-action rows change the position quantity but never move cash.
+POSITION_TYPES = TRADE_TYPES | frozenset({"split_open", "split_close"})
 # card_debit / cashback: T212 card spending and its cashback. fx_in / fx_out: the two
 # legs of a currency conversion (internal transfer between currency piles).
 CASH_TYPES = frozenset({"deposit", "withdrawal", "fee", "interest",
