@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 from datetime import date
+from unittest.mock import patch
 
 import pytest
 
 from tests.helpers import make_txn
-from routers.analytics import _compute_capital_gains, _compute_czech_tax_by_year
+from routers.analytics import (
+    _compute_capital_gains,
+    _compute_czech_tax_by_year,
+    _compute_unrealized_gains,
+)
 
 
 class TestCapitalGains:
@@ -242,3 +247,76 @@ def test_weighted_is_module_level_and_percentizes():
     assert by_name["A"]["weight"] == 75.0
     assert by_name["B"]["weight"] == 25.0
     assert out[0]["name"] == "A"  # sorted desc by value
+
+
+@pytest.mark.parametrize(
+    ("old_shares", "new_shares", "buy_price", "sell_price"),
+    [
+        (10, 5, 100.0, 220.0),   # 1-for-2 reverse split
+        (5, 10, 200.0, 110.0),   # 2-for-1 forward split
+    ],
+)
+def test_fifo_capital_gain_preserves_basis_across_stock_split(
+    old_shares, new_shares, buy_price, sell_price
+):
+    txns = [
+        make_txn("SPLT", "buy", old_shares, buy_price,
+                 date=date(2024, 1, 1), fx_to_czk=1),
+        make_txn("SPLT", "split_close", old_shares, buy_price,
+                 date=date(2024, 6, 1), fx_to_czk=1),
+        make_txn("SPLT", "split_open", new_shares,
+                 buy_price * old_shares / new_shares,
+                 date=date(2024, 6, 1), fx_to_czk=1),
+        make_txn("SPLT", "sell", new_shares, sell_price,
+                 date=date(2024, 7, 1), fx_to_czk=1),
+    ]
+
+    gains = _compute_capital_gains(txns)
+
+    assert len(gains) == 1
+    assert gains[0]["shares"] == pytest.approx(new_shares)
+    assert gains[0]["cost_basis"] == pytest.approx(1000)
+    assert gains[0]["proceeds"] == pytest.approx(1100)
+    assert gains[0]["gain"] == pytest.approx(100)
+
+
+def test_unrealized_lot_quantity_and_basis_follow_reverse_split():
+    txns = [
+        make_txn("SPLT", "buy", 10, 100, date=date(2024, 1, 1)),
+        make_txn("SPLT", "split_close", 10, 100, date=date(2024, 6, 1)),
+        make_txn("SPLT", "split_open", 5, 200, date=date(2024, 6, 1)),
+    ]
+
+    with patch("routers.analytics.market_data.get_infos", return_value={
+        "SPLT": {"currentPrice": 220.0, "currency": "USD"},
+    }):
+        unrealized = _compute_unrealized_gains(txns)
+
+    assert len(unrealized) == 1
+    assert unrealized[0]["shares"] == pytest.approx(5)
+    assert unrealized[0]["cost_basis"] == pytest.approx(1000)
+    assert unrealized[0]["market_value"] == pytest.approx(1100)
+
+
+def test_allocation_uses_post_split_share_count(db_session, pid):
+    from routers.analytics import _allocation_totals
+
+    db_session.add_all([
+        make_txn("SPLT", "buy", 10, 100, date=date(2024, 1, 1), portfolio_id=pid),
+        make_txn("SPLT", "split_close", 10, 100, date=date(2024, 6, 1), portfolio_id=pid),
+        make_txn("SPLT", "split_open", 5, 200, date=date(2024, 6, 1), portfolio_id=pid),
+    ])
+    db_session.commit()
+
+    with patch("market_data.get_infos", return_value={
+        "SPLT": {
+            "currentPrice": 200.0,
+            "currency": "USD",
+            "sector": "Technology",
+            "quoteType": "EQUITY",
+        },
+    }):
+        raw = _allocation_totals(db_session, pid, "USD")
+
+    assert raw["total_value"] == pytest.approx(1000)
+    assert raw["sectors"]["Technology"] == pytest.approx(1000)

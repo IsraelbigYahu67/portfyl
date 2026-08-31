@@ -7,11 +7,13 @@ The fixture rows are verbatim lines from a real Trading 212 export
 
 from __future__ import annotations
 
+import asyncio
 import io
 from datetime import date
 
 import pandas as pd
 import pytest
+from fastapi import HTTPException, UploadFile
 
 from cash_ledger import (
     CASH_TYPES,
@@ -21,8 +23,13 @@ from cash_ledger import (
     has_external_cashflows,
     signed_cash,
 )
-from models import Transaction
-from routers.portfolio import _is_t212, _normalize_t212
+from models import BrokerConnection, Transaction
+from routers.portfolio import (
+    _is_t212,
+    _normalize_t212,
+    _normalize_t212_detailed,
+    import_csv,
+)
 from tests.helpers import make_txn
 
 _T212_HEADER = (
@@ -154,6 +161,138 @@ class TestNormalizeT212:
         assert types["fx_in"][0]["currency"] == "CZK"
         assert types["fee"][0]["amount"] == pytest.approx(0.16)
         assert types["fee"][0]["currency"] == "CZK"
+
+
+@pytest.mark.parametrize(
+    "bad_row",
+    [
+        {
+            "Action": "Mystery action",
+            "Time (UTC)": "2026-01-20 10:28:43",
+            "Ticker": "AAPL",
+            "No. of shares": 1,
+            "Price / share": 100,
+            "Total": 2100,
+            "Currency (Total)": "CZK",
+        },
+        {
+            "Action": "Market buy",
+            "Time (UTC)": "2026-01-20 10:28:43",
+            "Ticker": "",
+            "No. of shares": 1,
+            "Price / share": 100,
+            "Total": 2100,
+            "Currency (Total)": "CZK",
+        },
+        {
+            "Action": "Cash in",
+            "Time (UTC)": "2026-01-20 10:28:43",
+            "Ticker": "",
+            "No. of shares": "",
+            "Price / share": "",
+            "Total": 100,
+            "Currency (Total)": "CZK",
+        },
+        {
+            "Action": "Stock split open",
+            "Time (UTC)": "2026-01-20 10:28:43",
+            "Ticker": "SPLT",
+            "No. of shares": 5,
+            "Price / share": 200,
+            "Total": 1000,
+            "Currency (Total)": "USD",
+        },
+    ],
+)
+def test_failed_t212_normalization_cannot_replace_existing_rows(db_session, pid, bad_row):
+    old = make_txn("MSFT", "buy", 2, 300, source="t212_api", portfolio_id=pid)
+    db_session.add(old)
+    db_session.commit()
+
+    payload = pd.DataFrame([bad_row]).to_csv(index=False).encode()
+    upload = UploadFile(filename="bad-t212.csv", file=io.BytesIO(payload))
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(import_csv(file=upload, replace=True, db=db_session, pid=pid))
+
+    assert exc_info.value.status_code == 400
+    assert "Row 2" in str(exc_info.value.detail)
+    remaining = db_session.query(Transaction).filter(Transaction.portfolio_id == pid).all()
+    assert len(remaining) == 1
+    assert remaining[0].ticker == "MSFT"
+    assert remaining[0].source == "t212_api"
+
+
+def test_t212_rejects_same_day_trade_and_split_when_order_cannot_be_persisted():
+    df = pd.DataFrame([
+        {
+            "Action": "Stock split close",
+            "Time (UTC)": "2026-01-20 08:00:00",
+            "Ticker": "SPLT",
+            "No. of shares": 10,
+            "Price / share": 100,
+            "Total": 1000,
+            "Currency (Total)": "USD",
+        },
+        {
+            "Action": "Stock split open",
+            "Time (UTC)": "2026-01-20 08:00:00",
+            "Ticker": "SPLT",
+            "No. of shares": 5,
+            "Price / share": 200,
+            "Total": 1000,
+            "Currency (Total)": "USD",
+        },
+        {
+            "Action": "Market buy",
+            "Time (UTC)": "2026-01-20 12:00:00",
+            "Ticker": "SPLT",
+            "No. of shares": 1,
+            "Price / share": 205,
+            "Currency (Price / share)": "USD",
+            "Total": 4200,
+            "Currency (Total)": "CZK",
+        },
+    ])
+    df.columns = df.columns.str.lower().str.strip()
+
+    _, _, errors = _normalize_t212_detailed(df)
+
+    assert any("same-day trade and stock split" in error for error in errors)
+
+
+def test_valid_t212_replace_is_atomic_and_marks_csv_source(db_session, pid):
+    connection = BrokerConnection(
+        portfolio_id=pid,
+        broker="trading212",
+        api_key="k" * 20,
+    )
+    db_session.add(connection)
+    db_session.add(make_txn("MSFT", "buy", 2, 300, source="t212_api", portfolio_id=pid))
+    db_session.commit()
+
+    payload = pd.DataFrame([{
+        "Action": "Deposit",
+        "Time (UTC)": "2026-01-19 19:21:23",
+        "Ticker": "",
+        "No. of shares": "",
+        "Price / share": "",
+        "Total": 68050,
+        "Currency (Total)": "CZK",
+    }]).to_csv(index=False).encode()
+    upload = UploadFile(filename="full-t212.csv", file=io.BytesIO(payload))
+
+    result = asyncio.run(import_csv(file=upload, replace=False, db=db_session, pid=pid))
+
+    assert result["replaced"] is True
+    assert result["events"] == 1
+    assert result["processed_events"] == 1
+    rows = db_session.query(Transaction).filter(Transaction.portfolio_id == pid).all()
+    assert len(rows) == 1
+    assert rows[0].type == "deposit"
+    assert rows[0].source == "t212_csv"
+    db_session.refresh(connection)
+    assert connection.t212_csv_covered_through.isoformat() == "2026-01-19T19:21:23"
 
 
 class TestSettlementSignedCash:

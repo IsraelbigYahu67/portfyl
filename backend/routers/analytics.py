@@ -142,9 +142,10 @@ def _get_transactions(db: Session, pid: int):
         .order_by(Transaction.date)
         .all()
     )
-    # Single choke point for all analytics consumers: cash rows
-    # (deposit/withdrawal/fee/interest, ticker=None) never reach returns/tax math.
-    return [t for t in rows if t.type in TRADE_TYPES and t.ticker]
+    # Single choke point for position analytics: cash-only rows never reach
+    # holdings/tax math, while corporate actions must remain present so share
+    # counts and FIFO cost bases survive stock splits.
+    return [t for t in rows if t.type in POSITION_TYPES and t.ticker]
 
 
 # Czech Income Tax Act §4: capital gain on a security is exempt if the holding
@@ -157,18 +158,96 @@ CZ_TIME_TEST_CAP_CZK = 40_000_000
 CZ_TIME_TEST_CAP_FROM_YEAR = 2024
 
 
+_POSITION_EVENT_ORDER = {
+    "buy": 0,
+    "split_close": 1,
+    "split_open": 2,
+    "dividend": 3,
+    "sell": 4,
+}
+
+
+def _position_events(transactions: list) -> list:
+    """Stable accounting order, including paired split legs on the same date."""
+    return [
+        txn for _, txn in sorted(
+            enumerate(transactions),
+            key=lambda pair: (
+                pair[1].date,
+                _POSITION_EVENT_ORDER.get(pair[1].type, 99),
+                pair[0],
+            ),
+        )
+    ]
+
+
+def _split_ratios(transactions: list) -> dict[tuple, float]:
+    """Return new/old share ratios for complete T212 split pairs."""
+    legs: dict[tuple, dict[str, float]] = defaultdict(lambda: {"open": 0.0, "close": 0.0})
+    for txn in transactions:
+        if txn.type not in {"split_open", "split_close"} or not txn.ticker:
+            continue
+        key = (txn.ticker, txn.date)
+        leg = "open" if txn.type == "split_open" else "close"
+        legs[key][leg] += abs(float(txn.shares or 0.0))
+    return {
+        key: values["open"] / values["close"]
+        for key, values in legs.items()
+        if values["open"] > 0 and values["close"] > 0
+    }
+
+
+def _apply_split_to_lots(ticker_lots: list[dict], ratio: float) -> None:
+    """Change lot quantity/per-share basis while preserving total cost basis."""
+    if ratio <= 0:
+        return
+    for lot in ticker_lots:
+        lot["shares"] *= ratio
+        lot["remaining"] *= ratio
+        lot["price"] /= ratio
+
+
+def _consume_fifo(ticker_lots: list[dict], shares: float) -> list[tuple[dict, float]]:
+    matched: list[tuple[dict, float]] = []
+    remaining = float(shares or 0.0)
+    for lot in ticker_lots:
+        if remaining <= 0:
+            break
+        if lot["remaining"] <= 0:
+            continue
+        sold = min(remaining, lot["remaining"])
+        lot["remaining"] -= sold
+        remaining -= sold
+        matched.append((lot, sold))
+    return matched
+
+
+def _new_lot(txn) -> dict:
+    return {
+        "date": txn.date,
+        "shares": float(txn.shares or 0.0),
+        "price": float(txn.price or 0.0),
+        "remaining": float(txn.shares or 0.0),
+        "fx_to_czk": txn.fx_to_czk,  # FX captured at acquisition
+        "currency": txn.currency,    # native currency of the buy price
+    }
+
+
 def _build_lot_queue(transactions: list) -> dict[str, list[dict]]:
+    """Build final open FIFO lots after buys, sells and stock splits."""
     lots: dict[str, list[dict]] = defaultdict(list)
-    for txn in sorted(transactions, key=lambda t: t.date):
+    ratios = _split_ratios(transactions)
+    applied_splits: set[tuple] = set()
+    for txn in _position_events(transactions):
         if txn.type == "buy":
-            lots[txn.ticker].append({
-                "date": txn.date,
-                "shares": txn.shares,
-                "price": txn.price,
-                "remaining": txn.shares,
-                "fx_to_czk": txn.fx_to_czk,  # FX captured at acquisition
-                "currency": txn.currency,    # native currency of the buy price
-            })
+            lots[txn.ticker].append(_new_lot(txn))
+        elif txn.type == "split_open":
+            key = (txn.ticker, txn.date)
+            if key in ratios and key not in applied_splits:
+                _apply_split_to_lots(lots[txn.ticker], ratios[key])
+                applied_splits.add(key)
+        elif txn.type == "sell":
+            _consume_fifo(lots.get(txn.ticker, []), txn.shares)
     return lots
 
 
@@ -189,28 +268,32 @@ def _add_years(d: date, years: int) -> date:
 
 
 def _compute_capital_gains(transactions: list, tax_year: int | None = None):
-    lots = _build_lot_queue(transactions)
+    lots: dict[str, list[dict]] = defaultdict(list)
+    ratios = _split_ratios(transactions)
+    applied_splits: set[tuple] = set()
     gains = []
 
-    for txn in sorted(transactions, key=lambda t: t.date):
+    for txn in _position_events(transactions):
+        if txn.type == "buy":
+            lots[txn.ticker].append(_new_lot(txn))
+            continue
+        if txn.type == "split_open":
+            key = (txn.ticker, txn.date)
+            if key in ratios and key not in applied_splits:
+                _apply_split_to_lots(lots[txn.ticker], ratios[key])
+                applied_splits.add(key)
+            continue
         if txn.type != "sell":
             continue
+        sell_fx = txn.fx_to_czk  # may be None
+
+        # Always consume historical sells so a year-filtered report starts from
+        # the right remaining lots; only emission is scoped to the selected year.
+        matched = _consume_fifo(lots.get(txn.ticker, []), txn.shares)
         if tax_year and txn.date.year != tax_year:
             continue
 
-        remaining_to_sell = txn.shares
-        ticker_lots = lots.get(txn.ticker, [])
-        sell_fx = txn.fx_to_czk  # may be None
-
-        for lot in ticker_lots:
-            if remaining_to_sell <= 0:
-                break
-            if lot["remaining"] <= 0:
-                continue
-
-            sold_from_lot = min(remaining_to_sell, lot["remaining"])
-            lot["remaining"] -= sold_from_lot
-            remaining_to_sell -= sold_from_lot
+        for lot, sold_from_lot in matched:
 
             cost_basis = sold_from_lot * lot["price"]
             proceeds = sold_from_lot * txn.price
@@ -401,19 +484,6 @@ def tax_report(
 
 def _compute_unrealized_gains(transactions: list):
     lots = _build_lot_queue(transactions)
-
-    for txn in sorted(transactions, key=lambda t: t.date):
-        if txn.type != "sell":
-            continue
-        remaining = txn.shares
-        for lot in lots.get(txn.ticker, []):
-            if remaining <= 0:
-                break
-            if lot["remaining"] <= 0:
-                continue
-            sold = min(remaining, lot["remaining"])
-            lot["remaining"] -= sold
-            remaining -= sold
 
     unrealized = []
     tickers_with_lots = {t: ls for t, ls in lots.items() if any(l["remaining"] > 0 for l in ls)}
@@ -684,11 +754,6 @@ def _modified_dietz_daily_returns(V: pd.Series, C: pd.Series, window_start: date
             continue
         r = (curr - prev - cf) / denom
         if not np.isfinite(r):
-            continue
-        # Keep the existing data-quality guard for genuinely broken price
-        # series. Correctly imported split legs now prevent normal splits from
-        # reaching this branch as false >50% returns.
-        if abs(r) > 0.5:
             continue
         out_vals.append(r)
         out_idx.append(V.index[i])

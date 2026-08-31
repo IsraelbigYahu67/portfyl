@@ -148,6 +148,7 @@ def _ensure_portfolio_columns(default_portfolio_id: int) -> None:
                     environment VARCHAR DEFAULT 'live',
                     auto_sync BOOLEAN DEFAULT 0,
                     last_synced_at DATETIME,
+                    t212_csv_covered_through DATETIME,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE (broker, portfolio_id),
                     FOREIGN KEY (portfolio_id) REFERENCES portfolios(id) ON DELETE CASCADE
@@ -157,9 +158,10 @@ def _ensure_portfolio_columns(default_portfolio_id: int) -> None:
             conn.execute(text(
                 """
                 INSERT INTO broker_connections_new
-                    (id, portfolio_id, broker, api_key, api_secret, environment, auto_sync, last_synced_at, created_at)
+                    (id, portfolio_id, broker, api_key, api_secret, environment, auto_sync,
+                     last_synced_at, t212_csv_covered_through, created_at)
                 SELECT id, :pid, broker, api_key, COALESCE(api_secret, ''), COALESCE(environment, 'live'),
-                       COALESCE(auto_sync, 0), last_synced_at, created_at
+                       COALESCE(auto_sync, 0), last_synced_at, NULL, created_at
                 FROM broker_connections
                 """
             ), {"pid": default_portfolio_id})
@@ -172,6 +174,17 @@ def _ensure_portfolio_columns(default_portfolio_id: int) -> None:
                 text("UPDATE broker_connections SET portfolio_id = :pid WHERE portfolio_id IS NULL"),
                 {"pid": default_portfolio_id},
             )
+
+
+def _ensure_t212_snapshot_column() -> None:
+    """Add the precise full-history CSV cutoff to existing broker connections."""
+    with engine.begin() as conn:
+        cols = {r[1] for r in conn.execute(text("PRAGMA table_info(broker_connections)"))}
+        if "t212_csv_covered_through" not in cols:
+            conn.execute(text(
+                "ALTER TABLE broker_connections "
+                "ADD COLUMN t212_csv_covered_through DATETIME"
+            ))
 
 
 def _backfill_fx() -> None:
@@ -314,6 +327,7 @@ _ensure_settlement_columns()
 _ensure_cash_interest_rate_table()
 _default_pid = _ensure_default_portfolio()
 _ensure_portfolio_columns(_default_pid)
+_ensure_t212_snapshot_column()
 _backfill_fx()
 _seed_preset_benchmarks()
 _ensure_options_trades_table()

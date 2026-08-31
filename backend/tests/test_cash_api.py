@@ -563,6 +563,16 @@ def test_modified_dietz_weights_external_flow_and_geometrically_links_days():
     assert float((1 + daily).prod() - 1) == pytest.approx(0.1956349206)
 
 
+def test_modified_dietz_keeps_legitimate_return_above_fifty_percent():
+    idx = pd.date_range("2024-01-01", periods=2, freq="D")
+    V = pd.Series([100.0, 160.0], index=idx)
+    C = pd.Series([0.0, 0.0], index=idx)
+
+    daily = _modified_dietz_daily_returns(V, C, date(2024, 1, 1))
+
+    assert daily.tolist() == pytest.approx([0.60])
+
+
 def test_performance_endpoint_returns_net_worth_and_cumulative_twr(db_session, pid):
     """Using holdings-only value or treating cashback as return breaks the endpoint."""
     txns = [
@@ -583,3 +593,27 @@ def test_performance_endpoint_returns_net_worth_and_cumulative_twr(db_session, p
 
     assert [row["value"] for row in result] == pytest.approx([1000, 1200, 1310])
     assert [row["pnl_pct"] for row in result] == pytest.approx([0, 9.52, 19.56], abs=0.01)
+
+
+def test_performance_period_and_lifetime_returns_are_distinct(db_session, pid):
+    today = date.today()
+    first_day = today - pd.Timedelta(days=10)
+    txns = [
+        make_txn(ticker=None, type="deposit", shares=0, price=0, amount=1000,
+                 currency="USD", date=first_day, portfolio_id=pid),
+        make_txn("AAPL", "buy", 10, 100, currency="USD", cash_amount=1000,
+                 cash_currency="USD", date=first_day, portfolio_id=pid),
+    ]
+    db_session.add_all(txns)
+    db_session.commit()
+    idx = pd.date_range(first_day, today, freq="D")
+    prices = [100.0, 100.0, 120.0] + [120.0] * 7 + [132.0]
+
+    with patch("routers.analytics.yf.download", return_value=_mock_price_panel(idx, prices)), \
+         patch("routers.analytics.market_data.get_infos", return_value={"AAPL": {"currency": "USD"}}):
+        result = get_performance(currency="USD", period="7d", db=db_session, pid=pid)
+
+    assert result[-1]["pnl_pct"] == pytest.approx(10.0, abs=0.01)
+    assert result[-1]["total_pnl_pct"] == pytest.approx(32.0, abs=0.01)
+    assert result[-1]["pnl"] == pytest.approx(120.0, abs=0.01)
+    assert result[-1]["total_pnl"] == pytest.approx(320.0, abs=0.01)

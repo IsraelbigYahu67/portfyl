@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from urllib.parse import urlparse, parse_qs
 import httpx
 import base64
@@ -11,6 +11,7 @@ from fx import bulk_fetch_fx
 from models import BrokerConnection, Transaction
 from routers.portfolios import require_portfolio
 from auth import get_current_user
+from cash_ledger import CASH_TYPES
 
 router = APIRouter(prefix="/broker", tags=["broker"])
 
@@ -335,6 +336,35 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
         .filter(Transaction.portfolio_id == pid, Transaction.ticker.isnot(None))
         .all()
     )
+    # A replace-imported T212 export is an account-wide history snapshot. Its
+    # newest date therefore covers even instruments absent from the export;
+    # without this global cutoff, a later API sync resurrects old API-only rows
+    # for unseen tickers and breaks the replacement guarantee. Orders after the
+    # snapshot date remain eligible for normal incremental sync.
+    snapshot_rows = db.query(
+        Transaction.date, Transaction.type, Transaction.source, Transaction.notes
+    ).filter(
+        Transaction.portfolio_id == pid,
+        Transaction.source.in_(("csv", "t212_csv")),
+    ).all()
+    t212_csv_dates = [row.date for row in snapshot_rows if row.source == "t212_csv"]
+    legacy_csv_rows = [row for row in snapshot_rows if row.source == "csv"]
+    legacy_is_t212 = any(
+        row.type in CASH_TYPES or (row.notes or "").startswith("T212:")
+        for row in legacy_csv_rows
+    )
+    fallback_dates = t212_csv_dates + (
+        [row.date for row in legacy_csv_rows] if legacy_is_t212 else []
+    )
+    precise_history_cutoff = conn.t212_csv_covered_through
+    if precise_history_cutoff is not None:
+        if precise_history_cutoff.tzinfo is None:
+            precise_history_cutoff = precise_history_cutoff.replace(tzinfo=timezone.utc)
+        else:
+            precise_history_cutoff = precise_history_cutoff.astimezone(timezone.utc)
+    t212_history_date_cutoff = (
+        max(fallback_dates) if fallback_dates and precise_history_cutoff is None else None
+    )
     for t in existing_txns:
         existing_sources |= _dedup_keys(t.ticker, t.date, t.type, t.shares, t.price)
         if t.type == "dividend":
@@ -387,8 +417,18 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
 
             date_str = fill_data.get("filledAt") or order_data.get("createdAt", "")
             try:
-                txn_date = datetime.fromisoformat(date_str.replace("Z", "+00:00")).date()
+                event_time = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                if event_time.tzinfo is None:
+                    event_time = event_time.replace(tzinfo=timezone.utc)
+                else:
+                    event_time = event_time.astimezone(timezone.utc)
+                txn_date = event_time.date()
             except Exception:
+                continue
+
+            if precise_history_cutoff and event_time <= precise_history_cutoff:
+                continue
+            if t212_history_date_cutoff and txn_date <= t212_history_date_cutoff:
                 continue
 
             cutoff = latest_by_base.get(ticker.split(".")[0])
@@ -440,8 +480,18 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
 
                 date_str = div.get("paidOn") or div.get("reference", "")
                 try:
-                    txn_date = datetime.fromisoformat(date_str.replace("Z", "+00:00")).date()
+                    event_time = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                    if event_time.tzinfo is None:
+                        event_time = event_time.replace(tzinfo=timezone.utc)
+                    else:
+                        event_time = event_time.astimezone(timezone.utc)
+                    txn_date = event_time.date()
                 except Exception:
+                    continue
+
+                if precise_history_cutoff and event_time <= precise_history_cutoff:
+                    continue
+                if t212_history_date_cutoff and txn_date <= t212_history_date_cutoff:
                     continue
 
                 cutoff = latest_by_base.get(ticker.split(".")[0])

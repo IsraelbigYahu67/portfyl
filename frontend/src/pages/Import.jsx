@@ -269,8 +269,7 @@ Dividend (Ordinary),2024-09-15 00:00:00,US5949181045,MSFT,Microsoft,5,0.75,USD,â
                 </div>
                 {result.skipped > 0 && (
                   <p className="text-xs text-muted">
-                    {result.skipped} non-trade row{result.skipped !== 1 ? "s" : ""} skipped
-                    (deposits, withdrawals, cash interest, etc.)
+                    {result.skipped} recognized informational row{result.skipped !== 1 ? "s" : ""} skipped
                   </p>
                 )}
                 {result.errors?.length > 0 && (

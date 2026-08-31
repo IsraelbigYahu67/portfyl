@@ -37,7 +37,7 @@ class Transaction(Base):
     cash_currency = Column(String, nullable=True)
     date = Column(Date, nullable=False)
     notes = Column(String, nullable=True)
-    source = Column(String, nullable=True)  # "manual" | "t212_api" | "csv"
+    source = Column(String, nullable=True)  # "manual" | "t212_api" | "t212_csv" | "csv"
     fx_to_czk = Column(Float, nullable=True)  # rate from `currency` to CZK on `date`
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -103,6 +103,9 @@ class BrokerConnection(Base):
     environment = Column(String, default="live")  # "live" | "demo"
     auto_sync = Column(Boolean, default=False)
     last_synced_at = Column(DateTime(timezone=True), nullable=True)
+    # Exact UTC timestamp of the newest event in the last authoritative T212
+    # CSV replacement. API sync may safely import only events after this point.
+    t212_csv_covered_through = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

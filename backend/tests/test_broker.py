@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -188,6 +188,55 @@ class TestSyncDedupe:
             _order("AAPL", "BUY", 10, 150.0, "2024-06-01"),
         ])
         assert res["imported_orders"] == 2
+
+    def test_full_t212_csv_blocks_covered_history_for_unseen_tickers(
+        self, db_session, pid, connection
+    ):
+        # A T212 replacement export is authoritative for the whole account,
+        # not only for tickers present in it. A later manual API sync must not
+        # resurrect older API-only history or same-day rows behind its cutoff.
+        db_session.add(make_txn("AAPL", "buy", 10, 150.0, date=date(2024, 6, 1),
+                                source="t212_csv", portfolio_id=pid))
+        db_session.commit()
+
+        res = _run_sync(db_session, pid, [
+            _order("MSFT", "BUY", 5, 300.0, "2024-01-05"),
+            _order("AVGO", "BUY", 1, 1400.0, "2024-06-01"),
+        ])
+
+        assert res["imported_orders"] == 0
+        assert self._txn_count(db_session, pid) == 1
+
+    def test_full_t212_csv_allows_orders_after_its_coverage_date(
+        self, db_session, pid, connection
+    ):
+        db_session.add(make_txn("AAPL", "buy", 10, 150.0, date=date(2024, 6, 1),
+                                source="t212_csv", portfolio_id=pid))
+        db_session.commit()
+
+        res = _run_sync(db_session, pid, [
+            _order("MSFT", "BUY", 5, 300.0, "2024-06-02"),
+        ])
+
+        assert res["imported_orders"] == 1
+        assert self._txn_count(db_session, pid) == 2
+
+    def test_precise_snapshot_timestamp_allows_later_same_day_order(
+        self, db_session, pid, connection
+    ):
+        connection.t212_csv_covered_through = datetime(
+            2024, 6, 1, 8, 0, tzinfo=timezone.utc
+        )
+        db_session.add(make_txn("AAPL", "buy", 10, 150.0, date=date(2024, 6, 1),
+                                source="t212_csv", portfolio_id=pid))
+        db_session.commit()
+
+        res = _run_sync(db_session, pid, [
+            _order("MSFT", "BUY", 5, 300.0, "2024-06-01"),
+        ])
+
+        assert res["imported_orders"] == 1
+        assert self._txn_count(db_session, pid) == 2
 
     def test_skips_dividends_matching_csv_rows(self, db_session, pid, connection):
         # CSV dividend: 0.4 shares @ 0.374/share = 0.1496 total. The API reports

@@ -6,10 +6,10 @@ import pandas as pd
 import pytz
 import io
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from database import get_db
-from models import Transaction
+from models import BrokerConnection, Transaction
 from cash_ledger import TRADE_TYPES, POSITION_TYPES
 from schemas import TransactionCreate, TransactionResponse
 from fx import fetch_fx_to_czk, bulk_fetch_fx
@@ -40,11 +40,6 @@ _T212_CASH_ACTIONS = {
     "card debit": "card_debit",
     "spending cashback": "cashback",
 }
-_T212_SKIP_ACTIONS = {
-    "cash in", "cash out", "result from positions",
-}
-
-
 def _is_t212(cols: set) -> bool:
     return _T212_SIGNATURE.issubset(cols) and bool({"time", "time (utc)"} & cols)
 
@@ -80,7 +75,7 @@ def _t212_str(row, col, default="") -> str:
     return s if s and s.upper() != "NAN" else default
 
 
-def _normalize_t212(df: pd.DataFrame) -> tuple[list[dict], int]:
+def _normalize_t212_detailed(df: pd.DataFrame) -> tuple[list[dict], int, list[str]]:
     """Convert a T212 DataFrame into a list of normalised row dicts.
 
     Everything in a T212 export settles in the account currency: the `Total`
@@ -89,18 +84,28 @@ def _normalize_t212(df: pd.DataFrame) -> tuple[list[dict], int]:
     pile. Deposits, withdrawals, interest, card debits and cashback become cash
     rows; a currency conversion becomes fx_out + fx_in (+ fee) legs.
 
-    Returns (rows, skipped_count).
+    Returns (rows, skipped_count, validation_errors). Recognized informational
+    summary rows may be skipped; malformed or unknown account events are
+    reported as errors so a full-history replacement can fail before touching
+    the database.
     """
-    rows, skipped = [], 0
-    for _, row in df.iterrows():
+    rows, skipped, errors = [], 0, []
+    split_events: dict[tuple[str, str], dict] = {}
+    split_dates: set[tuple[str, object]] = set()
+    trade_dates: set[tuple[str, object]] = set()
+    for i, row in df.iterrows():
+        row_num = i + 2  # CSV header occupies row 1
         raw_action = str(row.get("action", "")).strip()
+        action_label = raw_action or "<missing action>"
         try:
             raw_time = row.get("time (utc)")
             if raw_time is None or pd.isna(raw_time):
                 raw_time = row.get("time")
-            txn_date = pd.to_datetime(str(raw_time), utc=True).date()
+            txn_time = pd.to_datetime(str(raw_time), utc=True)
+            txn_date = txn_time.date()
         except Exception:
             skipped += 1
+            errors.append(f"Row {row_num} ({action_label}): invalid or missing timestamp")
             continue
 
         total = _t212_num(row, "total")
@@ -115,6 +120,7 @@ def _normalize_t212(df: pd.DataFrame) -> tuple[list[dict], int]:
                 _t212_str(row, "currency (price / share)", "USD").upper()
             if amount <= 0:
                 skipped += 1
+                errors.append(f"Row {row_num} ({action_label}): ADR fee amount is missing")
                 continue
             ticker = _t212_str(row, "ticker").upper()
             rows.append({"ticker": None, "name": None, "type": "fee",
@@ -127,9 +133,20 @@ def _normalize_t212(df: pd.DataFrame) -> tuple[list[dict], int]:
             ticker = _t212_str(row, "ticker").upper()
             shares = _t212_num(row, "no. of shares")
             price = _t212_num(row, "price / share")
-            if not ticker or shares is None or price is None:
+            if not ticker or shares is None or shares <= 0 or price is None:
                 skipped += 1
+                errors.append(
+                    f"Row {row_num} ({action_label}): ticker, positive shares and price are required"
+                )
                 continue
+            split_key = (ticker, txn_time.isoformat())
+            event = split_events.setdefault(
+                split_key, {"open": 0, "close": 0, "rows": []}
+            )
+            leg = "open" if action_lc.endswith("open") else "close"
+            event[leg] += 1
+            event["rows"].append(row_num)
+            split_dates.add((ticker, txn_date))
             currency = _t212_str(row, "currency (price / share)", "USD").upper()
             rate = _t212_num(row, "exchange rate")
             fx_to_czk = 1.0 if currency == "CZK" else (1.0 / rate if rate else None)
@@ -154,6 +171,12 @@ def _normalize_t212(df: pd.DataFrame) -> tuple[list[dict], int]:
             to_amt = _t212_num(row, "currency conversion to amount")
             to_ccy = _t212_str(row, "currency (currency conversion to amount)").upper()
             note = _t212_str(row, "notes", raw_action)
+            if not from_amt or not from_ccy or not to_amt or not to_ccy:
+                skipped += 1
+                errors.append(
+                    f"Row {row_num} ({action_label}): both currency-conversion legs are required"
+                )
+                continue
             if from_amt and from_ccy:
                 rows.append({"ticker": None, "name": None, "type": "fx_out",
                              "shares": 0.0, "price": 0.0, "amount": abs(from_amt),
@@ -172,11 +195,13 @@ def _normalize_t212(df: pd.DataFrame) -> tuple[list[dict], int]:
         txn_type = _t212_action_to_type(raw_action)
         if txn_type is None:
             skipped += 1
+            errors.append(f"Row {row_num} ({action_label}): unsupported Trading 212 action")
             continue
 
         if txn_type in _T212_CASH_ACTIONS.values():
             if not total:
                 skipped += 1
+                errors.append(f"Row {row_num} ({action_label}): non-zero Total is required")
                 continue
             if txn_type == "card_debit":
                 merchant = _t212_str(row, "merchant name")
@@ -196,7 +221,16 @@ def _normalize_t212(df: pd.DataFrame) -> tuple[list[dict], int]:
         price = _t212_num(row, "price / share")
         if not ticker or shares is None or price is None:
             skipped += 1
+            errors.append(
+                f"Row {row_num} ({action_label}): ticker, shares and price are required"
+            )
             continue
+        if not total:
+            skipped += 1
+            errors.append(f"Row {row_num} ({action_label}): non-zero Total is required")
+            continue
+        if txn_type in {"buy", "sell"}:
+            trade_dates.add((ticker, txn_date))
 
         currency = _t212_str(row, "currency (price / share)", "USD").upper()
         rate = _t212_num(row, "exchange rate")
@@ -230,6 +264,26 @@ def _normalize_t212(df: pd.DataFrame) -> tuple[list[dict], int]:
             "cash_currency": total_ccy if total else None,
         })
 
+    for (ticker, timestamp), event in split_events.items():
+        if event["open"] != 1 or event["close"] != 1:
+            row_labels = ", ".join(str(n) for n in event["rows"])
+            errors.append(
+                f"Row {row_labels} ({ticker} at {timestamp}): stock split requires "
+                "exactly one open and one close leg"
+            )
+
+    for ticker, txn_date in sorted(split_dates & trade_dates):
+        errors.append(
+            f"{ticker} on {txn_date}: same-day trade and stock split cannot be "
+            "imported safely because transactions persist date-only ordering"
+        )
+
+    return rows, skipped, errors
+
+
+def _normalize_t212(df: pd.DataFrame) -> tuple[list[dict], int]:
+    """Compatibility wrapper for callers that only need normalized rows."""
+    rows, skipped, _ = _normalize_t212_detailed(df)
     return rows, skipped
 
 
@@ -425,13 +479,28 @@ async def import_csv(
     cols = set(df.columns)
 
     imported, skipped, errors = 0, 0, []
+    t212_covered_through = None
 
     new_rows: list[dict] = []
 
     if _is_t212(cols):
         fmt = "Trading 212"
-        normalised, skipped = _normalize_t212(df)
+        normalised, skipped, normalization_errors = _normalize_t212_detailed(df)
+        if normalization_errors:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "Trading 212 import is not lossless; existing data was preserved",
+                    "errors": normalization_errors,
+                },
+            )
         new_rows = normalised
+        time_col = "time (utc)" if "time (utc)" in df.columns else "time"
+        # SQLite persists DateTime without timezone metadata; store a naive UTC
+        # value and normalize it back to aware UTC inside broker sync.
+        t212_covered_through = (
+            pd.to_datetime(df[time_col], utc=True).max().to_pydatetime().replace(tzinfo=None)
+        )
         # A T212 export is the broker's full history: importing one always
         # replaces the portfolio's data (user-chosen overwrite semantics) so the
         # cash ledger reconciles with the broker instead of double-counting.
@@ -464,6 +533,9 @@ async def import_csv(
             except Exception as e:
                 errors.append(f"Row {i + 2}: {e}")
 
+    if not new_rows:
+        errors.append("CSV contains no importable rows")
+
     # Only now that the CSV has parsed and validated do we touch the database.
     # `replace` deletes the existing rows in the SAME transaction as the insert
     # so a malformed upload can never wipe the portfolio and leave nothing
@@ -478,7 +550,7 @@ async def import_csv(
             if not r.get("fx_to_czk"):
                 ccy = r["currency"].upper()
                 r["fx_to_czk"] = 1.0 if ccy == "CZK" else fx_map.get((ccy, r["date"]))
-            r["source"] = "csv"
+            r["source"] = "t212_csv" if fmt == "Trading 212" else "csv"
             prepared.append(Transaction(**r, portfolio_id=pid))
         except Exception as e:
             errors.append(str(e))
@@ -491,6 +563,13 @@ async def import_csv(
         if replace:
             _portfolio_txns(db, pid).delete(synchronize_session=False)
         db.add_all(prepared)
+        if t212_covered_through is not None:
+            connection = db.query(BrokerConnection).filter(
+                BrokerConnection.portfolio_id == pid,
+                BrokerConnection.broker == "trading212",
+            ).first()
+            if connection:
+                connection.t212_csv_covered_through = t212_covered_through
         db.flush()
         imported = len(prepared)
         db.commit()
@@ -1147,41 +1226,48 @@ def get_performance(
         _resolve_window,
     )
 
-    start_date, window_start = _resolve_window(transactions, period)
+    _, window_start = _resolve_window(transactions, period)
+    lifetime_start = transactions[0].date - timedelta(days=5)
     V, C, _ = _build_value_cashflow_series(
-        transactions, start_date, display_currency=currency
+        transactions, lifetime_start, display_currency=currency
     )
     if V is None or V.empty:
         return []
 
-    mask = V.index >= pd.Timestamp(window_start)
-    window_values = V.loc[mask]
-    if window_values.empty:
-        return []
-    window_flows = C.reindex(window_values.index).fillna(0.0)
-    daily_returns = _modified_dietz_daily_returns(V, C, window_start)
+    def metrics_from(start) -> list[dict]:
+        mask = V.index >= pd.Timestamp(start)
+        values = V.loc[mask]
+        if values.empty:
+            return []
+        flows = C.reindex(values.index).fillna(0.0)
+        daily_returns = _modified_dietz_daily_returns(V, C, start)
+        baseline = float(values.iloc[0])
+        cumulative_external = 0.0
+        cumulative_twr = 1.0
+        rows: list[dict] = []
+        for i, (date_idx, value) in enumerate(values.items()):
+            if i > 0:
+                cumulative_external += float(flows.loc[date_idx])
+                if date_idx in daily_returns.index:
+                    cumulative_twr *= 1.0 + float(daily_returns.loc[date_idx])
+            pnl = float(value) - baseline - cumulative_external
+            rows.append({
+                "date": str(date_idx.date()),
+                "value": round(float(value), 2),
+                "invested": round(baseline + cumulative_external, 2),
+                "pnl": round(pnl, 2),
+                "pnl_pct": round((cumulative_twr - 1.0) * 100.0, 2),
+            })
+        return rows
 
-    baseline = float(window_values.iloc[0])
-    cumulative_external = 0.0
-    cumulative_twr = 1.0
-    result: list[dict] = []
-    for i, (date_idx, value) in enumerate(window_values.items()):
-        if i > 0:
-            cumulative_external += float(window_flows.loc[date_idx])
-            if date_idx in daily_returns.index:
-                cumulative_twr *= 1.0 + float(daily_returns.loc[date_idx])
-        pnl = float(value) - baseline - cumulative_external
-        pnl_pct = (cumulative_twr - 1.0) * 100.0
-        invested = baseline + cumulative_external
-        result.append({
-            "date": str(date_idx.date()),
-            "value": round(float(value), 2),
-            "invested": round(invested, 2),
-            "pnl": round(pnl, 2),
-            "pnl_pct": round(pnl_pct, 2),
-            "total_pnl": round(pnl, 2),
-            "total_pnl_pct": round(pnl_pct, 2),
-        })
+    result = metrics_from(window_start)
+    lifetime = {
+        row["date"]: row for row in metrics_from(transactions[0].date)
+    }
+    for row in result:
+        total = lifetime.get(row["date"], row)
+        row["total_pnl"] = total["pnl"]
+        row["total_pnl_pct"] = total["pnl_pct"]
 
     return result
 
