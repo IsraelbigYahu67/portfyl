@@ -3,6 +3,8 @@ import { fetchOverview } from "../api";
 import { useCurrency } from "../App";
 import { formatMoney } from "../lib/format";
 import BreakdownChart from "../components/BreakdownChart";
+import Reveal from "../components/reactbits/Reveal";
+import ShinyText from "../components/reactbits/ShinyText";
 import { Layers, TrendingUp, TrendingDown } from "lucide-react";
 
 export default function Overview() {
@@ -29,30 +31,36 @@ export default function Overview() {
         )}
       </div>
 
-      <div className="card">
-        <p className="text-xs font-semibold text-muted uppercase tracking-wider">Total net worth</p>
-        {isLoading ? (
-          <p className="text-3xl font-semibold text-ink mt-2">…</p>
-        ) : (
-          <>
-            <p className="text-3xl font-semibold text-ink mt-2 tabular-nums">
-              {formatMoney(data?.total_net_worth ?? 0, currency)}
-            </p>
-            <p className={`text-sm mt-1 flex items-center gap-1 tabular-nums ${up ? "text-gain" : "text-loss"}`}>
-              {up ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-              {up ? "+" : ""}{formatMoney(dc, currency)}
-              {dcPct != null && <span>({up ? "+" : ""}{dcPct.toFixed(2)}%) today</span>}
-            </p>
-          </>
-        )}
-      </div>
+      <Reveal>
+        <div className="card">
+          <p className="text-xs font-semibold text-muted uppercase tracking-wider">
+            <ShinyText text="Total net worth" />
+          </p>
+          {isLoading ? (
+            <p className="text-3xl font-semibold text-ink mt-2">…</p>
+          ) : (
+            <>
+              <p className="text-3xl font-semibold text-ink mt-2 tabular-nums">
+                {formatMoney(data?.total_net_worth ?? 0, currency)}
+              </p>
+              <p className={`text-sm mt-1 flex items-center gap-1 tabular-nums ${up ? "text-gain" : "text-loss"}`}>
+                {up ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                {up ? "+" : ""}{formatMoney(dc, currency)}
+                {dcPct != null && <span>({up ? "+" : ""}{dcPct.toFixed(2)}%) today</span>}
+              </p>
+            </>
+          )}
+        </div>
+      </Reveal>
 
       {!isLoading && data && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <BreakdownChart title="Sectors" data={data.sectors} currencyLabel={currency} />
-          <BreakdownChart title="Countries" data={data.countries} currencyLabel={currency} />
-          <BreakdownChart title="Asset types" data={data.asset_types} currencyLabel={currency} />
-        </div>
+        <Reveal delay={100}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <BreakdownChart title="Sectors" data={data.sectors} currencyLabel={currency} />
+            <BreakdownChart title="Countries" data={data.countries} currencyLabel={currency} />
+            <BreakdownChart title="Asset types" data={data.asset_types} currencyLabel={currency} />
+          </div>
+        </Reveal>
       )}
     </div>
   );

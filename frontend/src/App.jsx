@@ -56,24 +56,30 @@ const LIGHT_TOKENS = {
   ink: "#10162B", muted: "#6B7592", hairline: "#DDE3F0",
 };
 
-// Soft Neumorphism — one fixed light appearance (no dark variant, no accent
-// palettes); see docs/superpowers/specs/2026-07-30-neumorphism-theme-style-design.md.
-const NEU_TOKENS = {
-  bg: "#EDEAE3", bgSubtle: "#E4E0D7", surfaceCard: "#EDEAE3", surfaceCardElevated: "#F1EEE8",
-  border: "rgba(58,54,46,0.06)", hairline: "rgba(58,54,46,0.06)",
-  // Text-bearing tokens are darkened from the moodboard's pastels so every one
-  // clears its Classic-light counterpart's contrast on the #EDEAE3 card:
-  // muted 4.76 (was 3.09, the only sub-AA value in any style), brand/gain 4.03,
-  // loss 3.83 — plus 4.84 for white button labels on --brand. The pastels stay
-  // in `chart` below, where they're large fills rather than 11px table text.
-  ink: "#3A362E", muted: "#6B665A",
-  brand: "#27805F", brandHover: "#1F6A4E", brandLight: "#D9F1E8",
-  gain: "#27805F", loss: "#C05437",
-  shadowAmbient: "6px 6px 14px rgba(190,178,158,0.55), -6px -6px 14px rgba(255,255,255,0.85)",
-  shadowInset: "inset 3px 3px 8px rgba(190,178,158,0.5), inset -3px -3px 8px rgba(255,255,255,0.8)",
-  radiusCard: "1.5rem",
-  chart: ["#4FBA95", "#E88A72", "#E3B873", "#B6A7D1", "#8FC5D6", "#E3A6B0", "#D9C9A6", "#A69C8C"],
+// "Premium" — warm glassmorphism/neumorphism hybrid: soft dual shadows (the
+// neumorphic half) layered on translucent, blurred surfaces (the glass half)
+// over a warm mesh-gradient background (.theme-premium body in index.css).
+// One fixed light appearance — ignores Light/Dark/System entirely, same as
+// the historical Neumorphism style this replaces.
+// See docs/superpowers/specs/2026-08-30-portfyl-premium-redesign-design.md.
+export const NEU_TOKENS = {
+  bg: "#F3E8DA", bgSubtle: "#ECE0CF",
+  surfaceCard: "rgba(250,245,237,0.78)", surfaceCardElevated: "rgba(253,249,243,0.92)",
+  border: "rgba(120,105,84,0.14)", hairline: "rgba(120,105,84,0.14)",
+  ink: "#3A352C", muted: "#6B6353",
+  brand: "#6D7048", brandHover: "#5C5F3C", brandLight: "#E4E5D3",
+  gain: "#5B7A4C", loss: "#B8543A",
+  glassBorderAlpha: "rgba(120,105,84,0.16)", glassOverlayAlpha: "rgba(255,252,247,0.55)",
+  blurCard: "14px", blurOverlay: "22px",
+  shadowAmbient: "7px 7px 18px rgba(190,172,146,0.5), -7px -7px 18px rgba(255,253,248,0.9)",
+  shadowInset: "inset 3px 3px 8px rgba(190,172,146,0.45), inset -3px -3px 8px rgba(255,253,248,0.85)",
+  radiusCard: "1.25rem",
+  chart: ["#A9AB88", "#DBAA89", "#D4C3A1", "#B7AFA3", "#7C8A5A", "#C08457", "#9E8E6E", "#8A8478"],
 };
+// Classic's chart series previously lived only in index.css's :root block
+// (--chart-1..8); pulled into this constant so applyAppearance() can reset
+// them inline the same way both branches reset every other token, since an
+// inline style always outranks a :root declaration.
 const GLASS_CHART = ["var(--brand)", "#4EDEA3", "#FFB95F", "#A78BFA", "#38BDF8", "#FB7185", "#FACC15", "#64748B"];
 
 export function usePalette() {
@@ -108,18 +114,20 @@ function applyAppearance(name, isDark, themeStyle) {
     s.setProperty("--muted", NEU_TOKENS.muted);
     s.setProperty("--gain", NEU_TOKENS.gain);
     s.setProperty("--loss", NEU_TOKENS.loss);
-    s.setProperty("--glass-border-alpha", "rgba(0,0,0,0)");
-    s.setProperty("--glass-overlay-alpha", "rgba(255,255,255,0)");
-    s.setProperty("--blur-card", "0px");
-    s.setProperty("--blur-overlay", "0px");
+    s.setProperty("--glass-border-alpha", NEU_TOKENS.glassBorderAlpha);
+    s.setProperty("--glass-overlay-alpha", NEU_TOKENS.glassOverlayAlpha);
+    s.setProperty("--blur-card", NEU_TOKENS.blurCard);
+    s.setProperty("--blur-overlay", NEU_TOKENS.blurOverlay);
     s.setProperty("--shadow-ambient", NEU_TOKENS.shadowAmbient);
     s.setProperty("--shadow-inset", NEU_TOKENS.shadowInset);
     s.setProperty("--radius-card", NEU_TOKENS.radiusCard);
     NEU_TOKENS.chart.forEach((color, i) => s.setProperty(`--chart-${i + 1}`, color));
     document.documentElement.classList.toggle("dark", false);
+    document.documentElement.classList.toggle("theme-premium", true);
     return;
   }
 
+  document.documentElement.classList.toggle("theme-premium", false);
   const p = PALETTES[name] || PALETTES.green;
   s.setProperty("--brand", p.brand);
   s.setProperty("--brand-hover", p.brandHover);
@@ -264,8 +272,11 @@ function PaletteProvider({ children }) {
   const [theme, setThemeState] = useState(
     () => localStorage.getItem("sb_theme") || "system"
   );
+  // Premium (the warm glass-hybrid look) is the default; Classic glass stays
+  // available in the switcher. This is the style's first release in this
+  // repo, so no installs have sb_theme_style set yet -- no migration needed.
   const [themeStyle, setThemeStyleState] = useState(
-    () => localStorage.getItem("sb_theme_style") || "glass"
+    () => localStorage.getItem("sb_theme_style") || "neu"
   );
 
   const setPalette = (p) => {
@@ -286,8 +297,8 @@ function PaletteProvider({ children }) {
   useEffect(() => {
     const apply = () => applyAppearance(palette, resolveDark(theme), themeStyle);
     apply();
-    // Follow OS changes only while on "system" AND on the classic glass
-    // style — Neumorphism ignores Light/Dark/System entirely.
+    // Follow OS changes only while on "system" AND on Classic glass --
+    // Premium ignores Light/Dark/System entirely.
     if (theme === "system" && themeStyle === "glass") {
       const mq = window.matchMedia("(prefers-color-scheme: dark)");
       mq.addEventListener("change", apply);

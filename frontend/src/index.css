@@ -24,6 +24,8 @@
     --blur-card: 12px;
     --blur-overlay: 20px;
     --shadow-ambient: 0px 4px 20px rgba(16, 22, 43, 0.10);
+    --radius-card: 0.5rem;
+    --shadow-inset: none;
     --chart-1: var(--brand);
     --chart-2: #4EDEA3;
     --chart-3: #FFB95F;
@@ -113,6 +115,26 @@
     animation: shimmer 1.4s ease-in-out infinite;
   }
   @keyframes shimmer { 100% { transform: translateX(100%); } }
+
+  .shiny-text {
+    background-image: linear-gradient(100deg, var(--ink) 0%, var(--ink) 42%, var(--brand) 50%, var(--ink) 58%, var(--ink) 100%);
+    background-size: 220% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .shiny-text-animated { animation: shiny-sweep 3.2s linear infinite; }
+  @keyframes shiny-sweep {
+    0% { background-position: 160% center; }
+    100% { background-position: -60% center; }
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .reveal-visible { opacity: 1; transform: translateY(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -134,3 +156,16 @@
  * ------------------------------------------------------------------------- */
 .dark ::-webkit-scrollbar-thumb { background: var(--bg-subtle); }
 .dark ::-webkit-scrollbar-thumb:hover { background: var(--hairline); }
+
+/* ----------------------------------------------------------------------------
+ * Premium theme: a warm mesh gradient behind the whole app so the frosted
+ * (backdrop-blur) cards have something to refract. Toggled by
+ * applyAppearance() in App.jsx alongside the token swap.
+ * ------------------------------------------------------------------------- */
+.theme-premium body {
+  background-image:
+    radial-gradient(ellipse 70% 50% at 15% -10%, rgba(169, 171, 136, 0.20), transparent 60%),
+    radial-gradient(ellipse 60% 45% at 100% 0%, rgba(219, 170, 137, 0.18), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(212, 195, 161, 0.16), transparent 60%);
+  background-attachment: fixed;
+}

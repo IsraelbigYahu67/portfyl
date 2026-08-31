@@ -96,7 +96,7 @@ export default function Sidebar() {
       </nav>
 
       <div className="mt-auto pb-3 space-y-3">
-        {/* Theme style (Classic glass vs Soft Neumorphism) */}
+        {/* Theme style (Classic glass vs Premium warm glass-hybrid) */}
         <div className="px-4">
           <p className="text-[10px] text-muted mb-1.5 pl-0.5">Style</p>
           <SegmentedControl
@@ -107,13 +107,13 @@ export default function Sidebar() {
             onChange={setThemeStyle}
             options={[
               { value: "glass", label: "Classic", title: "Classic glass theme" },
-              { value: "neu", label: "Neumorphism", title: "Soft Neumorphism theme" },
+              { value: "neu", label: "Premium", title: "Warm glass-hybrid theme" },
             ]}
           />
         </div>
 
-        {/* Appearance (light / dark / system) — inert while Neumorphism is
-            active, which ships as the one fixed light appearance. */}
+        {/* Appearance (light / dark / system) -- inert while Premium is
+            active, which ships as one fixed light appearance. */}
         <div className={`px-4 ${themeStyle === "neu" ? "opacity-40 pointer-events-none" : ""}`}>
           <p className="text-[10px] text-muted mb-1.5 pl-0.5">Appearance</p>
           <SegmentedControl
@@ -130,7 +130,7 @@ export default function Sidebar() {
           />
         </div>
 
-        {/* Palette switcher — same rationale as Appearance above. */}
+        {/* Palette switcher -- same rationale as Appearance above. */}
         <div className={`px-4 ${themeStyle === "neu" ? "opacity-40 pointer-events-none" : ""}`}>
           <p className="text-[10px] text-muted mb-1.5 pl-0.5">Accent</p>
           <div className="flex gap-1.5">
@@ -154,7 +154,7 @@ export default function Sidebar() {
         {/* Currency toggle */}
         <div className="px-4 space-y-2">
           <p className="text-[10px] text-muted pl-0.5">Display currency</p>
-          <div className="flex items-center gap-0.5 bg-surface-hover rounded-[var(--radius-card)] p-0.5">
+          <div className="flex items-center gap-0.5 bg-surface-hover rounded-lg p-0.5">
             {["USD", "CZK"].map((c) => (
               <button
                 key={c}
@@ -163,7 +163,7 @@ export default function Sidebar() {
                 title={c === "CZK" && czk_unavailable ? "Rate unavailable" : undefined}
                 aria-label={`Display currency: ${c}`}
                 aria-pressed={currency === c}
-                className={`flex-1 text-xs py-1.5 rounded-[var(--radius-card)] font-semibold transition-colors ${
+                className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ${
                   currency === c
                     ? "bg-brand text-white"
                     : czk_unavailable && c === "CZK"
