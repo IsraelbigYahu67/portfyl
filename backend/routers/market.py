@@ -183,14 +183,19 @@ def _cagr(values: list[float], periods_per_year: int = 1) -> Optional[float]:
         return None
 
 
-def _metric_block(name: str, raw: Optional[pd.Series], freq: str = "Y") -> dict:
+def _metric_block(name: str, raw: Optional[pd.Series], freq: str = "Y", growth_abs: bool = False) -> dict:
     periods, values = _series_periods(raw, freq=freq, n=40 if freq == "Q" else 20)
+    # growth_abs: for metrics reported as a negative outflow (CapEx), compute
+    # YoY/CAGR off the magnitude so growing spend reads as an increase instead
+    # of being inverted by the sign (and so CAGR's start>0/end>0 guard doesn't
+    # blank out every period, which it would on all-negative values).
+    growth_values = [abs(v) for v in values] if growth_abs else values
     if freq == "Q":
-        yoy = _yoy(values, lag=4)
-        cagr = _cagr(values, periods_per_year=4)
+        yoy = _yoy(growth_values, lag=4)
+        cagr = _cagr(growth_values, periods_per_year=4)
     else:
-        yoy = _yoy(values, lag=1)
-        cagr = _cagr(values, periods_per_year=1)
+        yoy = _yoy(growth_values, lag=1)
+        cagr = _cagr(growth_values, periods_per_year=1)
     return {
         "name": name,
         "years": periods,
@@ -200,16 +205,17 @@ def _metric_block(name: str, raw: Optional[pd.Series], freq: str = "Y") -> dict:
     }
 
 
-def _shibui_metric_block(name: str, periods: list[str], values: list[float], freq: str = "Y") -> dict:
+def _shibui_metric_block(name: str, periods: list[str], values: list[float], freq: str = "Y", growth_abs: bool = False) -> dict:
     """Same output shape as _metric_block, built from already-extracted
     (period_label, value) pairs -- oldest to newest -- instead of a yfinance
     statement Series. Used for Shibui-sourced financials."""
+    growth_values = [abs(v) for v in values] if growth_abs else values
     if freq == "Q":
-        yoy = _yoy(values, lag=4)
-        cagr = _cagr(values, periods_per_year=4)
+        yoy = _yoy(growth_values, lag=4)
+        cagr = _cagr(growth_values, periods_per_year=4)
     else:
-        yoy = _yoy(values, lag=1)
-        cagr = _cagr(values, periods_per_year=1)
+        yoy = _yoy(growth_values, lag=1)
+        cagr = _cagr(growth_values, periods_per_year=1)
     return {
         "name": name,
         "years": periods,
@@ -628,8 +634,8 @@ def _build_ownership(stock: yf.Ticker, info: dict, sym: str) -> dict:
 
 def _shibui_financials_from_rows(rows: list[dict], freq: str) -> dict:
     """Build the same metric-block dict shape _build_financials produces
-    (revenue/net_income/eps/fcf/debt/cash/shares_outstanding, plus bonus
-    cost_of_revenue/gross_profit/operating_income/ebitda), from Shibui
+    (revenue/operating_income/net_income/eps/fcf/capex/debt/cash/shares_outstanding,
+    plus bonus cost_of_revenue/gross_profit/ebitda), from Shibui
     fundamentals_yearly/fundamentals_quarterly rows. `rows` need not be
     sorted; this sorts oldest-to-newest itself."""
     ordered = sorted(rows, key=lambda r: (r["year"], r.get("quarter") or 0))
@@ -639,7 +645,7 @@ def _shibui_financials_from_rows(rows: list[dict], freq: str) -> dict:
             return f"Q{r['quarter']} '{r['year'] % 100:02d}"
         return str(r["year"])
 
-    def _block(col: str, name: str, fallback_col: Optional[str] = None) -> dict:
+    def _block(col: str, name: str, fallback_col: Optional[str] = None, growth_abs: bool = False) -> dict:
         periods, values = [], []
         for r in ordered:
             v = _f(r.get(col))
@@ -649,7 +655,7 @@ def _shibui_financials_from_rows(rows: list[dict], freq: str) -> dict:
                 continue
             periods.append(_label(r))
             values.append(v)
-        return _shibui_metric_block(name, periods, values, freq=freq)
+        return _shibui_metric_block(name, periods, values, freq=freq, growth_abs=growth_abs)
 
     return {
         "revenue": _block("revenue", "Revenue"),
@@ -660,6 +666,7 @@ def _shibui_financials_from_rows(rows: list[dict], freq: str) -> dict:
         "net_income": _block("net_income", "Net Income"),
         "eps": _block("eps_diluted", "Diluted EPS", fallback_col="eps"),
         "fcf": _block("free_cash_flow", "Free Cash Flow"),
+        "capex": _block("capex", "CapEx", growth_abs=True),
         "debt": _block("debt", "Total Debt"),
         "cash": _block("cash_and_equivalents", "Cash & Equivalents"),
         "shares_outstanding": _block("shares_outstanding", "Shares Outstanding"),
@@ -668,7 +675,7 @@ def _shibui_financials_from_rows(rows: list[dict], freq: str) -> dict:
 
 _SHIBUI_STATEMENT_COLUMNS = (
     "revenue, cost_of_revenue, gross_profit, operating_income, ebitda, "
-    "net_income, eps, eps_diluted, free_cash_flow, debt, cash_and_equivalents, shares_outstanding"
+    "net_income, eps, eps_diluted, free_cash_flow, capex, debt, cash_and_equivalents, shares_outstanding"
 )
 _SHIBUI_ANNUAL_FIELDS = f"year, {_SHIBUI_STATEMENT_COLUMNS}"
 _SHIBUI_QUARTERLY_FIELDS = (
@@ -1094,9 +1101,11 @@ def get_fundamentals(ticker: str):
     def _build_financials(inc_df, bal_df, cf_df, freq: str) -> dict:
         return {
             "revenue": _metric_block("Revenue", _row(inc_df, "Total Revenue", "Operating Revenue"), freq=freq),
+            "operating_income": _metric_block("Operating Income", _row(inc_df, "Operating Income", "Total Operating Income As Reported"), freq=freq),
             "net_income": _metric_block("Net Income", _row(inc_df, "Net Income", "Net Income Common Stockholders", "Net Income Continuous Operations"), freq=freq),
             "eps": _metric_block("Diluted EPS", _row(inc_df, "Diluted EPS", "Basic EPS"), freq=freq),
             "fcf": _metric_block("Free Cash Flow", _build_fcf_row(cf_df), freq=freq),
+            "capex": _metric_block("CapEx", _row(cf_df, "Capital Expenditure", "Capital Expenditure Reported"), freq=freq, growth_abs=True),
             "debt": _metric_block("Total Debt", _row(bal_df, "Total Debt", "Long Term Debt And Capital Lease Obligation", "Long Term Debt"), freq=freq),
             "cash": _metric_block("Cash & Equivalents", _row(
                 bal_df,
@@ -1142,6 +1151,7 @@ def get_fundamentals(ticker: str):
 
     ttm = {
         "revenue": _ttm_value("revenue", "totalRevenue"),
+        "operating_income": _ttm_value("operating_income"),
         "net_income": _ttm_value("net_income", "netIncomeToCommon"),
         "eps": _ttm_value("eps", "trailingEps"),
         # No info fallback for FCF: yfinance's info.freeCashflow is computed on a
@@ -1149,6 +1159,7 @@ def get_fundamentals(ticker: str):
         # match the chart (e.g. AAPL: 101B from info vs 129B summed from the
         # four quarterly bars actually shown).
         "fcf": _ttm_value("fcf"),
+        "capex": _ttm_value("capex"),
     }
 
     # ---- Live snapshot ----------------------------------------------------

@@ -262,10 +262,14 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
   // full-year column and remains visible at its sides (annual view only).
   const showTtmOverlay = ttm != null && !isQuarterly && !isCount && data.length > 0;
   const rows = data;
+  // CapEx is reported as a negative outflow, so a plain signed diff reads
+  // "more spend" as a decrease. Track its magnitude instead — growing spend
+  // should show as an increase, not get inverted by the sign.
+  const useAbsGrowth = name === "CapEx";
   // Change vs the previous column (YoY annual / QoQ quarterly), shown as a
   // second x-axis line. The angled/dense quarterly layout has no room for a
   // second line — hide it there and let the tooltip's QoQ carry it.
-  const changes = columnChanges(rows);
+  const changes = columnChanges(rows, { useAbs: useAbsGrowth });
   const rowsWithChange = rows.map((r, i) => ({
     ...r,
     change: changes[i],
@@ -753,6 +757,11 @@ export function DividendGrowthSection({ ticker, currency = "USD" }) {
 
   if (isLoading || !data || !data.payments?.length) return null;
 
+  const lastExDate = data.payments[data.payments.length - 1]?.ex_date;
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  if (!lastExDate || new Date(lastExDate) < oneYearAgo) return null;
+
   const sym = currencySymbol(currency);
   const tiles = [
     { label: "Growth streak", value: data.streak_years > 0 ? `${data.streak_years} yrs` : "—" },
@@ -916,6 +925,7 @@ export function StockOverview({ data, headerTrailing = null }) {
             isPerShare={false}
             ttm={ttm.revenue}
           />
+          <MetricBarChart metric={fin.operating_income || {}} currencyCode={data.currency} period={period} ttm={ttm.operating_income} />
           <MetricBarChart metric={fin.net_income || {}} currencyCode={data.currency} period={period} ttm={ttm.net_income} />
           <MergedMetricBarChart
             name="Diluted EPS"
@@ -925,6 +935,7 @@ export function StockOverview({ data, headerTrailing = null }) {
             ttm={ttm.eps}
           />
           <MetricBarChart metric={fin.fcf || {}} currencyCode={data.currency} period={period} ttm={ttm.fcf} />
+          <MetricBarChart metric={fin.capex || {}} currencyCode={data.currency} period={period} ttm={ttm.capex} />
           <MetricBarChart metric={fin.debt || {}} currencyCode={data.currency} period={period} />
           <MetricBarChart metric={fin.cash || {}} currencyCode={data.currency} period={period} />
           <MetricBarChart metric={fin.shares_outstanding || {}} currencyCode={data.currency} period={period} isCount />

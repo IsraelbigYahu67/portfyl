@@ -785,6 +785,24 @@ class TestShibuiFinancialsFromRows:
         assert out["revenue"]["years"] == ["2024"]
         assert out["revenue"]["values"] == [100.0]
 
+    def test_capex_growth_is_computed_on_magnitude_not_sign(self):
+        """CapEx is reported as a negative outflow. A plain signed YoY would
+        read growing spend (-10 -> -15) as a decrease and would zero out CAGR
+        entirely (its start>0/end>0 guard fails on negative values). Growth
+        must track |capex| instead, so more spend shows as an increase."""
+        from routers.market import _shibui_financials_from_rows
+        rows = [
+            {"year": 2023, "capex": -10.0},
+            {"year": 2024, "capex": -15.0},
+            {"year": 2025, "capex": -10.0},
+        ]
+        out = _shibui_financials_from_rows(rows, "Y")
+        # Values stay signed for display...
+        assert out["capex"]["values"] == [-10.0, -15.0, -10.0]
+        # ...but growth is magnitude-based: spend up 50%, then down a third.
+        assert out["capex"]["yoy"] == [None, 50.0, -33.33]
+        assert out["capex"]["cagr"] is not None
+
 
 class TestShibuiFundamentals:
     """_shibui_fundamentals (fundamentals-as-primary-source follow-up) --

@@ -39,6 +39,18 @@ describe("columnChanges", () => {
     // -10 -> 5 is a +150% swing relative to |−10|.
     expect(columnChanges(rows(-10, 5))).toEqual([null, 150]);
   });
+
+  it("useAbs compares magnitudes instead of signed values", () => {
+    // CapEx-style: -10 -> -15 is growing spend, i.e. a +50% increase in
+    // magnitude, not the -50% a signed diff would report.
+    expect(columnChanges(rows(-10, -15), { useAbs: true })).toEqual([null, 50]);
+    // -15 -> -10 is shrinking spend, a -33.3% decrease in magnitude.
+    expect(columnChanges(rows(-15, -10), { useAbs: true })[1]).toBeCloseTo(-33.333, 2);
+  });
+
+  it("useAbs guards against a zero base", () => {
+    expect(columnChanges(rows(0, -50), { useAbs: true })).toEqual([null, null]);
+  });
 });
 
 describe("ttmUnderlayRect", () => {

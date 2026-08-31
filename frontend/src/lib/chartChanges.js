@@ -8,7 +8,12 @@
 // skipped as a base: the previous *visible* bar is what the eye compares
 // against. Guards mirror the backend's _yoy: a zero previous value or two
 // negative values yield null rather than a misleading percentage.
-export function columnChanges(rows) {
+//
+// `useAbs` (for metrics like CapEx that are reported as a negative outflow)
+// compares magnitudes instead of signed values, so growing spend shows as an
+// increase rather than being inverted by the sign. The negative-pair guard
+// doesn't apply here — both values are non-negative once abs'd.
+export function columnChanges(rows, { useAbs = false } = {}) {
   let prev = null;
   return (rows || []).map((row) => {
     if (row.isTTM) return null;
@@ -16,6 +21,11 @@ export function columnChanges(rows) {
     const base = prev;
     if (curr != null) prev = curr;
     if (curr == null || base == null) return null;
+    if (useAbs) {
+      const absBase = Math.abs(base);
+      if (absBase === 0) return null;
+      return ((Math.abs(curr) - absBase) / absBase) * 100;
+    }
     if (base === 0 || (base < 0 && curr < 0)) return null;
     return ((curr - base) / Math.abs(base)) * 100;
   });
