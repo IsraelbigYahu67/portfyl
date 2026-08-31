@@ -7,6 +7,14 @@ vi.mock("../api", () => ({
   fetchStockDividendGrowth: vi.fn(),
 }));
 
+// Recent-payment fixtures must stay within the last year of "now" for the
+// component's own Date.now()-based recency check to keep passing.
+const recentExDate = (monthsAgo) => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - monthsAgo);
+  return d.toISOString().slice(0, 10);
+};
+
 describe("DividendGrowthSection", () => {
   it("shows growth stats when the stock pays a dividend", async () => {
     fetchStockDividendGrowth.mockResolvedValue({
@@ -14,8 +22,8 @@ describe("DividendGrowthSection", () => {
       yoy_pct: 6.0, payout_ratio_pct: 15.0,
       annual: [{ year: 2022, dps: 0.9 }, { year: 2023, dps: 0.96 }],
       payments: [
-        { ex_date: "2022-02-10", amount: 0.22 },
-        { ex_date: "2023-02-10", amount: 0.23 },
+        { ex_date: recentExDate(14), amount: 0.22 },
+        { ex_date: recentExDate(2), amount: 0.23 },
       ],
     });
     const qc = new QueryClient();
@@ -40,6 +48,25 @@ describe("DividendGrowthSection", () => {
       </QueryClientProvider>
     );
     // give the query a tick to resolve, then assert nothing rendered
+    await waitFor(() => expect(container.querySelector("section")).toBeNull());
+    expect(screen.queryByText(/Dividend history/i)).toBeNull();
+  });
+
+  it("renders nothing when the last payment is over a year old", async () => {
+    fetchStockDividendGrowth.mockResolvedValue({
+      ticker: "STALE", streak_years: 5, cagr_pct: 4.0, cagr_years_used: 5,
+      yoy_pct: 2.0, payout_ratio_pct: 20.0,
+      annual: [{ year: 2022, dps: 0.9 }, { year: 2023, dps: 0.96 }],
+      payments: [
+        { ex_date: recentExDate(30), amount: 0.22 },
+        { ex_date: recentExDate(18), amount: 0.23 },
+      ],
+    });
+    const { container } = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <DividendGrowthSection ticker="STALE" currency="USD" />
+      </QueryClientProvider>
+    );
     await waitFor(() => expect(container.querySelector("section")).toBeNull());
     expect(screen.queryByText(/Dividend history/i)).toBeNull();
   });
