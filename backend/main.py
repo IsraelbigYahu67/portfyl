@@ -1,9 +1,9 @@
 import logging
 import os
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 # yfinance logs "possibly delisted" / "no earnings dates found" at ERROR
@@ -13,61 +13,27 @@ from fastapi.staticfiles import StaticFiles
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 from database import SessionLocal, assert_alembic_head
-from models import User
 from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, cash, alerts, settings, auth as auth_router
-import auth
+from tenancy import (
+    RequestContextError,
+    get_request_context,
+    request_context_error_handler,
+)
 
 app = FastAPI(title="Portfyl API", version="1.0.0")
 app.add_exception_handler(
     auth_router.AuthAPIError,
     auth_router.auth_api_error_handler,
 )
+app.add_exception_handler(
+    RequestContextError,
+    request_context_error_handler,
+)
 
 
-# --- transitional API gate ----------------------------------------------------
-# Task 5 moves authentication into the typed request/workspace dependency. Until
-# then, keep existing API routers protected by an opaque database session. The
-# Firebase exchange and scheduler endpoint authenticate through their own
-# credentials and therefore remain public.
-_PUBLIC_PATHS = {
-    "/health",
-    "/api/auth/session",
-    "/api/broker/ibkr/scheduler-sync",
-}
-
-
-@app.middleware("http")
-async def require_login(request: Request, call_next):
-    path = request.url.path
-    if request.method == "OPTIONS" or path in _PUBLIC_PATHS:
-        return await call_next(request)
-    if path.startswith("/api"):
-        with SessionLocal() as session:
-            active_session = auth.resolve_session(
-                session,
-                auth.session_token_from_request(request),
-            )
-            active_user = (
-                session.get(User, active_session.user_id)
-                if active_session is not None
-                else None
-            )
-        if (
-            active_session is None
-            or active_user is None
-            or active_user.disabled_at is not None
-        ):
-            return JSONResponse(
-                {"code": "authentication_required"},
-                status_code=401,
-            )
-    return await call_next(request)
-
-
-# CORS is added after the gate so it wraps it and its headers apply to every
-# response (including the 401 above). The desktop SPA is same-origin (baked into
-# the image), but the native app calls cross-origin from Capacitor's local
-# origins, so those are allowed here; FRONTEND_ORIGIN adds any extras.
+# The desktop SPA is same-origin (baked into the image), but the native app calls
+# cross-origin from Capacitor's local origins, so those are allowed here;
+# FRONTEND_ORIGIN adds any extras.
 _cors_origins = [
     "http://localhost:5173",   # Vite dev server
     "http://localhost:3000",
@@ -91,20 +57,40 @@ app.add_middleware(
 app.include_router(auth_router.router, prefix="/api")
 app.include_router(portfolios.router, prefix="/api")
 app.include_router(portfolio.router, prefix="/api")
-app.include_router(market.router, prefix="/api")
+app.include_router(
+    market.router,
+    prefix="/api",
+    dependencies=[Depends(get_request_context)],
+)
 app.include_router(analytics.router, prefix="/api")
 app.include_router(broker.router, prefix="/api")
-app.include_router(watchlists.router, prefix="/api")
+app.include_router(
+    watchlists.router,
+    prefix="/api",
+    dependencies=[Depends(get_request_context)],
+)
 app.include_router(benchmarks.router, prefix="/api")
 app.include_router(ibkr.router, prefix="/api")
-app.include_router(options.router, prefix="/api")
+app.include_router(
+    options.router,
+    prefix="/api",
+    dependencies=[Depends(get_request_context)],
+)
 app.include_router(polymarket.router, prefix="/api")
 app.include_router(discord.router, prefix="/api")
 app.include_router(notes.router, prefix="/api")
-app.include_router(assistant.router, prefix="/api")
+app.include_router(
+    assistant.router,
+    prefix="/api",
+    dependencies=[Depends(get_request_context)],
+)
 app.include_router(cash.router, prefix="/api")
 app.include_router(alerts.router, prefix="/api")
-app.include_router(settings.router, prefix="/api")
+app.include_router(
+    settings.router,
+    prefix="/api",
+    dependencies=[Depends(get_request_context)],
+)
 
 
 @app.get("/health")

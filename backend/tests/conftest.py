@@ -16,13 +16,25 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from datetime import date, timedelta
 from typing import Callable
 from unittest.mock import patch
+from uuid import UUID
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from database import Base
-from models import Transaction, Portfolio, Benchmark, BenchmarkComponent
+from auth import create_session, resolve_session
+from models import (
+    Benchmark,
+    BenchmarkComponent,
+    Membership,
+    Portfolio,
+    Transaction,
+    User,
+    Workspace,
+)
+from tenancy import RequestContext
+from tests.helpers import TEST_WORKSPACE_ID
 
 
 # ---------------------------------------------------------------------------
@@ -44,9 +56,74 @@ def db_session() -> Session:
 
 
 @pytest.fixture
-def default_portfolio(db_session: Session) -> Portfolio:
+def test_user(db_session: Session) -> User:
+    user = User(
+        id=UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+        firebase_uid="firebase-unit-tests",
+        email="unit-tests@example.com",
+    )
+    db_session.add(user)
+    db_session.flush()
+    return user
+
+
+@pytest.fixture
+def test_workspace(db_session: Session) -> Workspace:
+    workspace = Workspace(
+        id=TEST_WORKSPACE_ID,
+        name="Unit test workspace",
+    )
+    db_session.add(workspace)
+    db_session.flush()
+    return workspace
+
+
+@pytest.fixture
+def test_membership(
+    db_session: Session,
+    test_user: User,
+    test_workspace: Workspace,
+) -> Membership:
+    membership = Membership(
+        user_id=test_user.id,
+        workspace_id=test_workspace.id,
+        role="owner",
+        status="active",
+    )
+    db_session.add(membership)
+    db_session.flush()
+    return membership
+
+
+@pytest.fixture
+def request_context(
+    db_session: Session,
+    test_user: User,
+    test_workspace: Workspace,
+    test_membership: Membership,
+) -> RequestContext:
+    issued = create_session(db_session, test_user.id)
+    auth_session = resolve_session(db_session, issued.raw_token)
+    assert auth_session is not None
+    return RequestContext(
+        user=test_user,
+        workspace=test_workspace,
+        membership=test_membership,
+        session=auth_session,
+    )
+
+
+@pytest.fixture
+def default_portfolio(
+    db_session: Session,
+    test_workspace: Workspace,
+) -> Portfolio:
     """Create and return a default portfolio."""
-    p = Portfolio(name="Default", is_default=True)
+    p = Portfolio(
+        workspace_id=test_workspace.id,
+        name="Default",
+        is_default=True,
+    )
     db_session.add(p)
     db_session.commit()
     db_session.refresh(p)
@@ -76,8 +153,10 @@ def make_txn(
     notes: str | None = None,
     source: str | None = "manual",
     portfolio_id: int = 1,
+    workspace_id: UUID = TEST_WORKSPACE_ID,
 ) -> Transaction:
     return Transaction(
+        workspace_id=workspace_id,
         portfolio_id=portfolio_id,
         ticker=ticker.upper(),
         name=name or ticker.upper(),

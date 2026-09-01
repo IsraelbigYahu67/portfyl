@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from datetime import date
+from uuid import UUID
 
 from models import Transaction
+
+
+TEST_WORKSPACE_ID = UUID("11111111-1111-4111-8111-111111111111")
 
 
 def make_txn(
@@ -22,8 +26,10 @@ def make_txn(
     amount: float | None = None,
     cash_amount: float | None = None,
     cash_currency: str | None = None,
+    workspace_id: UUID = TEST_WORKSPACE_ID,
 ) -> Transaction:
     return Transaction(
+        workspace_id=workspace_id,
         portfolio_id=portfolio_id,
         ticker=ticker.upper() if ticker else None,
         name=name or (ticker.upper() if ticker else None),

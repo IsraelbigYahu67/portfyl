@@ -414,6 +414,9 @@ def create_transaction(
     db: Session = Depends(get_db),
     pid: int = Depends(require_portfolio),
 ):
+    portfolio = db.get(Portfolio, pid)
+    if portfolio is None:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
     # Bounded: a bad symbol used to be able to hang the POST for minutes.
     name = market_data.get_info(txn.ticker.upper()).get("shortName") or txn.ticker
     fx = fetch_fx_to_czk(txn.currency, txn.date)
@@ -426,6 +429,7 @@ def create_transaction(
         # a rate we leave settlement unset and signed_cash falls back to native.
         cash_amount=round(txn.shares * txn.price * fx, 2) if fx else None,
         cash_currency="CZK" if fx else None,
+        workspace_id=portfolio.workspace_id,
         portfolio_id=pid,
     )
     db.add(db_txn)

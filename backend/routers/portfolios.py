@@ -1,14 +1,25 @@
-from collections import defaultdict
+from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
-from pydantic import BaseModel, Field
+from collections import defaultdict
 from typing import Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Portfolio, Transaction, BrokerConnection
-from auth import get_current_user
+from models import BrokerConnection, Portfolio, Transaction
+from tenancy import (
+    RequestContext,
+    RequestContextError,
+    get_request_context,
+    require_csrf,
+    require_portfolio,
+)
+
 
 router = APIRouter(prefix="/portfolios", tags=["portfolios"])
 
@@ -23,113 +34,176 @@ class PortfolioUpdate(BaseModel):
     color: Optional[str] = None
 
 
-def _serialize(p: Portfolio, counts: dict | None = None) -> dict:
+def _serialize(p: Portfolio, counts: dict[int, int] | None = None) -> dict:
     return {
-        "id": p.id,
+        "id": str(p.public_id),
         "name": p.name,
         "color": p.color,
         "is_default": bool(p.is_default),
         "created_at": p.created_at.isoformat() if p.created_at else None,
-        "transaction_count": counts.get(p.id, 0) if counts else None,
+        "transaction_count": counts.get(p.id, 0) if counts is not None else None,
     }
 
 
-def _counts_by_portfolio(db: Session) -> dict:
-    rows = (
-        db.query(Transaction.portfolio_id, Transaction.id)
-        .all()
+def _counts_by_portfolio(db: Session, workspace_id: UUID) -> dict[int, int]:
+    rows = db.execute(
+        select(Transaction.portfolio_id, func.count(Transaction.id))
+        .where(Transaction.workspace_id == workspace_id)
+        .group_by(Transaction.portfolio_id)
+    ).all()
+    return {portfolio_id: count for portfolio_id, count in rows}
+
+
+def _workspace_portfolio(
+    db: Session,
+    context: RequestContext,
+    portfolio_id: UUID,
+) -> Portfolio:
+    portfolio = db.scalar(
+        select(Portfolio).where(
+            Portfolio.workspace_id == context.workspace.id,
+            Portfolio.public_id == portfolio_id,
+        )
     )
-    out: dict[int, int] = {}
-    for pid, _ in rows:
-        out[pid] = out.get(pid, 0) + 1
-    return out
+    if portfolio is None:
+        raise RequestContextError(404, "resource_not_found")
+    return portfolio
 
 
 @router.get("")
-def list_portfolios(db: Session = Depends(get_db)):
-    portfolios = db.query(Portfolio).order_by(Portfolio.is_default.desc(), Portfolio.created_at.asc()).all()
-    counts = _counts_by_portfolio(db)
-    return [_serialize(p, counts) for p in portfolios]
+def list_portfolios(
+    context: RequestContext = Depends(get_request_context),
+    db: Session = Depends(get_db),
+):
+    rows = db.scalars(
+        select(Portfolio)
+        .where(Portfolio.workspace_id == context.workspace.id)
+        .order_by(
+            Portfolio.is_default.desc(),
+            Portfolio.created_at,
+            Portfolio.id,
+        )
+    ).all()
+    counts = _counts_by_portfolio(db, context.workspace.id)
+    return [_serialize(portfolio, counts) for portfolio in rows]
 
 
 @router.post("")
-def create_portfolio(payload: PortfolioCreate, db: Session = Depends(get_db), owner: str = Depends(get_current_user)):
+def create_portfolio(
+    payload: PortfolioCreate,
+    context: RequestContext = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
     name = payload.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Portfolio name is required")
-    p = Portfolio(name=name, color=payload.color, is_default=False, owner_id=owner)
-    db.add(p)
+    portfolio = Portfolio(
+        workspace_id=context.workspace.id,
+        name=name,
+        color=payload.color,
+        is_default=False,
+    )
+    db.add(portfolio)
     try:
+        db.flush()
+        db.refresh(portfolio)
+        result = _serialize(portfolio, {})
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=409, detail=f"A portfolio named '{name}' already exists")
-    db.refresh(p)
-    return _serialize(p, {})
+        raise HTTPException(
+            status_code=409,
+            detail=f"A portfolio named '{name}' already exists",
+        )
+    return result
 
 
 @router.patch("/{portfolio_id}")
-def update_portfolio(portfolio_id: int, payload: PortfolioUpdate, db: Session = Depends(get_db)):
-    p = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
-    if not p:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
+def update_portfolio(
+    portfolio_id: UUID,
+    payload: PortfolioUpdate,
+    context: RequestContext = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
+    portfolio = _workspace_portfolio(db, context, portfolio_id)
     if payload.name is not None:
-        p.name = payload.name.strip()
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Portfolio name is required")
+        portfolio.name = name
     if payload.color is not None:
-        p.color = payload.color or None
+        portfolio.color = payload.color or None
     try:
+        db.flush()
+        db.refresh(portfolio)
+        result = _serialize(portfolio)
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=409, detail="A portfolio with that name already exists")
-    db.refresh(p)
-    return _serialize(p)
+        raise HTTPException(
+            status_code=409,
+            detail="A portfolio with that name already exists",
+        )
+    return result
 
 
 @router.delete("/{portfolio_id}")
-def delete_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
-    p = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
-    if not p:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
-    if p.is_default:
-        # We allow deleting any portfolio EXCEPT the last remaining one. The default
-        # flag itself is migratable.
-        pass
-    total = db.query(Portfolio).count()
-    if total <= 1:
-        raise HTTPException(status_code=400, detail="Cannot delete the last remaining portfolio")
+def delete_portfolio(
+    portfolio_id: UUID,
+    context: RequestContext = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
+    portfolio = _workspace_portfolio(db, context, portfolio_id)
+    total = db.scalar(
+        select(func.count())
+        .select_from(Portfolio)
+        .where(Portfolio.workspace_id == context.workspace.id)
+    )
+    if (total or 0) <= 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete the last remaining portfolio",
+        )
 
-    # Explicitly drop dependent rows so we don't rely on SQLite enforcing FK CASCADE
-    # (it's off by default on most installs).
-    db.query(Transaction).filter(Transaction.portfolio_id == portfolio_id).delete(synchronize_session=False)
-    db.query(BrokerConnection).filter(BrokerConnection.portfolio_id == portfolio_id).delete(synchronize_session=False)
+    db.query(Transaction).filter(
+        Transaction.workspace_id == context.workspace.id,
+        Transaction.portfolio_id == portfolio.id,
+    ).delete(synchronize_session=False)
+    db.query(BrokerConnection).filter(
+        BrokerConnection.workspace_id == context.workspace.id,
+        BrokerConnection.portfolio_id == portfolio.id,
+    ).delete(synchronize_session=False)
 
-    was_default = p.is_default
-    db.delete(p)
-    db.commit()
-
+    was_default = bool(portfolio.is_default)
+    deleted_id = str(portfolio.public_id)
+    db.delete(portfolio)
+    db.flush()
     if was_default:
-        new_default = db.query(Portfolio).order_by(Portfolio.created_at.asc()).first()
+        new_default = db.scalar(
+            select(Portfolio)
+            .where(Portfolio.workspace_id == context.workspace.id)
+            .order_by(Portfolio.created_at, Portfolio.id)
+        )
         if new_default is not None:
             new_default.is_default = True
-            db.commit()
-
-    return {"ok": True, "deleted_id": portfolio_id}
+    db.commit()
+    return {"ok": True, "deleted_id": deleted_id}
 
 
 @router.get("/overview")
 def portfolios_overview(
     currency: str = "USD",
+    context: RequestContext = Depends(get_request_context),
     db: Session = Depends(get_db),
 ):
-    """Cross-portfolio summary: total net worth + daily change (summed over all
-    portfolios) and combined sector/country/asset-type allocation. Deliberately
-    NOT portfolio-scoped — /portfolios is in PORTFOLIO_AGNOSTIC_PREFIXES."""
-    from routers.portfolio import get_summary
+    """Aggregate only portfolios inside the authenticated workspace."""
     from routers.analytics import _allocation_totals, _weighted
+    from routers.portfolio import get_summary
 
     display_ccy = "CZK" if currency.upper() == "CZK" else "USD"
-    portfolios = db.query(Portfolio).all()
+    rows = db.scalars(
+        select(Portfolio).where(Portfolio.workspace_id == context.workspace.id)
+    ).all()
 
     total_nw = 0.0
     total_dc = 0.0
@@ -137,12 +211,12 @@ def portfolios_overview(
     countries: dict[str, float] = defaultdict(float)
     asset_types: dict[str, float] = defaultdict(float)
 
-    for p in portfolios:
-        summary = get_summary(currency=currency, db=db, pid=p.id)
+    for portfolio in rows:
+        summary = get_summary(currency=currency, db=db, pid=portfolio.id)
         total_nw += summary.get("net_worth") or 0.0
         total_dc += summary.get("day_change") or 0.0
 
-        raw = _allocation_totals(db, p.id, display_ccy)
+        raw = _allocation_totals(db, portfolio.id, display_ccy)
         for name, value in raw["sectors"].items():
             sectors[name] += value
         for name, value in raw["countries"].items():
@@ -150,48 +224,15 @@ def portfolios_overview(
         for name, value in raw["asset_types"].items():
             asset_types[name] += value
 
-    # Combined day-change %: today's change over yesterday's net worth
-    # (net worth minus today's change). Cash has no intraday move, so this is
-    # the net-worth-basis analogue of each portfolio's own day_change_percent.
     base = total_nw - total_dc
-    dc_pct = round(total_dc / base * 100, 2) if base > 0 else None
-
+    day_change_percent = round(total_dc / base * 100, 2) if base > 0 else None
     return {
         "currency": display_ccy,
         "total_net_worth": round(total_nw, 2),
         "total_day_change": round(total_dc, 2),
-        "total_day_change_percent": dc_pct,
-        "portfolio_count": len(portfolios),
+        "total_day_change_percent": day_change_percent,
+        "portfolio_count": len(rows),
         "sectors": _weighted(sectors),
         "countries": _weighted(countries),
         "asset_types": _weighted(asset_types),
     }
-
-
-# ----------------------------------------------------------------------------
-# Shared dependency: every other router uses this to resolve the active portfolio.
-# ----------------------------------------------------------------------------
-
-def require_portfolio(
-    portfolio_id: Optional[int] = Query(None),
-    db: Session = Depends(get_db),
-) -> int:
-    """Resolve and validate the active portfolio id from the request.
-
-    If `portfolio_id` is omitted, falls back to the default portfolio. Raises 404
-    if the requested id doesn't exist. The returned id is guaranteed to belong to
-    a real Portfolio row, so downstream queries can safely filter by it.
-    """
-    if portfolio_id is not None:
-        p = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
-        if p is None:
-            raise HTTPException(status_code=404, detail=f"Portfolio {portfolio_id} not found")
-        return p.id
-
-    default = db.query(Portfolio).filter(Portfolio.is_default.is_(True)).first()
-    if default is None:
-        default = db.query(Portfolio).order_by(Portfolio.created_at.asc()).first()
-    if default is None:
-        # Should never happen — startup migration always creates one.
-        raise HTTPException(status_code=500, detail="No portfolio exists")
-    return default.id

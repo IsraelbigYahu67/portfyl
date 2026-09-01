@@ -238,7 +238,7 @@ class TestCreateTransaction:
         assert stored.shares == 10
 
 
-from tests.helpers import make_txn
+from tests.helpers import TEST_WORKSPACE_ID, make_txn
 
 
 class TestLiveFxFallback:
@@ -346,7 +346,11 @@ def test_dividends_growth_empty_portfolio(db_session, pid):
     assert get_dividend_growth(db=db_session, pid=pid) == []
 
 
-def test_portfolios_overview_sums_across_portfolios(db_session, monkeypatch):
+def test_portfolios_overview_sums_across_portfolios(
+    db_session,
+    monkeypatch,
+    request_context,
+):
     from unittest.mock import patch
     import pandas as pd
     import yfinance as yf
@@ -360,8 +364,12 @@ def test_portfolios_overview_sums_across_portfolios(db_session, monkeypatch):
     # patch below, and would otherwise hit the live network.
     monkeypatch.setattr(yf, "download", lambda *a, **kw: pd.DataFrame())
 
-    p1 = Portfolio(name="zubik", is_default=True)
-    p2 = Portfolio(name="mama")
+    p1 = Portfolio(
+        workspace_id=TEST_WORKSPACE_ID,
+        name="zubik",
+        is_default=True,
+    )
+    p2 = Portfolio(workspace_id=TEST_WORKSPACE_ID, name="mama")
     db_session.add_all([p1, p2])
     db_session.commit()
     db_session.add(make_txn("AAPL", "buy", 10, 150.0, portfolio_id=p1.id))
@@ -376,7 +384,11 @@ def test_portfolios_overview_sums_across_portfolios(db_session, monkeypatch):
     with patch("market_data.get_infos", side_effect=fake_infos):
         s1 = get_summary(currency="USD", db=db_session, pid=p1.id)
         s2 = get_summary(currency="USD", db=db_session, pid=p2.id)
-        ov = portfolios_overview(currency="USD", db=db_session)
+        ov = portfolios_overview(
+            currency="USD",
+            context=request_context,
+            db=db_session,
+        )
 
     assert ov["portfolio_count"] == 2
     assert ov["total_net_worth"] == round(s1["net_worth"] + s2["net_worth"], 2)
@@ -385,9 +397,13 @@ def test_portfolios_overview_sums_across_portfolios(db_session, monkeypatch):
     assert ov["sectors"] and abs(sum(s["weight"] for s in ov["sectors"]) - 100.0) < 0.1
 
 
-def test_portfolios_overview_empty_db(db_session):
+def test_portfolios_overview_empty_db(db_session, request_context):
     from routers.portfolios import portfolios_overview
-    ov = portfolios_overview(currency="USD", db=db_session)
+    ov = portfolios_overview(
+        currency="USD",
+        context=request_context,
+        db=db_session,
+    )
     assert ov["portfolio_count"] == 0
     assert ov["total_net_worth"] == 0.0
     assert ov["sectors"] == []
