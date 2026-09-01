@@ -1,159 +1,154 @@
-"""Single source of identity + the app's password gate.
+"""Opaque, revocable Portfyl sessions.
 
-Identity: anything that needs the current user calls get_current_user(). The app
-is single-user, so it returns the sentinel owner id "default" (the value the
-startup migration stamps on every row). When real multi-user auth lands, only
-get_current_user() changes.
-
-Auth: one shared password (APP_PASSWORD) protects the whole app. A successful
-login sets an HMAC-signed, httponly session cookie; verify_session() checks the
-signature (constant-time) and the 30-day age on every request via the middleware
-in main.py. There is no username -- the session just proves "the one user is
-logged in", so the owner id stays "default".
-
-Secrets come from the environment (APP_PASSWORD, SESSION_SECRET). Local dev falls
-back to clearly-marked insecure defaults and logs a warning (never the value).
+Firebase proves an e-mail identity only during login. Every later request uses
+an opaque Portfyl token whose SHA-256 digest is stored in PostgreSQL. Raw
+session and CSRF tokens never enter the database.
 """
-import base64
+
+from __future__ import annotations
+
 import hashlib
 import hmac
-import logging
 import os
-import time
+import secrets
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from typing import Mapping
+from uuid import UUID
 
+from sqlalchemy import select, update
+from sqlalchemy.orm import Session
 from fastapi import Request, Response
 
-logger = logging.getLogger("snowball.auth")
-
-DEFAULT_OWNER_ID = "default"
-
-# --- secrets / config (env first, clearly-marked dev fallback) ----------------
-_DEV_PASSWORD = "snowball-dev"  # obvious placeholder; never used once APP_PASSWORD is set
-_DEV_SESSION_SECRET = "insecure-dev-session-secret-change-me"
-
-APP_PASSWORD = os.getenv("APP_PASSWORD") or _DEV_PASSWORD
-SESSION_SECRET = os.getenv("SESSION_SECRET") or _DEV_SESSION_SECRET
-
-if not os.getenv("APP_PASSWORD"):
-    logger.warning("APP_PASSWORD not set -- using an INSECURE dev password. Set APP_PASSWORD before deploying.")
-if not os.getenv("SESSION_SECRET"):
-    logger.warning("SESSION_SECRET not set -- using an INSECURE dev signing secret. Set SESSION_SECRET before deploying.")
-
-SESSION_COOKIE = "sb_session"
-SESSION_MAX_AGE = 30 * 24 * 60 * 60  # 30 days, in seconds
-
-# Secure cookies require HTTPS; localhost dev is HTTP, where a Secure cookie would
-# be dropped. Default: secure only when a real APP_PASSWORD is configured (i.e. a
-# deployment). Override explicitly with SESSION_COOKIE_SECURE=true/false.
-_secure_override = os.getenv("SESSION_COOKIE_SECURE")
-if _secure_override is not None:
-    COOKIE_SECURE = _secure_override.strip().lower() in ("1", "true", "yes", "on")
-else:
-    COOKIE_SECURE = bool(os.getenv("APP_PASSWORD"))
+from models import AuthSession
 
 
-# --- identity -----------------------------------------------------------------
-def get_current_user() -> str:
-    """FastAPI dependency: the current owner_id. Single-user, so always "default".
-
-    Adding a `request: Request` parameter here later (to read the owner from the
-    verified session) will not affect existing `Depends(get_current_user)` call
-    sites -- FastAPI injects by dependency, not by signature.
-    """
-    return DEFAULT_OWNER_ID
+SESSION_MAX_AGE = timedelta(days=30)
 
 
-# --- password -----------------------------------------------------------------
-def check_password(submitted: str) -> bool:
-    """Constant-time comparison of the submitted password against APP_PASSWORD."""
-    return hmac.compare_digest((submitted or "").encode("utf-8"), APP_PASSWORD.encode("utf-8"))
+def session_cookie_policy(env: Mapping[str, str]) -> tuple[str, bool]:
+    local_test_mode = env.get("PORTFYL_TESTING") == "1"
+    if local_test_mode:
+        return "portfyl_session", False
+    return "__Host-portfyl_session", True
 
 
-def login_token(password: str) -> str | None:
-    """Password in, signed session token out -- the building block for the JSON
-    login endpoint the native app uses. Returns None on a wrong password. The
-    token is the same value the session cookie carries, so it verifies through
-    verify_session() / is_authenticated() with no separate token store."""
-    if not check_password(password):
+SESSION_COOKIE_NAME, COOKIE_SECURE = session_cookie_policy(os.environ)
+
+
+@dataclass(frozen=True)
+class IssuedSession:
+    raw_token: str
+    csrf_token: str
+    expires_at: datetime
+
+
+def _digest(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def create_session(
+    db: Session,
+    user_id: UUID,
+    user_agent: str | None = None,
+) -> IssuedSession:
+    raw_token = secrets.token_urlsafe(32)
+    csrf_token = secrets.token_urlsafe(32)
+    expires_at = _utcnow() + SESSION_MAX_AGE
+    db.add(AuthSession(
+        user_id=user_id,
+        token_digest=_digest(raw_token),
+        csrf_digest=_digest(csrf_token),
+        expires_at=expires_at,
+        user_agent=user_agent,
+    ))
+    db.flush()
+    return IssuedSession(
+        raw_token=raw_token,
+        csrf_token=csrf_token,
+        expires_at=expires_at,
+    )
+
+
+def _find_session(db: Session, raw_token: str) -> AuthSession | None:
+    if not raw_token:
         return None
-    return issue_session()
+    token_digest = _digest(raw_token)
+    row = db.scalar(
+        select(AuthSession).where(AuthSession.token_digest == token_digest)
+    )
+    if row is None or not hmac.compare_digest(row.token_digest, token_digest):
+        return None
+    return row
 
 
-# --- scheduler machine token (Cloud Scheduler) --------------------------------
-SCHEDULER_TOKEN = os.getenv("SCHEDULER_TOKEN")  # no dev fallback; unset => disabled
+def resolve_session(db: Session, raw_token: str) -> AuthSession | None:
+    row = _find_session(db, raw_token)
+    now = _utcnow()
+    if (
+        row is None
+        or row.revoked_at is not None
+        or _as_utc(row.expires_at) <= now
+    ):
+        return None
+    row.last_seen_at = now
+    return row
 
 
-def check_scheduler_token(submitted: str) -> bool:
-    """Constant-time check of the scheduler machine token. Returns False when
-    SCHEDULER_TOKEN is unset, so the endpoint is inert in local dev and can never
-    be triggered without the configured secret."""
-    if not SCHEDULER_TOKEN:
+def revoke_session(db: Session, raw_token: str) -> bool:
+    row = _find_session(db, raw_token)
+    if row is None or row.revoked_at is not None:
         return False
-    return hmac.compare_digest((submitted or "").encode("utf-8"), SCHEDULER_TOKEN.encode("utf-8"))
+    row.revoked_at = _utcnow()
+    db.flush()
+    return True
 
 
-# --- signed session cookie ----------------------------------------------------
-def _b64encode(raw: bytes) -> str:
-    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+def revoke_all_sessions(db: Session, user_id: UUID) -> int:
+    result = db.execute(
+        update(AuthSession)
+        .where(
+            AuthSession.user_id == user_id,
+            AuthSession.revoked_at.is_(None),
+        )
+        .values(revoked_at=_utcnow())
+    )
+    db.flush()
+    return int(result.rowcount or 0)
 
 
-def _b64decode(s: str) -> bytes:
-    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+def csrf_matches(session: AuthSession, raw_token: str | None) -> bool:
+    if not raw_token:
+        return False
+    return hmac.compare_digest(session.csrf_digest, _digest(raw_token))
 
 
-def _sign(payload_b64: str) -> str:
-    mac = hmac.new(SESSION_SECRET.encode("utf-8"), payload_b64.encode("ascii"), hashlib.sha256).digest()
-    return _b64encode(mac)
+def rotate_csrf_token(db: Session, session: AuthSession) -> str:
+    raw_token = secrets.token_urlsafe(32)
+    session.csrf_digest = _digest(raw_token)
+    db.flush()
+    return raw_token
 
 
-def issue_session(owner_id: str = DEFAULT_OWNER_ID) -> str:
-    """Build a signed cookie value: base64(owner:issued_at).base64(hmac-sha256)."""
-    payload_b64 = _b64encode(f"{owner_id}:{int(time.time())}".encode("utf-8"))
-    return f"{payload_b64}.{_sign(payload_b64)}"
+def session_token_from_request(request: Request) -> str:
+    return request.cookies.get(SESSION_COOKIE_NAME, "")
 
 
-def verify_session(token: str) -> str | None:
-    """Return the owner_id if the signature is valid and the token is not older
-    than SESSION_MAX_AGE, else None. Signature check is constant-time."""
-    if not token or token.count(".") != 1:
-        return None
-    payload_b64, sig = token.split(".", 1)
-    if not hmac.compare_digest(sig, _sign(payload_b64)):
-        return None
-    try:
-        owner_id, issued = _b64decode(payload_b64).decode("utf-8").rsplit(":", 1)
-        if time.time() - int(issued) > SESSION_MAX_AGE:
-            return None
-        return owner_id
-    except Exception:
-        return None
-
-
-def _bearer_token(request: Request) -> str | None:
-    """The token from an 'Authorization: Bearer <token>' header, or None. The
-    native app (Capacitor, cross-origin) can't rely on the lax session cookie, so
-    it sends the same signed session value as a bearer token instead."""
-    scheme, _, token = request.headers.get("Authorization", "").partition(" ")
-    if scheme.lower() == "bearer" and token.strip():
-        return token.strip()
-    return None
-
-
-def is_authenticated(request: Request) -> bool:
-    """True if the request carries a valid session -- the signed httponly cookie
-    (browser) or an 'Authorization: Bearer <token>' header (native app). Both are
-    verified by the same signature + 30-day age check via verify_session()."""
-    if verify_session(request.cookies.get(SESSION_COOKIE, "")) is not None:
-        return True
-    token = _bearer_token(request)
-    return token is not None and verify_session(token) is not None
-
-
-def set_session_cookie(response: Response, owner_id: str = DEFAULT_OWNER_ID) -> None:
+def set_session_cookie(response: Response, raw_token: str) -> None:
     response.set_cookie(
-        key=SESSION_COOKIE,
-        value=issue_session(owner_id),
-        max_age=SESSION_MAX_AGE,
+        key=SESSION_COOKIE_NAME,
+        value=raw_token,
+        max_age=int(SESSION_MAX_AGE.total_seconds()),
         httponly=True,
         secure=COOKIE_SECURE,
         samesite="lax",
@@ -162,44 +157,33 @@ def set_session_cookie(response: Response, owner_id: str = DEFAULT_OWNER_ID) -> 
 
 
 def clear_session_cookie(response: Response) -> None:
-    response.delete_cookie(SESSION_COOKIE, path="/")
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        secure=COOKIE_SECURE,
+        httponly=True,
+        samesite="lax",
+        path="/",
+    )
 
 
-# --- login page (server-rendered; no React, no external assets) ---------------
-def login_page_html(error: bool = False) -> str:
-    error_html = '<p class="err">Incorrect password. Try again.</p>' if error else ""
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Portfyl - Sign in</title>
-<style>
-  :root {{ --brand:#059669; --brand-hover:#047857; --bg:#F8FBF9; }}
-  * {{ box-sizing:border-box; }}
-  body {{ margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
-         background:var(--bg); color:#111827;
-         font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }}
-  .card {{ background:#fff; padding:2rem 2.25rem; border-radius:16px; width:100%; max-width:360px;
-          box-shadow:0 10px 30px rgba(0,0,0,.08); }}
-  .brand {{ display:flex; align-items:center; gap:.5rem; font-weight:700; font-size:1.25rem; margin-bottom:1.25rem; }}
-  .dot {{ width:14px; height:14px; border-radius:50%; background:var(--brand); display:inline-block; }}
-  label {{ display:block; font-size:.85rem; font-weight:600; margin-bottom:.4rem; color:#374151; }}
-  input {{ width:100%; padding:.7rem .8rem; border:1px solid #D1D5DB; border-radius:10px; font-size:1rem; }}
-  input:focus {{ outline:none; border-color:var(--brand); box-shadow:0 0 0 3px rgba(5,150,105,.15); }}
-  button {{ width:100%; margin-top:1rem; padding:.7rem; border:0; border-radius:10px; cursor:pointer;
-           background:var(--brand); color:#fff; font-size:1rem; font-weight:600; }}
-  button:hover {{ background:var(--brand-hover); }}
-  .err {{ color:#DC2626; font-size:.85rem; margin:.75rem 0 0; }}
-</style>
-</head>
-<body>
-  <form class="card" method="post" action="/login">
-    <div class="brand"><span class="dot"></span> Portfyl</div>
-    <label for="password">Password</label>
-    <input id="password" name="password" type="password" autocomplete="current-password" autofocus required />
-    <button type="submit">Sign in</button>
-    {error_html}
-  </form>
-</body>
-</html>"""
+# Cloud Scheduler keeps its separate machine credential until the jobs
+# workstream replaces the in-process scheduler architecture.
+SCHEDULER_TOKEN = os.getenv("SCHEDULER_TOKEN")
+
+
+def check_scheduler_token(submitted: str) -> bool:
+    if not SCHEDULER_TOKEN:
+        return False
+    return hmac.compare_digest(
+        (submitted or "").encode("utf-8"),
+        SCHEDULER_TOKEN.encode("utf-8"),
+    )
+
+
+# Temporary import compatibility for routers migrated in Tasks 5-8. These are
+# not authentication primitives and are removed with their final consumers.
+DEFAULT_OWNER_ID = "default"
+
+
+def get_current_user() -> str:
+    return DEFAULT_OWNER_ID

@@ -3,7 +3,7 @@ import os
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 # yfinance logs "possibly delisted" / "no earnings dates found" at ERROR
@@ -13,29 +13,55 @@ from fastapi.staticfiles import StaticFiles
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 from database import SessionLocal, assert_alembic_head
-from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, cash, alerts, settings
+from models import User
+from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, cash, alerts, settings, auth as auth_router
 import auth
 
 app = FastAPI(title="Portfyl API", version="1.0.0")
+app.add_exception_handler(
+    auth_router.AuthAPIError,
+    auth_router.auth_api_error_handler,
+)
 
 
-# --- password gate ------------------------------------------------------------
-# Paths reachable without a session: the login screen and its POST, logout, the
-# Cloud Run health check, and the scheduler sync endpoint (which authenticates
-# with its own SCHEDULER_TOKEN instead of the session cookie).
-_PUBLIC_PATHS = {"/health", "/login", "/logout", "/api/auth/login", "/api/broker/ibkr/scheduler-sync"}
+# --- transitional API gate ----------------------------------------------------
+# Task 5 moves authentication into the typed request/workspace dependency. Until
+# then, keep existing API routers protected by an opaque database session. The
+# Firebase exchange and scheduler endpoint authenticate through their own
+# credentials and therefore remain public.
+_PUBLIC_PATHS = {
+    "/health",
+    "/api/auth/session",
+    "/api/broker/ibkr/scheduler-sync",
+}
 
 
 @app.middleware("http")
 async def require_login(request: Request, call_next):
     path = request.url.path
-    # OPTIONS (CORS preflight) and the public paths skip the gate; everything else
-    # requires a valid signed session cookie.
-    if request.method == "OPTIONS" or path in _PUBLIC_PATHS or auth.is_authenticated(request):
+    if request.method == "OPTIONS" or path in _PUBLIC_PATHS:
         return await call_next(request)
     if path.startswith("/api"):
-        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
-    return RedirectResponse("/login", status_code=303)
+        with SessionLocal() as session:
+            active_session = auth.resolve_session(
+                session,
+                auth.session_token_from_request(request),
+            )
+            active_user = (
+                session.get(User, active_session.user_id)
+                if active_session is not None
+                else None
+            )
+        if (
+            active_session is None
+            or active_user is None
+            or active_user.disabled_at is not None
+        ):
+            return JSONResponse(
+                {"code": "authentication_required"},
+                status_code=401,
+            )
+    return await call_next(request)
 
 
 # CORS is added after the gate so it wraps it and its headers apply to every
@@ -62,51 +88,7 @@ app.add_middleware(
 )
 
 
-@app.get("/login", include_in_schema=False)
-def login_page(request: Request):
-    if auth.is_authenticated(request):
-        return RedirectResponse("/", status_code=303)
-    return HTMLResponse(auth.login_page_html())
-
-
-@app.post("/login", include_in_schema=False)
-async def login_submit(request: Request):
-    form = await request.form()
-    if not auth.check_password(form.get("password", "")):
-        return HTMLResponse(auth.login_page_html(error=True), status_code=401)
-    response = RedirectResponse("/", status_code=303)
-    auth.set_session_cookie(response)
-    return response
-
-
-@app.post("/api/auth/login", include_in_schema=False)
-async def api_login(request: Request):
-    """JSON login for native clients: {"password": ...} -> {"token": ...}.
-
-    The token is the same signed session value the cookie carries; the app stores
-    it and sends it back as `Authorization: Bearer <token>`, which the auth gate
-    accepts via auth.is_authenticated(). Cross-origin, so cookies aren't used here.
-    """
-    body: dict = {}
-    try:
-        parsed = await request.json()
-        if isinstance(parsed, dict):
-            body = parsed
-    except Exception:
-        pass
-    token = auth.login_token(body.get("password", ""))
-    if token is None:
-        return JSONResponse({"detail": "Incorrect password"}, status_code=401)
-    return JSONResponse({"token": token})
-
-
-@app.get("/logout", include_in_schema=False)
-def logout():
-    response = RedirectResponse("/login", status_code=303)
-    auth.clear_session_cookie(response)
-    return response
-
-
+app.include_router(auth_router.router, prefix="/api")
 app.include_router(portfolios.router, prefix="/api")
 app.include_router(portfolio.router, prefix="/api")
 app.include_router(market.router, prefix="/api")
@@ -227,10 +209,9 @@ async def _stop_background_pollers():
 
 
 # --- serve the built React SPA (production / same-origin) ---------------------
-# In dev you use the Vite server on :5173 (which proxies /api, /login, /logout
-# here), so dist/ may be absent; we mount it only when present. The gate above
-# runs first, so an unauthenticated visit to any SPA route is redirected to
-# /login before the app shell is ever served.
+# In dev the Vite server on :5173 proxies `/api`; dist/ may therefore be absent.
+# Public auth pages and protected app pages are both frontend routes, so every
+# non-API path reaches the SPA shell and React decides what to render.
 _DIST = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "dist"))
 _ASSETS = os.path.join(_DIST, "assets")
 
@@ -241,7 +222,7 @@ if os.path.isdir(_DIST):
     @app.get("/{full_path:path}", include_in_schema=False)
     def spa_fallback(full_path: str):
         # Never shadow the API / auth / health routes (they match first anyway).
-        if full_path == "api" or full_path.startswith("api/") or full_path in ("health", "login", "logout"):
+        if full_path == "api" or full_path.startswith("api/") or full_path == "health":
             raise HTTPException(status_code=404)
         # Serve real files (favicon, logo, etc.) directly; everything else returns
         # index.html so the client-side router can handle the route. normpath +
