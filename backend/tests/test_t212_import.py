@@ -23,7 +23,7 @@ from cash_ledger import (
     has_external_cashflows,
     signed_cash,
 )
-from models import BrokerConnection, Transaction
+from models import Portfolio, Transaction
 from routers.portfolio import (
     _is_t212,
     _normalize_t212,
@@ -262,12 +262,6 @@ def test_t212_rejects_same_day_trade_and_split_when_order_cannot_be_persisted():
 
 
 def test_valid_t212_replace_is_atomic_and_marks_csv_source(db_session, pid):
-    connection = BrokerConnection(
-        portfolio_id=pid,
-        broker="trading212",
-        api_key="k" * 20,
-    )
-    db_session.add(connection)
     db_session.add(make_txn("MSFT", "buy", 2, 300, source="t212_api", portfolio_id=pid))
     db_session.commit()
 
@@ -291,8 +285,8 @@ def test_valid_t212_replace_is_atomic_and_marks_csv_source(db_session, pid):
     assert len(rows) == 1
     assert rows[0].type == "deposit"
     assert rows[0].source == "t212_csv"
-    db_session.refresh(connection)
-    assert connection.t212_csv_covered_through.isoformat() == "2026-01-19T19:21:23"
+    portfolio = db_session.query(Portfolio).filter(Portfolio.id == pid).one()
+    assert portfolio.t212_csv_covered_through.isoformat() == "2026-01-19T19:21:23"
 
 
 class TestSettlementSignedCash:

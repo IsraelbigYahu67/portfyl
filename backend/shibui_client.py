@@ -21,12 +21,18 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from typing import Any
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 SHIBUI_MCP_URL = "https://mcp.shibui.finance/mcp"
+
+# Guards every f-string-interpolated ticker sent to Shibui's stock_data_query
+# (that server takes a finished SQL string, not parametrized queries). Shared
+# by every module that queries Shibui (routers/market.py, dividend_growth.py).
+TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
 
 
 class ShibuiError(Exception):

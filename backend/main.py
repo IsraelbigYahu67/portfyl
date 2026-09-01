@@ -176,11 +176,17 @@ def _ensure_portfolio_columns(default_portfolio_id: int) -> None:
             )
 
 
-def _ensure_t212_snapshot_column() -> None:
-    """Add the precise full-history CSV cutoff to existing broker connections."""
+def _ensure_t212_snapshot_columns() -> None:
+    """Add precise full-history CSV cutoffs to existing portfolio databases."""
     with engine.begin() as conn:
-        cols = {r[1] for r in conn.execute(text("PRAGMA table_info(broker_connections)"))}
-        if "t212_csv_covered_through" not in cols:
+        portfolio_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(portfolios)"))}
+        if "t212_csv_covered_through" not in portfolio_cols:
+            conn.execute(text(
+                "ALTER TABLE portfolios "
+                "ADD COLUMN t212_csv_covered_through DATETIME"
+            ))
+        broker_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(broker_connections)"))}
+        if "t212_csv_covered_through" not in broker_cols:
             conn.execute(text(
                 "ALTER TABLE broker_connections "
                 "ADD COLUMN t212_csv_covered_through DATETIME"
@@ -325,9 +331,9 @@ _ensure_fx_column()
 _ensure_cash_columns()
 _ensure_settlement_columns()
 _ensure_cash_interest_rate_table()
+_ensure_t212_snapshot_columns()
 _default_pid = _ensure_default_portfolio()
 _ensure_portfolio_columns(_default_pid)
-_ensure_t212_snapshot_column()
 _backfill_fx()
 _seed_preset_benchmarks()
 _ensure_options_trades_table()

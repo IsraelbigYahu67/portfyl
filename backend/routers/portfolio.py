@@ -9,7 +9,7 @@ import logging
 from datetime import datetime, timedelta
 
 from database import get_db
-from models import BrokerConnection, Transaction
+from models import BrokerConnection, Portfolio, Transaction
 from cash_ledger import TRADE_TYPES, POSITION_TYPES
 from schemas import TransactionCreate, TransactionResponse
 from fx import fetch_fx_to_czk, bulk_fetch_fx
@@ -564,6 +564,9 @@ async def import_csv(
             _portfolio_txns(db, pid).delete(synchronize_session=False)
         db.add_all(prepared)
         if t212_covered_through is not None:
+            portfolio = db.query(Portfolio).filter(Portfolio.id == pid).first()
+            if portfolio:
+                portfolio.t212_csv_covered_through = t212_covered_through
             connection = db.query(BrokerConnection).filter(
                 BrokerConnection.portfolio_id == pid,
                 BrokerConnection.broker == "trading212",

@@ -223,7 +223,7 @@ function TtmUnderlay({ formattedGraphicalItems, yAxisMap, ttm }) {
   );
 }
 
-function MetricBarChart({ metric, currencyCode, period = "annual", isCount = false, ttm = null }) {
+export function MetricBarChart({ metric, currencyCode, period = "annual", isCount = false, ttm = null }) {
   const cs = currencySymbol(currencyCode);
   const { name, years, values, yoy, cagr } = metric;
   const isQuarterly = period === "quarterly";
@@ -267,15 +267,17 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
   // should show as an increase, not get inverted by the sign.
   const useAbsGrowth = name === "CapEx";
   // Change vs the previous column (YoY annual / QoQ quarterly), shown as a
-  // second x-axis line. The angled/dense quarterly layout has no room for a
-  // second line — hide it there and let the tooltip's QoQ carry it.
+  // second x-axis line. Quarterly charts keep this for every quarter.
   const changes = columnChanges(rows, { useAbs: useAbsGrowth });
   const rowsWithChange = rows.map((r, i) => ({
     ...r,
     change: changes[i],
     hasTtmOverlay: showTtmOverlay && i === rows.length - 1,
   }));
-  const showChangeLine = !(isQuarterly && data.length > 6) && rows.length <= 10;
+  // Quarterly history is often longer than six periods. Keep its second line
+  // visible nonetheless: Recharts thins crowded labels itself, and the QoQ
+  // numbers are the point of switching to this view.
+  const showChangeLine = isQuarterly || rows.length <= 10;
   // Only widen the y-domain when the TTM level falls outside the bars' own
   // range — a functional domain costs recharts its nice round ticks, so keep
   // the default auto axis whenever the overlay already fits.
@@ -284,7 +286,12 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
     showTtmOverlay && vals.length > 0 &&
     (ttm > Math.max(0, ...vals) || ttm < Math.min(0, ...vals));
 
-  const lastYoy = yoy && yoy.length ? yoy[yoy.length - 1] : null;
+  const headlineChange = isQuarterly
+    ? changes[changes.length - 1]
+    : yoy && yoy.length
+      ? yoy[yoy.length - 1]
+      : null;
+  const headlineChangeLabel = isQuarterly ? "QoQ" : "YoY";
 
   return (
     <div className="bg-surface rounded-lg p-4 flex flex-col">
@@ -298,9 +305,9 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
             </span>
           </span>
           <span className="text-muted">
-            YoY{" "}
-            <span className={changeColor(lastYoy)}>
-              {lastYoy == null ? "—" : fmtPct(lastYoy, 1)}
+            {headlineChangeLabel}{" "}
+            <span className={changeColor(headlineChange)}>
+              {headlineChange == null ? "—" : fmtPct(headlineChange, 1)}
             </span>
           </span>
         </div>
@@ -326,7 +333,7 @@ function MetricBarChart({ metric, currencyCode, period = "annual", isCount = fal
               }
               tickLine={false}
               axisLine={{ stroke: GRID_STROKE }}
-              interval={isQuarterly && data.length > 8 ? "preserveStartEnd" : 0}
+              interval={0}
               angle={isQuarterly && data.length > 6 ? -35 : 0}
               textAnchor={isQuarterly && data.length > 6 ? "end" : "middle"}
               height={showChangeLine ? 34 : isQuarterly && data.length > 6 ? 28 : 16}
@@ -1435,7 +1442,7 @@ function buildMergedSeries(metric, estimateRows, mode = "annual") {
   return out;
 }
 
-function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null }) {
+export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null }) {
   const cs = currencySymbol(currencyCode);
   const isQuarterly = data?.some((d) => /^Q[1-4]/.test(d.label));
   if (!data?.length) {
@@ -1461,23 +1468,28 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
   // the furthest-out forecast — users want to see what the company really
   // earned, with the estimate bars providing the forward view.
   const lastActual = actuals[actuals.length - 1];
-  const lastActualYoy = lastActual?.growth;
-
   // TTM doesn't get its own column — a rounded purple underlay shares the latest
   // actual column (annual view only), so estimates stay next to real fiscal years.
   const showTtm = ttm != null && !isQuarterly && actuals.length > 0;
   const lastActualIdx = data.reduce((k, d, i) => (d.isEstimate ? k : i), -1);
   const rows = data;
   // Change vs the previous column (YoY annual / QoQ quarterly, estimates vs
-  // their prior period), shown as a second x-axis line. Hidden in the angled/
-  // dense quarterly layout where it can't fit — the tooltip carries it there.
+  // their prior period), shown as a second x-axis line for every period.
   const changes = columnChanges(rows);
   const rowsWithChange = rows.map((r, i) => ({
     ...r,
     change: changes[i],
     hasTtmOverlay: showTtm && i === lastActualIdx,
   }));
-  const showChangeLine = !(isQuarterly && data.length > 6) && rows.length <= 10;
+  // Do not discard QoQ just because a quarterly series is dense. The x-axis
+  // reduces the set of rendered labels where necessary, while each displayed
+  // period keeps the same two-line value/change treatment as annual charts.
+  const showChangeLine = isQuarterly || rows.length <= 10;
+  // Derive Revenue/EPS growth from the rendered actual bars. This keeps the
+  // headline and the value beneath its year in lockstep even when the API's
+  // optional historical YoY field is absent.
+  const lastActualGrowth = lastActualIdx >= 0 ? changes[lastActualIdx] : null;
+  const headlineGrowthLabel = isQuarterly ? "QoQ" : "YoY";
   // Estimate years carry a trailing "E" (e.g. "2027E"), one character wider
   // than a plain year — past ~8 columns that no longer fits the horizontal
   // pitch of a 3-up card, so angle the labels the same way dense quarterly
@@ -1503,9 +1515,9 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
             </span>
           </span>
           <span className="text-muted">
-            YoY{" "}
-            <span className={lastActualYoy == null ? "text-muted" : lastActualYoy >= 0 ? "text-gain" : "text-loss"}>
-              {lastActualYoy == null ? "—" : fmtPct(lastActualYoy, 1)}
+            {headlineGrowthLabel}{" "}
+            <span className={lastActualGrowth == null ? "text-muted" : lastActualGrowth >= 0 ? "text-gain" : "text-loss"}>
+              {lastActualGrowth == null ? "—" : fmtPct(lastActualGrowth, 1)}
             </span>
           </span>
         </div>
@@ -1542,7 +1554,7 @@ function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null
               }
               tickLine={false}
               axisLine={{ stroke: GRID_STROKE }}
-              interval={isQuarterly && data.length > 8 ? "preserveStartEnd" : 0}
+              interval={0}
               angle={denseLabels ? -35 : 0}
               textAnchor={denseLabels ? "end" : "middle"}
               height={showChangeLine ? 34 : denseLabels ? 32 : 16}

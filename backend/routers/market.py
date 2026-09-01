@@ -28,9 +28,8 @@ _SEARCH_TTL = 1800           # 30 minutes
 _QUOTE_TTL = 120             # 2 minutes
 _FX_TTL = 600                # 10 minutes
 
-# Guards every f-string-interpolated ticker sent to Shibui's stock_data_query
-# (that server takes a finished SQL string, not parametrized queries).
-_SHIBUI_TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
+# Shared with dividend_growth.py -- see shibui_client.TICKER_RE's docstring.
+_SHIBUI_TICKER_RE = shibui_client.TICKER_RE
 
 
 def _escape_sql_string(s: str) -> str:

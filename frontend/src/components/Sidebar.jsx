@@ -52,7 +52,7 @@ export default function Sidebar() {
     <aside className="w-[232px] shrink-0 bg-surface-card border-r border-surface-border flex flex-col h-screen sticky top-0"
       style={{ boxShadow: "1px 0 0 var(--glass-border-alpha)" }}>
       <div className="flex items-center gap-2.5 px-[18px] py-4 border-b border-hairline">
-        <img src="/logo.png" alt="Portfyl" className="w-11 h-11 object-contain" />
+        <img src="/portfyl-mark.png" alt="Portfyl" className="w-11 h-11 object-contain" />
         <div className="flex flex-col leading-tight">
           <span className="font-display font-bold text-[17px] tracking-tight text-ink">Portfyl</span>
           <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted">Institutional Grade</span>

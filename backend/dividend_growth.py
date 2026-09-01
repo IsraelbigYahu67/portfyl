@@ -1,6 +1,8 @@
 """Per-ticker dividend-growth analytics: annual DPS series, growth streak,
-CAGR, YoY, and payout ratio. Pure function of a ticker's yfinance dividend
-history; cached in-process. Leaf module — must not import from routers.*."""
+CAGR, YoY, and payout ratio. Prefers Shibui's quarterly `dividends_per_share`
+(one point per fiscal quarter, NYSE/NASDAQ common stock only); falls back to
+yfinance's per-payment `.dividends` history for anything Shibui doesn't
+cover. Cached in-process. Leaf module — must not import from routers.*."""
 
 from __future__ import annotations
 
@@ -11,6 +13,7 @@ from typing import Optional
 import pandas as pd
 import yfinance as yf
 
+import shibui_client
 from cache import ttl_cache
 from ticker_map import yf_symbol
 
@@ -79,6 +82,35 @@ def _yoy(annual: list[dict], current_year: int) -> Optional[float]:
     return round((last / prev - 1.0) * 100, 2)
 
 
+def _quarterly_dividends_from_shibui(symbol: str) -> Optional[pd.Series]:
+    """Best-effort quarterly per-share dividend series from Shibui's
+    `fundamentals_derived_quarterly.dividends_per_share` -- one point per
+    fiscal quarter-end date, already $-per-share (no aggregation needed).
+    Returns None on any failure or when Shibui has no coverage for this
+    ticker (non NYSE/NASDAQ common stock), so the caller falls back to
+    yfinance's per-payment `.dividends` series."""
+    if not shibui_client.TICKER_RE.match(symbol):
+        return None
+    sql = (
+        "SELECT date, dividends_per_share"
+        " FROM shibui.fundamentals_derived_quarterly"
+        f" WHERE ticker = '{symbol}' AND dividends_per_share IS NOT NULL"
+        " ORDER BY date"
+        " LIMIT 200"
+    )
+    try:
+        rows = shibui_client.query(sql, f"Quarterly dividend payments for {symbol}")
+    except shibui_client.ShibuiError:
+        return None
+    if not rows:
+        return None
+    try:
+        idx = pd.to_datetime([r["date"] for r in rows])
+        return pd.Series([float(r["dividends_per_share"]) for r in rows], index=idx)
+    except (TypeError, ValueError, KeyError):
+        return None
+
+
 @ttl_cache(_GROWTH_TTL)
 def compute_dividend_growth(symbol: str, _current_year: int | None = None) -> dict:
     """Growth stats for one ticker. Best-effort; never raises on bad data.
@@ -89,25 +121,34 @@ def compute_dividend_growth(symbol: str, _current_year: int | None = None) -> di
     empty = {
         "ticker": symbol, "streak_years": 0, "cagr_pct": None,
         "cagr_years_used": 0, "yoy_pct": None, "payout_ratio_pct": None,
-        "annual": [], "payments": [],
+        "annual": [], "payments": [], "source": "yfinance",
     }
+
+    div = _quarterly_dividends_from_shibui(symbol)
+    source = "shibui" if div is not None else "yfinance"
+
     try:
         tk = yf.Ticker(yf_symbol(symbol))
-        div = tk.dividends
     except Exception:
-        return empty
+        tk = None
 
-    # Payout ratio from .info (best-effort, independent of history).
+    if div is None and tk is not None:
+        try:
+            div = tk.dividends
+        except Exception:
+            div = None
+
+    # Payout ratio from yfinance .info (best-effort, independent of source/history).
     payout = None
     try:
-        info = tk.info or {}
+        info = (tk.info or {}) if tk is not None else {}
         pr = info.get("payoutRatio")
         payout = _to_pct(float(pr)) if pr is not None else None
     except Exception:
         payout = None
 
     if div is None or getattr(div, "empty", True):
-        return {**empty, "payout_ratio_pct": payout}
+        return {**empty, "payout_ratio_pct": payout, "source": source}
 
     try:
         annual = _annual_dps(div)
@@ -119,7 +160,7 @@ def compute_dividend_growth(symbol: str, _current_year: int | None = None) -> di
             key=lambda p: p["ex_date"],
         )
     except Exception:
-        return {**empty, "payout_ratio_pct": payout}
+        return {**empty, "payout_ratio_pct": payout, "source": source}
 
     cagr_pct, years_used = _cagr(annual, current_year)
     return {
@@ -131,4 +172,5 @@ def compute_dividend_growth(symbol: str, _current_year: int | None = None) -> di
         "payout_ratio_pct": payout,
         "annual": annual,
         "payments": payments,
+        "source": source,
     }

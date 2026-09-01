@@ -2,9 +2,48 @@
 
 Self-hosted portfolio analytics for a Trading 212 / IBKR investor. Import broker
 CSVs (or sync via API), then view performance, allocation, dividends, options,
-tax reports, and an AI assistant across one or more portfolios. Single-user today.
+tax reports, and an AI assistant across one or more portfolios. Single-user today,
+**but a multi-user SaaS conversion is in progress** — see below.
 (Formerly "Snowball Analytics" — some internal identifiers still carry the `sb_`
 / `snowball.*` prefix for backwards compatibility; see the naming notes below.)
+
+## In-progress: multi-user SaaS conversion
+
+Portfyl is being converted from a single-user self-hosted app into a two-edition
+product. Full spec, market research, architecture, tier pricing, and phased
+rollout plan:
+**`docs/superpowers/plans/2026-09-01-portfyl-saas-monetization.md`** — read it
+before starting any auth, tenancy, database, or billing work.
+
+- `PORTFYL_EDITION=local` — the owner's private instance. Keeps Tax Report and
+  Screener. No billing.
+- `PORTFYL_EDITION=cloud` — multi-tenant paid SaaS (Free / Investor EUR 4.99 /
+  Pro EUR 7.99 plans, Stripe billing, 7-day no-card Pro trial). Tax Report and
+  Screener are **permanently excluded from cloud** — not deferred, a deliberate
+  product decision (see plan §2, §7, §12).
+- Target cloud architecture: `User → Membership → Workspace` (workspace = billing
+  + authorization tenant, owns portfolios/accounts/watchlists/alerts), PostgreSQL
+  + Alembic replacing SQLite + imperative migrations, KMS-encrypted broker/AI
+  secrets, and an external scheduler replacing in-process background jobs.
+- **Everything in the rest of this file** (single-user `owner_id = "default"`,
+  SQLite, imperative startup migrations, shared-password login, globally-unique
+  `Portfolio.name`/`Watchlist.name`/`AppSetting.key`) describes the **current**
+  state the plan is replacing. Before touching auth, data-scoping, or DB-migration
+  code, check whether that workstream is already underway rather than reinforcing
+  these single-user assumptions.
+- Workstreams are implemented one focused task-level plan at a time, in the
+  dependency order given in the master plan (edition boundary → Postgres →
+  identity/tenancy → secrets/jobs → billing → onboarding → beta). Don't jump
+  ahead to billing/onboarding work before tenant isolation is actually done.
+- Target deploy stack for the cloud edition: **Google Cloud Run + Neon
+  (managed PostgreSQL) + Cloudflare** (domain + DNS for portfyl.com) — not
+  Cloud SQL, not GCS-mounted SQLite.
+- The first scoped kickoff prompt (Workstreams B + C combined — PostgreSQL
+  foundation + identity/workspace/tenant isolation) already exists at
+  `docs/superpowers/plans/2026-09-01-portfyl-multiuser-foundation-prompt.md`.
+  Read it before starting auth/tenancy/DB-migration work — it has exact file
+  touchpoints and explicit scope boundaries (no billing/edition-boundary/
+  onboarding work in this pass).
 
 ## Stack
 
@@ -47,7 +86,10 @@ tax reports, and an AI assistant across one or more portfolios. Single-user toda
   cross-portfolio endpoint, add its prefix there or it will 404/mis-route.
 - **`owner_id` is always `"default"`.** The app is single-user; `auth.get_current_user()`
   returns the `"default"` sentinel stamped on every row. The column exists so
-  per-user isolation can land later without a schema rewrite — keep it.
+  per-user isolation can land later without a schema rewrite — keep it. This is
+  exactly what the SaaS conversion plan (see above) is replacing with
+  workspace-scoped tenant isolation — don't add more code that assumes a single
+  global owner without checking that plan first.
 - **DB migrations are imperative, at startup.** There is **no Alembic**. `main.py`
   runs `Base.metadata.create_all()` then a series of idempotent `_ensure_*` /
   `_backfill_*` helpers (raw `ALTER TABLE` / table rebuilds for SQLite). When you

@@ -14,6 +14,9 @@ class Portfolio(Base):
     name = Column(String, nullable=False, unique=True)
     color = Column(String, nullable=True)  # tailwind/hex; optional UI hint
     is_default = Column(Boolean, default=False)
+    # Exact UTC timestamp covered by the latest authoritative T212 CSV import.
+    # Portfolio scope preserves it even when the broker connection is added later.
+    t212_csv_covered_through = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

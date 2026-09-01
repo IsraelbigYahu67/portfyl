@@ -8,7 +8,7 @@ import yfinance as yf
 
 from database import get_db
 from fx import bulk_fetch_fx
-from models import BrokerConnection, Transaction
+from models import BrokerConnection, Portfolio, Transaction
 from routers.portfolios import require_portfolio
 from auth import get_current_user
 from cash_ledger import CASH_TYPES
@@ -356,7 +356,10 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
     fallback_dates = t212_csv_dates + (
         [row.date for row in legacy_csv_rows] if legacy_is_t212 else []
     )
-    precise_history_cutoff = conn.t212_csv_covered_through
+    portfolio_history_cutoff = db.query(Portfolio.t212_csv_covered_through).filter(
+        Portfolio.id == pid
+    ).scalar()
+    precise_history_cutoff = portfolio_history_cutoff or conn.t212_csv_covered_through
     if precise_history_cutoff is not None:
         if precise_history_cutoff.tzinfo is None:
             precise_history_cutoff = precise_history_cutoff.replace(tzinfo=timezone.utc)

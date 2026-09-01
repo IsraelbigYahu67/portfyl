@@ -5,6 +5,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    // Lets a quick public tunnel (serveo.net or `cloudflared tunnel --url`)
+    // reach the dev server for quick public sharing/testing.
+    allowedHosts: [".serveousercontent.com", ".trycloudflare.com"],
     proxy: {
       // Backend routes that must be same-origin with the SPA in dev. /api carries
       // the data; /login + /logout let the password gate work without bouncing

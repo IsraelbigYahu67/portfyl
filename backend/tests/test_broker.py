@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from models import BrokerConnection, Transaction
+from models import BrokerConnection, Portfolio, Transaction
 from routers.broker import (
     _normalize_t212_ticker,
     _CANONICAL_TICKER as _canonical_ticker,
@@ -224,7 +224,8 @@ class TestSyncDedupe:
     def test_precise_snapshot_timestamp_allows_later_same_day_order(
         self, db_session, pid, connection
     ):
-        connection.t212_csv_covered_through = datetime(
+        portfolio = db_session.query(Portfolio).filter(Portfolio.id == pid).one()
+        portfolio.t212_csv_covered_through = datetime(
             2024, 6, 1, 8, 0, tzinfo=timezone.utc
         )
         db_session.add(make_txn("AAPL", "buy", 10, 150.0, date=date(2024, 6, 1),
