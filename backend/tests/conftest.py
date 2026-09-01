@@ -5,21 +5,13 @@ from __future__ import annotations
 import os
 import sys
 
+# Fast unit tests use SQLite only when this explicit test-only switch is set.
+# Runtime imports remain fail-closed when DATABASE_URL is absent.
+os.environ.setdefault("PORTFYL_TESTING", "1")
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+
 # Ensure the backend package is importable.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-# Patch os.rename BEFORE database.py is imported, so its startup migration becomes a no-op.
-import os as _os
-
-_original_exists = _os.path.exists
-_original_rename = _os.rename
-
-
-def _noop_rename(src, dst):
-    pass
-
-
-_os.rename = _noop_rename
 
 from datetime import date, timedelta
 from typing import Callable
@@ -31,9 +23,6 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from database import Base
 from models import Transaction, Portfolio, Benchmark, BenchmarkComponent
-
-# Restore os.rename after database module is loaded so nothing else is affected.
-_os.rename = _original_rename
 
 
 # ---------------------------------------------------------------------------
