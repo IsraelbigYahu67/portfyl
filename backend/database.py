@@ -3,9 +3,11 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from typing import Mapping
+from uuid import UUID
 
-from sqlalchemy import Engine, create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy import Engine, create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
 @dataclass(frozen=True)
@@ -49,6 +51,43 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 class Base(DeclarativeBase):
     pass
+
+
+EXPECTED_ALEMBIC_HEAD = "0002_tenant_rls"
+
+
+def assert_alembic_head(
+    session: Session,
+    expected_head: str = EXPECTED_ALEMBIC_HEAD,
+) -> None:
+    try:
+        actual_head = session.execute(
+            text("SELECT version_num FROM alembic_version")
+        ).scalar_one_or_none()
+    except SQLAlchemyError as exc:
+        raise RuntimeError(
+            "Alembic schema state is unavailable; run `alembic upgrade head` before startup"
+        ) from exc
+    if actual_head != expected_head:
+        raise RuntimeError(
+            f"Alembic revision mismatch: expected {expected_head}, got {actual_head or 'none'}"
+        )
+
+
+def set_rls_context(
+    session: Session,
+    user_id: UUID,
+    workspace_id: UUID | None,
+) -> None:
+    values = {
+        "portfyl.user_id": str(user_id),
+        "portfyl.workspace_id": "" if workspace_id is None else str(workspace_id),
+    }
+    for key, value in values.items():
+        session.execute(
+            text("SELECT set_config(:key, :value, true)"),
+            {"key": key, "value": value},
+        )
 
 
 def get_db():
