@@ -8,8 +8,6 @@ import Overview from "./pages/Overview";
 import Allocation from "./pages/Allocation";
 import Transactions from "./pages/Transactions";
 import Cash from "./pages/Cash";
-import Options from "./pages/Options";
-import Polymarket from "./pages/Polymarket";
 import Import from "./pages/Import";
 import Dividends from "./pages/Dividends";
 import Analytics from "./pages/Analytics";
@@ -392,17 +390,6 @@ function AppLayout() {
               <Route path="/watchlists" element={<Watchlists />} />
               <Route path="/screener" element={<Screener />} />
               <Route path="/assistant" element={<Assistant />} />
-            </>
-          )}
-          {platform === "ibkr" && (
-            <>
-              <Route path="/" element={<Options />} />
-              <Route path="/options" element={<Options />} />
-            </>
-          )}
-          {platform === "polymarket" && (
-            <>
-              <Route path="/" element={<Polymarket />} />
             </>
           )}
           <Route path="/settings" element={<Settings />} />

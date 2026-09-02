@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, PieChart, ArrowLeftRight, Upload, Loader2, CalendarDays, Activity, FileText, Settings, Search, Star, Target, ArrowLeft, Hexagon, Bot, Sun, Moon, Monitor, Filter, Wallet, Layers } from "lucide-react";
+import { LayoutDashboard, PieChart, ArrowLeftRight, Upload, Loader2, CalendarDays, Activity, FileText, Settings, Search, Star, ArrowLeft, Bot, Sun, Moon, Monitor, Filter, Wallet, Layers } from "lucide-react";
 import { useCurrency, usePalette, usePlatform } from "../App";
 import PortfolioSwitcher from "./PortfolioSwitcher";
 import SegmentedControl from "./ui/SegmentedControl";
@@ -21,16 +21,6 @@ const T212_LINKS = [
   { to: "/assistant", label: "AI Assistant", icon: Bot },
 ];
 
-const IBKR_LINKS = [
-  { to: "/", label: "Options", icon: Target },
-  { to: "/settings", label: "Settings", icon: Settings },
-];
-
-const POLYMARKET_LINKS = [
-  { to: "/", label: "Positions", icon: Hexagon },
-  { to: "/settings", label: "Settings", icon: Settings },
-];
-
 const PALETTE_OPTIONS = [
   { key: "blue", label: "Arctic Blue" },
   { key: "green", label: "Mint Green" },
@@ -44,9 +34,9 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const czk_unavailable = !rateLoading && rate === null;
 
-  const links = platform === "ibkr" ? IBKR_LINKS : platform === "t212" ? T212_LINKS : platform === "polymarket" ? POLYMARKET_LINKS : [];
+  const links = platform === "t212" ? T212_LINKS : [];
 
-  const platformLabel = platform === "t212" ? "Trading 212" : platform === "ibkr" ? "Interactive Brokers" : platform === "polymarket" ? "Polymarket" : null;
+  const platformLabel = platform === "t212" ? "Trading 212" : null;
 
   return (
     <aside className="w-[232px] shrink-0 bg-surface-card border-r border-surface-border flex flex-col h-screen sticky top-0"

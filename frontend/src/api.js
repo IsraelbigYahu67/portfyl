@@ -182,14 +182,9 @@ export const setT212AutoSync = (enabled) =>
 export const fetchCombinedSummary = (currency = "USD") =>
   api.get(`/portfolio/combined-summary`, { params: { currency } }).then((r) => r.data);
 
-// ----- IBKR broker --------------------------------------------------------
-export const fetchIBKRStatus = () => api.get("/broker/ibkr/status").then((r) => r.data);
-export const connectIBKR = (flexToken, queryId) =>
-  api.post("/broker/ibkr/connect", { flex_token: flexToken, query_id: queryId }).then((r) => r.data);
-export const disconnectIBKR = () => api.delete("/broker/ibkr/connect").then((r) => r.data);
-export const syncIBKR = () => api.post("/broker/ibkr/sync").then((r) => r.data);
-export const setIBKRAutoSync = (enabled) =>
-  api.post("/broker/ibkr/auto-sync", { enabled }).then((r) => r.data);
+// ----- IBKR balance ---------------------------------------------------------
+// Kept only because pages/Options.jsx (disconnected from routing/nav) still
+// imports it. The connect/status/sync IBKR endpoints have no frontend caller.
 export const fetchIBKRBalance = () => api.get("/broker/ibkr/balance").then((r) => r.data);
 
 // ----- Global settings (not portfolio-scoped) ---------------------------------
@@ -203,17 +198,6 @@ export const fetchOptionsSummary = () => api.get("/options/summary").then((r) =>
 export const fetchOptionsByUnderlying = () => api.get("/options/by-underlying").then((r) => r.data);
 export const fetchOptionsCalendar = (period) =>
   api.get("/options/calendar", { params: period ? { period } : {} }).then((r) => r.data);
-
-// ----- Polymarket broker ---------------------------------------------------
-export const fetchPolymarketStatus = () => api.get("/broker/polymarket/status").then((r) => r.data);
-export const connectPolymarket = (address) =>
-  api.post("/broker/polymarket/connect", { address }).then((r) => r.data);
-export const disconnectPolymarket = () => api.delete("/broker/polymarket/connect").then((r) => r.data);
-export const syncPolymarket = () => api.post("/broker/polymarket/sync").then((r) => r.data);
-
-// ----- Polymarket positions (portfolio-scoped) -----------------------------
-export const fetchPolymarketPositions = () => api.get("/polymarket/positions").then((r) => r.data.positions);
-export const fetchPolymarketSummary = () => api.get("/polymarket/summary").then((r) => r.data);
 
 // ----- AI assistant (DeepSeek) ---------------------------------------------
 export const fetchAssistantConfig = () => api.get("/assistant/config").then((r) => r.data);
