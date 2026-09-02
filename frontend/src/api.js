@@ -104,6 +104,8 @@ export const fetchShibuiActivistStakes = (ticker) =>
   api.get(`/market/shibui/activist-stakes/${ticker}`).then((r) => r.data);
 export const fetchShibuiStrategicInvestors = (ticker) =>
   api.get(`/market/shibui/strategic-investors/${ticker}`).then((r) => r.data);
+export const fetchShibuiOwnershipDetail = (cik, accession, doc) =>
+  api.get(`/market/shibui/ownership-detail`, { params: { cik, accession, doc } }).then((r) => r.data);
 export const fetchShibuiEarningsRecap = (ticker) =>
   api.get(`/market/shibui/earnings-recap/${ticker}`).then((r) => r.data);
 export const fetchShibuiValuationHistory = (ticker, years = 10) =>

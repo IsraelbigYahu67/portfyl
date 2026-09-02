@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 import {
   fetchHistory, fetchStockDividendGrowth, fetchShibuiFilings, fetchShibuiInsiders,
-  fetchShibuiActivistStakes, fetchShibuiStrategicInvestors, fetchShibuiEarningsRecap,
-  fetchShibuiValuationHistory, fetchPoliticianTrades,
+  fetchShibuiActivistStakes, fetchShibuiStrategicInvestors, fetchShibuiOwnershipDetail,
+  fetchShibuiEarningsRecap, fetchShibuiValuationHistory, fetchPoliticianTrades,
 } from "../api";
 import { columnChanges, ttmUnderlayRect } from "../lib/chartChanges";
 import { formatShortDate } from "../lib/format";
@@ -2221,7 +2221,55 @@ function ShibuiInsiderActivitySection({ ticker, currencyCode }) {
   );
 }
 
-function ShibuiOwnershipFilingsSection({ ticker }) {
+// Shows the shares-owned/%-of-class pair once known (either attached eagerly
+// by the backend for the 10 most recent filings, or fetched lazily below).
+function OwnershipStat({ sharesOwned, percentOfClass }) {
+  if (sharesOwned == null && percentOfClass == null) {
+    return <span className="text-[11px] text-muted">Podíl nedostupný</span>;
+  }
+  return (
+    <span className="text-[11px] text-muted tabular-nums">
+      {sharesOwned != null ? `${Math.round(sharesOwned).toLocaleString()} ks` : "—"}
+      {percentOfClass != null ? ` · ${percentOfClass.toFixed(1)} %` : ""}
+    </span>
+  );
+}
+
+// Filings past the backend's eager top-10 cutoff carry accession_number/
+// filer_cik/primary_document but not shares_owned/percent_of_class -- this
+// fetches that detail from EDGAR on click rather than up front for all 50.
+function OwnershipDetail({ stake }) {
+  const hasEagerData = stake.shares_owned !== undefined || stake.percent_of_class !== undefined;
+  const canFetch = !!(stake.accession_number && stake.filer_cik && stake.primary_document);
+  const detailQ = useQuery({
+    queryKey: ["shibui-ownership-detail", stake.accession_number],
+    queryFn: () => fetchShibuiOwnershipDetail(stake.filer_cik, stake.accession_number, stake.primary_document),
+    enabled: false,
+    staleTime: Infinity,
+  });
+
+  if (hasEagerData) {
+    return <OwnershipStat sharesOwned={stake.shares_owned} percentOfClass={stake.percent_of_class} />;
+  }
+  if (!canFetch) return null;
+  if (detailQ.data) {
+    return <OwnershipStat sharesOwned={detailQ.data.shares_owned} percentOfClass={detailQ.data.percent_of_class} />;
+  }
+  if (detailQ.isFetching) {
+    return <span className="text-[11px] text-muted">Načítám…</span>;
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => detailQ.refetch()}
+      className="text-[11px] text-brand hover:underline"
+    >
+      Zobrazit podíl
+    </button>
+  );
+}
+
+export function ShibuiOwnershipFilingsSection({ ticker }) {
   const stakesQ = useQuery({
     queryKey: ["shibui-activist-stakes", ticker],
     queryFn: () => fetchShibuiActivistStakes(ticker),
@@ -2279,16 +2327,18 @@ function ShibuiOwnershipFilingsSection({ ticker }) {
           </h4>
           <ul className="max-h-64 overflow-y-auto space-y-1">
             {stakes.map((s, i) => (
-              <li
-                key={i}
-                className="flex items-center justify-between gap-3 text-sm py-1 border-b border-surface-border last:border-0"
-              >
-                <span className="text-ink truncate">{s.filer_canonical_name || s.filer_name}</span>
-                <span className="flex items-center gap-2 text-muted shrink-0">
-                  {s.filer_is_activist && <Chip tone="danger">Activist</Chip>}
-                  <Chip tone={s.schedule_type === "13D" ? "warn" : "neutral"}>{s.schedule_type}</Chip>
-                  <span className="tabular-nums">{s.filing_date}</span>
-                </span>
+              <li key={i} className="py-1 border-b border-surface-border last:border-0">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-ink truncate">{s.filer_canonical_name || s.filer_name}</span>
+                  <span className="flex items-center gap-2 text-muted shrink-0">
+                    {s.filer_is_activist && <Chip tone="danger">Activist</Chip>}
+                    <Chip tone={s.schedule_type === "13D" ? "warn" : "neutral"}>{s.schedule_type}</Chip>
+                    <span className="tabular-nums">{s.filing_date}</span>
+                  </span>
+                </div>
+                <div className="mt-0.5">
+                  <OwnershipDetail stake={s} />
+                </div>
               </li>
             ))}
           </ul>

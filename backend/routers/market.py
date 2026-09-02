@@ -14,6 +14,7 @@ from ticker_map import yf_symbol
 import market_data
 import shibui_client
 import alphavantage_client
+import edgar_client
 from cache import ttl_cache
 
 router = APIRouter(prefix="/market", tags=["market"])
@@ -1781,21 +1782,53 @@ def get_shibui_insiders(ticker: str, months: int = 12):
     }
 
 
+_EDGAR_OWNERSHIP_TTL = 3600 * 24 * 14  # a filing's content is immutable once accepted -- cache for weeks
+_EAGER_OWNERSHIP_FETCH_COUNT = 10  # how many (most recent) stakes get shares/percent fetched automatically
+
+_EDGAR_CIK_RE = re.compile(r"^\d{1,10}$")
+_EDGAR_ACCESSION_RE = re.compile(r"^\d{10}-?\d{2}-?\d{6}$")
+_EDGAR_DOC_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")
+
+
+@ttl_cache(_EDGAR_OWNERSHIP_TTL)
+def _edgar_ownership_summary(cik: Optional[str], accession_number: Optional[str], primary_document: Optional[str]) -> dict:
+    """Best-effort Item 5 (shares owned, % of class) for one 13D/13G filing,
+    fetched directly from EDGAR since Shibui's beneficial_ownership table
+    doesn't carry these fields (see edgar_client.py). Never raises -- a
+    fetch/parse failure just means both fields come back None, same
+    degrade-gracefully contract as the rest of the Shibui-backed sections."""
+    if not cik or not accession_number or not primary_document:
+        return {"shares_owned": None, "percent_of_class": None}
+    try:
+        html = edgar_client.fetch_filing_document(cik, accession_number, primary_document)
+    except edgar_client.EdgarError:
+        return {"shares_owned": None, "percent_of_class": None}
+    return edgar_client.parse_ownership_summary(html)
+
+
 @router.get("/shibui/activist-stakes/{ticker}")
 @ttl_cache(_SHIBUI_OWNERSHIP_TTL)
 def get_shibui_activist_stakes(ticker: str):
     """SC 13D/13G beneficial-ownership filings against `ticker`. 13D signals
-    an active/activist stake, 13G a passive position (>5% of float)."""
+    an active/activist stake, 13G a passive position (>5% of float).
+
+    The `_EAGER_OWNERSHIP_FETCH_COUNT` most recent filings additionally get
+    `shares_owned`/`percent_of_class` (EDGAR Item 5) attached automatically;
+    older ones carry `accession_number`/`filer_cik`/`primary_document` so the
+    frontend can fetch the same detail lazily via /shibui/ownership-detail."""
     sym = ticker.upper()
     if not _SHIBUI_TICKER_RE.match(sym):
         raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
 
     sql = (
-        "SELECT filer_name, filer_canonical_name, filer_entity_type,"
-        "  filer_is_activist, filer_activist_group, schedule_type, filing_date"
-        " FROM shibui.beneficial_ownership"
-        f" WHERE subject_ticker = '{sym}' AND NOT is_superseded"
-        " ORDER BY filing_date DESC"
+        "SELECT bo.filer_name, bo.filer_canonical_name, bo.filer_entity_type,"
+        "  bo.filer_is_activist, bo.filer_activist_group, bo.schedule_type, bo.filing_date,"
+        "  bo.accession_number, bo.filer_cik, sf.primary_document"
+        " FROM shibui.beneficial_ownership bo"
+        " LEFT JOIN shibui.sec_filings sf"
+        "   ON sf.accession_number = bo.accession_number AND sf.cik = bo.filer_cik"
+        f" WHERE bo.subject_ticker = '{sym}' AND NOT bo.is_superseded"
+        " ORDER BY bo.filing_date DESC"
         " LIMIT 50"
     )
     try:
@@ -1805,7 +1838,21 @@ def get_shibui_activist_stakes(ticker: str):
     if not rows:
         raise HTTPException(status_code=404, detail=f"No Shibui beneficial ownership filings for {ticker}")
 
+    for row in rows[:_EAGER_OWNERSHIP_FETCH_COUNT]:
+        row.update(_edgar_ownership_summary(row.get("filer_cik"), row.get("accession_number"), row.get("primary_document")))
+
     return {"ticker": sym, "source": "shibui", "stakes": rows}
+
+
+@router.get("/shibui/ownership-detail")
+def get_shibui_ownership_detail(cik: str, accession: str, doc: str):
+    """Lazy counterpart to activist-stakes' eager top-10 fetch: Item 5
+    (shares owned, % of class) for one specific 13D/13G filing, identified
+    by the accession_number/filer_cik/primary_document that filing already
+    carries in the activist-stakes response."""
+    if not _EDGAR_CIK_RE.match(cik) or not _EDGAR_ACCESSION_RE.match(accession) or not _EDGAR_DOC_RE.match(doc):
+        raise HTTPException(status_code=400, detail="Invalid cik/accession/doc")
+    return _edgar_ownership_summary(cik, accession, doc)
 
 
 @router.get("/shibui/strategic-investors/{ticker}")

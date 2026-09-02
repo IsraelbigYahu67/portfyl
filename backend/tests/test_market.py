@@ -688,6 +688,96 @@ class TestShibuiBeneficialOwnership:
         out = market.get_shibui_strategic_investors("AAPL")
         assert out == {"ticker": "AAPL", "source": "shibui", "investors": []}
 
+    @staticmethod
+    def _stake_row(i: int) -> dict:
+        return {
+            "filer_name": f"Filer {i}", "filer_canonical_name": f"Filer {i}",
+            "filer_entity_type": "institution", "filer_is_activist": False,
+            "filer_activist_group": None, "schedule_type": "13G", "filing_date": f"2026-01-{i:02d}",
+            "accession_number": f"0001045810-26-{i:06d}", "filer_cik": "1045810",
+            "primary_document": f"filing-{i}.htm",
+        }
+
+    def test_eager_fetches_ownership_detail_for_top_10_stakes_only(self, monkeypatch):
+        """The first 10 (most recent) filings get shares/percent attached
+        automatically; the rest are left for the on-demand endpoint."""
+        import routers.market as market
+
+        rows = [self._stake_row(i) for i in range(1, 13)]  # 12 rows
+        monkeypatch.setattr(market.shibui_client, "query", lambda sql, prompt: rows)
+        calls = []
+
+        def fake_summary(cik, accession_number, primary_document):
+            calls.append(accession_number)
+            return {"shares_owned": 1_000_000.0, "percent_of_class": 5.5}
+
+        monkeypatch.setattr(market, "_edgar_ownership_summary", fake_summary)
+        out = market.get_shibui_activist_stakes("AAPL")
+
+        assert len(calls) == 10
+        for row in out["stakes"][:10]:
+            assert row["shares_owned"] == 1_000_000.0
+            assert row["percent_of_class"] == 5.5
+        for row in out["stakes"][10:]:
+            assert "shares_owned" not in row
+            # still carries what the frontend needs to fetch detail lazily
+            assert row["accession_number"] and row["filer_cik"] and row["primary_document"]
+
+    def test_edgar_ownership_summary_degrades_gracefully_on_fetch_failure(self, monkeypatch):
+        """A single filing's EDGAR fetch failing must not break the whole
+        activist-stakes response -- same degrade-gracefully contract as the
+        rest of the Shibui-backed sections."""
+        import routers.market as market
+
+        def raise_edgar_error(cik, accession_number, primary_document):
+            raise market.edgar_client.EdgarError("boom")
+
+        monkeypatch.setattr(market.edgar_client, "fetch_filing_document", raise_edgar_error)
+        out = market._edgar_ownership_summary("1045810", "0001045810-26-000001", "filing-1.htm")
+        assert out == {"shares_owned": None, "percent_of_class": None}
+
+    def test_edgar_ownership_summary_returns_none_when_primary_document_missing(self):
+        """LEFT JOIN to sec_filings can come back NULL -- skip the fetch
+        entirely rather than building a URL with an empty filename."""
+        import routers.market as market
+
+        assert market._edgar_ownership_summary("1045810", "0001045810-26-000001", None) == {
+            "shares_owned": None, "percent_of_class": None,
+        }
+
+
+class TestShibuiOwnershipDetailEndpoint:
+    """GET /market/shibui/ownership-detail -- lazy per-filing counterpart to
+    the eager top-10 fetch in get_shibui_activist_stakes, called when the
+    frontend expands a filing past that cutoff."""
+
+    def setup_method(self):
+        from cache import cache_clear
+        cache_clear()
+
+    def test_returns_parsed_fields_for_valid_params(self, monkeypatch):
+        import routers.market as market
+
+        monkeypatch.setattr(
+            market, "_edgar_ownership_summary",
+            lambda cik, accession_number, primary_document: {"shares_owned": 2_500_000.0, "percent_of_class": 7.1},
+        )
+        out = market.get_shibui_ownership_detail(cik="1045810", accession="0001045810-26-000001", doc="filing.htm")
+        assert out == {"shares_owned": 2_500_000.0, "percent_of_class": 7.1}
+
+    @pytest.mark.parametrize("cik,accession,doc", [
+        ("not-a-cik", "0001045810-26-000001", "filing.htm"),
+        ("1045810", "not-an-accession", "filing.htm"),
+        ("1045810", "0001045810-26-000001", "../../etc/passwd"),
+    ])
+    def test_rejects_malformed_params(self, cik, accession, doc):
+        import routers.market as market
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            market.get_shibui_ownership_detail(cik=cik, accession=accession, doc=doc)
+        assert exc_info.value.status_code == 400
+
 
 class TestShibuiOwnershipStats:
     """_shibui_ownership_stats (PLAN.md phase 3 + fundamentals-primary-source
