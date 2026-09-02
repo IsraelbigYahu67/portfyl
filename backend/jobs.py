@@ -27,10 +27,24 @@ function of the `workspace_id` it's given, application-filtering every query
 by it. The actual customer-wide sweep the in-process pollers need is an
 *explicit* iteration owned by this module: :func:`autosync_all_workspaces`,
 :func:`dividend_notify_all_workspaces`, and :func:`alert_check_all_workspaces`
-enumerate every active workspace and reset the RLS context to it before
-invoking that workspace's tenant work, so a background job session (which,
-like a request session, runs under the RLS-forced `portfyl_runtime` role) can
-never see -- let alone act on -- another workspace's rows.
+enumerate every active workspace (via :func:`_active_workspace_ids`, whose own
+docstring covers how it does that under forced RLS) and reset the RLS context
+to it before invoking that workspace's tenant work, so a background job
+session (which, like a request session, runs under the RLS-forced
+`portfyl_runtime` role) can never see -- let alone act on -- another
+workspace's rows.
+
+`set_config(..., true)` (the RLS context set by :func:`_set_job_workspace_context`)
+is transaction-local: it reverts the instant the current transaction commits
+or rolls back. `broker_autosync_pass` and `dividend_exdate_pass` both commit
+more than once *within* a single workspace's pass (once per broker connection
+/ once per Discord webhook, respectively) -- every DB operation after one of
+those internal commits, for the remainder of that same workspace's pass, must
+reassert the context via :func:`_set_job_workspace_context` before touching
+the database again. Both passes (and `mark_sync_ran`, called after
+`broker_autosync_pass` returns) do this at each such site; when adding a new
+commit inside either pass's per-item loop, reassert the context immediately
+afterward too.
 """
 from __future__ import annotations
 
@@ -176,6 +190,12 @@ def load_sync_schedule(db: Session, workspace_id: UUID) -> dict:
 
 
 def mark_sync_ran(db: Session, workspace_id: UUID, when: datetime) -> None:
+    # broker_autosync_pass (called by autosync_tick just before this) commits
+    # -- and on a per-connection failure, rolls back -- one or more times
+    # internally; either ends the transaction and drops the transaction-local
+    # `portfyl.workspace_id` set for this workspace's pass. Reassert it here
+    # so this upsert doesn't run RLS-context-less and fail its WITH CHECK.
+    _set_job_workspace_context(db, workspace_id)
     set_workspace_setting(db, workspace_id, SYNC_LAST_RUN_KEY, when.isoformat())
     db.commit()
 
@@ -198,6 +218,14 @@ async def broker_autosync_pass(db: Session, workspace_id: UUID) -> list[dict]:
     ).all()
     results: list[dict] = []
     for conn in conns:
+        # sync_transactions/_run_ibkr_sync commit internally (and on failure,
+        # this loop rolls back below) -- either ends the transaction and
+        # drops the transaction-local `portfyl.workspace_id` set for this
+        # pass. Reassert it at the top of every connection's iteration so a
+        # prior connection's commit/rollback never leaves this one -- or the
+        # Discord lookup further down in the same iteration -- running
+        # RLS-context-less.
+        _set_job_workspace_context(db, workspace_id)
         summary = {"portfolio_id": conn.portfolio_id, "broker": conn.broker, "ok": True}
         try:
             if conn.broker == "trading212":
@@ -227,6 +255,9 @@ async def broker_autosync_pass(db: Session, workspace_id: UUID) -> list[dict]:
             results.append(summary)
             continue
 
+        # The sync above committed internally, dropping the context set at
+        # the top of this iteration -- restore it before the Discord lookup.
+        _set_job_workspace_context(db, workspace_id)
         if summary.get("imported"):
             hook = (db.query(DiscordWebhook)
                       .filter(DiscordWebhook.workspace_id == workspace_id,
@@ -434,6 +465,11 @@ async def dividend_exdate_pass(db: Session, workspace_id: UUID, today: date | No
 
     announced: list[dict] = []
     for hook in hooks:
+        # A prior webhook's dedup-row commit below ends the transaction and
+        # drops the transaction-local `portfyl.workspace_id` set for this
+        # pass -- reassert it at the top of every webhook's iteration so the
+        # next one's queries never run RLS-context-less.
+        _set_job_workspace_context(db, workspace_id)
         pid = hook.portfolio_id
         try:
             # Blocking yfinance I/O per holding — keep it off the event loop.
@@ -492,19 +528,44 @@ async def dividend_exdate_pass(db: Session, workspace_id: UUID, today: date | No
 # do this iteration themselves.
 
 
+def _rls_enforced(db: Session) -> bool:
+    """`set_config`/RLS only exist under PostgreSQL. The fast unit test suite
+    (tests/test_jobs.py and friends) drives broker_autosync_pass,
+    dividend_exdate_pass, and mark_sync_ran directly against an in-memory
+    SQLite session -- which has no such function and no row-level security
+    to scope in the first place -- so every context-setting call below is a
+    deliberate no-op there. Postgres integration tests (tests/postgres/)
+    exercise the real behavior against the RLS-forced `portfyl_runtime` role."""
+    return db.get_bind().dialect.name == "postgresql"
+
+
 def _active_workspace_ids(db: Session) -> list[UUID]:
     """Every workspace a job pass should consider. Note: this one query is
     necessarily a cross-tenant enumeration -- it's the sole intended
     exception to "every query carries a workspace_id predicate" the rest of
-    this module (and the app) follows. It relies on the job's connection role
-    being able to see all workspace rows for this one SELECT (the runtime
-    request path never needs to, since a request always resolves to a single
-    member's workspace); provisioning that connection role is a deploy-time
-    concern (see docs/superpowers/plans -- the Cloud Run/Neon rollout task)
-    outside this module's scope."""
-    return list(db.scalars(
-        select(Workspace.id).where(Workspace.archived_at.is_(None))
-    ).all())
+    this module (and the app) follows.
+
+    Under forced RLS the `workspace_tenant_policy` on `workspaces` only ever
+    lets a row through once `portfyl.workspace_id` is set to that exact row's
+    id -- useless for picking which workspace to set it to in the first
+    place. Migration 0003_job_workspace_enumeration adds a second, additive,
+    SELECT-only policy (`workspace_job_enumeration_policy`) gated on a
+    separate `portfyl.job_context` flag; Postgres combines permissive
+    policies for the same command with OR, so this only ever *adds*
+    visibility for this one SELECT, and only while the flag below is set --
+    it never weakens per-request tenant isolation (no HTTP handler sets the
+    flag) and never grants INSERT/UPDATE/DELETE on `workspaces`."""
+    if not _rls_enforced(db):
+        return list(db.scalars(
+            select(Workspace.id).where(Workspace.archived_at.is_(None))
+        ).all())
+    db.execute(text("SELECT set_config('portfyl.job_context', 'true', true)"))
+    try:
+        return list(db.scalars(
+            select(Workspace.id).where(Workspace.archived_at.is_(None))
+        ).all())
+    finally:
+        db.execute(text("SELECT set_config('portfyl.job_context', '', true)"))
 
 
 def _set_job_workspace_context(db: Session, workspace_id: UUID) -> None:
@@ -514,6 +575,8 @@ def _set_job_workspace_context(db: Session, workspace_id: UUID) -> None:
     transactions, workspace_settings) is RLS-gated on portfyl.workspace_id
     only -- jobs have no authenticated user, so unlike
     tenancy.get_request_context there is no portfyl.user_id to set."""
+    if not _rls_enforced(db):
+        return
     db.execute(
         text("SELECT set_config('portfyl.workspace_id', :value, true)"),
         {"value": str(workspace_id)},

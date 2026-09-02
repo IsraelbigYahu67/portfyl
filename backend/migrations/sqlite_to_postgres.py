@@ -18,7 +18,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 
-EXPECTED_ALEMBIC_HEAD = "0002_tenant_rls"
 PERSONAL_SETTING_KEYS = frozenset({"deepseek_api_key", "deepseek_model"})
 WORKSPACE_SETTING_KEYS = frozenset({
     "broker_sync_mode",
@@ -773,7 +772,10 @@ def migrate_sqlite(options: MigrationOptions) -> MigrationReport:
     target_url = _normalize_target_url(options.target_url)
 
     os.environ.setdefault("DATABASE_URL", target_url)
-    from database import assert_alembic_head, set_rls_context
+    # EXPECTED_ALEMBIC_HEAD is imported (not duplicated) so this script can
+    # never drift from database.py's own notion of the current head, the way
+    # a hardcoded local copy of it once did.
+    from database import EXPECTED_ALEMBIC_HEAD, assert_alembic_head, set_rls_context
     from models import DataMigrationRun, Membership, User, Workspace
 
     source = _open_source(source_path)
