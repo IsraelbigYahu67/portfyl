@@ -3,6 +3,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from datetime import date
 from unittest.mock import patch
+from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
@@ -24,7 +25,7 @@ from routers.analytics import (
     _modified_dietz_daily_returns,
 )
 from cash_ledger import has_external_cashflows, TRADE_TYPES
-from tests.helpers import make_txn
+from tests.helpers import TEST_WORKSPACE_ID, make_txn
 
 
 def test_cash_rows_do_not_affect_holdings():
@@ -67,12 +68,12 @@ def test_cash_rows_do_not_leak_into_closed_holdings():
 # imported into the router module) so these tests stay hermetic/offline.
 
 
-def test_create_and_list_cash(db_session, pid):
+def test_create_and_list_cash(db_session, pid, default_portfolio):
     with patch("routers.cash.fetch_fx_to_czk", return_value=22.5):
-        create_cash(CashCreate(type="deposit", amount=1000, currency="usd", date=date(2024, 1, 1)), db_session, pid)
-        create_cash(CashCreate(type="fee", amount=5, currency="USD", date=date(2024, 1, 2)), db_session, pid)
+        create_cash(CashCreate(type="deposit", amount=1000, currency="usd", date=date(2024, 1, 1)), db_session, default_portfolio)
+        create_cash(CashCreate(type="fee", amount=5, currency="USD", date=date(2024, 1, 2)), db_session, default_portfolio)
 
-    rows = list_cash(db_session, pid)
+    rows = list_cash(db_session, default_portfolio)
     assert {r.type for r in rows} == {"deposit", "fee"}
     assert len(rows) == 2
     # newest first
@@ -82,15 +83,15 @@ def test_create_and_list_cash(db_session, pid):
     assert all(r.fx_to_czk == 22.5 for r in rows)
 
 
-def test_update_cash(db_session, pid):
+def test_update_cash(db_session, pid, default_portfolio):
     with patch("routers.cash.fetch_fx_to_czk", return_value=22.5):
-        created = create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+        created = create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, default_portfolio)
 
     with patch("routers.cash.fetch_fx_to_czk", return_value=24.0):
         updated = update_cash(
             created.id,
             CashCreate(type="withdrawal", amount=250, currency="EUR", date=date(2024, 2, 1), note="oops"),
-            db_session, pid,
+            db_session, default_portfolio,
         )
 
     assert updated.id == created.id
@@ -102,48 +103,48 @@ def test_update_cash(db_session, pid):
     assert updated.fx_to_czk == 24.0
 
 
-def test_delete_cash(db_session, pid):
+def test_delete_cash(db_session, pid, default_portfolio):
     with patch("routers.cash.fetch_fx_to_czk", return_value=22.5):
-        created = create_cash(CashCreate(type="fee", amount=5, currency="USD", date=date(2024, 1, 2)), db_session, pid)
+        created = create_cash(CashCreate(type="fee", amount=5, currency="USD", date=date(2024, 1, 2)), db_session, default_portfolio)
 
-    result = delete_cash(created.id, db_session, pid)
+    result = delete_cash(created.id, db_session, default_portfolio)
     assert result == {"ok": True}
-    assert list_cash(db_session, pid) == []
+    assert list_cash(db_session, default_portfolio) == []
 
 
-def test_update_missing_cash_raises_404(db_session, pid):
+def test_update_missing_cash_raises_404(db_session, pid, default_portfolio):
     with pytest.raises(HTTPException) as exc_info:
-        update_cash(999, CashCreate(type="fee", amount=5, currency="USD", date=date(2024, 1, 2)), db_session, pid)
+        update_cash(uuid4(), CashCreate(type="fee", amount=5, currency="USD", date=date(2024, 1, 2)), db_session, default_portfolio)
     assert exc_info.value.status_code == 404
 
 
-def test_delete_missing_cash_raises_404(db_session, pid):
+def test_delete_missing_cash_raises_404(db_session, pid, default_portfolio):
     with pytest.raises(HTTPException) as exc_info:
-        delete_cash(999, db_session, pid)
+        delete_cash(uuid4(), db_session, default_portfolio)
     assert exc_info.value.status_code == 404
 
 
-def test_cash_is_scoped_to_portfolio(db_session, pid):
-    other = Portfolio(name="Other", is_default=False)
+def test_cash_is_scoped_to_portfolio(db_session, pid, default_portfolio):
+    other = Portfolio(workspace_id=TEST_WORKSPACE_ID, name="Other", is_default=False)
     db_session.add(other)
     db_session.commit()
     db_session.refresh(other)
 
     with patch("routers.cash.fetch_fx_to_czk", return_value=22.5):
-        create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
-        create_cash(CashCreate(type="deposit", amount=500, currency="USD", date=date(2024, 1, 1)), db_session, other.id)
+        create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, default_portfolio)
+        create_cash(CashCreate(type="deposit", amount=500, currency="USD", date=date(2024, 1, 1)), db_session, other)
 
-    assert len(list_cash(db_session, pid)) == 1
-    assert len(list_cash(db_session, other.id)) == 1
+    assert len(list_cash(db_session, default_portfolio)) == 1
+    assert len(list_cash(db_session, other)) == 1
 
     # Can't update/delete a row that belongs to a different portfolio.
-    other_row = list_cash(db_session, other.id)[0]
+    other_row = list_cash(db_session, other)[0]
     with pytest.raises(HTTPException) as exc_info:
-        update_cash(other_row.id, CashCreate(type="fee", amount=1, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+        update_cash(other_row.id, CashCreate(type="fee", amount=1, currency="USD", date=date(2024, 1, 1)), db_session, default_portfolio)
     assert exc_info.value.status_code == 404
 
 
-def test_cash_row_serializes_via_transaction_response(db_session, pid):
+def test_cash_row_serializes_via_transaction_response(db_session, pid, default_portfolio):
     # A persisted cash row has ticker=None; TransactionResponse must tolerate it,
     # else GET /api/portfolio/transactions 500s for the whole portfolio (that
     # endpoint returns ALL rows for the portfolio and serializes via this schema).
@@ -151,20 +152,20 @@ def test_cash_row_serializes_via_transaction_response(db_session, pid):
     # validation — so we reproduce the 500 by validating through the schema here.
     with patch("routers.cash.fetch_fx_to_czk", return_value=23.0):
         row = create_cash(CashCreate(type="deposit", amount=1000, currency="USD",
-                                     date=date(2024, 1, 1)), db_session, pid)
-    persisted = db_session.query(Transaction).filter(Transaction.id == row.id).first()
+                                     date=date(2024, 1, 1)), db_session, default_portfolio)
+    persisted = db_session.query(Transaction).filter(Transaction.public_id == row.id).first()
     # Would raise pydantic.ValidationError before the Optional fix; must succeed after.
     TransactionResponse.model_validate(persisted)
 
 
-def test_cash_endpoints_refuse_trade_rows(db_session, pid):
+def test_cash_endpoints_refuse_trade_rows(db_session, pid, default_portfolio):
     # PUT/DELETE cash guard on type.in_(CASH_TYPES): a trade row must be refused.
     trade = make_txn(type="buy", shares=10, price=100, currency="USD", portfolio_id=pid)
     db_session.add(trade); db_session.commit(); db_session.refresh(trade)
     with pytest.raises(HTTPException):
-        update_cash(trade.id, CashCreate(type="deposit", amount=1, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+        update_cash(trade.public_id, CashCreate(type="deposit", amount=1, currency="USD", date=date(2024, 1, 1)), db_session, default_portfolio)
     with pytest.raises(HTTPException):
-        delete_cash(trade.id, db_session, pid)
+        delete_cash(trade.public_id, db_session, default_portfolio)
 
 
 # ---------------------------------------------------------------------------
@@ -175,15 +176,15 @@ def test_cash_endpoints_refuse_trade_rows(db_session, pid):
 # ticker-filter (`t.ticker.toLowerCase()` on null).
 
 
-def test_get_transactions_excludes_cash_rows(db_session, pid):
+def test_get_transactions_excludes_cash_rows(db_session, pid, default_portfolio):
     trade = make_txn(type="buy", shares=10, price=100, currency="USD", portfolio_id=pid)
     db_session.add(trade)
     db_session.commit()
 
     with patch("routers.cash.fetch_fx_to_czk", return_value=23.0):
-        create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+        create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, default_portfolio)
 
-    rows = get_transactions(db_session, pid)
+    rows = get_transactions(db_session, default_portfolio)
 
     assert len(rows) == 1
     assert rows[0].ticker == "AAPL"
@@ -197,21 +198,21 @@ def test_get_transactions_excludes_cash_rows(db_session, pid):
 # ---------------------------------------------------------------------------
 
 
-def test_put_and_get_interest_rates(db_session, pid):
-    put_rates(RatesPayload(rates=[RateItem(currency="USD", annual_rate=0.045, enabled=True)]), db_session, pid)
-    rows = get_rates(db_session, pid)
+def test_put_and_get_interest_rates(db_session, pid, default_portfolio):
+    put_rates(RatesPayload(rates=[RateItem(currency="USD", annual_rate=0.045, enabled=True)]), db_session, default_portfolio)
+    rows = get_rates(db_session, default_portfolio)
     assert rows[0].currency == "USD" and rows[0].enabled is True
     assert rows[0].annual_rate == 0.045
 
 
-def test_balance_endpoint_sums_flows(db_session, pid):
+def test_balance_endpoint_sums_flows(db_session, pid, default_portfolio):
     # by_currency is native, and display currency == native (USD) so convert_amount
     # is a no-op — the balance endpoint never hits the network here. create_cash's
     # fetch_fx_to_czk is mocked to keep it offline (same pattern as the CRUD tests).
     with patch("routers.cash.fetch_fx_to_czk", return_value=22.5):
-        create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
-        create_cash(CashCreate(type="fee", amount=50, currency="USD", date=date(2024, 1, 2)), db_session, pid)
-    res = get_balance("USD", db_session, pid)
+        create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, default_portfolio)
+        create_cash(CashCreate(type="fee", amount=50, currency="USD", date=date(2024, 1, 2)), db_session, default_portfolio)
+    res = get_balance("USD", db_session, default_portfolio)
     assert res["by_currency"]["USD"]["balance"] == 950.0
     assert res["currency"] == "USD"
     assert res["total"] == 950.0
@@ -229,28 +230,28 @@ def test_put_interest_rates_route_not_shadowed_by_cash_id():
     assert full[0].endpoint.__name__ == "put_rates", f"shadowed by {full[0].endpoint.__name__}"
 
 
-def test_balance_total_mirrors_get_summary_basis(db_session, pid):
+def test_balance_total_mirrors_get_summary_basis(db_session, pid, default_portfolio):
     # total must mirror get_summary's basis: native-summed for non-CZK display
     # (get_summary uses live_fx=1.0), converted native->CZK only when display=CZK.
     with patch("routers.cash.fetch_fx_to_czk", return_value=23.0):
-        create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+        create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, default_portfolio)
     # display=USD: total is native (no conversion), mirroring get_summary's live_fx=1.0
-    assert get_balance("USD", db_session, pid)["total"] == 1000.0
+    assert get_balance("USD", db_session, default_portfolio)["total"] == 1000.0
     # display=CZK: cash_amount_to_display -> convert_amount pivots USD->CZK->CZK.
     # convert_amount divides by the target's CZK rate, so keep CZK->CZK == 1.0
     # (real fetch_fx_to_czk behavior) and stub only the USD leg to 23.0.
     def _fx(ccy, on_date=None):
         return 1.0 if (ccy or "").upper() == "CZK" else 23.0
     with patch("fx.fetch_fx_to_czk", side_effect=_fx):
-        res_czk = get_balance("CZK", db_session, pid)
+        res_czk = get_balance("CZK", db_session, default_portfolio)
     assert res_czk["total"] == 23000.0
 
 
-def test_put_rates_upsert_is_idempotent(db_session, pid):
+def test_put_rates_upsert_is_idempotent(db_session, pid, default_portfolio):
     # Upserting the same (pid, currency) twice must NOT duplicate rows; the second
     # call's values win.
-    put_rates(RatesPayload(rates=[RateItem(currency="USD", annual_rate=0.04, enabled=False)]), db_session, pid)
-    put_rates(RatesPayload(rates=[RateItem(currency="USD", annual_rate=0.05, enabled=True)]), db_session, pid)
+    put_rates(RatesPayload(rates=[RateItem(currency="USD", annual_rate=0.04, enabled=False)]), db_session, default_portfolio)
+    put_rates(RatesPayload(rates=[RateItem(currency="USD", annual_rate=0.05, enabled=True)]), db_session, default_portfolio)
     from models import CashInterestRate
     rows = db_session.query(CashInterestRate).filter(CashInterestRate.portfolio_id == pid,
                                                      CashInterestRate.currency == "USD").all()
@@ -269,18 +270,18 @@ def test_put_rates_upsert_is_idempotent(db_session, pid):
 # fetch_fx_to_czk needs mocking (same pattern as the other CRUD tests above).
 
 
-def test_summary_net_worth_adds_cash(db_session, pid):
+def test_summary_net_worth_adds_cash(db_session, pid, default_portfolio):
     # Deposit present -> has_external_cashflows True -> cash is surfaced. New
     # folded semantic: "cash" already includes accrued interest (0 here, no
     # rate configured), so net_worth = total_value + cash (no separate +accrued).
     with patch("routers.cash.fetch_fx_to_czk", return_value=23.0):
-        create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
-    s = get_summary(currency="USD", db=db_session, pid=pid)
+        create_cash(CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)), db_session, default_portfolio)
+    s = get_summary(currency="USD", db=db_session, portfolio=default_portfolio)
     assert s["cash"] == 1000.0
     assert s["net_worth"] == round(s["total_value"] + s["cash"], 2)
 
 
-def test_summary_no_cash_when_no_deposits(db_session, pid):
+def test_summary_no_cash_when_no_deposits(db_session, pid, default_portfolio):
     # Trade-only portfolio (no deposit/withdrawal rows) -> guard active:
     # cash is NOT surfaced at all, net_worth == total_value. Mock market-data /
     # day-change lookups so this stays hermetic (no live yfinance calls) --
@@ -294,7 +295,7 @@ def test_summary_no_cash_when_no_deposits(db_session, pid):
             "AAPL": {"currentPrice": 100.0, "currency": "USD"},
         }), \
          patch("routers.portfolio.yf.download", return_value=pd.DataFrame()):
-        s = get_summary(currency="USD", db=db_session, pid=pid)
+        s = get_summary(currency="USD", db=db_session, portfolio=default_portfolio)
 
     assert s["cash"] == 0.0
     assert s["net_worth"] == s["total_value"]
@@ -309,11 +310,11 @@ def test_summary_no_cash_when_no_deposits(db_session, pid):
 # touches market_data/yfinance, so this stays hermetic.
 
 
-def test_allocation_includes_cash_bucket(db_session, pid):
+def test_allocation_includes_cash_bucket(db_session, pid, default_portfolio):
     with patch("routers.cash.fetch_fx_to_czk", return_value=23.0):
-        create_cash(CashCreate(type="deposit", amount=2000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+        create_cash(CashCreate(type="deposit", amount=2000, currency="USD", date=date(2024, 1, 1)), db_session, default_portfolio)
 
-    result = sector_breakdown(currency="USD", db=db_session, pid=pid)
+    result = sector_breakdown(currency="USD", db=db_session, portfolio=default_portfolio)
 
     for key in ("sectors", "asset_types"):
         bucket_list = result[key]
@@ -328,14 +329,14 @@ def test_allocation_includes_cash_bucket(db_session, pid):
     assert result["countries"] == []
 
 
-def test_allocation_cash_pct_included_in_denominator_with_holdings(db_session, pid):
+def test_allocation_cash_pct_included_in_denominator_with_holdings(db_session, pid, default_portfolio):
     # With holdings present too, Cash must be folded into the SAME percentage
     # denominator as the sector/country/asset-type buckets (not a separate 100%).
     # Note: the cash ledger is shared with trades (signed_cash treats "buy" as
     # a cash outflow), so deposit 2000 then buy 1000 of stock -> cash balance
     # nets to 1000, matching a real brokerage cash-sweep account.
     with patch("routers.cash.fetch_fx_to_czk", return_value=23.0):
-        create_cash(CashCreate(type="deposit", amount=2000, currency="USD", date=date(2024, 1, 1)), db_session, pid)
+        create_cash(CashCreate(type="deposit", amount=2000, currency="USD", date=date(2024, 1, 1)), db_session, default_portfolio)
 
     trade = make_txn(type="buy", shares=10, price=100, currency="USD",
                       date=date(2024, 1, 2), portfolio_id=pid)
@@ -345,7 +346,7 @@ def test_allocation_cash_pct_included_in_denominator_with_holdings(db_session, p
     with patch("market_data.get_infos", return_value={
         "AAPL": {"currentPrice": 100.0, "currency": "USD", "sector": "Technology", "quoteType": "EQUITY"},
     }):
-        result = sector_breakdown(currency="USD", db=db_session, pid=pid)
+        result = sector_breakdown(currency="USD", db=db_session, portfolio=default_portfolio)
 
     for key in ("sectors", "asset_types"):
         bucket_list = result[key]
@@ -363,7 +364,7 @@ def test_allocation_cash_pct_included_in_denominator_with_holdings(db_session, p
     assert result["total_value"] == 1000.0
 
 
-def test_allocation_no_cash_bucket_without_deposits(db_session, pid):
+def test_allocation_no_cash_bucket_without_deposits(db_session, pid, default_portfolio):
     # Trade-only portfolio (no deposit/withdrawal rows) -> guard active: NO Cash
     # bucket in any dimension, weights sum to ~100 across holdings alone (same
     # contract as before the cash model).
@@ -375,7 +376,7 @@ def test_allocation_no_cash_bucket_without_deposits(db_session, pid):
     with patch("market_data.get_infos", return_value={
         "AAPL": {"currentPrice": 100.0, "currency": "USD", "sector": "Technology", "quoteType": "EQUITY"},
     }):
-        result = sector_breakdown(currency="USD", db=db_session, pid=pid)
+        result = sector_breakdown(currency="USD", db=db_session, portfolio=default_portfolio)
 
     for key in ("sectors", "countries", "asset_types"):
         bucket_list = result[key]
@@ -573,7 +574,7 @@ def test_modified_dietz_keeps_legitimate_return_above_fifty_percent():
     assert daily.tolist() == pytest.approx([0.60])
 
 
-def test_performance_endpoint_returns_net_worth_and_cumulative_twr(db_session, pid):
+def test_performance_endpoint_returns_net_worth_and_cumulative_twr(db_session, pid, default_portfolio):
     """Using holdings-only value or treating cashback as return breaks the endpoint."""
     txns = [
         make_txn(ticker=None, type="deposit", shares=0, price=0, amount=1000,
@@ -589,13 +590,13 @@ def test_performance_endpoint_returns_net_worth_and_cumulative_twr(db_session, p
 
     with patch("routers.analytics.yf.download", return_value=_mock_price_panel(idx, [100, 110, 121])), \
          patch("routers.analytics.market_data.get_infos", return_value={"AAPL": {"currency": "USD"}}):
-        result = get_performance(currency="USD", period="all", db=db_session, pid=pid)
+        result = get_performance(currency="USD", period="all", db=db_session, portfolio=default_portfolio)
 
     assert [row["value"] for row in result] == pytest.approx([1000, 1200, 1310])
     assert [row["pnl_pct"] for row in result] == pytest.approx([0, 9.52, 19.56], abs=0.01)
 
 
-def test_performance_period_and_lifetime_returns_are_distinct(db_session, pid):
+def test_performance_period_and_lifetime_returns_are_distinct(db_session, pid, default_portfolio):
     today = date.today()
     first_day = today - pd.Timedelta(days=10)
     txns = [
@@ -611,7 +612,7 @@ def test_performance_period_and_lifetime_returns_are_distinct(db_session, pid):
 
     with patch("routers.analytics.yf.download", return_value=_mock_price_panel(idx, prices)), \
          patch("routers.analytics.market_data.get_infos", return_value={"AAPL": {"currency": "USD"}}):
-        result = get_performance(currency="USD", period="7d", db=db_session, pid=pid)
+        result = get_performance(currency="USD", period="7d", db=db_session, portfolio=default_portfolio)
 
     assert result[-1]["pnl_pct"] == pytest.approx(10.0, abs=0.01)
     assert result[-1]["total_pnl_pct"] == pytest.approx(32.0, abs=0.01)

@@ -217,7 +217,7 @@ class TestCzechTax:
         assert years[1]["tax_year"] == 2024
 
 
-def test_allocation_totals_returns_raw_values(db_session, pid):
+def test_allocation_totals_returns_raw_values(db_session, pid, default_portfolio):
     # market_data.get_infos is patched directly (matching the pattern already used
     # by sector_breakdown's own holdings tests in test_currency_and_history.py) --
     # the shared `mock_yfinance` MockTicker has no .history(), which market_data's
@@ -232,7 +232,7 @@ def test_allocation_totals_returns_raw_values(db_session, pid):
     with patch("market_data.get_infos", return_value={
         "AAPL": {"currentPrice": 180.0, "currency": "USD", "sector": "Technology", "quoteType": "EQUITY"},
     }):
-        raw = _allocation_totals(db_session, pid, "USD")
+        raw = _allocation_totals(db_session, default_portfolio, "USD")
     # raw values are un-weighted market values (mock price 180 * 10 = 1800), not percentages
     assert raw["total_value"] > 0
     assert sum(raw["sectors"].values()) == pytest.approx(raw["total_value"], rel=0.01)
@@ -298,7 +298,7 @@ def test_unrealized_lot_quantity_and_basis_follow_reverse_split():
     assert unrealized[0]["market_value"] == pytest.approx(1100)
 
 
-def test_allocation_uses_post_split_share_count(db_session, pid):
+def test_allocation_uses_post_split_share_count(db_session, pid, default_portfolio):
     from routers.analytics import _allocation_totals
 
     db_session.add_all([
@@ -316,7 +316,7 @@ def test_allocation_uses_post_split_share_count(db_session, pid):
             "quoteType": "EQUITY",
         },
     }):
-        raw = _allocation_totals(db_session, pid, "USD")
+        raw = _allocation_totals(db_session, default_portfolio, "USD")
 
     assert raw["total_value"] == pytest.approx(1000)
     assert raw["sectors"]["Technology"] == pytest.approx(1000)

@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from datetime import date, timedelta
 from collections import defaultdict
+from uuid import UUID
 import yfinance as yf
 import pandas as pd
 import numpy as np
 
 from database import get_db
-from models import Transaction, Benchmark, BenchmarkComponent
+from models import Portfolio, Transaction, Benchmark, BenchmarkComponent
 from cash_ledger import (TRADE_TYPES, POSITION_TYPES, EXTERNAL_FLOW_TYPES,
                          has_external_cashflows, cash_balance_by_currency, signed_cash)
 from routers.portfolios import require_portfolio
@@ -135,10 +136,13 @@ def _usd_series_to_display(
     return V * factor, C * factor
 
 
-def _get_transactions(db: Session, pid: int):
+def _get_transactions(db: Session, portfolio: Portfolio):
     rows = (
         db.query(Transaction)
-        .filter(Transaction.portfolio_id == pid)
+        .filter(
+            Transaction.portfolio_id == portfolio.id,
+            Transaction.workspace_id == portfolio.workspace_id,
+        )
         .order_by(Transaction.date)
         .all()
     )
@@ -401,9 +405,9 @@ def _compute_czech_tax_by_year(gains: list) -> list[dict]:
 def tax_report(
     year: int | None = None,
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    transactions = _get_transactions(db, pid)
+    transactions = _get_transactions(db, portfolio)
     if not transactions:
         return {"gains": [], "summary": {}, "dividend_income": [], "available_years": []}
 
@@ -809,21 +813,44 @@ def _benchmark_daily_returns(db: Session, bench: Benchmark | None, start_date: d
     if bench.kind == "ticker" and bench.ticker:
         return _ticker_daily_returns(bench.ticker, start_date, target_index)
     if bench.kind == "basket":
-        rows = db.query(BenchmarkComponent).filter(BenchmarkComponent.benchmark_id == bench.id).all()
+        # `workspace_id IS NULL` (shared presets) can't be matched with `== None`
+        # in SQL, so branch on it explicitly rather than risk silently returning
+        # zero rows for a preset basket.
+        workspace_filter = (
+            BenchmarkComponent.workspace_id.is_(None)
+            if bench.workspace_id is None
+            else BenchmarkComponent.workspace_id == bench.workspace_id
+        )
+        rows = db.query(BenchmarkComponent).filter(
+            BenchmarkComponent.benchmark_id == bench.id,
+            workspace_filter,
+        ).all()
         components = [{"ticker": r.ticker, "weight": r.weight} for r in rows]
         return _basket_daily_returns(components, start_date, target_index)
     return pd.Series(dtype=float)
 
 
-def resolve_benchmark(db: Session, pid: int, benchmark_id: int | None) -> Benchmark | None:
-    """Pick the benchmark to use: explicit id → portfolio default → S&P preset → None."""
+def resolve_benchmark(db: Session, portfolio: Portfolio, benchmark_id: UUID | None) -> Benchmark | None:
+    """Pick the benchmark to use: explicit public id (own workspace+portfolio,
+    or a shared preset) → portfolio default → S&P preset → None.
+
+    A benchmark_id that doesn't resolve inside this call's own tenant falls
+    through to the default lookup exactly like an unknown id always has --
+    it is never treated as a hard 404, just ignored."""
     if benchmark_id is not None:
-        b = db.query(Benchmark).filter(Benchmark.id == benchmark_id).first()
-        if b and (b.portfolio_id is None or b.portfolio_id == pid):
+        b = db.query(Benchmark).filter(Benchmark.public_id == benchmark_id).first()
+        if b and (
+            b.is_preset
+            or (b.workspace_id == portfolio.workspace_id and b.portfolio_id == portfolio.id)
+        ):
             return b
     b = (
         db.query(Benchmark)
-        .filter(Benchmark.portfolio_id == pid, Benchmark.is_default.is_(True))
+        .filter(
+            Benchmark.workspace_id == portfolio.workspace_id,
+            Benchmark.portfolio_id == portfolio.id,
+            Benchmark.is_default.is_(True),
+        )
         .first()
     )
     if b:
@@ -871,15 +898,18 @@ def _benchmark_compare_metrics(port: pd.Series, bench: pd.Series) -> dict:
 @router.get("/risk-metrics")
 def risk_metrics(
     period: str = "1y",
-    benchmark_id: int | None = None,
+    benchmark_id: UUID | None = None,
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
     """Time-weighted return based risk metrics, plus benchmark-relative metrics
     against the chosen (or portfolio-default) benchmark."""
     transactions = (
         db.query(Transaction)
-        .filter(Transaction.portfolio_id == pid)
+        .filter(
+            Transaction.portfolio_id == portfolio.id,
+            Transaction.workspace_id == portfolio.workspace_id,
+        )
         .order_by(Transaction.date)
         .all()
     )
@@ -895,7 +925,7 @@ def risk_metrics(
     if V is None:
         return {}
 
-    bench = resolve_benchmark(db, pid, benchmark_id)
+    bench = resolve_benchmark(db, portfolio, benchmark_id)
     bench_daily_full = _benchmark_daily_returns(db, bench, start_date, closes_index)
 
     daily_returns = _modified_dietz_daily_returns(V, C, window_start)
@@ -965,7 +995,7 @@ def risk_metrics(
         "information_ratio": bench_metrics.get("information_ratio"),
         "up_capture": bench_metrics.get("up_capture"),
         "down_capture": bench_metrics.get("down_capture"),
-        "benchmark": {"id": bench.id, "name": bench.name, "kind": bench.kind} if bench else None,
+        "benchmark": {"id": str(bench.public_id), "name": bench.name, "kind": bench.kind} if bench else None,
         "positive_days": positive_days,
         "negative_days": negative_days,
         "win_rate": round(positive_days / (positive_days + negative_days) * 100, 1) if (positive_days + negative_days) > 0 else 0,
@@ -1159,7 +1189,7 @@ def _weighted(totals: dict) -> list:
     ]
 
 
-def _allocation_totals(db: Session, pid: int, display_ccy: str) -> dict:
+def _allocation_totals(db: Session, portfolio: Portfolio, display_ccy: str) -> dict:
     """Raw (un-weighted) per-dimension market-value totals for one portfolio,
     in `display_ccy` ('CZK' or 'USD'). Cash is folded into sectors/asset_types/
     currencies (never countries), matching get_summary's Cash figure. This is the
@@ -1167,10 +1197,13 @@ def _allocation_totals(db: Session, pid: int, display_ccy: str) -> dict:
     from fx import folded_cash_display
     from models import CashInterestRate
 
+    pid = portfolio.id
+    workspace_id = portfolio.workspace_id
+
     in_czk = display_ccy.upper() == "CZK"
     display_ccy = "CZK" if in_czk else "USD"
 
-    transactions = _get_transactions(db, pid)
+    transactions = _get_transactions(db, portfolio)
 
     # Cash bucket: guarded on external cashflows (deposit/withdrawal rows), same
     # semantic as get_summary -- a portfolio with none does not get a Cash bucket
@@ -1180,7 +1213,9 @@ def _allocation_totals(db: Session, pid: int, display_ccy: str) -> dict:
     # dashboard headline agree. Sourced from the FULL transaction list (all
     # types) -- _get_transactions above is trade-guarded (TRADE_TYPES + ticker)
     # and excludes cash rows entirely, so it cannot be reused for this.
-    txns = db.query(Transaction).filter(Transaction.portfolio_id == pid).all()
+    txns = db.query(Transaction).filter(
+        Transaction.portfolio_id == pid, Transaction.workspace_id == workspace_id,
+    ).all()
     # Per-currency cash (native ccy -> display value) feeds the FX-exposure
     # ("currencies") dimension. Same external-cashflow gate as the folded Cash
     # bucket; the sum of these equals cash_total so the dimensions reconcile.
@@ -1190,7 +1225,10 @@ def _allocation_totals(db: Session, pid: int, display_ccy: str) -> dict:
         from fx import cash_amount_to_display
 
         rates = {r.currency: {"annual_rate": r.annual_rate, "enabled": r.enabled, "start_date": r.start_date}
-                  for r in db.query(CashInterestRate).filter(CashInterestRate.portfolio_id == pid).all()}
+                  for r in db.query(CashInterestRate).filter(
+                      CashInterestRate.portfolio_id == pid,
+                      CashInterestRate.workspace_id == workspace_id,
+                  ).all()}
         cash_total = folded_cash_display(txns, rates, display_ccy)
         has_cash = abs(cash_total) > 0.005
         balances = cash_balance_by_currency(txns)
@@ -1279,10 +1317,10 @@ def _allocation_totals(db: Session, pid: int, display_ccy: str) -> dict:
 def sector_breakdown(
     currency: str = "USD",
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
     display_ccy = "CZK" if currency.upper() == "CZK" else "USD"
-    raw = _allocation_totals(db, pid, display_ccy)
+    raw = _allocation_totals(db, portfolio, display_ccy)
     return {
         "currency": display_ccy,
         "sectors": _weighted(raw["sectors"]),
@@ -1297,9 +1335,9 @@ def sector_breakdown(
 def correlation_matrix(
     period: str = "1y",
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    transactions = _get_transactions(db, pid)
+    transactions = _get_transactions(db, portfolio)
     if not transactions:
         return {"tickers": [], "matrix": []}
 

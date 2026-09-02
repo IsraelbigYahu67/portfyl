@@ -8,6 +8,8 @@ import io
 import logging
 from datetime import datetime, timedelta
 
+from uuid import UUID
+
 from database import get_db
 from models import BrokerConnection, Portfolio, Transaction
 from cash_ledger import TRADE_TYPES, POSITION_TYPES
@@ -15,6 +17,7 @@ from schemas import TransactionCreate, TransactionResponse
 from fx import fetch_fx_to_czk, bulk_fetch_fx
 from routers.portfolios import require_portfolio
 from ticker_map import yf_symbol
+from cache import tenant_cache_key
 import market_data
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
@@ -307,8 +310,11 @@ def _pence_to_pounds(price: float, ccy: str) -> tuple[float, str]:
 _TXN_TYPE_ORDER = {"buy": 0, "split_close": 1, "split_open": 2, "dividend": 3, "sell": 4}
 
 
-def _portfolio_txns(db: Session, pid: int):
-    return db.query(Transaction).filter(Transaction.portfolio_id == pid)
+def _portfolio_txns(db: Session, portfolio: Portfolio):
+    return db.query(Transaction).filter(
+        Transaction.portfolio_id == portfolio.id,
+        Transaction.workspace_id == portfolio.workspace_id,
+    )
 
 
 def _build_holdings(transactions: list, include_closed: bool = False,
@@ -395,13 +401,13 @@ def _live_fx_to_czk(currency: str, cache: dict) -> float:
 
 
 @router.get("/transactions", response_model=List[TransactionResponse])
-def get_transactions(db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
+def get_transactions(db: Session = Depends(get_db), portfolio: Portfolio = Depends(require_portfolio)):
     # Trade rows only -- cash rows (deposit/withdrawal/fee/interest, ticker=None)
     # belong to the Cash ledger, not the Transactions page. Un-filtered, they leaked
     # in as blank rows and crashed the page's ticker-filter (`t.ticker.toLowerCase()`
     # on null).
     return (
-        _portfolio_txns(db, pid)
+        _portfolio_txns(db, portfolio)
         .filter(Transaction.type.in_(TRADE_TYPES))
         .order_by(Transaction.date.desc())
         .all()
@@ -412,11 +418,8 @@ def get_transactions(db: Session = Depends(get_db), pid: int = Depends(require_p
 def create_transaction(
     txn: TransactionCreate,
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    portfolio = db.get(Portfolio, pid)
-    if portfolio is None:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
     # Bounded: a bad symbol used to be able to hang the POST for minutes.
     name = market_data.get_info(txn.ticker.upper()).get("shortName") or txn.ticker
     fx = fetch_fx_to_czk(txn.currency, txn.date)
@@ -430,7 +433,7 @@ def create_transaction(
         cash_amount=round(txn.shares * txn.price * fx, 2) if fx else None,
         cash_currency="CZK" if fx else None,
         workspace_id=portfolio.workspace_id,
-        portfolio_id=pid,
+        portfolio_id=portfolio.id,
     )
     db.add(db_txn)
     db.commit()
@@ -440,15 +443,11 @@ def create_transaction(
 
 @router.delete("/transactions/{txn_id}")
 def delete_transaction(
-    txn_id: int,
+    txn_id: UUID,
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    txn = (
-        db.query(Transaction)
-        .filter(Transaction.id == txn_id, Transaction.portfolio_id == pid)
-        .first()
-    )
+    txn = _portfolio_txns(db, portfolio).filter(Transaction.public_id == txn_id).first()
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
     db.delete(txn)
@@ -459,9 +458,9 @@ def delete_transaction(
 @router.delete("/transactions")
 def clear_all_transactions(
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    deleted = _portfolio_txns(db, pid).delete(synchronize_session=False)
+    deleted = _portfolio_txns(db, portfolio).delete(synchronize_session=False)
     db.commit()
     return {"deleted": deleted}
 
@@ -471,7 +470,7 @@ async def import_csv(
     file: UploadFile = File(...),
     replace: bool = False,
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
     content = await file.read()
     try:
@@ -555,7 +554,9 @@ async def import_csv(
                 ccy = r["currency"].upper()
                 r["fx_to_czk"] = 1.0 if ccy == "CZK" else fx_map.get((ccy, r["date"]))
             r["source"] = "t212_csv" if fmt == "Trading 212" else "csv"
-            prepared.append(Transaction(**r, portfolio_id=pid))
+            prepared.append(Transaction(
+                **r, workspace_id=portfolio.workspace_id, portfolio_id=portfolio.id,
+            ))
         except Exception as e:
             errors.append(str(e))
 
@@ -565,14 +566,13 @@ async def import_csv(
 
     try:
         if replace:
-            _portfolio_txns(db, pid).delete(synchronize_session=False)
+            _portfolio_txns(db, portfolio).delete(synchronize_session=False)
         db.add_all(prepared)
         if t212_covered_through is not None:
-            portfolio = db.query(Portfolio).filter(Portfolio.id == pid).first()
-            if portfolio:
-                portfolio.t212_csv_covered_through = t212_covered_through
+            portfolio.t212_csv_covered_through = t212_covered_through
             connection = db.query(BrokerConnection).filter(
-                BrokerConnection.portfolio_id == pid,
+                BrokerConnection.portfolio_id == portfolio.id,
+                BrokerConnection.workspace_id == portfolio.workspace_id,
                 BrokerConnection.broker == "trading212",
             ).first()
             if connection:
@@ -593,9 +593,9 @@ def get_holdings(
     include_closed: bool = False,
     currency: str = "USD",
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    transactions = _portfolio_txns(db, pid).all()
+    transactions = _portfolio_txns(db, portfolio).all()
     if not transactions:
         return []
 
@@ -725,15 +725,15 @@ def get_holdings(
 def get_summary(
     currency: str = "USD",
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    holdings = get_holdings(currency=currency, db=db, pid=pid)
+    holdings = get_holdings(currency=currency, db=db, portfolio=portfolio)
     display_ccy = currency.upper()
     total_value = sum(h["market_value"] for h in holdings)
     total_invested = sum(h["cost_basis"] for h in holdings)
     unrealized_pnl = total_value - total_invested
 
-    transactions = _portfolio_txns(db, pid).all()
+    transactions = _portfolio_txns(db, portfolio).all()
     fx_fallback: dict[str, float] = {}
     disp_rate = _live_fx_to_czk(display_ccy, fx_fallback)
 
@@ -812,7 +812,10 @@ def get_summary(
     from models import CashInterestRate
     from fx import cash_amount_to_display, folded_cash_display
     _rates = {r.currency: {"annual_rate": r.annual_rate, "enabled": r.enabled, "start_date": r.start_date}
-              for r in db.query(CashInterestRate).filter(CashInterestRate.portfolio_id == pid).all()}
+              for r in db.query(CashInterestRate).filter(
+                  CashInterestRate.portfolio_id == portfolio.id,
+                  CashInterestRate.workspace_id == portfolio.workspace_id,
+              ).all()}
     if has_external_cashflows(transactions):
         cash_total = folded_cash_display(transactions, _rates, currency)  # balance + accrued, folded
         _accrued = accrued_interest(transactions, _rates)
@@ -907,9 +910,9 @@ def _live_to_usd(ccy: str) -> float:
 @router.get("/dividends")
 def get_dividends(
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    transactions = _portfolio_txns(db, pid).all()
+    transactions = _portfolio_txns(db, portfolio).all()
     if not transactions:
         return []
 
@@ -963,7 +966,7 @@ def get_dividends(
 @router.get("/dividends/forecast")
 def get_dividend_forecast(
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
     """Monthly paid (actual) and estimated (projected) dividends for the current
     calendar year, summed across the active portfolio and converted to USD.
@@ -973,7 +976,7 @@ def get_dividend_forecast(
     calendar month it historically paid in, and project that into the same
     month-of-year going forward — scaled by the user's current share count.
     """
-    transactions = _portfolio_txns(db, pid).all()
+    transactions = _portfolio_txns(db, portfolio).all()
     year = datetime.now().year
     today = datetime.now().date()
     month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -1099,18 +1102,13 @@ def get_dividend_forecast(
 @router.get("/dividends/growth")
 def get_dividend_growth(
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
     """Per-holding dividend-growth stats (streak / CAGR / YoY / payout) for the
     active portfolio. Only dividend-paying holdings are returned."""
     from dividend_growth import compute_dividend_growth
 
-    transactions = (
-        db.query(Transaction)
-        .filter(Transaction.portfolio_id == pid)
-        .order_by(Transaction.date)
-        .all()
-    )
+    transactions = _portfolio_txns(db, portfolio).order_by(Transaction.date).all()
     if not transactions:
         return []
 
@@ -1219,9 +1217,9 @@ def get_performance(
     currency: str = "USD",
     period: str = "all",
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    transactions = _portfolio_txns(db, pid).order_by(Transaction.date).all()
+    transactions = _portfolio_txns(db, portfolio).order_by(Transaction.date).all()
     if not transactions:
         return []
     # Imported full-history portfolios contain their actual cash ledger. Reuse
@@ -1282,9 +1280,9 @@ def get_performance(
 @router.get("/earnings")
 def get_earnings(
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    transactions = _portfolio_txns(db, pid).all()
+    transactions = _portfolio_txns(db, portfolio).all()
     if not transactions:
         return []
 
@@ -1367,9 +1365,9 @@ def _two_day_closes(tickers):
 def get_movers(
     period: str = "1d",
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    transactions = _portfolio_txns(db, pid).all()
+    transactions = _portfolio_txns(db, portfolio).all()
     if not transactions:
         return {"gainers": [], "losers": []}
 
@@ -1459,9 +1457,9 @@ def get_movers(
 def get_heatmap(
     period: str = "1d",
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    transactions = _portfolio_txns(db, pid).all()
+    transactions = _portfolio_txns(db, portfolio).all()
     if not transactions:
         return []
 
@@ -1552,7 +1550,7 @@ def get_benchmarks(
     benchmarks: str = "",
     period: str = "all",
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
     if not benchmarks:
         return {}
@@ -1561,7 +1559,7 @@ def get_benchmarks(
     if not keys:
         return {}
 
-    transactions = _portfolio_txns(db, pid).order_by(Transaction.date).all()
+    transactions = _portfolio_txns(db, portfolio).order_by(Transaction.date).all()
     first_txn_date = transactions[0].date if transactions else datetime.now().date()
     start_date = _resolve_start_date(period, first_txn_date)
     first_date = start_date.strftime("%Y-%m-%d")
@@ -1597,14 +1595,14 @@ def get_benchmarks(
     return result
 
 
-_insider_buys_cache: dict[int, tuple[float, list]] = {}
+_insider_buys_cache: dict[tuple, tuple[float, list]] = {}
 _INSIDER_BUYS_TTL = 1800  # 30 minutes
 
 
 @router.get("/insider-buys")
 def get_insider_buys(
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
     """Insider buys in the last 12 months across all current holdings.
     Cached for 30 min to avoid hammering yfinance."""
@@ -1613,11 +1611,15 @@ def get_insider_buys(
     from routers.market import _build_insider_transactions
 
     now = time.time()
-    cached = _insider_buys_cache.get(pid)
+    # Leads with (workspace_id, portfolio.public_id) rather than the internal
+    # integer id: the SQLite owner importer preserves legacy row ids verbatim,
+    # so two different workspaces' portfolios can share the same integer id.
+    cache_key = tenant_cache_key(portfolio.workspace_id, portfolio.public_id)
+    cached = _insider_buys_cache.get(cache_key)
     if cached and now - cached[0] < _INSIDER_BUYS_TTL:
         return cached[1]
 
-    transactions = _portfolio_txns(db, pid).all()
+    transactions = _portfolio_txns(db, portfolio).all()
     if not transactions:
         return []
 
@@ -1682,5 +1684,5 @@ def get_insider_buys(
             continue
 
     results.sort(key=lambda r: r["date"] or "", reverse=True)
-    _insider_buys_cache[pid] = (now, results)
+    _insider_buys_cache[cache_key] = (now, results)
     return results

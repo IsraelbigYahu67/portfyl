@@ -115,7 +115,7 @@ class TestHoldingsCurrency:
             patch("routers.portfolio.market_data.get_infos", return_value={}),
         )
 
-    def test_open_position_per_share_native_value_display(self, db_session, pid):
+    def test_open_position_per_share_native_value_display(self, db_session, pid, default_portfolio):
         """Open US holding, CZK display: avg_cost/current_price in USD;
         market_value/cost_basis/pnl in CZK."""
         db_session.add(make_txn("AAPL", "buy", 10, 150.0, currency="USD",
@@ -124,7 +124,7 @@ class TestHoldingsCurrency:
 
         p1, p2, p3 = self._patches(live_price=200.0)
         with p1, p2, p3:
-            rows = get_holdings(currency="CZK", db=db_session, pid=pid)
+            rows = get_holdings(currency="CZK", db=db_session, portfolio=default_portfolio)
 
         h = next(r for r in rows if r["ticker"] == "AAPL")
         assert h["currency"] == "USD"
@@ -136,7 +136,7 @@ class TestHoldingsCurrency:
         assert h["cost_basis"] == pytest.approx(10 * 150.0 * 20.0)    # 30,000 Kč
         assert h["pnl"] == pytest.approx(10000.0)                     # 40k - 30k
 
-    def test_lse_pence_quote_valued_in_pounds(self, db_session, pid):
+    def test_lse_pence_quote_valued_in_pounds(self, db_session, pid, default_portfolio):
         """LSE stock quoted in pence (GBp): per-share prices stay in pence, but
         market_value must convert pence → pounds before applying the per-pound
         GBP rate — multiplying the raw pence price by it is a 100x error."""
@@ -146,7 +146,7 @@ class TestHoldingsCurrency:
 
         p1, p2, p3 = self._patches(live_price=7150.0, ccy="GBp")
         with p1, p2, p3:
-            rows = get_holdings(currency="CZK", db=db_session, pid=pid)
+            rows = get_holdings(currency="CZK", db=db_session, portfolio=default_portfolio)
 
         h = next(r for r in rows if r["ticker"] == "SGRO.L")
         assert h["currency"] == "GBp"
@@ -157,7 +157,7 @@ class TestHoldingsCurrency:
         # Cost basis converts via the txn's own pence→CZK snapshot rate.
         assert h["cost_basis"] == pytest.approx(100 * 7000.0 * 0.29)
 
-    def test_closed_position_per_share_native_value_display(self, db_session, pid):
+    def test_closed_position_per_share_native_value_display(self, db_session, pid, default_portfolio):
         """Closed US holding, CZK display: avg buy/sell and the live price are
         native USD; realized P&L is CZK."""
         for t in (
@@ -171,7 +171,7 @@ class TestHoldingsCurrency:
 
         p1, p2, p3 = self._patches(live_price=300.0)
         with p1, p2, p3:
-            rows = get_holdings(include_closed=True, currency="CZK", db=db_session, pid=pid)
+            rows = get_holdings(include_closed=True, currency="CZK", db=db_session, portfolio=default_portfolio)
 
         h = next(r for r in rows if r["ticker"] == "TSLA")
         assert h["closed"] is True
@@ -185,18 +185,18 @@ class TestHoldingsCurrency:
 class TestSummary:
     """Tests for /portfolio/summary logic (get_summary)."""
 
-    def test_summary_values(self, txns_demo, pid, db_session):
+    def test_summary_values(self, txns_demo, pid, db_session, default_portfolio):
         """Summary returns expected totals for the demo transactions."""
-        s = get_summary(currency="USD", db=db_session, pid=pid)
+        s = get_summary(currency="USD", db=db_session, portfolio=default_portfolio)
         assert s["holdings_count"] == 2  # AAPL + MSFT
         # total_invested = AAPL cost (70*150 + 50*160? No, after sell: 70*150 + 50*160)
         # total_invested = AAPL cost (18400) + MSFT cost (3500) = 21900
         assert s["total_invested"] == pytest.approx(21900.0)
         assert s["total_dividends"] == pytest.approx(50.0)
 
-    def test_empty_portfolio(self, db_session, pid):
+    def test_empty_portfolio(self, db_session, pid, default_portfolio):
         """No transactions → zeroed summary."""
-        s = get_summary(currency="USD", db=db_session, pid=pid)
+        s = get_summary(currency="USD", db=db_session, portfolio=default_portfolio)
         assert s["total_value"] == 0.0
         assert s["holdings_count"] == 0
 
@@ -204,7 +204,7 @@ class TestSummary:
 class TestCreateTransaction:
     """Tests for POST /portfolio/transactions (create_transaction)."""
 
-    def test_creates_transaction_with_resolved_fields(self, db_session, pid):
+    def test_creates_transaction_with_resolved_fields(self, db_session, pid, default_portfolio):
         """Valid input creates a row: ticker upper-cased, name/fx resolved, portfolio_id set.
 
         Regression test: create_transaction used to crash with
@@ -225,7 +225,7 @@ class TestCreateTransaction:
             patch("routers.portfolio.market_data.get_info", return_value={"shortName": "Apple Inc."}),
             patch("routers.portfolio.fetch_fx_to_czk", return_value=22.5),
         ):
-            result = create_transaction(txn_in, db=db_session, pid=pid)
+            result = create_transaction(txn_in, db=db_session, portfolio=default_portfolio)
 
         assert result.id is not None
         assert result.ticker == "AAPL"
@@ -287,7 +287,7 @@ class TestLiveFxFallback:
         # The made-up 1.0 must not stick for the rest of the request.
         assert "USD" not in cache
 
-    def test_holdings_warms_fx_pairs_with_tickers(self, db_session, pid):
+    def test_holdings_warms_fx_pairs_with_tickers(self, db_session, pid, default_portfolio):
         """The FX pair joins the quote warm-up batch instead of queueing
         behind it (the queue-starvation that caused the 1.0 fallback)."""
         db_session.add(make_txn("AAPL", "buy", 10, 150.0, currency="USD",
@@ -304,13 +304,13 @@ class TestLiveFxFallback:
             patch("routers.portfolio._live_fx_to_czk",
                   side_effect=lambda c, cache: 1.0 if (c or "USD").upper() == "CZK" else 20.0),
         ):
-            get_holdings(currency="CZK", db=db_session, pid=pid)
+            get_holdings(currency="CZK", db=db_session, portfolio=default_portfolio)
 
         assert "AAPL" in warmed
         assert "USDCZK=X" in warmed
 
 
-def test_dividends_growth_lists_only_payers(db_session, pid, monkeypatch):
+def test_dividends_growth_lists_only_payers(db_session, pid, default_portfolio, monkeypatch):
     from routers.portfolio import get_dividend_growth
     from tests.helpers import make_txn
     import dividend_growth
@@ -334,16 +334,16 @@ def test_dividends_growth_lists_only_payers(db_session, pid, monkeypatch):
                 "annual": [], "payments": []}
 
     monkeypatch.setattr(dividend_growth, "compute_dividend_growth", fake_growth)
-    rows = get_dividend_growth(db=db_session, pid=pid)
+    rows = get_dividend_growth(db=db_session, portfolio=default_portfolio)
     assert [r["ticker"] for r in rows] == ["AAPL"]      # ZZZZ (no history) filtered out
     assert rows[0]["name"] == "Apple Inc."              # first-wins real name, not later name=ticker dividend
     assert rows[0]["streak_years"] == 3
     assert "annual" not in rows[0] and "payments" not in rows[0]   # lightweight payload
 
 
-def test_dividends_growth_empty_portfolio(db_session, pid):
+def test_dividends_growth_empty_portfolio(db_session, pid, default_portfolio):
     from routers.portfolio import get_dividend_growth
-    assert get_dividend_growth(db=db_session, pid=pid) == []
+    assert get_dividend_growth(db=db_session, portfolio=default_portfolio) == []
 
 
 def test_portfolios_overview_sums_across_portfolios(
@@ -382,8 +382,8 @@ def test_portfolios_overview_sums_across_portfolios(
                     "quoteType": "EQUITY"} for t in tickers}
 
     with patch("market_data.get_infos", side_effect=fake_infos):
-        s1 = get_summary(currency="USD", db=db_session, pid=p1.id)
-        s2 = get_summary(currency="USD", db=db_session, pid=p2.id)
+        s1 = get_summary(currency="USD", db=db_session, portfolio=p1)
+        s2 = get_summary(currency="USD", db=db_session, portfolio=p2)
         ov = portfolios_overview(
             currency="USD",
             context=request_context,

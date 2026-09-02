@@ -1,10 +1,12 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 
 from database import get_db
-from models import TradeNote, Transaction
+from models import Portfolio, TradeNote, Transaction
 from routers.portfolios import require_portfolio
 
 router = APIRouter(prefix="/notes", tags=["notes"])
@@ -16,20 +18,37 @@ class NoteUpsert(BaseModel):
     sentiment: Optional[str] = None
 
 
-@router.get("/transaction/{transaction_id}")
-def get_note(transaction_id: int, portfolio_id: int = Depends(require_portfolio), db: Session = Depends(get_db)):
+def _find_transaction(db: Session, portfolio: Portfolio, transaction_id: UUID) -> Transaction:
     txn = db.query(Transaction).filter(
-        Transaction.id == transaction_id,
-        Transaction.portfolio_id == portfolio_id,
+        Transaction.public_id == transaction_id,
+        Transaction.portfolio_id == portfolio.id,
+        Transaction.workspace_id == portfolio.workspace_id,
     ).first()
     if not txn:
         raise HTTPException(404, "Transaction not found")
+    return txn
 
-    note = db.query(TradeNote).filter(TradeNote.transaction_id == transaction_id).first()
+
+def _find_note(db: Session, portfolio: Portfolio, txn: Transaction) -> TradeNote | None:
+    return db.query(TradeNote).filter(
+        TradeNote.transaction_id == txn.id,
+        TradeNote.workspace_id == portfolio.workspace_id,
+    ).first()
+
+
+@router.get("/transaction/{transaction_id}")
+def get_note(
+    transaction_id: UUID,
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+):
+    txn = _find_transaction(db, portfolio, transaction_id)
+
+    note = _find_note(db, portfolio, txn)
     if not note:
-        return {"transaction_id": transaction_id, "content": "", "tags": None, "sentiment": None}
+        return {"transaction_id": str(txn.public_id), "content": "", "tags": None, "sentiment": None}
     return {
-        "transaction_id": transaction_id,
+        "transaction_id": str(txn.public_id),
         "content": note.content,
         "tags": note.tags,
         "sentiment": note.sentiment,
@@ -38,25 +57,26 @@ def get_note(transaction_id: int, portfolio_id: int = Depends(require_portfolio)
 
 
 @router.put("/transaction/{transaction_id}")
-def upsert_note(transaction_id: int, body: NoteUpsert, portfolio_id: int = Depends(require_portfolio), db: Session = Depends(get_db)):
-    txn = db.query(Transaction).filter(
-        Transaction.id == transaction_id,
-        Transaction.portfolio_id == portfolio_id,
-    ).first()
-    if not txn:
-        raise HTTPException(404, "Transaction not found")
+def upsert_note(
+    transaction_id: UUID,
+    body: NoteUpsert,
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+):
+    txn = _find_transaction(db, portfolio, transaction_id)
 
     if body.sentiment and body.sentiment not in ("bullish", "bearish", "neutral"):
         raise HTTPException(400, "Sentiment must be bullish, bearish, or neutral")
 
-    note = db.query(TradeNote).filter(TradeNote.transaction_id == transaction_id).first()
+    note = _find_note(db, portfolio, txn)
     if note:
         note.content = body.content
         note.tags = body.tags
         note.sentiment = body.sentiment
     else:
         note = TradeNote(
-            transaction_id=transaction_id,
+            workspace_id=portfolio.workspace_id,
+            transaction_id=txn.id,
             content=body.content,
             tags=body.tags,
             sentiment=body.sentiment,
@@ -65,7 +85,7 @@ def upsert_note(transaction_id: int, body: NoteUpsert, portfolio_id: int = Depen
     db.commit()
     db.refresh(note)
     return {
-        "transaction_id": transaction_id,
+        "transaction_id": str(txn.public_id),
         "content": note.content,
         "tags": note.tags,
         "sentiment": note.sentiment,
@@ -74,15 +94,14 @@ def upsert_note(transaction_id: int, body: NoteUpsert, portfolio_id: int = Depen
 
 
 @router.delete("/transaction/{transaction_id}")
-def delete_note(transaction_id: int, portfolio_id: int = Depends(require_portfolio), db: Session = Depends(get_db)):
-    txn = db.query(Transaction).filter(
-        Transaction.id == transaction_id,
-        Transaction.portfolio_id == portfolio_id,
-    ).first()
-    if not txn:
-        raise HTTPException(404, "Transaction not found")
+def delete_note(
+    transaction_id: UUID,
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+):
+    txn = _find_transaction(db, portfolio, transaction_id)
 
-    note = db.query(TradeNote).filter(TradeNote.transaction_id == transaction_id).first()
+    note = _find_note(db, portfolio, txn)
     if note:
         db.delete(note)
         db.commit()
@@ -90,14 +109,24 @@ def delete_note(transaction_id: int, portfolio_id: int = Depends(require_portfol
 
 
 @router.get("/all")
-def get_all_notes(portfolio_id: int = Depends(require_portfolio), db: Session = Depends(get_db)):
-    txn_ids = [t.id for t in db.query(Transaction.id).filter(Transaction.portfolio_id == portfolio_id).all()]
-    if not txn_ids:
+def get_all_notes(
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+):
+    txns = db.query(Transaction).filter(
+        Transaction.portfolio_id == portfolio.id,
+        Transaction.workspace_id == portfolio.workspace_id,
+    ).all()
+    if not txns:
         return []
-    notes = db.query(TradeNote).filter(TradeNote.transaction_id.in_(txn_ids)).all()
+    public_id_by_internal_id = {t.id: t.public_id for t in txns}
+    notes = db.query(TradeNote).filter(
+        TradeNote.transaction_id.in_(list(public_id_by_internal_id.keys())),
+        TradeNote.workspace_id == portfolio.workspace_id,
+    ).all()
     return [
         {
-            "transaction_id": n.transaction_id,
+            "transaction_id": str(public_id_by_internal_id[n.transaction_id]),
             "content": n.content,
             "tags": n.tags,
             "sentiment": n.sentiment,

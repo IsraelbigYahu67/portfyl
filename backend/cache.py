@@ -79,3 +79,19 @@ def cache_clear() -> None:
     """Drop every cached entry (used by tests / manual invalidation)."""
     with _lock:
         _store.clear()
+
+
+def tenant_cache_key(workspace_id, resource_public_id, *rest) -> tuple:
+    """Build a cache key for a per-process, per-resource cache that isn't
+    already covered by `ttl_cache`'s own arg-based keying (e.g. a hand-rolled
+    module-level dict).
+
+    A resource's internal integer primary key is NOT safe to key on alone:
+    the SQLite-to-PostgreSQL owner importer preserves each migrated owner's
+    original row ids verbatim (see migrations/sqlite_to_postgres.py), so two
+    different workspaces can end up with rows sharing the same legacy integer
+    id. Leading the key with `(workspace_id, resource_public_id)` -- both
+    tenant-unique -- means a cache collision between two workspaces is
+    impossible regardless of what the underlying integer ids happen to be.
+    """
+    return (workspace_id, resource_public_id, *rest)

@@ -3,7 +3,7 @@
 Benchmarks are either a single Yahoo symbol ("ticker") or a weighted basket of
 symbols ("basket"). System presets (portfolio_id NULL, is_preset True) are
 shared across portfolios and cannot be edited or deleted. User benchmarks are
-scoped to a single portfolio.
+scoped to a single workspace + portfolio.
 
 The comparison endpoint reuses the Modified-Dietz TWR machinery from
 routers.analytics so both endpoints agree on the portfolio return series.
@@ -11,6 +11,7 @@ routers.analytics so both endpoints agree on the portfolio return series.
 
 from datetime import date
 from typing import Optional
+from uuid import UUID
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
@@ -18,7 +19,7 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Benchmark, BenchmarkComponent, Transaction
+from models import Benchmark, BenchmarkComponent, Portfolio, Transaction
 from routers.portfolios import require_portfolio
 from routers.analytics import (
     _benchmark_compare_metrics,
@@ -75,15 +76,20 @@ class BenchmarkPatch(BaseModel):
     is_default: Optional[bool] = None
 
 
-def _serialize(b: Benchmark, components: list[BenchmarkComponent] | None = None) -> dict:
+def _serialize(portfolio: Portfolio, b: Benchmark, components: list[BenchmarkComponent] | None = None) -> dict:
     return {
-        "id": b.id,
+        "id": str(b.public_id),
         "name": b.name,
         "kind": b.kind,
         "ticker": b.ticker,
         "is_default": bool(b.is_default),
         "is_preset": bool(b.is_preset),
-        "portfolio_id": b.portfolio_id,
+        # A preset has no owning portfolio; a user benchmark returned here is
+        # always scoped to the currently-authorized portfolio (see the
+        # workspace+portfolio predicate on every query below), so its public
+        # UUID is that same portfolio's -- the row's raw integer FK is never
+        # serialized.
+        "portfolio_id": str(portfolio.public_id) if b.portfolio_id is not None else None,
         "components": [
             {"ticker": c.ticker, "weight": c.weight}
             for c in (components or [])
@@ -92,17 +98,34 @@ def _serialize(b: Benchmark, components: list[BenchmarkComponent] | None = None)
     }
 
 
-def _load_components(db: Session, benchmark_id: int) -> list[BenchmarkComponent]:
+def _components_workspace_filter(workspace_id):
+    """`workspace_id IS NULL` (presets) can't be expressed with `== None` in SQL --
+    build the right predicate for whichever case applies."""
+    if workspace_id is None:
+        return BenchmarkComponent.workspace_id.is_(None)
+    return BenchmarkComponent.workspace_id == workspace_id
+
+
+def _load_components(db: Session, benchmark: Benchmark) -> list[BenchmarkComponent]:
     return (
         db.query(BenchmarkComponent)
-        .filter(BenchmarkComponent.benchmark_id == benchmark_id)
+        .filter(
+            BenchmarkComponent.benchmark_id == benchmark.id,
+            _components_workspace_filter(benchmark.workspace_id),
+        )
         .all()
     )
 
 
-def _clear_other_defaults(db: Session, pid: int) -> None:
-    db.query(Benchmark).filter(
-        Benchmark.portfolio_id == pid,
+def _own_benchmarks_query(db: Session, portfolio: Portfolio):
+    return db.query(Benchmark).filter(
+        Benchmark.workspace_id == portfolio.workspace_id,
+        Benchmark.portfolio_id == portfolio.id,
+    )
+
+
+def _clear_other_defaults(db: Session, portfolio: Portfolio) -> None:
+    _own_benchmarks_query(db, portfolio).filter(
         Benchmark.is_default.is_(True),
     ).update({Benchmark.is_default: False}, synchronize_session=False)
 
@@ -114,34 +137,39 @@ def _clear_other_defaults(db: Session, pid: int) -> None:
 @router.get("")
 def list_benchmarks(
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
     """Presets + this portfolio's own benchmarks."""
     rows = (
         db.query(Benchmark)
-        .filter((Benchmark.portfolio_id.is_(None)) | (Benchmark.portfolio_id == pid))
+        .filter(
+            (Benchmark.is_preset.is_(True))
+            | (
+                (Benchmark.workspace_id == portfolio.workspace_id)
+                & (Benchmark.portfolio_id == portfolio.id)
+            )
+        )
         .order_by(Benchmark.is_preset.desc(), Benchmark.created_at.asc())
         .all()
     )
-    ids = [r.id for r in rows]
-    comps_by_bench: dict[int, list[BenchmarkComponent]] = {i: [] for i in ids}
-    if ids:
-        for c in db.query(BenchmarkComponent).filter(BenchmarkComponent.benchmark_id.in_(ids)).all():
-            comps_by_bench.setdefault(c.benchmark_id, []).append(c)
-    return [_serialize(r, comps_by_bench.get(r.id, [])) for r in rows]
+    comps_by_bench: dict[int, list[BenchmarkComponent]] = {}
+    for r in rows:
+        comps_by_bench[r.id] = _load_components(db, r)
+    return [_serialize(portfolio, r, comps_by_bench.get(r.id, [])) for r in rows]
 
 
 @router.post("")
 def create_benchmark(
     payload: BenchmarkCreate,
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
     if payload.is_default:
-        _clear_other_defaults(db, pid)
+        _clear_other_defaults(db, portfolio)
 
     b = Benchmark(
-        portfolio_id=pid,
+        workspace_id=portfolio.workspace_id,
+        portfolio_id=portfolio.id,
         name=payload.name.strip(),
         kind=payload.kind,
         ticker=payload.ticker.strip().upper() if payload.ticker else None,
@@ -154,23 +182,24 @@ def create_benchmark(
     if payload.kind == "basket":
         for c in payload.components or []:
             db.add(BenchmarkComponent(
+                workspace_id=portfolio.workspace_id,
                 benchmark_id=b.id,
                 ticker=c.ticker.strip().upper(),
                 weight=c.weight,
             ))
     db.commit()
     db.refresh(b)
-    return _serialize(b, _load_components(db, b.id))
+    return _serialize(portfolio, b, _load_components(db, b))
 
 
 @router.patch("/{benchmark_id}")
 def update_benchmark(
-    benchmark_id: int,
+    benchmark_id: UUID,
     payload: BenchmarkPatch,
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    b = db.query(Benchmark).filter(Benchmark.id == benchmark_id).first()
+    b = db.query(Benchmark).filter(Benchmark.public_id == benchmark_id).first()
     if not b:
         raise HTTPException(status_code=404, detail="Benchmark not found")
     if b.is_preset:
@@ -179,12 +208,13 @@ def update_benchmark(
         if any(v is not None for v in (payload.name, payload.ticker, payload.components)):
             raise HTTPException(status_code=403, detail="System presets cannot be edited")
         if payload.is_default:
-            _clear_other_defaults(db, pid)
+            _clear_other_defaults(db, portfolio)
             # Default is stored on the row itself, but presets are shared — so we
             # represent "preset X is this portfolio's default" by copying the
-            # preset into a portfolio-scoped row with is_default=true.
+            # preset into a workspace+portfolio-scoped row with is_default=true.
             copy = Benchmark(
-                portfolio_id=pid,
+                workspace_id=portfolio.workspace_id,
+                portfolio_id=portfolio.id,
                 name=b.name,
                 kind=b.kind,
                 ticker=b.ticker,
@@ -193,14 +223,19 @@ def update_benchmark(
             )
             db.add(copy)
             db.flush()
-            for c in _load_components(db, b.id):
-                db.add(BenchmarkComponent(benchmark_id=copy.id, ticker=c.ticker, weight=c.weight))
+            for c in _load_components(db, b):
+                db.add(BenchmarkComponent(
+                    workspace_id=portfolio.workspace_id,
+                    benchmark_id=copy.id,
+                    ticker=c.ticker,
+                    weight=c.weight,
+                ))
             db.commit()
             db.refresh(copy)
-            return _serialize(copy, _load_components(db, copy.id))
-        return _serialize(b, _load_components(db, b.id))
+            return _serialize(portfolio, copy, _load_components(db, copy))
+        return _serialize(portfolio, b, _load_components(db, b))
 
-    if b.portfolio_id != pid:
+    if b.workspace_id != portfolio.workspace_id or b.portfolio_id != portfolio.id:
         raise HTTPException(status_code=404, detail="Benchmark not found")
 
     if payload.name is not None:
@@ -211,37 +246,49 @@ def update_benchmark(
         total = sum(c.weight for c in payload.components)
         if abs(total - 1.0) > 1e-4:
             raise HTTPException(status_code=400, detail=f"component weights must sum to 1.0 (got {total:.4f})")
-        db.query(BenchmarkComponent).filter(BenchmarkComponent.benchmark_id == b.id).delete(synchronize_session=False)
+        db.query(BenchmarkComponent).filter(
+            BenchmarkComponent.benchmark_id == b.id,
+            BenchmarkComponent.workspace_id == b.workspace_id,
+        ).delete(synchronize_session=False)
         for c in payload.components:
-            db.add(BenchmarkComponent(benchmark_id=b.id, ticker=c.ticker.strip().upper(), weight=c.weight))
+            db.add(BenchmarkComponent(
+                workspace_id=portfolio.workspace_id,
+                benchmark_id=b.id,
+                ticker=c.ticker.strip().upper(),
+                weight=c.weight,
+            ))
     if payload.is_default is True:
-        _clear_other_defaults(db, pid)
+        _clear_other_defaults(db, portfolio)
         b.is_default = True
     elif payload.is_default is False:
         b.is_default = False
 
     db.commit()
     db.refresh(b)
-    return _serialize(b, _load_components(db, b.id))
+    return _serialize(portfolio, b, _load_components(db, b))
 
 
 @router.delete("/{benchmark_id}")
 def delete_benchmark(
-    benchmark_id: int,
+    benchmark_id: UUID,
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    b = db.query(Benchmark).filter(Benchmark.id == benchmark_id).first()
+    b = db.query(Benchmark).filter(Benchmark.public_id == benchmark_id).first()
     if not b:
         raise HTTPException(status_code=404, detail="Benchmark not found")
     if b.is_preset:
         raise HTTPException(status_code=403, detail="System presets cannot be deleted")
-    if b.portfolio_id != pid:
+    if b.workspace_id != portfolio.workspace_id or b.portfolio_id != portfolio.id:
         raise HTTPException(status_code=404, detail="Benchmark not found")
-    db.query(BenchmarkComponent).filter(BenchmarkComponent.benchmark_id == b.id).delete(synchronize_session=False)
+    db.query(BenchmarkComponent).filter(
+        BenchmarkComponent.benchmark_id == b.id,
+        BenchmarkComponent.workspace_id == b.workspace_id,
+    ).delete(synchronize_session=False)
+    deleted_id = str(b.public_id)
     db.delete(b)
     db.commit()
-    return {"ok": True, "deleted_id": benchmark_id}
+    return {"ok": True, "deleted_id": deleted_id}
 
 
 # ---------------------------------------------------------------------------
@@ -251,16 +298,19 @@ def delete_benchmark(
 @router.get("/comparison")
 def benchmark_comparison(
     period: str = "1y",
-    benchmark_id: Optional[int] = None,
+    benchmark_id: Optional[UUID] = None,
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
     """Time series of cumulative TWR for portfolio vs chosen benchmark plus the
     daily active-return curve, with the same comparison metrics surfaced on
     /risk-metrics for the same window."""
     transactions = (
         db.query(Transaction)
-        .filter(Transaction.portfolio_id == pid)
+        .filter(
+            Transaction.portfolio_id == portfolio.id,
+            Transaction.workspace_id == portfolio.workspace_id,
+        )
         .order_by(Transaction.date)
         .all()
     )
@@ -280,7 +330,7 @@ def benchmark_comparison(
     if len(port_daily) < 2:
         return {"series": [], "metrics": {}, "benchmark": None}
 
-    bench = resolve_benchmark(db, pid, benchmark_id)
+    bench = resolve_benchmark(db, portfolio, benchmark_id)
     bench_daily = _benchmark_daily_returns(db, bench, start_date, closes_index)
 
     aligned = pd.DataFrame({"p": port_daily, "b": bench_daily}).dropna()
@@ -288,7 +338,7 @@ def benchmark_comparison(
         return {
             "series": [],
             "metrics": {},
-            "benchmark": {"id": bench.id, "name": bench.name, "kind": bench.kind} if bench else None,
+            "benchmark": {"id": str(bench.public_id), "name": bench.name, "kind": bench.kind} if bench else None,
             "period": period,
         }
 
@@ -313,7 +363,7 @@ def benchmark_comparison(
 
     return {
         "period": period,
-        "benchmark": {"id": bench.id, "name": bench.name, "kind": bench.kind} if bench else None,
+        "benchmark": {"id": str(bench.public_id), "name": bench.name, "kind": bench.kind} if bench else None,
         "series": series,
         "metrics": metrics,
     }
