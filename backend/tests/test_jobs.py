@@ -11,7 +11,7 @@ from unittest.mock import patch, AsyncMock
 
 from models import BrokerConnection, DiscordWebhook, DividendNotification
 from jobs import broker_autosync_pass, dividend_exdate_pass
-from tests.helpers import make_txn
+from tests.helpers import TEST_WORKSPACE_ID, make_txn
 
 
 @pytest.fixture(autouse=True)
@@ -24,16 +24,17 @@ def _run(coro):
     return asyncio.run(coro)
 
 
-def _connect(db, pid, broker="trading212", auto_sync=True):
-    conn = BrokerConnection(portfolio_id=pid, broker=broker, api_key="k" * 20,
-                            api_secret="", environment="live", auto_sync=auto_sync)
+def _connect(db, pid, broker="trading212", auto_sync=True, workspace_id=TEST_WORKSPACE_ID):
+    conn = BrokerConnection(workspace_id=workspace_id, portfolio_id=pid, broker=broker,
+                            api_key="k" * 20, api_secret="", environment="live",
+                            auto_sync=auto_sync)
     db.add(conn)
     db.commit()
     return conn
 
 
-def _webhook(db, pid, **flags):
-    hook = DiscordWebhook(portfolio_id=pid,
+def _webhook(db, pid, workspace_id=TEST_WORKSPACE_ID, **flags):
+    hook = DiscordWebhook(workspace_id=workspace_id, portfolio_id=pid,
                           webhook_url="https://discord.com/api/webhooks/1/x",
                           notify_trades=flags.get("notify_trades", True),
                           notify_dividends=flags.get("notify_dividends", True),
@@ -48,7 +49,7 @@ def _webhook(db, pid, **flags):
 def test_autosync_skips_connections_without_flag(db_session, pid):
     _connect(db_session, pid, auto_sync=False)
     with patch("routers.broker.sync_transactions") as sync:
-        results = _run(broker_autosync_pass(db_session))
+        results = _run(broker_autosync_pass(db_session, TEST_WORKSPACE_ID))
     assert results == []
     sync.assert_not_called()
 
@@ -60,7 +61,7 @@ def test_autosync_syncs_t212_and_notifies(db_session, pid):
     fake = {"imported_orders": 2, "imported_dividends": 1, "total_imported": 3, "errors": []}
     with patch("routers.broker.sync_transactions", return_value=fake) as sync, \
          patch("jobs.send_discord_notification", sent):
-        results = _run(broker_autosync_pass(db_session))
+        results = _run(broker_autosync_pass(db_session, TEST_WORKSPACE_ID))
     sync.assert_called_once()
     assert results == [{"portfolio_id": pid, "broker": "trading212", "ok": True, "imported": 3}]
     sent.assert_awaited_once()
@@ -74,7 +75,7 @@ def test_autosync_no_notification_when_nothing_imported(db_session, pid):
     fake = {"imported_orders": 0, "imported_dividends": 0, "total_imported": 0, "errors": []}
     with patch("routers.broker.sync_transactions", return_value=fake), \
          patch("jobs.send_discord_notification", sent):
-        results = _run(broker_autosync_pass(db_session))
+        results = _run(broker_autosync_pass(db_session, TEST_WORKSPACE_ID))
     assert results[0]["imported"] == 0
     sent.assert_not_awaited()
 
@@ -86,13 +87,13 @@ def test_autosync_respects_notify_trades_flag(db_session, pid):
     fake = {"imported_orders": 5, "imported_dividends": 0, "total_imported": 5, "errors": []}
     with patch("routers.broker.sync_transactions", return_value=fake), \
          patch("jobs.send_discord_notification", sent):
-        _run(broker_autosync_pass(db_session))
+        _run(broker_autosync_pass(db_session, TEST_WORKSPACE_ID))
     sent.assert_not_awaited()
 
 
 def test_autosync_one_failure_does_not_block_others(db_session, default_portfolio):
     from models import Portfolio
-    p2 = Portfolio(name="Second")
+    p2 = Portfolio(workspace_id=default_portfolio.workspace_id, name="Second")
     db_session.add(p2)
     db_session.commit()
     _connect(db_session, default_portfolio.id, auto_sync=True)
@@ -108,7 +109,7 @@ def test_autosync_one_failure_does_not_block_others(db_session, default_portfoli
 
     with patch("routers.broker.sync_transactions", side_effect=flaky), \
          patch("jobs.send_discord_notification", AsyncMock()):
-        results = _run(broker_autosync_pass(db_session))
+        results = _run(broker_autosync_pass(db_session, TEST_WORKSPACE_ID))
 
     assert calls == [default_portfolio.id, p2.id]  # both attempted
     assert [r["ok"] for r in results] == [False, True]
@@ -120,7 +121,7 @@ def test_autosync_ibkr_uses_ibkr_sync(db_session, pid):
     ibkr_sync = AsyncMock(return_value={"imported": 4})
     with patch("routers.ibkr._run_ibkr_sync", ibkr_sync), \
          patch("jobs.send_discord_notification", AsyncMock()):
-        results = _run(broker_autosync_pass(db_session))
+        results = _run(broker_autosync_pass(db_session, TEST_WORKSPACE_ID))
     ibkr_sync.assert_awaited_once()
     assert results == [{"portfolio_id": pid, "broker": "ibkr", "ok": True, "imported": 4}]
 
@@ -141,7 +142,7 @@ def test_autosync_t212_sync_runs_off_event_loop(db_session, pid):
         return {"imported_orders": 0, "imported_dividends": 0, "total_imported": 0, "errors": []}
 
     with patch("routers.broker.sync_transactions", side_effect=probing_sync):
-        _run(broker_autosync_pass(db_session))
+        _run(broker_autosync_pass(db_session, TEST_WORKSPACE_ID))
     assert seen["on_loop"] is False
 
 
@@ -152,7 +153,7 @@ def test_scheduler_sync_respects_auto_sync_flag(db_session, default_portfolio):
     from models import Portfolio
     from routers.ibkr import scheduler_sync
 
-    p2 = Portfolio(name="Second")
+    p2 = Portfolio(workspace_id=default_portfolio.workspace_id, name="Second")
     db_session.add(p2)
     db_session.commit()
     _connect(db_session, default_portfolio.id, broker="ibkr", auto_sync=True)
@@ -190,7 +191,7 @@ def test_dividend_pass_announces_upcoming_exdate(db_session, pid):
     sent = AsyncMock()
     with patch("jobs._next_dividend_info", _div_info(date(2026, 7, 14))), \
          patch("jobs.send_discord_notification", sent):
-        announced = _run(dividend_exdate_pass(db_session, today=today, lead_days=3))
+        announced = _run(dividend_exdate_pass(db_session, TEST_WORKSPACE_ID, today=today, lead_days=3))
     assert len(announced) == 1
     assert announced[0]["ticker"] == "AAPL"
     assert announced[0]["est_payment"] == 2.5  # 10 sh * 0.25
@@ -208,8 +209,8 @@ def test_dividend_pass_never_announces_twice(db_session, pid):
     sent = AsyncMock()
     with patch("jobs._next_dividend_info", _div_info(date(2026, 7, 14))), \
          patch("jobs.send_discord_notification", sent):
-        first = _run(dividend_exdate_pass(db_session, today=today, lead_days=3))
-        second = _run(dividend_exdate_pass(db_session, today=today, lead_days=3))
+        first = _run(dividend_exdate_pass(db_session, TEST_WORKSPACE_ID, today=today, lead_days=3))
+        second = _run(dividend_exdate_pass(db_session, TEST_WORKSPACE_ID, today=today, lead_days=3))
     assert len(first) == 1
     assert second == []
     assert sent.await_count == 1
@@ -224,13 +225,13 @@ def test_dividend_pass_ignores_exdates_outside_window(db_session, pid):
     # Ex-date 10 days out, window is 3 — nothing to announce (yet).
     with patch("jobs._next_dividend_info", _div_info(date(2026, 7, 22))), \
          patch("jobs.send_discord_notification", sent):
-        announced = _run(dividend_exdate_pass(db_session, today=today, lead_days=3))
+        announced = _run(dividend_exdate_pass(db_session, TEST_WORKSPACE_ID, today=today, lead_days=3))
     assert announced == []
     sent.assert_not_awaited()
     # A past ex-date must not be announced either.
     with patch("jobs._next_dividend_info", _div_info(date(2026, 7, 10))), \
          patch("jobs.send_discord_notification", sent):
-        announced = _run(dividend_exdate_pass(db_session, today=today, lead_days=3))
+        announced = _run(dividend_exdate_pass(db_session, TEST_WORKSPACE_ID, today=today, lead_days=3))
     assert announced == []
 
 
@@ -240,7 +241,7 @@ def test_dividend_pass_respects_notify_dividends_flag(db_session, pid):
     sent = AsyncMock()
     with patch("jobs._next_dividend_info", _div_info(date(2026, 7, 14))), \
          patch("jobs.send_discord_notification", sent):
-        announced = _run(dividend_exdate_pass(db_session, today=date(2026, 7, 12)))
+        announced = _run(dividend_exdate_pass(db_session, TEST_WORKSPACE_ID, today=date(2026, 7, 12)))
     assert announced == []
     sent.assert_not_awaited()
 
@@ -262,7 +263,7 @@ def test_dividend_lookup_runs_off_event_loop(db_session, pid):
 
     with patch("jobs._next_dividend_info", probing_info), \
          patch("jobs.send_discord_notification", AsyncMock()):
-        _run(dividend_exdate_pass(db_session, today=date(2026, 7, 12)))
+        _run(dividend_exdate_pass(db_session, TEST_WORKSPACE_ID, today=date(2026, 7, 12)))
     assert seen["on_loop"] is False
 
 
@@ -274,14 +275,14 @@ def test_dividend_dedup_not_written_when_delivery_fails(db_session, pid):
     today = date(2026, 7, 12)
     with patch("jobs._next_dividend_info", _div_info(date(2026, 7, 14))), \
          patch("jobs.send_discord_notification", AsyncMock(return_value=False)):
-        announced = _run(dividend_exdate_pass(db_session, today=today, lead_days=3))
+        announced = _run(dividend_exdate_pass(db_session, TEST_WORKSPACE_ID, today=today, lead_days=3))
     assert announced == []
     assert db_session.query(DividendNotification).count() == 0
 
     # Webhook back up: the same dividend is announced and deduped normally.
     with patch("jobs._next_dividend_info", _div_info(date(2026, 7, 14))), \
          patch("jobs.send_discord_notification", AsyncMock(return_value=True)):
-        announced = _run(dividend_exdate_pass(db_session, today=today, lead_days=3))
+        announced = _run(dividend_exdate_pass(db_session, TEST_WORKSPACE_ID, today=today, lead_days=3))
     assert len(announced) == 1
     assert db_session.query(DividendNotification).count() == 1
 
@@ -292,7 +293,7 @@ def test_dividend_pass_skips_tickers_without_exdate(db_session, pid):
     sent = AsyncMock()
     with patch("jobs._next_dividend_info", _div_info(None)), \
          patch("jobs.send_discord_notification", sent):
-        announced = _run(dividend_exdate_pass(db_session, today=date(2026, 7, 12)))
+        announced = _run(dividend_exdate_pass(db_session, TEST_WORKSPACE_ID, today=date(2026, 7, 12)))
     assert announced == []
     sent.assert_not_awaited()
 
@@ -406,7 +407,7 @@ def test_next_run_interval_is_last_plus_interval():
 
 # -------- schedule config persistence ----------------------------------------
 
-from app_settings import set_setting
+from app_settings import set_workspace_setting
 from jobs import (SYNC_MODE_KEY, SYNC_DAILY_TIME_KEY, SYNC_INTERVAL_HOURS_KEY,
                   SYNC_LAST_RUN_KEY, load_sync_schedule, mark_sync_ran, sync_timezone)
 
@@ -421,42 +422,58 @@ def test_sync_timezone_default_and_override(monkeypatch):
 
 
 def test_load_schedule_defaults_on_empty_db(db_session):
-    s = load_sync_schedule(db_session)
+    s = load_sync_schedule(db_session, TEST_WORKSPACE_ID)
     assert s == {"mode": "daily", "daily_time": "02:00",
                  "interval_hours": 6, "last_run": None}
 
 
 def test_load_schedule_falls_back_on_garbage(db_session):
-    set_setting(db_session, SYNC_MODE_KEY, "weekly")
-    set_setting(db_session, SYNC_DAILY_TIME_KEY, "25:99")
-    set_setting(db_session, SYNC_INTERVAL_HOURS_KEY, "lots")
-    set_setting(db_session, SYNC_LAST_RUN_KEY, "yesterday-ish")
+    set_workspace_setting(db_session, TEST_WORKSPACE_ID, SYNC_MODE_KEY, "weekly")
+    set_workspace_setting(db_session, TEST_WORKSPACE_ID, SYNC_DAILY_TIME_KEY, "25:99")
+    set_workspace_setting(db_session, TEST_WORKSPACE_ID, SYNC_INTERVAL_HOURS_KEY, "lots")
+    set_workspace_setting(db_session, TEST_WORKSPACE_ID, SYNC_LAST_RUN_KEY, "yesterday-ish")
     db_session.commit()
-    s = load_sync_schedule(db_session)
+    s = load_sync_schedule(db_session, TEST_WORKSPACE_ID)
     assert s == {"mode": "daily", "daily_time": "02:00",
                  "interval_hours": 6, "last_run": None}
 
 
 def test_load_schedule_reads_valid_values(db_session):
-    set_setting(db_session, SYNC_MODE_KEY, "interval")
-    set_setting(db_session, SYNC_DAILY_TIME_KEY, "04:30")
-    set_setting(db_session, SYNC_INTERVAL_HOURS_KEY, "12")
+    set_workspace_setting(db_session, TEST_WORKSPACE_ID, SYNC_MODE_KEY, "interval")
+    set_workspace_setting(db_session, TEST_WORKSPACE_ID, SYNC_DAILY_TIME_KEY, "04:30")
+    set_workspace_setting(db_session, TEST_WORKSPACE_ID, SYNC_INTERVAL_HOURS_KEY, "12")
     db_session.commit()
-    s = load_sync_schedule(db_session)
+    s = load_sync_schedule(db_session, TEST_WORKSPACE_ID)
     assert (s["mode"], s["daily_time"], s["interval_hours"]) == ("interval", "04:30", 12)
 
 
 def test_mark_sync_ran_roundtrip(db_session):
     when = datetime(2026, 7, 13, 0, 5, tzinfo=timezone.utc)
-    mark_sync_ran(db_session, when)
-    assert load_sync_schedule(db_session)["last_run"] == when
+    mark_sync_ran(db_session, TEST_WORKSPACE_ID, when)
+    assert load_sync_schedule(db_session, TEST_WORKSPACE_ID)["last_run"] == when
 
 
 def test_load_schedule_treats_naive_last_run_as_utc(db_session):
-    set_setting(db_session, SYNC_LAST_RUN_KEY, "2026-07-13T00:05:00")
+    set_workspace_setting(db_session, TEST_WORKSPACE_ID, SYNC_LAST_RUN_KEY, "2026-07-13T00:05:00")
     db_session.commit()
-    assert load_sync_schedule(db_session)["last_run"] == \
+    assert load_sync_schedule(db_session, TEST_WORKSPACE_ID)["last_run"] == \
         datetime(2026, 7, 13, 0, 5, tzinfo=timezone.utc)
+
+
+def test_schedule_is_isolated_per_workspace(db_session):
+    from uuid import uuid4
+    from models import Workspace
+
+    other_workspace_id = uuid4()
+    db_session.add(Workspace(id=other_workspace_id, name="Other workspace"))
+    db_session.flush()
+
+    set_workspace_setting(db_session, TEST_WORKSPACE_ID, SYNC_MODE_KEY, "interval")
+    set_workspace_setting(db_session, other_workspace_id, SYNC_MODE_KEY, "daily")
+    db_session.commit()
+
+    assert load_sync_schedule(db_session, TEST_WORKSPACE_ID)["mode"] == "interval"
+    assert load_sync_schedule(db_session, other_workspace_id)["mode"] == "daily"
 
 
 # -------- autosync_tick -------------------------------------------------------
@@ -466,40 +483,40 @@ from jobs import autosync_tick
 
 def test_tick_skips_when_not_due(db_session):
     now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
-    mark_sync_ran(db_session, now - timedelta(hours=1))  # ran after today's 02:00 boundary
+    mark_sync_ran(db_session, TEST_WORKSPACE_ID, now - timedelta(hours=1))  # ran after today's 02:00 boundary
     with patch("jobs.broker_autosync_pass", new=AsyncMock()) as p:
-        out = _run(autosync_tick(db_session, now=now))
+        out = _run(autosync_tick(db_session, TEST_WORKSPACE_ID, now=now))
     assert out == []
     p.assert_not_awaited()
     # last_run untouched
-    assert load_sync_schedule(db_session)["last_run"] == now - timedelta(hours=1)
+    assert load_sync_schedule(db_session, TEST_WORKSPACE_ID)["last_run"] == now - timedelta(hours=1)
 
 
 def test_tick_runs_pass_and_marks_ran_when_due(db_session):
     now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
-    mark_sync_ran(db_session, now - timedelta(days=1))
+    mark_sync_ran(db_session, TEST_WORKSPACE_ID, now - timedelta(days=1))
     results = [{"portfolio_id": 1, "broker": "trading212", "ok": True, "imported": 2}]
     with patch("jobs.broker_autosync_pass", new=AsyncMock(return_value=results)) as p:
-        out = _run(autosync_tick(db_session, now=now))
+        out = _run(autosync_tick(db_session, TEST_WORKSPACE_ID, now=now))
     p.assert_awaited_once()
     assert out == results
-    assert load_sync_schedule(db_session)["last_run"] == now
+    assert load_sync_schedule(db_session, TEST_WORKSPACE_ID)["last_run"] == now
 
 
 def test_tick_marks_ran_even_when_no_connections(db_session):
     # An empty pass still consumes the boundary — no minute-by-minute retries.
     now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
     with patch("jobs.broker_autosync_pass", new=AsyncMock(return_value=[])):
-        out = _run(autosync_tick(db_session, now=now))
+        out = _run(autosync_tick(db_session, TEST_WORKSPACE_ID, now=now))
     assert out == []
-    assert load_sync_schedule(db_session)["last_run"] == now
+    assert load_sync_schedule(db_session, TEST_WORKSPACE_ID)["last_run"] == now
 
 
 def test_tick_does_not_advance_last_run_when_pass_raises(db_session):
     now = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
     stamped = now - timedelta(days=1)
-    mark_sync_ran(db_session, stamped)
+    mark_sync_ran(db_session, TEST_WORKSPACE_ID, stamped)
     with patch("jobs.broker_autosync_pass", new=AsyncMock(side_effect=RuntimeError("boom"))):
         with pytest.raises(RuntimeError):
-            _run(autosync_tick(db_session, now=now))
-    assert load_sync_schedule(db_session)["last_run"] == stamped
+            _run(autosync_tick(db_session, TEST_WORKSPACE_ID, now=now))
+    assert load_sync_schedule(db_session, TEST_WORKSPACE_ID)["last_run"] == stamped

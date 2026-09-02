@@ -1,6 +1,6 @@
-"""Global (non-portfolio-scoped) app settings. Currently just the broker
-auto-sync schedule; frontend note: '/settings' must stay listed in
-PORTFOLIO_AGNOSTIC_PREFIXES in frontend/src/api.js."""
+"""Workspace-scoped settings. Currently just the broker auto-sync schedule;
+frontend note: '/settings' must stay listed in PORTFOLIO_AGNOSTIC_PREFIXES
+in frontend/src/api.js."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -10,10 +10,11 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app_settings import set_setting
+from app_settings import set_workspace_setting
 from database import get_db
 from jobs import (SYNC_DAILY_TIME_KEY, SYNC_INTERVAL_HOURS_KEY, SYNC_MODE_KEY,
                   load_sync_schedule, next_sync_run, sync_timezone)
+from tenancy import RequestContext, get_request_context
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -25,8 +26,11 @@ class SyncSchedule(BaseModel):
 
 
 @router.get("/sync-schedule")
-def get_sync_schedule(db: Session = Depends(get_db)):
-    s = load_sync_schedule(db)
+def get_sync_schedule(
+    db: Session = Depends(get_db),
+    context: RequestContext = Depends(get_request_context),
+):
+    s = load_sync_schedule(db, context.workspace.id)
     tz = sync_timezone()
     nxt = next_sync_run(datetime.now(timezone.utc), s["mode"], s["daily_time"],
                         s["interval_hours"], s["last_run"], tz)
@@ -41,9 +45,13 @@ def get_sync_schedule(db: Session = Depends(get_db)):
 
 
 @router.put("/sync-schedule")
-def put_sync_schedule(payload: SyncSchedule, db: Session = Depends(get_db)):
-    set_setting(db, SYNC_MODE_KEY, payload.mode)
-    set_setting(db, SYNC_DAILY_TIME_KEY, payload.daily_time)
-    set_setting(db, SYNC_INTERVAL_HOURS_KEY, str(payload.interval_hours))
+def put_sync_schedule(
+    payload: SyncSchedule,
+    db: Session = Depends(get_db),
+    context: RequestContext = Depends(get_request_context),
+):
+    set_workspace_setting(db, context.workspace.id, SYNC_MODE_KEY, payload.mode)
+    set_workspace_setting(db, context.workspace.id, SYNC_DAILY_TIME_KEY, payload.daily_time)
+    set_workspace_setting(db, context.workspace.id, SYNC_INTERVAL_HOURS_KEY, str(payload.interval_hours))
     db.commit()
-    return get_sync_schedule(db)
+    return get_sync_schedule(db, context)

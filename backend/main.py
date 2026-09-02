@@ -147,8 +147,11 @@ async def _periodic_loop(name: str, pass_fn, interval: int, initial_delay: int):
 @app.on_event("startup")
 async def _start_background_pollers():
     import asyncio as _asyncio
-    from routers.alerts import run_check
-    from jobs import autosync_tick, dividend_exdate_pass
+    from jobs import (
+        alert_check_all_workspaces,
+        autosync_all_workspaces,
+        dividend_notify_all_workspaces,
+    )
 
     schema_db = SessionLocal()
     try:
@@ -165,22 +168,22 @@ async def _start_background_pollers():
     if os.environ.get("ALERT_POLLER_ENABLED", "1") == "1":
         interval = _env_int("ALERT_CHECK_INTERVAL_SECONDS", 900)
         _BG_TASKS.append(_asyncio.create_task(
-            _periodic_loop("alerts", run_check, interval, initial_delay=interval)))
+            _periodic_loop("alerts", alert_check_all_workspaces, interval, initial_delay=interval)))
 
     if os.environ.get("BROKER_AUTOSYNC_ENABLED", "1") == "1":
-        # 60 s heartbeat: each tick asks jobs.autosync_tick whether the
-        # configured schedule is due; the sync itself runs only then. Short
-        # initial delay so a restart quickly catches up on a missed boundary
-        # (the persisted last-run makes early ticks safe).
+        # 60 s heartbeat: each tick asks jobs.autosync_all_workspaces whether
+        # each workspace's configured schedule is due; the sync itself runs
+        # only then. Short initial delay so a restart quickly catches up on a
+        # missed boundary (the persisted last-run makes early ticks safe).
         _BG_TASKS.append(_asyncio.create_task(
-            _periodic_loop("autosync", autosync_tick, interval=60, initial_delay=300)))
+            _periodic_loop("autosync", autosync_all_workspaces, interval=60, initial_delay=300)))
 
     if os.environ.get("DIVIDEND_NOTIFY_ENABLED", "1") == "1":
         interval = _env_int("DIVIDEND_NOTIFY_INTERVAL_SECONDS", 43200)
         lead = _env_int("DIVIDEND_NOTIFY_LEAD_DAYS", 3)
 
         async def _dividend_pass(db, _lead=lead):
-            return await dividend_exdate_pass(db, lead_days=_lead)
+            return await dividend_notify_all_workspaces(db, lead_days=_lead)
 
         # Short initial delay (not a full interval): a restart shouldn't be able
         # to skip today's ex-date check — the dedup table makes early runs safe.

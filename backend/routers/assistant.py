@@ -8,7 +8,8 @@ import httpx
 from database import get_db
 from models import Transaction, Portfolio
 from routers.portfolios import require_portfolio
-from app_settings import get_setting as _get_setting, set_setting as _set_setting
+from app_settings import get_user_setting, set_user_setting
+from tenancy import RequestContext, get_request_context
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 
@@ -40,19 +41,19 @@ def _key_preview(key: str) -> str:
 # Portfolio context
 # ---------------------------------------------------------------------------
 
-def _build_portfolio_context(db: Session, pid: int) -> str:
+def _build_portfolio_context(db: Session, portfolio: Portfolio) -> str:
     """Compact, DB-only snapshot of the active portfolio for the system prompt.
 
     Derived from transactions (cost basis, positions, recent activity) — no live
     market calls, so it stays fast. Mixed transaction currencies are shown as-is
     rather than converted.
     """
-    pf = db.query(Portfolio).filter(Portfolio.id == pid).first()
-    name = pf.name if pf else f"Portfolio {pid}"
+    name = portfolio.name
 
     txns = (
         db.query(Transaction)
-        .filter(Transaction.portfolio_id == pid)
+        .filter(Transaction.workspace_id == portfolio.workspace_id,
+                Transaction.portfolio_id == portfolio.id)
         .order_by(Transaction.date.asc())
         .all()
     )
@@ -195,9 +196,12 @@ class ConfigPayload(BaseModel):
 
 
 @router.get("/config")
-def get_config(db: Session = Depends(get_db)):
-    key = _get_setting(db, KEY_SETTING)
-    model = _get_setting(db, MODEL_SETTING) or DEFAULT_MODEL
+def get_config(
+    db: Session = Depends(get_db),
+    request_context: RequestContext = Depends(get_request_context),
+):
+    key = get_user_setting(db, request_context.user.id, KEY_SETTING)
+    model = get_user_setting(db, request_context.user.id, MODEL_SETTING) or DEFAULT_MODEL
     return {
         "configured": bool(key),
         "model": model,
@@ -206,7 +210,11 @@ def get_config(db: Session = Depends(get_db)):
 
 
 @router.put("/config")
-def save_config(payload: ConfigPayload, db: Session = Depends(get_db)):
+def save_config(
+    payload: ConfigPayload,
+    db: Session = Depends(get_db),
+    request_context: RequestContext = Depends(get_request_context),
+):
     api_key = payload.api_key.strip()
     if not api_key:
         raise HTTPException(status_code=400, detail="api_key is required")
@@ -215,16 +223,19 @@ def save_config(payload: ConfigPayload, db: Session = Depends(get_db)):
     if model not in ALLOWED_MODELS:
         model = DEFAULT_MODEL
 
-    _set_setting(db, KEY_SETTING, api_key)
-    _set_setting(db, MODEL_SETTING, model)
+    set_user_setting(db, request_context.user.id, KEY_SETTING, api_key)
+    set_user_setting(db, request_context.user.id, MODEL_SETTING, model)
     db.commit()
 
     return {"configured": True, "model": model, "key_preview": _key_preview(api_key)}
 
 
 @router.delete("/config")
-def delete_config(db: Session = Depends(get_db)):
-    _set_setting(db, KEY_SETTING, None)
+def delete_config(
+    db: Session = Depends(get_db),
+    request_context: RequestContext = Depends(get_request_context),
+):
+    set_user_setting(db, request_context.user.id, KEY_SETTING, None)
     db.commit()
     return {"configured": False}
 
@@ -246,12 +257,13 @@ class ChatRequest(BaseModel):
 async def chat(
     payload: ChatRequest,
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
+    request_context: RequestContext = Depends(get_request_context),
 ):
-    api_key = _get_setting(db, KEY_SETTING)
+    api_key = get_user_setting(db, request_context.user.id, KEY_SETTING)
     if not api_key:
         raise HTTPException(status_code=400, detail="DeepSeek API key not configured. Add it in the assistant settings.")
-    model = _get_setting(db, MODEL_SETTING) or DEFAULT_MODEL
+    model = get_user_setting(db, request_context.user.id, MODEL_SETTING) or DEFAULT_MODEL
 
     # Keep only valid user/assistant turns, most recent MAX_HISTORY.
     history = [
@@ -262,8 +274,8 @@ async def chat(
     if not history or history[-1]["role"] != "user":
         raise HTTPException(status_code=400, detail="The last message must be from the user.")
 
-    context = _build_portfolio_context(db, pid)
-    messages = [{"role": "system", "content": _system_prompt(context)}] + history
+    portfolio_context = _build_portfolio_context(db, portfolio)
+    messages = [{"role": "system", "content": _system_prompt(portfolio_context)}] + history
 
     content, usage = await _call_deepseek(api_key, model, messages)
     return {"reply": {"role": "assistant", "content": content}, "model": model, "usage": usage}

@@ -212,11 +212,15 @@ def portfolios_overview(
     asset_types: dict[str, float] = defaultdict(float)
 
     for portfolio in rows:
-        summary = get_summary(currency=currency, db=db, pid=portfolio.id)
+        # Task 6 moved routers.portfolio.get_summary / routers.analytics
+        # ._allocation_totals to take the authorized Portfolio object rather
+        # than a bare (tenant-unsafe) integer id -- these two calls are the
+        # only cross-router consumers of that interface change.
+        summary = get_summary(currency=currency, db=db, portfolio=portfolio)
         total_nw += summary.get("net_worth") or 0.0
         total_dc += summary.get("day_change") or 0.0
 
-        raw = _allocation_totals(db, portfolio.id, display_ccy)
+        raw = _allocation_totals(db, portfolio, display_ccy)
         for name, value in raw["sectors"].items():
             sectors[name] += value
         for name, value in raw["countries"].items():

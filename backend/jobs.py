@@ -1,16 +1,16 @@
 """Background job passes, driven by the periodic pollers in main.py.
 
-Each pass is a self-contained coroutine that takes a DB session and returns a
-summary list (empty when nothing happened) — the same shape the price-alert
-`run_check` uses, so main.py can run them all through one generic loop and the
+Each per-workspace pass is a self-contained coroutine that takes a DB session
+plus an explicit `workspace_id` and returns a summary list (empty when
+nothing happened) — the same shape the price-alert `run_check` uses, so
 tests can drive them synchronously with `asyncio.run`.
 
-Three passes live here:
+Three per-workspace passes live here:
 
 * :func:`autosync_tick` — the minutely scheduler gate around
   ``broker_autosync_pass``: reads the configured schedule (daily at HH:MM in
-  the local timezone, or every N hours) from the AppSetting table and runs
-  the pass only when due, persisting a last-run stamp so restarts and
+  the local timezone, or every N hours) from that workspace's settings and
+  runs the pass only when due, persisting a last-run stamp so restarts and
   downtime catch up instead of double- or never-running.
 * :func:`broker_autosync_pass` — syncs every broker connection whose
   ``auto_sync`` flag is on (Trading 212 and IBKR), and announces imports on the
@@ -21,6 +21,16 @@ Three passes live here:
   holdings and sends one digest per portfolio. A ``DividendNotification`` row
   per (portfolio, ticker, ex_date) guarantees each dividend is announced once,
   across ticks and restarts.
+
+None of the three ever scans across workspaces on their own -- each is a pure
+function of the `workspace_id` it's given, application-filtering every query
+by it. The actual customer-wide sweep the in-process pollers need is an
+*explicit* iteration owned by this module: :func:`autosync_all_workspaces`,
+:func:`dividend_notify_all_workspaces`, and :func:`alert_check_all_workspaces`
+enumerate every active workspace and reset the RLS context to it before
+invoking that workspace's tenant work, so a background job session (which,
+like a request session, runs under the RLS-forced `portfyl_runtime` role) can
+never see -- let alone act on -- another workspace's rows.
 """
 from __future__ import annotations
 
@@ -30,14 +40,22 @@ import os
 import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yfinance as yf
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app_settings import get_setting, set_setting
-from models import BrokerConnection, DiscordWebhook, DividendNotification, Transaction
+from app_settings import get_workspace_setting, set_workspace_setting
+from models import (
+    BrokerConnection,
+    DiscordWebhook,
+    DividendNotification,
+    Transaction,
+    Workspace,
+)
 from routers.discord import send_discord_notification
 from ticker_map import yf_symbol
 
@@ -124,19 +142,19 @@ def sync_timezone() -> ZoneInfo:
         return ZoneInfo("Europe/Prague")
 
 
-def load_sync_schedule(db: Session) -> dict:
-    """Schedule config from AppSetting rows; anything missing or invalid
-    silently falls back to the defaults (the poller must never crash on a
-    hand-edited row)."""
-    mode = get_setting(db, SYNC_MODE_KEY)
+def load_sync_schedule(db: Session, workspace_id: UUID) -> dict:
+    """This workspace's schedule config; anything missing or invalid silently
+    falls back to the defaults (the poller must never crash on a hand-edited
+    row)."""
+    mode = get_workspace_setting(db, workspace_id, SYNC_MODE_KEY)
     if mode not in ("daily", "interval"):
         mode = DEFAULT_SYNC_MODE
 
-    daily_time = get_setting(db, SYNC_DAILY_TIME_KEY) or DEFAULT_SYNC_DAILY_TIME
+    daily_time = get_workspace_setting(db, workspace_id, SYNC_DAILY_TIME_KEY) or DEFAULT_SYNC_DAILY_TIME
     if not _TIME_RE.match(daily_time):
         daily_time = DEFAULT_SYNC_DAILY_TIME
 
-    raw_hours = get_setting(db, SYNC_INTERVAL_HOURS_KEY)
+    raw_hours = get_workspace_setting(db, workspace_id, SYNC_INTERVAL_HOURS_KEY)
     try:
         interval_hours = int(raw_hours) if raw_hours else DEFAULT_SYNC_INTERVAL_HOURS
     except ValueError:
@@ -144,7 +162,7 @@ def load_sync_schedule(db: Session) -> dict:
     interval_hours = max(1, min(interval_hours, 168))
 
     last_run = None
-    raw_last = get_setting(db, SYNC_LAST_RUN_KEY)
+    raw_last = get_workspace_setting(db, workspace_id, SYNC_LAST_RUN_KEY)
     if raw_last:
         try:
             last_run = datetime.fromisoformat(raw_last)
@@ -157,23 +175,27 @@ def load_sync_schedule(db: Session) -> dict:
             "interval_hours": interval_hours, "last_run": last_run}
 
 
-def mark_sync_ran(db: Session, when: datetime) -> None:
-    set_setting(db, SYNC_LAST_RUN_KEY, when.isoformat())
+def mark_sync_ran(db: Session, workspace_id: UUID, when: datetime) -> None:
+    set_workspace_setting(db, workspace_id, SYNC_LAST_RUN_KEY, when.isoformat())
     db.commit()
 
 
 # -------- Broker auto-sync --------------------------------------------------
 
-async def broker_autosync_pass(db: Session) -> list[dict]:
-    """Sync every connection with auto_sync enabled. Returns one summary dict
-    per attempted connection ({portfolio_id, broker, ok, imported | error})."""
+async def broker_autosync_pass(db: Session, workspace_id: UUID) -> list[dict]:
+    """Sync every connection in `workspace_id` with auto_sync enabled. Returns
+    one summary dict per attempted connection
+    ({portfolio_id, broker, ok, imported | error})."""
     # Imported lazily: broker/ibkr import fx, market_data, httpx setup, etc.,
     # and jobs must stay importable in tests without that whole chain loading
     # at module import time.
     from routers.broker import sync_transactions
     from routers.ibkr import _run_ibkr_sync
 
-    conns = db.query(BrokerConnection).filter(BrokerConnection.auto_sync == True).all()  # noqa: E712
+    conns = db.query(BrokerConnection).filter(
+        BrokerConnection.workspace_id == workspace_id,
+        BrokerConnection.auto_sync == True,  # noqa: E712
+    ).all()
     results: list[dict] = []
     for conn in conns:
         summary = {"portfolio_id": conn.portfolio_id, "broker": conn.broker, "ok": True}
@@ -182,13 +204,17 @@ async def broker_autosync_pass(db: Session) -> list[dict]:
                 # sync_transactions is blocking (paginated httpx + yfinance
                 # split lookups) — run it in a worker thread to keep the event
                 # loop free, like alerts.run_check does for get_infos.
+                # BrokerConnection has no owner concept post-tenancy-migration
+                # (workspace_id is the tenant boundary now) -- "default" is the
+                # placeholder single-user value sync_transactions/_run_ibkr_sync
+                # still expect until Task 8 retires that parameter.
                 r = await asyncio.to_thread(
-                    sync_transactions, db, conn.portfolio_id, conn.owner_id or "default")
+                    sync_transactions, db, conn.portfolio_id, "default")
                 summary["imported"] = r.get("total_imported", 0)
                 detail = (f"{r.get('imported_orders', 0)} order(s), "
                           f"{r.get('imported_dividends', 0)} dividend(s)")
             elif conn.broker == "ibkr":
-                r = await _run_ibkr_sync(db, conn.portfolio_id, conn.owner_id or "default")
+                r = await _run_ibkr_sync(db, conn.portfolio_id, "default")
                 summary["imported"] = r.get("imported", 0)
                 detail = f"{r.get('imported', 0)} trade(s)"
             else:
@@ -203,7 +229,8 @@ async def broker_autosync_pass(db: Session) -> list[dict]:
 
         if summary.get("imported"):
             hook = (db.query(DiscordWebhook)
-                      .filter(DiscordWebhook.portfolio_id == conn.portfolio_id)
+                      .filter(DiscordWebhook.workspace_id == workspace_id,
+                              DiscordWebhook.portfolio_id == conn.portfolio_id)
                       .first())
             if hook and hook.notify_trades:
                 await send_discord_notification(
@@ -216,21 +243,21 @@ async def broker_autosync_pass(db: Session) -> list[dict]:
     return results
 
 
-async def autosync_tick(db: Session, now: datetime | None = None) -> list[dict]:
-    """One poller tick: run broker_autosync_pass iff the configured schedule
-    says a sync is due, then persist the run timestamp. Same (db) -> list shape
-    as the other passes so main.py's _periodic_loop drives it directly.
+async def autosync_tick(db: Session, workspace_id: UUID, now: datetime | None = None) -> list[dict]:
+    """One workspace's poller tick: run broker_autosync_pass iff that
+    workspace's configured schedule says a sync is due, then persist the run
+    timestamp for that workspace.
 
     If the pass raises, last_run is NOT advanced — the next tick retries
     (per-connection failures are already contained inside the pass, so a
     whole-pass exception means something systemic like a dead DB)."""
     now = now or datetime.now(timezone.utc)
-    s = load_sync_schedule(db)
+    s = load_sync_schedule(db, workspace_id)
     if not sync_due(now, s["mode"], s["daily_time"], s["interval_hours"],
                     s["last_run"], sync_timezone()):
         return []
-    results = await broker_autosync_pass(db)
-    mark_sync_ran(db, now)
+    results = await broker_autosync_pass(db, workspace_id)
+    mark_sync_ran(db, workspace_id, now)
     return results
 
 
@@ -355,13 +382,14 @@ def _next_dividend_info(symbol: str) -> dict[str, Any]:
 
 # -------- Dividend ex-date notifications ------------------------------------
 
-def _upcoming_dividends(db: Session, pid: int, today: date, lead_days: int) -> list[dict]:
+def _upcoming_dividends(db: Session, workspace_id: UUID, pid: int, today: date, lead_days: int) -> list[dict]:
     """Open holdings of `pid` whose next ex-date falls within [today, today+lead]."""
     # Lazy import for the same reason as above (portfolio pulls market_data).
     from routers.portfolio import _build_holdings
 
     txns = (db.query(Transaction)
-              .filter(Transaction.portfolio_id == pid)
+              .filter(Transaction.workspace_id == workspace_id,
+                      Transaction.portfolio_id == pid)
               .order_by(Transaction.date)
               .all())
     if not txns:
@@ -393,20 +421,23 @@ def _upcoming_dividends(db: Session, pid: int, today: date, lead_days: int) -> l
     return upcoming
 
 
-async def dividend_exdate_pass(db: Session, today: date | None = None,
+async def dividend_exdate_pass(db: Session, workspace_id: UUID, today: date | None = None,
                                lead_days: int = 3) -> list[dict]:
-    """Announce upcoming ex-dividend dates on each portfolio's Discord webhook.
-    Returns the items announced this pass (empty when everything was already
-    announced or nothing is upcoming)."""
+    """Announce upcoming ex-dividend dates on each of `workspace_id`'s
+    portfolios' Discord webhooks. Returns the items announced this pass
+    (empty when everything was already announced or nothing is upcoming)."""
     today = today or date.today()
-    hooks = db.query(DiscordWebhook).filter(DiscordWebhook.notify_dividends == True).all()  # noqa: E712
+    hooks = db.query(DiscordWebhook).filter(
+        DiscordWebhook.workspace_id == workspace_id,
+        DiscordWebhook.notify_dividends == True,  # noqa: E712
+    ).all()
 
     announced: list[dict] = []
     for hook in hooks:
         pid = hook.portfolio_id
         try:
             # Blocking yfinance I/O per holding — keep it off the event loop.
-            upcoming = await asyncio.to_thread(_upcoming_dividends, db, pid, today, lead_days)
+            upcoming = await asyncio.to_thread(_upcoming_dividends, db, workspace_id, pid, today, lead_days)
         except Exception as e:
             log.warning("dividend check failed for portfolio %s: %s", pid, e)
             continue
@@ -414,7 +445,8 @@ async def dividend_exdate_pass(db: Session, today: date | None = None,
         fresh = []
         for item in upcoming:
             dup = (db.query(DividendNotification)
-                     .filter(DividendNotification.portfolio_id == pid,
+                     .filter(DividendNotification.workspace_id == workspace_id,
+                             DividendNotification.portfolio_id == pid,
                              DividendNotification.ticker == item["ticker"],
                              DividendNotification.ex_date == item["ex_date"])
                      .first())
@@ -442,8 +474,80 @@ async def dividend_exdate_pass(db: Session, today: date | None = None,
             log.warning("dividend notification delivery failed for portfolio %s; will retry", pid)
             continue
         for item in fresh:
-            db.add(DividendNotification(portfolio_id=pid, ticker=item["ticker"],
-                                        ex_date=item["ex_date"]))
+            db.add(DividendNotification(workspace_id=workspace_id, portfolio_id=pid,
+                                        ticker=item["ticker"], ex_date=item["ex_date"]))
         db.commit()
         announced.extend({**i, "portfolio_id": pid, "ex_date": i["ex_date"].isoformat()} for i in fresh)
     return announced
+
+
+# -------- Explicit multi-workspace iteration (poller entry points) ---------
+# Background jobs run on a plain SessionLocal() session (see main.py) -- the
+# same RLS-forced `portfyl_runtime` role a request session uses. Unlike a
+# request, a job has no signed-in user or X-Workspace-ID header to derive a
+# workspace from, so *this* module owns the only place allowed to iterate
+# every tenant: each function below enumerates active workspaces explicitly,
+# resets the RLS context to exactly one of them, and only then invokes that
+# workspace's tenant work above. None of the per-workspace passes above ever
+# do this iteration themselves.
+
+
+def _active_workspace_ids(db: Session) -> list[UUID]:
+    """Every workspace a job pass should consider. Note: this one query is
+    necessarily a cross-tenant enumeration -- it's the sole intended
+    exception to "every query carries a workspace_id predicate" the rest of
+    this module (and the app) follows. It relies on the job's connection role
+    being able to see all workspace rows for this one SELECT (the runtime
+    request path never needs to, since a request always resolves to a single
+    member's workspace); provisioning that connection role is a deploy-time
+    concern (see docs/superpowers/plans -- the Cloud Run/Neon rollout task)
+    outside this module's scope."""
+    return list(db.scalars(
+        select(Workspace.id).where(Workspace.archived_at.is_(None))
+    ).all())
+
+
+def _set_job_workspace_context(db: Session, workspace_id: UUID) -> None:
+    """Scope this session to exactly one workspace for the duration of the
+    current transaction. Every table a job pass touches (price_alerts,
+    discord_webhooks, broker_connections, dividend_notifications,
+    transactions, workspace_settings) is RLS-gated on portfyl.workspace_id
+    only -- jobs have no authenticated user, so unlike
+    tenancy.get_request_context there is no portfyl.user_id to set."""
+    db.execute(
+        text("SELECT set_config('portfyl.workspace_id', :value, true)"),
+        {"value": str(workspace_id)},
+    )
+
+
+async def autosync_all_workspaces(db: Session, now: datetime | None = None) -> list[dict]:
+    """Poller entry point for broker auto-sync: explicit per-workspace tick
+    across every active workspace."""
+    results: list[dict] = []
+    for workspace_id in _active_workspace_ids(db):
+        _set_job_workspace_context(db, workspace_id)
+        results.extend(await autosync_tick(db, workspace_id, now=now))
+    return results
+
+
+async def dividend_notify_all_workspaces(db: Session, today: date | None = None,
+                                         lead_days: int = 3) -> list[dict]:
+    """Poller entry point for ex-dividend notifications: explicit per-workspace
+    pass across every active workspace."""
+    results: list[dict] = []
+    for workspace_id in _active_workspace_ids(db):
+        _set_job_workspace_context(db, workspace_id)
+        results.extend(await dividend_exdate_pass(db, workspace_id, today=today, lead_days=lead_days))
+    return results
+
+
+async def alert_check_all_workspaces(db: Session) -> list[dict]:
+    """Poller entry point for price alerts: explicit per-workspace check
+    across every active workspace."""
+    from routers.alerts import run_check  # lazy: avoids importing market_data/discord at module load
+
+    results: list[dict] = []
+    for workspace_id in _active_workspace_ids(db):
+        _set_job_workspace_context(db, workspace_id)
+        results.extend(await run_check(db, workspace_id))
+    return results

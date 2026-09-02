@@ -6,20 +6,27 @@ endpoint and the background poller started in main.py — both call the same
 coroutine so behaviour is identical whether a human or the scheduler triggers it.
 An alert flips to `triggered` when it fires and won't re-fire until reset, so a
 price that sits past the threshold doesn't spam the channel.
+
+`run_check` always requires an explicit `workspace_id`: it is a pure function
+of that one workspace's alerts and never scans across tenants on its own. The
+background poller's cross-tenant sweep is an explicit workspace-by-workspace
+iteration owned by jobs.alert_check_all_workspaces, not by this function.
 """
 from __future__ import annotations
 
 import asyncio
 from datetime import datetime
 from typing import Optional, List
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import market_data
 from database import get_db
-from models import PriceAlert
+from models import Portfolio, PriceAlert
 from routers.portfolios import require_portfolio
 from routers.discord import send_discord_notification
 
@@ -51,7 +58,7 @@ class AlertUpdate(BaseModel):
 
 def _serialize(a: PriceAlert, price: float | None = None) -> dict:
     return {
-        "id": a.id,
+        "id": str(a.public_id),
         "ticker": a.ticker,
         "direction": a.direction,
         "target_price": a.target_price,
@@ -69,16 +76,33 @@ def _crossed(direction: str, price: float, target: float) -> bool:
     return price >= target if direction == "above" else price <= target
 
 
-# -------- Shared check logic ----------------------------------------------
+def _find_alert(db: Session, portfolio: Portfolio, alert_id: UUID) -> PriceAlert:
+    a = db.scalar(
+        select(PriceAlert).where(
+            PriceAlert.workspace_id == portfolio.workspace_id,
+            PriceAlert.portfolio_id == portfolio.id,
+            PriceAlert.public_id == alert_id,
+        )
+    )
+    if not a:
+        raise HTTPException(404, "Alert not found")
+    return a
 
-async def run_check(db: Session, pid: int | None = None) -> list[dict]:
-    """Evaluate every armed (`enabled` + `active`) alert against the live price.
-    Fires a Discord notification per crossing and marks the alert `triggered`.
-    When `pid` is None, checks all portfolios (used by the background poller).
-    Returns a summary of the alerts that fired this run."""
-    q = db.query(PriceAlert).filter(PriceAlert.enabled == True, PriceAlert.status == "active")  # noqa: E712
-    if pid is not None:
-        q = q.filter(PriceAlert.portfolio_id == pid)
+
+# -------- Shared check logic ------------------------------------------------
+
+async def run_check(db: Session, workspace_id: UUID, portfolio_id: int | None = None) -> list[dict]:
+    """Evaluate every armed (`enabled` + `active`) alert in `workspace_id`
+    against the live price. Fires a Discord notification per crossing and
+    marks the alert `triggered`. When `portfolio_id` is None, checks every
+    portfolio in that one workspace (never other workspaces — see the module
+    docstring). Returns a summary of the alerts that fired this run."""
+    q = db.query(PriceAlert).filter(
+        PriceAlert.workspace_id == workspace_id,
+        PriceAlert.enabled == True, PriceAlert.status == "active",  # noqa: E712
+    )
+    if portfolio_id is not None:
+        q = q.filter(PriceAlert.portfolio_id == portfolio_id)
     alerts = q.all()
     if not alerts:
         return []
@@ -121,10 +145,11 @@ async def run_check(db: Session, pid: int | None = None) -> list[dict]:
 # -------- Endpoints --------------------------------------------------------
 
 @router.get("")
-def list_alerts(db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
+def list_alerts(db: Session = Depends(get_db), portfolio: Portfolio = Depends(require_portfolio)):
     """All alerts for the active portfolio, annotated with the live price."""
     alerts = (db.query(PriceAlert)
-                .filter(PriceAlert.portfolio_id == pid)
+                .filter(PriceAlert.workspace_id == portfolio.workspace_id,
+                        PriceAlert.portfolio_id == portfolio.id)
                 .order_by(PriceAlert.created_at.desc())
                 .all())
     prices: dict[str, float] = {}
@@ -137,9 +162,10 @@ def list_alerts(db: Session = Depends(get_db), pid: int = Depends(require_portfo
 
 
 @router.post("")
-def create_alert(body: AlertCreate, db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
+def create_alert(body: AlertCreate, db: Session = Depends(get_db), portfolio: Portfolio = Depends(require_portfolio)):
     a = PriceAlert(
-        portfolio_id=pid,
+        workspace_id=portfolio.workspace_id,
+        portfolio_id=portfolio.id,
         ticker=body.ticker.strip().upper(),
         direction=body.direction,
         target_price=body.target_price,
@@ -153,11 +179,9 @@ def create_alert(body: AlertCreate, db: Session = Depends(get_db), pid: int = De
     return _serialize(a)
 
 
-@router.patch("/{alert_id:int}")
-def update_alert(alert_id: int, body: AlertUpdate, db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
-    a = db.query(PriceAlert).filter(PriceAlert.id == alert_id, PriceAlert.portfolio_id == pid).first()
-    if not a:
-        raise HTTPException(404, "Alert not found")
+@router.patch("/{alert_id}")
+def update_alert(alert_id: UUID, body: AlertUpdate, db: Session = Depends(get_db), portfolio: Portfolio = Depends(require_portfolio)):
+    a = _find_alert(db, portfolio, alert_id)
     if body.direction is not None:
         a.direction = body.direction
     if body.target_price is not None:
@@ -177,19 +201,17 @@ def update_alert(alert_id: int, body: AlertUpdate, db: Session = Depends(get_db)
     return _serialize(a)
 
 
-@router.delete("/{alert_id:int}")
-def delete_alert(alert_id: int, db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
-    a = db.query(PriceAlert).filter(PriceAlert.id == alert_id, PriceAlert.portfolio_id == pid).first()
-    if not a:
-        raise HTTPException(404, "Alert not found")
+@router.delete("/{alert_id}")
+def delete_alert(alert_id: UUID, db: Session = Depends(get_db), portfolio: Portfolio = Depends(require_portfolio)):
+    a = _find_alert(db, portfolio, alert_id)
     db.delete(a)
     db.commit()
-    return {"ok": True, "deleted_id": alert_id}
+    return {"ok": True, "deleted_id": str(alert_id)}
 
 
 @router.post("/check")
-async def check_now(db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
+async def check_now(db: Session = Depends(get_db), portfolio: Portfolio = Depends(require_portfolio)):
     """Manually evaluate this portfolio's alerts right now (same logic as the
     background poller). Returns the alerts that fired."""
-    fired = await run_check(db, pid)
+    fired = await run_check(db, portfolio.workspace_id, portfolio.id)
     return {"checked": True, "fired": fired}
