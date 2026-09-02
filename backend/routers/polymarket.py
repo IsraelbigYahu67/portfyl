@@ -5,8 +5,8 @@ import httpx
 import re
 
 from database import get_db
-from models import BrokerConnection, PolymarketPosition
-from routers.portfolios import require_portfolio
+from models import BrokerConnection, PolymarketPosition, Portfolio
+from tenancy import RequestContext, require_csrf, require_portfolio
 
 router = APIRouter(tags=["polymarket"])
 
@@ -15,11 +15,22 @@ DATA_API_BASE = "https://data-api.polymarket.com"
 WALLET_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
 
 
-def _get_poly_connection(db: Session, pid: int) -> BrokerConnection | None:
+def _get_poly_connection(db: Session, portfolio: Portfolio) -> BrokerConnection | None:
     return (
         db.query(BrokerConnection)
-        .filter(BrokerConnection.broker == "polymarket", BrokerConnection.portfolio_id == pid)
+        .filter(
+            BrokerConnection.workspace_id == portfolio.workspace_id,
+            BrokerConnection.broker == "polymarket",
+            BrokerConnection.portfolio_id == portfolio.id,
+        )
         .first()
+    )
+
+
+def _portfolio_positions(db: Session, portfolio: Portfolio):
+    return db.query(PolymarketPosition).filter(
+        PolymarketPosition.workspace_id == portfolio.workspace_id,
+        PolymarketPosition.portfolio_id == portfolio.id,
     )
 
 
@@ -30,7 +41,8 @@ def _get_poly_connection(db: Session, pid: int) -> BrokerConnection | None:
 async def connect(
     payload: dict,
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
+    _context: RequestContext = Depends(require_csrf),
 ):
     address = (payload.get("address") or "").strip().lower()
 
@@ -51,23 +63,30 @@ async def connect(
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Could not reach Polymarket API: {e}")
 
-    # Store wallet address in api_key field
-    existing = _get_poly_connection(db, pid)
-    if existing:
-        existing.api_key = address
-        existing.api_secret = None
-        existing.last_synced_at = None
+    connection = _get_poly_connection(db, portfolio)
+    if connection:
+        connection.api_key = address
+        connection.api_secret = None
+        connection.last_synced_at = None
     else:
-        db.add(BrokerConnection(
+        connection = BrokerConnection(
+            workspace_id=portfolio.workspace_id,
+            portfolio_id=portfolio.id,
             broker="polymarket",
             api_key=address,
             api_secret=None,
             environment="live",
-            portfolio_id=pid,
-        ))
+        )
+        db.add(connection)
+    db.flush()
+    result = {
+        "connected": True,
+        "id": str(connection.public_id),
+        "portfolio_id": str(portfolio.public_id),
+        "message": "Connected to Polymarket",
+    }
     db.commit()
-
-    return {"connected": True, "message": "Connected to Polymarket"}
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -76,17 +95,19 @@ async def connect(
 @router.get("/broker/polymarket/status")
 def get_status(
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    conn = _get_poly_connection(db, pid)
+    conn = _get_poly_connection(db, portfolio)
     if not conn:
-        return {"connected": False}
+        return {"connected": False, "portfolio_id": str(portfolio.public_id)}
 
     address = conn.api_key or ""
     address_preview = f"{address[:6]}...{address[-4:]}" if len(address) > 10 else address
 
     return {
         "connected": True,
+        "id": str(conn.public_id),
+        "portfolio_id": str(portfolio.public_id),
         "last_synced_at": conn.last_synced_at.isoformat() if conn.last_synced_at else None,
         "address_preview": address_preview,
         "connected_at": conn.created_at.isoformat() if conn.created_at else None,
@@ -99,9 +120,10 @@ def get_status(
 @router.delete("/broker/polymarket/connect")
 def disconnect(
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
+    _context: RequestContext = Depends(require_csrf),
 ):
-    conn = _get_poly_connection(db, pid)
+    conn = _get_poly_connection(db, portfolio)
     if not conn:
         raise HTTPException(status_code=404, detail="No Polymarket connection found")
     db.delete(conn)
@@ -115,9 +137,10 @@ def disconnect(
 @router.post("/broker/polymarket/sync")
 async def sync_positions(
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
+    _context: RequestContext = Depends(require_csrf),
 ):
-    conn = _get_poly_connection(db, pid)
+    conn = _get_poly_connection(db, portfolio)
     if not conn:
         raise HTTPException(status_code=404, detail="Polymarket is not connected")
 
@@ -193,7 +216,7 @@ async def sync_positions(
     updated = 0
 
     # Clear old positions for this portfolio and rebuild from trades
-    db.query(PolymarketPosition).filter(PolymarketPosition.portfolio_id == pid).delete()
+    _portfolio_positions(db, portfolio).delete(synchronize_session=False)
 
     for agg in groups.values():
         buys = agg["buys"]
@@ -240,7 +263,8 @@ async def sync_positions(
                 pnl = round((current_price - avg_buy) * remaining, 4)
 
         db.add(PolymarketPosition(
-            portfolio_id=pid,
+            workspace_id=portfolio.workspace_id,
+            portfolio_id=portfolio.id,
             condition_id=agg["condition_id"],
             asset_id=agg["asset_id"],
             market_slug=agg["market_slug"],
@@ -268,24 +292,25 @@ async def sync_positions(
 @router.get("/polymarket/positions")
 def get_positions(
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
     open_positions = (
-        db.query(PolymarketPosition)
-        .filter(PolymarketPosition.portfolio_id == pid, PolymarketPosition.status == "open")
+        _portfolio_positions(db, portfolio)
+        .filter(PolymarketPosition.status == "open")
         .order_by(PolymarketPosition.pnl.desc())
         .all()
     )
     resolved_positions = (
-        db.query(PolymarketPosition)
-        .filter(PolymarketPosition.portfolio_id == pid, PolymarketPosition.status != "open")
+        _portfolio_positions(db, portfolio)
+        .filter(PolymarketPosition.status != "open")
         .order_by(PolymarketPosition.updated_at.desc())
         .all()
     )
 
     def serialize(p: PolymarketPosition) -> dict:
         return {
-            "id": p.id,
+            "id": str(p.public_id),
+            "portfolio_id": str(portfolio.public_id),
             "condition_id": p.condition_id,
             "asset_id": p.asset_id,
             "market_slug": p.market_slug,
@@ -312,13 +337,9 @@ def get_positions(
 @router.get("/polymarket/summary")
 def get_summary(
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    positions = (
-        db.query(PolymarketPosition)
-        .filter(PolymarketPosition.portfolio_id == pid)
-        .all()
-    )
+    positions = _portfolio_positions(db, portfolio).all()
 
     total_pnl = 0.0
     unrealized_pnl = 0.0

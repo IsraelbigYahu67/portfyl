@@ -1,26 +1,19 @@
 from datetime import date, timedelta
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, asc, case
+from sqlalchemy import desc, case
 
-from database import SessionLocal
-from models import OptionsTrade
+from database import get_db
+from models import OptionsTrade, Portfolio
+from tenancy import require_portfolio
 
 router = APIRouter(prefix="/options", tags=["options"])
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-def serialize_trade(trade: OptionsTrade) -> dict:
+def serialize_trade(trade: OptionsTrade, portfolio: Portfolio) -> dict:
     return {
-        "id": trade.id,
-        "portfolio_id": trade.portfolio_id,
+        "id": str(trade.public_id),
+        "portfolio_id": str(portfolio.public_id),
         "underlying": trade.underlying,
         "strike": trade.strike,
         "expiry": str(trade.expiry) if trade.expiry else None,
@@ -42,13 +35,20 @@ def serialize_trade(trade: OptionsTrade) -> dict:
     }
 
 
+def _portfolio_trades(db: Session, portfolio: Portfolio):
+    return db.query(OptionsTrade).filter(
+        OptionsTrade.workspace_id == portfolio.workspace_id,
+        OptionsTrade.portfolio_id == portfolio.id,
+    )
+
+
 @router.get("/trades")
 def get_trades(
-    portfolio_id: int = Query(...),
     source: str = None,
     db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    query = db.query(OptionsTrade).filter(OptionsTrade.portfolio_id == portfolio_id)
+    query = _portfolio_trades(db, portfolio)
 
     if source:
         query = query.filter(OptionsTrade.source == source)
@@ -61,19 +61,15 @@ def get_trades(
     )
 
     trades = query.all()
-    return [serialize_trade(t) for t in trades]
+    return [serialize_trade(t, portfolio) for t in trades]
 
 
 @router.get("/summary")
 def get_summary(
-    portfolio_id: int = Query(...),
     db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    trades = (
-        db.query(OptionsTrade)
-        .filter(OptionsTrade.portfolio_id == portfolio_id)
-        .all()
-    )
+    trades = _portfolio_trades(db, portfolio).all()
 
     total_trades = len(trades)
     trades_with_pnl = [t for t in trades if t.pnl is not None]
@@ -102,14 +98,10 @@ def get_summary(
 
 @router.get("/by-underlying")
 def get_by_underlying(
-    portfolio_id: int = Query(...),
     db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    trades = (
-        db.query(OptionsTrade)
-        .filter(OptionsTrade.portfolio_id == portfolio_id)
-        .all()
-    )
+    trades = _portfolio_trades(db, portfolio).all()
 
     # Group by underlying
     groups: dict[str, list[OptionsTrade]] = {}
@@ -130,7 +122,7 @@ def get_by_underlying(
             "total_commission": total_commission,
             "win_rate": win_rate,
             "trade_count": len(group_trades),
-            "trades": [serialize_trade(t) for t in group_trades],
+            "trades": [serialize_trade(t, portfolio) for t in group_trades],
         })
 
     # Sort by total_pnl descending
@@ -140,14 +132,12 @@ def get_by_underlying(
 
 @router.get("/calendar")
 def get_calendar(
-    portfolio_id: int = Query(...),
     period: str = None,
     db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    query = (
-        db.query(OptionsTrade)
-        .filter(OptionsTrade.portfolio_id == portfolio_id)
-        .filter(OptionsTrade.close_date.isnot(None))
+    query = _portfolio_trades(db, portfolio).filter(
+        OptionsTrade.close_date.isnot(None)
     )
 
     # Apply period filter

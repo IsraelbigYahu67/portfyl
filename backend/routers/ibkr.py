@@ -3,15 +3,16 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from datetime import datetime, date
 from collections import defaultdict
+from uuid import UUID
 import asyncio
 import json
 import httpx
 import xml.etree.ElementTree as ET
 
 from database import get_db
-from models import BrokerConnection, OptionsTrade, BrokerBalance
-from routers.portfolios import require_portfolio
-from auth import get_current_user, check_scheduler_token, DEFAULT_OWNER_ID
+from models import BrokerConnection, OptionsTrade, BrokerBalance, Portfolio
+from tenancy import RequestContext, require_csrf, require_portfolio
+from auth import check_scheduler_token
 
 router = APIRouter(prefix="/broker/ibkr", tags=["ibkr"])
 
@@ -25,10 +26,26 @@ FLEX_GET_URL = (
 )
 
 
-def _get_ibkr_connection(db: Session, pid: int) -> BrokerConnection | None:
+def _get_ibkr_connection(db: Session, portfolio: Portfolio) -> BrokerConnection | None:
     return (
         db.query(BrokerConnection)
-        .filter(BrokerConnection.broker == "ibkr", BrokerConnection.portfolio_id == pid)
+        .filter(
+            BrokerConnection.workspace_id == portfolio.workspace_id,
+            BrokerConnection.broker == "ibkr",
+            BrokerConnection.portfolio_id == portfolio.id,
+        )
+        .first()
+    )
+
+
+def _get_ibkr_balance(db: Session, portfolio: Portfolio) -> BrokerBalance | None:
+    return (
+        db.query(BrokerBalance)
+        .filter(
+            BrokerBalance.workspace_id == portfolio.workspace_id,
+            BrokerBalance.broker == "ibkr",
+            BrokerBalance.portfolio_id == portfolio.id,
+        )
         .first()
     )
 
@@ -314,15 +331,15 @@ def _parse_balance(xml_text: str) -> dict | None:
     }
 
 
-def _upsert_balance(db: Session, pid: int, bal: dict, owner: str) -> None:
+def _upsert_balance(db: Session, portfolio: Portfolio, bal: dict) -> None:
     """Store (or refresh) the latest IBKR balance snapshot for a portfolio."""
-    row = (
-        db.query(BrokerBalance)
-        .filter(BrokerBalance.broker == "ibkr", BrokerBalance.portfolio_id == pid)
-        .first()
-    )
+    row = _get_ibkr_balance(db, portfolio)
     if row is None:
-        row = BrokerBalance(broker="ibkr", portfolio_id=pid, owner_id=owner)
+        row = BrokerBalance(
+            workspace_id=portfolio.workspace_id,
+            portfolio_id=portfolio.id,
+            broker="ibkr",
+        )
         db.add(row)
 
     row.base_currency = bal.get("base_currency")
@@ -338,8 +355,8 @@ def _upsert_balance(db: Session, pid: int, bal: dict, owner: str) -> None:
 async def connect(
     payload: dict,
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
-    owner: str = Depends(get_current_user),
+    portfolio: Portfolio = Depends(require_portfolio),
+    _context: RequestContext = Depends(require_csrf),
 ):
     flex_token = payload.get("flex_token", "").strip()
     query_id = payload.get("query_id", "").strip()
@@ -349,7 +366,6 @@ async def connect(
     if not query_id:
         raise HTTPException(status_code=400, detail="query_id is required")
 
-    # Validate by making a test SendRequest
     try:
         await _send_flex_request(flex_token, query_id)
     except HTTPException:
@@ -357,34 +373,40 @@ async def connect(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Could not validate IBKR credentials: {e}")
 
-    # Store or update connection
-    existing = _get_ibkr_connection(db, pid)
-    if existing:
-        existing.api_key = flex_token
-        existing.api_secret = query_id
-        existing.last_synced_at = None
+    connection = _get_ibkr_connection(db, portfolio)
+    if connection:
+        connection.api_key = flex_token
+        connection.api_secret = query_id
+        connection.last_synced_at = None
     else:
-        db.add(BrokerConnection(
+        connection = BrokerConnection(
+            workspace_id=portfolio.workspace_id,
+            portfolio_id=portfolio.id,
             broker="ibkr",
             api_key=flex_token,
             api_secret=query_id,
             environment="live",
-            portfolio_id=pid,
-            owner_id=owner,
-        ))
+        )
+        db.add(connection)
+    db.flush()
+    result = {
+        "connected": True,
+        "id": str(connection.public_id),
+        "portfolio_id": str(portfolio.public_id),
+        "message": "Connected to IBKR Flex Web Service",
+    }
     db.commit()
-
-    return {"connected": True, "message": "Connected to IBKR Flex Web Service"}
+    return result
 
 
 @router.get("/status")
 def get_status(
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
-    conn = _get_ibkr_connection(db, pid)
+    conn = _get_ibkr_connection(db, portfolio)
     if not conn:
-        return {"connected": False}
+        return {"connected": False, "portfolio_id": str(portfolio.public_id)}
 
     token_preview = ""
     if conn.api_key and len(conn.api_key) > 8:
@@ -394,6 +416,8 @@ def get_status(
 
     return {
         "connected": True,
+        "id": str(conn.public_id),
+        "portfolio_id": str(portfolio.public_id),
         "auto_sync": conn.auto_sync,
         "last_synced_at": conn.last_synced_at.isoformat() if conn.last_synced_at else None,
         "token_preview": token_preview,
@@ -405,11 +429,11 @@ def get_status(
 def set_auto_sync(
     payload: dict,
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
+    _context: RequestContext = Depends(require_csrf),
 ):
-    """Toggle background auto-sync for this portfolio's IBKR connection. The
-    poller in main.py only syncs connections that opted in here."""
-    conn = _get_ibkr_connection(db, pid)
+    """Toggle background auto-sync for this portfolio's IBKR connection."""
+    conn = _get_ibkr_connection(db, portfolio)
     if not conn:
         raise HTTPException(status_code=404, detail="IBKR is not connected")
     conn.auto_sync = bool(payload.get("enabled"))
@@ -420,7 +444,7 @@ def set_auto_sync(
 @router.get("/balance")
 def get_balance(
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
 ):
     """Return the latest stored IBKR balance snapshot for the active portfolio.
 
@@ -428,17 +452,21 @@ def get_balance(
     because Flex requests are rate-limited. `balance` is null until the first
     sync that includes the NAV / Cash Report sections.
     """
-    conn = _get_ibkr_connection(db, pid)
+    conn = _get_ibkr_connection(db, portfolio)
     if not conn:
-        return {"connected": False, "balance": None}
+        return {
+            "connected": False,
+            "portfolio_id": str(portfolio.public_id),
+            "balance": None,
+        }
 
-    row = (
-        db.query(BrokerBalance)
-        .filter(BrokerBalance.broker == "ibkr", BrokerBalance.portfolio_id == pid)
-        .first()
-    )
+    row = _get_ibkr_balance(db, portfolio)
     if row is None:
-        return {"connected": True, "balance": None}
+        return {
+            "connected": True,
+            "portfolio_id": str(portfolio.public_id),
+            "balance": None,
+        }
 
     try:
         cash_by_currency = json.loads(row.cash_by_currency) if row.cash_by_currency else {}
@@ -447,7 +475,10 @@ def get_balance(
 
     return {
         "connected": True,
+        "portfolio_id": str(portfolio.public_id),
         "balance": {
+            "id": str(row.public_id),
+            "portfolio_id": str(portfolio.public_id),
             "base_currency": row.base_currency,
             "cash": row.cash,
             "stock": row.stock,
@@ -463,25 +494,35 @@ def get_balance(
 @router.delete("/connect")
 def disconnect(
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
+    portfolio: Portfolio = Depends(require_portfolio),
+    _context: RequestContext = Depends(require_csrf),
 ):
-    conn = _get_ibkr_connection(db, pid)
+    conn = _get_ibkr_connection(db, portfolio)
     if not conn:
         raise HTTPException(status_code=404, detail="No IBKR connection found")
     db.delete(conn)
     db.query(BrokerBalance).filter(
-        BrokerBalance.broker == "ibkr", BrokerBalance.portfolio_id == pid
+        BrokerBalance.workspace_id == portfolio.workspace_id,
+        BrokerBalance.broker == "ibkr",
+        BrokerBalance.portfolio_id == portfolio.id,
     ).delete(synchronize_session=False)
     db.commit()
     return {"ok": True, "message": "Disconnected from IBKR"}
 
 
-async def _run_ibkr_sync(db: Session, pid: int, owner: str) -> dict:
-    """Core IBKR Flex sync for one portfolio. Shared by the user-facing /sync
-    endpoint and the token-protected scheduler endpoint below; preserves the
-    existing poll/retry/timeout behaviour and status codes (404 not connected,
-    502 Flex error, 504 timeout)."""
-    conn = _get_ibkr_connection(db, pid)
+async def _run_ibkr_sync(
+    db: Session,
+    workspace_id: UUID,
+    portfolio_id: int,
+) -> dict:
+    """Core IBKR Flex sync for one explicitly scoped workspace portfolio."""
+    portfolio = db.query(Portfolio).filter(
+        Portfolio.workspace_id == workspace_id,
+        Portfolio.id == portfolio_id,
+    ).first()
+    if portfolio is None:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    conn = _get_ibkr_connection(db, portfolio)
     if not conn:
         raise HTTPException(status_code=404, detail="IBKR is not connected")
 
@@ -525,13 +566,17 @@ async def _run_ibkr_sync(db: Session, pid: int, owner: str) -> dict:
     except Exception:
         bal = None
     if bal is not None:
-        _upsert_balance(db, pid, bal, owner)
+        _upsert_balance(db, portfolio, bal)
         balance_found = True
 
     # Phase 5: Load existing trades for dedup/update
     existing_rows = (
         db.query(OptionsTrade)
-        .filter(OptionsTrade.portfolio_id == pid, OptionsTrade.source == "ibkr")
+        .filter(
+            OptionsTrade.workspace_id == workspace_id,
+            OptionsTrade.portfolio_id == portfolio_id,
+            OptionsTrade.source == "ibkr",
+        )
         .all()
     )
     existing_map: dict[tuple, OptionsTrade] = {}
@@ -574,8 +619,8 @@ async def _run_ibkr_sync(db: Session, pid: int, owner: str) -> dict:
 
         try:
             db.add(OptionsTrade(
-                portfolio_id=pid,
-                owner_id=owner,
+                workspace_id=workspace_id,
+                portfolio_id=portfolio_id,
                 underlying=trade["underlying"],
                 strike=trade["strike"],
                 expiry=trade["expiry"],
@@ -612,11 +657,11 @@ async def _run_ibkr_sync(db: Session, pid: int, owner: str) -> dict:
 @router.post("/sync")
 async def sync_trades(
     db: Session = Depends(get_db),
-    pid: int = Depends(require_portfolio),
-    owner: str = Depends(get_current_user),
+    portfolio: Portfolio = Depends(require_portfolio),
+    _context: RequestContext = Depends(require_csrf),
 ):
-    """User-facing IBKR sync (browser session): syncs the active portfolio."""
-    return await _run_ibkr_sync(db, pid, owner)
+    """User-facing IBKR sync for the authorized portfolio."""
+    return await _run_ibkr_sync(db, portfolio.workspace_id, portfolio.id)
 
 
 @router.post("/scheduler-sync", include_in_schema=False)
@@ -625,49 +670,70 @@ async def scheduler_sync(
     x_scheduler_token: str | None = Header(default=None),
     token: str | None = Query(default=None),
 ):
-    """Machine entrypoint for Cloud Scheduler. Bypasses the password-gate
-    middleware (its path is listed in main._PUBLIC_PATHS) and authenticates with
-    a constant-time SCHEDULER_TOKEN check instead of the session cookie. Syncs
-    every IBKR connection that has auto-sync enabled in Settings — the same
-    per-connection opt-in the in-process poller honors, so turning the toggle
-    off actually stops background syncing on scheduler deployments too. 403 on
-    a bad/absent token; Flex failures surface via status code (502 / 504) so
-    the scheduler can detect them; 200 only when every connection synced
-    cleanly."""
+    """Machine entrypoint that explicitly iterates tenant workspaces."""
     if not check_scheduler_token(x_scheduler_token or token or ""):
         raise HTTPException(status_code=403, detail="Invalid or missing scheduler token")
 
-    conns = (
-        db.query(BrokerConnection)
-        .filter(BrokerConnection.broker == "ibkr",
-                BrokerConnection.owner_id == DEFAULT_OWNER_ID,
-                BrokerConnection.auto_sync == True)  # noqa: E712
-        .all()
-    )
-    if not conns:
-        return {"status": "ok", "message": "no auto-sync-enabled IBKR connection to sync",
-                "results": []}
+    from jobs import _active_workspace_ids, _set_job_workspace_context
+
+    targets: list[tuple[UUID, int, UUID]] = []
+    for workspace_id in _active_workspace_ids(db):
+        _set_job_workspace_context(db, workspace_id)
+        rows = (
+            db.query(BrokerConnection, Portfolio.public_id)
+            .join(
+                Portfolio,
+                (Portfolio.workspace_id == BrokerConnection.workspace_id)
+                & (Portfolio.id == BrokerConnection.portfolio_id),
+            )
+            .filter(
+                BrokerConnection.workspace_id == workspace_id,
+                BrokerConnection.broker == "ibkr",
+                BrokerConnection.auto_sync.is_(True),
+            )
+            .all()
+        )
+        targets.extend(
+            (workspace_id, connection.portfolio_id, public_id)
+            for connection, public_id in rows
+        )
+
+    if not targets:
+        return {
+            "status": "ok",
+            "message": "no auto-sync-enabled IBKR connection to sync",
+            "results": [],
+        }
 
     results = []
     had_timeout = False
     had_error = False
-    for conn in conns:
+    for workspace_id, portfolio_id, portfolio_public_id in targets:
+        _set_job_workspace_context(db, workspace_id)
         try:
-            r = await _run_ibkr_sync(db, conn.portfolio_id, DEFAULT_OWNER_ID)
-            results.append({"portfolio_id": conn.portfolio_id, "ok": True, **r})
+            result = await _run_ibkr_sync(db, workspace_id, portfolio_id)
+            results.append({
+                "portfolio_id": str(portfolio_public_id),
+                "ok": True,
+                **result,
+            })
         except HTTPException as exc:
             if exc.status_code == 504:
                 had_timeout = True
             else:
                 had_error = True
-            results.append({"portfolio_id": conn.portfolio_id, "ok": False,
-                            "status_code": exc.status_code, "detail": exc.detail})
+            results.append({
+                "portfolio_id": str(portfolio_public_id),
+                "ok": False,
+                "status_code": exc.status_code,
+                "detail": exc.detail,
+            })
 
     status_code = 504 if had_timeout else (502 if had_error else 200)
     return JSONResponse(
         {
             "status": "ok" if status_code == 200 else "error",
-            "synced": sum(1 for x in results if x.get("ok")),
+            "synced": sum(1 for row in results if row.get("ok")),
             "results": results,
         },
         status_code=status_code,

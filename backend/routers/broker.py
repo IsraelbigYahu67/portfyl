@@ -9,8 +9,7 @@ import yfinance as yf
 from database import get_db
 from fx import bulk_fetch_fx
 from models import BrokerConnection, Portfolio, Transaction
-from routers.portfolios import require_portfolio
-from auth import get_current_user
+from tenancy import RequestContext, require_csrf, require_portfolio
 from cash_ledger import CASH_TYPES
 
 router = APIRouter(prefix="/broker", tags=["broker"])
@@ -188,22 +187,30 @@ def _drop_corporate_action_pairs(db: Session, txns_by_ticker: dict) -> int:
     return removed
 
 
-def _get_connection(db: Session, pid: int) -> BrokerConnection | None:
+def _get_connection(db: Session, portfolio: Portfolio) -> BrokerConnection | None:
     return (
         db.query(BrokerConnection)
-        .filter(BrokerConnection.broker == "trading212", BrokerConnection.portfolio_id == pid)
+        .filter(
+            BrokerConnection.workspace_id == portfolio.workspace_id,
+            BrokerConnection.broker == "trading212",
+            BrokerConnection.portfolio_id == portfolio.id,
+        )
         .first()
     )
 
 
 @router.get("/trading212/status")
-def get_status(db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
-    conn = _get_connection(db, pid)
+def get_status(
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+):
+    conn = _get_connection(db, portfolio)
     if not conn:
-        return {"connected": False, "portfolio_id": pid}
+        return {"connected": False, "portfolio_id": str(portfolio.public_id)}
     return {
         "connected": True,
-        "portfolio_id": pid,
+        "id": str(conn.public_id),
+        "portfolio_id": str(portfolio.public_id),
         "auto_sync": conn.auto_sync,
         "environment": conn.environment or "live",
         "last_synced_at": conn.last_synced_at.isoformat() if conn.last_synced_at else None,
@@ -213,7 +220,12 @@ def get_status(db: Session = Depends(get_db), pid: int = Depends(require_portfol
 
 
 @router.post("/trading212/connect")
-def connect(payload: dict, db: Session = Depends(get_db), pid: int = Depends(require_portfolio), owner: str = Depends(get_current_user)):
+def connect(
+    payload: dict,
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+    _context: RequestContext = Depends(require_csrf),
+):
     api_key = payload.get("api_key", "").strip()
     api_secret = payload.get("api_secret", "").strip()
     environment = payload.get("environment", "live").strip().lower()
@@ -222,14 +234,15 @@ def connect(payload: dict, db: Session = Depends(get_db), pid: int = Depends(req
     if not api_key:
         raise HTTPException(status_code=400, detail="API key is required")
 
-    # Reject reusing the same API key on a different portfolio — mixing two portfolios
-    # backed by the same upstream account is exactly what this feature is meant to prevent.
+    # One upstream account may be connected only once inside a workspace. The
+    # same credential value in another tenant is unrelated customer data.
     clash = (
         db.query(BrokerConnection)
         .filter(
+            BrokerConnection.workspace_id == portfolio.workspace_id,
             BrokerConnection.broker == "trading212",
             BrokerConnection.api_key == api_key,
-            BrokerConnection.portfolio_id != pid,
+            BrokerConnection.portfolio_id != portfolio.id,
         )
         .first()
     )
@@ -257,34 +270,48 @@ def connect(payload: dict, db: Session = Depends(get_db), pid: int = Depends(req
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Could not reach Trading 212: {e}")
 
-    # Wipe only THIS portfolio's transactions, never others.
-    db.query(Transaction).filter(Transaction.portfolio_id == pid).delete(synchronize_session=False)
+    db.query(Transaction).filter(
+        Transaction.workspace_id == portfolio.workspace_id,
+        Transaction.portfolio_id == portfolio.id,
+    ).delete(synchronize_session=False)
 
-    existing = _get_connection(db, pid)
-    if existing:
-        existing.api_key = api_key
-        existing.api_secret = api_secret
-        existing.environment = environment
-        existing.created_at = datetime.utcnow()
-        existing.last_synced_at = None
+    connection = _get_connection(db, portfolio)
+    if connection:
+        connection.api_key = api_key
+        connection.api_secret = api_secret
+        connection.environment = environment
+        connection.created_at = datetime.utcnow()
+        connection.last_synced_at = None
     else:
-        db.add(BrokerConnection(
+        connection = BrokerConnection(
+            workspace_id=portfolio.workspace_id,
+            portfolio_id=portfolio.id,
             broker="trading212",
             api_key=api_key,
             api_secret=api_secret,
             environment=environment,
-            portfolio_id=pid,
-            owner_id=owner,
-        ))
+        )
+        db.add(connection)
+    db.flush()
+    result = {
+        "ok": True,
+        "id": str(connection.public_id),
+        "portfolio_id": str(portfolio.public_id),
+        "message": "Connected to Trading 212",
+    }
     db.commit()
-    return {"ok": True, "message": "Connected to Trading 212"}
+    return result
 
 
 @router.post("/trading212/auto-sync")
-def set_auto_sync(payload: dict, db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
-    """Toggle background auto-sync for this portfolio's T212 connection. The
-    poller in main.py only syncs connections that opted in here."""
-    conn = _get_connection(db, pid)
+def set_auto_sync(
+    payload: dict,
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+    _context: RequestContext = Depends(require_csrf),
+):
+    """Toggle background auto-sync for this portfolio's T212 connection."""
+    conn = _get_connection(db, portfolio)
     if not conn:
         raise HTTPException(status_code=404, detail="Trading 212 is not connected")
     conn.auto_sync = bool(payload.get("enabled"))
@@ -293,8 +320,12 @@ def set_auto_sync(payload: dict, db: Session = Depends(get_db), pid: int = Depen
 
 
 @router.delete("/trading212/connect")
-def disconnect(db: Session = Depends(get_db), pid: int = Depends(require_portfolio)):
-    conn = _get_connection(db, pid)
+def disconnect(
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+    _context: RequestContext = Depends(require_csrf),
+):
+    conn = _get_connection(db, portfolio)
     if not conn:
         raise HTTPException(status_code=404, detail="No Trading 212 connection found")
     db.delete(conn)
@@ -303,11 +334,12 @@ def disconnect(db: Session = Depends(get_db), pid: int = Depends(require_portfol
 
 
 @router.post("/trading212/sync")
-def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_portfolio), owner: str = Depends(get_current_user)):
-    # owner is resolved through the single identity source for consistency with the
-    # other broker endpoints; T212 sync writes only portfolio-scoped Transaction rows
-    # (no owner_id of their own) so there is nothing to stamp here.
-    conn = _get_connection(db, pid)
+def sync_transactions(
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+    _context: RequestContext = Depends(require_csrf),
+):
+    conn = _get_connection(db, portfolio)
     if not conn:
         raise HTTPException(status_code=404, detail="Trading 212 is not connected")
 
@@ -333,7 +365,11 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
     # the entire order history on top of a CSV import, doubling every position.
     existing_txns = (
         db.query(Transaction)
-        .filter(Transaction.portfolio_id == pid, Transaction.ticker.isnot(None))
+        .filter(
+            Transaction.workspace_id == portfolio.workspace_id,
+            Transaction.portfolio_id == portfolio.id,
+            Transaction.ticker.isnot(None),
+        )
         .all()
     )
     # A replace-imported T212 export is an account-wide history snapshot. Its
@@ -344,7 +380,8 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
     snapshot_rows = db.query(
         Transaction.date, Transaction.type, Transaction.source, Transaction.notes
     ).filter(
-        Transaction.portfolio_id == pid,
+        Transaction.workspace_id == portfolio.workspace_id,
+        Transaction.portfolio_id == portfolio.id,
         Transaction.source.in_(("csv", "t212_csv")),
     ).all()
     t212_csv_dates = [row.date for row in snapshot_rows if row.source == "t212_csv"]
@@ -356,9 +393,7 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
     fallback_dates = t212_csv_dates + (
         [row.date for row in legacy_csv_rows] if legacy_is_t212 else []
     )
-    portfolio_history_cutoff = db.query(Portfolio.t212_csv_covered_through).filter(
-        Portfolio.id == pid
-    ).scalar()
+    portfolio_history_cutoff = portfolio.t212_csv_covered_through
     precise_history_cutoff = portfolio_history_cutoff or conn.t212_csv_covered_through
     if precise_history_cutoff is not None:
         if precise_history_cutoff.tzinfo is None:
@@ -445,7 +480,8 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
                 continue
 
             new_txn = Transaction(
-                portfolio_id=pid,
+                workspace_id=portfolio.workspace_id,
+                portfolio_id=portfolio.id,
                 ticker=ticker,
                 name=name,
                 type=txn_type,
@@ -506,7 +542,8 @@ def sync_transactions(db: Session = Depends(get_db), pid: int = Depends(require_
                     continue
 
                 new_div = Transaction(
-                    portfolio_id=pid,
+                    workspace_id=portfolio.workspace_id,
+                    portfolio_id=portfolio.id,
                     ticker=ticker,
                     name=ticker,
                     type="dividend",

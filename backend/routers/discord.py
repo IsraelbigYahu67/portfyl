@@ -5,8 +5,8 @@ from typing import Optional
 import httpx
 
 from database import get_db
-from models import DiscordWebhook
-from routers.portfolios import require_portfolio
+from models import DiscordWebhook, Portfolio
+from tenancy import require_portfolio
 
 router = APIRouter(prefix="/discord", tags=["discord"])
 
@@ -29,13 +29,25 @@ class WebhookTestMessage(BaseModel):
     message: Optional[str] = None
 
 
+def _portfolio_webhook(db: Session, portfolio: Portfolio) -> DiscordWebhook | None:
+    return db.query(DiscordWebhook).filter(
+        DiscordWebhook.workspace_id == portfolio.workspace_id,
+        DiscordWebhook.portfolio_id == portfolio.id,
+    ).first()
+
+
 @router.get("/webhook")
-def get_webhook(portfolio_id: int = Depends(require_portfolio), db: Session = Depends(get_db)):
-    hook = db.query(DiscordWebhook).filter(DiscordWebhook.portfolio_id == portfolio_id).first()
+def get_webhook(
+    portfolio: Portfolio = Depends(require_portfolio),
+    db: Session = Depends(get_db),
+):
+    hook = _portfolio_webhook(db, portfolio)
     if not hook:
-        return {"connected": False}
+        return {"connected": False, "portfolio_id": str(portfolio.public_id)}
     return {
         "connected": True,
+        "id": str(hook.public_id),
+        "portfolio_id": str(portfolio.public_id),
         "webhook_url_preview": hook.webhook_url[:40] + "..." if len(hook.webhook_url) > 40 else hook.webhook_url,
         "notify_trades": hook.notify_trades,
         "notify_dividends": hook.notify_dividends,
