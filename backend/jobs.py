@@ -53,7 +53,7 @@ import logging
 import os
 import re
 from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Callable
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -78,6 +78,69 @@ log = logging.getLogger("portfyl.jobs")
 
 DIVIDEND_COLOR = 0x8B5CF6  # violet — matches the TTM/dividend accents in the UI
 SYNC_COLOR = 0x059669      # green — same as trade notifications
+
+
+# -------- External job triggering: idempotency + dead-lettering ------------
+# See docs/superpowers/specs/2026-09-03-portfyl-job-triggering-design.md.
+
+MAX_JOB_ATTEMPTS_PER_PERIOD = 3
+JOB_RUN_STALE_AFTER = timedelta(minutes=10)
+
+
+def _env_int(key: str, default: int) -> int:
+    try:
+        return int(os.environ.get(key, default))
+    except ValueError:
+        return default
+
+
+JOB_PERIOD_SECONDS: dict[str, Callable[[], int]] = {
+    "alert_check": lambda: _env_int("ALERT_CHECK_INTERVAL_SECONDS", 900),
+    "autosync": lambda: _env_int("AUTOSYNC_TRIGGER_INTERVAL_SECONDS", 300),
+    "dividend_notify": lambda: _env_int("DIVIDEND_NOTIFY_INTERVAL_SECONDS", 43200),
+}
+
+
+def _period_start(now: datetime, job_name: str) -> datetime:
+    """The start of `now`'s bucket for `job_name`, sized by that job's
+    configured trigger interval. Two claims for the same (job, workspace)
+    within the same bucket are the same idempotency key."""
+    bucket = JOB_PERIOD_SECONDS[job_name]()
+    epoch = now.timestamp()
+    return datetime.fromtimestamp((epoch // bucket) * bucket, tz=timezone.utc)
+
+
+def _claim_job_run(db: Session, job_name: str, workspace_id: UUID, now: datetime) -> tuple[int, int] | None:
+    """Atomically claim workspace_id's job_name pass for now's period.
+    Returns (job_runs.id, attempt_count) to finish later, or None if another
+    run already owns this period (running-and-not-stale, succeeded, or
+    dead-lettered). Commits immediately so a concurrent claimant sees the
+    committed 'running' row and is rejected rather than blocking on the row
+    lock for the duration of the pass -- callers must reassert
+    _set_job_workspace_context before their next DB operation."""
+    period_start = _period_start(now, job_name)
+    stale_cutoff = now - JOB_RUN_STALE_AFTER
+    row = db.execute(text("""
+        INSERT INTO job_runs (workspace_id, job_name, period_start, status, attempt_count, started_at)
+        VALUES (:workspace_id, :job_name, :period_start, 'running', 1, :now)
+        ON CONFLICT (job_name, workspace_id, period_start) DO UPDATE
+        SET status = 'running', attempt_count = job_runs.attempt_count + 1, started_at = :now
+        WHERE job_runs.status = 'failed' AND job_runs.attempt_count < :max_attempts
+           OR (job_runs.status = 'running' AND job_runs.started_at < :stale_cutoff)
+        RETURNING id, attempt_count
+    """), {"workspace_id": str(workspace_id), "job_name": job_name,
+           "period_start": period_start, "now": now,
+           "max_attempts": MAX_JOB_ATTEMPTS_PER_PERIOD, "stale_cutoff": stale_cutoff}).first()
+    db.commit()
+    return (row.id, row.attempt_count) if row else None
+
+
+def _finish_job_run(db: Session, run_id: int, status: str, error: str | None = None) -> None:
+    db.execute(text("""
+        UPDATE job_runs SET status = :status, last_error = :error, finished_at = :now
+        WHERE id = :id
+    """), {"status": status, "error": error, "now": datetime.now(timezone.utc), "id": run_id})
+    db.commit()
 
 
 # -------- Sync schedule ------------------------------------------------------
