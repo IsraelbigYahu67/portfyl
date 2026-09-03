@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { LayoutDashboard, PieChart, ArrowLeftRight, Upload, Loader2, CalendarDays, Activity, FileText, Settings, Search, Star, ArrowLeft, Bot, Sun, Moon, Monitor, Filter, Wallet, Layers } from "lucide-react";
 import { useCurrency, usePalette, usePlatform } from "../App";
 import PortfolioSwitcher from "./PortfolioSwitcher";
+import AccountMenu from "./AccountMenu";
 import SegmentedControl from "./ui/SegmentedControl";
 
 const T212_LINKS = [
@@ -86,6 +87,11 @@ export default function Sidebar() {
       </nav>
 
       <div className="mt-auto pb-3 space-y-3">
+        {/* Account (e-mail, logout / logout-everywhere) */}
+        <div className="px-3">
+          <AccountMenu />
+        </div>
+
         {/* Theme style (Classic glass vs Premium warm glass-hybrid) */}
         <div className="px-4">
           <p className="text-[10px] text-muted mb-1.5 pl-0.5">Style</p>

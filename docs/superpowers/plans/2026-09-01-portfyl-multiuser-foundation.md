@@ -756,7 +756,7 @@ git commit -m "test(security): prove complete Alice Bob tenant isolation"
 - Produces `configureRequestContext({workspaceId, csrfToken})` in `api.js`.
 - Portfolio IDs remain strings end-to-end.
 
-- [ ] **Step 1: Write failing Axios context tests**
+- [x] **Step 1: Write failing Axios context tests**
 
 ```javascript
 it("keeps UUID portfolio IDs and attaches workspace plus CSRF headers", async () => {
@@ -772,33 +772,33 @@ it("keeps UUID portfolio IDs and attaches workspace plus CSRF headers", async ()
 });
 ```
 
-- [ ] **Step 2: Run focused frontend tests and verify numeric coercion fails**
+- [x] **Step 2: Run focused frontend tests and verify numeric coercion fails**
 
 Run in a normal shell: `cd frontend && npm test -- src/api.auth.test.js`
 
 Expected: UUID becomes `NaN` or the new request context function is absent.
 
-- [ ] **Step 3: Add Firebase JS SDK and browser adapter**
+- [x] **Step 3: Add Firebase JS SDK and browser adapter**
 
 Add the current Firebase JS package. Initialize from `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, and `VITE_FIREBASE_APP_ID`. Set browser persistence to `inMemoryPersistence`. Export wrappers for e-mail/password signup, login, verification mail, reset mail, ID token retrieval, and client sign-out.
 
-- [ ] **Step 4: Implement account provider and API exchange**
+- [x] **Step 4: Implement account provider and API exchange**
 
 On mount call `/api/auth/me`. On verified Firebase login POST the ID token to `/api/auth/session`, then sign out the Firebase browser client and retain only backend user/workspace/CSRF state. Configure Axios headers, clear React Query on identity/workspace changes, and expose logout/logout-all.
 
-- [ ] **Step 5: Write and implement auth page behavior tests**
+- [x] **Step 5: Write and implement auth page behavior tests**
 
 Test registration sends verification and navigates to `/verify-email`; unverified login shows verification instructions; verified login exchanges token and navigates to `/`; forgot-password always shows a neutral success message; 401 navigates to `/login` only outside public auth routes.
 
-- [ ] **Step 6: Remove numeric portfolio assumptions**
+- [x] **Step 6: Remove numeric portfolio assumptions**
 
 In `App.jsx`, `api.js`, analytics benchmark state, and resource route helpers, preserve UUID strings. `sb_portfolio_id` remains the backwards-compatible localStorage key but its value is now a UUID. Clear stale numeric values when no matching server portfolio exists.
 
-- [ ] **Step 7: Add account menu and protected route composition**
+- [x] **Step 7: Add account menu and protected route composition**
 
 Mount public auth routes outside protected providers. Mount the existing application only when `AuthProvider.ready` has an authenticated user/workspace. Add current e-mail plus logout/logout-all to `AccountMenu`; do not add billing, plan, onboarding, OAuth, or MFA UI.
 
-- [ ] **Step 8: Run frontend test and build verification**
+- [x] **Step 8: Run frontend test and build verification**
 
 Run in a normal shell: `cd frontend && npm test`
 
@@ -806,7 +806,7 @@ Run in a normal shell: `cd frontend && npm run build`
 
 Expected: all Vitest tests pass and Vite produces `frontend/dist`. In this sandbox, record `spawn EPERM` and rerun both commands outside the sandbox before completion.
 
-- [ ] **Step 9: Commit Task 10**
+- [x] **Step 9: Commit Task 10**
 
 ```bash
 git add frontend/package.json frontend/package-lock.json frontend/src/auth frontend/src/pages/Login.jsx frontend/src/pages/Register.jsx frontend/src/pages/VerifyEmail.jsx frontend/src/pages/ForgotPassword.jsx frontend/src/pages/AuthPages.test.jsx frontend/src/components/AccountMenu.jsx frontend/src/api.js frontend/src/App.jsx frontend/src/components/Sidebar.jsx frontend/src/api.auth.test.js

@@ -286,7 +286,7 @@ export default function Analytics() {
         <div className="flex items-center gap-2">
           <select
             value={benchmarkId ?? ""}
-            onChange={(e) => setBenchmarkId(e.target.value ? Number(e.target.value) : null)}
+            onChange={(e) => setBenchmarkId(e.target.value || null)}
             className="text-xs bg-surface border border-surface-hover rounded-md px-2 py-1 text-ink hover:border-brand focus:outline-none focus:border-brand"
             title="Benchmark for beta / alpha / tracking error"
           >

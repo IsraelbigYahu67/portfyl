@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import PlatformLanding from "./pages/PlatformLanding";
 import Dashboard from "./pages/Dashboard";
@@ -18,10 +19,15 @@ import Search from "./pages/Search";
 import Stock from "./pages/Stock";
 import Watchlists from "./pages/Watchlists";
 import Screener from "./pages/Screener";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import VerifyEmail from "./pages/VerifyEmail";
+import ForgotPassword from "./pages/ForgotPassword";
 import { fetchFxRate, fetchPortfolios, setActivePortfolioId, getActivePortfolioId } from "./api";
 import { ToastProvider } from "./components/ui/Toast";
 import { ConfirmProvider } from "./components/ui/ConfirmDialog";
 import AutoLoad from "./components/AutoLoad";
+import { AuthProvider, useAuth } from "./auth/AuthProvider";
 
 const CurrencyContext = createContext(null);
 const PortfolioContext = createContext(null);
@@ -195,6 +201,12 @@ function CurrencyProvider({ children }) {
   );
 }
 
+// Portfolio ids are UUID strings end-to-end (backend Tasks 5-8). A pre-migration
+// install may still have a plain numeric id cached under this key; it can never
+// match a server portfolio under the new scheme, so it's dropped on sight below
+// rather than sent as a doomed portfolio_id on the very first request.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function PortfolioProvider({ children }) {
   const queryClient = useQueryClient();
 
@@ -203,10 +215,12 @@ function PortfolioProvider({ children }) {
   // We may overwrite this once the server confirms the portfolio exists.
   const [currentId, setCurrentIdState] = useState(() => {
     const stored = localStorage.getItem("sb_portfolio_id");
-    const parsed = stored ? Number(stored) : null;
-    if (parsed && !Number.isNaN(parsed)) {
-      setActivePortfolioId(parsed);
-      return parsed;
+    if (stored && UUID_RE.test(stored)) {
+      setActivePortfolioId(stored);
+      return stored;
+    }
+    if (stored) {
+      localStorage.removeItem("sb_portfolio_id");
     }
     return null;
   });
@@ -236,14 +250,14 @@ function PortfolioProvider({ children }) {
 
   const setCurrentId = useCallback(
     (id) => {
-      const next = Number(id);
-      if (Number.isNaN(next) || next === currentId) return;
+      const next = id == null ? null : String(id);
+      if (next == null || next === currentId) return;
       // Drop ALL cached data before switching so no other portfolio's holdings,
       // transactions, T212 status, etc. can briefly flash on screen.
       queryClient.removeQueries();
       setActivePortfolioId(next);
       setCurrentIdState(next);
-      localStorage.setItem("sb_portfolio_id", String(next));
+      localStorage.setItem("sb_portfolio_id", next);
       // Re-fetch the portfolios list immediately so the picker reflects fresh counts.
       queryClient.invalidateQueries({ queryKey: ["portfolios"] });
     },
@@ -336,19 +350,60 @@ function PlatformProvider({ children }) {
 
 export default function App() {
   return (
+    // Appearance is a device-level preference, independent of auth state --
+    // it stays above the auth gate so the login/register/etc. pages render
+    // with the visitor's chosen theme instead of the light-mode fallback.
     <PaletteProvider>
-      <PortfolioProvider>
-        <CurrencyProvider>
-          <ToastProvider>
-            <ConfirmProvider>
-              <PlatformProvider>
-                <AppLayout />
-              </PlatformProvider>
-            </ConfirmProvider>
-          </ToastProvider>
-        </CurrencyProvider>
-      </PortfolioProvider>
+      <AuthProvider>
+        <AuthGate />
+      </AuthProvider>
     </PaletteProvider>
+  );
+}
+
+function AuthSplash() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-bg" role="status">
+      <Loader2 className="animate-spin text-brand" size={28} aria-hidden="true" />
+      <span className="sr-only">Loading your account…</span>
+    </div>
+  );
+}
+
+// Public auth routes are mounted outside every protected provider (portfolio,
+// currency, toast, confirm, platform) -- none of that state exists yet for a
+// visitor who hasn't authenticated. The full application only mounts once
+// AuthProvider has resolved a session with both a user and a workspace.
+function AuthGate() {
+  const { ready, user, currentWorkspace } = useAuth();
+
+  if (!ready) {
+    return <AuthSplash />;
+  }
+
+  if (!user || !currentWorkspace) {
+    return (
+      <Routes>
+        <Route path="/register" element={<Register />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="*" element={<Login />} />
+      </Routes>
+    );
+  }
+
+  return (
+    <PortfolioProvider>
+      <CurrencyProvider>
+        <ToastProvider>
+          <ConfirmProvider>
+            <PlatformProvider>
+              <AppLayout />
+            </PlatformProvider>
+          </ConfirmProvider>
+        </ToastProvider>
+      </CurrencyProvider>
+    </PortfolioProvider>
   );
 }
 
@@ -393,6 +448,10 @@ function AppLayout() {
             </>
           )}
           <Route path="/settings" element={<Settings />} />
+          {/* An authenticated visitor landing on a public auth URL (stale tab,
+              browser back button after login, etc.) gets sent home instead of
+              a blank route. */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
     </div>

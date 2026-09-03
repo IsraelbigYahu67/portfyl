@@ -4,42 +4,92 @@ import axios from "axios";
 // by PortfolioProvider via setActivePortfolioId(). The axios interceptor below
 // reads it on every request so we never have to thread portfolio_id through call
 // sites — every page just calls the same fetch helpers.
+//
+// Portfolio ids are UUID strings end-to-end (backend Tasks 5-8 replaced the
+// integer public identifiers). Never coerce this with Number()/parseInt() —
+// that silently turns a UUID into NaN.
 let _activePortfolioId = null;
 
 export function setActivePortfolioId(id) {
-  _activePortfolioId = id == null ? null : Number(id);
+  _activePortfolioId = id == null ? null : String(id);
 }
 
 export function getActivePortfolioId() {
   return _activePortfolioId;
 }
 
+// Workspace + CSRF context, set once AuthProvider has exchanged a Firebase ID
+// token (or resolved an existing session) for a Portfyl session. Held in module
+// state rather than localStorage — the design spec is explicit that the CSRF
+// token is memory-only and never persisted.
+let _requestContext = { workspaceId: null, csrfToken: null };
+
+export function configureRequestContext({ workspaceId = null, csrfToken = null } = {}) {
+  _requestContext = { workspaceId: workspaceId ?? null, csrfToken: csrfToken ?? null };
+}
+
+export function getRequestContext() {
+  return _requestContext;
+}
+
 const api = axios.create({ baseURL: "/api" });
 
 // Endpoints that are NOT portfolio-scoped — these must not receive portfolio_id
 // or they'd 404 / mis-route.
-const PORTFOLIO_AGNOSTIC_PREFIXES = ["/portfolios", "/market", "/watchlists", "/settings"];
+const PORTFOLIO_AGNOSTIC_PREFIXES = ["/portfolios", "/market", "/watchlists", "/settings", "/auth"];
 
 function isPortfolioAgnostic(url) {
   if (!url) return false;
   return PORTFOLIO_AGNOSTIC_PREFIXES.some((p) => url === p || url.startsWith(p + "/") || url.startsWith(p + "?"));
 }
 
-api.interceptors.request.use((config) => {
-  if (_activePortfolioId == null) return config;
-  if (isPortfolioAgnostic(config.url)) return config;
-  config.params = { ...(config.params || {}), portfolio_id: _activePortfolioId };
-  return config;
-});
+// State-changing requests need X-CSRF-Token (backend's require_csrf dependency
+// checks it only on mutating routes); every request needs X-Workspace-ID once a
+// workspace has been resolved, GETs included, so tenancy.get_request_context can
+// select the right workspace.
+const MUTATING_METHODS = new Set(["post", "put", "patch", "delete"]);
 
-// When the session is missing/expired the gate returns 401; bounce the user to
-// the server-rendered login page (same-origin in prod; proxied in dev). Guarded
-// so a burst of 401s triggers a single navigation.
+// Exported (and registered below) rather than kept as an inline arrow function
+// so tests can drive the exact same interceptor logic without spinning up a
+// real HTTP call — see api.auth.test.js.
+export function applyRequestInterceptors(config) {
+  const method = (config.method || "get").toLowerCase();
+
+  if (_activePortfolioId != null && !isPortfolioAgnostic(config.url)) {
+    config.params = { ...(config.params || {}), portfolio_id: _activePortfolioId };
+  }
+
+  if (_requestContext.workspaceId) {
+    config.headers = { ...(config.headers || {}), "X-Workspace-ID": _requestContext.workspaceId };
+  }
+
+  if (_requestContext.csrfToken && MUTATING_METHODS.has(method)) {
+    config.headers = { ...(config.headers || {}), "X-CSRF-Token": _requestContext.csrfToken };
+  }
+
+  return config;
+}
+
+api.interceptors.request.use(applyRequestInterceptors);
+
+// Pages reachable while signed out — a 401 here means "not logged in yet",
+// not "session expired", so the response interceptor below must not bounce
+// the user away from them.
+const PUBLIC_AUTH_PATHS = ["/login", "/register", "/verify-email", "/forgot-password"];
+
+function isPublicAuthPath(pathname) {
+  return PUBLIC_AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
+// When the session is missing/expired the API returns 401; bounce the user to
+// the login page (same-origin in prod; proxied in dev), unless they're already
+// on one of the public auth pages. Guarded so a burst of 401s triggers a
+// single navigation.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error?.response?.status === 401 && typeof window !== "undefined") {
-      if (!window.__sbRedirectingToLogin && window.location.pathname !== "/login") {
+      if (!window.__sbRedirectingToLogin && !isPublicAuthPath(window.location.pathname)) {
         window.__sbRedirectingToLogin = true;
         window.location.assign("/login");
       }
@@ -47,6 +97,14 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// ----- Auth/session/account (not portfolio-scoped) --------------------------
+
+export const fetchMe = () => api.get("/auth/me").then((r) => r.data);
+export const exchangeSession = (idToken) =>
+  api.post("/auth/session", { id_token: idToken }).then((r) => r.data);
+export const logoutSession = () => api.post("/auth/logout").then((r) => r.data);
+export const logoutAllSessions = () => api.post("/auth/logout-all").then((r) => r.data);
 
 // ----- Portfolios CRUD (not portfolio-scoped) ---------------------------------
 
