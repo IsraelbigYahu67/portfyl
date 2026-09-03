@@ -133,6 +133,17 @@ def health():
 # Each tick uses its own DB session and swallows errors so a bad pass never
 # takes the app down. While the process is asleep between ticks nothing fires —
 # these are self-hosted convenience pollers, not low-latency feeds.
+
+
+def _poller_env_default(edition: Edition) -> str:
+    """The in-process pollers' default enabled/disabled state per edition:
+    local is always single-instance self-hosted (safe to default on); cloud
+    is multi-instance/scale-to-zero and must default to external triggering
+    only (see POST /api/jobs/run in routers/scheduler.py). Always
+    explicitly overridable via the env vars below."""
+    return "1" if edition is Edition.LOCAL else "0"
+
+
 _BG_TASKS: list = []
 
 
@@ -181,12 +192,12 @@ async def _start_background_pollers():
         except ValueError:
             return default
 
-    if os.environ.get("ALERT_POLLER_ENABLED", "1") == "1":
+    if os.environ.get("ALERT_POLLER_ENABLED", _poller_env_default(PORTFYL_EDITION)) == "1":
         interval = _env_int("ALERT_CHECK_INTERVAL_SECONDS", 900)
         _BG_TASKS.append(_asyncio.create_task(
             _periodic_loop("alerts", alert_check_all_workspaces, interval, initial_delay=interval)))
 
-    if os.environ.get("BROKER_AUTOSYNC_ENABLED", "1") == "1":
+    if os.environ.get("BROKER_AUTOSYNC_ENABLED", _poller_env_default(PORTFYL_EDITION)) == "1":
         # 60 s heartbeat: each tick asks jobs.autosync_all_workspaces whether
         # each workspace's configured schedule is due; the sync itself runs
         # only then. Short initial delay so a restart quickly catches up on a
@@ -194,7 +205,7 @@ async def _start_background_pollers():
         _BG_TASKS.append(_asyncio.create_task(
             _periodic_loop("autosync", autosync_all_workspaces, interval=60, initial_delay=300)))
 
-    if os.environ.get("DIVIDEND_NOTIFY_ENABLED", "1") == "1":
+    if os.environ.get("DIVIDEND_NOTIFY_ENABLED", _poller_env_default(PORTFYL_EDITION)) == "1":
         interval = _env_int("DIVIDEND_NOTIFY_INTERVAL_SECONDS", 43200)
         lead = _env_int("DIVIDEND_NOTIFY_LEAD_DAYS", 3)
 
