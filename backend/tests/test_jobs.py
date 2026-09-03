@@ -151,29 +151,14 @@ def test_autosync_t212_sync_runs_off_event_loop(db_session, pid):
     assert seen["on_loop"] is False
 
 
-def test_scheduler_sync_respects_auto_sync_flag(db_session, default_portfolio):
-    # The external Cloud Scheduler entrypoint must honor the same per-connection
-    # opt-in as the in-process poller — otherwise turning auto-sync off in
-    # Settings silently keeps syncing on scheduler deployments.
-    from models import Portfolio
-    from routers.ibkr import scheduler_sync
-
-    p2 = Portfolio(workspace_id=default_portfolio.workspace_id, name="Second")
-    db_session.add(p2)
-    db_session.commit()
-    _connect(db_session, default_portfolio.id, broker="ibkr", auto_sync=True)
-    _connect(db_session, p2.id, broker="ibkr", auto_sync=False)
-
-    ibkr_sync = AsyncMock(return_value={"imported": 1})
-    with patch("routers.ibkr._run_ibkr_sync", ibkr_sync), \
-         patch("routers.ibkr.check_scheduler_token", return_value=True):
-        _run(scheduler_sync(db=db_session, x_scheduler_token="tok", token=None))
-
-    ibkr_sync.assert_awaited_once()
-    # _run_ibkr_sync(db, workspace_id, portfolio_id) -- the workspace is the
-    # tenant boundary, the internal portfolio ID is only meaningful inside it.
-    assert ibkr_sync.await_args.args[1] == default_portfolio.workspace_id
-    assert ibkr_sync.await_args.args[2] == default_portfolio.id
+def test_scheduler_sync_endpoint_is_removed():
+    # Consolidated into POST /api/jobs/run?job=autosync (see
+    # docs/superpowers/specs/2026-09-03-portfyl-job-triggering-design.md) --
+    # broker_autosync_pass already covers both trading212 and ibkr, and
+    # already respects the per-connection auto_sync flag (see
+    # test_autosync_skips_connections_without_flag above).
+    import routers.ibkr as ibkr_module
+    assert not hasattr(ibkr_module, "scheduler_sync")
 
 
 # -------- dividend_exdate_pass ----------------------------------------------

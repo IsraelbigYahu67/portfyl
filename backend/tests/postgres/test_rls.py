@@ -42,6 +42,7 @@ RLS_TABLES = {
     "cash_interest_rates",
     "dividend_notifications",
     "price_alerts",
+    "job_runs",
 }
 
 

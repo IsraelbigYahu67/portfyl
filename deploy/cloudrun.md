@@ -246,6 +246,57 @@ stays in effect on every later call, including ones that only pass
 `--dry-run --policy=...`, then apply for real with `--no-dry-run` (the
 policy from the last `--policy=...` call stays applied either way).
 
+## 9. Configure Cloud Scheduler
+
+Job triggering is external, not in-process, in the cloud edition (see
+`docs/superpowers/specs/2026-09-03-portfyl-job-triggering-design.md`) --
+`ALERT_POLLER_ENABLED`/`BROKER_AUTOSYNC_ENABLED`/`DIVIDEND_NOTIFY_ENABLED`
+default to `"0"` for `PORTFYL_EDITION=cloud`. Without the three jobs below
+configured, alerts, broker autosync, and dividend notifications never run.
+
+Generate and store the scheduler token — a shared secret between Cloud
+Scheduler and `POST /api/jobs/run` (`backend/auth.py`'s
+`check_scheduler_token`):
+
+```powershell
+gcloud secrets create portfyl-scheduler-token --replication-policy=automatic
+# generate one: [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Max 256 }))
+gcloud secrets versions add portfyl-scheduler-token --data-file=- # paste the generated token, then Ctrl+Z, Enter
+gcloud secrets add-iam-policy-binding portfyl-scheduler-token --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+```
+
+Attach it to the running service:
+
+```powershell
+gcloud run services update $SERVICE --region $REGION --update-secrets="SCHEDULER_TOKEN=portfyl-scheduler-token:latest"
+```
+
+Three Cloud Scheduler jobs, one per job type, each `POST`ing to
+`/api/jobs/run?job=<name>` with the token as a header (the endpoint also
+accepts a `token` query param, but that's a manual-testing fallback only —
+never use it here, since query params can end up in logs):
+
+```powershell
+$SERVICE_URL = gcloud run services describe $SERVICE --region $REGION --format="value(status.url)"
+$SCHEDULER_TOKEN = gcloud secrets versions access latest --secret=portfyl-scheduler-token
+
+gcloud scheduler jobs create http portfyl-alert-check --location=$REGION --schedule="*/15 * * * *" --uri="$SERVICE_URL/api/jobs/run?job=alert_check" --http-method=POST --headers="X-Scheduler-Token=$SCHEDULER_TOKEN"
+gcloud scheduler jobs create http portfyl-autosync --location=$REGION --schedule="*/5 * * * *" --uri="$SERVICE_URL/api/jobs/run?job=autosync" --http-method=POST --headers="X-Scheduler-Token=$SCHEDULER_TOKEN"
+gcloud scheduler jobs create http portfyl-dividend-notify --location=$REGION --schedule="0 6 * * *" --uri="$SERVICE_URL/api/jobs/run?job=dividend_notify" --http-method=POST --headers="X-Scheduler-Token=$SCHEDULER_TOKEN"
+```
+
+Cron intervals match the `job_runs` period-bucket sizes
+(`ALERT_CHECK_INTERVAL_SECONDS`=900, `AUTOSYNC_TRIGGER_INTERVAL_SECONDS`=300,
+`DIVIDEND_NOTIFY_INTERVAL_SECONDS`=43200 by default). If you override one of
+those env vars, update the matching job's `--schedule` to stay roughly in
+sync — the idempotency claim makes a too-frequent schedule harmless (extra
+calls within a period are just skipped), but a too-infrequent one means
+that job effectively runs less often than you think.
+
+The service is already `--allow-unauthenticated` (step 6), so Cloud
+Scheduler doesn't need its own OIDC identity to call it — `X-Scheduler-Token`
+is the only auth this endpoint checks.
+
 ---
 
 ## Ongoing rules

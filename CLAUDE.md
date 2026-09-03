@@ -34,9 +34,11 @@ before starting any auth, tenancy, database, or billing work.
   that implemented state**, not the old single-user SQLite one. What's
   **still pending**: Workstream A's external product/data validation and
   commercial market-data rights, KMS envelope encryption for broker/AI
-  secrets, an external scheduler replacing the in-process background jobs in
-  `backend/jobs.py`, Stripe billing, and onboarding. Don't jump ahead to
-  billing/onboarding work before secrets/jobs land,
+  secrets, structured logging/redaction and dependency-aware health checks,
+  Stripe billing, and onboarding. External job triggering (Cloud Scheduler
+  replacing the in-process pollers, `POST /api/jobs/run`) is done — see
+  `docs/superpowers/specs/2026-09-03-portfyl-job-triggering-design.md`. Don't
+  jump ahead to billing/onboarding work before secrets/observability land,
   and don't reintroduce single-user/`owner_id="default"`/SQLite-primary
   assumptions anywhere in this codebase — that state is gone, not deferred.
 - Deploy stack for the cloud edition: **Google Cloud Run + Neon (managed

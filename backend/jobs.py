@@ -53,7 +53,7 @@ import logging
 import os
 import re
 from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Callable
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -78,6 +78,69 @@ log = logging.getLogger("portfyl.jobs")
 
 DIVIDEND_COLOR = 0x8B5CF6  # violet — matches the TTM/dividend accents in the UI
 SYNC_COLOR = 0x059669      # green — same as trade notifications
+
+
+# -------- External job triggering: idempotency + dead-lettering ------------
+# See docs/superpowers/specs/2026-09-03-portfyl-job-triggering-design.md.
+
+MAX_JOB_ATTEMPTS_PER_PERIOD = 3
+JOB_RUN_STALE_AFTER = timedelta(minutes=10)
+
+
+def _env_int(key: str, default: int) -> int:
+    try:
+        return int(os.environ.get(key, default))
+    except ValueError:
+        return default
+
+
+JOB_PERIOD_SECONDS: dict[str, Callable[[], int]] = {
+    "alert_check": lambda: _env_int("ALERT_CHECK_INTERVAL_SECONDS", 900),
+    "autosync": lambda: _env_int("AUTOSYNC_TRIGGER_INTERVAL_SECONDS", 300),
+    "dividend_notify": lambda: _env_int("DIVIDEND_NOTIFY_INTERVAL_SECONDS", 43200),
+}
+
+
+def _period_start(now: datetime, job_name: str) -> datetime:
+    """The start of `now`'s bucket for `job_name`, sized by that job's
+    configured trigger interval. Two claims for the same (job, workspace)
+    within the same bucket are the same idempotency key."""
+    bucket = JOB_PERIOD_SECONDS[job_name]()
+    epoch = now.timestamp()
+    return datetime.fromtimestamp((epoch // bucket) * bucket, tz=timezone.utc)
+
+
+def _claim_job_run(db: Session, job_name: str, workspace_id: UUID, now: datetime) -> tuple[int, int] | None:
+    """Atomically claim workspace_id's job_name pass for now's period.
+    Returns (job_runs.id, attempt_count) to finish later, or None if another
+    run already owns this period (running-and-not-stale, succeeded, or
+    dead-lettered). Commits immediately so a concurrent claimant sees the
+    committed 'running' row and is rejected rather than blocking on the row
+    lock for the duration of the pass -- callers must reassert
+    _set_job_workspace_context before their next DB operation."""
+    period_start = _period_start(now, job_name)
+    stale_cutoff = now - JOB_RUN_STALE_AFTER
+    row = db.execute(text("""
+        INSERT INTO job_runs (workspace_id, job_name, period_start, status, attempt_count, started_at)
+        VALUES (:workspace_id, :job_name, :period_start, 'running', 1, :now)
+        ON CONFLICT (job_name, workspace_id, period_start) DO UPDATE
+        SET status = 'running', attempt_count = job_runs.attempt_count + 1, started_at = :now
+        WHERE job_runs.status = 'failed' AND job_runs.attempt_count < :max_attempts
+           OR (job_runs.status = 'running' AND job_runs.started_at < :stale_cutoff)
+        RETURNING id, attempt_count
+    """), {"workspace_id": str(workspace_id), "job_name": job_name,
+           "period_start": period_start, "now": now,
+           "max_attempts": MAX_JOB_ATTEMPTS_PER_PERIOD, "stale_cutoff": stale_cutoff}).first()
+    db.commit()
+    return (row.id, row.attempt_count) if row else None
+
+
+def _finish_job_run(db: Session, run_id: int, status: str, error: str | None = None) -> None:
+    db.execute(text("""
+        UPDATE job_runs SET status = :status, last_error = :error, finished_at = :now
+        WHERE id = :id
+    """), {"status": status, "error": error, "now": datetime.now(timezone.utc), "id": run_id})
+    db.commit()
 
 
 # -------- Sync schedule ------------------------------------------------------
@@ -595,32 +658,85 @@ def _set_job_workspace_context(db: Session, workspace_id: UUID) -> None:
 
 async def autosync_all_workspaces(db: Session, now: datetime | None = None) -> list[dict]:
     """Poller entry point for broker auto-sync: explicit per-workspace tick
-    across every active workspace."""
+    across every active workspace, one job_runs claim per workspace so an
+    overlapping in-process tick or external trigger retry can't double-run
+    the same workspace's pass within one period."""
+    now = now or datetime.now(timezone.utc)
     results: list[dict] = []
     for workspace_id in _active_workspace_ids(db):
         _set_job_workspace_context(db, workspace_id)
-        results.extend(await autosync_tick(db, workspace_id, now=now))
+        claim = _claim_job_run(db, "autosync", workspace_id, now)
+        if claim is None:
+            continue
+        run_id, attempt = claim
+        _set_job_workspace_context(db, workspace_id)
+        try:
+            passed = await autosync_tick(db, workspace_id, now=now)
+        except Exception as e:
+            _set_job_workspace_context(db, workspace_id)
+            status = "dead_letter" if attempt >= MAX_JOB_ATTEMPTS_PER_PERIOD else "failed"
+            _finish_job_run(db, run_id, status, error=str(e))
+            log.exception("autosync pass failed for workspace %s", workspace_id)
+            continue
+        _set_job_workspace_context(db, workspace_id)
+        _finish_job_run(db, run_id, "succeeded")
+        results.extend(passed)
     return results
 
 
 async def dividend_notify_all_workspaces(db: Session, today: date | None = None,
-                                         lead_days: int = 3) -> list[dict]:
+                                         lead_days: int = 3,
+                                         now: datetime | None = None) -> list[dict]:
     """Poller entry point for ex-dividend notifications: explicit per-workspace
-    pass across every active workspace."""
+    pass across every active workspace, job_runs-claimed the same way as
+    autosync_all_workspaces (see its docstring)."""
+    now = now or datetime.now(timezone.utc)
     results: list[dict] = []
     for workspace_id in _active_workspace_ids(db):
         _set_job_workspace_context(db, workspace_id)
-        results.extend(await dividend_exdate_pass(db, workspace_id, today=today, lead_days=lead_days))
+        claim = _claim_job_run(db, "dividend_notify", workspace_id, now)
+        if claim is None:
+            continue
+        run_id, attempt = claim
+        _set_job_workspace_context(db, workspace_id)
+        try:
+            passed = await dividend_exdate_pass(db, workspace_id, today=today, lead_days=lead_days)
+        except Exception as e:
+            _set_job_workspace_context(db, workspace_id)
+            status = "dead_letter" if attempt >= MAX_JOB_ATTEMPTS_PER_PERIOD else "failed"
+            _finish_job_run(db, run_id, status, error=str(e))
+            log.exception("dividend-notify pass failed for workspace %s", workspace_id)
+            continue
+        _set_job_workspace_context(db, workspace_id)
+        _finish_job_run(db, run_id, "succeeded")
+        results.extend(passed)
     return results
 
 
-async def alert_check_all_workspaces(db: Session) -> list[dict]:
+async def alert_check_all_workspaces(db: Session, now: datetime | None = None) -> list[dict]:
     """Poller entry point for price alerts: explicit per-workspace check
-    across every active workspace."""
+    across every active workspace, job_runs-claimed the same way as
+    autosync_all_workspaces (see its docstring)."""
     from routers.alerts import run_check  # lazy: avoids importing market_data/discord at module load
 
+    now = now or datetime.now(timezone.utc)
     results: list[dict] = []
     for workspace_id in _active_workspace_ids(db):
         _set_job_workspace_context(db, workspace_id)
-        results.extend(await run_check(db, workspace_id))
+        claim = _claim_job_run(db, "alert_check", workspace_id, now)
+        if claim is None:
+            continue
+        run_id, attempt = claim
+        _set_job_workspace_context(db, workspace_id)
+        try:
+            fired = await run_check(db, workspace_id)
+        except Exception as e:
+            _set_job_workspace_context(db, workspace_id)
+            status = "dead_letter" if attempt >= MAX_JOB_ATTEMPTS_PER_PERIOD else "failed"
+            _finish_job_run(db, run_id, status, error=str(e))
+            log.exception("alert-check pass failed for workspace %s", workspace_id)
+            continue
+        _set_job_workspace_context(db, workspace_id)
+        _finish_job_run(db, run_id, "succeeded")
+        results.extend(fired)
     return results
