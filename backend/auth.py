@@ -166,8 +166,9 @@ def clear_session_cookie(response: Response) -> None:
     )
 
 
-# Cloud Scheduler keeps its separate machine credential until the jobs
-# workstream replaces the in-process scheduler architecture.
+# Shared secret between Cloud Scheduler and POST /api/jobs/run
+# (routers/scheduler.py) -- see deploy/cloudrun.md's "Configure Cloud
+# Scheduler" section for how it's provisioned.
 SCHEDULER_TOKEN = os.getenv("SCHEDULER_TOKEN")
 
 
