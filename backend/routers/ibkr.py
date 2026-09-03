@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime, date
 from collections import defaultdict
@@ -12,7 +11,6 @@ import xml.etree.ElementTree as ET
 from database import get_db
 from models import BrokerConnection, OptionsTrade, BrokerBalance, Portfolio
 from tenancy import RequestContext, require_csrf, require_portfolio
-from auth import check_scheduler_token
 
 router = APIRouter(prefix="/broker/ibkr", tags=["ibkr"])
 
@@ -662,79 +660,3 @@ async def sync_trades(
 ):
     """User-facing IBKR sync for the authorized portfolio."""
     return await _run_ibkr_sync(db, portfolio.workspace_id, portfolio.id)
-
-
-@router.post("/scheduler-sync", include_in_schema=False)
-async def scheduler_sync(
-    db: Session = Depends(get_db),
-    x_scheduler_token: str | None = Header(default=None),
-    token: str | None = Query(default=None),
-):
-    """Machine entrypoint that explicitly iterates tenant workspaces."""
-    if not check_scheduler_token(x_scheduler_token or token or ""):
-        raise HTTPException(status_code=403, detail="Invalid or missing scheduler token")
-
-    from jobs import _active_workspace_ids, _set_job_workspace_context
-
-    targets: list[tuple[UUID, int, UUID]] = []
-    for workspace_id in _active_workspace_ids(db):
-        _set_job_workspace_context(db, workspace_id)
-        rows = (
-            db.query(BrokerConnection, Portfolio.public_id)
-            .join(
-                Portfolio,
-                (Portfolio.workspace_id == BrokerConnection.workspace_id)
-                & (Portfolio.id == BrokerConnection.portfolio_id),
-            )
-            .filter(
-                BrokerConnection.workspace_id == workspace_id,
-                BrokerConnection.broker == "ibkr",
-                BrokerConnection.auto_sync.is_(True),
-            )
-            .all()
-        )
-        targets.extend(
-            (workspace_id, connection.portfolio_id, public_id)
-            for connection, public_id in rows
-        )
-
-    if not targets:
-        return {
-            "status": "ok",
-            "message": "no auto-sync-enabled IBKR connection to sync",
-            "results": [],
-        }
-
-    results = []
-    had_timeout = False
-    had_error = False
-    for workspace_id, portfolio_id, portfolio_public_id in targets:
-        _set_job_workspace_context(db, workspace_id)
-        try:
-            result = await _run_ibkr_sync(db, workspace_id, portfolio_id)
-            results.append({
-                "portfolio_id": str(portfolio_public_id),
-                "ok": True,
-                **result,
-            })
-        except HTTPException as exc:
-            if exc.status_code == 504:
-                had_timeout = True
-            else:
-                had_error = True
-            results.append({
-                "portfolio_id": str(portfolio_public_id),
-                "ok": False,
-                "status_code": exc.status_code,
-                "detail": exc.detail,
-            })
-
-    status_code = 504 if had_timeout else (502 if had_error else 200)
-    return JSONResponse(
-        {
-            "status": "ok" if status_code == 200 else "error",
-            "synced": sum(1 for row in results if row.get("ok")),
-            "results": results,
-        },
-        status_code=status_code,
-    )

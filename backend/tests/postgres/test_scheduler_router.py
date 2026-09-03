@@ -52,3 +52,19 @@ def test_valid_token_and_job_dispatches_and_returns_200(scheduler_client):
         "status": "ok", "job": "alert_check", "events": 1, "results": [{"ticker": "AAPL"}],
     }
     fake.assert_awaited_once()
+
+
+def test_ibkr_scheduler_sync_route_no_longer_exists(postgres_engine):
+    from routers import ibkr
+
+    app = FastAPI()
+    app.include_router(ibkr.router, prefix="/api")
+
+    def override_get_db():
+        with Session(postgres_engine) as db:
+            yield db
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as client:
+        response = client.post("/api/broker/ibkr/scheduler-sync")
+    assert response.status_code == 404
