@@ -7,7 +7,7 @@ __pycache__/
 
 # data & secrets — the DB holds real portfolio data, never commit it
 *.db
-.env
+.env*
 portfoliodata.csv
 
 # local agent state / worktrees
