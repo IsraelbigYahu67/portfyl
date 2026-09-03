@@ -217,9 +217,20 @@ same database this service is now pointed at.
 
 ## 8. Cost guards (one-time, recommended)
 
-**$1 budget alert** — easiest in the console:
-<https://console.cloud.google.com/billing> → Budgets & alerts → Create budget
-→ scope to this project → amount **$1** → alert thresholds 50/90/100%.
+**Small budget alert** — via `gcloud` (or the console: Budgets & alerts →
+Create budget → scope to this project → alert thresholds 50/90/100%):
+
+```powershell
+gcloud services enable billingbudgets.googleapis.com --project=$PROJECT_ID
+gcloud billing accounts describe BILLING_ACCOUNT_ID --format="value(currencyCode)"   # budget-amount's currency MUST match this
+gcloud billing budgets create --billing-account=BILLING_ACCOUNT_ID --display-name="Portfyl cloud budget alert" --budget-amount=25CZK --filter-projects="projects/$PROJECT_ID" --threshold-rule=percent=0.5 --threshold-rule=percent=0.9 --threshold-rule=percent=1.0
+```
+
+`--budget-amount`'s currency must exactly match the billing account's own
+currency (`billingbudgets.googleapis.com` rejects a mismatch with a generic
+`INVALID_ARGUMENT`, no mention of currency in the error) — check with the
+`describe` command above before picking an amount; a CZK-currency billing
+account cannot take a `USD` budget.
 
 **Artifact Registry — keep only the latest image**:
 
