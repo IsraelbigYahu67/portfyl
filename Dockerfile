@@ -22,7 +22,9 @@ COPY backend/requirements.txt ./backend/requirements.txt
 RUN pip install --no-cache-dir -r backend/requirements.txt
 
 # Backend source. snowball.db / .env / __pycache__ are kept out via .dockerignore,
-# so no data or secrets are baked into the image.
+# so no data or secrets are baked into the image. The cloud edition's database
+# is Neon PostgreSQL, reached at runtime via DATABASE_URL -- nothing DB-related
+# is baked into the image or mounted as a volume.
 COPY backend/ ./backend/
 
 # Drop the built SPA where FastAPI looks for it: backend/main.py serves
@@ -35,6 +37,8 @@ EXPOSE 8080
 
 # Production server: no --reload, bind 0.0.0.0 on the PORT Cloud Run provides
 # (default 8080). --proxy-headers so the app trusts Cloud Run's TLS termination.
-# The SQLite DB is NOT in the image; it lives on the GCS volume mounted at runtime
-# and is pointed to via DATABASE_PATH (see database.py).
+# DATABASE_URL (Neon PostgreSQL) is required at runtime -- see database.py's
+# DatabaseSettings.from_env, which fails closed without it. Because Postgres
+# (not single-writer SQLite) is the database, this image is safe to run with
+# more than one Cloud Run instance/revision at once; see deploy/cloudrun.md.
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --proxy-headers --forwarded-allow-ips '*'"]

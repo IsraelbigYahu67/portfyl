@@ -1,38 +1,42 @@
-# Phase 1 — Deploy the shared backend to Cloud Run
+# Cloud Run deploy — Neon PostgreSQL + Firebase identity, multi-instance
 
-The single shared backend (this repo's `backend/`, with the desktop SPA baked in by
-the root `Dockerfile`) runs on **Cloud Run**, with the SQLite DB living on a
-**Cloud Storage (GCS) volume** — so the app works with the desktop PC powered off.
+The shared backend (this repo's `backend/`, with the built SPA baked in by the
+root `Dockerfile`) runs on **Cloud Run**. The database is **Neon** (managed
+serverless PostgreSQL) — there is no GCS-mounted SQLite volume and no
+`--max-instances=1` constraint any more. PostgreSQL is single-writer-safe
+across many concurrent instances, so the service scales normally.
+Authentication is **Firebase** (verified e-mail identities); Portfyl itself
+only stores opaque, revocable sessions (`backend/auth.py`) — there is no
+shared `APP_PASSWORD` or `SESSION_SECRET` to configure any more.
 
-This deploys into a **brand-new GCP project**. The only steps you must do by hand
-(a browser + a payment card) are **linking a billing account**; everything else is
-copy-paste `gcloud`.
+This deploys into a GCP project you've already created (or a brand-new one —
+see step 1). The only step you must do by hand (a browser + a payment card)
+is **linking a billing account**; everything else is copy-paste `gcloud`
+plus a few clicks in the Neon and Firebase consoles.
 
-Decisions baked in here (see the mobile-app plan): region **us-central1** (keeps GCS
-5 GB + egress inside Google's always-free tier → ~0 Kč), **`--max-instances=1`**
-(SQLite is single-writer — this is load-bearing, never raise it), `--min-instances=0`
-(scale to zero; accept a few-second cold start), a **$1 budget alert**, and an
-Artifact Registry **keep-1-image** cleanup policy.
+Decisions baked in here (see `docs/superpowers/plans/2026-09-01-portfyl-multiuser-foundation.md`
+Task 11 and `docs/superpowers/plans/2026-09-01-portfyl-saas-monetization.md`):
+region **us-central1**, request-based billing with **`--min-instances=0`**
+(scale to zero; accept a few-second cold start) and an initial
+**`--max-instances=5`** (raise later if traffic needs it — nothing here makes
+a higher number unsafe), a Cloud Run **migration Job** that must succeed
+before every service deploy, and Neon's **pooled connection string** for the
+runtime `DATABASE_URL`.
 
 ---
 
 ## 0. Fill these in once
 
-Pick a **globally-unique** project id (lowercase, digits, hyphens; 6–30 chars).
-
 PowerShell (your primary shell):
 
 ```powershell
-$PROJECT_ID = "portfyl-cloud-xxxx"     # <- choose a unique id
-$BUCKET     = "$PROJECT_ID-db"         # bucket name = project id + -db (also globally unique)
+$PROJECT_ID = "portfyl-cloud-xxxx"     # <- your GCP project id
 $REGION     = "us-central1"
 $SERVICE    = "portfyl"
+$MIGRATE_JOB = "portfyl-migrate"
 ```
 
-(Git Bash equivalent: `PROJECT_ID=portfyl-cloud-xxxx; BUCKET=$PROJECT_ID-db; REGION=us-central1; SERVICE=portfyl`.)
-
-The `$VAR` references in the commands below expand the same way in both shells; only
-the assignment lines above differ.
+(Git Bash equivalent: `PROJECT_ID=portfyl-cloud-xxxx; REGION=us-central1; SERVICE=portfyl; MIGRATE_JOB=portfyl-migrate`.)
 
 ---
 
@@ -50,108 +54,179 @@ gcloud billing accounts list          # copy the ACCOUNT_ID (looks like 0X0X0X-0
 gcloud billing projects link $PROJECT_ID --billing-account=ACCOUNT_ID
 ```
 
-If `gcloud billing accounts list` is empty, you have no billing account yet — create
-one at <https://console.cloud.google.com/billing> (add a card), then re-run the link.
-Cloud Run + GCS **require** billing enabled; usage here bills ~0 Kč, but a card must
-be on file.
+If `gcloud billing accounts list` is empty, create one at
+<https://console.cloud.google.com/billing> (add a card), then re-run the link.
 
 ## 2. Enable the APIs
 
 ```powershell
-gcloud services enable run.googleapis.com storage.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com
 ```
 
-## 3. Create the DB bucket and upload the current database
+Firebase Authentication is enabled and configured from the
+[Firebase console](https://console.firebase.google.com/) against this same
+GCP project (Firebase projects and GCP projects are the same resource) —
+add the **Email/Password** sign-in provider there. No extra `gcloud services
+enable` call is needed for Firebase Auth itself.
 
-`backend/portfyl.db` is the source of truth (portfolio 1 "zubik", ~0.4 MB). Upload it
-once so the cloud app starts with your real data.
+## 3. Create the Neon project and roles
 
-```powershell
-gcloud storage buckets create gs://$BUCKET --location=$REGION --uniform-bucket-level-access
-gcloud storage cp backend/portfyl.db gs://$BUCKET/portfyl.db
+Create a Neon project (any region close to `us-central1`) at
+<https://console.neon.tech>. Neon gives you one owner role (e.g.
+`neondb_owner`) — it is **not** a Postgres superuser, so two one-time steps
+are required before Alembic and the SQLite importer can run:
+
+```sql
+-- Run once via the Neon SQL editor or `psql`, connected as the owner role.
+ALTER ROLE neondb_owner BYPASSRLS;
 ```
 
-## 4. Deploy
+This mirrors what `backend/tests/postgres/conftest.py` does for the local
+disposable test database — the migration role must bypass RLS to create the
+policies and (later) to run the SQLite owner import; `backend/alembic/versions/0002_tenant_rls.py`
+refuses to run as `portfyl_runtime` and checks the connecting role has
+`BYPASSRLS` or superuser (`_assert_migration_role` in
+`backend/migrations/sqlite_to_postgres.py` enforces the same rule for the
+data import).
 
-Run from the **repo root** (where the `Dockerfile` is). `--source .` builds the image
-in the cloud (no local Docker needed) and pushes it to Artifact Registry. On the first
-run it will offer to create the `cloud-run-source-deploy` repo — accept.
+`0002_tenant_rls.py` itself creates the **`portfyl_runtime`** role (the one
+every request runs as, `NOSUPERUSER NOBYPASSRLS`, no table ownership, no
+schema-wide grants beyond exactly the tenant tables) — but it creates it
+`NOLOGIN`, and the application issues no `SET ROLE`, so the deployed
+service's `DATABASE_URL` must authenticate **directly as `portfyl_runtime`**.
+After running migrations once (step 6), give it login credentials:
+Neon console → **Roles** → `portfyl_runtime` → **Reset password** (this only
+adds `LOGIN` + a password; it does not touch `NOSUPERUSER`/`NOBYPASSRLS`/
+`NOCREATEDB`/`NOCREATEROLE`).
 
-Pick a real password and generate a signing secret first:
+You now have **two** connection strings from Neon (Dashboard → Connection
+Details), both **pooled** (`-pooler` in the hostname, which Neon's PgBouncer
+requires anyway for Cloud Run's many short-lived connections):
+
+- **Migration URL** — role `neondb_owner`, used only by `alembic upgrade
+  head` and the one-off SQLite importer. Never set as the running service's
+  `DATABASE_URL`.
+- **Runtime URL** — role `portfyl_runtime`, set as the Cloud Run service's
+  `DATABASE_URL` secret in step 5.
+
+## 4. Store secrets
+
+There is no `APP_PASSWORD` or `SESSION_SECRET` to generate any more —
+Firebase issues and verifies its own tokens. Store the two Neon connection
+strings from step 3 as separate secrets (paste each URL at the prompt so it
+never appears in shell history):
 
 ```powershell
-python -c "import secrets; print(secrets.token_urlsafe(48))"   # -> use as SESSION_SECRET
+gcloud secrets create portfyl-database-url --replication-policy=automatic
+gcloud secrets versions add portfyl-database-url --data-file=- # paste the portfyl_runtime pooled URL, then Ctrl+Z, Enter
+
+gcloud secrets create portfyl-migration-database-url --replication-policy=automatic
+gcloud secrets versions add portfyl-migration-database-url --data-file=- # paste the neondb_owner pooled URL, then Ctrl+Z, Enter
 ```
 
-Then deploy (replace `APP_PASSWORD` and `SESSION_SECRET`; keep the password
-**comma-free** — commas are the env-var delimiter):
+Grant the Cloud Run runtime service account (`portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com`,
+created via `gcloud iam service-accounts create portfyl-runtime` if it
+doesn't exist yet) `roles/secretmanager.secretAccessor` on both secrets, and
+grant it **Firebase Authentication Admin** (`roles/firebaseauth.admin`) so
+`firebase_admin.initialize_app()` can verify and revoke tokens using
+Application Default Credentials — no key file is needed on Cloud Run.
+
+## 5. Migrate before you deploy
+
+Never let the web service start against a schema Alembic hasn't reached yet
+— `backend/main.py`'s startup hook calls `assert_alembic_head()` and refuses
+to serve traffic on a mismatch, but a migration Job run *before* the service
+deploy keeps that from ever happening in normal operation:
 
 ```powershell
-gcloud run deploy $SERVICE --source . --region $REGION --allow-unauthenticated --add-volume=name=db,type=cloud-storage,bucket=$BUCKET --add-volume-mount=volume=db,mount-path=/data --set-env-vars=DATABASE_PATH=/data/portfyl.db,APP_PASSWORD=CHOOSE_A_PASSWORD,SESSION_SECRET=PASTE_THE_GENERATED_SECRET --min-instances=0 --max-instances=1 --cpu=1 --memory=1Gi
+.\deploy\run-migrations.ps1 -ProjectId $PROJECT_ID -Region $REGION -Image "$REGION-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/${SERVICE}:latest" -ServiceAccount "portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" -DatabaseUrlSecret "portfyl-migration-database-url"
+```
+
+The script deploys (or updates) a Cloud Run **Job** running `alembic -c
+backend/alembic.ini upgrade head` against the image you're about to serve,
+executes it, and waits — it exits non-zero (and prints where to find the
+job's logs) if the migration fails, so a CI/CD pipeline or you, by hand,
+should treat a non-zero exit here as a hard stop before step 6. Store the
+`neondb_owner` migration URL as its own secret
+(`portfyl-migration-database-url`) — keep it separate from the runtime
+secret so the running service never holds owner-level credentials.
+
+On the very first deploy, run `deploy/migrate-sqlite.ps1` once afterward (see
+`docs/operations/sqlite-to-neon-migration.md`) to import the owner's existing
+`portfyl.db`, then claim that migrated user by signing in with the matching
+verified Firebase e-mail.
+
+## 6. Deploy the service
+
+Run from the **repo root** (where the `Dockerfile` is). `--source .` builds
+the image in the cloud and pushes it to Artifact Registry; accept the offer
+to create the `cloud-run-source-deploy` repo on the first run.
+
+```powershell
+gcloud run deploy $SERVICE --source . --region $REGION --allow-unauthenticated --service-account "portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --set-secrets="DATABASE_URL=portfyl-database-url:latest" --min-instances=0 --max-instances=5 --cpu=1 --memory=1Gi
 ```
 
 Why these flags:
-- `--add-volume … type=cloud-storage` + `--add-volume-mount … mount-path=/data` mounts
-  the bucket at `/data`; `DATABASE_PATH=/data/portfyl.db` points SQLite at it
-  (`database.py` builds `sqlite:////data/portfyl.db`).
-- `APP_PASSWORD` set → the app's password gate uses it **and** flips the session cookie
-  to `Secure` (auth.py). `SESSION_SECRET` signs the session — a random per-deploy value.
-- `--allow-unauthenticated` = Cloud Run itself is public; the app's own password gate is
-  the real lock. `--memory=1Gi` gives pandas/numpy/yfinance headroom for the startup
-  FX backfill.
+- `--set-secrets` injects `DATABASE_URL` from Secret Manager at container
+  start — it is never a plain `--set-env-vars` value and is never logged.
+- `--allow-unauthenticated` = Cloud Run itself is public; Firebase-verified
+  sessions are the real lock (there is no separate app-level password gate).
+- `--max-instances=5`: safe to raise further at any time — PostgreSQL, unlike
+  the old GCS-mounted SQLite file, has no single-writer constraint. Start
+  conservative and watch Neon connection-pool usage before raising it a lot.
+- `--memory=1Gi` gives pandas/numpy/yfinance headroom.
 
-The command prints a **Service URL** (`https://portfyl-….a.run.app`) when done.
+Optional: `--set-env-vars=FRONTEND_ORIGIN=https://your-extra-origin` if a
+separately hosted frontend needs CORS beyond the same-origin SPA baked into
+the image (see `backend/main.py`'s `_cors_origins`).
 
-## 5. Verify
+The command prints a **Service URL** (`https://portfyl-….a.run.app`) when
+done.
 
-Open the Service URL in a desktop browser → you should hit the Portfyl login → sign in
-with `APP_PASSWORD` → the dashboard numbers should match your local app. If login works
-and data loads, the GCS-mounted DB is wired correctly.
+## 7. Verify
 
-## 6. Cost guards (one-time, recommended)
+Open the Service URL → register or sign in with Firebase → the dashboard
+should load. Check Cloud Run logs for the `assert_alembic_head` startup line
+if anything 500s immediately — that means step 5 didn't run against the
+same database this service is now pointed at.
+
+## 8. Cost guards (one-time, recommended)
 
 **$1 budget alert** — easiest in the console:
-<https://console.cloud.google.com/billing> → Budgets & alerts → Create budget → scope to
-this project → amount **$1** → alert thresholds 50/90/100%.
+<https://console.cloud.google.com/billing> → Budgets & alerts → Create budget
+→ scope to this project → amount **$1** → alert thresholds 50/90/100%.
 
-**Artifact Registry — keep only the latest image** (older build layers otherwise
-accumulate). After the first successful deploy the repo exists; apply a cleanup policy:
+**Artifact Registry — keep only the latest image**:
 
 ```powershell
 gcloud artifacts repositories set-cleanup-policies cloud-run-source-deploy --location=$REGION --policy=deploy/ar-cleanup-policy.json
 ```
 
-(Policy file lives alongside this doc: `deploy/ar-cleanup-policy.json`. Add `--dry-run`
-to preview what it would delete first.)
+(Add `--dry-run` to preview first.)
 
 ---
 
-## Ongoing rules (important)
+## Ongoing rules
 
-- **The cloud UI is now the only DB writer.** Once the cloud DB is live, stop importing
-  CSVs into the local `start.bat` app — that would fork the database. The desktop
-  "app" from now on is just the Cloud Run URL in a browser (the desktop SPA is baked
-  into the image). `start.bat` stays for development only.
-- **Back up the DB periodically** (it's your only copy of the portfolio):
-
-  ```powershell
-  gcloud storage cp gs://$BUCKET/portfyl.db ./backups/portfyl-$(Get-Date -Format yyyyMMdd).db
-  ```
-
-- **Redeploy after backend changes**: re-run the step-4 command (env vars persist across
-  redeploys unless you change them; `--source .` rebuilds).
+- **Always migrate before you deploy** (step 5) — never redeploy the service
+  image without first running `deploy/run-migrations.ps1` against the same
+  database.
+- **Redeploy after backend changes**: re-run the step 6 command (secrets and
+  other settings persist across redeploys unless you change them; `--source .`
+  rebuilds).
+- **Back up / restore**: Neon takes continuous WAL-based backups
+  automatically (point-in-time recovery); see
+  `docs/operations/neon-backup-restore.md` for the recovery-branch drill and
+  `deploy/validate-restore.py` for verifying a restored branch before you'd
+  ever trust it.
 
 ## Notes / risks
 
-- **SQLite on GCS FUSE**: fine for this single-user, single-instance, tiny-DB case — the
-  app uses the default rollback-journal (no WAL/shared-memory files, which FUSE can't
-  do). `--max-instances=1` guarantees a single writer; **never raise it** without moving
-  off SQLite. Each commit re-uploads the small DB file to GCS (sub-second at ~0.4 MB).
-- **Cold start**: the first request after idle spins the container up and runs the
-  startup FX backfill — a few seconds. Acceptable at $0. The paid escape hatch is
-  `--min-instances=1` (~$10+/mo), which you almost certainly don't want.
-- **Region**: keep `us-central1`. A European region (e.g. `europe-west3`) would push GCS
-  storage/egress out of the always-free tier and start costing a little.
-- This is Phase 1 only. Phase 2 (bearer-token `/api/auth/login` + Capacitor CORS origins)
-  is what the native Android app needs on top of this; it flows to Cloud Run on the next
-  `gcloud run deploy`.
+- **Cold start**: the first request after idle spins the container up. The
+  paid escape hatch is `--min-instances=1`, which you almost certainly don't
+  want at low traffic.
+- **Region**: keep `us-central1` unless you have a specific reason to move —
+  match it to the Neon project's region to minimize latency.
+- This is Phase 1 of the cloud edition. Billing (Stripe), onboarding, and the
+  edition capability boundary are separate, not-yet-implemented workstreams —
+  see `docs/superpowers/plans/2026-09-01-portfyl-saas-monetization.md`.

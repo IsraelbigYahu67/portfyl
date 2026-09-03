@@ -9,18 +9,10 @@ export default defineConfig({
     // reach the dev server for quick public sharing/testing.
     allowedHosts: [".serveousercontent.com", ".trycloudflare.com"],
     proxy: {
-      // Backend routes that must be same-origin with the SPA in dev. /api carries
-      // the data; /login + /logout let the password gate work without bouncing
-      // between :5173 and :8000.
+      // Keeps the backend same-origin with the SPA in dev (auth cookies,
+      // CSRF header). All backend routes -- including /api/auth/* -- live
+      // under /api; there is no separate top-level /login or /logout route.
       "/api": {
-        target: "http://localhost:8000",
-        changeOrigin: true,
-      },
-      "/login": {
-        target: "http://localhost:8000",
-        changeOrigin: true,
-      },
-      "/logout": {
         target: "http://localhost:8000",
         changeOrigin: true,
       },

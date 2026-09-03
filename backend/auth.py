@@ -178,12 +178,3 @@ def check_scheduler_token(submitted: str) -> bool:
         (submitted or "").encode("utf-8"),
         SCHEDULER_TOKEN.encode("utf-8"),
     )
-
-
-# Temporary import compatibility for routers migrated in Tasks 5-8. These are
-# not authentication primitives and are removed with their final consumers.
-DEFAULT_OWNER_ID = "default"
-
-
-def get_current_user() -> str:
-    return DEFAULT_OWNER_ID

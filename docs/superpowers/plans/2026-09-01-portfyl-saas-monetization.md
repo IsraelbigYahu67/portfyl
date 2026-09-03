@@ -145,7 +145,7 @@ Reference: `README.md:5-13`, `README.md:131-168`.
 |---|---|---|
 | Intended users | Owner at home | Registered customers |
 | Billing | None | Free/Investor/Pro via Stripe |
-| Database | SQLite is acceptable for the private installation | Managed PostgreSQL |
+| Database | SQLite is acceptable for the private installation | Managed PostgreSQL (Neon) |
 | Authentication | Local access mode mapped to one local workspace | Verified identities and revocable sessions |
 | Tax Report | Enabled | Unavailable in every plan |
 | Screener | Enabled | Unavailable in every plan |
@@ -255,13 +255,17 @@ Required outcome:
 
 Required outcome:
 
-- managed PostgreSQL;
+- managed PostgreSQL (Neon), replacing the SQLite engine at
+  `backend/database.py:19-21`;
 - Alembic migrations instead of startup-time imperative schema changes;
 - automated backups and point-in-time recovery;
 - a tested restore procedure;
 - Cloud Scheduler/Tasks or a dedicated queue/worker for scheduled work;
 - idempotency keys and database locks for sync, alerts, and billing events;
-- multiple stateless web instances without duplicate jobs.
+- multiple stateless web instances without duplicate jobs — PostgreSQL removes
+  the GCS-mounted-SQLite single-instance constraint that made
+  `deploy/cloudrun.md`'s `--max-instances=1` load-bearing, so Cloud Run can run
+  with `--max-instances` > 1 once the service targets Neon.
 
 ---
 

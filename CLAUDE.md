@@ -1,11 +1,13 @@
 # Portfyl
 
-Self-hosted portfolio analytics for a Trading 212 / IBKR investor. Import broker
-CSVs (or sync via API), then view performance, allocation, dividends, options,
-tax reports, and an AI assistant across one or more portfolios. Single-user today,
-**but a multi-user SaaS conversion is in progress** — see below.
-(Formerly "Snowball Analytics" — some internal identifiers still carry the `sb_`
-/ `snowball.*` prefix for backwards compatibility; see the naming notes below.)
+Portfolio analytics for a Trading 212 / IBKR investor. Import broker CSVs (or
+sync via API), then view performance, allocation, dividends, options, tax
+reports, and an AI assistant across one or more portfolios. Now multi-tenant
+(Firebase-verified identities, workspace-scoped PostgreSQL data) —
+**a multi-user SaaS conversion is in progress**, with tenant isolation done
+and billing/edition-boundary/onboarding still ahead; see below.
+(Formerly "Snowball Analytics" — some internal identifiers still carry the
+`sb_` prefix for backwards compatibility; see the naming notes below.)
 
 ## In-progress: multi-user SaaS conversion
 
@@ -21,42 +23,46 @@ before starting any auth, tenancy, database, or billing work.
   Pro EUR 7.99 plans, Stripe billing, 7-day no-card Pro trial). Tax Report and
   Screener are **permanently excluded from cloud** — not deferred, a deliberate
   product decision (see plan §2, §7, §12).
-- Target cloud architecture: `User → Membership → Workspace` (workspace = billing
-  + authorization tenant, owns portfolios/accounts/watchlists/alerts), PostgreSQL
-  + Alembic replacing SQLite + imperative migrations, KMS-encrypted broker/AI
-  secrets, and an external scheduler replacing in-process background jobs.
-- **Everything in the rest of this file** (single-user `owner_id = "default"`,
-  SQLite, imperative startup migrations, shared-password login, globally-unique
-  `Portfolio.name`/`Watchlist.name`/`AppSetting.key`) describes the **current**
-  state the plan is replacing. Before touching auth, data-scoping, or DB-migration
-  code, check whether that workstream is already underway rather than reinforcing
-  these single-user assumptions.
-- Workstreams are implemented one focused task-level plan at a time, in the
-  dependency order given in the master plan (edition boundary → Postgres →
-  identity/tenancy → secrets/jobs → billing → onboarding → beta). Don't jump
-  ahead to billing/onboarding work before tenant isolation is actually done.
-- Target deploy stack for the cloud edition: **Google Cloud Run + Neon
-  (managed PostgreSQL) + Cloudflare** (domain + DNS for portfyl.com) — not
-  Cloud SQL, not GCS-mounted SQLite.
-- The first scoped kickoff prompt (Workstreams B + C combined — PostgreSQL
-  foundation + identity/workspace/tenant isolation) already exists at
-  `docs/superpowers/plans/2026-09-01-portfyl-multiuser-foundation-prompt.md`.
-  Read it before starting auth/tenancy/DB-migration work — it has exact file
-  touchpoints and explicit scope boundaries (no billing/edition-boundary/
-  onboarding work in this pass).
+- **Workstreams B (PostgreSQL/Alembic foundation) and C (Firebase identity,
+  `User → Membership → Workspace` tenancy, UUID API IDs, forced PostgreSQL
+  RLS) are DONE** — see
+  `docs/superpowers/plans/2026-09-01-portfyl-multiuser-foundation.md` for the
+  task-by-task record. **Everything in the rest of this file now describes
+  that implemented state**, not the old single-user SQLite one. What's
+  **still pending**: the `PORTFYL_EDITION` capability boundary itself
+  (Workstream A — there is currently one build, not two editions), KMS
+  envelope encryption for broker/AI secrets, an external scheduler replacing
+  the in-process background jobs in `backend/jobs.py`, Stripe billing, and
+  onboarding. Don't jump ahead to billing/onboarding work before those land,
+  and don't reintroduce single-user/`owner_id="default"`/SQLite-primary
+  assumptions anywhere in this codebase — that state is gone, not deferred.
+- Deploy stack for the cloud edition: **Google Cloud Run + Neon (managed
+  PostgreSQL) + Cloudflare** (domain + DNS for portfyl.com) — see
+  `deploy/cloudrun.md` for the runbook, `docs/operations/sqlite-to-neon-migration.md`
+  for the one-off owner data import, and
+  `docs/operations/neon-backup-restore.md` for the PITR restore drill.
+- The kickoff prompt for the now-completed Workstreams B + C work is at
+  `docs/superpowers/plans/2026-09-01-portfyl-multiuser-foundation-prompt.md`
+  (historical reference — useful for *why* a given file looks the way it
+  does, not a to-do list).
 
 ## Stack
 
-- **Backend**: FastAPI + SQLAlchemy 2.0, SQLite (`backend/portfyl.db`, legacy
-  `snowball.db` auto-renamed on first startup). Market
-  data via `yfinance`; `pandas`/`numpy` for calcs; `httpx` for outbound calls.
+- **Backend**: FastAPI + SQLAlchemy 2.0, **PostgreSQL (Neon in prod) via
+  Alembic** — there is no SQLite runtime path any more except the
+  `PORTFYL_TESTING=1` in-memory fixture the fast unit suite uses (see
+  `backend/database.py`'s `DatabaseSettings.from_env`, which fails closed on
+  a non-PostgreSQL `DATABASE_URL` otherwise). Market data via `yfinance`;
+  `pandas`/`numpy` for calcs; `httpx` for outbound calls.
 - **Frontend**: React 18 + Vite 6, TailwindCSS, `recharts`, `@tanstack/react-query`,
   `axios`, `react-router-dom` 7. SPA in `frontend/src` (pages + components).
   Visual design follows the Stitch-derived dark-glassmorphism token system
   (`docs/design/stitch/`) — see `frontend/src/index.css` `:root` and `App.jsx`
   `PALETTES`/`DARK_SURFACES`/`LIGHT_TOKENS` for the token source of truth.
-- **Deploy**: multi-stage `Dockerfile` → Cloud Run. SQLite lives on a mounted GCS
-  volume in prod (`DATABASE_PATH`), never baked into the image.
+- **Deploy**: multi-stage `Dockerfile` → Cloud Run (multi-instance; PostgreSQL
+  has no single-writer constraint). Database is Neon, reached via
+  `DATABASE_URL` — nothing DB-related is baked into the image or mounted as a
+  volume. See `deploy/cloudrun.md`.
 
 ## Run it
 
@@ -64,15 +70,19 @@ before starting any auth, tenancy, database, or billing work.
   run (`uv venv .venv --python 3.12`, then `uv pip install -r requirements.txt`),
   launches backend (`uvicorn main:app --reload`, port **8000**) + frontend
   (`npm run dev`, port **5173**) and opens the browser. Use **http://localhost:5173**
-  — Vite proxies `/api`, `/login`, `/logout` → :8000. (Install uv from
-  https://docs.astral.sh/uv/ if the bootstrap step errors out.)
+  — Vite proxies `/api` → :8000. (Install uv from
+  https://docs.astral.sh/uv/ if the bootstrap step errors out.) A local
+  `DATABASE_URL` pointing at PostgreSQL is required — see
+  `backend/alembic.ini` / `alembic upgrade head`.
 - **Backend only**: activate the `.venv` uv created, then from `backend/`,
   `python -m uvicorn main:app --reload --port 8000`.
 - **Prod build**: `npm run build` emits `frontend/dist`, which FastAPI serves as a
   same-origin SPA (see SPA fallback at the bottom of `main.py`).
-- **Login**: a single password gate. Dev fallback password is `snowball-dev`
-  (set `APP_PASSWORD` to override). Unauthenticated `/api` calls get 401; page
-  routes redirect to `/login`.
+- **Login**: Firebase Authentication (email/password) verifies identity;
+  Portfyl then issues its own opaque, revocable session
+  (`backend/auth.py`, `backend/routers/auth.py`) — there is no shared
+  `APP_PASSWORD`/`SESSION_SECRET` any more. Unauthenticated `/api` calls get
+  401; the SPA routes to `/login`/`/register` (`frontend/src/auth/`).
 
 ## Architecture & conventions (read before editing)
 
@@ -80,22 +90,32 @@ before starting any auth, tenancy, database, or billing work.
   Routers live in `backend/routers/`: portfolio(s), market, analytics, broker,
   ibkr, watchlists, benchmarks, options, polymarket, discord, notes, assistant.
 - **Portfolio scoping is implicit.** The axios interceptor in `frontend/src/api.js`
-  auto-injects `portfolio_id` from the active portfolio into every request —
-  call sites never pass it. **Exceptions**: prefixes in `PORTFOLIO_AGNOSTIC_PREFIXES`
-  (`/portfolios`, `/market`, `/watchlists`) must NOT receive it. If you add a
-  cross-portfolio endpoint, add its prefix there or it will 404/mis-route.
-- **`owner_id` is always `"default"`.** The app is single-user; `auth.get_current_user()`
-  returns the `"default"` sentinel stamped on every row. The column exists so
-  per-user isolation can land later without a schema rewrite — keep it. This is
-  exactly what the SaaS conversion plan (see above) is replacing with
-  workspace-scoped tenant isolation — don't add more code that assumes a single
-  global owner without checking that plan first.
-- **DB migrations are imperative, at startup.** There is **no Alembic**. `main.py`
-  runs `Base.metadata.create_all()` then a series of idempotent `_ensure_*` /
-  `_backfill_*` helpers (raw `ALTER TABLE` / table rebuilds for SQLite). When you
-  add a column/table, add a matching idempotent helper there — don't assume the
-  user will drop their `portfyl.db` (a legacy `snowball.db` is auto-renamed to
-  `portfyl.db` at startup by `database.py` before the engine is created).
+  auto-injects `portfolio_id` (a UUID `public_id`, not an integer) from the
+  active portfolio into every request — call sites never pass it.
+  **Exceptions**: prefixes in `PORTFOLIO_AGNOSTIC_PREFIXES` (`/portfolios`,
+  `/market`, `/watchlists`, `/settings`, `/auth`) must NOT receive it. If you
+  add a cross-portfolio endpoint, add its prefix there or it will 404/mis-route.
+  The same interceptor also attaches `X-Workspace-ID` (once a workspace is
+  resolved) and `X-CSRF-Token` (on mutating methods) — see `AuthProvider`
+  (`frontend/src/auth/AuthProvider.jsx`) and `configureRequestContext` in `api.js`.
+- **Every request is workspace-scoped, not single-owner.** `backend/tenancy.py`'s
+  `get_request_context()` resolves the opaque session cookie, the `X-Workspace-ID`
+  header, and the caller's `Membership` into a `RequestContext`; routers use
+  `require_portfolio()` (or an equivalent workspace-filtered query) instead of a
+  global owner sentinel. **All public API IDs are UUID `public_id` values** —
+  raw integer primary/foreign keys are never accepted or serialized (see
+  `backend/models.py`). PostgreSQL **row-level security is forced** on every
+  tenant table (`backend/alembic/versions/0002_tenant_rls.py`) as defense in
+  depth on top of these application-level predicates — both layers are
+  mandatory; RLS does not replace the application check, and vice versa.
+- **DB migrations are Alembic, run explicitly — never at web startup.**
+  `backend/main.py`'s startup hook only *asserts* the DB's `alembic_version`
+  matches the code's expected head (`database.py`'s `assert_alembic_head`) and
+  fails closed on a mismatch; it performs no `CREATE TABLE`/`ALTER TABLE`
+  itself. Run `cd backend && alembic upgrade head` (see `backend/alembic.ini`)
+  after adding a migration in `backend/alembic/versions/`, and run the Cloud
+  Run migration Job (`deploy/run-migrations.ps1`) before every service deploy
+  — see `deploy/cloudrun.md`.
 - **Money / FX**: transactions carry `fx_to_czk`; values are normalized to **CZK**.
   Missing rates are backfilled at startup via `fx.bulk_fetch_fx`. Preserve this
   when touching valuation/performance code.
@@ -119,26 +139,43 @@ before starting any auth, tenancy, database, or billing work.
 ## Naming (Snowball → Portfyl)
 
 The product was renamed from "Snowball Analytics" to **Portfyl**. User-visible
-strings are all Portfyl, but a handful of internal identifiers deliberately keep
-the old prefix because renaming them would break existing installs: `sb_*`
-localStorage keys (theme/palette/currency prefs), the `sb_session` auth cookie,
-the `snowball.auth` logger name, and the `snowball-dev` dev-password fallback
-(`APP_PASSWORD` overrides it). Don't "finish" the rename on these.
+strings are all Portfyl, but `sb_*` localStorage keys (theme/palette/currency
+prefs, `sb_portfolio_id`) deliberately keep the old prefix because renaming
+them would silently drop existing users' preferences/selection — don't
+"finish" the rename on these. The old shared-password auth (the `sb_session`
+cookie, the `snowball.auth` logger name, the `snowball-dev` dev-password
+fallback) is gone, not renamed — it was fully replaced by Firebase identity
+plus Portfyl's own opaque sessions (`__Host-portfyl_session` /
+`portfyl_session`, `backend/auth.py`) in the multi-user conversion.
 
 ## Tests
 
 ### Backend (`backend/tests/`)
 
-- **pytest** suite (7 modules: `test_portfolio`, `test_analytics`, `test_broker`,
-  `test_cache`, `test_fx`, `test_market`, `test_dividend_growth`). Run from
-  `backend/`: `python -m pytest tests/ -v`.
-- **pytest is NOT in `requirements.txt`** — install it into the venv separately
-  (`uv pip install pytest` / `pip install pytest`) before running the suite.
-- Tests **do not use `TestClient`** — they call router functions directly against
-  an in-memory SQLite session (see `tests/helpers.py`), so the `/api` auth
-  middleware is bypassed and no live server / real DB is needed.
-- `tests/conftest.py` patches `os.rename` **before** importing `database.py` so the
-  legacy `snowball.db → portfyl.db` startup rename doesn't touch the real filesystem.
+- **Fast unit suite** (`backend/tests/*.py`, not the `postgres/` subdir): runs
+  against an in-memory SQLite session under the explicit `PORTFYL_TESTING=1`
+  test-only switch (`tests/conftest.py` sets it, and `DATABASE_URL`, via
+  `setdefault` before anything imports `database.py`) — most tests call
+  router functions directly (see `tests/helpers.py`), bypassing HTTP/session
+  middleware entirely; a few build a real `TestClient` app (e.g.
+  `tests/postgres/conftest.py`'s `matrix_client`) for full-stack cases. Run
+  from `backend/`: `python -m pytest tests/ -v` (or add `--ignore=tests/postgres`
+  to skip the suite below).
+- **PostgreSQL integration suite** (`backend/tests/postgres/`): exercises
+  real Alembic migrations, forced RLS, and the complete Alice/Bob tenant
+  isolation matrix (`docs/security/tenant-isolation-matrix.md`) against a
+  disposable PostgreSQL 16 database — **this is the beta go/no-go gate**, not
+  optional coverage. Requires Docker Desktop
+  (`docker compose -f deploy/docker-compose.postgres-test.yml up -d --wait`)
+  or an explicit disposable `TEST_DATABASE_URL` (must contain `test` in the
+  database name — `tests/postgres/conftest.py` refuses anything else). Run:
+  `cd backend && python -m pytest tests/postgres/ -v`. Never replace these
+  with SQLite-only assertions — RLS and real-role behavior don't exist in
+  SQLite.
+- **Neither pytest nor the PostgreSQL-test extras are in `requirements.txt`**
+  — install `backend/requirements-dev.txt` into the venv
+  (`uv pip install -r requirements-dev.txt` / `pip install -r requirements-dev.txt`,
+  which also installs `requirements.txt`) before running either suite.
 
 ### Frontend (`frontend/src/**/*.test.{js,jsx}`)
 
@@ -154,6 +191,8 @@ the `snowball.auth` logger name, and the `snowball-dev` dev-password fallback
 
 ## Verifying UI changes
 
-Playwright MCP is installed. To check a frontend change, ensure the dev servers
-are running (`start.bat`), then drive **http://localhost:5173** — logging in with
-the dev password — and screenshot/inspect rather than guessing from the diff.
+Playwright MCP is installed. To check a frontend change, ensure a local
+`DATABASE_URL` (PostgreSQL, migrated to head) is set and the dev servers are
+running (`start.bat`), then drive **http://localhost:5173** — register or log
+in with a Firebase test account — and screenshot/inspect rather than guessing
+from the diff.

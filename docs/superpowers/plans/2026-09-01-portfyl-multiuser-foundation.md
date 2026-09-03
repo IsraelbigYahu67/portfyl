@@ -852,7 +852,7 @@ git commit -m "feat(frontend): add accounts sessions workspaces and UUID state"
 - `deploy/validate-restore.py --database-url-env RESTORE_DATABASE_URL --expected-alembic-head 0002_tenant_rls --control-file <json>` exits nonzero on revision/count/control-total mismatch and never prints credentials.
 - `deploy/run-migrations.ps1` creates/executes a Cloud Run Job using the same image and `alembic upgrade head` before service deployment.
 
-- [ ] **Step 1: Write failing restore validator tests**
+- [x] **Step 1: Write failing restore validator tests**
 
 ```python
 def test_restore_validator_rejects_wrong_alembic_revision(fake_database, control_file):
@@ -866,29 +866,50 @@ def test_restore_validator_never_includes_database_url(monkeypatch, capsys):
     assert "secret@example" not in capsys.readouterr().out
 ```
 
-- [ ] **Step 2: Run focused validator tests and verify the script is absent**
+- [x] **Step 2: Run focused validator tests and verify the script is absent**
 
 Run: `cd backend && python -m pytest tests/test_restore_validation.py -v`
 
 Expected: import fails because `deploy.validate_restore` does not exist.
 
-- [ ] **Step 3: Implement migration job and restore validator**
+Result: confirmed (`FileNotFoundError` loading `deploy/validate-restore.py`, which
+did not exist yet); 11 tests now pass against the implementation.
+
+- [x] **Step 3: Implement migration job and restore validator**
 
 The PowerShell script requires project, region, image, service account, and secret-backed `DATABASE_URL`; it deploys/executes a uniquely named Cloud Run Job whose command is `alembic -c backend/alembic.ini upgrade head`, waits for success, and exits before service deployment on failure. The validator checks Alembic head, required RLS flags/policies, table counts, and transaction control totals using read-only SQL.
 
-- [ ] **Step 4: Update Cloud Run for Neon and multiple instances**
+- [x] **Step 4: Update Cloud Run for Neon and multiple instances**
 
 Remove `DATABASE_PATH`, the GCS volume/mount, and every statement that `--max-instances=1` is load-bearing. Document request-based billing, `--min-instances=0`, initial `--max-instances=5`, Neon pooled runtime URL, separate owner migration URL where needed, runtime non-owner role, Firebase ADC/project configuration, and migration-job-before-traffic order.
 
-- [ ] **Step 5: Write the Neon PITR restore drill**
+- [x] **Step 5: Write the Neon PITR restore drill**
 
 Document these exact operator stages: record project retention shown in Neon Console; choose a timestamp before the incident; create a new recovery branch at that timestamp; obtain a read-only connection string for the branch; run `validate-restore.py`; compare Alembic/RLS/count/control report; run a smoke test against the recovery branch; switch `DATABASE_URL` only after approval; retain the old branch until post-restore verification; record timestamp, branch ID, validator output hash, operator, and result. The procedure never restores over production in place.
 
-- [ ] **Step 6: Update repository guidance and master-plan stack wording**
+- [x] **Step 6: Update repository guidance and master-plan stack wording**
 
 Update `CLAUDE.md` to describe Neon PostgreSQL, Alembic, Firebase identity, workspace scoping, UUID API IDs, migration commands, and both test suites. Replace remaining Cloud SQL wording in the master plan with Neon and state that PostgreSQL removes the SQLite single-instance constraint. Preserve out-of-scope workstream language.
 
-- [ ] **Step 7: Run documentation-adjacent and full verification**
+Result: the master plan (`2026-09-01-portfyl-saas-monetization.md`) never
+literally said "Cloud SQL" — that phrase only existed in this plan and its
+kickoff prompt, as meta-instructions about what to write, not text to find
+and replace. Named Neon explicitly in the master plan's edition-boundary
+table and its "SQLite and single-instance deployment" required-outcome
+bullets, and added the single-instance-constraint-removed sentence there.
+`CLAUDE.md`'s Stack/Run it/Architecture/Naming/Tests sections were still
+describing the pre-Task-1 single-user SQLite/shared-password state even
+though Tasks 1-10 had already replaced it; rewrote them to match current
+reality (Neon+Alembic, Firebase+opaque sessions, UUID `public_id` everywhere,
+forced RLS, the `tests/postgres/` suite). Also fixed two small pieces of
+drift this surfaced: `backend/auth.py` still had a dead
+`DEFAULT_OWNER_ID`/`get_current_user()` compat shim with zero callers left
+(deleted; full backend suite still 648/648 green), and
+`frontend/vite.config.js` still proxied the removed top-level `/login`/
+`/logout` routes with a stale "password gate" comment (removed; only `/api`
+is proxied now, matching `main.py` having no routes outside `/api`).
+
+- [x] **Step 7: Run documentation-adjacent and full verification**
 
 Run: `cd backend && python -m pytest tests/test_restore_validation.py tests/ -v`
 
@@ -900,11 +921,30 @@ Run: `git diff --check`
 
 Expected: all backend/PostgreSQL/frontend checks pass and diff check reports no whitespace errors.
 
+Result: `cd backend && python -m pytest tests/ -v` (fast suite + `tests/postgres/`
+together, Docker Desktop's disposable PostgreSQL 16 via
+`deploy/docker-compose.postgres-test.yml`) → **648 passed, 0 failed, 0
+skipped**. `alembic downgrade base && alembic upgrade head` re-verified
+directly against that disposable database (all three revisions reapplied
+cleanly from empty). Frontend, run in a normal (non-sandboxed) shell: `npm
+test` → 129 passed across 22 files; `npm run build` → succeeded, emitted
+`frontend/dist`. `git diff --check` → only a benign CRLF/LF
+line-ending notice on `deploy/cloudrun.md`, no real whitespace errors.
+
 - [ ] **Step 8: Perform the production-like recovery branch drill**
 
 Using access to the actual Neon project, create a non-production recovery branch, run the validator and application smoke suite, and record the result in `docs/operations/neon-backup-restore.md`. Do not change production traffic during this proof drill.
 
-- [ ] **Step 9: Commit Task 11**
+**Blocked — requires live Neon/GCP project access and credentials this
+session does not have.** Everything the drill depends on is built and unit
+tested (`deploy/validate-restore.py`, the drill stages and record template
+in `docs/operations/neon-backup-restore.md`), but actually creating a Neon
+recovery branch and running the validator against it is an operator action
+against real infrastructure — do this once Neon/Cloud Run access is
+available, then append the result to that file's drill-record log and check
+this step off.
+
+- [x] **Step 9: Commit Task 11 (steps 1-7; step 8 is a follow-up operator action)**
 
 ```bash
 git add Dockerfile deploy/cloudrun.md deploy/run-migrations.ps1 deploy/validate-restore.py docs/operations/neon-backup-restore.md CLAUDE.md docs/superpowers/plans/2026-09-01-portfyl-saas-monetization.md backend/tests/test_restore_validation.py
@@ -915,12 +955,33 @@ git commit -m "docs(deploy): add Neon migrations restore drill and multi-instanc
 
 ## Final verification gate
 
-- [ ] `alembic downgrade base && alembic upgrade head` passes on disposable PostgreSQL.
+- [x] `alembic downgrade base && alembic upgrade head` passes on disposable PostgreSQL.
+      Verified directly against the Docker-based disposable database
+      (2026-09-03): downgrade to base then upgrade replayed all three
+      revisions (`0001_multiuser_schema` → `0002_tenant_rls` →
+      `0003_job_workspace_enumeration`) cleanly.
 - [ ] SQLite rehearsal imports the full fixture and a copy of the owner's real database with matching reconciliation report.
-- [ ] Complete backend unit suite passes.
-- [ ] Complete PostgreSQL Alice/Bob and raw RLS matrix passes with no skips.
-- [ ] Frontend Vitest suite and Vite production build pass outside the restricted sandbox.
+      Fixture rehearsal is proven by `tests/postgres/test_sqlite_migration.py`
+      (part of the 648 passing). Running the importer against the owner's
+      actual `backend/portfyl.db` is a separate, deliberate operator action
+      touching real financial data — not run automatically as part of this
+      verification pass; do this explicitly before the real cutover.
+- [x] Complete backend unit suite passes. 648 passed, 0 failed, 0 skipped
+      (`cd backend && python -m pytest tests/ -v`, 2026-09-03).
+- [x] Complete PostgreSQL Alice/Bob and raw RLS matrix passes with no skips. Included in the 648 above.
+- [x] Frontend Vitest suite and Vite production build pass outside the restricted sandbox.
+      129 passed (22 files); `npm run build` succeeded, emitted `frontend/dist`.
 - [ ] Runtime Neon URL uses a non-owner role without `BYPASSRLS`.
-- [ ] Cloud Run migration job succeeds before a multi-instance service deployment.
-- [ ] Production-like Neon recovery branch validates successfully and the drill record is complete.
-- [ ] `CLAUDE.md`, master plan, migration runbook, isolation matrix, and restore runbook match the implemented commands and schema.
+      Structurally guaranteed by `0002_tenant_rls.py` and proven against the
+      disposable test database by `tests/postgres/test_runtime_role.py`; not
+      yet confirmed against an actual deployed Neon project (no live
+      credentials this session).
+- [ ] Cloud Run migration job succeeds before a multi-instance service deployment. Requires live GCP access — not run this session.
+- [ ] Production-like Neon recovery branch validates successfully and the drill record is complete. Blocked on live Neon access — see Task 11 Step 8.
+- [x] `CLAUDE.md`, master plan, migration runbook, isolation matrix, and restore runbook match the implemented commands and schema.
+      `CLAUDE.md` and the master plan were rewritten in Task 11 Step 6;
+      `docs/operations/neon-backup-restore.md` (new) and `deploy/cloudrun.md`
+      (rewritten) match `deploy/validate-restore.py`'s actual CLI; the
+      SQLite migration runbook (Task 3) and tenant isolation matrix (Task 9)
+      were not touched by Task 11 and describe mechanisms Task 11 did not
+      change.
