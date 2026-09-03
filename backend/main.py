@@ -14,7 +14,7 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 from database import SessionLocal, assert_alembic_head
 from edition import Edition, edition_from_env
-from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, cash, alerts, settings, capabilities, auth as auth_router
+from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, cash, alerts, settings, capabilities, scheduler, auth as auth_router
 from tenancy import (
     RequestContextError,
     get_request_context,
@@ -106,6 +106,7 @@ app.include_router(
     prefix="/api",
     dependencies=[Depends(get_request_context)],
 )
+app.include_router(scheduler.router, prefix="/api")
 
 
 @app.get("/health")
