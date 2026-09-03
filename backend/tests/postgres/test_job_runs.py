@@ -111,3 +111,33 @@ def test_stale_running_row_can_be_reclaimed(
     reclaimed = _claim_job_run(runtime_job_session, "autosync", ws.id, NOW)
     assert reclaimed is not None
     assert reclaimed == (run_id, attempt + 1)
+
+
+from unittest.mock import AsyncMock, patch
+
+from jobs import alert_check_all_workspaces
+
+
+async def _run_twice(coro_fn, *args, **kwargs):
+    first = await coro_fn(*args, **kwargs)
+    second = await coro_fn(*args, **kwargs)
+    return first, second
+
+
+def test_alert_check_all_workspaces_skips_a_second_call_in_the_same_period(
+    single_workspace, runtime_job_session: Session,
+):
+    # alert_check_all_workspaces does `from routers.alerts import run_check`
+    # as a fresh local import on every call (see its lazy-import comment in
+    # jobs.py) -- patch it at its origin, routers.alerts.run_check, not on
+    # the jobs module, or the patch never takes effect.
+    import asyncio
+    ws, _ = single_workspace
+    fake_run_check = AsyncMock(return_value=[{"ticker": "AAPL"}])
+    with patch("routers.alerts.run_check", fake_run_check):
+        first, second = asyncio.run(_run_twice(
+            alert_check_all_workspaces, runtime_job_session, now=NOW))
+
+    assert first == [{"ticker": "AAPL"}]
+    assert second == []  # second call's claim for the same period is rejected
+    assert fake_run_check.await_count == 1

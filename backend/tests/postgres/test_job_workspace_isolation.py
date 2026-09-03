@@ -217,13 +217,19 @@ def test_active_workspace_ids_excludes_archived_workspaces(
 
 
 # ---------------------------------------------------------------------------
-# Bug 1 (black box) + cross-tenant isolation: alert_check_all_workspaces
-# never commits mid-pass, so runtime_session (savepoint-based) is fine here.
+# Bug 1 (black box) + cross-tenant isolation. alert_check_all_workspaces now
+# commits mid-pass too (the job_runs claim/finish pair added for external job
+# triggering -- see docs/superpowers/specs/2026-09-03-portfyl-job-triggering-design.md),
+# so this needs runtime_job_session (real commits), not runtime_session
+# (savepoint-based -- see the module docstring's "Why this file defines its
+# own runtime_job_session fixture" section for why that would be a false
+# pass here). Ordering note from the module docstring applies: workspace_pair
+# must stay listed before runtime_job_session.
 # ---------------------------------------------------------------------------
 
 
 def test_alert_check_all_workspaces_processes_both_workspaces_without_leaking(
-    postgres_engine: Engine, workspace_pair, runtime_session: Session,
+    postgres_engine: Engine, workspace_pair, runtime_job_session: Session,
 ):
     (ws_a, pf_a), (ws_b, pf_b) = workspace_pair
     with _owner_session(postgres_engine) as db:
@@ -240,7 +246,7 @@ def test_alert_check_all_workspaces_processes_both_workspaces_without_leaking(
     sent = AsyncMock(return_value=None)
     with patch("routers.alerts.market_data.get_infos", return_value=quotes), \
          patch("routers.alerts.send_discord_notification", sent):
-        fired = asyncio.run(alert_check_all_workspaces(runtime_session))
+        fired = asyncio.run(alert_check_all_workspaces(runtime_job_session))
 
     fired_tickers = {row["ticker"] for row in fired}
     # Bug 1, black-box: pre-fix, _active_workspace_ids() returned [] so this
