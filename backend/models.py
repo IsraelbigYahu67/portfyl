@@ -569,3 +569,25 @@ class PriceAlert(Base):
     last_triggered_at = Column(DateTime(timezone=True), nullable=True)
     triggered_price = Column(Float, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class JobRun(Base):
+    __tablename__ = "job_runs"
+    __table_args__ = (
+        UniqueConstraint("job_name", "workspace_id", "period_start",
+                          name="uq_job_run_period"),
+        CheckConstraint(
+            "status IN ('running', 'succeeded', 'failed', 'dead_letter')",
+            name="ck_job_runs_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    workspace_id = _workspace_id()
+    job_name = Column(String, nullable=False)
+    period_start = Column(DateTime(timezone=True), nullable=False)
+    status = Column(String, nullable=False, server_default="running")
+    attempt_count = Column(Integer, nullable=False, server_default="1")
+    last_error = Column(Text, nullable=True)
+    started_at = Column(DateTime(timezone=True), server_default=func.now())
+    finished_at = Column(DateTime(timezone=True), nullable=True)
