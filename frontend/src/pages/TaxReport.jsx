@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchTaxReport } from "../api";
+import { fetchTaxReport } from "../editions/localApi";
 import { useCurrency } from "../App";
 import MetricCard from "../components/MetricCard";
 import { FileText, Download, TrendingUp, TrendingDown, ShieldCheck, AlertTriangle, Hourglass } from "lucide-react";

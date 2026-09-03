@@ -9,6 +9,7 @@ __pycache__/
 *.db
 .env*
 portfoliodata.csv
+docs/operations/control-files/
 
 # local agent state / worktrees
 .claude/

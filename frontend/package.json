@@ -4,11 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "vite --mode edition-local",
+    "build": "vite build --mode edition-local",
+    "build:cloud": "vite build --mode edition-cloud",
     "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --mode edition-local",
+    "test:cloud": "vitest run --mode edition-cloud",
+    "test:watch": "vitest --mode edition-local"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",

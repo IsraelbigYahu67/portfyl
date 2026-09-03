@@ -401,7 +401,6 @@ def _compute_czech_tax_by_year(gains: list) -> list[dict]:
     return out
 
 
-@router.get("/tax-report")
 def tax_report(
     year: int | None = None,
     db: Session = Depends(get_db),

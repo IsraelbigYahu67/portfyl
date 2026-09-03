@@ -2433,7 +2433,6 @@ def _shibui_screener(
     }
 
 
-@router.get("/screener")
 def stock_screener(
     universe: str = "sp500",
     tickers: str = "",

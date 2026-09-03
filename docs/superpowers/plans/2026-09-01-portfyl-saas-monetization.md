@@ -596,6 +596,13 @@ task-level implementation plan for each workstream before modifying code.
 
 ### Workstream A: product/data validation and edition boundary
 
+> Technical boundary completed 2026-09-03. The central registry, conditional
+> backend route manifest, runtime capabilities endpoint, and edition-specific
+> Vite manifests are implemented and tested in both editions; see
+> `docs/superpowers/plans/2026-09-03-portfyl-edition-boundary.md`. Interviews,
+> vendor rights/quotes, and pricing validation remain open and keep Workstream A
+> as a whole in progress.
+
 Deliverable: signed or explicitly approved commercial data path, positioning
 evidence, a validated founder-pricing page, and an approved local/cloud
 capability matrix.
@@ -716,10 +723,10 @@ cloud positioning solves a paid problem.
 
 ### Phase 1: secure SaaS foundation — estimated 4-6 weeks
 
-- [ ] Complete Workstream B: PostgreSQL and migrations.
-- [ ] Complete Workstream C: identity and tenant isolation.
+- [x] Complete Workstream B: PostgreSQL and migrations.
+- [x] Complete Workstream C: identity and tenant isolation.
 - [ ] Complete Workstream D: encrypted secrets and external jobs.
-- [ ] Implement edition-specific backend and frontend route manifests.
+- [x] Implement edition-specific backend and frontend route manifests.
 - [ ] Configure backups, monitoring, audit, rate limits, and EU deployment.
 
 **Exit gate:** Cross-tenant tests pass for every resource class, multiple web
@@ -935,16 +942,16 @@ Portfyl is ready to accept public payments only when every item below is true:
 
 ## 15. Immediate next actions
 
-1. [ ] Approve the edition matrix: Tax Report and Screener are `local_only`;
+1. [x] Approve the edition matrix: Tax Report and Screener are `local_only`;
        classify every other current page as local-only or cloud tier eligible.
 2. [ ] Interview 10-15 target users and rank non-tax paid pains.
 3. [ ] Request commercial-display quotes from at least three data providers for
        the exact remaining cloud feature set.
 4. [ ] Publish/test the proposed Free, Investor, and Pro pricing page without
        Tax Report or Screener claims.
-5. [ ] Write the focused edition/capability-boundary implementation plan.
-6. [ ] Write the focused PostgreSQL migration plan.
-7. [ ] Write the focused identity/workspace/tenant-isolation plan.
+5. [x] Write the focused edition/capability-boundary implementation plan.
+6. [x] Write the focused PostgreSQL migration plan.
+7. [x] Write the focused identity/workspace/tenant-isolation plan.
 8. [ ] Write the focused encrypted-secrets/jobs and Stripe/entitlements plans.
 9. [ ] Execute those plans in dependency order with test and review gates.
 10. [ ] Run a 20-50-user private beta before public billing.

@@ -12,22 +12,22 @@ import Cash from "./pages/Cash";
 import Import from "./pages/Import";
 import Dividends from "./pages/Dividends";
 import Analytics from "./pages/Analytics";
-import TaxReport from "./pages/TaxReport";
 import Settings from "./pages/Settings";
 import Assistant from "./pages/Assistant";
 import Search from "./pages/Search";
 import Stock from "./pages/Stock";
 import Watchlists from "./pages/Watchlists";
-import Screener from "./pages/Screener";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgotPassword";
-import { fetchFxRate, fetchPortfolios, setActivePortfolioId, getActivePortfolioId } from "./api";
+import { fetchCapabilities, fetchFxRate, fetchPortfolios, setActivePortfolioId, getActivePortfolioId } from "./api";
 import { ToastProvider } from "./components/ui/Toast";
 import { ConfirmProvider } from "./components/ui/ConfirmDialog";
 import AutoLoad from "./components/AutoLoad";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
+import { EDITION_ROUTES } from "@edition-manifest";
+import { enabledEditionEntries } from "./editions/filter";
 
 const CurrencyContext = createContext(null);
 const PortfolioContext = createContext(null);
@@ -409,11 +409,19 @@ function AuthGate() {
 
 function AppLayout() {
   const { platform } = usePlatform();
+  const { data: capabilityState } = useQuery({
+    queryKey: ["capabilities"],
+    queryFn: fetchCapabilities,
+    staleTime: Infinity,
+    retry: false,
+  });
+  const runtimeCapabilities = capabilityState?.capabilities || [];
+  const editionRoutes = enabledEditionEntries(EDITION_ROUTES, runtimeCapabilities);
 
   if (!platform) {
     return (
       <div className="flex min-h-screen">
-        <Sidebar />
+        <Sidebar capabilities={runtimeCapabilities} />
         <main className="flex-1 p-6 overflow-y-auto min-w-0 max-h-screen">
           <PlatformLanding />
         </main>
@@ -426,7 +434,7 @@ function AppLayout() {
       {/* Background prefetcher — warms the React Query cache for every T212 page
           in priority order so navigation is instant. Renders nothing. */}
       {platform === "t212" && <AutoLoad />}
-      <Sidebar />
+      <Sidebar capabilities={runtimeCapabilities} />
       <main className="flex-1 p-6 overflow-y-auto min-w-0 max-h-screen">
         <Routes>
           {platform === "t212" && (
@@ -439,12 +447,13 @@ function AppLayout() {
               <Route path="/import" element={<Import />} />
               <Route path="/dividends" element={<Dividends />} />
               <Route path="/analytics" element={<Analytics />} />
-              <Route path="/tax-report" element={<TaxReport />} />
               <Route path="/search" element={<Search />} />
               <Route path="/stock/:ticker" element={<Stock />} />
               <Route path="/watchlists" element={<Watchlists />} />
-              <Route path="/screener" element={<Screener />} />
               <Route path="/assistant" element={<Assistant />} />
+              {editionRoutes.map(({ path, Component }) => (
+                <Route key={path} path={path} element={<Component />} />
+              ))}
             </>
           )}
           <Route path="/settings" element={<Settings />} />

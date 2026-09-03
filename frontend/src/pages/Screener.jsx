@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchScreener } from "../api";
+import { fetchScreener } from "../editions/localApi";
 import { useStockDetail } from "../components/StockDetail";
 import { Search, SlidersHorizontal, RefreshCw, TrendingUp, TrendingDown, Minus } from "lucide-react";
 

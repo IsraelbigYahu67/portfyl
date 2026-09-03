@@ -7,6 +7,8 @@ if exist "%~dp0.env" (
     )
 )
 
+if not defined PORTFYL_EDITION set "PORTFYL_EDITION=local"
+
 cd /d "%~dp0backend"
 
 REM First run: create an isolated Python environment with uv (https://docs.astral.sh/uv/).

@@ -13,14 +13,18 @@ from fastapi.staticfiles import StaticFiles
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 from database import SessionLocal, assert_alembic_head
-from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, cash, alerts, settings, auth as auth_router
+from edition import Edition, edition_from_env
+from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, cash, alerts, settings, capabilities, auth as auth_router
 from tenancy import (
     RequestContextError,
     get_request_context,
     request_context_error_handler,
 )
 
+PORTFYL_EDITION = edition_from_env(os.environ)
+
 app = FastAPI(title="Portfyl API", version="1.0.0")
+app.state.portfyl_edition = PORTFYL_EDITION
 app.add_exception_handler(
     auth_router.AuthAPIError,
     auth_router.auth_api_error_handler,
@@ -55,6 +59,7 @@ app.add_middleware(
 
 
 app.include_router(auth_router.router, prefix="/api")
+app.include_router(capabilities.build_router(PORTFYL_EDITION), prefix="/api")
 app.include_router(portfolios.router, prefix="/api")
 app.include_router(portfolio.router, prefix="/api")
 app.include_router(
@@ -63,6 +68,16 @@ app.include_router(
     dependencies=[Depends(get_request_context)],
 )
 app.include_router(analytics.router, prefix="/api")
+if PORTFYL_EDITION is Edition.LOCAL:
+    # Imported only in the local edition so cloud never registers the owner-only
+    # Tax Report or Screener operations (and they stay absent from OpenAPI).
+    from routers import local_features
+
+    app.include_router(
+        local_features.router,
+        prefix="/api",
+        dependencies=[Depends(get_request_context)],
+    )
 app.include_router(broker.router, prefix="/api")
 app.include_router(
     watchlists.router,

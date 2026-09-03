@@ -71,11 +71,26 @@ using the template at the bottom of this file.
    exit as a failed drill; do not proceed to stage 7.
 
 7. **Run a smoke test against the recovery branch.** Point a local backend
-   at the branch (`$env:DATABASE_URL = "<branch connection string, portfyl_runtime role>"`)
-   and run `cd backend && python -m pytest tests/postgres/test_alice_bob_matrix.py -v`
-   plus a manual login/dashboard check — confirm the application actually
-   behaves correctly against the restored data, not just that the raw counts
-   match.
+   at the branch's `portfyl_runtime` connection string and boot the real app
+   against it, then hit it:
+
+   ```powershell
+   $env:DATABASE_URL = "<branch connection string, portfyl_runtime role>"
+   $env:PORTFYL_EDITION = "cloud"   # backend/edition.py fails closed without this
+   cd backend && python -m uvicorn main:app --host 127.0.0.1 --port 8123
+   # in another shell: curl http://127.0.0.1:8123/ (expect 200) and
+   # curl http://127.0.0.1:8123/api/auth/me (expect 401, not a 500/crash)
+   ```
+
+   **Do not** point `tests/postgres/` fixtures at the branch — `postgres_engine`
+   in `tests/postgres/conftest.py` runs `DROP SCHEMA public CASCADE` before
+   every session (its `_assert_disposable_postgres_url` guard will actually
+   refuse to run against a branch whose database name doesn't contain `test`,
+   e.g. Neon's default `neondb` — so in practice it fails safe rather than
+   destroying the branch, but it still isn't a smoke test). Confirm the
+   application actually behaves correctly against the restored data (clean
+   startup, no `assert_alembic_head` failure, correct 401 body shape) — not
+   just that the raw counts match.
 
 8. **Switch `DATABASE_URL` only after approval.** Promoting a recovery
    branch to be the new production database is a deliberate, approved
@@ -107,4 +122,34 @@ validate-restore.py output (or a hash of it, e.g. `Get-FileHash` on captured out
 Smoke test result (pass/fail, what was checked):
 Promoted to production? (yes/no; if yes, approver):
 Notes:
+```
+
+### 2026-09-03 — first end-to-end rehearsal (Task 11 Step 8)
+
+```
+Date/time (UTC): 2026-09-03 11:53 - 15:39
+Operator: Claude Code, on behalf of tom.zoubek@gmail.com (project portfyl-cloud-fstxby)
+Restore timestamp targeted: current HEAD of parent branch (project was minutes old; no
+    meaningful earlier point existed yet -- this rehearsal proves the mechanism, not a real
+    incident recovery)
+Neon branch name/ID: restore-drill-2026-09-03 / br-falling-snow-b12o5ebm (deleted after the drill)
+Control file used: docs/operations/control-files/prod-20260903.json (captured via
+    deploy/validate-restore.py --capture against the neondb_owner pooled URL)
+validate-restore.py exit code: 0
+validate-restore.py output: {"ok": true, "table_counts": {"benchmarks": 7,
+    "benchmark_components": 2, all other tenant tables: 0}} -- matched the control file exactly
+    (no tenant data existed yet; only preset benchmark seed rows)
+Smoke test result: PASS. Booted the real backend (uvicorn) locally against the branch's
+    portfyl_runtime connection string. GET / -> 200. GET /api/auth/me -> 401 with
+    {"code":"authentication_required"} (correct shape, not a crash). No assert_alembic_head
+    failure at startup.
+Promoted to production? No -- pure rehearsal.
+Notes: Surfaced and fixed two real bugs while running this for real: (1) the drill runbook's
+    step 7 told the operator to run tests/postgres/test_alice_bob_matrix.py against the branch,
+    but that suite's postgres_engine fixture does DROP SCHEMA public CASCADE -- its own
+    _assert_disposable_postgres_url guard happens to refuse a database name without "test" in
+    it (Neon's branch database is "neondb"), so it fails safe rather than destroying the branch,
+    but it was never a working smoke test as written; replaced with booting the real app.
+    (2) The app now requires PORTFYL_EDITION to be set (backend/edition.py, landed concurrently
+    with this drill) -- added that to the smoke-test snippet above.
 ```

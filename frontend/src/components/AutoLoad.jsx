@@ -21,7 +21,6 @@ import {
   fetchRiskMetrics,
   fetchBenchmarkComparison,
   fetchCorrelation,
-  fetchTaxReport,
   fetchT212Status,
 } from "../api";
 
@@ -39,7 +38,7 @@ import {
 //   1. Dashboard   2. Allocation
 //   3. Stock detail for every open holding, biggest market value first
 //   4. Transactions   5. Search (nothing to preload) + Watchlists
-//   …then the rest of the sidebar (Dividends, Analytics, Tax Report) → Settings.
+//   …then the rest of the shared sidebar (Dividends, Analytics) → Settings.
 //
 // Runs strictly sequentially with a small gap between requests. yfinance is
 // slow and aggressively rate-limited, and `fundamentals` is by far the
@@ -140,7 +139,7 @@ export default function AutoLoad() {
         [["watchlists"], () => fetchWatchlists()],
       ]))) return;
 
-      // …rest of the sidebar in order: Dividends → Analytics → Tax Report.
+      // …rest of the shared sidebar in order: Dividends → Analytics.
       if (!(await runTasks([
         [["dividends"], () => fetchDividends()],
         [["dividends-forecast"], () => fetchDividendForecast()],
@@ -171,10 +170,9 @@ export default function AutoLoad() {
         [["correlation", P], () => fetchCorrelation(P.toLowerCase())],
       ]))) return;
 
-      // Tax Report (year=null → backend picks the latest) and Settings (T212
-      // status, keyed by the active portfolio id).
+      // Settings (T212 status, keyed by the active portfolio id). Local-only
+      // pages fetch on navigation so their API helpers never enter cloud builds.
       await runTasks([
-        [["tax-report", null], () => fetchTaxReport(null)],
         [["t212-status", currentId], () => fetchT212Status()],
       ]);
     })();

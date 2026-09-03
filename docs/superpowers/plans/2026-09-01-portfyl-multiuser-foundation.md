@@ -931,20 +931,53 @@ test` → 129 passed across 22 files; `npm run build` → succeeded, emitted
 `frontend/dist`. `git diff --check` → only a benign CRLF/LF
 line-ending notice on `deploy/cloudrun.md`, no real whitespace errors.
 
-- [ ] **Step 8: Perform the production-like recovery branch drill**
+- [x] **Step 8: Perform the production-like recovery branch drill**
 
 Using access to the actual Neon project, create a non-production recovery branch, run the validator and application smoke suite, and record the result in `docs/operations/neon-backup-restore.md`. Do not change production traffic during this proof drill.
 
-**Blocked — requires live Neon/GCP project access and credentials this
-session does not have.** Everything the drill depends on is built and unit
-tested (`deploy/validate-restore.py`, the drill stages and record template
-in `docs/operations/neon-backup-restore.md`), but actually creating a Neon
-recovery branch and running the validator against it is an operator action
-against real infrastructure — do this once Neon/Cloud Run access is
-available, then append the result to that file's drill-record log and check
-this step off.
+Result: unblocked mid-Task-11 once the user set up real GCP (`portfyl-cloud-fstxby`,
+`europe-west3`) and Neon (`little-bird-92332879`, `aws-eu-central-1`) projects and
+handed over API access. Performed for real: captured a baseline control file from
+the live Neon database via `--capture`, created recovery branch
+`restore-drill-2026-09-03` (`br-falling-snow-b12o5ebm`) via the Neon API,
+`deploy/validate-restore.py` passed clean (`{"ok": true, ...}`, exit 0) against it,
+booted the real backend locally against the branch and confirmed `GET /` → 200 and
+`GET /api/auth/me` → 401 with the correct error body, then deleted the branch.
+Full record in `docs/operations/neon-backup-restore.md`'s drill log. This also
+surfaced and fixed a real bug in the runbook itself: the documented smoke-test step
+told the operator to run `tests/postgres/test_alice_bob_matrix.py` against the
+branch, but that suite's fixture does `DROP SCHEMA public CASCADE` (its own
+disposable-database name guard happens to refuse to run against a branch, so it
+fails safe rather than destroying data — but it was never a working smoke test as
+written); replaced with directly booting the app. This drill also predates and is
+unaffected by Workstream A's edition-boundary work landing concurrently in this
+same session (see `docs/superpowers/plans/2026-09-03-portfyl-edition-boundary.md`);
+the smoke-test snippet was updated to set the now-required `PORTFYL_EDITION`.
 
-- [x] **Step 9: Commit Task 11 (steps 1-7; step 8 is a follow-up operator action)**
+This also completed the rest of `deploy/cloudrun.md` beyond what Task 11's file
+map required: the actual first production-like deploy was carried out end to end
+(GCP project/billing/APIs/service accounts/secrets created, Alembic migrated via a
+real Cloud Run Job, image built with Firebase build args and deployed, verified
+live in a browser with no console errors). Several real bugs in the as-written
+runbook/tooling were found and fixed only by actually running them: the Neon owner
+role already has `BYPASSRLS` by default (the documented manual `ALTER ROLE` step
+was neither necessary nor even possible — Postgres 16+ refuses a role's own
+attempt to grant itself an attribute it doesn't already hold); reusing one service
+account for both the runtime service and the migration Job would have granted the
+running service IAM access to the owner-level migration secret (split into
+`portfyl-runtime` / `portfyl-migrator`); the image's runtime `WORKDIR` is
+`/app/backend`, so `run-migrations.ps1`'s `-c backend/alembic.ini` resolved to a
+nonexistent doubled path; `gcloud`'s Windows batch wrapper silently drops a
+space-separated value for a comma-containing flag (`--args`) under PowerShell
+backtick continuation, so every flag was switched to `--flag=value` form; the
+committed `deploy/ar-cleanup-policy.json` failed real API validation entirely
+(`empty condition` — a `Delete` condition needs an explicit `tagState`), and
+`--dry-run`/`--no-dry-run` turned out to be a persistent repository setting, not a
+one-time preview flag; `gcloud billing budgets create --budget-amount` must be in
+the billing account's own currency (CZK here), not hardcoded USD. `deploy/cloudrun.md`
+was corrected in place for all of these.
+
+- [x] **Step 9: Commit Task 11 (all steps 1-8 complete)**
 
 ```bash
 git add Dockerfile deploy/cloudrun.md deploy/run-migrations.ps1 deploy/validate-restore.py docs/operations/neon-backup-restore.md CLAUDE.md docs/superpowers/plans/2026-09-01-portfyl-saas-monetization.md backend/tests/test_restore_validation.py
@@ -971,13 +1004,18 @@ git commit -m "docs(deploy): add Neon migrations restore drill and multi-instanc
 - [x] Complete PostgreSQL Alice/Bob and raw RLS matrix passes with no skips. Included in the 648 above.
 - [x] Frontend Vitest suite and Vite production build pass outside the restricted sandbox.
       129 passed (22 files); `npm run build` succeeded, emitted `frontend/dist`.
-- [ ] Runtime Neon URL uses a non-owner role without `BYPASSRLS`.
-      Structurally guaranteed by `0002_tenant_rls.py` and proven against the
-      disposable test database by `tests/postgres/test_runtime_role.py`; not
-      yet confirmed against an actual deployed Neon project (no live
-      credentials this session).
-- [ ] Cloud Run migration job succeeds before a multi-instance service deployment. Requires live GCP access — not run this session.
-- [ ] Production-like Neon recovery branch validates successfully and the drill record is complete. Blocked on live Neon access — see Task 11 Step 8.
+- [x] Runtime Neon URL uses a non-owner role without `BYPASSRLS`.
+      Confirmed against the real deployed project (2026-09-03): `portfyl_runtime`
+      on `little-bird-92332879` has `rolcanlogin=true, rolsuper=false,
+      rolbypassrls=false`; the deployed Cloud Run service's `DATABASE_URL`
+      secret authenticates as that role.
+- [x] Cloud Run migration job succeeds before a multi-instance service deployment.
+      Real `portfyl-migrate` Cloud Run Job executed successfully
+      (`portfyl-migrate-456nx`) against `portfyl-cloud-fstxby`/`europe-west3`
+      before the `portfyl` service was deployed (`--max-instances=5`).
+- [x] Production-like Neon recovery branch validates successfully and the drill record is complete.
+      See Task 11 Step 8 and the 2026-09-03 entry in
+      `docs/operations/neon-backup-restore.md`.
 - [x] `CLAUDE.md`, master plan, migration runbook, isolation matrix, and restore runbook match the implemented commands and schema.
       `CLAUDE.md` and the master plan were rewritten in Task 11 Step 6;
       `docs/operations/neon-backup-restore.md` (new) and `deploy/cloudrun.md`

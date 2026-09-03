@@ -27,13 +27,16 @@ before starting any auth, tenancy, database, or billing work.
   `User → Membership → Workspace` tenancy, UUID API IDs, forced PostgreSQL
   RLS) are DONE** — see
   `docs/superpowers/plans/2026-09-01-portfyl-multiuser-foundation.md` for the
-  task-by-task record. **Everything in the rest of this file now describes
+  task-by-task record. The **technical edition/capability boundary is also
+  DONE** — see `docs/superpowers/plans/2026-09-03-portfyl-edition-boundary.md`.
+  Cloud does not register or bundle Tax Report/Screener; local keeps both.
+  **Everything in the rest of this file now describes
   that implemented state**, not the old single-user SQLite one. What's
-  **still pending**: the `PORTFYL_EDITION` capability boundary itself
-  (Workstream A — there is currently one build, not two editions), KMS
-  envelope encryption for broker/AI secrets, an external scheduler replacing
-  the in-process background jobs in `backend/jobs.py`, Stripe billing, and
-  onboarding. Don't jump ahead to billing/onboarding work before those land,
+  **still pending**: Workstream A's external product/data validation and
+  commercial market-data rights, KMS envelope encryption for broker/AI
+  secrets, an external scheduler replacing the in-process background jobs in
+  `backend/jobs.py`, Stripe billing, and onboarding. Don't jump ahead to
+  billing/onboarding work before secrets/jobs land,
   and don't reintroduce single-user/`owner_id="default"`/SQLite-primary
   assumptions anywhere in this codebase — that state is gone, not deferred.
 - Deploy stack for the cloud edition: **Google Cloud Run + Neon (managed
@@ -77,7 +80,9 @@ before starting any auth, tenancy, database, or billing work.
 - **Backend only**: activate the `.venv` uv created, then from `backend/`,
   `python -m uvicorn main:app --reload --port 8000`.
 - **Prod build**: `npm run build` emits `frontend/dist`, which FastAPI serves as a
-  same-origin SPA (see SPA fallback at the bottom of `main.py`).
+  same-origin local-edition SPA; `npm run build:cloud` emits the cloud edition.
+  The Dockerfile always uses the cloud build. See the SPA fallback at the
+  bottom of `main.py`.
 - **Login**: Firebase Authentication (email/password) verifies identity;
   Portfyl then issues its own opaque, revocable session
   (`backend/auth.py`, `backend/routers/auth.py`) — there is no shared
@@ -108,6 +113,14 @@ before starting any auth, tenancy, database, or billing work.
   tenant table (`backend/alembic/versions/0002_tenant_rls.py`) as defense in
   depth on top of these application-level predicates — both layers are
   mandatory; RLS does not replace the application check, and vice versa.
+- **Edition availability is backend-owned and fail-closed.** `backend/edition.py`
+  is the central capability registry. `PORTFYL_EDITION` must be exactly
+  `local` or `cloud`; `start.bat` declares local and the Docker image declares
+  cloud. `backend/routers/local_features.py` is mounted only in local, while
+  Vite resolves `@edition-manifest` to `frontend/src/editions/local.jsx` or
+  `cloud.jsx` at build time. Shared UI additionally reads `/api/capabilities`.
+  Never re-add Tax Report/Screener to shared routers, `App.jsx`, `Sidebar.jsx`,
+  or `api.js`.
 - **DB migrations are Alembic, run explicitly — never at web startup.**
   `backend/main.py`'s startup hook only *asserts* the DB's `alembic_version`
   matches the code's expected head (`database.py`'s `assert_alembic_head`) and
@@ -187,7 +200,9 @@ plus Portfyl's own opaque sessions (`__Host-portfyl_session` /
 - 11 test files exist today, e.g. `src/pages/Overview.test.jsx`,
   `src/components/ui/primitives.test.jsx`, `src/lib/format.test.js` — a
   reasonable starting point for existing patterns.
-- Run both `npm run build` and `npm test` for frontend changes going forward.
+- Run `npm test`, `npm run test:cloud`, `npm run build`, and
+  `npm run build:cloud` for edition-sensitive frontend changes. For ordinary
+  shared UI changes, the local test/build pair remains the minimum.
 
 ## Verifying UI changes
 

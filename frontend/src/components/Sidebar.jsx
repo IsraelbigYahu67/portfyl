@@ -1,9 +1,11 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, PieChart, ArrowLeftRight, Upload, Loader2, CalendarDays, Activity, FileText, Settings, Search, Star, ArrowLeft, Bot, Sun, Moon, Monitor, Filter, Wallet, Layers } from "lucide-react";
+import { LayoutDashboard, PieChart, ArrowLeftRight, Upload, Loader2, CalendarDays, Activity, Settings, Search, Star, ArrowLeft, Bot, Sun, Moon, Monitor, Wallet, Layers } from "lucide-react";
 import { useCurrency, usePalette, usePlatform } from "../App";
 import PortfolioSwitcher from "./PortfolioSwitcher";
 import AccountMenu from "./AccountMenu";
 import SegmentedControl from "./ui/SegmentedControl";
+import { EDITION_NAVIGATION } from "@edition-manifest";
+import { enabledEditionEntries } from "../editions/filter";
 
 const T212_LINKS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -16,8 +18,6 @@ const T212_LINKS = [
   { to: "/import", label: "Import CSV", icon: Upload },
   { to: "/dividends", label: "Dividends", icon: CalendarDays },
   { to: "/analytics", label: "Analytics", icon: Activity },
-  { to: "/tax-report", label: "Tax Report", icon: FileText },
-  { to: "/screener", label: "Screener", icon: Filter },
   { to: "/settings", label: "Settings", icon: Settings },
   { to: "/assistant", label: "AI Assistant", icon: Bot },
 ];
@@ -28,14 +28,16 @@ const PALETTE_OPTIONS = [
   { key: "purple", label: "Soft Iris" },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ capabilities = [] }) {
   const { currency, setCurrency, rate, rateLoading } = useCurrency();
   const { palette, setPalette, theme, setTheme, themeStyle, setThemeStyle } = usePalette();
   const { platform, setPlatform } = usePlatform();
   const navigate = useNavigate();
   const czk_unavailable = !rateLoading && rate === null;
 
-  const links = platform === "t212" ? T212_LINKS : [];
+  const links = platform === "t212"
+    ? [...T212_LINKS, ...enabledEditionEntries(EDITION_NAVIGATION, capabilities)]
+    : [];
 
   const platformLabel = platform === "t212" ? "Trading 212" : null;
 

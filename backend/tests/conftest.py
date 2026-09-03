@@ -9,6 +9,7 @@ import sys
 # Runtime imports remain fail-closed when DATABASE_URL is absent.
 os.environ.setdefault("PORTFYL_TESTING", "1")
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("PORTFYL_EDITION", "local")
 
 # Ensure the backend package is importable.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))

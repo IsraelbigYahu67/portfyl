@@ -32,11 +32,11 @@ export function getRequestContext() {
   return _requestContext;
 }
 
-const api = axios.create({ baseURL: "/api" });
+export const api = axios.create({ baseURL: "/api" });
 
 // Endpoints that are NOT portfolio-scoped — these must not receive portfolio_id
 // or they'd 404 / mis-route.
-const PORTFOLIO_AGNOSTIC_PREFIXES = ["/portfolios", "/market", "/watchlists", "/settings", "/auth"];
+const PORTFOLIO_AGNOSTIC_PREFIXES = ["/portfolios", "/market", "/watchlists", "/settings", "/auth", "/capabilities"];
 
 function isPortfolioAgnostic(url) {
   if (!url) return false;
@@ -105,6 +105,7 @@ export const exchangeSession = (idToken) =>
   api.post("/auth/session", { id_token: idToken }).then((r) => r.data);
 export const logoutSession = () => api.post("/auth/logout").then((r) => r.data);
 export const logoutAllSessions = () => api.post("/auth/logout-all").then((r) => r.data);
+export const fetchCapabilities = () => api.get("/capabilities").then((r) => r.data);
 
 // ----- Portfolios CRUD (not portfolio-scoped) ---------------------------------
 
@@ -190,8 +191,6 @@ export const fetchDividendGrowth = () =>
   api.get("/portfolio/dividends/growth").then((r) => r.data);
 export const fetchStockDividendGrowth = (ticker) =>
   api.get(`/market/dividend-growth/${ticker}`).then((r) => r.data);
-export const fetchTaxReport = (year) =>
-  api.get(`/analytics/tax-report`, { params: year ? { year } : {} }).then((r) => r.data);
 export const fetchRiskMetrics = (period = "1y", benchmarkId = null) =>
   api
     .get(`/analytics/risk-metrics`, {
@@ -224,10 +223,6 @@ export const fetchHeatmap = (period = "1d") =>
   api.get(`/portfolio/heatmap`, { params: { period } }).then((r) => r.data);
 export const fetchInsiderBuys = () =>
   api.get("/portfolio/insider-buys").then((r) => r.data);
-
-// ----- Stock Screener ------------------------------------------------------
-export const fetchScreener = (params = {}) =>
-  api.get(`/market/screener`, { params }).then((r) => r.data);
 
 export const fetchT212Status = () => api.get("/broker/trading212/status").then((r) => r.data);
 export const connectT212 = (apiKey, apiSecret) =>
