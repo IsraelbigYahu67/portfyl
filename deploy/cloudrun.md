@@ -16,12 +16,15 @@ plus a few clicks in the Neon and Firebase consoles.
 
 Decisions baked in here (see `docs/superpowers/plans/2026-09-01-portfyl-multiuser-foundation.md`
 Task 11 and `docs/superpowers/plans/2026-09-01-portfyl-saas-monetization.md`):
-region **us-central1**, request-based billing with **`--min-instances=0`**
-(scale to zero; accept a few-second cold start) and an initial
-**`--max-instances=5`** (raise later if traffic needs it — nothing here makes
-a higher number unsafe), a Cloud Run **migration Job** that must succeed
-before every service deploy, and Neon's **pooled connection string** for the
-runtime `DATABASE_URL`.
+request-based billing with **`--min-instances=0`** (scale to zero; accept a
+few-second cold start) and an initial **`--max-instances=5`** (raise later if
+traffic needs it — nothing here makes a higher number unsafe), a Cloud Run
+**migration Job** that must succeed before every service deploy, and Neon's
+**pooled connection string** for the runtime `DATABASE_URL`. The region below
+is a variable, not baked in — pick whatever's closest to your users; for
+Central Europe, GCP **`europe-west3`** (Frankfurt) paired with a Neon project
+in AWS **`eu-central-1`** (also Frankfurt) keeps both legs of every request
+in the same metro.
 
 ---
 
@@ -31,12 +34,12 @@ PowerShell (your primary shell):
 
 ```powershell
 $PROJECT_ID = "portfyl-cloud-xxxx"     # <- your GCP project id
-$REGION     = "us-central1"
+$REGION     = "europe-west3"           # <- Frankfurt; e.g. europe-west1 (Belgium) or us-central1 also work
 $SERVICE    = "portfyl"
 $MIGRATE_JOB = "portfyl-migrate"
 ```
 
-(Git Bash equivalent: `PROJECT_ID=portfyl-cloud-xxxx; REGION=us-central1; SERVICE=portfyl; MIGRATE_JOB=portfyl-migrate`.)
+(Git Bash equivalent: `PROJECT_ID=portfyl-cloud-xxxx; REGION=europe-west3; SERVICE=portfyl; MIGRATE_JOB=portfyl-migrate`.)
 
 ---
 
@@ -71,7 +74,8 @@ enable` call is needed for Firebase Auth itself.
 
 ## 3. Create the Neon project and roles
 
-Create a Neon project (any region close to `us-central1`) at
+Create a Neon project (pick the Neon region closest to `$REGION` — e.g.
+AWS `eu-central-1`/Frankfurt for GCP `europe-west3`) at
 <https://console.neon.tech>. Neon gives you one owner role (e.g.
 `neondb_owner`) — it is **not** a Postgres superuser, so two one-time steps
 are required before Alembic and the SQLite importer can run:
@@ -225,8 +229,10 @@ gcloud artifacts repositories set-cleanup-policies cloud-run-source-deploy --loc
 - **Cold start**: the first request after idle spins the container up. The
   paid escape hatch is `--min-instances=1`, which you almost certainly don't
   want at low traffic.
-- **Region**: keep `us-central1` unless you have a specific reason to move —
-  match it to the Neon project's region to minimize latency.
+- **Region**: whatever you pick for `$REGION`, keep the Cloud Run service and
+  the Neon project in matching metros to minimize latency — `europe-west3`
+  (GCP) + `eu-central-1` (Neon/AWS), both Frankfurt, is the pairing for a
+  Central European audience.
 - This is Phase 1 of the cloud edition. Billing (Stripe), onboarding, and the
   edition capability boundary are separate, not-yet-implemented workstreams —
   see `docs/superpowers/plans/2026-09-01-portfyl-saas-monetization.md`.
