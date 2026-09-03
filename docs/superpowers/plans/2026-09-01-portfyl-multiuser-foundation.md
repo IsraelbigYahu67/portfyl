@@ -688,11 +688,11 @@ git commit -m "feat(tenancy): scope integrations imports and remaining resources
 - Produces reusable literal matrix cases `(resource, list_url, foreign_url, create_payload, update_payload)`.
 - Produces one command that returns success only when app-layer and raw runtime-role isolation both pass.
 
-- [ ] **Step 1: Encode the complete route matrix as literal cases**
+- [x] **Step 1: Encode the complete route matrix as literal cases**
 
 Include portfolios, transactions, notes, benchmarks, cash rates, watchlists/items, user/workspace settings, alerts, broker connections/balances, options, Polymarket, Discord, imports, and workspace-dependent jobs. For each supported operation encode expected Alice-own status and Bob-foreign status; foreign reads/updates/deletes are always 404.
 
-- [ ] **Step 2: Write raw SQL mutation/read RLS tests**
+- [x] **Step 2: Write raw SQL mutation/read RLS tests**
 
 ```python
 def test_alice_runtime_role_cannot_update_bob(runtime_session, alice_context, bob_portfolio):
@@ -707,23 +707,44 @@ def test_forged_workspace_context_is_still_blocked_by_membership_endpoint(alice_
     assert response.status_code == 404
 ```
 
-- [ ] **Step 3: Run the full matrix and fix only uncovered tenant gaps through failing cases**
+- [x] **Step 3: Run the full matrix and fix only uncovered tenant gaps through failing cases**
 
 Run: `cd backend && python -m pytest tests/postgres/test_alice_bob_matrix.py tests/postgres/test_runtime_role.py -v`
 
 Expected: all list/read/create/update/delete/enumeration and raw SQL cases pass; no case is skipped.
 
-- [ ] **Step 4: Run the entire backend suite**
+Result: 191 passed, 0 skipped. Three real gaps surfaced and were fixed (not
+worked around) before the matrix went green:
+1. `routers/discord.py` — `create/update/delete/test_webhook` still annotated
+   their `require_portfolio` dependency as `portfolio_id: int`, so they queried
+   and stamped `DiscordWebhook.portfolio_id` with a `Portfolio` object, carried
+   no workspace predicate, and never set `workspace_id` on a created row
+   (a NOT NULL violation — webhook creation was simply broken).
+2. `routers/discord.py::send_discord_notification` queried `DiscordWebhook` by
+   `portfolio_id` alone; it now requires an explicit `workspace_id`, per the
+   "application predicates stay mandatory under RLS" constraint.
+3. `jobs.py::broker_autosync_pass` still called `sync_transactions(db, pid,
+   "default")` / `_run_ibkr_sync(db, pid, "default")` with the pre-Task-8
+   signatures, passing an internal portfolio ID where a `workspace_id` is now
+   expected — background auto-sync could not have worked for either broker.
+
+- [x] **Step 4: Run the entire backend suite**
 
 Run: `cd backend && python -m pytest tests/ -v`
 
 Expected: all existing unit tests and new PostgreSQL suites pass. Existing deprecation warnings may remain, but no tenant/auth/database warning or error is accepted.
 
-- [ ] **Step 5: Record the executable security matrix**
+Result: 637 passed, 0 failed, 0 skipped. This also required repairing the fast
+SQLite suite, which had drifted behind the Task 5–8 signature/column changes
+(`import_csv`/`get_history`/`sector_breakdown`/`sync_transactions` now take an
+authorized `Portfolio`, `BrokerConnection`/`DiscordWebhook` require
+`workspace_id`, `scheduler_sync` passes `workspace_id` before `portfolio_id`).
+
+- [x] **Step 5: Record the executable security matrix**
 
 Document each resource/operation, application test name, RLS test name, and expected 401/403/404/409 behavior. State that the PostgreSQL command above is the beta go/no-go gate.
 
-- [ ] **Step 6: Commit Task 9**
+- [x] **Step 6: Commit Task 9**
 
 ```bash
 git add backend/tests/postgres/test_alice_bob_matrix.py backend/tests/postgres/test_runtime_role.py backend/tests/postgres/matrix_cases.py backend/tests/postgres/conftest.py docs/security/tenant-isolation-matrix.md
