@@ -224,10 +224,16 @@ same database this service is now pointed at.
 **Artifact Registry — keep only the latest image**:
 
 ```powershell
-gcloud artifacts repositories set-cleanup-policies cloud-run-source-deploy --location=$REGION --policy=deploy/ar-cleanup-policy.json
+gcloud artifacts repositories set-cleanup-policies cloud-run-source-deploy --project=$PROJECT_ID --location=$REGION --policy=deploy/ar-cleanup-policy.json --no-dry-run
 ```
 
-(Add `--dry-run` to preview first.)
+`--dry-run` (and `--no-dry-run`) is a **persistent setting on the
+repository**, not a one-time preview flag — omitting it entirely leaves
+whatever dry-run state was last set (verified: a prior `--dry-run` call
+stays in effect on every later call, including ones that only pass
+`--policy`, until you explicitly pass `--no-dry-run`). Preview first with
+`--dry-run --policy=...`, then apply for real with `--no-dry-run` (the
+policy from the last `--policy=...` call stays applied either way).
 
 ---
 

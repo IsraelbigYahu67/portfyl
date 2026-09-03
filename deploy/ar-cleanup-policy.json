@@ -2,11 +2,16 @@
   {
     "name": "delete-old-images",
     "action": { "type": "Delete" },
-    "condition": { "olderThan": "0s" }
+    "condition": {
+      "tagState": "ANY",
+      "olderThan": "0s"
+    }
   },
   {
     "name": "keep-latest-image",
     "action": { "type": "Keep" },
-    "mostRecentVersions": { "keepCount": 1 }
+    "mostRecentVersions": {
+      "keepCount": 1
+    }
   }
 ]
