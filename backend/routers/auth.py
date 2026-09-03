@@ -26,7 +26,7 @@ from firebase_identity import (
     IdentityVerificationError,
     VerifiedIdentity,
 )
-from models import AuthSession, Membership, User, Workspace
+from models import AuthSession, Membership, Portfolio, User, Workspace
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -108,6 +108,14 @@ def _provision_identity(
     db.add(workspace)
     db.flush()
     db.add(membership)
+    db.flush()
+
+    # A brand-new workspace starts with no portfolio, which 404s every
+    # portfolio-scoped route (require_portfolio in tenancy.py) until one
+    # exists — including broker connect. Give every fresh signup a usable
+    # home immediately, matching the onboarding flow the master plan
+    # describes (create account -> connect/import data right away).
+    db.add(Portfolio(workspace_id=workspace_id, name="Main Portfolio", is_default=True))
     db.flush()
     return user
 

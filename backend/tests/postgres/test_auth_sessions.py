@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from auth import create_session, resolve_session, revoke_session
 from database import get_db
 from firebase_identity import IdentityVerificationError, VerifiedIdentity
-from models import AuthSession, Membership, User, Workspace
+from models import AuthSession, Membership, Portfolio, User, Workspace
 from routers import auth as auth_router
 
 
@@ -156,6 +156,20 @@ def test_verified_identity_creates_user_workspace_membership_and_session(
         assert db.scalar(select(func.count()).select_from(AuthSession)) == 1
 
 
+def test_fresh_signup_gets_a_default_portfolio(
+    client: TestClient,
+    postgres_engine,
+):
+    response = client.post("/api/auth/session", json={"id_token": "alice-token"})
+
+    assert response.status_code == 201
+    with admin_session(postgres_engine) as db:
+        portfolio = db.scalar(select(Portfolio))
+        assert portfolio is not None
+        assert portfolio.is_default is True
+        assert db.scalar(select(func.count()).select_from(Portfolio)) == 1
+
+
 def test_unverified_identity_is_rejected(client: TestClient, postgres_engine):
     response = client.post(
         "/api/auth/session",
@@ -201,6 +215,9 @@ def test_verified_owner_claims_only_exact_normalized_pending_email(
         assert membership.workspace_id == workspace_id
         assert db.scalar(select(func.count()).select_from(User)) == 1
         assert db.scalar(select(func.count()).select_from(Workspace)) == 1
+        # Claiming a pre-migrated workspace must not fabricate a second
+        # portfolio on top of whatever the SQLite import already brought in.
+        assert db.scalar(select(func.count()).select_from(Portfolio)) == 0
 
 
 def test_me_bootstraps_account_and_rotates_usable_csrf(client: TestClient):
