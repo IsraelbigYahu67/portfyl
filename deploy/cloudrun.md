@@ -133,12 +133,27 @@ gcloud secrets create portfyl-migration-database-url --replication-policy=automa
 gcloud secrets versions add portfyl-migration-database-url --data-file=- # paste the neondb_owner pooled URL, then Ctrl+Z, Enter
 ```
 
-Grant the Cloud Run runtime service account (`portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com`,
-created via `gcloud iam service-accounts create portfyl-runtime` if it
-doesn't exist yet) `roles/secretmanager.secretAccessor` on both secrets, and
-grant it **Firebase Authentication Admin** (`roles/firebaseauth.admin`) so
+Two separate service accounts, so the *running service* can never read the
+owner-level migration credential even via IAM (not just because
+`DATABASE_URL` isn't set to it):
+
+```powershell
+gcloud iam service-accounts create portfyl-runtime --display-name="Portfyl Cloud Run runtime"
+gcloud iam service-accounts create portfyl-migrator --display-name="Portfyl Alembic migration job"
+
+gcloud secrets add-iam-policy-binding portfyl-database-url --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+gcloud secrets add-iam-policy-binding portfyl-migration-database-url --member="serviceAccount:portfyl-migrator@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/firebaseauth.admin"
+```
+
+`portfyl-runtime` only ever gets `portfyl-database-url` (the `portfyl_runtime`
+role's URL) plus **Firebase Authentication Admin** so
 `firebase_admin.initialize_app()` can verify and revoke tokens using
 Application Default Credentials — no key file is needed on Cloud Run.
+`portfyl-migrator` only ever gets `portfyl-migration-database-url` (the
+`neondb_owner` URL) — it's the service account the migration Job in step 5
+runs as, and it never touches the deployed service.
 
 ## 5. Migrate before you deploy
 
@@ -148,7 +163,7 @@ to serve traffic on a mismatch, but a migration Job run *before* the service
 deploy keeps that from ever happening in normal operation:
 
 ```powershell
-.\deploy\run-migrations.ps1 -ProjectId $PROJECT_ID -Region $REGION -Image "$REGION-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/${SERVICE}:latest" -ServiceAccount "portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" -DatabaseUrlSecret "portfyl-migration-database-url"
+.\deploy\run-migrations.ps1 -ProjectId $PROJECT_ID -Region $REGION -Image "$REGION-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/${SERVICE}:latest" -ServiceAccount "portfyl-migrator@$PROJECT_ID.iam.gserviceaccount.com" -DatabaseUrlSecret "portfyl-migration-database-url"
 ```
 
 The script deploys (or updates) a Cloud Run **Job** running `alembic -c
