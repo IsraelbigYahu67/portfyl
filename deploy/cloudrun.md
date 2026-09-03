@@ -77,21 +77,26 @@ enable` call is needed for Firebase Auth itself.
 Create a Neon project (pick the Neon region closest to `$REGION` — e.g.
 AWS `eu-central-1`/Frankfurt for GCP `europe-west3`) at
 <https://console.neon.tech>. Neon gives you one owner role (e.g.
-`neondb_owner`) — it is **not** a Postgres superuser, so two one-time steps
-are required before Alembic and the SQLite importer can run:
+`neondb_owner`) — it is **not** a Postgres superuser, but Neon *does*
+provision it with `BYPASSRLS` (and `CREATEROLE`/`CREATEDB`) already, by
+default, on every new project (verified directly against a real Neon
+project on Postgres 18, 2026-09-03: `SELECT rolbypassrls FROM pg_roles
+WHERE rolname = 'neondb_owner'` → `true`). **No `ALTER ROLE ... BYPASSRLS`
+step is needed or possible** — Postgres 16+ actually refuses a role's own
+attempt to `ALTER` an attribute it doesn't already independently hold, so
+if your project's owner role is somehow missing it, granting it yourself
+isn't an option; open a Neon support request instead of fighting Postgres's
+privilege-escalation guard.
 
-```sql
--- Run once via the Neon SQL editor or `psql`, connected as the owner role.
-ALTER ROLE neondb_owner BYPASSRLS;
-```
-
-This mirrors what `backend/tests/postgres/conftest.py` does for the local
-disposable test database — the migration role must bypass RLS to create the
-policies and (later) to run the SQLite owner import; `backend/alembic/versions/0002_tenant_rls.py`
-refuses to run as `portfyl_runtime` and checks the connecting role has
-`BYPASSRLS` or superuser (`_assert_migration_role` in
+This is what makes the migration role usable at all — the migration role
+must bypass RLS to create the policies and (later) to run the SQLite owner
+import; `backend/alembic/versions/0002_tenant_rls.py` refuses to run as
+`portfyl_runtime` and checks the connecting role has `BYPASSRLS` or
+superuser (`_assert_migration_role` in
 `backend/migrations/sqlite_to_postgres.py` enforces the same rule for the
-data import).
+data import). It's also exactly what `backend/tests/postgres/conftest.py`
+sets up by hand for the local disposable test database, where nothing
+provisions it automatically the way Neon does.
 
 `0002_tenant_rls.py` itself creates the **`portfyl_runtime`** role (the one
 every request runs as, `NOSUPERUSER NOBYPASSRLS`, no table ownership, no
