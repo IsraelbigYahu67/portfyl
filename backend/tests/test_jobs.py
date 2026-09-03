@@ -65,7 +65,10 @@ def test_autosync_syncs_t212_and_notifies(db_session, pid):
     sync.assert_called_once()
     assert results == [{"portfolio_id": pid, "broker": "trading212", "ok": True, "imported": 3}]
     sent.assert_awaited_once()
-    assert "3" in sent.await_args.args[2]  # title mentions the import count
+    # send_discord_notification(db, workspace_id, portfolio_id, title, description)
+    assert sent.await_args.args[1] == TEST_WORKSPACE_ID
+    assert sent.await_args.args[2] == pid
+    assert "3" in sent.await_args.args[3]  # title mentions the import count
 
 
 def test_autosync_no_notification_when_nothing_imported(db_session, pid):
@@ -101,9 +104,11 @@ def test_autosync_one_failure_does_not_block_others(db_session, default_portfoli
 
     calls = []
 
-    def flaky(db, pid, owner):
-        calls.append(pid)
-        if pid == default_portfolio.id:
+    # sync_transactions is a route handler: broker_autosync_pass resolves the
+    # authorized Portfolio for the connection and passes it positionally.
+    def flaky(db, portfolio, _context):
+        calls.append(portfolio.id)
+        if portfolio.id == default_portfolio.id:
             raise RuntimeError("T212 down")
         return {"imported_orders": 1, "imported_dividends": 0, "total_imported": 1, "errors": []}
 
@@ -133,7 +138,7 @@ def test_autosync_t212_sync_runs_off_event_loop(db_session, pid):
     _connect(db_session, pid, auto_sync=True)
     seen = {}
 
-    def probing_sync(db, pid_, owner):
+    def probing_sync(db, portfolio_, _context):
         try:
             asyncio.get_running_loop()
             seen["on_loop"] = True
@@ -165,7 +170,10 @@ def test_scheduler_sync_respects_auto_sync_flag(db_session, default_portfolio):
         _run(scheduler_sync(db=db_session, x_scheduler_token="tok", token=None))
 
     ibkr_sync.assert_awaited_once()
-    assert ibkr_sync.await_args.args[1] == default_portfolio.id
+    # _run_ibkr_sync(db, workspace_id, portfolio_id) -- the workspace is the
+    # tenant boundary, the internal portfolio ID is only meaningful inside it.
+    assert ibkr_sync.await_args.args[1] == default_portfolio.workspace_id
+    assert ibkr_sync.await_args.args[2] == default_portfolio.id
 
 
 # -------- dividend_exdate_pass ----------------------------------------------
@@ -196,7 +204,9 @@ def test_dividend_pass_announces_upcoming_exdate(db_session, pid):
     assert announced[0]["ticker"] == "AAPL"
     assert announced[0]["est_payment"] == 2.5  # 10 sh * 0.25
     sent.assert_awaited_once()
-    assert "AAPL" in sent.await_args.args[3]
+    # send_discord_notification(db, workspace_id, portfolio_id, title, description)
+    assert sent.await_args.args[1] == TEST_WORKSPACE_ID
+    assert "AAPL" in sent.await_args.args[4]
     row = db_session.query(DividendNotification).one()
     assert row.ticker == "AAPL"
     assert row.ex_date == date(2026, 7, 14)

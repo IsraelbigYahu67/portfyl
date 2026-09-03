@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
+from uuid import UUID
 import httpx
 
 from database import get_db
@@ -57,11 +58,15 @@ def get_webhook(
 
 
 @router.post("/webhook")
-def create_webhook(body: WebhookCreate, portfolio_id: int = Depends(require_portfolio), db: Session = Depends(get_db)):
+def create_webhook(
+    body: WebhookCreate,
+    portfolio: Portfolio = Depends(require_portfolio),
+    db: Session = Depends(get_db),
+):
     if "discord.com/api/webhooks" not in body.webhook_url and "discordapp.com/api/webhooks" not in body.webhook_url:
         raise HTTPException(400, "Invalid Discord webhook URL")
 
-    existing = db.query(DiscordWebhook).filter(DiscordWebhook.portfolio_id == portfolio_id).first()
+    existing = _portfolio_webhook(db, portfolio)
     if existing:
         existing.webhook_url = body.webhook_url
         existing.notify_trades = body.notify_trades
@@ -69,20 +74,28 @@ def create_webhook(body: WebhookCreate, portfolio_id: int = Depends(require_port
         existing.notify_milestones = body.notify_milestones
     else:
         existing = DiscordWebhook(
-            portfolio_id=portfolio_id,
+            workspace_id=portfolio.workspace_id,
+            portfolio_id=portfolio.id,
             webhook_url=body.webhook_url,
             notify_trades=body.notify_trades,
             notify_dividends=body.notify_dividends,
             notify_milestones=body.notify_milestones,
         )
         db.add(existing)
+    db.flush()
+    result = {"status": "ok", "id": str(existing.public_id),
+              "portfolio_id": str(portfolio.public_id)}
     db.commit()
-    return {"status": "ok"}
+    return result
 
 
 @router.patch("/webhook")
-def update_webhook(body: WebhookUpdate, portfolio_id: int = Depends(require_portfolio), db: Session = Depends(get_db)):
-    hook = db.query(DiscordWebhook).filter(DiscordWebhook.portfolio_id == portfolio_id).first()
+def update_webhook(
+    body: WebhookUpdate,
+    portfolio: Portfolio = Depends(require_portfolio),
+    db: Session = Depends(get_db),
+):
+    hook = _portfolio_webhook(db, portfolio)
     if not hook:
         raise HTTPException(404, "No webhook configured")
     if body.webhook_url is not None:
@@ -98,8 +111,11 @@ def update_webhook(body: WebhookUpdate, portfolio_id: int = Depends(require_port
 
 
 @router.delete("/webhook")
-def delete_webhook(portfolio_id: int = Depends(require_portfolio), db: Session = Depends(get_db)):
-    hook = db.query(DiscordWebhook).filter(DiscordWebhook.portfolio_id == portfolio_id).first()
+def delete_webhook(
+    portfolio: Portfolio = Depends(require_portfolio),
+    db: Session = Depends(get_db),
+):
+    hook = _portfolio_webhook(db, portfolio)
     if not hook:
         raise HTTPException(404, "No webhook configured")
     db.delete(hook)
@@ -108,8 +124,12 @@ def delete_webhook(portfolio_id: int = Depends(require_portfolio), db: Session =
 
 
 @router.post("/webhook/test")
-async def test_webhook(body: WebhookTestMessage, portfolio_id: int = Depends(require_portfolio), db: Session = Depends(get_db)):
-    hook = db.query(DiscordWebhook).filter(DiscordWebhook.portfolio_id == portfolio_id).first()
+async def test_webhook(
+    body: WebhookTestMessage,
+    portfolio: Portfolio = Depends(require_portfolio),
+    db: Session = Depends(get_db),
+):
+    hook = _portfolio_webhook(db, portfolio)
     if not hook:
         raise HTTPException(404, "No webhook configured")
 
@@ -131,13 +151,22 @@ async def test_webhook(body: WebhookTestMessage, portfolio_id: int = Depends(req
     return {"status": "sent"}
 
 
-async def send_discord_notification(db: Session, portfolio_id: int, title: str,
-                                    description: str, color: int = 0x059669) -> bool | None:
+async def send_discord_notification(db: Session, workspace_id: UUID, portfolio_id: int,
+                                    title: str, description: str,
+                                    color: int = 0x059669) -> bool | None:
     """Post an embed to the portfolio's webhook, reporting delivery: True when
     Discord accepted it, False when the post failed (callers gating one-shot
     state — alert trigger flags, dividend dedup rows — must not persist it on
-    False so a later pass retries), None when no webhook is configured."""
-    hook = db.query(DiscordWebhook).filter(DiscordWebhook.portfolio_id == portfolio_id).first()
+    False so a later pass retries), None when no webhook is configured.
+
+    `workspace_id` is mandatory and applied as an application-level predicate:
+    background callers reach this helper with an internal integer portfolio ID,
+    and every tenant query must carry its own workspace filter rather than
+    relying on RLS or on integer PKs happening to be globally unique."""
+    hook = db.query(DiscordWebhook).filter(
+        DiscordWebhook.workspace_id == workspace_id,
+        DiscordWebhook.portfolio_id == portfolio_id,
+    ).first()
     if not hook:
         return None
 

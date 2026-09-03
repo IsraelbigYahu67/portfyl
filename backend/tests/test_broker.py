@@ -93,14 +93,18 @@ def _order(ticker, side, qty, price, day, currency="USD", order_id="1"):
     }
 
 
-def _run_sync(db_session, pid, orders, dividends=None, fx_map=None):
-    """Call sync_transactions with the network + yfinance bits patched out."""
+def _run_sync(db_session, portfolio, orders, dividends=None, fx_map=None):
+    """Call sync_transactions with the network + yfinance bits patched out.
+
+    `sync_transactions` is a route handler: `portfolio` is the authorized
+    Portfolio the require_portfolio dependency would have resolved, and
+    `_context` is only the CSRF gate, which does not apply to a direct call."""
     with patch("routers.broker._fetch_all_orders", return_value=orders), \
          patch("routers.broker._fetch_all_dividends", return_value=dividends or []), \
          patch("routers.broker._split_adjust", return_value=0), \
          patch("routers.broker._drop_corporate_action_pairs", return_value=0), \
          patch("routers.broker.bulk_fetch_fx", return_value=fx_map or {}):
-        return sync_transactions(db=db_session, pid=pid, owner="default")
+        return sync_transactions(db=db_session, portfolio=portfolio, _context=None)
 
 
 class TestSyncDedupe:
@@ -112,8 +116,10 @@ class TestSyncDedupe:
     """
 
     @pytest.fixture
-    def connection(self, db_session, pid):
-        conn = BrokerConnection(portfolio_id=pid, broker="trading212", api_key="k" * 20)
+    def connection(self, db_session, default_portfolio):
+        conn = BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                                portfolio_id=default_portfolio.id,
+                                broker="trading212", api_key="k" * 20)
         db_session.add(conn)
         db_session.commit()
         return conn
@@ -121,24 +127,24 @@ class TestSyncDedupe:
     def _txn_count(self, db_session, pid):
         return db_session.query(Transaction).filter(Transaction.portfolio_id == pid).count()
 
-    def test_skips_orders_matching_csv_rows(self, db_session, pid, connection):
+    def test_skips_orders_matching_csv_rows(self, db_session, default_portfolio, pid, connection):
         db_session.add(make_txn("AAPL", "buy", 10, 150.0, date=date(2024, 6, 1),
                                 source=None, portfolio_id=pid))
         db_session.commit()
-        res = _run_sync(db_session, pid, [_order("AAPL", "BUY", 10, 150.0, "2024-06-01")])
+        res = _run_sync(db_session, default_portfolio, [_order("AAPL", "BUY", 10, 150.0, "2024-06-01")])
         assert res["imported_orders"] == 0
         assert self._txn_count(db_session, pid) == 1
 
-    def test_skips_orders_matching_csv_rows_by_base_ticker(self, db_session, pid, connection):
+    def test_skips_orders_matching_csv_rows_by_base_ticker(self, db_session, default_portfolio, pid, connection):
         # CSV stores the raw export ticker (COPM); the API normalizes to COPM.L.
         db_session.add(make_txn("COPM", "sell", 3, 9.91, date=date(2024, 6, 1),
                                 source=None, portfolio_id=pid))
         db_session.commit()
-        res = _run_sync(db_session, pid, [_order("COPMl", "SELL", 3, 9.91, "2024-06-01")])
+        res = _run_sync(db_session, default_portfolio, [_order("COPMl", "SELL", 3, 9.91, "2024-06-01")])
         assert res["imported_orders"] == 0
         assert self._txn_count(db_session, pid) == 1
 
-    def test_date_cutoff_is_per_ticker_not_portfolio_wide(self, db_session, pid, connection):
+    def test_date_cutoff_is_per_ticker_not_portfolio_wide(self, db_session, default_portfolio, pid, connection):
         # AAPL history exists through 2024-06-01: an old AAPL order that doesn't
         # key-match (representation drift after splits) is still skipped. MSFT
         # has no history at all — its old orders are genuinely new and must
@@ -146,7 +152,7 @@ class TestSyncDedupe:
         db_session.add(make_txn("AAPL", "buy", 10, 150.0, date=date(2024, 6, 1),
                                 source=None, portfolio_id=pid))
         db_session.commit()
-        res = _run_sync(db_session, pid, [
+        res = _run_sync(db_session, default_portfolio, [
             _order("AAPL", "BUY", 40, 37.5, "2024-01-05"),   # pre-split repr → skip
             _order("MSFT", "BUY", 5, 300.0, "2024-01-05"),   # never-seen ticker → import
             _order("NVDA", "BUY", 2, 120.0, "2024-06-02"),   # after cutoff → import
@@ -155,25 +161,25 @@ class TestSyncDedupe:
         tickers = {t.ticker for t in db_session.query(Transaction).all()}
         assert tickers == {"AAPL", "MSFT", "NVDA"}
 
-    def test_date_cutoff_matches_base_ticker(self, db_session, pid, connection):
+    def test_date_cutoff_matches_base_ticker(self, db_session, default_portfolio, pid, connection):
         # CSV stores the raw export ticker (COPM); the API normalizes to COPM.L —
         # the per-ticker cutoff must treat them as the same instrument.
         db_session.add(make_txn("COPM", "buy", 3, 9.91, date=date(2024, 6, 1),
                                 source=None, portfolio_id=pid))
         db_session.commit()
-        res = _run_sync(db_session, pid, [
+        res = _run_sync(db_session, default_portfolio, [
             _order("COPMl", "BUY", 7, 4.25, "2024-02-01"),   # old, drifted repr → skip
         ])
         assert res["imported_orders"] == 0
         assert self._txn_count(db_session, pid) == 1
 
-    def test_dividend_cutoff_is_per_ticker(self, db_session, pid, connection):
+    def test_dividend_cutoff_is_per_ticker(self, db_session, default_portfolio, pid, connection):
         # KO was never imported: its old dividends must come in even though
         # AAPL has newer trades in the same portfolio.
         db_session.add(make_txn("AAPL", "buy", 10, 150.0, date=date(2024, 6, 1),
                                 source=None, portfolio_id=pid))
         db_session.commit()
-        res = _run_sync(db_session, pid, [], dividends=[{
+        res = _run_sync(db_session, default_portfolio, [], dividends=[{
             "ticker": "KO",
             "grossAmountPerShare": 0.485,
             "quantity": 10,
@@ -182,15 +188,15 @@ class TestSyncDedupe:
         }])
         assert res["imported_dividends"] == 1
 
-    def test_first_sync_imports_full_history(self, db_session, pid, connection):
-        res = _run_sync(db_session, pid, [
+    def test_first_sync_imports_full_history(self, db_session, default_portfolio, pid, connection):
+        res = _run_sync(db_session, default_portfolio, [
             _order("MSFT", "BUY", 5, 300.0, "2024-01-05"),
             _order("AAPL", "BUY", 10, 150.0, "2024-06-01"),
         ])
         assert res["imported_orders"] == 2
 
     def test_full_t212_csv_blocks_covered_history_for_unseen_tickers(
-        self, db_session, pid, connection
+        self, db_session, default_portfolio, pid, connection
     ):
         # A T212 replacement export is authoritative for the whole account,
         # not only for tickers present in it. A later manual API sync must not
@@ -199,7 +205,7 @@ class TestSyncDedupe:
                                 source="t212_csv", portfolio_id=pid))
         db_session.commit()
 
-        res = _run_sync(db_session, pid, [
+        res = _run_sync(db_session, default_portfolio, [
             _order("MSFT", "BUY", 5, 300.0, "2024-01-05"),
             _order("AVGO", "BUY", 1, 1400.0, "2024-06-01"),
         ])
@@ -208,13 +214,13 @@ class TestSyncDedupe:
         assert self._txn_count(db_session, pid) == 1
 
     def test_full_t212_csv_allows_orders_after_its_coverage_date(
-        self, db_session, pid, connection
+        self, db_session, default_portfolio, pid, connection
     ):
         db_session.add(make_txn("AAPL", "buy", 10, 150.0, date=date(2024, 6, 1),
                                 source="t212_csv", portfolio_id=pid))
         db_session.commit()
 
-        res = _run_sync(db_session, pid, [
+        res = _run_sync(db_session, default_portfolio, [
             _order("MSFT", "BUY", 5, 300.0, "2024-06-02"),
         ])
 
@@ -222,7 +228,7 @@ class TestSyncDedupe:
         assert self._txn_count(db_session, pid) == 2
 
     def test_precise_snapshot_timestamp_allows_later_same_day_order(
-        self, db_session, pid, connection
+        self, db_session, default_portfolio, pid, connection
     ):
         portfolio = db_session.query(Portfolio).filter(Portfolio.id == pid).one()
         portfolio.t212_csv_covered_through = datetime(
@@ -232,20 +238,20 @@ class TestSyncDedupe:
                                 source="t212_csv", portfolio_id=pid))
         db_session.commit()
 
-        res = _run_sync(db_session, pid, [
+        res = _run_sync(db_session, default_portfolio, [
             _order("MSFT", "BUY", 5, 300.0, "2024-06-01"),
         ])
 
         assert res["imported_orders"] == 1
         assert self._txn_count(db_session, pid) == 2
 
-    def test_skips_dividends_matching_csv_rows(self, db_session, pid, connection):
+    def test_skips_dividends_matching_csv_rows(self, db_session, default_portfolio, pid, connection):
         # CSV dividend: 0.4 shares @ 0.374/share = 0.1496 total. The API reports
         # gross 0.44/share × 0.4 qty × 0.85 net = the same 0.1496 total.
         db_session.add(make_txn("CRM", "dividend", 0.4, 0.374, date=date(2024, 6, 1),
                                 source=None, portfolio_id=pid))
         db_session.commit()
-        res = _run_sync(db_session, pid, [], dividends=[{
+        res = _run_sync(db_session, default_portfolio, [], dividends=[{
             "ticker": "CRM",
             "grossAmountPerShare": 0.44,
             "quantity": 0.4,
@@ -255,9 +261,9 @@ class TestSyncDedupe:
         assert res["imported_dividends"] == 0
         assert self._txn_count(db_session, pid) == 1
 
-    def test_new_trades_settle_in_czk(self, db_session, pid, connection):
+    def test_new_trades_settle_in_czk(self, db_session, default_portfolio, pid, connection):
         fx_map = {("USD", date(2024, 6, 2)): 25.0}
-        res = _run_sync(db_session, pid,
+        res = _run_sync(db_session, default_portfolio,
                         [_order("AAPL", "BUY", 2, 100.0, "2024-06-02")], fx_map=fx_map)
         assert res["imported_orders"] == 1
         t = db_session.query(Transaction).one()

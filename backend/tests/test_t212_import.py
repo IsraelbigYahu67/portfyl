@@ -204,7 +204,8 @@ class TestNormalizeT212:
         },
     ],
 )
-def test_failed_t212_normalization_cannot_replace_existing_rows(db_session, pid, bad_row):
+def test_failed_t212_normalization_cannot_replace_existing_rows(db_session, default_portfolio, bad_row):
+    pid = default_portfolio.id
     old = make_txn("MSFT", "buy", 2, 300, source="t212_api", portfolio_id=pid)
     db_session.add(old)
     db_session.commit()
@@ -213,7 +214,8 @@ def test_failed_t212_normalization_cannot_replace_existing_rows(db_session, pid,
     upload = UploadFile(filename="bad-t212.csv", file=io.BytesIO(payload))
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(import_csv(file=upload, replace=True, db=db_session, pid=pid))
+        asyncio.run(import_csv(file=upload, replace=True, db=db_session,
+                               portfolio=default_portfolio))
 
     assert exc_info.value.status_code == 400
     assert "Row 2" in str(exc_info.value.detail)
@@ -261,7 +263,8 @@ def test_t212_rejects_same_day_trade_and_split_when_order_cannot_be_persisted():
     assert any("same-day trade and stock split" in error for error in errors)
 
 
-def test_valid_t212_replace_is_atomic_and_marks_csv_source(db_session, pid):
+def test_valid_t212_replace_is_atomic_and_marks_csv_source(db_session, default_portfolio):
+    pid = default_portfolio.id
     db_session.add(make_txn("MSFT", "buy", 2, 300, source="t212_api", portfolio_id=pid))
     db_session.commit()
 
@@ -276,7 +279,8 @@ def test_valid_t212_replace_is_atomic_and_marks_csv_source(db_session, pid):
     }]).to_csv(index=False).encode()
     upload = UploadFile(filename="full-t212.csv", file=io.BytesIO(payload))
 
-    result = asyncio.run(import_csv(file=upload, replace=False, db=db_session, pid=pid))
+    result = asyncio.run(import_csv(file=upload, replace=False, db=db_session,
+                                    portfolio=default_portfolio))
 
     assert result["replaced"] is True
     assert result["events"] == 1

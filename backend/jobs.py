@@ -67,6 +67,7 @@ from models import (
     BrokerConnection,
     DiscordWebhook,
     DividendNotification,
+    Portfolio,
     Transaction,
     Workspace,
 )
@@ -229,20 +230,29 @@ async def broker_autosync_pass(db: Session, workspace_id: UUID) -> list[dict]:
         summary = {"portfolio_id": conn.portfolio_id, "broker": conn.broker, "ok": True}
         try:
             if conn.broker == "trading212":
+                # sync_transactions is a route handler whose `portfolio`
+                # parameter is normally filled by the require_portfolio
+                # dependency; a job has no request, so resolve the authorized
+                # Portfolio here -- explicitly filtered by this pass's
+                # workspace -- and pass it positionally. The third parameter is
+                # only the CSRF gate (`_context`), which does not apply to a
+                # machine-driven pass.
+                portfolio = db.query(Portfolio).filter(
+                    Portfolio.workspace_id == workspace_id,
+                    Portfolio.id == conn.portfolio_id,
+                ).first()
+                if portfolio is None:
+                    continue  # dangling connection — nothing to sync
                 # sync_transactions is blocking (paginated httpx + yfinance
                 # split lookups) — run it in a worker thread to keep the event
                 # loop free, like alerts.run_check does for get_infos.
-                # BrokerConnection has no owner concept post-tenancy-migration
-                # (workspace_id is the tenant boundary now) -- "default" is the
-                # placeholder single-user value sync_transactions/_run_ibkr_sync
-                # still expect until Task 8 retires that parameter.
                 r = await asyncio.to_thread(
-                    sync_transactions, db, conn.portfolio_id, "default")
+                    sync_transactions, db, portfolio, None)
                 summary["imported"] = r.get("total_imported", 0)
                 detail = (f"{r.get('imported_orders', 0)} order(s), "
                           f"{r.get('imported_dividends', 0)} dividend(s)")
             elif conn.broker == "ibkr":
-                r = await _run_ibkr_sync(db, conn.portfolio_id, "default")
+                r = await _run_ibkr_sync(db, workspace_id, conn.portfolio_id)
                 summary["imported"] = r.get("imported", 0)
                 detail = f"{r.get('imported', 0)} trade(s)"
             else:
@@ -265,7 +275,7 @@ async def broker_autosync_pass(db: Session, workspace_id: UUID) -> list[dict]:
                       .first())
             if hook and hook.notify_trades:
                 await send_discord_notification(
-                    db, conn.portfolio_id,
+                    db, workspace_id, conn.portfolio_id,
                     f"🔄 Auto-sync: {summary['imported']} new transaction(s)",
                     f"{conn.broker} auto-sync imported {detail}.",
                     color=SYNC_COLOR,
@@ -499,7 +509,7 @@ async def dividend_exdate_pass(db: Session, workspace_id: UUID, today: date | No
             lines.append(f"**{item['ticker']}** ex-dividend **{item['ex_date'].isoformat()}**{per_share}{est}")
 
         delivered = await send_discord_notification(
-            db, pid,
+            db, workspace_id, pid,
             f"📅 {len(fresh)} upcoming ex-dividend date(s)",
             "\n".join(lines),
             color=DIVIDEND_COLOR,

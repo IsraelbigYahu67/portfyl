@@ -126,7 +126,9 @@ async def run_check(db: Session, workspace_id: UUID, portfolio_id: int | None = 
                 f"your target of {a.target_price:g}.")
         if a.note:
             desc += f"\n\n_{a.note}_"
-        delivered = await send_discord_notification(db, a.portfolio_id, title, desc, color=ALERT_COLOR)
+        delivered = await send_discord_notification(
+            db, workspace_id, a.portfolio_id, title, desc, color=ALERT_COLOR
+        )
         if delivered is False:
             # Webhook down or misconfigured: leave the alert armed so the next
             # pass retries — flipping it now would eat the notification forever

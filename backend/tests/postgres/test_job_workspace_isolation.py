@@ -279,21 +279,21 @@ def test_autosync_all_workspaces_notifies_every_connection_despite_internal_comm
 
     sync_calls: list[str] = []
 
-    def fake_sync_transactions(db, pid, owner):
+    def fake_sync_transactions(db, portfolio, _context):
         sync_calls.append("trading212")
         # sync_transactions commits internally in production -- reproduce
         # that real transaction boundary here, on the session under test.
         db.commit()
         return {"imported_orders": 1, "imported_dividends": 0, "total_imported": 1, "errors": []}
 
-    def fake_run_ibkr_sync(db, pid, owner):
+    def fake_run_ibkr_sync(db, workspace_id, portfolio_id):
         sync_calls.append("ibkr")
         db.commit()
         return {"imported": 1}
 
     notified: list[str] = []
 
-    async def fake_notify(db, portfolio_id, title, description, color=0):
+    async def fake_notify(db, workspace_id, portfolio_id, title, description, color=0):
         notified.append(title)
         return True
 
