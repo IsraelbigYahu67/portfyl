@@ -167,7 +167,8 @@ deploy keeps that from ever happening in normal operation:
 ```
 
 The script deploys (or updates) a Cloud Run **Job** running `alembic -c
-backend/alembic.ini upgrade head` against the image you're about to serve,
+alembic.ini upgrade head` (the image's runtime `WORKDIR` is already
+`/app/backend`, so no `backend/` prefix) against the image you're about to serve,
 executes it, and waits — it exits non-zero (and prints where to find the
 job's logs) if the migration fails, so a CI/CD pipeline or you, by hand,
 should treat a non-zero exit here as a hard stop before step 6. Store the

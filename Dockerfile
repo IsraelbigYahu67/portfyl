@@ -6,7 +6,19 @@ WORKDIR /app/frontend
 # Install from the lockfile first for better layer caching.
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
-# Build the SPA -> /app/frontend/dist
+# Build the SPA -> /app/frontend/dist. Firebase web config is public client
+# config (protected by Firebase's authorized-domains + security rules, not
+# secrecy) but Vite still needs it at BUILD time, not runtime -- and
+# .dockerignore deliberately excludes .env* from the build context, so these
+# come in as build args instead (pass with `docker build --build-arg ...`).
+ARG VITE_FIREBASE_API_KEY
+ARG VITE_FIREBASE_AUTH_DOMAIN
+ARG VITE_FIREBASE_PROJECT_ID
+ARG VITE_FIREBASE_APP_ID
+ENV VITE_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY \
+    VITE_FIREBASE_AUTH_DOMAIN=$VITE_FIREBASE_AUTH_DOMAIN \
+    VITE_FIREBASE_PROJECT_ID=$VITE_FIREBASE_PROJECT_ID \
+    VITE_FIREBASE_APP_ID=$VITE_FIREBASE_APP_ID
 COPY frontend/ ./
 RUN npm run build
 
