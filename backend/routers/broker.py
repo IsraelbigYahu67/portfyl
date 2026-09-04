@@ -4,14 +4,18 @@ from datetime import date, datetime, timezone
 from urllib.parse import urlparse, parse_qs
 import httpx
 import base64
+import os
 import yfinance as yf
 
 from audit import record_audit_event
+from billing_config import BillingConfig
 from database import get_db
+from entitlements import require_broker_capacity, require_capability, require_writable_broker
 from fx import bulk_fetch_fx
 from models import BrokerConnection, Portfolio, Transaction
 from tenancy import RequestContext, require_csrf, require_portfolio
 from cash_ledger import CASH_TYPES
+from trials import activate_trial
 
 router = APIRouter(prefix="/broker", tags=["broker"])
 
@@ -222,7 +226,10 @@ def get_status(
     }
 
 
-@router.post("/trading212/connect")
+@router.post(
+    "/trading212/connect",
+    dependencies=[Depends(require_capability("broker_sync")), Depends(require_broker_capacity("trading212"))],
+)
 def connect(
     payload: dict,
     db: Session = Depends(get_db),
@@ -321,11 +328,19 @@ def connect(
         "portfolio_id": str(portfolio.public_id),
         "message": "Connected to Trading 212",
     }
+    if isinstance(_context, RequestContext):
+        activate_trial(
+            db,
+            user=_context.user,
+            workspace=_context.workspace,
+            activation_kind="broker_connection",
+            config=BillingConfig.from_env(os.environ),
+        )
     db.commit()
     return result
 
 
-@router.post("/trading212/auto-sync")
+@router.post("/trading212/auto-sync", dependencies=[Depends(require_capability("broker_sync")), Depends(require_writable_broker("trading212"))])
 def set_auto_sync(
     payload: dict,
     db: Session = Depends(get_db),
@@ -372,7 +387,7 @@ def disconnect(
     return {"ok": True, "message": "Disconnected from Trading 212"}
 
 
-@router.post("/trading212/sync")
+@router.post("/trading212/sync", dependencies=[Depends(require_capability("broker_sync")), Depends(require_writable_broker("trading212"))])
 def sync_transactions(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),

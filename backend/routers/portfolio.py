@@ -6,18 +6,30 @@ import pandas as pd
 import pytz
 import io
 import logging
+import os
 from datetime import datetime, timedelta
 
 from uuid import UUID
 
 from database import get_db
-from models import BrokerConnection, Portfolio, Transaction
+from billing_config import BillingConfig
+from edition import edition_from_env
+from entitlements import (
+    ensure_count_limit,
+    ensure_final_count_limit,
+    require_capacity,
+    require_capability,
+    resolve_entitlements,
+)
+from models import BrokerConnection, Portfolio, Transaction, Workspace
 from cash_ledger import TRADE_TYPES, POSITION_TYPES
 from schemas import TransactionCreate, TransactionResponse
 from fx import fetch_fx_to_czk, bulk_fetch_fx
 from routers.portfolios import require_portfolio
 from ticker_map import yf_symbol
 from cache import tenant_cache_key
+from tenancy import RequestContext, get_request_context
+from trials import activate_trial
 import market_data
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
@@ -369,6 +381,13 @@ def _build_holdings(transactions: list, include_closed: bool = False,
     return {k: v for k, v in holdings.items() if v["shares"] > 0.0001}
 
 
+def _active_position_count(transactions: list[Transaction]) -> int:
+    by_portfolio: dict[UUID, list[Transaction]] = {}
+    for transaction in transactions:
+        by_portfolio.setdefault(transaction.portfolio_id, []).append(transaction)
+    return sum(len(_build_holdings(rows)) for rows in by_portfolio.values())
+
+
 # Last successful live rate per currency, process-wide. A quote hiccup must not
 # silently become "1 Kč per USD" — that once rendered every position at ≈ -95%.
 _LAST_GOOD_FX: dict[str, float] = {}
@@ -414,7 +433,11 @@ def get_transactions(db: Session = Depends(get_db), portfolio: Portfolio = Depen
     )
 
 
-@router.post("/transactions", response_model=TransactionResponse)
+@router.post(
+    "/transactions",
+    response_model=TransactionResponse,
+    dependencies=[Depends(require_capacity("transactions", Transaction))],
+)
 def create_transaction(
     txn: TransactionCreate,
     db: Session = Depends(get_db),
@@ -434,6 +457,23 @@ def create_transaction(
         cash_currency="CZK" if fx else None,
         workspace_id=portfolio.workspace_id,
         portfolio_id=portfolio.id,
+    )
+    if db.get_bind().dialect.name == "postgresql":
+        db.query(Workspace.id).filter(Workspace.id == portfolio.workspace_id).with_for_update().one()
+    entitlements = resolve_entitlements(
+        db,
+        edition=edition_from_env(os.environ),
+        workspace_id=portfolio.workspace_id,
+        env=os.environ,
+    )
+    existing_transactions = db.query(Transaction).filter(
+        Transaction.workspace_id == portfolio.workspace_id
+    ).all()
+    ensure_final_count_limit(
+        entitlements,
+        "active_positions",
+        current=_active_position_count(existing_transactions),
+        final=_active_position_count([*existing_transactions, db_txn]),
     )
     db.add(db_txn)
     db.commit()
@@ -471,6 +511,7 @@ async def import_csv(
     replace: bool = False,
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
+    _context: RequestContext = Depends(get_request_context),
 ):
     content = await file.read()
     try:
@@ -564,6 +605,39 @@ async def import_csv(
         db.rollback()
         raise HTTPException(status_code=400, detail={"message": "CSV validation failed", "errors": errors})
 
+    if db.get_bind().dialect.name == "postgresql":
+        db.query(Workspace.id).filter(Workspace.id == portfolio.workspace_id).with_for_update().one()
+    entitlements = resolve_entitlements(
+        db,
+        edition=edition_from_env(os.environ),
+        workspace_id=portfolio.workspace_id,
+        env=os.environ,
+    )
+    workspace_total = db.query(Transaction).filter(
+        Transaction.workspace_id == portfolio.workspace_id
+    ).count()
+    replaced_count = _portfolio_txns(db, portfolio).count() if replace else 0
+    ensure_count_limit(
+        entitlements,
+        "transactions",
+        used=workspace_total - replaced_count,
+        increase=len(prepared),
+    )
+    existing_transactions = db.query(Transaction).filter(
+        Transaction.workspace_id == portfolio.workspace_id
+    ).all()
+    retained_transactions = (
+        [row for row in existing_transactions if row.portfolio_id != portfolio.id]
+        if replace
+        else existing_transactions
+    )
+    ensure_final_count_limit(
+        entitlements,
+        "active_positions",
+        current=_active_position_count(existing_transactions),
+        final=_active_position_count([*retained_transactions, *prepared]),
+    )
+
     try:
         if replace:
             _portfolio_txns(db, portfolio).delete(synchronize_session=False)
@@ -579,6 +653,14 @@ async def import_csv(
                 connection.t212_csv_covered_through = t212_covered_through
         db.flush()
         imported = len(prepared)
+        if imported and isinstance(_context, RequestContext):
+            activate_trial(
+                db,
+                user=_context.user,
+                workspace=_context.workspace,
+                activation_kind="csv_import",
+                config=BillingConfig.from_env(os.environ),
+            )
         db.commit()
     except Exception as e:
         db.rollback()
@@ -963,7 +1045,7 @@ def get_dividends(
     return sorted(result, key=sort_key)
 
 
-@router.get("/dividends/forecast")
+@router.get("/dividends/forecast", dependencies=[Depends(require_capability("dividend_analysis"))])
 def get_dividend_forecast(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
@@ -1099,7 +1181,7 @@ def get_dividend_forecast(
     }
 
 
-@router.get("/dividends/growth")
+@router.get("/dividends/growth", dependencies=[Depends(require_capability("dividend_analysis"))])
 def get_dividend_growth(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
@@ -1277,7 +1359,7 @@ def get_performance(
     return result
 
 
-@router.get("/earnings")
+@router.get("/earnings", dependencies=[Depends(require_capability("standard_research"))])
 def get_earnings(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
@@ -1361,7 +1443,7 @@ def _two_day_closes(tickers):
     return out
 
 
-@router.get("/movers")
+@router.get("/movers", dependencies=[Depends(require_capability("standard_research"))])
 def get_movers(
     period: str = "1d",
     db: Session = Depends(get_db),
@@ -1453,7 +1535,7 @@ def get_movers(
     }
 
 
-@router.get("/heatmap")
+@router.get("/heatmap", dependencies=[Depends(require_capability("standard_research"))])
 def get_heatmap(
     period: str = "1d",
     db: Session = Depends(get_db),
@@ -1599,7 +1681,7 @@ _insider_buys_cache: dict[tuple, tuple[float, list]] = {}
 _INSIDER_BUYS_TTL = 1800  # 30 minutes
 
 
-@router.get("/insider-buys")
+@router.get("/insider-buys", dependencies=[Depends(require_capability("advanced_research"))])
 def get_insider_buys(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),

@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 import market_data
 from database import get_db
+from entitlements import EffectiveEntitlements, require_capability, require_capacity, require_writable_resource
 from models import Portfolio, PriceAlert
 from routers.portfolios import require_portfolio
 from routers.discord import send_discord_notification
@@ -91,16 +92,30 @@ def _find_alert(db: Session, portfolio: Portfolio, alert_id: UUID) -> PriceAlert
 
 # -------- Shared check logic ------------------------------------------------
 
-async def run_check(db: Session, workspace_id: UUID, portfolio_id: int | None = None) -> list[dict]:
+async def run_check(
+    db: Session,
+    workspace_id: UUID,
+    portfolio_id: int | None = None,
+    *,
+    max_alerts: int | None = None,
+    allow_external_notifications: bool = True,
+) -> list[dict]:
     """Evaluate every armed (`enabled` + `active`) alert in `workspace_id`
     against the live price. Fires a Discord notification per crossing and
     marks the alert `triggered`. When `portfolio_id` is None, checks every
     portfolio in that one workspace (never other workspaces — see the module
     docstring). Returns a summary of the alerts that fired this run."""
+    allowed_ids = None
+    if max_alerts is not None:
+        allowed_ids = [row.id for row in db.query(PriceAlert).filter(
+            PriceAlert.workspace_id == workspace_id,
+        ).order_by(PriceAlert.created_at, PriceAlert.id).limit(max_alerts).all()]
     q = db.query(PriceAlert).filter(
         PriceAlert.workspace_id == workspace_id,
         PriceAlert.enabled == True, PriceAlert.status == "active",  # noqa: E712
     )
+    if allowed_ids is not None:
+        q = q.filter(PriceAlert.id.in_(allowed_ids))
     if portfolio_id is not None:
         q = q.filter(PriceAlert.portfolio_id == portfolio_id)
     alerts = q.all()
@@ -126,9 +141,11 @@ async def run_check(db: Session, workspace_id: UUID, portfolio_id: int | None = 
                 f"your target of {a.target_price:g}.")
         if a.note:
             desc += f"\n\n_{a.note}_"
-        delivered = await send_discord_notification(
-            db, workspace_id, a.portfolio_id, title, desc, color=ALERT_COLOR
-        )
+        delivered = None
+        if allow_external_notifications:
+            delivered = await send_discord_notification(
+                db, workspace_id, a.portfolio_id, title, desc, color=ALERT_COLOR
+            )
         if delivered is False:
             # Webhook down or misconfigured: leave the alert armed so the next
             # pass retries — flipping it now would eat the notification forever
@@ -163,7 +180,7 @@ def list_alerts(db: Session = Depends(get_db), portfolio: Portfolio = Depends(re
     return [_serialize(a, prices.get(a.ticker)) for a in alerts]
 
 
-@router.post("")
+@router.post("", dependencies=[Depends(require_capacity("alerts", PriceAlert))])
 def create_alert(body: AlertCreate, db: Session = Depends(get_db), portfolio: Portfolio = Depends(require_portfolio)):
     a = PriceAlert(
         workspace_id=portfolio.workspace_id,
@@ -181,7 +198,7 @@ def create_alert(body: AlertCreate, db: Session = Depends(get_db), portfolio: Po
     return _serialize(a)
 
 
-@router.patch("/{alert_id}")
+@router.patch("/{alert_id}", dependencies=[Depends(require_writable_resource("alerts", PriceAlert, "alert_id"))])
 def update_alert(alert_id: UUID, body: AlertUpdate, db: Session = Depends(get_db), portfolio: Portfolio = Depends(require_portfolio)):
     a = _find_alert(db, portfolio, alert_id)
     if body.direction is not None:
@@ -212,8 +229,18 @@ def delete_alert(alert_id: UUID, db: Session = Depends(get_db), portfolio: Portf
 
 
 @router.post("/check")
-async def check_now(db: Session = Depends(get_db), portfolio: Portfolio = Depends(require_portfolio)):
+async def check_now(
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+    entitlements: EffectiveEntitlements = Depends(require_capability("alerts")),
+):
     """Manually evaluate this portfolio's alerts right now (same logic as the
     background poller). Returns the alerts that fired."""
-    fired = await run_check(db, portfolio.workspace_id, portfolio.id)
+    fired = await run_check(
+        db,
+        portfolio.workspace_id,
+        portfolio.id,
+        max_alerts=entitlements.limits.alerts,
+        allow_external_notifications="notification_integrations" in entitlements.capabilities,
+    )
     return {"checked": True, "fired": fired}

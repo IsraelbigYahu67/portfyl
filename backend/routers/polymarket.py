@@ -3,10 +3,14 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 import httpx
 import re
+import os
 
 from database import get_db
+from billing_config import BillingConfig
+from entitlements import require_broker_capacity, require_capability, require_writable_broker
 from models import BrokerConnection, PolymarketPosition, Portfolio
 from tenancy import RequestContext, require_csrf, require_portfolio
+from trials import activate_trial
 
 router = APIRouter(tags=["polymarket"])
 
@@ -37,7 +41,10 @@ def _portfolio_positions(db: Session, portfolio: Portfolio):
 # ---------------------------------------------------------------------------
 # POST /broker/polymarket/connect
 # ---------------------------------------------------------------------------
-@router.post("/broker/polymarket/connect")
+@router.post(
+    "/broker/polymarket/connect",
+    dependencies=[Depends(require_capability("polymarket")), Depends(require_broker_capacity("polymarket"))],
+)
 async def connect(
     payload: dict,
     db: Session = Depends(get_db),
@@ -85,6 +92,14 @@ async def connect(
         "portfolio_id": str(portfolio.public_id),
         "message": "Connected to Polymarket",
     }
+    if isinstance(_context, RequestContext):
+        activate_trial(
+            db,
+            user=_context.user,
+            workspace=_context.workspace,
+            activation_kind="broker_connection",
+            config=BillingConfig.from_env(os.environ),
+        )
     db.commit()
     return result
 
@@ -134,7 +149,7 @@ def disconnect(
 # ---------------------------------------------------------------------------
 # POST /broker/polymarket/sync
 # ---------------------------------------------------------------------------
-@router.post("/broker/polymarket/sync")
+@router.post("/broker/polymarket/sync", dependencies=[Depends(require_capability("polymarket")), Depends(require_writable_broker("polymarket"))])
 async def sync_positions(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),

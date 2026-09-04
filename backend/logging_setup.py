@@ -38,6 +38,12 @@ _REDACTION_PATTERNS: list[tuple[re.Pattern, str]] = [
     # Portfyl session / CSRF cookie values.
     (re.compile(r"((?:__Host-)?portfyl_session=)[^;\s]+"), r"\1[REDACTED]"),
     (re.compile(r"(X-CSRF-Token[\"'\s:=]+)\S+", re.IGNORECASE), r"\1[REDACTED]"),
+    # Stripe server credentials, webhook signing secrets/signatures, and
+    # short-lived hosted Checkout/Portal URLs.
+    (re.compile(r"\b(?:sk|rk)_(?:test|live)_[A-Za-z0-9_]+"), "[REDACTED]"),
+    (re.compile(r"\bwhsec_[A-Za-z0-9_]+"), "[REDACTED]"),
+    (re.compile(r"(Stripe-Signature[\"'\s:=]+)[^\"'\s]+", re.IGNORECASE), r"\1[REDACTED]"),
+    (re.compile(r"https://(?:checkout|billing)\.stripe\.com/[^\"'\s]+", re.IGNORECASE), "[REDACTED_URL]"),
 ]
 
 

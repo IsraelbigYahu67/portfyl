@@ -31,11 +31,12 @@ describe("edition build configuration", () => {
 });
 
 describe("edition manifests", () => {
-  it("contains both owner-only routes and links only in local", () => {
+  it("keeps owner-only tools local and billing cloud-only", () => {
     expect(LOCAL_ROUTES.map((entry) => entry.path)).toEqual(["/tax-report", "/screener"]);
     expect(LOCAL_NAVIGATION.map((entry) => entry.to)).toEqual(["/tax-report", "/screener"]);
-    expect(CLOUD_ROUTES).toEqual([]);
-    expect(CLOUD_NAVIGATION).toEqual([]);
+    expect(CLOUD_ROUTES.map((entry) => entry.path)).toEqual(["/pricing"]);
+    expect(CLOUD_NAVIGATION.map((entry) => entry.to)).toEqual(["/pricing"]);
+    expect(CLOUD_ROUTES.some((entry) => ["/tax-report", "/screener"].includes(entry.path))).toBe(false);
   });
 
   it("fails closed until the backend explicitly returns a capability", () => {

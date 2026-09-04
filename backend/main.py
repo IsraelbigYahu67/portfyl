@@ -20,6 +20,8 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 from database import SessionLocal, assert_alembic_head, get_db
 from edition import Edition, edition_from_env
+from billing_config import BillingConfig
+from entitlements import EntitlementDenied, entitlement_denied_handler
 from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, cash, alerts, settings, capabilities, auth as auth_router
 from tenancy import (
     RequestContextError,
@@ -28,9 +30,11 @@ from tenancy import (
 )
 
 PORTFYL_EDITION = edition_from_env(os.environ)
+BILLING_CONFIG = BillingConfig.from_env(os.environ)
 
 app = FastAPI(title="Portfyl API", version="1.0.0")
 app.state.portfyl_edition = PORTFYL_EDITION
+app.state.billing_config = BILLING_CONFIG
 app.add_exception_handler(
     auth_router.AuthAPIError,
     auth_router.auth_api_error_handler,
@@ -39,6 +43,7 @@ app.add_exception_handler(
     RequestContextError,
     request_context_error_handler,
 )
+app.add_exception_handler(EntitlementDenied, entitlement_denied_handler)
 
 
 # The desktop SPA is same-origin (baked into the image), but the native app calls
@@ -129,8 +134,9 @@ if PORTFYL_EDITION is Edition.CLOUD:
     # Cloud Scheduler-triggered job endpoints, replacing the in-process
     # pollers _start_background_pollers only registers in the local
     # edition. Not under /api -- own OIDC auth, no cookie/CSRF session.
-    from routers import internal_jobs
+    from routers import billing, internal_jobs
 
+    app.include_router(billing.router, prefix="/api")
     app.include_router(internal_jobs.router)
 
 
@@ -139,6 +145,8 @@ _JOB_MAX_AGES = {
     "autosync": timedelta(hours=2),
     "dividends": timedelta(hours=25),
 }
+if PORTFYL_EDITION is Edition.CLOUD and BILLING_CONFIG.enabled:
+    _JOB_MAX_AGES["billing"] = timedelta(minutes=10)
 
 
 def _as_utc(value: datetime) -> datetime:

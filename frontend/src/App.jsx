@@ -26,7 +26,7 @@ import { ToastProvider } from "./components/ui/Toast";
 import { ConfirmProvider } from "./components/ui/ConfirmDialog";
 import AutoLoad from "./components/AutoLoad";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
-import { EDITION_ROUTES } from "@edition-manifest";
+import { EDITION_ROUTES, EditionShell } from "@edition-manifest";
 import { enabledEditionEntries } from "./editions/filter";
 
 const CurrencyContext = createContext(null);
@@ -421,9 +421,15 @@ function AppLayout() {
   if (!platform) {
     return (
       <div className="flex min-h-screen">
+        <EditionShell />
         <Sidebar capabilities={runtimeCapabilities} />
         <main className="flex-1 p-6 overflow-y-auto min-w-0 max-h-screen">
-          <PlatformLanding />
+          <Routes>
+            {editionRoutes.map(({ path, Component }) => (
+              <Route key={path} path={path} element={<Component />} />
+            ))}
+            <Route path="*" element={<PlatformLanding />} />
+          </Routes>
         </main>
       </div>
     );
@@ -431,6 +437,7 @@ function AppLayout() {
 
   return (
     <div className="flex min-h-screen">
+      <EditionShell />
       {/* Background prefetcher — warms the React Query cache for every T212 page
           in priority order so navigation is instant. Renders nothing. */}
       {platform === "t212" && <AutoLoad />}

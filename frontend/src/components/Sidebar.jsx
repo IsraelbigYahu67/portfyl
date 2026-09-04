@@ -35,9 +35,8 @@ export default function Sidebar({ capabilities = [] }) {
   const navigate = useNavigate();
   const czk_unavailable = !rateLoading && rate === null;
 
-  const links = platform === "t212"
-    ? [...T212_LINKS, ...enabledEditionEntries(EDITION_NAVIGATION, capabilities)]
-    : [];
+  const editionLinks = enabledEditionEntries(EDITION_NAVIGATION, capabilities);
+  const links = platform === "t212" ? [...T212_LINKS, ...editionLinks] : editionLinks;
 
   const platformLabel = platform === "t212" ? "Trading 212" : null;
 

@@ -53,7 +53,7 @@ class Base(DeclarativeBase):
     pass
 
 
-EXPECTED_ALEMBIC_HEAD = "0009_audit_log"
+EXPECTED_ALEMBIC_HEAD = "0010_billing_entitlements"
 
 
 def assert_alembic_head(

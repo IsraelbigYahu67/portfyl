@@ -59,6 +59,13 @@ WORKSPACE_SCOPED_TABLES: tuple[str, ...] = (
     "cash_interest_rates",
     "price_alerts",
     "workspace_settings",
+    "billing_customers",
+    "subscriptions",
+    "trial_grants",
+    "billing_actions",
+    "usage_counters",
+    "usage_reservations",
+    "notification_outbox",
 )
 
 

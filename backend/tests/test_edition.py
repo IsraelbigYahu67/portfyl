@@ -47,6 +47,9 @@ def test_cloud_payload_does_not_advertise_local_only_capabilities():
     assert "screener" not in payload["capabilities"]
     assert "tax_report" not in payload["classifications"]
     assert "screener" not in payload["classifications"]
+    assert payload["classifications"]["alerts"] == "cloud_free"
+    assert payload["classifications"]["assistant_byok"] == "cloud_investor"
+    assert payload["classifications"]["assistant_hosted"] == "cloud_pro"
 
 
 def test_capabilities_endpoint_reports_local_registry():

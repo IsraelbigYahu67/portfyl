@@ -44,6 +44,13 @@ RLS_TABLES = {
     "dividend_notifications",
     "price_alerts",
     "audit_logs",
+    "billing_customers",
+    "subscriptions",
+    "trial_grants",
+    "billing_actions",
+    "usage_counters",
+    "usage_reservations",
+    "notification_outbox",
 }
 
 

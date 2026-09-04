@@ -56,6 +56,7 @@ const DEFAULT_STALE = MIN;
 const GAP_MS = 200;
 // Let the page the user actually landed on issue its own fetches first.
 const STARTUP_DELAY_MS = 1500;
+const BACKGROUND_REQUEST = Object.freeze({ suppressEntitlementPrompt: true });
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -101,10 +102,10 @@ export default function AutoLoad() {
         // Dashboard's default period state is "All" (raw); it lowercases only
         // for the request, so the cache key keeps the capitalised value.
         [["performance", currency, "All"], () => fetchPerformance(currency, "all")],
-        [["movers", "1d"], () => fetchMovers("1d")],
-        [["earnings"], () => fetchEarnings()],
-        [["sector-breakdown", currency], () => fetchSectorBreakdown(currency)],
-        [["heatmap", "1d"], () => fetchHeatmap("1d")],
+        [["movers", "1d"], () => fetchMovers("1d", BACKGROUND_REQUEST)],
+        [["earnings"], () => fetchEarnings(BACKGROUND_REQUEST)],
+        [["sector-breakdown", currency], () => fetchSectorBreakdown(currency, BACKGROUND_REQUEST)],
+        [["heatmap", "1d"], () => fetchHeatmap("1d", BACKGROUND_REQUEST)],
       ]))) return;
 
       // 2) Allocation (sector-breakdown already warmed above)
@@ -124,7 +125,7 @@ export default function AutoLoad() {
         // query keys, so mirror that here to hit the same cache entry.
         const t = String(h.ticker).toUpperCase();
         if (!(await runTasks([
-          [["fundamentals", t], () => fetchFundamentals(t), FUND_STALE],
+          [["fundamentals", t], () => fetchFundamentals(t, BACKGROUND_REQUEST), FUND_STALE],
           [["history", t, "1y"], () => fetchHistory(t, "1y"), FUND_STALE],
         ]))) return;
       }
@@ -142,7 +143,7 @@ export default function AutoLoad() {
       // …rest of the shared sidebar in order: Dividends → Analytics.
       if (!(await runTasks([
         [["dividends"], () => fetchDividends()],
-        [["dividends-forecast"], () => fetchDividendForecast()],
+        [["dividends-forecast"], () => fetchDividendForecast(BACKGROUND_REQUEST)],
       ]))) return;
 
       // Analytics: resolve the default benchmark the page auto-selects so the
@@ -164,10 +165,10 @@ export default function AutoLoad() {
       const benchId = def ? def.id : null;
       const P = "1Y"; // Analytics' default period state (key uses raw, fn lowercases)
       if (!(await runTasks([
-        [["risk-metrics", P, benchId], () => fetchRiskMetrics(P.toLowerCase(), benchId)],
-        [["benchmark-comparison", P, benchId], () => fetchBenchmarkComparison(P.toLowerCase(), benchId)],
-        [["sector-breakdown", "USD"], () => fetchSectorBreakdown("USD")],
-        [["correlation", P], () => fetchCorrelation(P.toLowerCase())],
+        [["risk-metrics", P, benchId], () => fetchRiskMetrics(P.toLowerCase(), benchId, BACKGROUND_REQUEST)],
+        [["benchmark-comparison", P, benchId], () => fetchBenchmarkComparison(P.toLowerCase(), benchId, BACKGROUND_REQUEST)],
+        [["sector-breakdown", "USD"], () => fetchSectorBreakdown("USD", BACKGROUND_REQUEST)],
+        [["correlation", P], () => fetchCorrelation(P.toLowerCase(), BACKGROUND_REQUEST)],
       ]))) return;
 
       // Settings (T212 status, keyed by the active portfolio id). Local-only

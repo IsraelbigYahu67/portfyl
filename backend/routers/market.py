@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Any, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from statistics import median
@@ -16,6 +16,7 @@ import shibui_client
 import alphavantage_client
 import edgar_client
 from cache import ttl_cache
+from entitlements import require_capability
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -1032,7 +1033,7 @@ def get_history(ticker: str, period: str = "1y"):
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.get("/fundamentals/{ticker}")
+@router.get("/fundamentals/{ticker}", dependencies=[Depends(require_capability("standard_research"))])
 @ttl_cache(_FUNDAMENTALS_TTL)
 def get_fundamentals(ticker: str):
     """Comprehensive fundamentals for the stock-detail modal.
@@ -1580,7 +1581,7 @@ def get_fundamentals(ticker: str):
 _SHIBUI_FINANCIALS_TTL = 3600  # Shibui's fundamentals update only as filings arrive
 
 
-@router.get("/shibui/financials/{ticker}")
+@router.get("/shibui/financials/{ticker}", dependencies=[Depends(require_capability("standard_research"))])
 @ttl_cache(_SHIBUI_FINANCIALS_TTL)
 def get_shibui_financials(ticker: str, years: int = 5):
     """Annual revenue/earnings/cash-flow trend for `ticker`, sourced from Shibui
@@ -1639,7 +1640,7 @@ _SHIBUI_FORM_TYPES = {
 _SHIBUI_DEFAULT_FORM_TYPES = "10-K,10-Q,8-K,DEF 14A"
 
 
-@router.get("/shibui/filings/{ticker}")
+@router.get("/shibui/filings/{ticker}", dependencies=[Depends(require_capability("advanced_research"))])
 @ttl_cache(_SHIBUI_FILINGS_TTL)
 def get_shibui_filings(ticker: str, form_types: str = _SHIBUI_DEFAULT_FORM_TYPES, years: int = 2):
     """Recent SEC filings for `ticker` (up to 20 per requested form type),
@@ -1739,7 +1740,7 @@ def _detect_cluster_buys(rows: list[dict]) -> list[dict]:
     return clusters
 
 
-@router.get("/shibui/insiders/{ticker}")
+@router.get("/shibui/insiders/{ticker}", dependencies=[Depends(require_capability("advanced_research"))])
 @ttl_cache(_SHIBUI_INSIDERS_TTL)
 def get_shibui_insiders(ticker: str, months: int = 12):
     """Structured Form 4/5 insider transactions for `ticker` from Shibui --
@@ -1806,7 +1807,7 @@ def _edgar_ownership_summary(cik: Optional[str], accession_number: Optional[str]
     return edgar_client.parse_ownership_summary(html)
 
 
-@router.get("/shibui/activist-stakes/{ticker}")
+@router.get("/shibui/activist-stakes/{ticker}", dependencies=[Depends(require_capability("advanced_research"))])
 @ttl_cache(_SHIBUI_OWNERSHIP_TTL)
 def get_shibui_activist_stakes(ticker: str):
     """SC 13D/13G beneficial-ownership filings against `ticker`. 13D signals
@@ -1844,7 +1845,7 @@ def get_shibui_activist_stakes(ticker: str):
     return {"ticker": sym, "source": "shibui", "stakes": rows}
 
 
-@router.get("/shibui/ownership-detail")
+@router.get("/shibui/ownership-detail", dependencies=[Depends(require_capability("advanced_research"))])
 def get_shibui_ownership_detail(cik: str, accession: str, doc: str):
     """Lazy counterpart to activist-stakes' eager top-10 fetch: Item 5
     (shares owned, % of class) for one specific 13D/13G filing, identified
@@ -1855,7 +1856,7 @@ def get_shibui_ownership_detail(cik: str, accession: str, doc: str):
     return _edgar_ownership_summary(cik, accession, doc)
 
 
-@router.get("/shibui/strategic-investors/{ticker}")
+@router.get("/shibui/strategic-investors/{ticker}", dependencies=[Depends(require_capability("advanced_research"))])
 @ttl_cache(_SHIBUI_OWNERSHIP_TTL)
 def get_shibui_strategic_investors(ticker: str):
     """Beneficial-ownership filers against `ticker` that are themselves a
@@ -1899,7 +1900,7 @@ def get_shibui_strategic_investors(ticker: str):
 _POLITICIAN_TRADES_TTL = 3600 * 24
 
 
-@router.get("/politician-trades/{ticker}")
+@router.get("/politician-trades/{ticker}", dependencies=[Depends(require_capability("advanced_research"))])
 @ttl_cache(_POLITICIAN_TRADES_TTL)
 async def get_politician_trades(ticker: str):
     """Disclosed congressional trades referencing `ticker`, via Alpha
@@ -1949,7 +1950,7 @@ async def get_politician_trades(ticker: str):
 _SHIBUI_EARNINGS_TTL = 3600 * 6  # earnings land a few times a year per ticker
 
 
-@router.get("/shibui/earnings/{ticker}")
+@router.get("/shibui/earnings/{ticker}", dependencies=[Depends(require_capability("advanced_research"))])
 @ttl_cache(_SHIBUI_EARNINGS_TTL)
 def get_shibui_earnings(ticker: str, quarters: int = 20):
     """EPS actual/estimate/surprise history for `ticker`, from Shibui's
@@ -1977,7 +1978,7 @@ def get_shibui_earnings(ticker: str, quarters: int = 20):
     return {"ticker": sym, "source": "shibui", "quarters": rows}
 
 
-@router.get("/shibui/earnings-recap/{ticker}")
+@router.get("/shibui/earnings-recap/{ticker}", dependencies=[Depends(require_capability("advanced_research"))])
 def get_shibui_earnings_recap(ticker: str):
     """Combined earnings snapshot: EPS beat/miss history + actual revenue per
     quarter (Shibui), a buyback trend (equity_issuance_repayment -- negative
@@ -2114,7 +2115,7 @@ def _pick_valuation_granularity(range_days: int) -> str:
     return "quarter"
 
 
-@router.get("/shibui/valuation-history/{ticker}")
+@router.get("/shibui/valuation-history/{ticker}", dependencies=[Depends(require_capability("advanced_research"))])
 @ttl_cache(_SHIBUI_VALUATION_HISTORY_TTL)
 def get_shibui_valuation_history(ticker: str, years: int = 10):
     """Historical trailing P/E, EV/EBITDA, P/S, P/FCF, and P/B for `ticker`,
@@ -2166,7 +2167,7 @@ def get_shibui_valuation_history(ticker: str, years: int = 10):
     return {"ticker": sym, "source": "shibui", "years": safe_years, "granularity": granularity, "points": rows}
 
 
-@router.get("/dividend-growth/{ticker}")
+@router.get("/dividend-growth/{ticker}", dependencies=[Depends(require_capability("dividend_analysis"))])
 def stock_dividend_growth(ticker: str):
     """Full dividend-growth payload for one ticker (annual series + per-payment
     history for the chart, plus streak/CAGR/YoY/payout)."""

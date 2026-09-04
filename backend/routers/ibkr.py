@@ -7,11 +7,15 @@ import asyncio
 import json
 import httpx
 import xml.etree.ElementTree as ET
+import os
 
 from audit import record_audit_event
+from billing_config import BillingConfig
 from database import get_db
+from entitlements import require_broker_capacity, require_capability, require_writable_broker
 from models import BrokerConnection, OptionsTrade, BrokerBalance, Portfolio
 from tenancy import RequestContext, require_csrf, require_portfolio
+from trials import activate_trial
 
 router = APIRouter(prefix="/broker/ibkr", tags=["ibkr"])
 
@@ -350,7 +354,10 @@ def _upsert_balance(db: Session, portfolio: Portfolio, bal: dict) -> None:
     row.as_of = bal.get("as_of")
 
 
-@router.post("/connect")
+@router.post(
+    "/connect",
+    dependencies=[Depends(require_capability("broker_sync")), Depends(require_broker_capacity("ibkr"))],
+)
 async def connect(
     payload: dict,
     db: Session = Depends(get_db),
@@ -409,6 +416,14 @@ async def connect(
         "portfolio_id": str(portfolio.public_id),
         "message": "Connected to IBKR Flex Web Service",
     }
+    if isinstance(_context, RequestContext):
+        activate_trial(
+            db,
+            user=_context.user,
+            workspace=_context.workspace,
+            activation_kind="broker_connection",
+            config=BillingConfig.from_env(os.environ),
+        )
     db.commit()
     return result
 
@@ -441,7 +456,7 @@ def get_status(
     }
 
 
-@router.post("/auto-sync")
+@router.post("/auto-sync", dependencies=[Depends(require_capability("broker_sync")), Depends(require_writable_broker("ibkr"))])
 def set_auto_sync(
     payload: dict,
     db: Session = Depends(get_db),
@@ -685,7 +700,7 @@ async def _run_ibkr_sync(
     }
 
 
-@router.post("/sync")
+@router.post("/sync", dependencies=[Depends(require_capability("broker_sync")), Depends(require_writable_broker("ibkr"))])
 async def sync_trades(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),

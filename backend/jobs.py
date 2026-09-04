@@ -235,7 +235,11 @@ def mark_sync_ran(db: Session, workspace_id: UUID, when: datetime) -> None:
 
 # -------- Broker auto-sync --------------------------------------------------
 
-async def broker_autosync_pass(db: Session, workspace_id: UUID) -> list[dict]:
+async def broker_autosync_pass(
+    db: Session,
+    workspace_id: UUID,
+    max_connections: int | None = None,
+) -> list[dict]:
     """Sync every connection in `workspace_id` with auto_sync enabled. Returns
     one summary dict per attempted connection
     ({portfolio_id, broker, ok, imported | error})."""
@@ -245,10 +249,12 @@ async def broker_autosync_pass(db: Session, workspace_id: UUID) -> list[dict]:
     from routers.broker import sync_transactions
     from routers.ibkr import _run_ibkr_sync
 
-    conns = db.query(BrokerConnection).filter(
+    all_connections = db.query(BrokerConnection).filter(
         BrokerConnection.workspace_id == workspace_id,
-        BrokerConnection.auto_sync == True,  # noqa: E712
-    ).all()
+    ).order_by(BrokerConnection.created_at, BrokerConnection.id).all()
+    if max_connections is not None:
+        all_connections = all_connections[:max_connections]
+    conns = [connection for connection in all_connections if connection.auto_sync]
     results: list[dict] = []
     for conn in conns:
         # sync_transactions/_run_ibkr_sync commit internally (and on failure,
@@ -334,7 +340,13 @@ async def broker_autosync_pass(db: Session, workspace_id: UUID) -> list[dict]:
     return results
 
 
-async def autosync_tick(db: Session, workspace_id: UUID, now: datetime | None = None) -> list[dict]:
+async def autosync_tick(
+    db: Session,
+    workspace_id: UUID,
+    now: datetime | None = None,
+    minimum_interval_hours: int | None = None,
+    max_connections: int | None = None,
+) -> list[dict]:
     """One workspace's poller tick: run broker_autosync_pass iff that
     workspace's configured schedule says a sync is due, then persist the run
     timestamp for that workspace.
@@ -344,10 +356,17 @@ async def autosync_tick(db: Session, workspace_id: UUID, now: datetime | None = 
     whole-pass exception means something systemic like a dead DB)."""
     now = now or datetime.now(timezone.utc)
     s = load_sync_schedule(db, workspace_id)
+    if minimum_interval_hours is not None and s["mode"] == "interval":
+        s["interval_hours"] = max(s["interval_hours"], minimum_interval_hours)
     if not sync_due(now, s["mode"], s["daily_time"], s["interval_hours"],
                     s["last_run"], sync_timezone()):
         return []
-    results = await broker_autosync_pass(db, workspace_id)
+    if max_connections is None:
+        results = await broker_autosync_pass(db, workspace_id)
+    else:
+        results = await broker_autosync_pass(
+            db, workspace_id, max_connections=max_connections
+        )
     mark_sync_ran(db, workspace_id, now)
     return results
 
@@ -649,7 +668,26 @@ async def autosync_all_workspaces(db: Session, now: datetime | None = None) -> l
     results: list[dict] = []
     for workspace_id in _active_workspace_ids(db):
         _set_job_workspace_context(db, workspace_id)
-        results.extend(await autosync_tick(db, workspace_id, now=now))
+        minimum_interval = None
+        max_connections = None
+        from edition import Edition, edition_from_env
+        edition = edition_from_env(os.environ)
+        if edition is Edition.CLOUD:
+            from entitlements import resolve_entitlements
+            access = resolve_entitlements(
+                db, edition=edition, workspace_id=workspace_id, env=os.environ
+            )
+            if "broker_sync" not in access.capabilities:
+                continue
+            minimum_interval = access.limits.autosync_min_hours
+            max_connections = access.limits.broker_connections
+        results.extend(await autosync_tick(
+            db,
+            workspace_id,
+            now=now,
+            minimum_interval_hours=minimum_interval,
+            max_connections=max_connections,
+        ))
     return results
 
 
@@ -660,6 +698,15 @@ async def dividend_notify_all_workspaces(db: Session, today: date | None = None,
     results: list[dict] = []
     for workspace_id in _active_workspace_ids(db):
         _set_job_workspace_context(db, workspace_id)
+        from edition import Edition, edition_from_env
+        edition = edition_from_env(os.environ)
+        if edition is Edition.CLOUD:
+            from entitlements import resolve_entitlements
+            access = resolve_entitlements(
+                db, edition=edition, workspace_id=workspace_id, env=os.environ
+            )
+            if "notification_integrations" not in access.capabilities:
+                continue
         results.extend(await dividend_exdate_pass(db, workspace_id, today=today, lead_days=lead_days))
     return results
 
@@ -672,5 +719,21 @@ async def alert_check_all_workspaces(db: Session) -> list[dict]:
     results: list[dict] = []
     for workspace_id in _active_workspace_ids(db):
         _set_job_workspace_context(db, workspace_id)
-        results.extend(await run_check(db, workspace_id))
+        max_alerts = None
+        allow_external_notifications = True
+        from edition import Edition, edition_from_env
+        edition = edition_from_env(os.environ)
+        if edition is Edition.CLOUD:
+            from entitlements import resolve_entitlements
+            access = resolve_entitlements(
+                db, edition=edition, workspace_id=workspace_id, env=os.environ
+            )
+            max_alerts = access.limits.alerts
+            allow_external_notifications = "notification_integrations" in access.capabilities
+        results.extend(await run_check(
+            db,
+            workspace_id,
+            max_alerts=max_alerts,
+            allow_external_notifications=allow_external_notifications,
+        ))
     return results

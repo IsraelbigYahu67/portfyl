@@ -36,7 +36,7 @@ export const api = axios.create({ baseURL: "/api" });
 
 // Endpoints that are NOT portfolio-scoped — these must not receive portfolio_id
 // or they'd 404 / mis-route.
-const PORTFOLIO_AGNOSTIC_PREFIXES = ["/portfolios", "/market", "/watchlists", "/settings", "/auth", "/capabilities"];
+const PORTFOLIO_AGNOSTIC_PREFIXES = ["/portfolios", "/market", "/watchlists", "/settings", "/auth", "/capabilities", "/billing"];
 
 function isPortfolioAgnostic(url) {
   if (!url) return false;
@@ -94,6 +94,15 @@ api.interceptors.response.use(
         window.location.assign("/login");
       }
     }
+    const denial = error?.response?.data;
+    if (
+      error?.response?.status === 403
+      && ["plan_upgrade_required", "quota_exceeded", "resource_read_only"].includes(denial?.code)
+      && !error?.config?.suppressEntitlementPrompt
+      && typeof window !== "undefined"
+    ) {
+      window.dispatchEvent(new CustomEvent("portfyl:entitlement-denied", { detail: denial }));
+    }
     return Promise.reject(error);
   }
 );
@@ -106,6 +115,18 @@ export const exchangeSession = (idToken) =>
 export const logoutSession = () => api.post("/auth/logout").then((r) => r.data);
 export const logoutAllSessions = () => api.post("/auth/logout-all").then((r) => r.data);
 export const fetchCapabilities = () => api.get("/capabilities").then((r) => r.data);
+
+// ----- Cloud billing (cloud edition manifest is the only UI importer) -------
+
+export const fetchBillingPrices = () => api.get("/billing/prices").then((r) => r.data);
+export const fetchEntitlements = () => api.get("/billing/entitlements").then((r) => r.data);
+export const createCheckout = (plan, interval) =>
+  api.post(
+    "/billing/checkout",
+    { plan, interval },
+    { headers: { "Idempotency-Key": crypto.randomUUID() } },
+  ).then((r) => r.data);
+export const createBillingPortal = () => api.post("/billing/portal").then((r) => r.data);
 
 // ----- Portfolios CRUD (not portfolio-scoped) ---------------------------------
 
@@ -145,8 +166,8 @@ export const clearAllTransactions = () =>
 export const fetchQuote = (ticker) => api.get(`/market/quote/${ticker}`).then((r) => r.data);
 export const fetchHistory = (ticker, period = "1y") =>
   api.get(`/market/history/${ticker}`, { params: { period } }).then((r) => r.data);
-export const fetchFundamentals = (ticker) =>
-  api.get(`/market/fundamentals/${ticker}`).then((r) => r.data);
+export const fetchFundamentals = (ticker, requestConfig = {}) =>
+  api.get(`/market/fundamentals/${ticker}`, requestConfig).then((r) => r.data);
 export const searchTickers = (q, limit = 10) =>
   api.get(`/market/search`, { params: { q, limit } }).then((r) => r.data);
 
@@ -185,15 +206,16 @@ export const addWatchlistItem = (watchlistId, ticker, note = null) =>
 export const removeWatchlistItem = (watchlistId, itemId) =>
   api.delete(`/watchlists/${watchlistId}/items/${itemId}`).then((r) => r.data);
 export const fetchDividends = () => api.get("/portfolio/dividends").then((r) => r.data);
-export const fetchDividendForecast = () =>
-  api.get("/portfolio/dividends/forecast").then((r) => r.data);
+export const fetchDividendForecast = (requestConfig = {}) =>
+  api.get("/portfolio/dividends/forecast", requestConfig).then((r) => r.data);
 export const fetchDividendGrowth = () =>
   api.get("/portfolio/dividends/growth").then((r) => r.data);
 export const fetchStockDividendGrowth = (ticker) =>
   api.get(`/market/dividend-growth/${ticker}`).then((r) => r.data);
-export const fetchRiskMetrics = (period = "1y", benchmarkId = null) =>
+export const fetchRiskMetrics = (period = "1y", benchmarkId = null, requestConfig = {}) =>
   api
     .get(`/analytics/risk-metrics`, {
+      ...requestConfig,
       params: { period, ...(benchmarkId != null ? { benchmark_id: benchmarkId } : {}) },
     })
     .then((r) => r.data);
@@ -205,22 +227,23 @@ export const updateBenchmark = (id, data) =>
   api.patch(`/analytics/benchmarks/${id}`, data).then((r) => r.data);
 export const deleteBenchmark = (id) =>
   api.delete(`/analytics/benchmarks/${id}`).then((r) => r.data);
-export const fetchBenchmarkComparison = (period = "1y", benchmarkId = null) =>
+export const fetchBenchmarkComparison = (period = "1y", benchmarkId = null, requestConfig = {}) =>
   api
     .get(`/analytics/benchmarks/comparison`, {
+      ...requestConfig,
       params: { period, ...(benchmarkId != null ? { benchmark_id: benchmarkId } : {}) },
     })
     .then((r) => r.data);
-export const fetchSectorBreakdown = (currency = "USD") =>
-  api.get(`/analytics/sector-breakdown`, { params: { currency } }).then((r) => r.data);
-export const fetchCorrelation = (period = "1y") =>
-  api.get(`/analytics/correlation`, { params: { period } }).then((r) => r.data);
-export const fetchMovers = (period = "1d") =>
-  api.get(`/portfolio/movers`, { params: { period } }).then((r) => r.data);
-export const fetchEarnings = () =>
-  api.get("/portfolio/earnings").then((r) => r.data);
-export const fetchHeatmap = (period = "1d") =>
-  api.get(`/portfolio/heatmap`, { params: { period } }).then((r) => r.data);
+export const fetchSectorBreakdown = (currency = "USD", requestConfig = {}) =>
+  api.get(`/analytics/sector-breakdown`, { ...requestConfig, params: { currency } }).then((r) => r.data);
+export const fetchCorrelation = (period = "1y", requestConfig = {}) =>
+  api.get(`/analytics/correlation`, { ...requestConfig, params: { period } }).then((r) => r.data);
+export const fetchMovers = (period = "1d", requestConfig = {}) =>
+  api.get(`/portfolio/movers`, { ...requestConfig, params: { period } }).then((r) => r.data);
+export const fetchEarnings = (requestConfig = {}) =>
+  api.get("/portfolio/earnings", requestConfig).then((r) => r.data);
+export const fetchHeatmap = (period = "1d", requestConfig = {}) =>
+  api.get(`/portfolio/heatmap`, { ...requestConfig, params: { period } }).then((r) => r.data);
 export const fetchInsiderBuys = () =>
   api.get("/portfolio/insider-buys").then((r) => r.data);
 

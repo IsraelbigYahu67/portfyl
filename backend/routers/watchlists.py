@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 import yfinance as yf
 
 from database import get_db
+from entitlements import require_capacity, require_writable_resource
 from models import Watchlist, WatchlistItem
 from tenancy import RequestContext, get_request_context
 from ticker_map import yf_symbol
@@ -122,7 +123,7 @@ def list_watchlists(
     return [_serialize_watchlist(w, by_list.get(w.id, []), quotes) for w in lists]
 
 
-@router.post("")
+@router.post("", dependencies=[Depends(require_capacity("watchlists", Watchlist))])
 def create_watchlist(
     payload: WatchlistCreate,
     db: Session = Depends(get_db),
@@ -144,7 +145,7 @@ def create_watchlist(
     return result
 
 
-@router.patch("/{watchlist_id}")
+@router.patch("/{watchlist_id}", dependencies=[Depends(require_writable_resource("watchlists", Watchlist, "watchlist_id"))])
 def update_watchlist(
     watchlist_id: UUID,
     payload: WatchlistUpdate,
@@ -184,7 +185,13 @@ def delete_watchlist(
     return {"ok": True, "deleted_id": deleted_id}
 
 
-@router.post("/{watchlist_id}/items")
+@router.post(
+    "/{watchlist_id}/items",
+    dependencies=[
+        Depends(require_writable_resource("watchlists", Watchlist, "watchlist_id")),
+        Depends(require_capacity("watchlist_symbols", WatchlistItem)),
+    ],
+)
 def add_item(
     watchlist_id: UUID,
     payload: ItemCreate,

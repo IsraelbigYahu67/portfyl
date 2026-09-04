@@ -7,6 +7,7 @@ import httpx
 
 from audit import record_audit_event
 from database import get_db
+from entitlements import require_capability
 from models import DiscordWebhook, Portfolio
 from tenancy import RequestContext, require_csrf, require_portfolio
 
@@ -65,7 +66,7 @@ def get_webhook(
     }
 
 
-@router.post("/webhook")
+@router.post("/webhook", dependencies=[Depends(require_capability("notification_integrations"))])
 def create_webhook(
     body: WebhookCreate,
     portfolio: Portfolio = Depends(require_portfolio),
@@ -108,7 +109,7 @@ def create_webhook(
     return result
 
 
-@router.patch("/webhook")
+@router.patch("/webhook", dependencies=[Depends(require_capability("notification_integrations"))])
 def update_webhook(
     body: WebhookUpdate,
     portfolio: Portfolio = Depends(require_portfolio),
@@ -163,7 +164,7 @@ def delete_webhook(
     return {"status": "ok"}
 
 
-@router.post("/webhook/test")
+@router.post("/webhook/test", dependencies=[Depends(require_capability("notification_integrations"))])
 async def test_webhook(
     body: WebhookTestMessage,
     portfolio: Portfolio = Depends(require_portfolio),

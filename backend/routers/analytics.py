@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 
 from database import get_db
+from entitlements import require_capability
 from models import Portfolio, Transaction, Benchmark, BenchmarkComponent
 from cash_ledger import (TRADE_TYPES, POSITION_TYPES, EXTERNAL_FLOW_TYPES,
                          has_external_cashflows, cash_balance_by_currency, signed_cash)
@@ -894,7 +895,7 @@ def _benchmark_compare_metrics(port: pd.Series, bench: pd.Series) -> dict:
     }
 
 
-@router.get("/risk-metrics")
+@router.get("/risk-metrics", dependencies=[Depends(require_capability("portfolio_analytics"))])
 def risk_metrics(
     period: str = "1y",
     benchmark_id: UUID | None = None,
@@ -1312,7 +1313,7 @@ def _allocation_totals(db: Session, portfolio: Portfolio, display_ccy: str) -> d
     }
 
 
-@router.get("/sector-breakdown")
+@router.get("/sector-breakdown", dependencies=[Depends(require_capability("portfolio_analytics"))])
 def sector_breakdown(
     currency: str = "USD",
     db: Session = Depends(get_db),
@@ -1330,7 +1331,7 @@ def sector_breakdown(
     }
 
 
-@router.get("/correlation")
+@router.get("/correlation", dependencies=[Depends(require_capability("portfolio_analytics"))])
 def correlation_matrix(
     period: str = "1y",
     db: Session = Depends(get_db),

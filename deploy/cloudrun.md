@@ -151,6 +151,15 @@ gcloud secrets versions add portfyl-migration-database-url --data-file=- # paste
 
 gcloud secrets create portfyl-job-database-url --replication-policy=automatic
 gcloud secrets versions add portfyl-job-database-url --data-file=- # paste the direct portfyl_runtime URL (no -pooler), then Ctrl+Z, Enter
+
+# Workstream E billing secrets. Use Stripe sandbox values until every launch
+# gate passes. Generate the trial key with at least 32 random bytes.
+gcloud secrets create portfyl-stripe-secret-key --replication-policy=automatic
+gcloud secrets versions add portfyl-stripe-secret-key --data-file=-
+gcloud secrets create portfyl-stripe-webhook-secret --replication-policy=automatic
+gcloud secrets versions add portfyl-stripe-webhook-secret --data-file=-
+gcloud secrets create portfyl-trial-identity-key --replication-policy=automatic
+gcloud secrets versions add portfyl-trial-identity-key --data-file=-
 ```
 
 Two separate service accounts, so the *running service* can never read the
@@ -163,6 +172,9 @@ gcloud iam service-accounts create portfyl-migrator --display-name="Portfyl Alem
 
 gcloud secrets add-iam-policy-binding portfyl-database-url --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
 gcloud secrets add-iam-policy-binding portfyl-job-database-url --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+gcloud secrets add-iam-policy-binding portfyl-stripe-secret-key --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+gcloud secrets add-iam-policy-binding portfyl-stripe-webhook-secret --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+gcloud secrets add-iam-policy-binding portfyl-trial-identity-key --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
 gcloud secrets add-iam-policy-binding portfyl-migration-database-url --member="serviceAccount:portfyl-migrator@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
 
 gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/firebaseauth.admin"
@@ -219,7 +231,7 @@ the image in the cloud and pushes it to Artifact Registry; accept the offer
 to create the `cloud-run-source-deploy` repo on the first run.
 
 ```powershell
-gcloud run deploy $SERVICE --source . --region $REGION --allow-unauthenticated --service-account "portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --set-secrets="DATABASE_URL=portfyl-database-url:latest,JOB_DATABASE_URL=portfyl-job-database-url:latest" --set-env-vars="PORTFYL_EDITION=cloud,PORTFYL_KMS_KEY_NAME=$KMS_KEY" --min-instances=0 --max-instances=5 --cpu=1 --memory=1Gi
+gcloud run deploy $SERVICE --source . --region $REGION --allow-unauthenticated --service-account "portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --set-secrets="DATABASE_URL=portfyl-database-url:latest,JOB_DATABASE_URL=portfyl-job-database-url:latest,STRIPE_SECRET_KEY=portfyl-stripe-secret-key:latest,STRIPE_WEBHOOK_SECRET=portfyl-stripe-webhook-secret:latest,PORTFYL_TRIAL_IDENTITY_KEY=portfyl-trial-identity-key:latest" --set-env-vars="PORTFYL_EDITION=cloud,PORTFYL_KMS_KEY_NAME=$KMS_KEY,PORTFYL_BILLING_ENABLED=0" --min-instances=0 --max-instances=5 --cpu=1 --memory=1Gi
 ```
 
 Why these flags:
@@ -287,7 +299,7 @@ alerts/autosync/dividends pollers in the **local** edition (always
 single-instance) for exactly that reason — an in-process timer here would
 fire redundantly on every instance. `PORTFYL_EDITION=cloud` instead mounts
 `backend/routers/internal_jobs.py`'s `/internal/jobs/{alerts,autosync,
-dividends}` endpoints, which Cloud Scheduler calls on a cron schedule; a
+dividends,billing}` endpoints, which Cloud Scheduler calls on a cron schedule; a
 Postgres advisory lock inside each endpoint makes an overlapping second
 call a safe no-op instead of a duplicate run (see
 `docs/superpowers/plans/2026-09-04-portfyl-secrets-jobs.md` Task 5).
@@ -314,7 +326,7 @@ gcloud run services update $SERVICE --region=$REGION --update-env-vars="PORTFYL_
 Use `--update-env-vars` here: `--set-env-vars` replaces the whole environment
 map and would remove the KMS settings from step 6.
 
-Then create the three scheduler jobs. Cron expressions mirror today's
+Then create the four scheduler jobs. Cron expressions mirror today's
 poller intervals except autosync: the old 60-second in-process heartbeat
 only existed so `jobs.sync_due()` could catch a due schedule within a
 minute — Cloud Scheduler's minimum useful resolution is coarser than that
@@ -329,7 +341,51 @@ gcloud scheduler jobs create http portfyl-alerts --location=$REGION --schedule="
 gcloud scheduler jobs create http portfyl-autosync --location=$REGION --schedule="0 * * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/autosync" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
 
 gcloud scheduler jobs create http portfyl-dividends --location=$REGION --schedule="0 */12 * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/dividends" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
+
+gcloud scheduler jobs create http portfyl-billing --location=$REGION --schedule="*/5 * * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/billing" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
 ```
+
+## Stripe Billing activation (sandbox first)
+
+Create one Stripe Product for Investor and one for Pro, then four immutable
+recurring Prices (monthly/annual). Never edit or delete a Price referenced by
+a subscription; a future price generation gets new Price IDs and a new
+catalog version. Configure the Customer Portal for payment-method updates,
+invoice history, end-of-period cancellation, and end-of-period downgrades.
+
+Register `https://<service-url>/api/billing/webhook` as a snapshot-event
+destination for only `customer.subscription.*`, `invoice.paid`,
+`invoice.payment_failed`, `invoice.payment_action_required`, and
+`invoice.finalization_failed`. Put that endpoint's `whsec_...` value in the
+webhook secret above. CLI-forwarded webhook secrets are different and must be
+used only for local testing.
+
+The price catalog is non-secret server configuration. Because its JSON contains
+commas, use gcloud's alternate delimiter syntax:
+
+```powershell
+$PRICE_CATALOG = '{"v1":{"investor":{"month":"price_...","year":"price_..."},"pro":{"month":"price_...","year":"price_..."}}}'
+gcloud run services update $SERVICE --region=$REGION --update-env-vars="^@^PORTFYL_BILLING_ENABLED=1@PORTFYL_CURRENT_PRICE_VERSION=v1@PORTFYL_APP_URL=https://portfyl.com@PORTFYL_STRIPE_PRICE_CATALOG=$PRICE_CATALOG"
+```
+
+Checkout enables Stripe automatic tax, collects the billing address, and
+offers tax-ID collection. This does not register Portfyl for VAT by itself:
+configure the applicable Stripe Tax registrations only after the Czech/EU
+VAT/OSS process has been approved by the accountant/legal launch review.
+Keep `PORTFYL_BILLING_ENABLED=0` until the sandbox Checkout, webhook replay,
+test-clock lifecycle, and every master-plan go/no-go item have passed.
+
+After exporting the same billing environment locally, verify every configured
+Stripe Product/Price with a read-only check:
+
+```powershell
+.\backend\.venv\Scripts\python.exe deploy\verify-stripe-catalog.py
+```
+
+The verifier checks recurring interval and EUR currency for every retained
+generation. It also requires the current generation to be active and to match
+Portfyl's public amounts. Legacy Prices may be archived, but must never be
+edited or deleted.
 
 Verify: `gcloud scheduler jobs run portfyl-alerts --location=$REGION` should
 return success and produce an `alerts pass: N event(s)` (or nothing, if

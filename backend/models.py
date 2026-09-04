@@ -14,8 +14,10 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Integer,
     LargeBinary,
+    Index,
     String,
     Text,
+    text,
     UniqueConstraint,
     Uuid,
 )
@@ -214,6 +216,190 @@ class JobRun(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+class BillingCustomer(Base):
+    __tablename__ = "billing_customers"
+
+    id = _uuid_primary_key()
+    workspace_id = _workspace_id()
+    stripe_customer_id = Column(String, nullable=False, unique=True, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (UniqueConstraint("workspace_id", name="uq_billing_customer_workspace"),)
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+    __table_args__ = (
+        CheckConstraint("plan IN ('investor', 'pro')", name="ck_subscription_plan"),
+        CheckConstraint("billing_interval IN ('month', 'year')", name="ck_subscription_interval"),
+        CheckConstraint(
+            "status IN ('incomplete', 'incomplete_expired', 'trialing', 'active', "
+            "'past_due', 'canceled', 'unpaid', 'paused')",
+            name="ck_subscription_status",
+        ),
+        CheckConstraint(
+            "current_period_start IS NULL OR current_period_end IS NULL OR "
+            "current_period_end > current_period_start",
+            name="ck_subscription_period_order",
+        ),
+        CheckConstraint(
+            "payment_failed_at IS NULL OR grace_ends_at IS NULL OR "
+            "grace_ends_at > payment_failed_at",
+            name="ck_subscription_grace_order",
+        ),
+        Index(
+            "uq_subscription_live_workspace",
+            "workspace_id",
+            unique=True,
+            postgresql_where=text("ended_at IS NULL"),
+            sqlite_where=text("ended_at IS NULL"),
+        ),
+    )
+
+    id = _uuid_primary_key()
+    public_id = _public_id()
+    workspace_id = _workspace_id()
+    stripe_subscription_id = Column(String, nullable=False, unique=True, index=True)
+    stripe_price_id = Column(String, nullable=False)
+    plan = Column(String, nullable=False)
+    billing_interval = Column(String, nullable=False)
+    price_version = Column(String, nullable=False)
+    status = Column(String, nullable=False, index=True)
+    current_period_start = Column(DateTime(timezone=True), nullable=True)
+    current_period_end = Column(DateTime(timezone=True), nullable=True)
+    cancel_at_period_end = Column(Boolean, nullable=False, default=False, server_default="false")
+    payment_failed_at = Column(DateTime(timezone=True), nullable=True)
+    grace_ends_at = Column(DateTime(timezone=True), nullable=True)
+    ended_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class TrialGrant(Base):
+    __tablename__ = "trial_grants"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", name="uq_trial_workspace"),
+        UniqueConstraint("identity_fingerprint", name="uq_trial_identity_fingerprint"),
+        CheckConstraint("activation_kind IN ('csv_import', 'broker_connection')", name="ck_trial_activation_kind"),
+        CheckConstraint("ends_at > started_at", name="ck_trial_period_order"),
+    )
+
+    id = _uuid_primary_key()
+    public_id = _public_id()
+    workspace_id = _workspace_id()
+    activated_by_user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    identity_fingerprint = Column(String(64), nullable=False)
+    activation_kind = Column(String, nullable=False)
+    started_at = Column(DateTime(timezone=True), nullable=False)
+    ends_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class StripeEvent(Base):
+    __tablename__ = "stripe_events"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'processing', 'processed', 'failed', 'quarantined')", name="ck_stripe_event_status"),
+        CheckConstraint("attempts >= 0", name="ck_stripe_event_attempts"),
+    )
+
+    id = _uuid_primary_key()
+    stripe_event_id = Column(String, nullable=False, unique=True, index=True)
+    event_type = Column(String, nullable=False, index=True)
+    object_id = Column(String, nullable=True, index=True)
+    livemode = Column(Boolean, nullable=False)
+    status = Column(String, nullable=False, default="pending", server_default="pending", index=True)
+    attempts = Column(Integer, nullable=False, default=0, server_default="0")
+    last_error = Column(String, nullable=True)
+    received_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    processed_at = Column(DateTime(timezone=True), nullable=True)
+    next_attempt_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
+
+class BillingAction(Base):
+    __tablename__ = "billing_actions"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "idempotency_key", name="uq_billing_action_idempotency"),
+    )
+
+    id = _uuid_primary_key()
+    public_id = _public_id()
+    workspace_id = _workspace_id()
+    actor_user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    idempotency_key = Column(String(255), nullable=False)
+    action = Column(String, nullable=False)
+    request_fingerprint = Column(String(64), nullable=False)
+    stripe_object_id = Column(String, nullable=True)
+    response_url_expires_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class UsageCounter(Base):
+    __tablename__ = "usage_counters"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "metric", "period_start", name="uq_usage_counter_period"),
+        UniqueConstraint("workspace_id", "id", name="uq_usage_counter_workspace_id"),
+        CheckConstraint("used >= 0", name="ck_usage_counter_nonnegative"),
+        CheckConstraint("period_end > period_start", name="ck_usage_counter_period_order"),
+    )
+
+    id = _uuid_primary_key()
+    workspace_id = _workspace_id()
+    metric = Column(String, nullable=False, index=True)
+    period_start = Column(DateTime(timezone=True), nullable=False)
+    period_end = Column(DateTime(timezone=True), nullable=False)
+    used = Column(Integer, nullable=False, default=0, server_default="0")
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class UsageReservation(Base):
+    __tablename__ = "usage_reservations"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "metric", "idempotency_key", name="uq_usage_reservation_idempotency"),
+        ForeignKeyConstraint(
+            ["workspace_id", "counter_id"],
+            ["usage_counters.workspace_id", "usage_counters.id"],
+            name="fk_usage_reservation_workspace_counter",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("amount > 0", name="ck_usage_reservation_positive"),
+        CheckConstraint("status IN ('reserved', 'finalized', 'released')", name="ck_usage_reservation_status"),
+    )
+
+    id = _uuid_primary_key()
+    public_id = _public_id()
+    workspace_id = _workspace_id()
+    counter_id = Column(Uuid(as_uuid=True), nullable=False, index=True)
+    metric = Column(String, nullable=False, index=True)
+    idempotency_key = Column(String(255), nullable=False)
+    amount = Column(Integer, nullable=False)
+    status = Column(String, nullable=False, default="reserved", server_default="reserved")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    finalized_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class NotificationOutbox(Base):
+    __tablename__ = "notification_outbox"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'sending', 'sent', 'failed')", name="ck_notification_outbox_status"),
+        CheckConstraint("attempts >= 0", name="ck_notification_outbox_attempts"),
+    )
+
+    id = _uuid_primary_key()
+    public_id = _public_id()
+    workspace_id = _workspace_id()
+    user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    kind = Column(String, nullable=False, index=True)
+    deduplication_key = Column(String, nullable=False, unique=True)
+    payload = Column(JSON, nullable=False, default=dict)
+    status = Column(String, nullable=False, default="pending", server_default="pending", index=True)
+    attempts = Column(Integer, nullable=False, default=0, server_default="0")
+    next_attempt_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    last_error = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
 # Transitional import compatibility until Task 7 replaces key-only settings

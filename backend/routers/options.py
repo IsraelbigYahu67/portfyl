@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc, case
 
 from database import get_db
+from entitlements import require_capability
 from models import OptionsTrade, Portfolio
 from tenancy import require_portfolio
 
@@ -96,7 +97,7 @@ def get_summary(
     }
 
 
-@router.get("/by-underlying")
+@router.get("/by-underlying", dependencies=[Depends(require_capability("options"))])
 def get_by_underlying(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
@@ -130,7 +131,7 @@ def get_by_underlying(
     return result
 
 
-@router.get("/calendar")
+@router.get("/calendar", dependencies=[Depends(require_capability("options"))])
 def get_calendar(
     period: str = None,
     db: Session = Depends(get_db),

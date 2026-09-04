@@ -61,6 +61,14 @@ TENANT_RLS_TABLES: tuple[str, ...] = (
     "user_settings",
     "benchmarks",
     "benchmark_components",
+    "audit_logs",
+    "billing_customers",
+    "subscriptions",
+    "trial_grants",
+    "billing_actions",
+    "usage_counters",
+    "usage_reservations",
+    "notification_outbox",
 )
 
 # Every application table -- RLS-forced tenant tables plus the identity/audit
@@ -68,6 +76,8 @@ TENANT_RLS_TABLES: tuple[str, ...] = (
 ALL_TABLES: tuple[str, ...] = (
     "users",
     "auth_sessions",
+    "job_runs",
+    "stripe_events",
 ) + TENANT_RLS_TABLES
 
 

@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from auth import create_session
 from database import get_db
+from edition import Edition
 from app_settings import (
     get_user_setting, set_user_setting,
     get_workspace_setting, set_workspace_setting,
@@ -199,6 +200,7 @@ def tenant_rows(postgres_engine) -> TenantRows:
 @pytest.fixture
 def alice_client(postgres_engine, tenant_rows: TenantRows) -> TestClient:
     app = FastAPI()
+    app.state.portfyl_edition = Edition.LOCAL
     app.add_exception_handler(RequestContextError, request_context_error_handler)
     app.include_router(watchlists_router.router, prefix="/api")
     app.include_router(alerts_router.router, prefix="/api")

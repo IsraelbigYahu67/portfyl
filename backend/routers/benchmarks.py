@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 
 from database import get_db
+from entitlements import require_capability
 from models import Benchmark, BenchmarkComponent, Portfolio, Transaction
 from routers.portfolios import require_portfolio
 from routers.analytics import (
@@ -158,7 +159,7 @@ def list_benchmarks(
     return [_serialize(portfolio, r, comps_by_bench.get(r.id, [])) for r in rows]
 
 
-@router.post("")
+@router.post("", dependencies=[Depends(require_capability("custom_benchmarks"))])
 def create_benchmark(
     payload: BenchmarkCreate,
     db: Session = Depends(get_db),
@@ -192,7 +193,7 @@ def create_benchmark(
     return _serialize(portfolio, b, _load_components(db, b))
 
 
-@router.patch("/{benchmark_id}")
+@router.patch("/{benchmark_id}", dependencies=[Depends(require_capability("custom_benchmarks"))])
 def update_benchmark(
     benchmark_id: UUID,
     payload: BenchmarkPatch,
@@ -295,7 +296,7 @@ def delete_benchmark(
 # Comparison
 # ---------------------------------------------------------------------------
 
-@router.get("/comparison")
+@router.get("/comparison", dependencies=[Depends(require_capability("portfolio_analytics"))])
 def benchmark_comparison(
     period: str = "1y",
     benchmark_id: Optional[UUID] = None,

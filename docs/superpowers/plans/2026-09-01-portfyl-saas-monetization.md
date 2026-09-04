@@ -675,6 +675,10 @@ external jobs, redacted monitoring, and incident-ready operations.
 
 ### Workstream E: billing, trial, and entitlements
 
+> Task-level plan approved and locally implemented 2026-09-04; Stripe sandbox
+> and scratch-cloud rehearsals remain before completion:
+> `docs/superpowers/plans/2026-09-04-portfyl-billing-entitlements.md`.
+
 Likely touchpoints:
 
 - new subscription/price/webhook/usage models;

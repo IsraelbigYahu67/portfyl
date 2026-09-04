@@ -25,6 +25,7 @@ from uuid import UUID
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from database import Base
 from auth import create_session, resolve_session
@@ -49,7 +50,11 @@ from tests.helpers import TEST_WORKSPACE_ID
 @pytest.fixture(scope="function")
 def db_session() -> Session:
     """In-memory SQLite session, fresh per test."""
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(bind=engine)
     TestSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = TestSession()

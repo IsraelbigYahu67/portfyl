@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database import get_db
+from entitlements import require_capacity, require_writable_resource
 from models import BrokerConnection, Portfolio, Transaction
 from tenancy import (
     RequestContext,
@@ -88,7 +89,7 @@ def list_portfolios(
     return [_serialize(portfolio, counts) for portfolio in rows]
 
 
-@router.post("")
+@router.post("", dependencies=[Depends(require_capacity("portfolios", Portfolio))])
 def create_portfolio(
     payload: PortfolioCreate,
     context: RequestContext = Depends(require_csrf),
@@ -118,7 +119,7 @@ def create_portfolio(
     return result
 
 
-@router.patch("/{portfolio_id}")
+@router.patch("/{portfolio_id}", dependencies=[Depends(require_writable_resource("portfolios", Portfolio, "portfolio_id"))])
 def update_portfolio(
     portfolio_id: UUID,
     payload: PortfolioUpdate,

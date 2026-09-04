@@ -1,16 +1,28 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import Optional
 from collections import defaultdict
 import httpx
+import os
+from datetime import datetime, timedelta, timezone
+from typing import Annotated
 
 from audit import record_audit_event
+from billing_config import PlanTier
 from database import get_db
 from models import Transaction, Portfolio
 from routers.portfolios import require_portfolio
 from app_settings import get_user_secret, get_user_setting, set_user_secret, set_user_setting
 from tenancy import RequestContext, get_request_context, require_csrf
+from entitlements import (
+    EffectiveEntitlements,
+    EntitlementDenied,
+    finalize_usage,
+    release_usage,
+    require_capability,
+    reserve_usage,
+)
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 
@@ -196,7 +208,7 @@ class ConfigPayload(BaseModel):
     model: Optional[str] = None
 
 
-@router.get("/config")
+@router.get("/config", dependencies=[Depends(require_capability("assistant_byok"))])
 def get_config(
     db: Session = Depends(get_db),
     request_context: RequestContext = Depends(get_request_context),
@@ -210,7 +222,7 @@ def get_config(
     }
 
 
-@router.put("/config")
+@router.put("/config", dependencies=[Depends(require_capability("assistant_byok"))])
 def save_config(
     payload: ConfigPayload,
     db: Session = Depends(get_db),
@@ -269,29 +281,86 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage]
 
 
-@router.post("/chat")
+@router.post("/chat", dependencies=[Depends(require_capability("assistant_byok"))])
 async def chat(
     payload: ChatRequest,
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
-    request_context: RequestContext = Depends(get_request_context),
+    request_context: RequestContext = Depends(require_csrf),
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    _entitlements: EffectiveEntitlements = Depends(require_capability("assistant_byok")),
 ):
-    api_key = get_user_secret(db, request_context.user.id, KEY_SETTING)
-    if not api_key:
-        raise HTTPException(status_code=400, detail="DeepSeek API key not configured. Add it in the assistant settings.")
-    model = get_user_setting(db, request_context.user.id, MODEL_SETTING) or DEFAULT_MODEL
-
-    # Keep only valid user/assistant turns, most recent MAX_HISTORY.
+    # Validate and assemble all local request state before reserving variable-
+    # cost hosted usage. A malformed conversation or context-building failure
+    # must never consume quota.
     history = [
-        {"role": m.role, "content": m.content}
-        for m in payload.messages
-        if m.role in ("user", "assistant") and m.content.strip()
+        {"role": message.role, "content": message.content}
+        for message in payload.messages
+        if message.role in ("user", "assistant") and message.content.strip()
     ][-MAX_HISTORY:]
     if not history or history[-1]["role"] != "user":
         raise HTTPException(status_code=400, detail="The last message must be from the user.")
-
+    model = get_user_setting(db, request_context.user.id, MODEL_SETTING) or DEFAULT_MODEL
     portfolio_context = _build_portfolio_context(db, portfolio)
     messages = [{"role": "system", "content": _system_prompt(portfolio_context)}] + history
 
-    content, usage = await _call_deepseek(api_key, model, messages)
+    api_key = get_user_secret(db, request_context.user.id, KEY_SETTING)
+    usage_reservation = None
+    if not api_key:
+        if not isinstance(_entitlements, EffectiveEntitlements) or _entitlements.source == "local":
+            raise HTTPException(status_code=400, detail="DeepSeek API key not configured. Add it in the assistant settings.")
+        if "assistant_hosted" not in _entitlements.capabilities:
+            raise EntitlementDenied(
+                "plan_upgrade_required",
+                capability="assistant_hosted",
+                plan=_entitlements.plan,
+                required_plan=PlanTier.PRO,
+            )
+        api_key = os.environ.get("PORTFYL_HOSTED_DEEPSEEK_API_KEY", "").strip()
+        if not api_key:
+            raise HTTPException(status_code=503, detail={"code": "hosted_ai_unavailable"})
+        key = (idempotency_key or "").strip()
+        if not key or len(key) > 255:
+            raise HTTPException(status_code=400, detail={"code": "idempotency_key_required"})
+        now = datetime.now(timezone.utc)
+        if _entitlements.source == "trial":
+            metric = "hosted_ai_trial"
+            limit = 15
+            period_end = _entitlements.effective_until
+            period_start = period_end - timedelta(days=7)
+        else:
+            metric = "hosted_ai_monthly"
+            limit = _entitlements.limits.hosted_ai_monthly
+            period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            if period_start.month == 12:
+                period_end = period_start.replace(year=period_start.year + 1, month=1)
+            else:
+                period_end = period_start.replace(month=period_start.month + 1)
+        usage_reservation = reserve_usage(
+            db,
+            workspace_id=request_context.workspace.id,
+            metric=metric,
+            idempotency_key=key,
+            limit=limit,
+            period_start=period_start,
+            period_end=period_end,
+        )
+        if getattr(usage_reservation, "_portfyl_reused", False):
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "idempotency_key_already_used"},
+            )
+        db.commit()
+    try:
+        content, usage = await _call_deepseek(api_key, model, messages)
+    except Exception:
+        if usage_reservation is not None:
+            usage_reservation = db.merge(usage_reservation)
+            release_usage(db, usage_reservation)
+            db.commit()
+        raise
+    if usage_reservation is not None:
+        usage_reservation = db.merge(usage_reservation)
+        finalize_usage(db, usage_reservation)
+        db.commit()
     return {"reply": {"role": "assistant", "content": content}, "model": model, "usage": usage}

@@ -40,6 +40,16 @@ class TestRedactsKnownSecretShapes:
         redacted = redact(line)
         assert "super-secret-csrf-value-1234" not in redacted
 
+    def test_stripe_credentials_signature_and_hosted_urls_are_redacted(self):
+        line = (
+            "sk_test_abc123 whsec_webhook123 "
+            "Stripe-Signature: t=123,v1=signature123 "
+            "https://checkout.stripe.com/c/pay/cs_test_secret"
+        )
+        redacted = redact(line)
+        for secret in ("sk_test_abc123", "whsec_webhook123", "signature123", "cs_test_secret"):
+            assert secret not in redacted
+
     def test_non_secret_context_is_preserved(self):
         line = "autosync pass: workspace=3f2c job=alerts status=ok items=4"
         assert redact(line) == line
