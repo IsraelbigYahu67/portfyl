@@ -8,7 +8,7 @@ import httpx
 from database import get_db
 from models import Transaction, Portfolio
 from routers.portfolios import require_portfolio
-from app_settings import get_user_setting, set_user_setting
+from app_settings import get_user_secret, get_user_setting, set_user_secret, set_user_setting
 from tenancy import RequestContext, get_request_context
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
@@ -200,7 +200,7 @@ def get_config(
     db: Session = Depends(get_db),
     request_context: RequestContext = Depends(get_request_context),
 ):
-    key = get_user_setting(db, request_context.user.id, KEY_SETTING)
+    key = get_user_secret(db, request_context.user.id, KEY_SETTING)
     model = get_user_setting(db, request_context.user.id, MODEL_SETTING) or DEFAULT_MODEL
     return {
         "configured": bool(key),
@@ -223,7 +223,7 @@ def save_config(
     if model not in ALLOWED_MODELS:
         model = DEFAULT_MODEL
 
-    set_user_setting(db, request_context.user.id, KEY_SETTING, api_key)
+    set_user_secret(db, request_context.user.id, KEY_SETTING, api_key)
     set_user_setting(db, request_context.user.id, MODEL_SETTING, model)
     db.commit()
 
@@ -235,7 +235,7 @@ def delete_config(
     db: Session = Depends(get_db),
     request_context: RequestContext = Depends(get_request_context),
 ):
-    set_user_setting(db, request_context.user.id, KEY_SETTING, None)
+    set_user_secret(db, request_context.user.id, KEY_SETTING, None)
     db.commit()
     return {"configured": False}
 
@@ -260,7 +260,7 @@ async def chat(
     portfolio: Portfolio = Depends(require_portfolio),
     request_context: RequestContext = Depends(get_request_context),
 ):
-    api_key = get_user_setting(db, request_context.user.id, KEY_SETTING)
+    api_key = get_user_secret(db, request_context.user.id, KEY_SETTING)
     if not api_key:
         raise HTTPException(status_code=400, detail="DeepSeek API key not configured. Add it in the assistant settings.")
     model = get_user_setting(db, request_context.user.id, MODEL_SETTING) or DEFAULT_MODEL

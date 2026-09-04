@@ -63,7 +63,7 @@ def _upgrade_to(database_url: str, revision: str) -> None:
         command.upgrade(alembic_config, revision)
 
 
-def test_expand_backfill_contract_preserves_broker_credentials(
+def test_expand_backfill_contract_preserves_broker_and_webhook_secrets(
     rehearsal_database_url, monkeypatch,
 ):
     monkeypatch.setenv("PORTFYL_EDITION", "local")
@@ -71,9 +71,11 @@ def test_expand_backfill_contract_preserves_broker_credentials(
         "PORTFYL_LOCAL_SECRET_KEY", "OmC2HEZsgRV5WF4AjQgE1OZTViBiZm6ILN131PwtgPg="
     )
 
-    # Step 1: expand only -- old plaintext columns and the new nullable
-    # ciphertext columns coexist, exactly like a real pre-backfill database.
-    _upgrade_to(rehearsal_database_url, "0004_broker_secrets_expand")
+    # Step 1: expand both tables -- old plaintext columns and the new
+    # nullable ciphertext columns coexist for both, exactly like a real
+    # pre-backfill database (0005 is chained right after 0004, before either
+    # table's contract step -- see 0005_discord_webhook_expand's docstring).
+    _upgrade_to(rehearsal_database_url, "0005_discord_webhook_expand")
 
     workspace_id = uuid.uuid4()
     engine = build_engine(DatabaseSettings.from_env({"DATABASE_URL": rehearsal_database_url}))
@@ -91,58 +93,88 @@ def test_expand_backfill_contract_preserves_broker_credentials(
             "VALUES (:pub, :ws, 1, 'trading212', 'legacy-plaintext-key', "
             "'legacy-plaintext-secret', 'live')"
         ), {"pub": uuid.uuid4(), "ws": workspace_id})
+        conn.execute(text(
+            "INSERT INTO discord_webhooks (public_id, workspace_id, portfolio_id, webhook_url) "
+            "VALUES (:pub, :ws, 1, 'https://discord.com/api/webhooks/legacy/plaintext-token')"
+        ), {"pub": uuid.uuid4(), "ws": workspace_id})
     engine.dispose()
 
-    # Step 2: dry run reports the row but writes nothing.
+    # Step 2: dry run reports both rows but writes nothing.
     dry_run_reports = run_backfill(rehearsal_database_url, apply=False)
-    assert dry_run_reports[0].total_plaintext_rows == 1
-    assert dry_run_reports[0].encrypted == 0
+    broker_report, discord_report = dry_run_reports
+    assert broker_report.total_plaintext_rows == 1
+    assert broker_report.encrypted == 0
+    assert discord_report.total_plaintext_rows == 1
+    assert discord_report.encrypted == 0
 
     engine = build_engine(DatabaseSettings.from_env({"DATABASE_URL": rehearsal_database_url}))
     with engine.begin() as conn:
-        still_null = conn.execute(text(
+        still_null_broker = conn.execute(text(
             "SELECT count(*) FROM broker_connections WHERE api_key_ciphertext IS NULL"
         )).scalar_one()
+        still_null_discord = conn.execute(text(
+            "SELECT count(*) FROM discord_webhooks WHERE webhook_url_ciphertext IS NULL"
+        )).scalar_one()
     engine.dispose()
-    assert still_null == 1
+    assert still_null_broker == 1
+    assert still_null_discord == 1
 
-    # Step 3: --apply encrypts the row in place; plaintext columns untouched.
+    # Step 3: --apply encrypts both rows in place; plaintext columns untouched.
     apply_reports = run_backfill(rehearsal_database_url, apply=True)
     assert apply_reports[0].encrypted == 1
+    assert apply_reports[1].encrypted == 1
 
     engine = build_engine(DatabaseSettings.from_env({"DATABASE_URL": rehearsal_database_url}))
     with engine.begin() as conn:
-        row = conn.execute(text(
+        broker_row = conn.execute(text(
             "SELECT api_key, api_key_ciphertext, api_secret_ciphertext FROM broker_connections"
         )).one()
+        discord_row = conn.execute(text(
+            "SELECT webhook_url, webhook_url_ciphertext FROM discord_webhooks"
+        )).one()
     engine.dispose()
-    assert row.api_key_ciphertext is not None
-    assert row.api_key.encode() not in bytes(row.api_key_ciphertext)
-    assert row.api_secret_ciphertext is not None
+    assert broker_row.api_key_ciphertext is not None
+    assert broker_row.api_key.encode() not in bytes(broker_row.api_key_ciphertext)
+    assert broker_row.api_secret_ciphertext is not None
+    assert discord_row.webhook_url_ciphertext is not None
+    assert discord_row.webhook_url.encode() not in bytes(discord_row.webhook_url_ciphertext)
 
-    # Step 4: the contract migration only now becomes safe.
-    _upgrade_to(rehearsal_database_url, "0005_broker_secrets_contract")
+    # Step 4: the contract migrations only now become safe.
+    _upgrade_to(rehearsal_database_url, "0007_discord_webhook_contract")
 
     engine = build_engine(DatabaseSettings.from_env({"DATABASE_URL": rehearsal_database_url}))
     with engine.begin() as conn:
-        columns = {
+        broker_columns = {
             r[0] for r in conn.execute(text(
                 "SELECT column_name FROM information_schema.columns "
                 "WHERE table_name = 'broker_connections'"
             ))
         }
-        assert "api_key" not in columns
-        assert "api_secret" not in columns
-        row = conn.execute(text(
+        discord_columns = {
+            r[0] for r in conn.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'discord_webhooks'"
+            ))
+        }
+        assert "api_key" not in broker_columns
+        assert "api_secret" not in broker_columns
+        assert "webhook_url" not in discord_columns
+        broker_row = conn.execute(text(
             "SELECT api_key_ciphertext, api_key_key_version, "
             "api_secret_ciphertext, api_secret_key_version FROM broker_connections"
+        )).one()
+        discord_row = conn.execute(text(
+            "SELECT webhook_url_ciphertext, webhook_url_key_version FROM discord_webhooks"
         )).one()
     engine.dispose()
 
     cipher = build_secret_cipher(os.environ, edition_from_env(os.environ))
     assert cipher.decrypt(
-        EncryptedValue(bytes(row.api_key_ciphertext), row.api_key_key_version)
+        EncryptedValue(bytes(broker_row.api_key_ciphertext), broker_row.api_key_key_version)
     ) == "legacy-plaintext-key"
     assert cipher.decrypt(
-        EncryptedValue(bytes(row.api_secret_ciphertext), row.api_secret_key_version)
+        EncryptedValue(bytes(broker_row.api_secret_ciphertext), broker_row.api_secret_key_version)
     ) == "legacy-plaintext-secret"
+    assert cipher.decrypt(
+        EncryptedValue(bytes(discord_row.webhook_url_ciphertext), discord_row.webhook_url_key_version)
+    ) == "https://discord.com/api/webhooks/legacy/plaintext-token"

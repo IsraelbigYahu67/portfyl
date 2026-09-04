@@ -6,7 +6,7 @@ existing plaintext `api_key`/`api_secret` columns are intentionally left in
 place here -- the application no longer maps them (see
 models.BrokerConnection), but any row created before this deploy still needs
 `backend/migrations/encrypt_existing_secrets.py` run against them before
-0005_broker_secrets_contract can safely drop them.
+0006_broker_secrets_contract can safely drop them.
 
 Revision ID: 0004_broker_secrets_expand
 Revises: 0003_job_workspace_enumeration

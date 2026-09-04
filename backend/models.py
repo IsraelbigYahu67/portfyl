@@ -512,11 +512,26 @@ class DiscordWebhook(Base):
     public_id = _public_id()
     workspace_id = _workspace_id()
     portfolio_id = Column(Integer, nullable=False, index=True)
-    webhook_url = Column(String, nullable=False)
+    webhook_url_ciphertext = Column(LargeBinary, nullable=False)
+    webhook_url_key_version = Column(String, nullable=False)
     notify_trades = Column(Boolean, default=True)
     notify_dividends = Column(Boolean, default=True)
     notify_milestones = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Transparent encrypt-on-set/decrypt-on-get, same rationale as
+    # BrokerConnection.api_key/api_secret above.
+    @property
+    def webhook_url(self) -> str:
+        return get_secret_cipher().decrypt(
+            EncryptedValue(self.webhook_url_ciphertext, self.webhook_url_key_version)
+        )
+
+    @webhook_url.setter
+    def webhook_url(self, value: str) -> None:
+        encrypted = get_secret_cipher().encrypt(value)
+        self.webhook_url_ciphertext = encrypted.ciphertext
+        self.webhook_url_key_version = encrypted.key_version
 
 
 class TradeNote(Base):

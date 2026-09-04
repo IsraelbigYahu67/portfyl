@@ -1,7 +1,7 @@
 """One-off backfill: encrypt any plaintext secret column still present on a
 database that predates the ciphertext columns added by
-alembic/versions/0004_broker_secret_columns_expand.py (and, once Task 3
-lands, the Discord webhook equivalent).
+alembic/versions/0004_broker_secrets_expand.py (broker connections) and
+0005_discord_webhook_expand.py (Discord webhook URLs).
 
 Sequencing (mirrors sqlite_to_postgres.py's dry-run/apply shape and
 docs/operations/sqlite-to-neon-migration.md's rehearse-before-apply
@@ -90,12 +90,53 @@ def _encrypt_broker_connections(engine: Engine, cipher, *, apply: bool) -> Table
     return report
 
 
+def _encrypt_discord_webhooks(engine: Engine, cipher, *, apply: bool) -> TableReport:
+    with engine.begin() as conn:
+        rows = conn.execute(text(
+            "SELECT id, webhook_url FROM discord_webhooks "
+            "WHERE webhook_url_ciphertext IS NULL"
+        )).all()
+        already = conn.execute(text(
+            "SELECT count(*) FROM discord_webhooks WHERE webhook_url_ciphertext IS NOT NULL"
+        )).scalar_one()
+
+    report = TableReport(
+        table="discord_webhooks",
+        total_plaintext_rows=len(rows),
+        already_encrypted=already,
+    )
+    if not apply:
+        return report
+
+    with engine.begin() as conn:
+        for row in rows:
+            url_enc = cipher.encrypt(row.webhook_url)
+            conn.execute(
+                text(
+                    "UPDATE discord_webhooks SET "
+                    "webhook_url_ciphertext = :webhook_url_ciphertext, "
+                    "webhook_url_key_version = :webhook_url_key_version "
+                    "WHERE id = :id"
+                ),
+                {
+                    "webhook_url_ciphertext": url_enc.ciphertext,
+                    "webhook_url_key_version": url_enc.key_version,
+                    "id": row.id,
+                },
+            )
+            report.encrypted += 1
+    return report
+
+
 def run(database_url: str, *, apply: bool) -> list[TableReport]:
     settings = DatabaseSettings.from_env({"DATABASE_URL": database_url})
     engine = build_engine(settings)
     cipher = build_secret_cipher(os.environ, edition_from_env(os.environ))
     try:
-        return [_encrypt_broker_connections(engine, cipher, apply=apply)]
+        return [
+            _encrypt_broker_connections(engine, cipher, apply=apply),
+            _encrypt_discord_webhooks(engine, cipher, apply=apply),
+        ]
     finally:
         engine.dispose()
 

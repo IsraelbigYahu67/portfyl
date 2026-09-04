@@ -53,7 +53,7 @@ class Base(DeclarativeBase):
     pass
 
 
-EXPECTED_ALEMBIC_HEAD = "0005_broker_secrets_contract"
+EXPECTED_ALEMBIC_HEAD = "0007_discord_webhook_contract"
 
 
 def assert_alembic_head(

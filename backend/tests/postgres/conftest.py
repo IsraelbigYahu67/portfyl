@@ -143,6 +143,7 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
     deliberately the SAME string for both tenants so the matrix can prove that
     name uniqueness is per-workspace (cross-tenant duplicate succeeds) while
     still being enforced inside one workspace (409)."""
+    from app_settings import set_user_secret
     from auth import create_session
     from models import (
         Benchmark,
@@ -252,7 +253,6 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
             workspace_id=workspace.id, portfolio_id=portfolio.id,
             webhook_url=f"https://discord.com/api/webhooks/{label}/token",
         ),
-        UserSetting(user_id=user.id, key="deepseek_api_key", value=f"{label}-secret-key"),
         UserSetting(user_id=user.id, key="deepseek_model", value="deepseek-chat"),
         WorkspaceSetting(workspace_id=workspace.id, key="broker_sync_mode", value="daily"),
         WorkspaceSetting(
@@ -263,6 +263,7 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
         benchmark,
     ])
     db.flush()
+    set_user_secret(db, user.id, "deepseek_api_key", f"{label}-secret-key")
 
     item = WatchlistItem(
         workspace_id=workspace.id, watchlist_id=watchlist.id, ticker="MSFT",

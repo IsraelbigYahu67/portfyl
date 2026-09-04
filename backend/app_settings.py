@@ -14,12 +14,15 @@ the same key string.
 """
 from __future__ import annotations
 
+import base64
+import json
 from typing import Optional
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from models import UserSetting, WorkspaceSetting
+from secrets_crypto import EncryptedValue, get_secret_cipher
 
 
 def get_user_setting(db: Session, user_id: UUID, key: str) -> Optional[str]:
@@ -41,6 +44,42 @@ def set_user_setting(db: Session, user_id: UUID, key: str, value: Optional[str])
     else:
         row.value = value
     db.flush()
+
+
+def _encode_encrypted(value: EncryptedValue) -> str:
+    return json.dumps({
+        "ciphertext": base64.b64encode(value.ciphertext).decode("ascii"),
+        "key_version": value.key_version,
+    })
+
+
+def _decode_encrypted(raw: str) -> EncryptedValue:
+    data = json.loads(raw)
+    return EncryptedValue(
+        ciphertext=base64.b64decode(data["ciphertext"]),
+        key_version=data["key_version"],
+    )
+
+
+def get_user_secret(db: Session, user_id: UUID, key: str) -> Optional[str]:
+    """Like get_user_setting, but for a value that was written with
+    set_user_secret -- the stored value is a JSON-encoded EncryptedValue,
+    never plaintext."""
+    raw = get_user_setting(db, user_id, key)
+    if not raw:
+        return None
+    return get_secret_cipher().decrypt(_decode_encrypted(raw))
+
+
+def set_user_secret(db: Session, user_id: UUID, key: str, plaintext: Optional[str]) -> None:
+    """Like set_user_setting, but encrypts before storing. `UserSetting.value`
+    is a plain string column -- no schema change needed, the ciphertext and
+    key version are just JSON-encoded into it (see _encode_encrypted)."""
+    if not plaintext:
+        set_user_setting(db, user_id, key, None)
+        return
+    encrypted = get_secret_cipher().encrypt(plaintext)
+    set_user_setting(db, user_id, key, _encode_encrypted(encrypted))
 
 
 def get_workspace_setting(db: Session, workspace_id: UUID, key: str) -> Optional[str]:
