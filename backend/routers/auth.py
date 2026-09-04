@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from audit import record_audit_event
 from auth import (
     clear_session_cookie,
     create_session,
@@ -183,6 +184,14 @@ def exchange_session(
         user_agent=request.headers.get("User-Agent"),
     )
     response_payload = _account_payload(db, user, issued.csrf_token)
+    record_audit_event(
+        db,
+        actor_user_id=user.id,
+        action="auth.session.created",
+        target_type="user",
+        target_id=str(user.id),
+        metadata={"user_agent": request.headers.get("User-Agent") or ""},
+    )
     db.commit()
     response = JSONResponse(response_payload, status_code=201)
     set_session_cookie(response, issued.raw_token)
@@ -200,9 +209,17 @@ def get_me(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/logout", status_code=204)
 def logout(request: Request, db: Session = Depends(get_db)):
-    session, _user = _require_session(db, request)
+    session, user = _require_session(db, request)
     _require_csrf(request, session)
     revoke_session(db, session_token_from_request(request))
+    set_rls_context(db, user_id=user.id, workspace_id=None)
+    record_audit_event(
+        db,
+        actor_user_id=user.id,
+        action="auth.session.revoked",
+        target_type="auth_session",
+        target_id=str(session.id),
+    )
     db.commit()
     response = Response(status_code=204)
     clear_session_cookie(response)
@@ -219,8 +236,17 @@ def logout_all(
     _require_csrf(request, session)
     if not user.firebase_uid:
         raise AuthAPIError(401, "authentication_required")
-    revoke_all_sessions(db, user.id)
+    revoked_count = revoke_all_sessions(db, user.id)
     verifier.revoke_refresh_tokens(user.firebase_uid)
+    set_rls_context(db, user_id=user.id, workspace_id=None)
+    record_audit_event(
+        db,
+        actor_user_id=user.id,
+        action="auth.sessions.revoked_all",
+        target_type="user",
+        target_id=str(user.id),
+        metadata={"revoked_count": revoked_count},
+    )
     db.commit()
     response = Response(status_code=204)
     clear_session_cookie(response)

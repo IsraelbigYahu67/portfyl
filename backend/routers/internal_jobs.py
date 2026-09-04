@@ -114,6 +114,10 @@ async def _run_job(job_name: str, pass_fn: Callable[[Session], Awaitable[list]])
                 log.info("%s: skipped, already running", job_name)
                 return {"job": job_name, "skipped": "already running"}
             happened = await pass_fn(db)
+            from jobs import mark_job_succeeded
+
+            mark_job_succeeded(db, job_name)
+            db.commit()
             if happened:
                 log.info("%s pass: %d event(s)", job_name, len(happened))
             return {"job": job_name, "events": len(happened)}

@@ -37,7 +37,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from models import DiscordWebhook, PriceAlert, Transaction, Watchlist
+from models import AuditLog, DiscordWebhook, PriceAlert, Transaction, Watchlist
 from tests.postgres.conftest import MatrixTenants
 from tests.postgres.matrix_cases import (
     ALICE_PORTFOLIO_PARAMS,
@@ -496,6 +496,45 @@ def test_workspace_settings_never_surface_another_workspaces_value(
     body = response.json()
     assert body["daily_time"] == "02:00"   # Alice's
     assert body["daily_time"] != "23:45"   # Bob's
+
+
+def test_audit_log_lists_alice_workspace_and_personal_events_only(
+    matrix_client: TestClient, matrix_tenants: MatrixTenants, postgres_engine,
+):
+    from audit import record_audit_event
+
+    with Session(postgres_engine) as db:
+        record_audit_event(
+            db,
+            actor_user_id=matrix_tenants.alice.user_id,
+            workspace_id=matrix_tenants.alice.workspace_id,
+            action="alice.workspace.event",
+        )
+        record_audit_event(
+            db,
+            actor_user_id=matrix_tenants.alice.user_id,
+            action="alice.personal.event",
+        )
+        record_audit_event(
+            db,
+            actor_user_id=matrix_tenants.bob.user_id,
+            workspace_id=matrix_tenants.bob.workspace_id,
+            action="bob.workspace.event",
+        )
+        record_audit_event(
+            db,
+            actor_user_id=matrix_tenants.bob.user_id,
+            action="bob.personal.event",
+        )
+        db.commit()
+
+    response = matrix_client.get("/api/settings/audit-log")
+
+    assert response.status_code == 200
+    actions = {item["action"] for item in response.json()["items"]}
+    assert {"alice.workspace.event", "alice.personal.event"} <= actions
+    assert "bob.workspace.event" not in actions
+    assert "bob.personal.event" not in actions
 
 
 # ---------------------------------------------------------------------------

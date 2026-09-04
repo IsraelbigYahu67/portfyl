@@ -5,9 +5,10 @@ from typing import Optional
 from uuid import UUID
 import httpx
 
+from audit import record_audit_event
 from database import get_db
 from models import DiscordWebhook, Portfolio
-from tenancy import require_portfolio
+from tenancy import RequestContext, require_csrf, require_portfolio
 
 router = APIRouter(prefix="/discord", tags=["discord"])
 
@@ -37,6 +38,13 @@ def _portfolio_webhook(db: Session, portfolio: Portfolio) -> DiscordWebhook | No
     ).first()
 
 
+def _webhook_preview(url: str) -> str:
+    """Identify the integration without exposing its webhook id or token."""
+    if "discordapp.com/api/webhooks" in url:
+        return "https://discordapp.com/api/webhooks/***/***"
+    return "https://discord.com/api/webhooks/***/***"
+
+
 @router.get("/webhook")
 def get_webhook(
     portfolio: Portfolio = Depends(require_portfolio),
@@ -49,7 +57,7 @@ def get_webhook(
         "connected": True,
         "id": str(hook.public_id),
         "portfolio_id": str(portfolio.public_id),
-        "webhook_url_preview": hook.webhook_url[:40] + "..." if len(hook.webhook_url) > 40 else hook.webhook_url,
+        "webhook_url_preview": _webhook_preview(hook.webhook_url),
         "notify_trades": hook.notify_trades,
         "notify_dividends": hook.notify_dividends,
         "notify_milestones": hook.notify_milestones,
@@ -62,11 +70,13 @@ def create_webhook(
     body: WebhookCreate,
     portfolio: Portfolio = Depends(require_portfolio),
     db: Session = Depends(get_db),
+    context: RequestContext = Depends(require_csrf),
 ):
     if "discord.com/api/webhooks" not in body.webhook_url and "discordapp.com/api/webhooks" not in body.webhook_url:
         raise HTTPException(400, "Invalid Discord webhook URL")
 
     existing = _portfolio_webhook(db, portfolio)
+    action = "discord.webhook.updated" if existing else "discord.webhook.created"
     if existing:
         existing.webhook_url = body.webhook_url
         existing.notify_trades = body.notify_trades
@@ -83,6 +93,15 @@ def create_webhook(
         )
         db.add(existing)
     db.flush()
+    record_audit_event(
+        db,
+        actor_user_id=context.user.id,
+        workspace_id=portfolio.workspace_id,
+        action=action,
+        target_type="discord_webhook",
+        target_id=str(existing.public_id),
+        metadata={"portfolio_id": str(portfolio.public_id)},
+    )
     result = {"status": "ok", "id": str(existing.public_id),
               "portfolio_id": str(portfolio.public_id)}
     db.commit()
@@ -94,6 +113,7 @@ def update_webhook(
     body: WebhookUpdate,
     portfolio: Portfolio = Depends(require_portfolio),
     db: Session = Depends(get_db),
+    context: RequestContext = Depends(require_csrf),
 ):
     hook = _portfolio_webhook(db, portfolio)
     if not hook:
@@ -106,6 +126,15 @@ def update_webhook(
         hook.notify_dividends = body.notify_dividends
     if body.notify_milestones is not None:
         hook.notify_milestones = body.notify_milestones
+    record_audit_event(
+        db,
+        actor_user_id=context.user.id,
+        workspace_id=portfolio.workspace_id,
+        action="discord.webhook.updated",
+        target_type="discord_webhook",
+        target_id=str(hook.public_id),
+        metadata={"portfolio_id": str(portfolio.public_id)},
+    )
     db.commit()
     return {"status": "ok"}
 
@@ -114,11 +143,22 @@ def update_webhook(
 def delete_webhook(
     portfolio: Portfolio = Depends(require_portfolio),
     db: Session = Depends(get_db),
+    context: RequestContext = Depends(require_csrf),
 ):
     hook = _portfolio_webhook(db, portfolio)
     if not hook:
         raise HTTPException(404, "No webhook configured")
+    target_id = str(hook.public_id)
     db.delete(hook)
+    record_audit_event(
+        db,
+        actor_user_id=context.user.id,
+        workspace_id=portfolio.workspace_id,
+        action="discord.webhook.deleted",
+        target_type="discord_webhook",
+        target_id=target_id,
+        metadata={"portfolio_id": str(portfolio.public_id)},
+    )
     db.commit()
     return {"status": "ok"}
 

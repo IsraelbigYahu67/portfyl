@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 import database
 from models import (
+    AuditLog,
     Benchmark,
     BenchmarkComponent,
     Membership,
@@ -42,12 +43,14 @@ RLS_TABLES = {
     "cash_interest_rates",
     "dividend_notifications",
     "price_alerts",
+    "audit_logs",
 }
 
 
 @dataclass(frozen=True)
 class TenantRows:
     alice_id: UUID
+    bob_id: UUID
     alice_workspace_id: UUID
     bob_workspace_id: UUID
     alice_portfolio_internal_id: int
@@ -75,9 +78,25 @@ def tenant_rows(postgres_engine) -> TenantRows:
         alice_portfolio = Portfolio(workspace_id=alice_workspace.id, name="Alice portfolio")
         bob_portfolio = Portfolio(workspace_id=bob_workspace.id, name="Bob portfolio")
         db.add_all([alice_portfolio, bob_portfolio])
+        db.flush()
+        db.add_all([
+            AuditLog(
+                actor_user_id=alice.id,
+                workspace_id=alice_workspace.id,
+                action="alice.workspace.event",
+            ),
+            AuditLog(actor_user_id=alice.id, action="alice.personal.event"),
+            AuditLog(
+                actor_user_id=bob.id,
+                workspace_id=bob_workspace.id,
+                action="bob.workspace.event",
+            ),
+            AuditLog(actor_user_id=bob.id, action="bob.personal.event"),
+        ])
         db.commit()
         return TenantRows(
             alice_id=alice.id,
+            bob_id=bob.id,
             alice_workspace_id=alice_workspace.id,
             bob_workspace_id=bob_workspace.id,
             alice_portfolio_internal_id=alice_portfolio.id,
@@ -123,6 +142,21 @@ def test_runtime_role_cannot_read_foreign_workspace(
 
     assert len(own) == 1
     assert foreign == []
+
+
+def test_audit_log_rls_allows_own_workspace_and_personal_events_only(
+    runtime_session: Session,
+    tenant_rows: TenantRows,
+):
+    _set_context(
+        runtime_session,
+        tenant_rows.alice_id,
+        tenant_rows.alice_workspace_id,
+    )
+
+    actions = set(runtime_session.scalars(select(AuditLog.action)).all())
+
+    assert actions == {"alice.workspace.event", "alice.personal.event"}
 
 
 def test_runtime_role_cannot_update_or_delete_foreign_workspace(

@@ -62,6 +62,13 @@ class TestVerifySchedulerToken:
 
 
 class TestJobEndpointsRunExactlyOnePass:
+    @pytest.fixture(autouse=True)
+    def _job_session(self, monkeypatch, db_session):
+        # Task 7 persists a JobRun heartbeat after each successful pass.  The
+        # endpoint must use this test's migrated metadata-backed session rather
+        # than database.SessionLocal's otherwise-empty in-memory connection.
+        monkeypatch.setattr(internal_jobs, "SessionLocal", lambda: db_session)
+
     def test_alerts_endpoint_runs_the_pass_and_returns_a_summary(self, monkeypatch):
         monkeypatch.setattr(internal_jobs, "verify_scheduler_token", lambda auth: None)
         pass_fn = AsyncMock(return_value=[{"triggered": 1}])

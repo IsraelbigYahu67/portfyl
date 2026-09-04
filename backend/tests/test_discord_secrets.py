@@ -7,7 +7,7 @@ import asyncio
 from unittest.mock import MagicMock, patch
 
 from models import DiscordWebhook
-from routers.discord import send_discord_notification
+from routers.discord import get_webhook, send_discord_notification
 from tests.helpers import TEST_WORKSPACE_ID
 
 
@@ -36,6 +36,23 @@ class TestAtRestEncryption:
 
         reloaded = db_session.get(DiscordWebhook, hook.id)
         assert reloaded.webhook_url == "https://discord.com/api/webhooks/123/token"
+
+    def test_api_preview_never_contains_webhook_id_or_token(
+        self, db_session, default_portfolio
+    ):
+        hook = DiscordWebhook(
+            workspace_id=default_portfolio.workspace_id,
+            portfolio_id=default_portfolio.id,
+            webhook_url="https://discord.com/api/webhooks/123456/private-token",
+        )
+        db_session.add(hook)
+        db_session.commit()
+
+        result = get_webhook(default_portfolio, db_session)
+
+        assert result["webhook_url_preview"] == "https://discord.com/api/webhooks/***/***"
+        assert "123456" not in str(result)
+        assert "private-token" not in str(result)
 
 
 class TestNotificationDecryptsStoredWebhookUrl:

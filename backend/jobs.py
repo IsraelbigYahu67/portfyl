@@ -67,6 +67,7 @@ from models import (
     BrokerConnection,
     DiscordWebhook,
     DividendNotification,
+    JobRun,
     Portfolio,
     Transaction,
     Workspace,
@@ -83,6 +84,32 @@ SYNC_COLOR = 0x059669      # green — same as trade notifications
 # a row stops retrying silently -- broker_autosync_pass turns auto_sync off
 # and needs_attention on instead (see models.BrokerConnection).
 BROKER_AUTOSYNC_FAILURE_THRESHOLD = int(os.environ.get("BROKER_AUTOSYNC_FAILURE_THRESHOLD", 5))
+
+RECURRING_JOB_NAMES = ("alerts", "autosync", "dividends")
+
+
+def mark_job_succeeded(
+    db: Session,
+    job_name: str,
+    when: datetime | None = None,
+) -> JobRun:
+    """Persist the last fully successful pass for operational health checks.
+
+    The caller owns the commit.  Failed passes never call this function, so a
+    stale timestamp reliably means the scheduler or the job body needs
+    attention rather than merely that an invocation was attempted.
+    """
+    if job_name not in RECURRING_JOB_NAMES:
+        raise ValueError(f"Unknown recurring job: {job_name}")
+    row = db.scalar(select(JobRun).where(JobRun.job_name == job_name))
+    succeeded_at = when or datetime.now(timezone.utc)
+    if row is None:
+        row = JobRun(job_name=job_name, last_success_at=succeeded_at)
+        db.add(row)
+    else:
+        row.last_success_at = succeeded_at
+    db.flush()
+    return row
 
 
 # -------- Sync schedule ------------------------------------------------------

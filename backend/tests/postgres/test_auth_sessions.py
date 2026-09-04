@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from auth import create_session, resolve_session, revoke_session
 from database import get_db
 from firebase_identity import IdentityVerificationError, VerifiedIdentity
-from models import AuthSession, Membership, User, Workspace
+from models import AuditLog, AuthSession, Membership, User, Workspace
 from routers import auth as auth_router
 
 
@@ -154,6 +154,9 @@ def test_verified_identity_creates_user_workspace_membership_and_session(
         assert db.scalar(select(func.count()).select_from(Workspace)) == 1
         assert db.scalar(select(func.count()).select_from(Membership)) == 1
         assert db.scalar(select(func.count()).select_from(AuthSession)) == 1
+        audit = db.scalar(select(AuditLog))
+        assert audit is not None
+        assert audit.action == "auth.session.created"
 
 
 def test_unverified_identity_is_rejected(client: TestClient, postgres_engine):
@@ -249,6 +252,11 @@ def test_logout_revokes_only_current_session(client: TestClient, postgres_engine
         sessions = db.scalars(select(AuthSession)).all()
         assert len(sessions) == 2
         assert sum(row.revoked_at is not None for row in sessions) == 1
+        assert [row.action for row in db.scalars(
+            select(AuditLog).order_by(AuditLog.created_at)
+        )] == [
+            "auth.session.created", "auth.session.created", "auth.session.revoked"
+        ]
 
 
 def test_logout_all_revokes_database_and_firebase_sessions(
@@ -272,6 +280,12 @@ def test_logout_all_revokes_database_and_firebase_sessions(
         sessions = db.scalars(select(AuthSession)).all()
         assert len(sessions) == 2
         assert all(row.revoked_at is not None for row in sessions)
+        assert [row.action for row in db.scalars(
+            select(AuditLog).order_by(AuditLog.created_at)
+        )] == [
+            "auth.session.created", "auth.session.created",
+            "auth.sessions.revoked_all",
+        ]
 
 
 @pytest.fixture

@@ -6,6 +6,7 @@ import httpx
 import base64
 import yfinance as yf
 
+from audit import record_audit_event
 from database import get_db
 from fx import bulk_fetch_fx
 from models import BrokerConnection, Portfolio, Transaction
@@ -282,6 +283,7 @@ def connect(
     ).delete(synchronize_session=False)
 
     connection = _get_connection(db, portfolio)
+    action = "broker.connection.rotated" if connection else "broker.connection.created"
     if connection:
         connection.api_key = api_key
         connection.api_secret = api_secret
@@ -303,6 +305,16 @@ def connect(
         )
         db.add(connection)
     db.flush()
+    if _context is not None:
+        record_audit_event(
+            db,
+            actor_user_id=_context.user.id,
+            workspace_id=portfolio.workspace_id,
+            action=action,
+            target_type="broker_connection",
+            target_id=str(connection.public_id),
+            metadata={"broker": "trading212", "portfolio_id": str(portfolio.public_id)},
+        )
     result = {
         "ok": True,
         "id": str(connection.public_id),
@@ -344,7 +356,18 @@ def disconnect(
     conn = _get_connection(db, portfolio)
     if not conn:
         raise HTTPException(status_code=404, detail="No Trading 212 connection found")
+    target_id = str(conn.public_id)
     db.delete(conn)
+    if _context is not None:
+        record_audit_event(
+            db,
+            actor_user_id=_context.user.id,
+            workspace_id=portfolio.workspace_id,
+            action="broker.connection.deleted",
+            target_type="broker_connection",
+            target_id=target_id,
+            metadata={"broker": "trading212", "portfolio_id": str(portfolio.public_id)},
+        )
     db.commit()
     return {"ok": True, "message": "Disconnected from Trading 212"}
 

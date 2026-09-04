@@ -352,6 +352,13 @@ CSRF_GATED: tuple[tuple[str, str, str, Any], ...] = (
     ("portfolios-create", "POST", "/api/portfolios", {"name": "csrf probe"}),
     ("portfolios-update", "PATCH", "/api/portfolios/{alice_portfolio}", {"name": "csrf probe"}),
     ("portfolios-delete", "DELETE", "/api/portfolios/{alice_portfolio}", None),
+    ("assistant-key-set", "PUT", "/api/assistant/config",
+     {"api_key": "csrf-probe-key", "model": "deepseek-chat"}),
+    ("assistant-key-clear", "DELETE", "/api/assistant/config", None),
+    ("discord-create", "POST", "/api/discord/webhook",
+     {"webhook_url": "https://discord.com/api/webhooks/csrf/probe"}),
+    ("discord-update", "PATCH", "/api/discord/webhook", {"notify_trades": False}),
+    ("discord-delete", "DELETE", "/api/discord/webhook", None),
 )
 
 

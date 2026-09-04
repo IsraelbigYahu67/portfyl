@@ -8,6 +8,7 @@ import json
 import httpx
 import xml.etree.ElementTree as ET
 
+from audit import record_audit_event
 from database import get_db
 from models import BrokerConnection, OptionsTrade, BrokerBalance, Portfolio
 from tenancy import RequestContext, require_csrf, require_portfolio
@@ -372,6 +373,7 @@ async def connect(
         raise HTTPException(status_code=502, detail=f"Could not validate IBKR credentials: {e}")
 
     connection = _get_ibkr_connection(db, portfolio)
+    action = "broker.connection.rotated" if connection else "broker.connection.created"
     if connection:
         connection.api_key = flex_token
         connection.api_secret = query_id
@@ -391,6 +393,16 @@ async def connect(
         )
         db.add(connection)
     db.flush()
+    if _context is not None:
+        record_audit_event(
+            db,
+            actor_user_id=_context.user.id,
+            workspace_id=portfolio.workspace_id,
+            action=action,
+            target_type="broker_connection",
+            target_id=str(connection.public_id),
+            metadata={"broker": "ibkr", "portfolio_id": str(portfolio.public_id)},
+        )
     result = {
         "connected": True,
         "id": str(connection.public_id),
@@ -508,12 +520,23 @@ def disconnect(
     conn = _get_ibkr_connection(db, portfolio)
     if not conn:
         raise HTTPException(status_code=404, detail="No IBKR connection found")
+    target_id = str(conn.public_id)
     db.delete(conn)
     db.query(BrokerBalance).filter(
         BrokerBalance.workspace_id == portfolio.workspace_id,
         BrokerBalance.broker == "ibkr",
         BrokerBalance.portfolio_id == portfolio.id,
     ).delete(synchronize_session=False)
+    if _context is not None:
+        record_audit_event(
+            db,
+            actor_user_id=_context.user.id,
+            workspace_id=portfolio.workspace_id,
+            action="broker.connection.deleted",
+            target_type="broker_connection",
+            target_id=target_id,
+            metadata={"broker": "ibkr", "portfolio_id": str(portfolio.public_id)},
+        )
     db.commit()
     return {"ok": True, "message": "Disconnected from IBKR"}
 

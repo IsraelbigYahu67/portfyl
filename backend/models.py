@@ -173,6 +173,49 @@ class WorkspaceSetting(Base):
     )
 
 
+class AuditLog(Base):
+    """Immutable security event with either workspace or personal scope.
+
+    Workspace events are visible in that workspace.  Events with a null
+    ``workspace_id`` (session lifecycle, personal AI credentials) are visible
+    only to ``actor_user_id``.  Migration 0009 enforces the same rule with
+    forced PostgreSQL RLS.
+    """
+
+    __tablename__ = "audit_logs"
+
+    id = _uuid_primary_key()
+    public_id = _public_id()
+    workspace_id = _workspace_id(nullable=True)
+    actor_user_id = Column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    action = Column(String, nullable=False, index=True)
+    target_type = Column(String, nullable=True)
+    target_id = Column(String, nullable=True)
+    event_metadata = Column("metadata", JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
+
+
+class JobRun(Base):
+    """Last successful completion of each recurring operational job."""
+
+    __tablename__ = "job_runs"
+
+    id = _uuid_primary_key()
+    job_name = Column(String, nullable=False, unique=True, index=True)
+    last_success_at = Column(DateTime(timezone=True), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 # Transitional import compatibility until Task 7 replaces key-only settings
 # callers with explicit user/workspace-scoped helpers. No app_settings table is
 # mapped or created.

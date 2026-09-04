@@ -5,11 +5,12 @@ from typing import Optional
 from collections import defaultdict
 import httpx
 
+from audit import record_audit_event
 from database import get_db
 from models import Transaction, Portfolio
 from routers.portfolios import require_portfolio
 from app_settings import get_user_secret, get_user_setting, set_user_secret, set_user_setting
-from tenancy import RequestContext, get_request_context
+from tenancy import RequestContext, get_request_context, require_csrf
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 
@@ -213,7 +214,7 @@ def get_config(
 def save_config(
     payload: ConfigPayload,
     db: Session = Depends(get_db),
-    request_context: RequestContext = Depends(get_request_context),
+    request_context: RequestContext = Depends(require_csrf),
 ):
     api_key = payload.api_key.strip()
     if not api_key:
@@ -225,6 +226,14 @@ def save_config(
 
     set_user_secret(db, request_context.user.id, KEY_SETTING, api_key)
     set_user_setting(db, request_context.user.id, MODEL_SETTING, model)
+    record_audit_event(
+        db,
+        actor_user_id=request_context.user.id,
+        action="assistant.api_key.set",
+        target_type="user_setting",
+        target_id=KEY_SETTING,
+        metadata={"model": model},
+    )
     db.commit()
 
     return {"configured": True, "model": model, "key_preview": _key_preview(api_key)}
@@ -233,9 +242,16 @@ def save_config(
 @router.delete("/config")
 def delete_config(
     db: Session = Depends(get_db),
-    request_context: RequestContext = Depends(get_request_context),
+    request_context: RequestContext = Depends(require_csrf),
 ):
     set_user_secret(db, request_context.user.id, KEY_SETTING, None)
+    record_audit_event(
+        db,
+        actor_user_id=request_context.user.id,
+        action="assistant.api_key.cleared",
+        target_type="user_setting",
+        target_id=KEY_SETTING,
+    )
     db.commit()
     return {"configured": False}
 

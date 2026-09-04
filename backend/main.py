@@ -1,6 +1,7 @@
 import logging
 import os
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +18,7 @@ configure_logging()
 # data gracefully via empty/null checks; suppress the noise.
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
-from database import SessionLocal, assert_alembic_head
+from database import SessionLocal, assert_alembic_head, get_db
 from edition import Edition, edition_from_env
 from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, cash, alerts, settings, capabilities, auth as auth_router
 from tenancy import (
@@ -133,9 +134,65 @@ if PORTFYL_EDITION is Edition.CLOUD:
     app.include_router(internal_jobs.router)
 
 
+_JOB_MAX_AGES = {
+    "alerts": timedelta(minutes=30),
+    "autosync": timedelta(hours=2),
+    "dividends": timedelta(hours=25),
+}
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 @app.get("/health")
-def health():
-    return {"status": "ok"}
+def health(db=Depends(get_db)):
+    """Cheap, dependency-aware service health without upstream network I/O."""
+    from sqlalchemy import select, text
+    from models import JobRun
+
+    checks: dict[str, dict] = {}
+    try:
+        db.execute(text("SELECT 1"))
+        checks["database"] = {"status": "ok"}
+    except Exception as exc:
+        checks["database"] = {
+            "status": "error",
+            "error_type": type(exc).__name__,
+        }
+        checks["scheduler"] = {"status": "unavailable"}
+        return {"status": "degraded", "checks": checks}
+
+    now = datetime.now(timezone.utc)
+    rows = {
+        row.job_name: row
+        for row in db.scalars(select(JobRun).where(JobRun.job_name.in_(_JOB_MAX_AGES))).all()
+    }
+    jobs = {}
+    scheduler_ok = True
+    for name, max_age in _JOB_MAX_AGES.items():
+        row = rows.get(name)
+        if row is None:
+            jobs[name] = {"status": "missing", "last_success_at": None}
+            scheduler_ok = False
+            continue
+        last_success = _as_utc(row.last_success_at)
+        fresh = now - last_success <= max_age
+        jobs[name] = {
+            "status": "ok" if fresh else "stale",
+            "last_success_at": last_success.isoformat(),
+        }
+        scheduler_ok = scheduler_ok and fresh
+    checks["scheduler"] = {
+        "status": "ok" if scheduler_ok else "degraded",
+        "jobs": jobs,
+    }
+    return {
+        "status": "ok" if scheduler_ok else "degraded",
+        "checks": checks,
+    }
 
 
 # --- background pollers --------------------------------------------------------
@@ -175,6 +232,10 @@ async def _periodic_loop(name: str, pass_fn, interval: int, initial_delay: int):
             db = SessionLocal()
             try:
                 happened = await pass_fn(db)
+                from jobs import mark_job_succeeded
+
+                mark_job_succeeded(db, name)
+                db.commit()
                 if happened:
                     logger.info("%s pass: %d event(s)", name, len(happened))
             finally:
