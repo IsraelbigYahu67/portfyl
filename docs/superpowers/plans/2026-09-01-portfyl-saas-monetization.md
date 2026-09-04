@@ -657,6 +657,10 @@ isolation across API, jobs, settings, caches, imports, and alerts.
 
 ### Workstream D: secrets, jobs, and operational security
 
+> Task-level implementation plan drafted 2026-09-04:
+> `docs/superpowers/plans/2026-09-04-portfyl-secrets-jobs.md`. Not yet
+> executed — see that plan's task checkboxes for progress.
+
 Likely touchpoints:
 
 - broker and assistant configuration;
