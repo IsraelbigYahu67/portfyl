@@ -124,6 +124,13 @@ app.include_router(
     prefix="/api",
     dependencies=[Depends(get_request_context)],
 )
+if PORTFYL_EDITION is Edition.CLOUD:
+    # Cloud Scheduler-triggered job endpoints, replacing the in-process
+    # pollers _start_background_pollers only registers in the local
+    # edition. Not under /api -- own OIDC auth, no cookie/CSRF session.
+    from routers import internal_jobs
+
+    app.include_router(internal_jobs.router)
 
 
 @app.get("/health")
@@ -181,18 +188,27 @@ async def _periodic_loop(name: str, pass_fn, interval: int, initial_delay: int):
 
 @app.on_event("startup")
 async def _start_background_pollers():
+    schema_db = SessionLocal()
+    try:
+        assert_alembic_head(schema_db)
+    finally:
+        schema_db.close()
+
+    if PORTFYL_EDITION is not Edition.LOCAL:
+        # Cloud is multi-instance: an in-process asyncio timer would either
+        # fire on every instance (duplicate syncs/alerts/notifications) or
+        # need its own leader-election scheme. internal_jobs.router (mounted
+        # below, cloud-only) replaces this with Cloud Scheduler-driven,
+        # advisory-lock-guarded endpoints instead. The local edition is
+        # always single-instance, so the simpler in-process timer stays.
+        return
+
     import asyncio as _asyncio
     from jobs import (
         alert_check_all_workspaces,
         autosync_all_workspaces,
         dividend_notify_all_workspaces,
     )
-
-    schema_db = SessionLocal()
-    try:
-        assert_alembic_head(schema_db)
-    finally:
-        schema_db.close()
 
     def _env_int(key: str, default: int) -> int:
         try:

@@ -246,6 +246,62 @@ stays in effect on every later call, including ones that only pass
 `--dry-run --policy=...`, then apply for real with `--no-dry-run` (the
 policy from the last `--policy=...` call stays applied either way).
 
+## 9. Cloud Scheduler jobs (background work)
+
+Cloud Run scales this service to multiple instances (step 6's
+`--max-instances`); `backend/main.py` only runs its in-process
+alerts/autosync/dividends pollers in the **local** edition (always
+single-instance) for exactly that reason — an in-process timer here would
+fire redundantly on every instance. `PORTFYL_EDITION=cloud` instead mounts
+`backend/routers/internal_jobs.py`'s `/internal/jobs/{alerts,autosync,
+dividends}` endpoints, which Cloud Scheduler calls on a cron schedule; a
+Postgres advisory lock inside each endpoint makes an overlapping second
+call a safe no-op instead of a duplicate run (see
+`docs/superpowers/plans/2026-09-04-portfyl-secrets-jobs.md` Task 5).
+
+A dedicated service account, `roles/run.invoker` only — it never touches
+Secret Manager or the database directly, unlike `portfyl-runtime`/
+`portfyl-migrator`:
+
+```powershell
+gcloud iam service-accounts create portfyl-scheduler --display-name="Portfyl Cloud Scheduler caller"
+gcloud run services add-iam-policy-binding $SERVICE --region=$REGION --member="serviceAccount:portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/run.invoker"
+```
+
+Give the running service its own identity (`PORTFYL_SERVICE_URL`) and the
+expected caller identity (`PORTFYL_SCHEDULER_SERVICE_ACCOUNT`) so
+`verify_scheduler_token` can check both the OIDC token's audience and its
+`email` claim — redeploy step 6's command with these two vars added to
+`--set-env-vars` once you know the Service URL it printed:
+
+```powershell
+gcloud run services update $SERVICE --region=$REGION --set-env-vars="PORTFYL_SERVICE_URL=https://portfyl-xxxxx.a.run.app,PORTFYL_SCHEDULER_SERVICE_ACCOUNT=portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com"
+```
+
+Then create the three scheduler jobs. Cron expressions mirror today's
+poller intervals except autosync: the old 60-second in-process heartbeat
+only existed so `jobs.sync_due()` could catch a due schedule within a
+minute — Cloud Scheduler's minimum useful resolution is coarser than that
+and `sync_due()` already gates the real work, so an hourly trigger is
+enough to catch every configured per-workspace daily-time/interval
+schedule promptly without the wasted invocations a 1-minute cron would
+cost:
+
+```powershell
+gcloud scheduler jobs create http portfyl-alerts --location=$REGION --schedule="*/15 * * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/alerts" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
+
+gcloud scheduler jobs create http portfyl-autosync --location=$REGION --schedule="0 * * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/autosync" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
+
+gcloud scheduler jobs create http portfyl-dividends --location=$REGION --schedule="0 */12 * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/dividends" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
+```
+
+Verify: `gcloud scheduler jobs run portfyl-alerts --location=$REGION` should
+return success and produce an `alerts pass: N event(s)` (or nothing, if
+there was nothing to do) line in Cloud Run logs tagged with a `job-alerts-…`
+correlation id; a bare `curl -X POST` to the same URL with no token must
+get 401; two rapid manual triggers should show the second logged as
+`alerts: skipped, already running`, never a duplicate pass.
+
 ---
 
 ## Ongoing rules

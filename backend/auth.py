@@ -164,17 +164,3 @@ def clear_session_cookie(response: Response) -> None:
         samesite="lax",
         path="/",
     )
-
-
-# Cloud Scheduler keeps its separate machine credential until the jobs
-# workstream replaces the in-process scheduler architecture.
-SCHEDULER_TOKEN = os.getenv("SCHEDULER_TOKEN")
-
-
-def check_scheduler_token(submitted: str) -> bool:
-    if not SCHEDULER_TOKEN:
-        return False
-    return hmac.compare_digest(
-        (submitted or "").encode("utf-8"),
-        SCHEDULER_TOKEN.encode("utf-8"),
-    )

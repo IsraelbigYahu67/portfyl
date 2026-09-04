@@ -151,12 +151,12 @@ def test_autosync_t212_sync_runs_off_event_loop(db_session, pid):
     assert seen["on_loop"] is False
 
 
-def test_scheduler_sync_respects_auto_sync_flag(db_session, default_portfolio):
-    # The external Cloud Scheduler entrypoint must honor the same per-connection
-    # opt-in as the in-process poller — otherwise turning auto-sync off in
-    # Settings silently keeps syncing on scheduler deployments.
+def test_broker_autosync_pass_respects_auto_sync_flag_for_ibkr(db_session, default_portfolio):
+    # routers/internal_jobs.py's Cloud Scheduler entrypoint (cloud edition)
+    # and main.py's in-process poller (local edition) both drive IBKR sync
+    # through this same pass -- either must honor the per-connection opt-in,
+    # not just the local poller's original direct route.
     from models import Portfolio
-    from routers.ibkr import scheduler_sync
 
     p2 = Portfolio(workspace_id=default_portfolio.workspace_id, name="Second")
     db_session.add(p2)
@@ -165,9 +165,8 @@ def test_scheduler_sync_respects_auto_sync_flag(db_session, default_portfolio):
     _connect(db_session, p2.id, broker="ibkr", auto_sync=False)
 
     ibkr_sync = AsyncMock(return_value={"imported": 1})
-    with patch("routers.ibkr._run_ibkr_sync", ibkr_sync), \
-         patch("routers.ibkr.check_scheduler_token", return_value=True):
-        _run(scheduler_sync(db=db_session, x_scheduler_token="tok", token=None))
+    with patch("routers.ibkr._run_ibkr_sync", ibkr_sync):
+        _run(broker_autosync_pass(db_session, TEST_WORKSPACE_ID))
 
     ibkr_sync.assert_awaited_once()
     # _run_ibkr_sync(db, workspace_id, portfolio_id) -- the workspace is the
