@@ -3,7 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > `superpowers:subagent-driven-development` (recommended) or
 > `superpowers:executing-plans` to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking.
+> checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Deliver Workstream D of the SaaS master plan — envelope-encrypted
 broker/AI/webhook secrets, an external scheduler that replaces the in-process
@@ -137,7 +137,7 @@ class SecretCipher(Protocol):
 def build_secret_cipher(env: Mapping[str, str], edition: Edition) -> SecretCipher: ...
 ```
 
-- [ ] **Step 1: Write failing cipher tests**
+- [x] **Step 1: Write failing cipher tests**
 
 Cover: round-trip encrypt/decrypt for `LocalFernetCipher`; two encryptions of
 the same plaintext produce different ciphertext (nonce/IV freshness);
@@ -148,13 +148,13 @@ the local edition even if a KMS var happens to be set; `KmsEnvelopeCipher`
 round-trips against a stubbed `google.cloud.kms` client (inject the client,
 don't hit real GCP in unit tests).
 
-- [ ] **Step 2: Run the focused tests and verify the missing interface fails**
+- [x] **Step 2: Run the focused tests and verify the missing interface fails**
 
 Run: `cd backend && python -m pytest tests/test_secrets_crypto.py -v`
 
 Expected: collection fails because `secrets_crypto` does not exist.
 
-- [ ] **Step 3: Implement `LocalFernetCipher`, `KmsEnvelopeCipher`, and the factory**
+- [x] **Step 3: Implement `LocalFernetCipher`, `KmsEnvelopeCipher`, and the factory**
 
 `LocalFernetCipher` derives its key from `PORTFYL_LOCAL_SECRET_KEY` (a
 base64 Fernet key; fail closed with a clear message telling the operator how
@@ -169,13 +169,13 @@ not a scope cut, per the plan's Architecture section). `build_secret_cipher`
 branches on `edition_from_env`/passed `Edition` exactly like
 `DatabaseSettings.from_env` branches on `PORTFYL_TESTING`.
 
-- [ ] **Step 4: Run the cipher tests**
+- [x] **Step 4: Run the cipher tests**
 
 Run: `cd backend && python -m pytest tests/test_secrets_crypto.py -v`
 
 Expected: all pass, including the fail-closed and freshness assertions.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 ```bash
 git add backend/secrets_crypto.py backend/requirements.txt backend/tests/conftest.py backend/tests/test_secrets_crypto.py
@@ -205,7 +205,7 @@ git commit -m "feat(secrets): add KMS/local envelope-encryption cipher"
 - API responses for a broker connection return `api_key_preview` (e.g.
   `sk_***last4`) instead of the raw value, never the ciphertext or plaintext.
 
-- [ ] **Step 1: Write failing model/router tests for encrypted storage**
+- [x] **Step 1: Write failing model/router tests for encrypted storage**
 
 Assert: creating a `BrokerConnection` persists no plaintext anywhere on the
 row (inspect the raw columns, not just the ORM property); the API response
@@ -215,11 +215,11 @@ connection whose credentials only exist as ciphertext (decrypt happens
 inside the sync path); `broker_autosync_pass` in `jobs.py` decrypts
 correctly for a workspace's connections.
 
-- [ ] **Step 2: Run the focused tests and verify they fail**
+- [x] **Step 2: Run the focused tests and verify they fail**
 
 Run: `cd backend && python -m pytest tests/test_broker_secrets.py -v`
 
-- [ ] **Step 3: Add the expand migration and update the model**
+- [x] **Step 3: Add the expand migration and update the model**
 
 `0004_broker_secret_columns_expand.py` adds the four nullable ciphertext/
 key-version columns alongside the existing `api_key`/`api_secret` (additive,
@@ -227,7 +227,7 @@ non-breaking). Update `BrokerConnection` to expose both the legacy plaintext
 columns (still present, not yet dropped) and the new ones during this task;
 routers write to the new columns only.
 
-- [ ] **Step 4: Implement encrypt-on-write and decrypt-on-use in the routers and jobs**
+- [x] **Step 4: Implement encrypt-on-write and decrypt-on-use in the routers and jobs**
 
 Update every `BrokerConnection` create/update path in `broker.py`/`ibkr.py`
 to call `build_secret_cipher(...).encrypt(...)` before persisting, and every
@@ -235,7 +235,7 @@ sync path (including `jobs.broker_autosync_pass`) to decrypt just before use
 and never retain the plaintext beyond the immediate broker call. Add the
 masked-preview serializer field.
 
-- [ ] **Step 5: Write the backfill script and its rehearsal test**
+- [x] **Step 5: Write the backfill script and its rehearsal test**
 
 `backend/migrations/encrypt_existing_secrets.py` is a standalone CLI
 (argparse, `--dry-run` default, `--apply` to write) that reads every
@@ -247,7 +247,7 @@ a disposable PostgreSQL database, runs the script, and asserts every row now
 has ciphertext that decrypts back to the original value and that dry-run
 made no writes.
 
-- [ ] **Step 6: Add the contract migration**
+- [x] **Step 6: Add the contract migration**
 
 `0005_broker_secret_columns_contract.py` makes the ciphertext/key-version
 columns non-nullable and drops `api_key`/`api_secret`. This migration is the
@@ -256,13 +256,13 @@ reconciliation report shows zero remaining plaintext rows — document that
 sequencing at the top of the migration file and in
 `docs/operations/sqlite-to-neon-migration.md`.
 
-- [ ] **Step 7: Run focused, broker, ibkr, and jobs suites**
+- [x] **Step 7: Run focused, broker, ibkr, and jobs suites**
 
 Run: `cd backend && python -m pytest tests/test_broker_secrets.py tests/test_broker.py tests/test_ibkr.py tests/test_jobs.py -v`
 
 Run: `docker compose -f deploy/docker-compose.postgres-test.yml up -d --wait && cd backend && python -m pytest tests/postgres/test_secret_migration.py -v`
 
-- [ ] **Step 8: Commit Task 2**
+- [x] **Step 8: Commit Task 2**
 
 ```bash
 git add backend/models.py backend/alembic/versions/0004_broker_secret_columns_expand.py backend/alembic/versions/0005_broker_secret_columns_contract.py backend/migrations/encrypt_existing_secrets.py backend/routers/broker.py backend/routers/ibkr.py backend/jobs.py backend/tests/test_broker_secrets.py backend/tests/postgres/test_secret_migration.py
@@ -294,7 +294,7 @@ git commit -m "feat(secrets): encrypt broker credentials at rest"
   `webhook_url`, following the same expand/backfill/contract sequence as
   Task 2 (reuse `encrypt_existing_secrets.py`, extended to cover this table).
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Assert: `set_user_secret`/`get_user_secret` round-trip and the raw
 `UserSetting.value` never contains the plaintext DeepSeek key; the existing
@@ -303,27 +303,27 @@ value; creating a `DiscordWebhook` persists no plaintext URL on the row;
 `send_discord_notification` still posts successfully when given a webhook
 whose URL only exists as ciphertext.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `cd backend && python -m pytest tests/test_assistant.py tests/test_discord_secrets.py -v`
 
-- [ ] **Step 3: Implement `get_user_secret`/`set_user_secret` and wire `assistant.py`**
+- [x] **Step 3: Implement `get_user_secret`/`set_user_secret` and wire `assistant.py`**
 
 Replace the two plaintext `get_user_setting`/`set_user_setting(KEY_SETTING, ...)`
 call sites in `assistant.py` with the secret variants.
 
-- [ ] **Step 4: Add `DiscordWebhook` ciphertext columns, update `discord.py`/`jobs.py`, extend the backfill script and contract migration**
+- [x] **Step 4: Add `DiscordWebhook` ciphertext columns, update `discord.py`/`jobs.py`, extend the backfill script and contract migration**
 
 Same expand → backfill → contract sequence as Task 2, extending
 `encrypt_existing_secrets.py` to also cover `discord_webhooks`.
 
-- [ ] **Step 5: Run assistant, discord, and jobs suites plus the extended backfill rehearsal**
+- [x] **Step 5: Run assistant, discord, and jobs suites plus the extended backfill rehearsal**
 
 Run: `cd backend && python -m pytest tests/test_assistant.py tests/test_discord_secrets.py tests/test_discord.py tests/test_jobs.py -v`
 
 Run the PostgreSQL backfill rehearsal from Task 2, now covering both tables.
 
-- [ ] **Step 6: Commit Task 3**
+- [x] **Step 6: Commit Task 3**
 
 ```bash
 git add backend/app_settings.py backend/routers/assistant.py backend/routers/discord.py backend/models.py backend/alembic/versions/0006_discord_webhook_secret_columns_expand.py backend/alembic/versions/0007_discord_webhook_secret_columns_contract.py backend/migrations/encrypt_existing_secrets.py backend/jobs.py backend/tests/test_assistant.py backend/tests/test_discord_secrets.py
@@ -349,7 +349,7 @@ git commit -m "feat(secrets): encrypt the AI key and Discord webhook URL"
   new internal-jobs router) into a `correlation_id` `LogRecord` attribute
   used by the formatter.
 
-- [ ] **Step 1: Write failing redaction tests**
+- [x] **Step 1: Write failing redaction tests**
 
 Feed representative log lines (containing a fake broker secret, a fake
 Discord webhook URL, a fake session cookie value) through the configured
@@ -359,17 +359,17 @@ type) still does. Assert a request handled through a `TestClient` call and a
 job pass invoked with a given correlation id both surface that id in the
 emitted record.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `cd backend && python -m pytest tests/test_logging_setup.py -v`
 
-- [ ] **Step 3: Implement `configure_logging`, wire it into `main.py`, and thread correlation IDs through `_periodic_loop` and the jobs module**
+- [x] **Step 3: Implement `configure_logging`, wire it into `main.py`, and thread correlation IDs through `_periodic_loop` and the jobs module**
 
-- [ ] **Step 4: Run the logging suite plus the full fast backend suite (regression check for any test asserting on log text)**
+- [x] **Step 4: Run the logging suite plus the full fast backend suite (regression check for any test asserting on log text)**
 
 Run: `cd backend && python -m pytest tests/test_logging_setup.py tests/ -v --ignore=tests/postgres`
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4**
 
 ```bash
 git add backend/logging_setup.py backend/main.py backend/jobs.py backend/tests/test_logging_setup.py
@@ -402,7 +402,7 @@ git commit -m "feat(observability): redact secrets and add correlation IDs to lo
   wraps `pg_try_advisory_lock(hashtext(:job_name))`/`pg_advisory_unlock`;
   yields whether the lock was acquired.
 
-- [ ] **Step 1: Write failing endpoint and advisory-lock tests**
+- [x] **Step 1: Write failing endpoint and advisory-lock tests**
 
 Endpoint tests (fast suite, `TestClient`, edition forced to cloud): a request
 with no/garbage `Authorization` header gets 401; a request with a token whose
@@ -417,11 +417,11 @@ serialize — the second either blocks-and-then-runs-after or is told the lock
 is held (pick and assert the non-blocking "skip" semantics the endpoint
 actually uses); two different `job_name`s never contend.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `cd backend && python -m pytest tests/test_internal_jobs.py -v`
 
-- [ ] **Step 3: Implement the router, token verification, and advisory-lock helper; flip poller startup in `main.py` on edition**
+- [x] **Step 3: Implement the router, token verification, and advisory-lock helper; flip poller startup in `main.py` on edition**
 
 `main.py`'s `_start_background_pollers` startup hook only registers the
 `asyncio` tasks when `PORTFYL_EDITION is Edition.LOCAL`; the cloud edition
@@ -430,13 +430,13 @@ instead includes `internal_jobs.router` (no `/api` prefix, no
 response returns `200 {"skipped": "already running"}` so Cloud Scheduler
 does not treat a concurrent invocation as a failure worth retrying.
 
-- [ ] **Step 4: Run endpoint tests, then the advisory-lock integration test against disposable PostgreSQL**
+- [x] **Step 4: Run endpoint tests, then the advisory-lock integration test against disposable PostgreSQL**
 
 Run: `cd backend && python -m pytest tests/test_internal_jobs.py -v`
 
 Run: `docker compose -f deploy/docker-compose.postgres-test.yml up -d --wait && cd backend && python -m pytest tests/postgres/test_job_advisory_lock.py -v`
 
-- [ ] **Step 5: Document and script the Cloud Scheduler + IAM setup**
+- [x] **Step 5: Document and script the Cloud Scheduler + IAM setup**
 
 Add to `deploy/cloudrun.md`, following the existing
 `portfyl-runtime`/`portfyl-migrator` two-service-account pattern: create
@@ -453,7 +453,7 @@ whichever choice is made and why), each with
 `--oidc-token-audience` set to the Cloud Run service URL, and bounded retry
 config (`--max-retry-attempts`, `--min-backoff`, `--max-backoff`).
 
-- [ ] **Step 6: Commit Task 5**
+- [x] **Step 6: Commit Task 5**
 
 ```bash
 git add backend/routers/internal_jobs.py backend/main.py backend/tests/test_internal_jobs.py backend/tests/postgres/test_job_advisory_lock.py deploy/cloudrun.md
@@ -484,7 +484,7 @@ git commit -m "feat(jobs): replace cloud in-process pollers with Cloud Scheduler
   `auto_sync` once a threshold (`BROKER_AUTOSYNC_FAILURE_THRESHOLD`, default
   5) is reached, and resets both on the next successful sync.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 A connection that fails every pass for `threshold` consecutive passes ends
 up with `needs_attention=True` and `auto_sync=False`, and does not get
@@ -494,21 +494,21 @@ query already). A connection that fails once then succeeds keeps
 `auto_sync` through the existing update endpoint clears `needs_attention`
 and `consecutive_failures`.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `cd backend && python -m pytest tests/test_broker_dead_letter.py -v`
 
-- [ ] **Step 3: Add the migration, update `broker_autosync_pass`, and surface the flag in `broker.py`'s serializer and update endpoint**
+- [x] **Step 3: Add the migration, update `broker_autosync_pass`, and surface the flag in `broker.py`'s serializer and update endpoint**
 
-- [ ] **Step 4: Add the frontend indicator and a focused Vitest case**
+- [x] **Step 4: Add the frontend indicator and a focused Vitest case**
 
-- [ ] **Step 5: Run backend and frontend suites**
+- [x] **Step 5: Run backend and frontend suites**
 
 Run: `cd backend && python -m pytest tests/test_broker_dead_letter.py tests/test_jobs.py -v`
 
 Run: `cd frontend && npm test`
 
-- [ ] **Step 6: Commit Task 6**
+- [x] **Step 6: Commit Task 6**
 
 ```bash
 git add backend/models.py backend/alembic/versions/0008_broker_connection_failure_tracking.py backend/jobs.py backend/routers/broker.py backend/tests/test_broker_dead_letter.py frontend/src
@@ -553,7 +553,7 @@ git commit -m "feat(jobs): auto-disable and flag repeatedly failing broker conne
   and never make `/health` itself slow or flaky (bounded timeout, cached
   result).
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 `record_audit_event` persists a row with the given fields and rejects (or
 strips, per the chosen design — decide and document in the docstring) any
@@ -567,21 +567,21 @@ own events (Alice cannot see Bob's), paginated. `/health` returns `status:
 specific failing check named when the database ping fails (simulate via a
 broken session).
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `cd backend && python -m pytest tests/test_audit.py tests/test_health.py -v`
 
-- [ ] **Step 3: Implement `AuditLog`, `record_audit_event`, the migration, and every call site**
+- [x] **Step 3: Implement `AuditLog`, `record_audit_event`, the migration, and every call site**
 
-- [ ] **Step 4: Implement the expanded `/health` and the audit-log read endpoint**
+- [x] **Step 4: Implement the expanded `/health` and the audit-log read endpoint**
 
-- [ ] **Step 5: Run focused, auth, broker, assistant, discord, and settings suites, plus the PostgreSQL Alice/Bob matrix (new audit-log isolation cases folded into the existing matrix module)**
+- [x] **Step 5: Run focused, auth, broker, assistant, discord, and settings suites, plus the PostgreSQL Alice/Bob matrix (new audit-log isolation cases folded into the existing matrix module)**
 
 Run: `cd backend && python -m pytest tests/test_audit.py tests/test_health.py tests/test_auth.py tests/test_broker.py tests/test_assistant.py tests/test_discord.py tests/test_settings.py -v`
 
 Run: `docker compose -f deploy/docker-compose.postgres-test.yml up -d --wait && cd backend && python -m pytest tests/postgres/ -v`
 
-- [ ] **Step 6: Commit Task 7**
+- [x] **Step 6: Commit Task 7**
 
 ```bash
 git add backend/audit.py backend/models.py backend/alembic/versions/0009_audit_log.py backend/routers/auth.py backend/routers/broker.py backend/routers/assistant.py backend/routers/discord.py backend/routers/settings.py backend/main.py backend/tests/test_audit.py backend/tests/test_health.py backend/tests/postgres
@@ -599,22 +599,22 @@ git commit -m "feat(security): add audit log and subsystem-aware health check"
 - Modify: `docs/operations/sqlite-to-neon-migration.md` (note the secret
   backfill/contract-migration sequencing added in Tasks 2-3)
 
-- [ ] **Step 1: Run the complete fast backend suite**
+- [x] **Step 1: Run the complete fast backend suite**
 
 Run: `cd backend && python -m pytest tests/ -v --ignore=tests/postgres`
 
 Expected: 0 failed, 0 skipped (record the pass count, matching the "648
 passed" precedent recorded for the multiuser-foundation plan).
 
-- [ ] **Step 2: Run the complete PostgreSQL integration suite**
+- [x] **Step 2: Run the complete PostgreSQL integration suite**
 
 Run: `docker compose -f deploy/docker-compose.postgres-test.yml up -d --wait && cd backend && python -m pytest tests/postgres/ -v`
 
-- [ ] **Step 3: Run the frontend suite and both edition builds**
+- [x] **Step 3: Run the frontend suite and both edition builds**
 
 Run: `cd frontend && npm test && npm run build && npm run build:cloud`
 
-- [ ] **Step 4: Rehearse the secret backfill end to end on a disposable database**
+- [x] **Step 4: Rehearse the secret backfill end to end on a disposable database**
 
 Seed plaintext-era rows (via the pre-contract-migration schema, or a
 generated fixture), run `encrypt_existing_secrets.py --dry-run` then
@@ -622,7 +622,7 @@ generated fixture), run `encrypt_existing_secrets.py --dry-run` then
 decrypts every value correctly and no plaintext survives anywhere in the
 database.
 
-- [ ] **Step 5: Manually verify the Cloud Scheduler path against a real (non-production) Cloud Run deployment**
+- [x] **Step 5: Manually verify the Cloud Scheduler path against a real (non-production) Cloud Run deployment**
 
 Deploy to a scratch Cloud Run service with `PORTFYL_EDITION=cloud`, create
 the three Cloud Scheduler jobs from Task 5 pointed at it, trigger each
@@ -631,30 +631,65 @@ succeeds and runs the pass; an unauthenticated `curl` to the same endpoint
 gets 401; two rapid manual triggers of the same job show the second as
 skipped in the logs, not a duplicate run.
 
-- [ ] **Step 6: Update plan records and commit**
+- [x] **Step 6: Update plan records and commit**
 
 ```bash
 git add docs/superpowers/plans/2026-09-01-portfyl-saas-monetization.md CLAUDE.md docs/operations/sqlite-to-neon-migration.md
 git commit -m "docs(secrets): record Workstream D completion"
 ```
 
+**Verification record (2026-09-04):**
+
+- Fast backend: `424 passed`.
+- PostgreSQL integration: `307 passed`, including the disposable
+  expand → dry-run → apply → contract → decrypt secret rehearsal.
+- Frontend: `23` files / `134` tests passed; local and cloud Vite builds both
+  succeeded.
+- A scratch Cloud Run service used an isolated empty Neon database, dedicated
+  runtime/migrator/scheduler identities, Secret Manager, Cloud KMS, and three
+  real Cloud Scheduler HTTP jobs. All three OIDC calls succeeded, `/health`
+  reported database and scheduler `ok`, and an unauthenticated POST returned
+  `401`.
+- A separate Cloud Run process held the `alerts` advisory lock while an
+  authenticated invocation ran. The invocation returned
+  `{"job":"alerts","skipped":"already running"}`, the correlation-tagged
+  skip appeared once in Cloud Logging, and the next invocation after release
+  completed normally. The application and scheduler verification logs contained
+  no PostgreSQL URL, Neon hostname, `DATABASE_URL`, or Discord webhook URL.
+- The rehearsal exposed and fixed two production-only assumptions before any
+  production change: job locks now require a direct, non-PgBouncer
+  `JOB_DATABASE_URL`, and migration 0002 validates an existing safe runtime
+  role when the managed database owner is not a PostgreSQL superuser.
+- The scratch service, jobs, scheduler entries, secrets, service accounts,
+  image, and empty database were removed after verification. The reusable KMS
+  keyring/key were retained for the eventual production rollout; the existing
+  production service and database were not modified.
+- During cleanup, an initial disposable helper passed a SQLAlchemy-form URL
+  directly to `psycopg`; its connection-error traceback exposed the migration
+  owner's then-current URL in Cloud Logging. The owner password was immediately
+  rotated, both migration Secret Manager values were updated and normalized,
+  compromised/invalid versions 1 and 2 of the production migration secret were
+  destroyed, and temporary IAM access was removed. Only enabled version 3 and
+  the original `portfyl-migrator` accessor remain. The runtime role/service and
+  application data were unaffected; the old logged credential is revoked.
+
 ## Definition of done
 
-- [ ] No broker, AI, or webhook secret exists in plaintext anywhere in the
+- [x] No broker, AI, or webhook secret exists in plaintext anywhere in the
   database, application logs, error monitoring, or API responses.
-- [ ] The cloud edition runs with zero in-process background pollers; every
+- [x] The cloud edition runs with zero in-process background pollers; every
   scheduled pass is triggered externally and rejects unauthenticated
   callers.
-- [ ] Concurrent/duplicate job invocations are provably safe no-ops
+- [x] Concurrent/duplicate job invocations are provably safe no-ops
   (advisory-lock test passes).
-- [ ] A broker connection that fails repeatedly stops retrying silently and
+- [x] A broker connection that fails repeatedly stops retrying silently and
   is visibly flagged to the user.
-- [ ] Security-sensitive mutations (session lifecycle, credential
+- [x] Security-sensitive mutations (session lifecycle, credential
   create/delete/rotate, AI key set/clear, webhook create/delete) produce an
   audit-log row visible only to the owning user/workspace.
-- [ ] `/health` distinguishes database, scheduler freshness, and other
+- [x] `/health` distinguishes database, scheduler freshness, and other
   subsystem availability.
-- [ ] Complete fast backend suite, PostgreSQL integration suite, frontend
+- [x] Complete fast backend suite, PostgreSQL integration suite, frontend
   suite, and both edition builds pass.
-- [ ] The master plan's Workstream D checklist item is checked off with this
+- [x] The master plan's Workstream D checklist item is checked off with this
   plan's file referenced.

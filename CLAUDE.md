@@ -23,21 +23,21 @@ before starting any auth, tenancy, database, or billing work.
   Pro EUR 7.99 plans, Stripe billing, 7-day no-card Pro trial). Tax Report and
   Screener are **permanently excluded from cloud** — not deferred, a deliberate
   product decision (see plan §2, §7, §12).
-- **Workstreams B (PostgreSQL/Alembic foundation) and C (Firebase identity,
+- **Workstreams B (PostgreSQL/Alembic foundation), C (Firebase identity,
   `User → Membership → Workspace` tenancy, UUID API IDs, forced PostgreSQL
-  RLS) are DONE** — see
+  RLS), and D (KMS/Fernet encrypted secrets, external Cloud Scheduler jobs,
+  redacted logging, dead-letter state, audit log, and subsystem health) are
+  DONE** — see
   `docs/superpowers/plans/2026-09-01-portfyl-multiuser-foundation.md` for the
-  task-by-task record. The **technical edition/capability boundary is also
+  B/C record and `docs/superpowers/plans/2026-09-04-portfyl-secrets-jobs.md`
+  for D. The **technical edition/capability boundary is also
   DONE** — see `docs/superpowers/plans/2026-09-03-portfyl-edition-boundary.md`.
   Cloud does not register or bundle Tax Report/Screener; local keeps both.
   **Everything in the rest of this file now describes
   that implemented state**, not the old single-user SQLite one. What's
   **still pending**: Workstream A's external product/data validation and
-  commercial market-data rights, KMS envelope encryption for broker/AI
-  secrets, an external scheduler replacing the in-process background jobs in
-  `backend/jobs.py`, Stripe billing, and onboarding. Don't jump ahead to
-  billing/onboarding work before secrets/jobs land,
-  and don't reintroduce single-user/`owner_id="default"`/SQLite-primary
+  commercial market-data rights, Stripe billing, and onboarding. Don't
+  reintroduce single-user/`owner_id="default"`/SQLite-primary
   assumptions anywhere in this codebase — that state is gone, not deferred.
 - Deploy stack for the cloud edition: **Google Cloud Run + Neon (managed
   PostgreSQL) + Cloudflare** (domain + DNS for portfyl.com) — see

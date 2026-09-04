@@ -7,7 +7,7 @@ never runs during application startup.
 ## Safety requirements
 
 - Use a copy of `portfyl.db`; never point the importer at the live file.
-- The target must be at Alembic head `0002_tenant_rls` and contain no users or
+- The target must be at Alembic head `0009_audit_log` and contain no users or
   tenant workspaces. System benchmark presets are expected.
 - Use the migration-owner connection URL. It must be a schema owner/admin role
   with `BYPASSRLS`; never use Portfyl's pooled runtime URL.
@@ -66,7 +66,33 @@ command without `-DryRun`. Review all of the following before production:
 Smoke-test the disposable imported database with the application using its
 separate non-owner runtime URL.
 
-## 4. Production import
+## 4. Existing PostgreSQL secret upgrade (only for pre-encryption databases)
+
+A fresh empty Neon target can go straight to Alembic head. An existing,
+non-empty PostgreSQL database at `0003_job_workspace_enumeration` must pause
+between the expand and contract migrations so broker credentials and Discord
+webhook URLs are encrypted before their plaintext columns are dropped:
+
+1. Stop the service and all writers. Keep the owner URL in `DATABASE_URL` and
+   configure the same `PORTFYL_EDITION` plus Fernet/KMS key that the upgraded
+   service will use.
+2. Run `alembic -c alembic.ini upgrade 0005_discord_webhook_expand`. Do not
+   use `upgrade head` yet.
+3. Run `python -m migrations.encrypt_existing_secrets` (dry-run), review the
+   counts, then run `python -m migrations.encrypt_existing_secrets --apply`.
+4. Run the dry-run again. Both tables must report zero rows still needing
+   encryption; archive only the counts, never values or connection URLs.
+5. Run `alembic -c alembic.ini upgrade head`. Migrations 0006/0007 enforce
+   ciphertext and remove the plaintext columns; later migrations then finish.
+6. Start the new service only after Alembic head and a decrypt smoke test both
+   succeed. Restore from the pre-change recovery point if reconciliation fails;
+   never hand-edit a partially converted database.
+
+The disposable PostgreSQL integration rehearsal
+`tests/postgres/test_secret_migration.py` exercises this complete
+expand → dry-run → apply → contract → decrypt sequence.
+
+## 5. Production import
 
 1. Confirm the legacy app is stopped and take the final SQLite copy.
 2. Confirm the production target is empty and at Alembic head.
@@ -81,7 +107,7 @@ Any exception or reconciliation mismatch rolls back all imported rows. Do not
 manually patch a partial target; investigate, recreate the empty target, and
 rehearse again from the unchanged source copy.
 
-## 5. Verified Firebase owner claim
+## 6. Verified Firebase owner claim
 
 The imported user remains pending with no Firebase UID. The owner must sign in
 through Firebase with the exact normalized e-mail recorded in the report and

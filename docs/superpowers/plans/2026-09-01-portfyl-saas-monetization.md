@@ -658,8 +658,9 @@ isolation across API, jobs, settings, caches, imports, and alerts.
 ### Workstream D: secrets, jobs, and operational security
 
 > Task-level implementation plan drafted 2026-09-04:
-> `docs/superpowers/plans/2026-09-04-portfyl-secrets-jobs.md`. Not yet
-> executed — see that plan's task checkboxes for progress.
+> `docs/superpowers/plans/2026-09-04-portfyl-secrets-jobs.md`. Completed and
+> verified 2026-09-04, including a non-production Cloud Run + Neon + Cloud
+> Scheduler rehearsal; see that plan for test counts and deployment evidence.
 
 Likely touchpoints:
 
@@ -729,7 +730,7 @@ cloud positioning solves a paid problem.
 
 - [x] Complete Workstream B: PostgreSQL and migrations.
 - [x] Complete Workstream C: identity and tenant isolation.
-- [ ] Complete Workstream D: encrypted secrets and external jobs.
+- [x] Complete Workstream D: encrypted secrets and external jobs.
 - [x] Implement edition-specific backend and frontend route manifests.
 - [ ] Configure backups, monitoring, audit, rate limits, and EU deployment.
 
@@ -841,7 +842,7 @@ derived analytics still require suitable commercial rights.
 - [ ] Minimize collected financial and identity data.
 - [ ] Implement machine-readable export.
 - [ ] Implement verified account deletion and retention workflow.
-- [ ] Encrypt data in transit and sensitive secrets at rest.
+- [x] Encrypt data in transit and sensitive secrets at rest.
 - [ ] Define breach/incident handling and support identity verification.
 - [ ] Keep analytics free of raw holdings, transactions, and credentials by
       default.
@@ -925,8 +926,8 @@ Portfyl is ready to accept public payments only when every item below is true:
 - [ ] Production-like backup restore has succeeded.
 - [ ] Authentication supports verified users and revocable sessions.
 - [ ] The complete Alice/Bob isolation test matrix passes.
-- [ ] Broker, AI, and webhook secrets are encrypted and absent from logs.
-- [ ] Background jobs are external, tenant-aware, and idempotent.
+- [x] Broker, AI, and webhook secrets are encrypted and absent from logs.
+- [x] Background jobs are external, tenant-aware, and idempotent.
 - [ ] Stripe webhook replay cannot duplicate or corrupt subscription state.
 - [ ] Every plan capability and quota is backend-enforced.
 - [ ] Cloud OpenAPI, frontend routes, navigation, pricing, help, and direct-URL
