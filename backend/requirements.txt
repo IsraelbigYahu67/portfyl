@@ -13,3 +13,5 @@ beautifulsoup4>=4.12
 alembic>=1.13
 psycopg[binary]>=3.2
 firebase-admin>=6.5
+cryptography>=43
+google-cloud-kms>=2.24

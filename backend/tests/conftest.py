@@ -10,6 +10,9 @@ import sys
 os.environ.setdefault("PORTFYL_TESTING", "1")
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("PORTFYL_EDITION", "local")
+# Fixed Fernet key so secrets_crypto's local cipher works without requiring
+# every developer/CI run to generate one; never used outside PORTFYL_TESTING.
+os.environ.setdefault("PORTFYL_LOCAL_SECRET_KEY", "OmC2HEZsgRV5WF4AjQgE1OZTViBiZm6ILN131PwtgPg=")
 
 # Ensure the backend package is importable.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
