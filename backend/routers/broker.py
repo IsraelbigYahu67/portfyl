@@ -236,16 +236,20 @@ def connect(
 
     # One upstream account may be connected only once inside a workspace. The
     # same credential value in another tenant is unrelated customer data.
-    clash = (
+    # api_key is stored as ciphertext (see models.BrokerConnection), so this
+    # can't be a SQL-level equality filter -- two encryptions of the same
+    # plaintext never produce the same bytes. A workspace has few broker
+    # connections, so decrypting each candidate here is cheap.
+    other_connections = (
         db.query(BrokerConnection)
         .filter(
             BrokerConnection.workspace_id == portfolio.workspace_id,
             BrokerConnection.broker == "trading212",
-            BrokerConnection.api_key == api_key,
             BrokerConnection.portfolio_id != portfolio.id,
         )
-        .first()
+        .all()
     )
+    clash = next((c for c in other_connections if c.api_key == api_key), None)
     if clash:
         raise HTTPException(
             status_code=409,

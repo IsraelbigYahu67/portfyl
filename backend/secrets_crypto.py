@@ -22,12 +22,13 @@ which is the only edition-aware entry point.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Mapping, Protocol
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from edition import Edition
+from edition import Edition, edition_from_env
 
 
 @dataclass(frozen=True)
@@ -129,3 +130,19 @@ def build_secret_cipher(env: Mapping[str, str], edition: Edition) -> SecretCiphe
     if edition is Edition.CLOUD:
         return KmsEnvelopeCipher.from_env(env)
     return LocalFernetCipher.from_env(env)
+
+
+_process_cipher: SecretCipher | None = None
+
+
+def get_secret_cipher() -> SecretCipher:
+    """Process-wide cipher, built lazily on first use from the real process
+    environment and cached -- so configuration is validated once (fail
+    closed on first call, not at import time) and a KMS client isn't rebuilt
+    per secret. Model properties and job/router code that encrypt or decrypt
+    a stored secret should call this rather than ``build_secret_cipher``
+    directly."""
+    global _process_cipher
+    if _process_cipher is None:
+        _process_cipher = build_secret_cipher(os.environ, edition_from_env(os.environ))
+    return _process_cipher

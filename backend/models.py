@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     ForeignKeyConstraint,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -21,6 +22,7 @@ from sqlalchemy import (
 from sqlalchemy.sql import func
 
 from database import Base
+from secrets_crypto import EncryptedValue, get_secret_cipher
 
 
 def _uuid_primary_key():
@@ -344,13 +346,53 @@ class BrokerConnection(Base):
     workspace_id = _workspace_id()
     portfolio_id = Column(Integer, nullable=False, index=True)
     broker = Column(String, nullable=False)
-    api_key = Column(String, nullable=False)
-    api_secret = Column(String, nullable=True, default="")
+    api_key_ciphertext = Column(LargeBinary, nullable=False)
+    api_key_key_version = Column(String, nullable=False)
+    api_secret_ciphertext = Column(LargeBinary, nullable=True)
+    api_secret_key_version = Column(String, nullable=True)
     environment = Column(String, default="live")
     auto_sync = Column(Boolean, default=False)
     last_synced_at = Column(DateTime(timezone=True), nullable=True)
     t212_csv_covered_through = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # `api_key`/`api_secret` are transparent encrypt-on-set/decrypt-on-get
+    # properties over the ciphertext columns above -- every existing call
+    # site (constructor kwargs, `conn.api_key`, `connection.api_key = ...`)
+    # keeps working unchanged. The one thing this can't support is a SQL-
+    # level filter like `BrokerConnection.api_key == value`, since ciphertext
+    # is never equal across two encryptions of the same plaintext; compare
+    # decrypted values in Python instead (see routers/broker.py's clash
+    # check).
+    @property
+    def api_key(self) -> str:
+        return get_secret_cipher().decrypt(
+            EncryptedValue(self.api_key_ciphertext, self.api_key_key_version)
+        )
+
+    @api_key.setter
+    def api_key(self, value: str) -> None:
+        encrypted = get_secret_cipher().encrypt(value)
+        self.api_key_ciphertext = encrypted.ciphertext
+        self.api_key_key_version = encrypted.key_version
+
+    @property
+    def api_secret(self) -> str | None:
+        if not self.api_secret_ciphertext:
+            return None
+        return get_secret_cipher().decrypt(
+            EncryptedValue(self.api_secret_ciphertext, self.api_secret_key_version)
+        )
+
+    @api_secret.setter
+    def api_secret(self, value: str | None) -> None:
+        if not value:
+            self.api_secret_ciphertext = None
+            self.api_secret_key_version = None
+            return
+        encrypted = get_secret_cipher().encrypt(value)
+        self.api_secret_ciphertext = encrypted.ciphertext
+        self.api_secret_key_version = encrypted.key_version
 
 
 class OptionsTrade(Base):
