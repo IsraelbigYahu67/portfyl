@@ -355,6 +355,14 @@ class BrokerConnection(Base):
     last_synced_at = Column(DateTime(timezone=True), nullable=True)
     t212_csv_covered_through = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # Dead-letter state: jobs.broker_autosync_pass increments consecutive_failures
+    # on every failed pass and resets it on the next success. At
+    # BROKER_AUTOSYNC_FAILURE_THRESHOLD it flips auto_sync off and
+    # needs_attention on rather than retrying forever silently -- re-enabling
+    # auto_sync through the normal update endpoints clears both.
+    consecutive_failures = Column(Integer, nullable=False, default=0, server_default="0")
+    needs_attention = Column(Boolean, nullable=False, default=False, server_default="false")
+    last_error = Column(String, nullable=True)
 
     # `api_key`/`api_secret` are transparent encrypt-on-set/decrypt-on-get
     # properties over the ciphertext columns above -- every existing call

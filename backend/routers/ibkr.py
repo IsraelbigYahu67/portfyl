@@ -376,6 +376,10 @@ async def connect(
         connection.api_key = flex_token
         connection.api_secret = query_id
         connection.last_synced_at = None
+        # Fresh credentials deserve a fresh start on the dead-letter state.
+        connection.consecutive_failures = 0
+        connection.needs_attention = False
+        connection.last_error = None
     else:
         connection = BrokerConnection(
             workspace_id=portfolio.workspace_id,
@@ -420,6 +424,8 @@ def get_status(
         "last_synced_at": conn.last_synced_at.isoformat() if conn.last_synced_at else None,
         "token_preview": token_preview,
         "connected_at": conn.created_at.isoformat() if conn.created_at else None,
+        "needs_attention": conn.needs_attention,
+        "last_error": conn.last_error if conn.needs_attention else None,
     }
 
 
@@ -435,6 +441,10 @@ def set_auto_sync(
     if not conn:
         raise HTTPException(status_code=404, detail="IBKR is not connected")
     conn.auto_sync = bool(payload.get("enabled"))
+    if conn.auto_sync:
+        conn.consecutive_failures = 0
+        conn.needs_attention = False
+        conn.last_error = None
     db.commit()
     return {"ok": True, "auto_sync": conn.auto_sync}
 

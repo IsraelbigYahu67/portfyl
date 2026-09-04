@@ -79,6 +79,11 @@ log = logging.getLogger("portfyl.jobs")
 DIVIDEND_COLOR = 0x8B5CF6  # violet — matches the TTM/dividend accents in the UI
 SYNC_COLOR = 0x059669      # green — same as trade notifications
 
+# Dead-letter threshold: a connection failing every pass this many times in
+# a row stops retrying silently -- broker_autosync_pass turns auto_sync off
+# and needs_attention on instead (see models.BrokerConnection).
+BROKER_AUTOSYNC_FAILURE_THRESHOLD = int(os.environ.get("BROKER_AUTOSYNC_FAILURE_THRESHOLD", 5))
+
 
 # -------- Sync schedule ------------------------------------------------------
 # The autosync poller in main.py ticks every minute and asks sync_due() whether
@@ -259,15 +264,33 @@ async def broker_autosync_pass(db: Session, workspace_id: UUID) -> list[dict]:
                 continue  # unknown broker — nothing to do
         except Exception as e:
             db.rollback()
+            # rollback expires `conn` -- reassert the RLS context before
+            # touching its attributes again, same discipline as every other
+            # post-commit/rollback access in this module.
+            _set_job_workspace_context(db, workspace_id)
             summary.update(ok=False, error=str(e))
             log.warning("auto-sync failed for portfolio %s (%s): %s",
                         conn.portfolio_id, conn.broker, e)
+            conn.consecutive_failures = (conn.consecutive_failures or 0) + 1
+            conn.last_error = str(e)[:500]
+            if conn.consecutive_failures >= BROKER_AUTOSYNC_FAILURE_THRESHOLD:
+                conn.needs_attention = True
+                conn.auto_sync = False
+                log.warning(
+                    "auto-sync disabled for portfolio %s (%s) after %d consecutive failures",
+                    conn.portfolio_id, conn.broker, conn.consecutive_failures,
+                )
+            db.commit()
             results.append(summary)
             continue
 
         # The sync above committed internally, dropping the context set at
         # the top of this iteration -- restore it before the Discord lookup.
         _set_job_workspace_context(db, workspace_id)
+        if conn.consecutive_failures or conn.needs_attention:
+            conn.consecutive_failures = 0
+            conn.needs_attention = False
+            conn.last_error = None
         if summary.get("imported"):
             hook = (db.query(DiscordWebhook)
                       .filter(DiscordWebhook.workspace_id == workspace_id,

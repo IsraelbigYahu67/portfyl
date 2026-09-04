@@ -183,6 +183,20 @@ export default function Settings() {
 
         {connected && !isLoading && (
           <div className="space-y-4">
+            {status.needs_attention && (
+              <div className="flex items-start gap-2 text-sm text-loss bg-loss/10 border border-loss/30 rounded-lg px-4 py-3">
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-medium">Auto-sync paused after repeated failures</div>
+                  {status.last_error && (
+                    <div className="text-loss/80 text-xs mt-0.5">{status.last_error}</div>
+                  )}
+                  <div className="text-loss/80 text-xs mt-0.5">
+                    Turn auto-sync back on below to retry.
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="bg-surface-hover rounded-lg p-4 space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted">API Key</span>

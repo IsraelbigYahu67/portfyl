@@ -216,6 +216,8 @@ def get_status(
         "last_synced_at": conn.last_synced_at.isoformat() if conn.last_synced_at else None,
         "connected_at": conn.created_at.isoformat() if conn.created_at else None,
         "api_key_preview": conn.api_key[:6] + "..." + conn.api_key[-4:] if len(conn.api_key) > 10 else "***",
+        "needs_attention": conn.needs_attention,
+        "last_error": conn.last_error if conn.needs_attention else None,
     }
 
 
@@ -286,6 +288,10 @@ def connect(
         connection.environment = environment
         connection.created_at = datetime.utcnow()
         connection.last_synced_at = None
+        # Fresh credentials deserve a fresh start on the dead-letter state.
+        connection.consecutive_failures = 0
+        connection.needs_attention = False
+        connection.last_error = None
     else:
         connection = BrokerConnection(
             workspace_id=portfolio.workspace_id,
@@ -319,6 +325,12 @@ def set_auto_sync(
     if not conn:
         raise HTTPException(status_code=404, detail="Trading 212 is not connected")
     conn.auto_sync = bool(payload.get("enabled"))
+    if conn.auto_sync:
+        # The user is explicitly re-enabling it -- give the dead-letter
+        # state a fresh start rather than counting it as still failing.
+        conn.consecutive_failures = 0
+        conn.needs_attention = False
+        conn.last_error = None
     db.commit()
     return {"ok": True, "auto_sync": conn.auto_sync}
 
