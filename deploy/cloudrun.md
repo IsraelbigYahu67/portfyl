@@ -19,8 +19,9 @@ Task 11 and `docs/superpowers/plans/2026-09-01-portfyl-saas-monetization.md`):
 request-based billing with **`--min-instances=0`** (scale to zero; accept a
 few-second cold start) and an initial **`--max-instances=5`** (raise later if
 traffic needs it — nothing here makes a higher number unsafe), a Cloud Run
-**migration Job** that must succeed before every service deploy, and Neon's
-**pooled connection string** for the runtime `DATABASE_URL`. The region below
+**migration Job** that must succeed before every service deploy, Neon's
+**pooled connection string** for the runtime `DATABASE_URL`, and its **direct
+connection string** for scheduler `JOB_DATABASE_URL` sessions. The region below
 is a variable, not baked in — pick whatever's closest to your users; for
 Central Europe, GCP **`europe-west3`** (Frankfurt) paired with a Neon project
 in AWS **`eu-central-1`** (also Frankfurt) keeps both legs of every request
@@ -63,7 +64,7 @@ If `gcloud billing accounts list` is empty, create one at
 ## 2. Enable the APIs
 
 ```powershell
-gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com cloudscheduler.googleapis.com cloudkms.googleapis.com iamcredentials.googleapis.com
 ```
 
 Firebase Authentication is enabled and configured from the
@@ -103,25 +104,41 @@ every request runs as, `NOSUPERUSER NOBYPASSRLS`, no table ownership, no
 schema-wide grants beyond exactly the tenant tables) — but it creates it
 `NOLOGIN`, and the application issues no `SET ROLE`, so the deployed
 service's `DATABASE_URL` must authenticate **directly as `portfyl_runtime`**.
-After running migrations once (step 6), give it login credentials:
+PostgreSQL roles are cluster-wide, so another database in the same Neon
+project may already have this role. On managed PostgreSQL the migration
+validates that such an existing role is unprivileged; it does not attempt the
+superuser-only `ALTER ROLE ... NOSUPERUSER/NOBYPASSRLS` operation. If the
+validation reports unsafe attributes, stop and correct the role through the
+provider instead of weakening the migration.
+After running migrations once (step 5), give it login credentials:
 Neon console → **Roles** → `portfyl_runtime` → **Reset password** (this only
 adds `LOGIN` + a password; it does not touch `NOSUPERUSER`/`NOBYPASSRLS`/
 `NOCREATEDB`/`NOCREATEROLE`).
 
-You now have **two** connection strings from Neon (Dashboard → Connection
-Details), both **pooled** (`-pooler` in the hostname, which Neon's PgBouncer
-requires anyway for Cloud Run's many short-lived connections):
+For a brand-new Neon project this makes the first deployment a short loop:
+create the migration secret/account from step 4, run step 5 once, return here
+to reset the newly created runtime role's password, then create the runtime
+and job secrets before step 6. Later deploys follow the numbered flow directly.
 
-- **Migration URL** — role `neondb_owner`, used only by `alembic upgrade
-  head` and the one-off SQLite importer. Never set as the running service's
-  `DATABASE_URL`.
-- **Runtime URL** — role `portfyl_runtime`, set as the Cloud Run service's
-  `DATABASE_URL` secret in step 5.
+You now need **three** connection strings from Neon (Dashboard → Connection
+Details):
+
+- **Migration URL (direct/unpooled)** — role `neondb_owner`, used only by
+  `alembic upgrade head` and the one-off SQLite importer. Never set as the
+  running service's `DATABASE_URL`.
+- **Runtime URL (pooled)** — role `portfyl_runtime`, set as the Cloud Run
+  service's `DATABASE_URL` secret in step 4 and injected in step 6.
+- **Job URL (direct/unpooled)** — the same `portfyl_runtime` role and
+  database, but with the direct Neon hostname (no `-pooler`). It is injected
+  as `JOB_DATABASE_URL` and used only by Cloud Scheduler endpoints. Their
+  session-level advisory lock must survive commits inside a pass; Neon uses
+  PgBouncer transaction pooling on pooled endpoints, where session-level
+  advisory locks are unsupported.
 
 ## 4. Store secrets
 
 There is no `APP_PASSWORD` or `SESSION_SECRET` to generate any more —
-Firebase issues and verifies its own tokens. Store the two Neon connection
+Firebase issues and verifies its own tokens. Store the three Neon connection
 strings from step 3 as separate secrets (paste each URL at the prompt so it
 never appears in shell history):
 
@@ -130,7 +147,10 @@ gcloud secrets create portfyl-database-url --replication-policy=automatic
 gcloud secrets versions add portfyl-database-url --data-file=- # paste the portfyl_runtime pooled URL, then Ctrl+Z, Enter
 
 gcloud secrets create portfyl-migration-database-url --replication-policy=automatic
-gcloud secrets versions add portfyl-migration-database-url --data-file=- # paste the neondb_owner pooled URL, then Ctrl+Z, Enter
+gcloud secrets versions add portfyl-migration-database-url --data-file=- # paste the direct neondb_owner URL, then Ctrl+Z, Enter
+
+gcloud secrets create portfyl-job-database-url --replication-policy=automatic
+gcloud secrets versions add portfyl-job-database-url --data-file=- # paste the direct portfyl_runtime URL (no -pooler), then Ctrl+Z, Enter
 ```
 
 Two separate service accounts, so the *running service* can never read the
@@ -142,13 +162,24 @@ gcloud iam service-accounts create portfyl-runtime --display-name="Portfyl Cloud
 gcloud iam service-accounts create portfyl-migrator --display-name="Portfyl Alembic migration job"
 
 gcloud secrets add-iam-policy-binding portfyl-database-url --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+gcloud secrets add-iam-policy-binding portfyl-job-database-url --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
 gcloud secrets add-iam-policy-binding portfyl-migration-database-url --member="serviceAccount:portfyl-migrator@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
 
 gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/firebaseauth.admin"
 ```
 
-`portfyl-runtime` only ever gets `portfyl-database-url` (the `portfyl_runtime`
-role's URL) plus **Firebase Authentication Admin** so
+Create the KMS key used for cloud-edition secret encryption and grant only the
+runtime identity encrypt/decrypt access:
+
+```powershell
+gcloud kms keyrings create portfyl --location=$REGION
+gcloud kms keys create secrets --keyring=portfyl --location=$REGION --purpose=encryption
+$KMS_KEY = "projects/$PROJECT_ID/locations/$REGION/keyRings/portfyl/cryptoKeys/secrets"
+gcloud kms keys add-iam-policy-binding secrets --keyring=portfyl --location=$REGION --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/cloudkms.cryptoKeyEncrypterDecrypter"
+```
+
+`portfyl-runtime` only ever gets the two `portfyl_runtime` database URLs plus
+KMS encrypt/decrypt and **Firebase Authentication Admin** so
 `firebase_admin.initialize_app()` can verify and revoke tokens using
 Application Default Credentials — no key file is needed on Cloud Run.
 `portfyl-migrator` only ever gets `portfyl-migration-database-url` (the
@@ -188,12 +219,14 @@ the image in the cloud and pushes it to Artifact Registry; accept the offer
 to create the `cloud-run-source-deploy` repo on the first run.
 
 ```powershell
-gcloud run deploy $SERVICE --source . --region $REGION --allow-unauthenticated --service-account "portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --set-secrets="DATABASE_URL=portfyl-database-url:latest" --min-instances=0 --max-instances=5 --cpu=1 --memory=1Gi
+gcloud run deploy $SERVICE --source . --region $REGION --allow-unauthenticated --service-account "portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --set-secrets="DATABASE_URL=portfyl-database-url:latest,JOB_DATABASE_URL=portfyl-job-database-url:latest" --set-env-vars="PORTFYL_EDITION=cloud,PORTFYL_KMS_KEY_NAME=$KMS_KEY" --min-instances=0 --max-instances=5 --cpu=1 --memory=1Gi
 ```
 
 Why these flags:
-- `--set-secrets` injects `DATABASE_URL` from Secret Manager at container
-  start — it is never a plain `--set-env-vars` value and is never logged.
+- `--set-secrets` injects both database URLs from Secret Manager at container
+  start — neither is ever a plain `--set-env-vars` value or logged.
+- `PORTFYL_KMS_KEY_NAME` is a resource name, not secret material. Missing KMS
+  configuration fails closed when a cloud user first stores or reads a secret.
 - `--allow-unauthenticated` = Cloud Run itself is public; Firebase-verified
   sessions are the real lock (there is no separate app-level password gate).
 - `--max-instances=5`: safe to raise further at any time — PostgreSQL, unlike
@@ -275,8 +308,11 @@ expected caller identity (`PORTFYL_SCHEDULER_SERVICE_ACCOUNT`) so
 `--set-env-vars` once you know the Service URL it printed:
 
 ```powershell
-gcloud run services update $SERVICE --region=$REGION --set-env-vars="PORTFYL_SERVICE_URL=https://portfyl-xxxxx.a.run.app,PORTFYL_SCHEDULER_SERVICE_ACCOUNT=portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com"
+gcloud run services update $SERVICE --region=$REGION --update-env-vars="PORTFYL_SERVICE_URL=https://portfyl-xxxxx.a.run.app,PORTFYL_SCHEDULER_SERVICE_ACCOUNT=portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com"
 ```
+
+Use `--update-env-vars` here: `--set-env-vars` replaces the whole environment
+map and would remove the KMS settings from step 6.
 
 Then create the three scheduler jobs. Cron expressions mirror today's
 poller intervals except autosync: the old 60-second in-process heartbeat
@@ -299,8 +335,11 @@ Verify: `gcloud scheduler jobs run portfyl-alerts --location=$REGION` should
 return success and produce an `alerts pass: N event(s)` (or nothing, if
 there was nothing to do) line in Cloud Run logs tagged with a `job-alerts-…`
 correlation id; a bare `curl -X POST` to the same URL with no token must
-get 401; two rapid manual triggers should show the second logged as
-`alerts: skipped, already running`, never a duplicate pass.
+get 401. For the overlap drill, deliberately hold the job's advisory lock from
+a second direct PostgreSQL session while invoking the endpoint; the response
+must be `{"job":"alerts","skipped":"already running"}` and Cloud Run must log
+`alerts: skipped, already running`. Two merely rapid triggers are not a
+deterministic test when an empty job completes in milliseconds.
 
 ---
 

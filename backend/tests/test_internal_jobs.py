@@ -61,6 +61,21 @@ class TestVerifySchedulerToken:
             internal_jobs.verify_scheduler_token("Bearer validlyformattedtoken")  # does not raise
 
 
+class TestJobDatabaseConfiguration:
+    def test_missing_direct_job_database_url_fails_closed(self):
+        with pytest.raises(RuntimeError, match="JOB_DATABASE_URL is required"):
+            internal_jobs.build_job_session_factory({"PORTFYL_EDITION": "cloud"})
+
+    def test_neon_pooler_url_is_rejected(self):
+        with pytest.raises(RuntimeError, match="direct Neon hostname"):
+            internal_jobs.build_job_session_factory({
+                "PORTFYL_EDITION": "cloud",
+                "JOB_DATABASE_URL": (
+                    "postgresql://user:pass@ep-example-pooler.eu-central-1.aws.neon.tech/db"
+                ),
+            })
+
+
 class TestJobEndpointsRunExactlyOnePass:
     @pytest.fixture(autouse=True)
     def _job_session(self, monkeypatch, db_session):

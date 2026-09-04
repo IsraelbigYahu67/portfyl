@@ -111,10 +111,31 @@ def upgrade() -> None:
                 CREATE ROLE portfyl_runtime
                     NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
                     NOINHERIT NOREPLICATION NOBYPASSRLS;
-            ELSE
+            ELSIF (
+                SELECT rolsuper FROM pg_roles WHERE rolname = current_user
+            ) THEN
+                -- PostgreSQL reserves changes to SUPERUSER/REPLICATION/BYPASSRLS
+                -- for superusers, even when the requested value is false. Local
+                -- and CI owners are superusers, so retain the hardening repair
+                -- path there.
                 EXECUTE 'ALTER ROLE portfyl_runtime '
                     'NOSUPERUSER NOCREATEDB NOCREATEROLE '
                     'NOINHERIT NOREPLICATION NOBYPASSRLS';
+            ELSIF EXISTS (
+                SELECT 1
+                FROM pg_roles
+                WHERE rolname = 'portfyl_runtime'
+                  AND (
+                      rolsuper OR rolcreatedb OR rolcreaterole OR rolinherit
+                      OR rolreplication OR rolbypassrls
+                  )
+            ) THEN
+                -- Managed PostgreSQL services such as Neon deliberately do not
+                -- grant their owner role SUPERUSER. In that environment we can
+                -- validate an existing cluster-wide runtime role, but cannot
+                -- rewrite its privileged attributes.
+                RAISE EXCEPTION
+                    'portfyl_runtime has unsafe role attributes; harden it before migration';
             END IF;
             IF EXISTS (
                 SELECT 1

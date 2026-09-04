@@ -7,15 +7,17 @@ Sequencing (mirrors sqlite_to_postgres.py's dry-run/apply shape and
 docs/operations/sqlite-to-neon-migration.md's rehearse-before-apply
 discipline):
 
-    1. `alembic upgrade head` through 0004_*_expand -- adds the new nullable
-       ciphertext columns; old plaintext columns are untouched.
+    1. `alembic upgrade 0005_discord_webhook_expand` -- applies both expand
+       migrations and adds the new nullable ciphertext columns; old plaintext
+       columns are untouched. Do not upgrade to `head` yet on a non-empty
+       pre-encryption database.
     2. Run this script with `--dry-run` (the default) to see what it would
        encrypt, then `--apply` to actually write ciphertext.
     3. Confirm the reconciliation report shows zero remaining plaintext rows.
-    4. `alembic upgrade head` through 0005_*_contract -- makes the ciphertext
-       columns required and drops the old plaintext columns. This step is
-       destructive (plaintext is gone for good) and must not run before step
-       3 confirms every row was backfilled.
+    4. `alembic upgrade head` applies 0006/0007's contract migrations, makes
+       the ciphertext columns required, and drops the old plaintext columns.
+       This step is destructive (plaintext is gone for good) and must not run
+       before step 3 confirms every row was backfilled.
 
 This script talks to the plaintext columns via raw SQL (`text()`), never
 through the ORM `BrokerConnection` model -- the model only maps the

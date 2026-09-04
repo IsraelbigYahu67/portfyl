@@ -27,21 +27,61 @@ import os
 import uuid
 import zlib
 from contextlib import contextmanager
-from typing import Awaitable, Callable, Iterator
+from typing import Awaitable, Callable, Iterator, Mapping
 
 from fastapi import APIRouter, Header, HTTPException
 from google.auth.transport import requests as google_auth_requests
 from google.oauth2 import id_token as google_id_token
 from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy.engine import make_url
+from sqlalchemy.orm import Session, sessionmaker
 
-from database import SessionLocal
+from database import DatabaseSettings, SessionLocal, build_engine
 from logging_setup import correlation_id_var
 
 router = APIRouter(prefix="/internal/jobs", tags=["internal-jobs"], include_in_schema=False)
 log = logging.getLogger("portfyl.internal_jobs")
 
 _google_auth_request = google_auth_requests.Request()
+_job_session_factory = None
+
+
+def build_job_session_factory(env: Mapping[str, str]):
+    """Build scheduler sessions from a direct, non-pooled PostgreSQL URL.
+
+    Neon pooled endpoints use PgBouncer transaction pooling, which cannot
+    preserve this router's session-level advisory lock across commits inside
+    a job pass. Failing closed prevents silently ineffective cloud locking.
+    """
+    raw_url = env.get("JOB_DATABASE_URL", "").strip()
+    if not raw_url:
+        raise RuntimeError(
+            "JOB_DATABASE_URL is required for cloud scheduler jobs and must "
+            "be a direct PostgreSQL connection URL"
+        )
+    settings = DatabaseSettings.from_env({**env, "DATABASE_URL": raw_url})
+    hostname = (make_url(settings.url).host or "").casefold()
+    if "-pooler" in hostname:
+        raise RuntimeError(
+            "JOB_DATABASE_URL must use the direct Neon hostname, not a "
+            "transaction-pooled -pooler endpoint"
+        )
+    return sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=build_engine(settings),
+    )
+
+
+def _new_job_session() -> Session:
+    # Fast tests intentionally use the shared SQLite fixture. Production cloud
+    # invocations always take the fail-closed direct-Postgres branch below.
+    if os.environ.get("PORTFYL_TESTING") == "1":
+        return SessionLocal()
+    global _job_session_factory
+    if _job_session_factory is None:
+        _job_session_factory = build_job_session_factory(os.environ)
+    return _job_session_factory()
 
 
 def verify_scheduler_token(authorization: str | None) -> None:
@@ -107,7 +147,7 @@ def with_job_lock(db: Session, job_name: str) -> Iterator[bool]:
 
 async def _run_job(job_name: str, pass_fn: Callable[[Session], Awaitable[list]]) -> dict:
     token = correlation_id_var.set(f"job-{job_name}-{uuid.uuid4().hex[:8]}")
-    db = SessionLocal()
+    db = _new_job_session()
     try:
         with with_job_lock(db, job_name) as acquired:
             if not acquired:
