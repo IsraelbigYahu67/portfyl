@@ -1,10 +1,15 @@
 import logging
 import os
+import uuid
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+
+from logging_setup import configure_logging, correlation_id_var
+
+configure_logging()
 
 # yfinance logs "possibly delisted" / "no earnings dates found" at ERROR
 # level for tickers Yahoo simply lacks data for (newly-listed names like
@@ -56,6 +61,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def _stamp_correlation_id(request: Request, call_next):
+    """Every log line emitted while handling this request carries the same
+    id (logging_setup.RedactingFormatter's %(correlation_id)s), so a single
+    request's log lines can be grepped together without exposing anything
+    about the request itself."""
+    token = correlation_id_var.set(uuid.uuid4().hex[:12])
+    try:
+        return await call_next(request)
+    finally:
+        correlation_id_var.reset(token)
 
 
 app.include_router(auth_router.router, prefix="/api")
@@ -146,12 +164,14 @@ async def _periodic_loop(name: str, pass_fn, interval: int, initial_delay: int):
         try:
             await _asyncio.sleep(delay)
             delay = interval
+            token = correlation_id_var.set(f"job-{name}-{uuid.uuid4().hex[:8]}")
             db = SessionLocal()
             try:
                 happened = await pass_fn(db)
                 if happened:
                     logger.info("%s pass: %d event(s)", name, len(happened))
             finally:
+                correlation_id_var.reset(token)
                 db.close()
         except _asyncio.CancelledError:
             break
