@@ -36,15 +36,22 @@ def test_local_edition_registers_owner_only_routes(monkeypatch):
         assert client.get(path).status_code != 404
 
 
-def test_cloud_edition_omits_owner_only_routes_from_openapi_and_dispatch(monkeypatch):
+def test_cloud_edition_omits_owner_only_and_payment_routes(monkeypatch):
     try:
         main = _reload_main(monkeypatch, "cloud")
 
         assert LOCAL_ONLY_API_PATHS.isdisjoint(main.app.openapi()["paths"])
-        assert BILLING_API_PATHS <= set(main.app.openapi()["paths"])
+        assert BILLING_API_PATHS.isdisjoint(main.app.openapi()["paths"])
+        assert all(
+            not path.startswith("/api/billing/")
+            for path in main.app.openapi()["paths"]
+        )
         client = TestClient(main.app)
         for path in LOCAL_ONLY_API_PATHS:
             assert client.get(path).status_code == 404
+        for path in BILLING_API_PATHS:
+            method = client.post if path not in {"/api/billing/prices", "/api/billing/entitlements"} else client.get
+            assert method(path).status_code in (404, 405)
     finally:
         # Leave the process in the test suite's declared local edition so test
         # ordering cannot leak a cloud app into later imports.

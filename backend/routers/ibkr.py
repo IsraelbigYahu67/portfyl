@@ -10,12 +10,10 @@ import xml.etree.ElementTree as ET
 import os
 
 from audit import record_audit_event
-from billing_config import BillingConfig
 from database import get_db
 from entitlements import require_broker_capacity, require_capability, require_writable_broker
 from models import BrokerConnection, OptionsTrade, BrokerBalance, Portfolio
 from tenancy import RequestContext, require_csrf, require_portfolio
-from trials import activate_trial
 
 router = APIRouter(prefix="/broker/ibkr", tags=["ibkr"])
 
@@ -416,14 +414,6 @@ async def connect(
         "portfolio_id": str(portfolio.public_id),
         "message": "Connected to IBKR Flex Web Service",
     }
-    if isinstance(_context, RequestContext):
-        activate_trial(
-            db,
-            user=_context.user,
-            workspace=_context.workspace,
-            activation_kind="broker_connection",
-            config=BillingConfig.from_env(os.environ),
-        )
     db.commit()
     return result
 

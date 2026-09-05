@@ -12,7 +12,6 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from database import get_db
-from billing_config import BillingConfig
 from edition import edition_from_env
 from entitlements import (
     ensure_count_limit,
@@ -29,7 +28,6 @@ from routers.portfolios import require_portfolio
 from ticker_map import yf_symbol
 from cache import tenant_cache_key
 from tenancy import RequestContext, get_request_context
-from trials import activate_trial
 import market_data
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
@@ -653,14 +651,6 @@ async def import_csv(
                 connection.t212_csv_covered_through = t212_covered_through
         db.flush()
         imported = len(prepared)
-        if imported and isinstance(_context, RequestContext):
-            activate_trial(
-                db,
-                user=_context.user,
-                workspace=_context.workspace,
-                activation_kind="csv_import",
-                config=BillingConfig.from_env(os.environ),
-            )
         db.commit()
     except Exception as e:
         db.rollback()

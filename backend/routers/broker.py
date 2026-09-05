@@ -8,14 +8,12 @@ import os
 import yfinance as yf
 
 from audit import record_audit_event
-from billing_config import BillingConfig
 from database import get_db
 from entitlements import require_broker_capacity, require_capability, require_writable_broker
 from fx import bulk_fetch_fx
 from models import BrokerConnection, Portfolio, Transaction
 from tenancy import RequestContext, require_csrf, require_portfolio
 from cash_ledger import CASH_TYPES
-from trials import activate_trial
 
 router = APIRouter(prefix="/broker", tags=["broker"])
 
@@ -328,14 +326,6 @@ def connect(
         "portfolio_id": str(portfolio.public_id),
         "message": "Connected to Trading 212",
     }
-    if isinstance(_context, RequestContext):
-        activate_trial(
-            db,
-            user=_context.user,
-            workspace=_context.workspace,
-            activation_kind="broker_connection",
-            config=BillingConfig.from_env(os.environ),
-        )
     db.commit()
     return result
 

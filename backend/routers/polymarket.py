@@ -6,11 +6,9 @@ import re
 import os
 
 from database import get_db
-from billing_config import BillingConfig
 from entitlements import require_broker_capacity, require_capability, require_writable_broker
 from models import BrokerConnection, PolymarketPosition, Portfolio
 from tenancy import RequestContext, require_csrf, require_portfolio
-from trials import activate_trial
 
 router = APIRouter(tags=["polymarket"])
 
@@ -92,14 +90,6 @@ async def connect(
         "portfolio_id": str(portfolio.public_id),
         "message": "Connected to Polymarket",
     }
-    if isinstance(_context, RequestContext):
-        activate_trial(
-            db,
-            user=_context.user,
-            workspace=_context.workspace,
-            activation_kind="broker_connection",
-            config=BillingConfig.from_env(os.environ),
-        )
     db.commit()
     return result
 

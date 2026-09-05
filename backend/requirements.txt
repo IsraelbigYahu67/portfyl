@@ -15,4 +15,3 @@ psycopg[binary]>=3.2
 firebase-admin>=6.5
 cryptography>=43
 google-cloud-kms>=2.24
-stripe>=15.6.0,<16

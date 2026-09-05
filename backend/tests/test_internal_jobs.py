@@ -146,6 +146,7 @@ class TestEditionConditionalMounting:
             client = TestClient(main.app)
             response = client.post("/internal/jobs/alerts")
             assert response.status_code == 401  # exists, but unauthenticated
+            assert client.post("/internal/jobs/billing").status_code in (404, 405)
         finally:
             _reload_main(monkeypatch, "local")
 

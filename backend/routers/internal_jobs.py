@@ -188,11 +188,3 @@ async def run_dividends_job(authorization: str | None = Header(default=None)) ->
     from jobs import dividend_notify_all_workspaces
 
     return await _run_job("dividends", dividend_notify_all_workspaces)
-
-
-@router.post("/billing")
-async def run_billing_job(authorization: str | None = Header(default=None)) -> dict:
-    verify_scheduler_token(authorization)
-    from billing_jobs import billing_reconciliation_pass
-
-    return await _run_job("billing", billing_reconciliation_pass)
