@@ -112,7 +112,7 @@ export default function Pricing() {
             <div className="flex items-start justify-between gap-3">
               <h2 className="text-lg font-semibold">{plan.name}</h2>
               {plan.id === "free" && (
-                <span className="rounded-full border border-gain/30 bg-gain/10 px-2.5 py-1 text-xs font-semibold text-gain">
+                <span className="pt-1 text-xs font-medium text-muted">
                   Current plan
                 </span>
               )}

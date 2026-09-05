@@ -10,6 +10,9 @@ describe("Pricing", () => {
 
     expect(screen.getByRole("heading", { name: "Plans" })).toBeInTheDocument();
     expect(screen.getByText(/Paid plans are coming soon/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/All cloud workspaces currently use the Free plan\./i),
+    ).toBeInTheDocument();
     expect(screen.getByText("€4.99 / month")).toBeInTheDocument();
     expect(screen.getByText("or €49.00 annually")).toBeInTheDocument();
     expect(screen.getByText("€7.99 / month")).toBeInTheDocument();
