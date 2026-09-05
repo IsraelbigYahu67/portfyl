@@ -135,6 +135,25 @@ role-invariant assertions are not tautological: they prove
 over-privileged role rather than merely creating a safe one on a clean
 database.
 
+### Non-tenant infrastructure tables
+
+Not every table is workspace-scoped, and not every non-tenant table needs
+RLS. `job_runs` (recurring-job heartbeats) and `rate_limit_buckets`
+(fixed-window rate-limit counters,
+`docs/superpowers/specs/2026-09-05-portfyl-rate-limiting-design.md`) are
+process-wide infrastructure state, never keyed by workspace, and are
+deliberately excluded from `RLS_TABLES` (`tests/postgres/test_rls.py`) and
+`WORKSPACE_SCOPED_TABLES` (`tests/postgres/test_runtime_role.py`). Each
+grants `portfyl_runtime` exactly the privileges its access pattern needs:
+`job_runs` never deletes rows, so it has no DELETE grant; `rate_limit_buckets`
+is upserted by every request and deleted by its hourly cleanup job, so it
+has all four (`SELECT, INSERT, UPDATE, DELETE`).
+
+| Table | Grants | Test |
+| --- | --- | --- |
+| `job_runs` | `SELECT, INSERT, UPDATE` | absent from `RLS_TABLES`/`WORKSPACE_SCOPED_TABLES` by design (no dedicated grants test) |
+| `rate_limit_buckets` | `SELECT, INSERT, UPDATE, DELETE` | `test_runtime_role_has_exact_grants_on_rate_limit_buckets` (`tests/postgres/test_runtime_role.py`); absent from `RLS_TABLES`/`WORKSPACE_SCOPED_TABLES` by design |
+
 ## Adding a resource
 
 1. Add the literal row to `RESOURCE_CASES` (or the appropriate list) in
