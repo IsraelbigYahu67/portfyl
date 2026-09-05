@@ -43,4 +43,23 @@ describe("Pricing", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+
+  it("contains focus and restores it to the invoking CTA after closing", () => {
+    render(<Pricing />);
+
+    const invoker = screen.getByRole("button", { name: /Investor monthly.*coming soon/i });
+    fireEvent.click(invoker);
+
+    const closeButton = screen.getByRole("button", { name: "Close" });
+    const confirmationButton = screen.getByRole("button", { name: "Got it" });
+    confirmationButton.focus();
+    fireEvent.keyDown(window, { key: "Tab" });
+    expect(closeButton).toHaveFocus();
+
+    fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
+    expect(confirmationButton).toHaveFocus();
+
+    fireEvent.click(closeButton);
+    expect(invoker).toHaveFocus();
+  });
 });

@@ -35,19 +35,57 @@ function euro(cents) {
 export default function Pricing() {
   const [selected, setSelected] = useState(null);
   const closeButtonRef = useRef(null);
+  const dialogRef = useRef(null);
+  const invokerRef = useRef(null);
+
+  const closeDialog = () => setSelected(null);
+
+  const openDialog = (plan, interval, event) => {
+    invokerRef.current = event.currentTarget;
+    setSelected({ plan, interval });
+  };
 
   useEffect(() => {
-    if (!selected) return undefined;
+    if (!selected) {
+      invokerRef.current?.focus();
+      invokerRef.current = null;
+      return undefined;
+    }
+
     closeButtonRef.current?.focus();
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape") setSelected(null);
+    const keepFocusInDialog = (event) => {
+      if (event.key === "Escape") {
+        closeDialog();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = dialogRef.current?.querySelectorAll(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (!focusable?.length) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+    window.addEventListener("keydown", keepFocusInDialog);
+    return () => window.removeEventListener("keydown", keepFocusInDialog);
   }, [selected]);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <>
+    <div
+      className="max-w-5xl mx-auto space-y-6"
+      aria-hidden={selected ? "true" : undefined}
+      inert={selected ? "" : undefined}
+    >
       <div>
         <h1 className="text-2xl font-bold">Plans</h1>
         <p className="text-sm text-muted mt-1">
@@ -103,7 +141,7 @@ export default function Pricing() {
                     key={interval}
                     type="button"
                     aria-label={`${plan.name} ${label.toLowerCase()} — coming soon`}
-                    onClick={() => setSelected({ plan: plan.name, interval: label.toLowerCase() })}
+                    onClick={(event) => openDialog(plan.name, label.toLowerCase(), event)}
                     className="rounded-lg border border-surface-border bg-surface-card px-3 py-2 text-sm font-semibold text-text-primary hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                   >
                     {label}
@@ -120,14 +158,17 @@ export default function Pricing() {
         Variable-cost services are subject to the displayed fair-use quotas.
       </p>
 
+    </div>
+
       {selected && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setSelected(null);
+            if (event.target === event.currentTarget) closeDialog();
           }}
         >
           <section
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="payments-coming-soon-title"
@@ -146,7 +187,7 @@ export default function Pricing() {
                 ref={closeButtonRef}
                 type="button"
                 aria-label="Close"
-                onClick={() => setSelected(null)}
+                onClick={closeDialog}
                 className="rounded-lg p-2 text-muted hover:bg-white/5 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
                 <X size={18} aria-hidden="true" />
@@ -154,7 +195,7 @@ export default function Pricing() {
             </div>
             <button
               type="button"
-              onClick={() => setSelected(null)}
+              onClick={closeDialog}
               className="mt-6 w-full rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card"
             >
               Got it
@@ -162,6 +203,6 @@ export default function Pricing() {
           </section>
         </div>
       )}
-    </div>
+    </>
   );
 }
