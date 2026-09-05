@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from billing_config import PlanTier
+from plans import PlanTier
 from entitlements import EntitlementDenied, ensure_final_count_limit, resolve_entitlements
 from edition import Edition
 from models import Transaction

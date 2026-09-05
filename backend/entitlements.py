@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Callable
 from uuid import UUID
@@ -13,23 +13,15 @@ from sqlalchemy import func, select, text
 import uuid
 from sqlalchemy.orm import Session
 
-from billing_config import MINIMUM_PLAN, PlanLimits, PlanTier, plan_allows, plan_limits
+from plans import MINIMUM_PLAN, PlanLimits, PlanTier, plan_allows, plan_limits
 from database import get_db
 from edition import CAPABILITY_REGISTRY, CapabilityClass, Edition, edition_allows
-from models import Subscription, TrialGrant, UsageCounter, UsageReservation
+from models import UsageCounter, UsageReservation
 from tenancy import RequestContext, get_request_context
 
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
-
-
-def as_utc(value: datetime | None) -> datetime | None:
-    if value is None:
-        return None
-    if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
 
 
 @dataclass(frozen=True)
@@ -106,26 +98,6 @@ def _local_entitlements() -> EffectiveEntitlements:
     )
 
 
-def _paid_subscription(
-    db: Session,
-    workspace_id: UUID,
-    now: datetime,
-) -> tuple[Subscription, bool] | None:
-    rows = db.scalars(
-        select(Subscription)
-        .where(Subscription.workspace_id == workspace_id, Subscription.ended_at.is_(None))
-        .order_by(Subscription.updated_at.desc(), Subscription.created_at.desc())
-    ).all()
-    for row in rows:
-        period_end = as_utc(row.current_period_end)
-        if row.status in {"active", "trialing"} and (period_end is None or period_end > now):
-            return row, False
-        grace_end = as_utc(row.grace_ends_at)
-        if row.status == "past_due" and grace_end is not None and grace_end > now:
-            return row, True
-    return None
-
-
 def resolve_entitlements(
     db: Session,
     *,
@@ -136,52 +108,6 @@ def resolve_entitlements(
 ) -> EffectiveEntitlements:
     if edition is Edition.LOCAL:
         return _local_entitlements()
-
-    now = as_utc(now or utcnow())
-    assert now is not None
-    paid = _paid_subscription(db, workspace_id, now)
-    if paid:
-        subscription, in_grace = paid
-        try:
-            tier = PlanTier(subscription.plan)
-        except ValueError:
-            tier = PlanTier.FREE
-        if tier is not PlanTier.FREE:
-            capabilities = tuple(
-                key for key in CAPABILITY_REGISTRY
-                if edition_allows(edition, key) and key in MINIMUM_PLAN and plan_allows(tier, key)
-            )
-            return EffectiveEntitlements(
-                plan=tier,
-                source="subscription",
-                effective_until=as_utc(subscription.grace_ends_at if in_grace else subscription.current_period_end),
-                in_grace=in_grace,
-                cancel_at_period_end=bool(subscription.cancel_at_period_end),
-                capabilities=capabilities,
-                limits=plan_limits(env)[tier],
-            )
-
-    trial = db.scalar(
-        select(TrialGrant).where(
-            TrialGrant.workspace_id == workspace_id,
-            TrialGrant.ends_at > now,
-        )
-    )
-    if trial is not None:
-        tier = PlanTier.PRO
-        capabilities = tuple(
-            key for key in CAPABILITY_REGISTRY
-            if edition_allows(edition, key) and key in MINIMUM_PLAN and plan_allows(tier, key)
-        )
-        return EffectiveEntitlements(
-            plan=tier,
-            source="trial",
-            effective_until=as_utc(trial.ends_at),
-            in_grace=False,
-            cancel_at_period_end=False,
-            capabilities=capabilities,
-            limits=replace(plan_limits(env)[tier], hosted_ai_monthly=15),
-        )
 
     tier = PlanTier.FREE
     capabilities = tuple(

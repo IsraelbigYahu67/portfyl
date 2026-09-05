@@ -5,11 +5,11 @@ from typing import Optional
 from collections import defaultdict
 import httpx
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Annotated
 
 from audit import record_audit_event
-from billing_config import PlanTier
+from plans import PlanTier
 from database import get_db
 from models import Transaction, Portfolio
 from routers.portfolios import require_portfolio
@@ -323,19 +323,13 @@ async def chat(
         if not key or len(key) > 255:
             raise HTTPException(status_code=400, detail={"code": "idempotency_key_required"})
         now = datetime.now(timezone.utc)
-        if _entitlements.source == "trial":
-            metric = "hosted_ai_trial"
-            limit = 15
-            period_end = _entitlements.effective_until
-            period_start = period_end - timedelta(days=7)
+        metric = "hosted_ai_monthly"
+        limit = _entitlements.limits.hosted_ai_monthly
+        period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if period_start.month == 12:
+            period_end = period_start.replace(year=period_start.year + 1, month=1)
         else:
-            metric = "hosted_ai_monthly"
-            limit = _entitlements.limits.hosted_ai_monthly
-            period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            if period_start.month == 12:
-                period_end = period_start.replace(year=period_start.year + 1, month=1)
-            else:
-                period_end = period_start.replace(month=period_start.month + 1)
+            period_end = period_start.replace(month=period_start.month + 1)
         usage_reservation = reserve_usage(
             db,
             workspace_id=request_context.workspace.id,
