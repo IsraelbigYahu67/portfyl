@@ -36,7 +36,7 @@ export const api = axios.create({ baseURL: "/api" });
 
 // Endpoints that are NOT portfolio-scoped — these must not receive portfolio_id
 // or they'd 404 / mis-route.
-const PORTFOLIO_AGNOSTIC_PREFIXES = ["/portfolios", "/market", "/watchlists", "/settings", "/auth", "/capabilities", "/billing"];
+const PORTFOLIO_AGNOSTIC_PREFIXES = ["/portfolios", "/market", "/watchlists", "/settings", "/auth", "/capabilities"];
 
 function isPortfolioAgnostic(url) {
   if (!url) return false;
@@ -115,18 +115,6 @@ export const exchangeSession = (idToken) =>
 export const logoutSession = () => api.post("/auth/logout").then((r) => r.data);
 export const logoutAllSessions = () => api.post("/auth/logout-all").then((r) => r.data);
 export const fetchCapabilities = () => api.get("/capabilities").then((r) => r.data);
-
-// ----- Cloud billing (cloud edition manifest is the only UI importer) -------
-
-export const fetchBillingPrices = () => api.get("/billing/prices").then((r) => r.data);
-export const fetchEntitlements = () => api.get("/billing/entitlements").then((r) => r.data);
-export const createCheckout = (plan, interval) =>
-  api.post(
-    "/billing/checkout",
-    { plan, interval },
-    { headers: { "Idempotency-Key": crypto.randomUUID() } },
-  ).then((r) => r.data);
-export const createBillingPortal = () => api.post("/billing/portal").then((r) => r.data);
 
 // ----- Portfolios CRUD (not portfolio-scoped) ---------------------------------
 

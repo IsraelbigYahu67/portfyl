@@ -31,11 +31,12 @@ describe("edition build configuration", () => {
 });
 
 describe("edition manifests", () => {
-  it("keeps owner-only tools local and billing cloud-only", () => {
+  it("keeps owner-only tools local and plan comparison cloud-only", () => {
     expect(LOCAL_ROUTES.map((entry) => entry.path)).toEqual(["/tax-report", "/screener"]);
     expect(LOCAL_NAVIGATION.map((entry) => entry.to)).toEqual(["/tax-report", "/screener"]);
     expect(CLOUD_ROUTES.map((entry) => entry.path)).toEqual(["/pricing"]);
     expect(CLOUD_NAVIGATION.map((entry) => entry.to)).toEqual(["/pricing"]);
+    expect(CLOUD_NAVIGATION.map((entry) => entry.label)).toEqual(["Plans"]);
     expect(CLOUD_ROUTES.some((entry) => ["/tax-report", "/screener"].includes(entry.path))).toBe(false);
   });
 

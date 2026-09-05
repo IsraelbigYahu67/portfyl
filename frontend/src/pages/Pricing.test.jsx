@@ -1,45 +1,46 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 
 import Pricing from "./Pricing";
 
 
-vi.mock("../api", () => ({
-  fetchBillingPrices: () => Promise.resolve({
-    prices: [
-      { plan: "investor", interval: "month", amount_cents: 499 },
-      { plan: "investor", interval: "year", amount_cents: 4900 },
-      { plan: "pro", interval: "month", amount_cents: 799 },
-      { plan: "pro", interval: "year", amount_cents: 7900 },
-    ],
-  }),
-  fetchEntitlements: () => Promise.resolve({
-    plan: "pro",
-    source: "trial",
-    effective_until: "2026-09-11T12:00:00+00:00",
-    usage: { hosted_ai_trial: { used: 5, limit: 15, remaining: 10 } },
-  }),
-  createCheckout: vi.fn(),
-  createBillingPortal: vi.fn(),
-}));
-
-
 describe("Pricing", () => {
-  it("shows trial usage and keeps Checkout success pending until reconciliation", async () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <MemoryRouter initialEntries={["/pricing?billing=success"]}>
-        <QueryClientProvider client={queryClient}>
-          <Pricing />
-        </QueryClientProvider>
-      </MemoryRouter>,
-    );
-    expect(await screen.findByText(/Current access:/i)).toHaveTextContent("pro");
-    expect(screen.getByText(/Plan access is pending signed Stripe reconciliation/i)).toBeInTheDocument();
-    expect(screen.getByText(/Hosted AI remaining in trial: 10 of 15/i)).toBeInTheDocument();
-    expect(screen.queryByText(/Tax Report|Screener/i)).not.toBeInTheDocument();
-    queryClient.clear();
+  it("shows the static plan catalogue and discloses that payments are coming soon", () => {
+    render(<Pricing />);
+
+    expect(screen.getByRole("heading", { name: "Plans" })).toBeInTheDocument();
+    expect(screen.getByText(/Paid plans are coming soon/i)).toBeInTheDocument();
+    expect(screen.getByText("€4.99 / month")).toBeInTheDocument();
+    expect(screen.getByText("or €49.00 annually")).toBeInTheDocument();
+    expect(screen.getByText("€7.99 / month")).toBeInTheDocument();
+    expect(screen.getByText("or €79.00 annually")).toBeInTheDocument();
+    expect(screen.queryByText(/Manage billing|trial|Stripe/i)).not.toBeInTheDocument();
+  });
+
+  it("opens and closes an informational dialog instead of starting checkout", () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    render(<Pricing />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Investor monthly.*coming soon/i }));
+
+    const dialog = screen.getByRole("dialog", { name: "Payments are coming soon" });
+    expect(dialog).toHaveTextContent("Payments are not available yet");
+    expect(dialog).toHaveTextContent("Investor");
+    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fetchSpy.mockRestore();
+  });
+
+  it("provides an explicit close control for the dialog", () => {
+    render(<Pricing />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Pro annual.*coming soon/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
