@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
-from billing_jobs import _enqueue_billing_lifecycle
-from models import NotificationOutbox, Subscription
+from models import NotificationOutbox
 from notifications import deliver_notification_outbox
 
 
@@ -22,9 +21,9 @@ def test_outbox_sends_once_without_portfolio_data(db_session, test_user, test_wo
     row = NotificationOutbox(
         workspace_id=test_workspace.id,
         user_id=test_user.id,
-        kind="trial_day_three",
-        deduplication_key="trial:1:day:3",
-        payload={"trial_ends_at": "2026-09-11T00:00:00Z"},
+        kind="account_notice",
+        deduplication_key="account:1:notice",
+        payload={"message": "Your account is ready"},
     )
     db_session.add(row)
     db_session.flush()
@@ -33,7 +32,7 @@ def test_outbox_sends_once_without_portfolio_data(db_session, test_user, test_wo
         db_session, workspace_id=test_workspace.id, transport=transport,
         now=datetime(2026, 9, 7, tzinfo=timezone.utc),
     )
-    assert result == [{"kind": "trial_day_three", "status": "sent"}]
+    assert result == [{"kind": "account_notice", "status": "sent"}]
     assert transport.sent[0]["recipient"] == test_user.email
     assert row.status == "sent"
 
@@ -42,8 +41,8 @@ def test_outbox_failure_is_bounded_and_redacted(db_session, test_user, test_work
     row = NotificationOutbox(
         workspace_id=test_workspace.id,
         user_id=test_user.id,
-        kind="payment_failed",
-        deduplication_key="invoice:1:failed",
+        kind="account_notice",
+        deduplication_key="account:1:failed-notice",
         payload={},
     )
     db_session.add(row)
@@ -55,41 +54,3 @@ def test_outbox_failure_is_bounded_and_redacted(db_session, test_user, test_work
     )
     assert row.status == "failed"
     assert row.last_error == "ConnectionError"
-
-
-def test_billing_lifecycle_intents_are_deduplicated(
-    db_session, test_user, test_workspace, test_membership
-):
-    now = datetime(2026, 9, 20, tzinfo=timezone.utc)
-    subscription = Subscription(
-        workspace_id=test_workspace.id,
-        stripe_subscription_id="sub_notice",
-        stripe_price_id="price_pro_v1",
-        plan="pro",
-        billing_interval="month",
-        price_version="v1",
-        status="past_due",
-        current_period_start=now - timedelta(days=30),
-        current_period_end=now - timedelta(days=1),
-        cancel_at_period_end=True,
-        payment_failed_at=now - timedelta(days=15),
-        grace_ends_at=now - timedelta(days=1),
-    )
-    db_session.add(subscription)
-    db_session.flush()
-    assert _enqueue_billing_lifecycle(
-        db_session,
-        workspace_id=test_workspace.id,
-        subscription=subscription,
-        now=now,
-    ) == 3
-    db_session.flush()
-    assert _enqueue_billing_lifecycle(
-        db_session,
-        workspace_id=test_workspace.id,
-        subscription=subscription,
-        now=now,
-    ) == 0
-    assert {row.kind for row in db_session.query(NotificationOutbox).all()} == {
-        "payment_failed", "subscription_cancel_scheduled", "grace_expired",
-    }

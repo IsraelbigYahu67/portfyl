@@ -62,10 +62,6 @@ TENANT_RLS_TABLES: tuple[str, ...] = (
     "benchmarks",
     "benchmark_components",
     "audit_logs",
-    "billing_customers",
-    "subscriptions",
-    "trial_grants",
-    "billing_actions",
     "usage_counters",
     "usage_reservations",
     "notification_outbox",
@@ -77,7 +73,6 @@ ALL_TABLES: tuple[str, ...] = (
     "users",
     "auth_sessions",
     "job_runs",
-    "stripe_events",
 ) + TENANT_RLS_TABLES
 
 

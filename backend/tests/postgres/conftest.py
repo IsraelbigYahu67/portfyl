@@ -147,8 +147,6 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
     from auth import create_session
     from models import (
         Benchmark,
-        BillingAction,
-        BillingCustomer,
         BrokerBalance,
         BrokerConnection,
         CashInterestRate,
@@ -159,10 +157,8 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
         PolymarketPosition,
         Portfolio,
         PriceAlert,
-        Subscription,
         TradeNote,
         Transaction,
-        TrialGrant,
         User,
         UserSetting,
         UsageCounter,
@@ -272,29 +268,7 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
     db.flush()
     set_user_secret(db, user.id, "deepseek_api_key", f"{label}-secret-key")
 
-    billing_customer = BillingCustomer(
-        workspace_id=workspace.id, stripe_customer_id=f"cus_{label}_{uuid4().hex}",
-    )
     now = datetime(2026, 9, 4, tzinfo=timezone.utc)
-    subscription = Subscription(
-        workspace_id=workspace.id,
-        stripe_subscription_id=f"sub_{label}_{uuid4().hex}",
-        stripe_price_id=f"price_{label}",
-        plan="investor",
-        billing_interval="month",
-        price_version="v1",
-        status="active",
-        current_period_start=now,
-        current_period_end=now + timedelta(days=30),
-    )
-    trial = TrialGrant(
-        workspace_id=workspace.id,
-        activated_by_user_id=user.id,
-        identity_fingerprint=(label[0] * 64),
-        activation_kind="csv_import",
-        started_at=now,
-        ends_at=now + timedelta(days=7),
-    )
     usage = UsageCounter(
         workspace_id=workspace.id,
         metric="hosted_ai_monthly",
@@ -314,22 +288,12 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
         finalized_at=now,
     )
     db.add_all([
-        billing_customer,
-        subscription,
-        trial,
-        BillingAction(
-            workspace_id=workspace.id,
-            actor_user_id=user.id,
-            idempotency_key=f"{label}-checkout",
-            action="checkout.create",
-            request_fingerprint=(label[-1] * 64),
-        ),
         reservation,
         NotificationOutbox(
             workspace_id=workspace.id,
             user_id=user.id,
-            kind="trial_activated",
-            deduplication_key=f"trial:{label}:activated",
+            kind="account_notice",
+            deduplication_key=f"account:{label}:notice",
             payload={},
         ),
     ])
