@@ -4,8 +4,8 @@ Portfolio analytics for a Trading 212 / IBKR investor. Import broker CSVs (or
 sync via API), then view performance, allocation, dividends, options, tax
 reports, and an AI assistant across one or more portfolios. Now multi-tenant
 (Firebase-verified identities, workspace-scoped PostgreSQL data) —
-**a multi-user SaaS conversion is in progress**, with tenant isolation done
-and billing/edition-boundary/onboarding still ahead; see below.
+**a multi-user SaaS conversion is in progress**, with tenant isolation and the
+edition boundary done, while paid checkout and onboarding remain deferred; see below.
 (Formerly "Snowball Analytics" — some internal identifiers still carry the
 `sb_` prefix for backwards compatibility; see the naming notes below.)
 
@@ -19,8 +19,10 @@ before starting any auth, tenancy, database, or billing work.
 
 - `PORTFYL_EDITION=local` — the owner's private instance. Keeps Tax Report and
   Screener. No billing.
-- `PORTFYL_EDITION=cloud` — multi-tenant paid SaaS (Free / Investor EUR 4.99 /
-  Pro EUR 7.99 plans, Stripe billing, 7-day no-card Pro trial). Tax Report and
+- `PORTFYL_EDITION=cloud` — multi-tenant SaaS with Free / Investor EUR 4.99 /
+  Pro EUR 7.99 plans. Paid checkout and trials are not active; the pricing page
+  is comparison-only and cloud workspaces currently resolve to Free. Paddle is
+  the likely future payment provider but is not implemented. Tax Report and
   Screener are **permanently excluded from cloud** — not deferred, a deliberate
   product decision (see plan §2, §7, §12).
 - **Workstreams B (PostgreSQL/Alembic foundation), C (Firebase identity,
@@ -36,7 +38,7 @@ before starting any auth, tenancy, database, or billing work.
   **Everything in the rest of this file now describes
   that implemented state**, not the old single-user SQLite one. What's
   **still pending**: Workstream A's external product/data validation and
-  commercial market-data rights, Stripe billing, and onboarding. Don't
+  commercial market-data rights, a future paid checkout, and onboarding. Don't
   reintroduce single-user/`owner_id="default"`/SQLite-primary
   assumptions anywhere in this codebase — that state is gone, not deferred.
 - Deploy stack for the cloud edition: **Google Cloud Run + Neon (managed

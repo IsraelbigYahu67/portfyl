@@ -1,5 +1,14 @@
 # Portfyl SaaS & Monetization Master Plan
 
+> **Payment update (2026-09-05):** Paid checkout and automatic trials are
+> deferred. The locally implemented Stripe runtime was retired before it was
+> enabled; cloud workspaces currently resolve to Free and the pricing page is
+> comparison-only. Paddle is the likely future provider, but no provider is
+> implemented or committed yet. Every instruction or checklist item below that
+> concerns Stripe, checkout, subscriptions, billing recovery, or automatic
+> trials is superseded and must not be executed. Those sections are retained as
+> historical design context; the remaining non-payment work stays active.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > `superpowers:subagent-driven-development` (recommended) or
 > `superpowers:executing-plans` to implement this plan task-by-task. Steps use
@@ -400,6 +409,10 @@ The broker is a data source, not the identity of the whole application.
 
 ## 6. Trial and subscription lifecycle
 
+> **Superseded historical design:** This entire section describes the retired
+> Stripe and automatic-trial approach. It is preserved for decision history,
+> not as current product or implementation guidance.
+
 ### Trial policy
 
 - [ ] Offer full Pro for seven days without a payment card.
@@ -673,23 +686,22 @@ Likely touchpoints:
 Deliverable: encrypted credentials, stateless web instances, idempotent
 external jobs, redacted monitoring, and incident-ready operations.
 
-### Workstream E: billing, trial, and entitlements
+### Workstream E: plans and entitlements without payments
 
-> Task-level plan approved and locally implemented 2026-09-04; Stripe sandbox
-> and scratch-cloud rehearsals remain before completion:
-> `docs/superpowers/plans/2026-09-04-portfyl-billing-entitlements.md`.
+> The 2026-09-04 payment implementation was superseded on 2026-09-05. Current
+> design and implementation plan:
+> `docs/superpowers/specs/2026-09-05-portfyl-plans-without-payments-design.md`
+> and `docs/superpowers/plans/2026-09-05-portfyl-plans-without-payments.md`.
 
 Likely touchpoints:
 
-- new subscription/price/webhook/usage models;
-- Stripe service and webhook router;
+- provider-neutral plan/usage models;
 - backend entitlement dependency/service;
-- frontend pricing, checkout, portal, and upgrade surfaces;
-- transactional trial/billing e-mails;
-- webhook replay and quota tests.
+- frontend pricing comparison and upgrade surfaces;
+- quota and plan-enforcement tests.
 
-Deliverable: monthly/annual subscriptions, no-card Pro trial, reliable
-downgrade, immutable founder prices, and backend-enforced quotas.
+Deliverable: visible monthly/annual plan comparison, deterministic Free cloud
+access, and backend-enforced quotas, with no payment or trial runtime.
 
 ### Workstream F: onboarding and paid product packaging
 
@@ -744,6 +756,10 @@ successfully. Cloud OpenAPI, navigation, and direct URL tests contain neither
 Tax Report nor Screener, while both remain usable in the private local build.
 
 ### Phase 2: monetization and onboarding — estimated 3-4 weeks
+
+> **Superseded payment scope:** The Stripe/trial and billing-recovery items in
+> this phase are no longer active. Onboarding remains deferred; a separate,
+> approved plan is required before implementing any future paid checkout.
 
 - [ ] Complete Workstream E: Stripe, trial, entitlements, and quotas.
 - [ ] Build unified onboarding and demo/import activation.

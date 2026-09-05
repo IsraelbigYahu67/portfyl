@@ -1,8 +1,19 @@
 # Portfyl Workstream E: Billing, Trial, Entitlements, and Quotas
 
-> **Status:** Approved and implemented locally 2026-09-04. The Stripe sandbox
-> and scratch Cloud Run/Neon rehearsals remain required before this workstream
-> can be marked complete or billing can be enabled.
+> **Superseded 2026-09-05:** This document records a Stripe implementation that
+> was retired before activation. Stripe runtime, automatic trials, payment
+> routes, and payment persistence are no longer part of Portfyl. Current design:
+> `docs/superpowers/specs/2026-09-05-portfyl-plans-without-payments-design.md`.
+> The remainder is retained as historical engineering context, not a to-do list.
+
+> **Historical status as of 2026-09-05:** Approved and implemented locally
+> 2026-09-04. Automated suites and
+> the scratch Cloud Run/Neon scheduler rehearsal passed 2026-09-05 after fixing
+> billing heartbeat registration. The cloud rehearsal used billing disabled;
+> real Stripe sandbox lifecycle/reconciliation verification was still required
+> at that point. This gate was subsequently canceled when the implementation
+> was retired; billing was never enabled.
+> Evidence: `docs/operations/billing-verification-2026-09-05.md`.
 >
 > **Parent specification:**
 > `docs/superpowers/plans/2026-09-01-portfyl-saas-monetization.md`, especially
@@ -563,16 +574,18 @@ Still external and therefore deliberately not represented as complete:
 - [ ] Test deduplicated notification scheduling, retries, terminal failure,
   no-secret payload/log behavior, and safe operation with no production e-mail
   transport selected.
-- [ ] Run the complete fast backend suite with zero unexpected skips.
-- [ ] Run the complete disposable-PostgreSQL suite, including RLS, replay,
+- [x] Run the complete fast backend suite with zero unexpected skips.
+- [x] Run the complete disposable-PostgreSQL suite, including RLS, replay,
   quota concurrency, and migration downgrade/upgrade.
-- [ ] Run all frontend tests plus local and cloud builds.
+- [x] Run all frontend tests plus local and cloud builds.
 - [ ] Use a Stripe sandbox, Stripe CLI webhook forwarding, and test clocks to
   verify Checkout, paid activation, monthly/annual plans, duplicate/reversed
   events, portal change, failed payment, recovery inside grace, grace expiry,
   cancellation, and resubscription to a new price generation.
-- [ ] Rehearse the cloud `billing` scheduler endpoint with OIDC and advisory-lock
+- [x] Rehearse the cloud `billing` scheduler endpoint with OIDC and advisory-lock
   contention against a non-production Cloud Run + disposable Neon deployment.
+  Passed 2026-09-05 with billing disabled; enabled Stripe reconciliation remains
+  in the outstanding sandbox gate above.
 - [ ] Confirm logs contain no Stripe API key, webhook secret/signature, hosted
   session URL, customer e-mail/address, card data, or full webhook payload.
 - [ ] Record exact test counts and external rehearsal evidence.

@@ -7,7 +7,7 @@ never runs during application startup.
 ## Safety requirements
 
 - Use a copy of `portfyl.db`; never point the importer at the live file.
-- The target must be at Alembic head `0010_billing_entitlements` and contain no users or
+- The target must be at Alembic head `0011_remove_payment_runtime` and contain no users or
   tenant workspaces. System benchmark presets are expected.
 - Use the migration-owner connection URL. It must be a schema owner/admin role
   with `BYPASSRLS`; never use Portfyl's pooled runtime URL.
