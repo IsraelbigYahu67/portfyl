@@ -8,10 +8,20 @@ reference at import time and breaks test monkeypatching of these globals.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
+import ipaddress
+import math
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Mapping
 
+from fastapi import Request
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+
+from database import SessionLocal
 from edition import Edition, edition_from_env
 
 _RULE_ENV_VARS: dict[str, tuple[str, str]] = {
@@ -78,3 +88,100 @@ RATE_LIMIT_RULES: dict[str, RateLimitRule] = (
 KEY_SECRET: bytes | None = (
     load_key_secret(os.environ) if edition_from_env(os.environ) is Edition.CLOUD else None
 )
+
+
+_MAX_IP_TEXT_LENGTH = 45  # longest valid IPv6 textual form, e.g. an IPv4-mapped address
+_CF_CONNECTING_IP_HEADER = "CF-Connecting-IP"
+
+
+class InvalidClientIp(Exception):
+    pass
+
+
+class RateLimitExceeded(Exception):
+    def __init__(self, rule_name: str, retry_after_seconds: int):
+        super().__init__(f"{rule_name}: retry after {retry_after_seconds}s")
+        self.rule_name = rule_name
+        self.retry_after_seconds = retry_after_seconds
+
+
+class RateLimitUnavailable(Exception):
+    def __init__(self, rule_name: str, original_exception_type: str):
+        super().__init__(f"{rule_name}: {original_exception_type}")
+        self.rule_name = rule_name
+        self.original_exception_type = original_exception_type
+
+
+def client_ip(request: Request) -> str:
+    """Validate and canonicalize the trusted CF-Connecting-IP value. Callers
+    must only trust this after edge_trust.verify_edge_token has already
+    succeeded for this request."""
+    values = request.headers.getlist(_CF_CONNECTING_IP_HEADER)
+    if len(values) != 1:
+        raise InvalidClientIp()
+    raw = values[0].strip()
+    if not raw or len(raw) > _MAX_IP_TEXT_LENGTH:
+        raise InvalidClientIp()
+    try:
+        return str(ipaddress.ip_address(raw))
+    except ValueError as exc:
+        raise InvalidClientIp() from exc
+
+
+_BUCKET_KEY_VERSION = "1"
+
+
+def _encode_field(value: str) -> bytes:
+    data = value.encode("utf-8")
+    return len(data).to_bytes(4, "big") + data
+
+
+def _bucket_key(*, rule_name: str, identity: str, window_index: int) -> str:
+    message = b"".join(
+        _encode_field(field)
+        for field in (_BUCKET_KEY_VERSION, rule_name, identity, str(window_index))
+    )
+    return hmac.new(KEY_SECRET, message, hashlib.sha256).hexdigest()
+
+
+_UPSERT_SQL = text(
+    """
+    INSERT INTO rate_limit_buckets (key, count, expires_at)
+    VALUES (:key, 1, :expires_at)
+    ON CONFLICT (key) DO UPDATE
+      SET count = CASE
+        WHEN rate_limit_buckets.count < :limit_plus_one
+          THEN rate_limit_buckets.count + 1
+        ELSE rate_limit_buckets.count
+      END
+    RETURNING count
+    """
+)
+
+
+def consume_rate_limit(*, rule: RateLimitRule, identity: str, now: datetime | None = None) -> None:
+    """Hash the bucket identity, perform and commit one isolated upsert on a
+    brand-new SessionLocal(), then raise if the committed count exceeds the
+    rule's limit. Never touches a route's own DB session."""
+    captured_now = now or datetime.now(timezone.utc)
+    window_index = int(captured_now.timestamp() // rule.window_seconds)
+    expires_at = datetime.fromtimestamp((window_index + 1) * rule.window_seconds, tz=timezone.utc)
+    key = _bucket_key(rule_name=rule.name, identity=identity, window_index=window_index)
+
+    session = SessionLocal()
+    try:
+        try:
+            count = session.execute(
+                _UPSERT_SQL,
+                {"key": key, "expires_at": expires_at, "limit_plus_one": rule.limit + 1},
+            ).scalar_one()
+            session.commit()
+        except SQLAlchemyError as exc:
+            session.rollback()
+            raise RateLimitUnavailable(rule.name, type(exc).__name__) from exc
+    finally:
+        session.close()
+
+    if count > rule.limit:
+        retry_after = max(1, math.ceil((expires_at - captured_now).total_seconds()))
+        raise RateLimitExceeded(rule.name, retry_after)
