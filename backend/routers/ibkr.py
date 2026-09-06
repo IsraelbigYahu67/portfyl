@@ -12,6 +12,7 @@ import os
 from audit import record_audit_event
 from database import get_db
 from entitlements import require_broker_capacity, require_capability, require_writable_broker
+from rate_limit import rate_limit
 from models import BrokerConnection, OptionsTrade, BrokerBalance, Portfolio
 from tenancy import RequestContext, require_csrf, require_portfolio
 
@@ -690,7 +691,7 @@ async def _run_ibkr_sync(
     }
 
 
-@router.post("/sync", dependencies=[Depends(require_capability("broker_sync")), Depends(require_writable_broker("ibkr"))])
+@router.post("/sync", dependencies=[Depends(require_capability("broker_sync")), Depends(require_writable_broker("ibkr")), Depends(rate_limit("broker_sync", by="workspace"))])
 async def sync_trades(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),

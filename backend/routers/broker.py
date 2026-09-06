@@ -10,6 +10,7 @@ import yfinance as yf
 from audit import record_audit_event
 from database import get_db
 from entitlements import require_broker_capacity, require_capability, require_writable_broker
+from rate_limit import rate_limit
 from fx import bulk_fetch_fx
 from models import BrokerConnection, Portfolio, Transaction
 from tenancy import RequestContext, require_csrf, require_portfolio
@@ -377,7 +378,7 @@ def disconnect(
     return {"ok": True, "message": "Disconnected from Trading 212"}
 
 
-@router.post("/trading212/sync", dependencies=[Depends(require_capability("broker_sync")), Depends(require_writable_broker("trading212"))])
+@router.post("/trading212/sync", dependencies=[Depends(require_capability("broker_sync")), Depends(require_writable_broker("trading212")), Depends(rate_limit("broker_sync", by="workspace"))])
 def sync_transactions(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),

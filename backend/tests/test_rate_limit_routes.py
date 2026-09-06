@@ -92,3 +92,102 @@ class TestAuthSessionRateLimit:
         for _ in range(5):
             response = client.post("/api/auth/session", json={"id_token": "x"}, headers=headers)
             assert response.status_code == 401
+
+
+class TestBrokerSyncRateLimit:
+    """All three sync routes 404 immediately with no seeded BrokerConnection
+    row -- so hitting them with none seeded proves the limiter runs (and
+    commits) even though the route itself never gets past its own
+    "not connected" check, exactly matching the spec's "the request counts
+    even if the downstream provider fails" requirement.
+
+    Every cloud workspace currently resolves to the FREE plan (no billing
+    runtime -- see CLAUDE.md), and broker_sync requires PlanTier.INVESTOR
+    (plans.py's MINIMUM_PLAN), so require_capability("broker_sync") would
+    otherwise 403 before the limiter ever runs on every one of these routes.
+    Bypass it the same way Task 10 does, by no-opping
+    entitlements.ensure_capability."""
+
+    def _app(self, router_module, prefix: str, db_session, request_context) -> FastAPI:
+        app = _rate_limited_app(cloud=True)
+        app.include_router(router_module.router, prefix=prefix)
+        app.dependency_overrides[get_db] = lambda: db_session
+        app.dependency_overrides[get_request_context] = lambda: request_context
+        app.dependency_overrides[require_csrf] = lambda: request_context
+        return app
+
+    def _assert_second_call_is_429(self, app, path, monkeypatch, db_session):
+        import entitlements
+
+        monkeypatch.setattr(entitlements, "ensure_capability", lambda *a, **k: None)
+        monkeypatch.setattr(
+            rate_limit, "RATE_LIMIT_RULES",
+            {"broker_sync": RateLimitRule(name="broker_sync", limit=1, window_seconds=60)},
+        )
+        monkeypatch.setattr(rate_limit, "KEY_SECRET", b"test-key-secret")
+        monkeypatch.setattr(rate_limit, "SessionLocal", lambda: db_session)
+        # consume_rate_limit() commits+closes this same db_session (routed here
+        # only because the "workspace" identity needs a real DB for the
+        # rate_limit_buckets table); a real request never shares a session this
+        # way, but in-test it does, and a commit's default expire-on-commit
+        # would otherwise expire every already-loaded fixture object (e.g.
+        # request_context.workspace) before require_portfolio reads
+        # context.workspace.id, and close() then leaves them detached ->
+        # DetachedInstanceError instead of the route's own 404.
+        db_session.expire_on_commit = False
+
+        with TestClient(app) as client:
+            first = client.post(path)
+            second = client.post(path)
+
+        assert first.status_code == 404  # "not connected" -- past the limiter
+        assert second.status_code == 429
+        assert second.json() == {"code": "rate_limit_exceeded", "rule": "broker_sync"}
+
+    def test_trading212_sync_second_call_is_429(self, monkeypatch, db_session, request_context, default_portfolio):
+        from routers import broker
+
+        app = self._app(broker, "/api", db_session, request_context)
+        self._assert_second_call_is_429(app, "/api/broker/trading212/sync", monkeypatch, db_session)
+
+    def test_ibkr_sync_second_call_is_429(self, monkeypatch, db_session, request_context, default_portfolio):
+        from routers import ibkr
+
+        app = self._app(ibkr, "/api", db_session, request_context)
+        self._assert_second_call_is_429(app, "/api/broker/ibkr/sync", monkeypatch, db_session)
+
+    def test_polymarket_sync_second_call_is_429(self, monkeypatch, db_session, request_context, default_portfolio):
+        from routers import polymarket
+
+        app = self._app(polymarket, "/api", db_session, request_context)
+        self._assert_second_call_is_429(app, "/api/broker/polymarket/sync", monkeypatch, db_session)
+
+    def test_trading212_and_ibkr_share_one_workspace_bucket(self, monkeypatch, db_session, request_context, default_portfolio):
+        from routers import broker, ibkr
+        import entitlements
+
+        monkeypatch.setattr(entitlements, "ensure_capability", lambda *a, **k: None)
+        monkeypatch.setattr(
+            rate_limit, "RATE_LIMIT_RULES",
+            {"broker_sync": RateLimitRule(name="broker_sync", limit=1, window_seconds=60)},
+        )
+        monkeypatch.setattr(rate_limit, "KEY_SECRET", b"test-key-secret")
+        monkeypatch.setattr(rate_limit, "SessionLocal", lambda: db_session)
+        # See _assert_second_call_is_429's comment: same shared-session commit
+        # would otherwise detach request_context.workspace before
+        # require_portfolio reads it.
+        db_session.expire_on_commit = False
+
+        app = _rate_limited_app(cloud=True)
+        app.include_router(broker.router, prefix="/api")
+        app.include_router(ibkr.router, prefix="/api")
+        app.dependency_overrides[get_db] = lambda: db_session
+        app.dependency_overrides[get_request_context] = lambda: request_context
+        app.dependency_overrides[require_csrf] = lambda: request_context
+
+        with TestClient(app) as client:
+            first = client.post("/api/broker/trading212/sync")
+            second = client.post("/api/broker/ibkr/sync")
+
+        assert first.status_code == 404
+        assert second.status_code == 429  # same broker_sync bucket, intentionally shared
