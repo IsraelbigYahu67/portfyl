@@ -151,6 +151,12 @@ gcloud secrets versions add portfyl-migration-database-url --data-file=- # paste
 
 gcloud secrets create portfyl-job-database-url --replication-policy=automatic
 gcloud secrets versions add portfyl-job-database-url --data-file=- # paste the direct portfyl_runtime URL (no -pooler), then Ctrl+Z, Enter
+
+gcloud secrets create portfyl-edge-token --replication-policy=automatic
+python -c "import secrets; print(secrets.token_urlsafe(32))" | gcloud secrets versions add portfyl-edge-token --data-file=-
+
+gcloud secrets create portfyl-rate-limit-key-secret --replication-policy=automatic
+python -c "import secrets; print(secrets.token_urlsafe(32))" | gcloud secrets versions add portfyl-rate-limit-key-secret --data-file=-
 ```
 
 Two separate service accounts, so the *running service* can never read the
@@ -163,7 +169,20 @@ gcloud iam service-accounts create portfyl-migrator --display-name="Portfyl Alem
 
 gcloud secrets add-iam-policy-binding portfyl-database-url --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
 gcloud secrets add-iam-policy-binding portfyl-job-database-url --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+gcloud secrets add-iam-policy-binding portfyl-edge-token --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+gcloud secrets add-iam-policy-binding portfyl-rate-limit-key-secret --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
 gcloud secrets add-iam-policy-binding portfyl-migration-database-url --member="serviceAccount:portfyl-migrator@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+
+**Cloudflare must inject the edge token.** `PORTFYL_EDGE_TOKEN` (above) is
+only half the contract — in the Cloudflare dashboard for portfyl.com,
+create a Transform Rule (Rules → Transform Rules → Modify Request Header)
+that runs on every request to the Cloud Run origin: **Set static** header
+`X-Portfyl-Edge-Token` to the exact value stored in `portfyl-edge-token`,
+overwriting any client-supplied value. Without this rule every request gets
+403 `untrusted_edge` (see `backend/edge_trust.py`); a client-supplied
+`X-Portfyl-Edge-Token` reaching the origin directly (bypassing Cloudflare)
+must never be trusted, which is exactly why the middleware only accepts
+this header, never falls back to anything else.
 
 gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/firebaseauth.admin"
 ```
@@ -219,7 +238,7 @@ the image in the cloud and pushes it to Artifact Registry; accept the offer
 to create the `cloud-run-source-deploy` repo on the first run.
 
 ```powershell
-gcloud run deploy $SERVICE --source . --region $REGION --allow-unauthenticated --service-account "portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --set-secrets="DATABASE_URL=portfyl-database-url:latest,JOB_DATABASE_URL=portfyl-job-database-url:latest" --set-env-vars="PORTFYL_EDITION=cloud,PORTFYL_KMS_KEY_NAME=$KMS_KEY" --min-instances=0 --max-instances=5 --cpu=1 --memory=1Gi
+gcloud run deploy $SERVICE --source . --region $REGION --allow-unauthenticated --service-account "portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --set-secrets="DATABASE_URL=portfyl-database-url:latest,JOB_DATABASE_URL=portfyl-job-database-url:latest,PORTFYL_EDGE_TOKEN=portfyl-edge-token:latest,RATE_LIMIT_KEY_SECRET=portfyl-rate-limit-key-secret:latest" --set-env-vars="PORTFYL_EDITION=cloud,PORTFYL_KMS_KEY_NAME=$KMS_KEY,RATE_LIMIT_GLOBAL_LIMIT=120,RATE_LIMIT_GLOBAL_WINDOW_SECONDS=60,RATE_LIMIT_AUTH_SESSION_LIMIT=10,RATE_LIMIT_AUTH_SESSION_WINDOW_SECONDS=60,RATE_LIMIT_BROKER_SYNC_LIMIT=5,RATE_LIMIT_BROKER_SYNC_WINDOW_SECONDS=60,RATE_LIMIT_ASSISTANT_CHAT_LIMIT=20,RATE_LIMIT_ASSISTANT_CHAT_WINDOW_SECONDS=60" --min-instances=0 --max-instances=5 --cpu=1 --memory=1Gi
 ```
 
 Why these flags:
@@ -233,6 +252,11 @@ Why these flags:
   the old GCS-mounted SQLite file, has no single-writer constraint. Start
   conservative and watch Neon connection-pool usage before raising it a lot.
 - `--memory=1Gi` gives pandas/numpy/yfinance headroom.
+- The eight `RATE_LIMIT_*` values are the spec's defaults, not
+  evidence-based constants — the spec's own rollout gate requires a
+  production-shaped load test before enforcement is trusted; raise any of
+  them here (redeploy with `--update-env-vars`) if that load test or real
+  traffic shows normal usage would otherwise trip a rule.
 
 Optional: `--set-env-vars=FRONTEND_ORIGIN=https://your-extra-origin` if a
 separately hosted frontend needs CORS beyond the same-origin SPA baked into
@@ -247,6 +271,27 @@ Open the Service URL → register or sign in with Firebase → the dashboard
 should load. Check Cloud Run logs for the `assert_alembic_head` startup line
 if anything 500s immediately — that means step 5 didn't run against the
 same database this service is now pointed at.
+
+**Rate limiting deployment acceptance** (per the rate limiting spec):
+- A direct request to the printed Cloud Run URL (bypassing Cloudflare) to
+  any `/api/*` path must get 403 `untrusted_edge`, even when the request
+  forges `CF-Connecting-IP` and/or `X-Forwarded-For` headers — the origin
+  must never be reachable without Cloudflare's injected
+  `X-Portfyl-Edge-Token`.
+- The same request through the normal Cloudflare hostname (portfyl.com)
+  must reach the API, and two requests with distinct real client IPs must
+  not share a bucket (confirm via two different networks, or Cloudflare's
+  own IP for a WARP/VPN client vs. a plain connection).
+- After running `portfyl-rate-limit-cleanup` at least once (see section 9),
+  `/health`'s `checks.scheduler.jobs.rate_limit_cleanup` must read `"ok"`
+  with a recent `last_success_at`; leaving it un-run for over two hours
+  must flip it to `"stale"` and `checks.scheduler.status` to `"degraded"`.
+- Before flipping enforcement on for real traffic, run the spec's
+  production-shaped load test (20 concurrent distinct-IP clients, a
+  30-request burst behind one shared IP, concurrent requests against one
+  workspace) and confirm every numeric gate in the spec's "Observability
+  and rollout" section — this is an operational validation step, not
+  something any automated test in this repo can substitute for.
 
 ## 8. Cost guards (one-time, recommended)
 
@@ -329,6 +374,8 @@ gcloud scheduler jobs create http portfyl-alerts --location=$REGION --schedule="
 gcloud scheduler jobs create http portfyl-autosync --location=$REGION --schedule="0 * * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/autosync" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
 
 gcloud scheduler jobs create http portfyl-dividends --location=$REGION --schedule="0 */12 * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/dividends" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
+
+gcloud scheduler jobs create http portfyl-rate-limit-cleanup --location=$REGION --schedule="0 * * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/rate_limit_cleanup" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
 ```
 
 Verify: `gcloud scheduler jobs run portfyl-alerts --location=$REGION` should
@@ -340,6 +387,13 @@ a second direct PostgreSQL session while invoking the endpoint; the response
 must be `{"job":"alerts","skipped":"already running"}` and Cloud Run must log
 `alerts: skipped, already running`. Two merely rapid triggers are not a
 deterministic test when an empty job completes in milliseconds.
+
+For `portfyl-rate-limit-cleanup`, `gcloud scheduler jobs run
+portfyl-rate-limit-cleanup --location=$REGION` should log a
+`rate_limit_cleanup pass: 1 event(s)` line (or nothing, if nothing was
+expired) tagged with a `job-rate_limit_cleanup-…` correlation id, and the
+same overlap drill must produce
+`{"job":"rate_limit_cleanup","skipped":"already running"}`.
 
 ---
 
