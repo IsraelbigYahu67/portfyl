@@ -173,6 +173,9 @@ gcloud secrets add-iam-policy-binding portfyl-edge-token --member="serviceAccoun
 gcloud secrets add-iam-policy-binding portfyl-rate-limit-key-secret --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
 gcloud secrets add-iam-policy-binding portfyl-migration-database-url --member="serviceAccount:portfyl-migrator@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
 
+gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/firebaseauth.admin"
+```
+
 **Cloudflare must inject the edge token.** `PORTFYL_EDGE_TOKEN` (above) is
 only half the contract — in the Cloudflare dashboard for portfyl.com,
 create a Transform Rule (Rules → Transform Rules → Modify Request Header)
@@ -183,9 +186,6 @@ overwriting any client-supplied value. Without this rule every request gets
 `X-Portfyl-Edge-Token` reaching the origin directly (bypassing Cloudflare)
 must never be trusted, which is exactly why the middleware only accepts
 this header, never falls back to anything else.
-
-gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/firebaseauth.admin"
-```
 
 Create the KMS key used for cloud-edition secret encryption and grant only the
 runtime identity encrypt/decrypt access:
