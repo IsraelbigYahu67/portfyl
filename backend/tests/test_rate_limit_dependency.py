@@ -17,7 +17,6 @@ from rate_limit import (
     RateLimitRule,
     RateLimitUnavailable,
     invalid_client_ip_response,
-    rate_limit,
     rate_limit_exceeded_response,
     rate_limit_unavailable_response,
 )
@@ -36,7 +35,7 @@ class TestByIp:
     def test_noops_in_local_edition(self, monkeypatch):
         consume = Mock()
         monkeypatch.setattr(rate_limit, "consume_rate_limit", consume)
-        dependency = rate_limit("auth_session", by="ip")
+        dependency = rate_limit.rate_limit("auth_session", by="ip")
         dependency(_request(Edition.LOCAL))
         consume.assert_not_called()
 
@@ -45,7 +44,7 @@ class TestByIp:
         monkeypatch.setattr(rate_limit, "RATE_LIMIT_RULES", {"auth_session": rule})
         consume = Mock()
         monkeypatch.setattr(rate_limit, "consume_rate_limit", consume)
-        dependency = rate_limit("auth_session", by="ip")
+        dependency = rate_limit.rate_limit("auth_session", by="ip")
 
         dependency(_request(Edition.CLOUD, {"CF-Connecting-IP": "203.0.113.9"}))
 
@@ -56,7 +55,7 @@ class TestByWorkspace:
     def test_noops_in_local_edition(self, monkeypatch):
         consume = Mock()
         monkeypatch.setattr(rate_limit, "consume_rate_limit", consume)
-        dependency = rate_limit("broker_sync", by="workspace")
+        dependency = rate_limit.rate_limit("broker_sync", by="workspace")
         dependency(_request(Edition.LOCAL), context=Mock())
         consume.assert_not_called()
 
@@ -67,7 +66,7 @@ class TestByWorkspace:
         monkeypatch.setattr(rate_limit, "consume_rate_limit", consume)
         workspace_id = uuid4()
         context = Mock(workspace=Mock(id=workspace_id))
-        dependency = rate_limit("broker_sync", by="workspace")
+        dependency = rate_limit.rate_limit("broker_sync", by="workspace")
 
         dependency(_request(Edition.CLOUD), context=context)
 
@@ -76,7 +75,7 @@ class TestByWorkspace:
 
 def test_unknown_by_value_raises_value_error():
     with pytest.raises(ValueError):
-        rate_limit("global", by="user")  # type: ignore[arg-type]
+        rate_limit.rate_limit("global", by="user")  # type: ignore[arg-type]
 
 
 class TestResponseBuilders:

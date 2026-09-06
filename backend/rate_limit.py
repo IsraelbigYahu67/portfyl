@@ -198,20 +198,19 @@ def rate_limit(rule_name: str, *, by: Literal["ip", "workspace"]) -> Callable:
     identically in the decorator of every edition without RATE_LIMIT_RULES
     needing to already be populated at router-import time."""
     if by == "ip":
-        def dependency(request: Request, _rate_limit_func: object = rate_limit) -> None:  # type: ignore[assignment]
+        def dependency(request: Request) -> None:
             if request.app.state.portfyl_edition is not Edition.CLOUD:
                 return
-            _rate_limit_func.consume_rate_limit(rule=_rate_limit_func.RATE_LIMIT_RULES[rule_name], identity=_rate_limit_func.client_ip(request))  # type: ignore[attr-defined]
+            consume_rate_limit(rule=RATE_LIMIT_RULES[rule_name], identity=client_ip(request))
         return dependency
     if by == "workspace":
         def dependency(
             request: Request,
             context: RequestContext = Depends(get_request_context),
-            _rate_limit_func: object = rate_limit,  # type: ignore[assignment]
         ) -> None:
             if request.app.state.portfyl_edition is not Edition.CLOUD:
                 return
-            _rate_limit_func.consume_rate_limit(rule=_rate_limit_func.RATE_LIMIT_RULES[rule_name], identity=str(context.workspace.id))  # type: ignore[attr-defined]
+            consume_rate_limit(rule=RATE_LIMIT_RULES[rule_name], identity=str(context.workspace.id))
         return dependency
     raise ValueError(f"Unknown rate_limit 'by': {by!r}")
 
@@ -250,9 +249,3 @@ def invalid_client_ip_response(_exc: InvalidClientIp) -> JSONResponse:
 
 def invalid_client_ip_handler(_request: Request, exc: InvalidClientIp) -> JSONResponse:
     return invalid_client_ip_response(exc)
-
-
-# Initialize attributes on rate_limit function for test monkeypatching compatibility
-rate_limit.consume_rate_limit = consume_rate_limit  # type: ignore[attr-defined]
-rate_limit.RATE_LIMIT_RULES = RATE_LIMIT_RULES  # type: ignore[attr-defined]
-rate_limit.client_ip = client_ip  # type: ignore[attr-defined]
