@@ -191,3 +191,60 @@ class TestBrokerSyncRateLimit:
 
         assert first.status_code == 404
         assert second.status_code == 429  # same broker_sync bucket, intentionally shared
+
+
+class TestAssistantChatRateLimit:
+    def test_second_call_from_the_same_workspace_is_429(
+        self, monkeypatch, db_session, request_context, default_portfolio
+    ):
+        from routers import assistant
+        import entitlements
+
+        monkeypatch.setattr(entitlements, "ensure_capability", lambda *a, **k: None)
+        monkeypatch.setattr(
+            rate_limit, "RATE_LIMIT_RULES",
+            {"assistant_chat": RateLimitRule(name="assistant_chat", limit=1, window_seconds=60)},
+        )
+        monkeypatch.setattr(rate_limit, "KEY_SECRET", b"test-key-secret")
+        monkeypatch.setattr(rate_limit, "SessionLocal", lambda: db_session)
+        # consume_rate_limit() commits+closes this same db_session (routed here
+        # only because the "workspace" identity needs a real DB for the
+        # rate_limit_buckets table); a real request never shares a session this
+        # way, but in-test it does, and a commit's default expire-on-commit
+        # would otherwise expire request_context.workspace before the second,
+        # function-parameter require_capability("assistant_byok") dependency
+        # reads context.workspace.id, and close() then leaves it detached ->
+        # DetachedInstanceError instead of the route ever completing.
+        db_session.expire_on_commit = False
+        # That alone isn't enough here (unlike broker_sync, which never reads
+        # request_context.user): require_capability's own read of
+        # context.workspace.id refreshes Workspace while the session is still
+        # attached, but nothing refreshes User before consume_rate_limit()'s
+        # close() -- and chat() itself reads request_context.user.id (for
+        # get_user_setting/get_user_secret). The default_portfolio fixture's
+        # own db_session.commit() already expired every object on this
+        # session, including test_user, before this test body even started,
+        # so User must be explicitly refreshed now, while the session is
+        # still open, or that later read hits the same DetachedInstanceError.
+        db_session.refresh(request_context.user)
+
+        app = _rate_limited_app(cloud=True)
+        app.include_router(assistant.router, prefix="/api")
+        app.dependency_overrides[get_db] = lambda: db_session
+        app.dependency_overrides[get_request_context] = lambda: request_context
+        app.dependency_overrides[require_csrf] = lambda: request_context
+        app.dependency_overrides[require_portfolio] = lambda: default_portfolio
+
+        provider = AsyncMock(return_value=("answer", {"total_tokens": 4}))
+        payload = {"messages": [{"role": "user", "content": "hi"}]}
+        with patch("routers.assistant._call_deepseek", provider), TestClient(app) as client:
+            first = client.post(
+                "/api/assistant/chat", json=payload, headers={"Idempotency-Key": "req-1"}
+            )
+            second = client.post(
+                "/api/assistant/chat", json=payload, headers={"Idempotency-Key": "req-2"}
+            )
+
+        assert first.status_code != 429  # capability check bypassed; limiter let it through
+        assert second.status_code == 429
+        assert second.json() == {"code": "rate_limit_exceeded", "rule": "assistant_chat"}
