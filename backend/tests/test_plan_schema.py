@@ -34,8 +34,8 @@ def test_payment_and_trial_models_are_not_mapped():
     )
 
 
-def test_expected_alembic_head_removes_payment_runtime():
-    assert EXPECTED_ALEMBIC_HEAD == "0011_remove_payment_runtime"
+def test_expected_alembic_head_adds_rate_limit_buckets():
+    assert EXPECTED_ALEMBIC_HEAD == "0012_rate_limit_buckets"
 
 
 def test_provider_neutral_usage_and_notification_constraints_remain():
