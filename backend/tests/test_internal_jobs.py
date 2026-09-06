@@ -108,6 +108,14 @@ class TestJobEndpointsRunExactlyOnePass:
         pass_fn.assert_awaited_once()
         assert result == {"job": "dividends", "events": 0}
 
+    def test_rate_limit_cleanup_endpoint_runs_the_pass(self, monkeypatch):
+        monkeypatch.setattr(internal_jobs, "verify_scheduler_token", lambda auth: None)
+        pass_fn = AsyncMock(return_value=[{"deleted": 42}])
+        with patch("jobs.rate_limit_cleanup_pass", pass_fn):
+            result = _run(internal_jobs.run_rate_limit_cleanup_job(authorization="Bearer x"))
+        pass_fn.assert_awaited_once()
+        assert result == {"job": "rate_limit_cleanup", "events": 1}
+
     def test_unverified_request_never_reaches_the_pass(self, monkeypatch):
         pass_fn = AsyncMock(return_value=[])
         with patch("jobs.alert_check_all_workspaces", pass_fn):
