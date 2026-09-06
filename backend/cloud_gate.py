@@ -1,5 +1,11 @@
 """The cloud-only global HTTP gate: trusted-edge verification followed by
-the global per-IP rate limit, for every /api and /api/* request. Registered
+the global per-IP rate limit, for every /api and /api/* request. Edge
+verification runs unconditionally, including for OPTIONS -- only the
+rate-limit consumption step is skipped for OPTIONS, so a bare OPTIONS
+request without a valid edge token still gets 403'd rather than passing
+through uncounted and unauthenticated. (Genuine CORS preflight never
+reaches this middleware at all: CORSMiddleware, registered afterwards in
+main.py so it wraps this middleware, answers those directly.) Registered
 in main.py *before* CORSMiddleware's own app.add_middleware() call so this
 middleware ends up more inner than CORS in Starlette's wrap order --
 CORSMiddleware then still decorates this middleware's own direct 400/403/
@@ -23,13 +29,16 @@ log = logging.getLogger("portfyl.cloud_gate")
 class CloudApiGateMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         path = request.url.path
-        if request.method == "OPTIONS" or not (path == "/api" or path.startswith("/api/")):
+        if not (path == "/api" or path.startswith("/api/")):
             return await call_next(request)
 
         try:
             edge_trust.verify_edge_token(request)
         except edge_trust.UntrustedEdge:
             return edge_trust.untrusted_edge_response()
+
+        if request.method == "OPTIONS":
+            return await call_next(request)
 
         try:
             ip = rate_limit.client_ip(request)

@@ -156,3 +156,29 @@ def test_rate_limiter_db_error_is_503(monkeypatch):
     assert response.headers["retry-after"] == "1"
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_bare_options_request_without_edge_token_is_403():
+    # A bare OPTIONS request -- no Origin/Access-Control-Request-Method, so
+    # CORSMiddleware never intercepts it and it reaches this middleware --
+    # must still be edge-verified. Only rate-limit *counting* is meant to
+    # skip OPTIONS, not the edge-token check.
+    client = TestClient(_make_app())
+    response = client.request("OPTIONS", "/api/ping")
+    assert response.status_code == 403
+    assert response.json() == {"code": "untrusted_edge"}
+
+
+def test_bare_options_request_with_valid_edge_token_passes_through_uncounted(db_session):
+    # /api/ping only declares a GET route, so a bare OPTIONS that clears
+    # edge verification still 405s downstream at routing -- the point here
+    # is that it is neither 403'd (edge check passed) nor 429'd, and
+    # crucially never consumes a rate-limit bucket, however many times it
+    # repeats.
+    from models import RateLimitBucket
+
+    client = TestClient(_make_app())
+    for _ in range(5):
+        response = client.request("OPTIONS", "/api/ping", headers=VALID_HEADERS)
+        assert response.status_code == 405
+    assert db_session.query(RateLimitBucket).count() == 0
