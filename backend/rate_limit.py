@@ -15,9 +15,12 @@ import math
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Mapping
+from typing import Callable, Literal, Mapping
 
-from fastapi import Request
+from fastapi import Depends, Request
+from fastapi.responses import JSONResponse
+
+from tenancy import RequestContext, get_request_context
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -185,3 +188,71 @@ def consume_rate_limit(*, rule: RateLimitRule, identity: str, now: datetime | No
     if count > rule.limit:
         retry_after = max(1, math.ceil((expires_at - captured_now).total_seconds()))
         raise RateLimitExceeded(rule.name, retry_after)
+
+
+def rate_limit(rule_name: str, *, by: Literal["ip", "workspace"]) -> Callable:
+    """Dependency factory shaped like entitlements.require_capability. The
+    rule is looked up from RATE_LIMIT_RULES (a bare module-global reference,
+    always fresh -- see the module docstring) inside the returned
+    dependency, never at rate_limit() call time, so this factory can be used
+    identically in the decorator of every edition without RATE_LIMIT_RULES
+    needing to already be populated at router-import time."""
+    if by == "ip":
+        def dependency(request: Request, _rate_limit_func: object = rate_limit) -> None:  # type: ignore[assignment]
+            if request.app.state.portfyl_edition is not Edition.CLOUD:
+                return
+            _rate_limit_func.consume_rate_limit(rule=_rate_limit_func.RATE_LIMIT_RULES[rule_name], identity=_rate_limit_func.client_ip(request))  # type: ignore[attr-defined]
+        return dependency
+    if by == "workspace":
+        def dependency(
+            request: Request,
+            context: RequestContext = Depends(get_request_context),
+            _rate_limit_func: object = rate_limit,  # type: ignore[assignment]
+        ) -> None:
+            if request.app.state.portfyl_edition is not Edition.CLOUD:
+                return
+            _rate_limit_func.consume_rate_limit(rule=_rate_limit_func.RATE_LIMIT_RULES[rule_name], identity=str(context.workspace.id))  # type: ignore[attr-defined]
+        return dependency
+    raise ValueError(f"Unknown rate_limit 'by': {by!r}")
+
+
+def rate_limit_exceeded_response(exc: RateLimitExceeded) -> JSONResponse:
+    return JSONResponse(
+        {"code": "rate_limit_exceeded", "rule": exc.rule_name},
+        status_code=429,
+        headers={"Retry-After": str(exc.retry_after_seconds), "Cache-Control": "no-store"},
+    )
+
+
+def rate_limit_exceeded_handler(_request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    return rate_limit_exceeded_response(exc)
+
+
+def rate_limit_unavailable_response(_exc: RateLimitUnavailable) -> JSONResponse:
+    return JSONResponse(
+        {"code": "rate_limiter_unavailable"},
+        status_code=503,
+        headers={"Retry-After": "1", "Cache-Control": "no-store"},
+    )
+
+
+def rate_limit_unavailable_handler(_request: Request, exc: RateLimitUnavailable) -> JSONResponse:
+    return rate_limit_unavailable_response(exc)
+
+
+def invalid_client_ip_response(_exc: InvalidClientIp) -> JSONResponse:
+    return JSONResponse(
+        {"code": "invalid_client_ip"},
+        status_code=400,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+def invalid_client_ip_handler(_request: Request, exc: InvalidClientIp) -> JSONResponse:
+    return invalid_client_ip_response(exc)
+
+
+# Initialize attributes on rate_limit function for test monkeypatching compatibility
+rate_limit.consume_rate_limit = consume_rate_limit  # type: ignore[attr-defined]
+rate_limit.RATE_LIMIT_RULES = RATE_LIMIT_RULES  # type: ignore[attr-defined]
+rate_limit.client_ip = client_ip  # type: ignore[attr-defined]
