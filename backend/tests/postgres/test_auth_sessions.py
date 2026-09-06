@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from auth import create_session, resolve_session, revoke_session
 from database import get_db
+from edition import Edition
 from firebase_identity import IdentityVerificationError, VerifiedIdentity
 from models import AuditLog, AuthSession, Membership, User, Workspace
 from routers import auth as auth_router
@@ -120,6 +121,7 @@ def verifier() -> StubIdentityVerifier:
 @pytest.fixture
 def client(postgres_engine, empty_auth_database, verifier) -> TestClient:
     app = FastAPI()
+    app.state.portfyl_edition = Edition.LOCAL
     app.include_router(auth_router.router, prefix="/api")
     app.add_exception_handler(
         auth_router.AuthAPIError,
