@@ -66,9 +66,9 @@ database, then returns:
   active portfolio, and current transaction state.
 
 An exact transaction identity uses the persisted business fields (date, type,
-ticker, shares, price, amount, currencies, settlement cash, notes, and source),
+ticker, shares, price, amount, currencies, settlement cash, and notes),
 with stable normalization for dates, nulls, and floats. Name and generated
-public/internal identifiers do not define equality. Repeated rows inside a
+public/internal identifiers and origin metadata do not define equality. Repeated rows inside a
 file are retained once. In append mode, rows already present in the portfolio
 are not inserted. In replacement mode, the unique normalized file is the
 projected final state.
@@ -173,4 +173,3 @@ cloud builds and raw import remains available on Free.
 - A new broker connector, paid-plan activation, trial clock, or lifecycle
   e-mail.
 - Persisting demo flags or onboarding progress in a new schema.
-

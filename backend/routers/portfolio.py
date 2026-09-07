@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List
+from dataclasses import dataclass
 import yfinance as yf
 import pandas as pd
 import pytz
 import io
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from uuid import UUID
 
@@ -29,8 +30,12 @@ from ticker_map import yf_symbol
 from cache import tenant_cache_key
 from tenancy import RequestContext, get_request_context
 import market_data
+from import_workflow import build_preview
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
+
+MAX_IMPORT_BYTES = 5 * 1024 * 1024
+IMPORT_SAMPLE_LIMIT = 20
 
 # ---------------------------------------------------------------------------
 # Trading 212 CSV normalisation
@@ -300,6 +305,132 @@ def _normalize_t212(df: pd.DataFrame) -> tuple[list[dict], int]:
     return rows, skipped
 
 
+@dataclass(frozen=True)
+class _ParsedImport:
+    format_name: str
+    rows: list[dict]
+    source_events: int
+    skipped: int
+    mandatory_replace: bool
+    t212_covered_through: datetime | None
+
+
+async def _read_import_upload(file: UploadFile) -> bytes:
+    content = await file.read(MAX_IMPORT_BYTES + 1)
+    if len(content) > MAX_IMPORT_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="CSV upload exceeds the 5 MiB limit",
+        )
+    return content
+
+
+def _parse_import_content(content: bytes) -> _ParsedImport:
+    try:
+        df = pd.read_csv(io.StringIO(content.decode("utf-8-sig")))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not parse CSV: {exc}")
+
+    df.columns = df.columns.str.lower().str.strip()
+    cols = set(df.columns)
+    skipped = 0
+    rows: list[dict] = []
+    mandatory_replace = False
+    t212_covered_through = None
+
+    if _is_t212(cols):
+        format_name = "Trading 212"
+        rows, skipped, errors = _normalize_t212_detailed(df)
+        if errors:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "Trading 212 import is not lossless; existing data was preserved",
+                    "errors": errors[:100],
+                },
+            )
+        time_col = "time (utc)" if "time (utc)" in df.columns else "time"
+        t212_covered_through = (
+            pd.to_datetime(df[time_col], utc=True).max().to_pydatetime().replace(tzinfo=None)
+        )
+        mandatory_replace = True
+    else:
+        format_name = "Native"
+        required = {"date", "ticker", "type", "shares", "price"}
+        missing = required - cols
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Unrecognised CSV format. Missing columns: {', '.join(sorted(missing))}. "
+                    "Expected either the native format (date, ticker, type, shares, price) "
+                    "or a Trading 212 export."
+                ),
+            )
+        errors = []
+        for index, row in df.iterrows():
+            try:
+                rows.append({
+                    "ticker": str(row["ticker"]).upper().strip(),
+                    "type": str(row["type"]).lower().strip(),
+                    "shares": float(row["shares"]),
+                    "price": float(row["price"]),
+                    "currency": (
+                        str(row.get("currency", "USD")).upper().strip()
+                        if pd.notna(row.get("currency")) else "USD"
+                    ),
+                    "date": pd.to_datetime(row["date"]).date(),
+                    "notes": (
+                        str(row["notes"])
+                        if "notes" in row and pd.notna(row.get("notes")) else None
+                    ),
+                })
+            except Exception as exc:
+                errors.append(f"Row {index + 2}: {exc}")
+        if errors:
+            raise HTTPException(
+                status_code=400,
+                detail={"message": "CSV validation failed", "errors": errors[:100]},
+            )
+
+    if not rows:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "CSV validation failed", "errors": ["CSV contains no importable rows"]},
+        )
+
+    source = "t212_csv" if format_name == "Trading 212" else "csv"
+    for row in rows:
+        row["source"] = source
+
+    return _ParsedImport(
+        format_name=format_name,
+        rows=rows,
+        source_events=len(df),
+        skipped=skipped,
+        mandatory_replace=mandatory_replace,
+        t212_covered_through=t212_covered_through,
+    )
+
+
+def _preview_sample(rows: list[dict]) -> list[dict]:
+    fields = (
+        "date", "ticker", "type", "shares", "price", "amount", "currency",
+        "cash_amount", "cash_currency", "notes",
+    )
+    return [
+        {
+            key: (
+                value.isoformat() if isinstance(value, (date, datetime))
+                else value
+            )
+            for key in fields
+            for value in [row.get(key)]
+        }
+        for row in rows[:IMPORT_SAMPLE_LIMIT]
+    ]
+
+
 def _fetch_price_and_info(ticker: str) -> tuple[float, str, str]:
     # Bounded + cached: see market_data. A delisted/thin ticker can no longer
     # hang the whole request, and repeat lookups (e.g. /summary right after
@@ -501,6 +632,33 @@ def clear_all_transactions(
     deleted = _portfolio_txns(db, portfolio).delete(synchronize_session=False)
     db.commit()
     return {"deleted": deleted}
+
+
+@router.post("/import-csv/preview")
+async def preview_import_csv(
+    file: UploadFile = File(...),
+    replace: bool = False,
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+    _context: RequestContext = Depends(get_request_context),
+):
+    """Parse and reconcile an upload without mutating portfolio data."""
+    parsed = _parse_import_content(await _read_import_upload(file))
+    current_rows = _portfolio_txns(db, portfolio).all()
+    preview = build_preview(
+        current_rows=current_rows,
+        incoming_rows=parsed.rows,
+        requested_replace=replace,
+        mandatory_replace=parsed.mandatory_replace,
+        portfolio_public_id=str(portfolio.public_id),
+        source_events=parsed.source_events,
+        skipped=parsed.skipped,
+        format_name=parsed.format_name,
+    )
+    rows_to_insert = preview.pop("rows_to_insert")
+    preview["sample"] = _preview_sample(rows_to_insert)
+    preview["sample_truncated"] = len(rows_to_insert) > IMPORT_SAMPLE_LIMIT
+    return preview
 
 
 @router.post("/import-csv")

@@ -44,7 +44,7 @@ TanStack Query, Vitest, pytest.
       behaviour.
 - [x] Define canonical duplicate identity, preview/commit drift protection,
       reconciliation counts, and guarded undo semantics.
-- [ ] Write failing pure workflow tests before extraction.
+- [x] Write failing pure workflow tests before extraction.
 
 ### Task 2: Implement read-only preview and duplicate reconciliation
 
@@ -53,13 +53,13 @@ TanStack Query, Vitest, pytest.
 - Modify: `backend/routers/portfolio.py`
 - Create/modify: focused backend tests
 
-- [ ] Extract bounded CSV parsing/normalization without changing Trading 212
+- [x] Extract bounded CSV parsing/normalization without changing Trading 212
       losslessness rules.
-- [ ] Add stable transaction fingerprints and collapse exact in-file repeats.
-- [ ] Compare the unique import with the current portfolio for append/replace
+- [x] Add stable transaction fingerprints and collapse exact in-file repeats.
+- [x] Compare the unique import with the current portfolio for append/replace
       and return a bounded preview payload.
-- [ ] Add `POST /portfolio/import-csv/preview` and prove it performs no writes.
-- [ ] Run focused tests to green.
+- [x] Add `POST /portfolio/import-csv/preview` and prove it performs no writes.
+- [x] Run focused tests to green.
 
 ### Task 3: Require previewed commit and add guarded undo
 
@@ -127,4 +127,3 @@ TanStack Query, Vitest, pytest.
 - [ ] Mark the unified onboarding and import preview/duplicate/reconciliation/
       undo P0 items complete only with recorded passing evidence.
 - [ ] Commit the completed slice locally without pushing.
-
