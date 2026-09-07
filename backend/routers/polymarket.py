@@ -7,6 +7,7 @@ import os
 
 from database import get_db
 from entitlements import require_broker_capacity, require_capability, require_writable_broker
+from rate_limit import rate_limit
 from models import BrokerConnection, PolymarketPosition, Portfolio
 from tenancy import RequestContext, require_csrf, require_portfolio
 
@@ -139,7 +140,7 @@ def disconnect(
 # ---------------------------------------------------------------------------
 # POST /broker/polymarket/sync
 # ---------------------------------------------------------------------------
-@router.post("/broker/polymarket/sync", dependencies=[Depends(require_capability("polymarket")), Depends(require_writable_broker("polymarket"))])
+@router.post("/broker/polymarket/sync", dependencies=[Depends(require_capability("polymarket")), Depends(require_writable_broker("polymarket")), Depends(rate_limit("broker_sync", by="workspace"))])
 async def sync_positions(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
