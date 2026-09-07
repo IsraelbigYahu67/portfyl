@@ -79,3 +79,11 @@ class FirebaseIdentityVerifier:
             raise IdentityVerificationError(
                 "Firebase refresh-token revocation failed"
             ) from exc
+
+    def delete_user(self, uid: str) -> None:
+        try:
+            self._auth_client.delete_user(uid, app=self._app)
+        except Exception as exc:
+            raise IdentityVerificationError(
+                "Firebase user deletion failed"
+            ) from exc

@@ -12,6 +12,7 @@ from account_deletion import (
     DELETION_GRACE_DAYS,
     cancel_workspace_deletion,
     get_workspace_deletion,
+    purge_due_workspace_deletions,
     schedule_workspace_deletion,
 )
 from firebase_identity import VerifiedIdentity
@@ -247,3 +248,158 @@ def test_deletion_routes_are_mounted_below_settings():
         "post",
         "delete",
     }
+
+
+class RecordingIdentityAdmin:
+    def __init__(self, error=None):
+        self.deleted_uids = []
+        self.error = error
+
+    def delete_user(self, uid):
+        if self.error:
+            raise self.error
+        self.deleted_uids.append(uid)
+
+
+def _schedule(db, context):
+    state = schedule_workspace_deletion(
+        db,
+        context,
+        identity=_identity(context),
+        confirmation=context.workspace.name,
+        now=NOW,
+    )
+    db.commit()
+    return state
+
+
+def test_cleanup_never_purges_before_grace_deadline(db_session, request_context):
+    _schedule(db_session, request_context)
+    identity_admin = RecordingIdentityAdmin()
+
+    summary = purge_due_workspace_deletions(
+        db_session,
+        identity_admin,
+        now=NOW + timedelta(days=29),
+    )
+
+    assert summary == {
+        "scanned": 1,
+        "purged": 0,
+        "not_due": 1,
+        "shared": 0,
+        "invalid": 0,
+        "errors": 0,
+    }
+    assert db_session.get(Workspace, request_context.workspace.id) is not None
+    assert identity_admin.deleted_uids == []
+
+
+def test_cleanup_purges_due_last_workspace_and_firebase_identity(
+    db_session,
+    request_context,
+):
+    workspace_id = request_context.workspace.id
+    user_id = request_context.user.id
+    firebase_uid = request_context.user.firebase_uid
+    _schedule(db_session, request_context)
+    identity_admin = RecordingIdentityAdmin()
+
+    summary = purge_due_workspace_deletions(
+        db_session,
+        identity_admin,
+        now=NOW + timedelta(days=30),
+    )
+
+    assert summary["purged"] == 1
+    assert db_session.get(Workspace, workspace_id) is None
+    assert db_session.get(type(request_context.user), user_id) is None
+    assert identity_admin.deleted_uids == [firebase_uid]
+
+    repeated = purge_due_workspace_deletions(
+        db_session,
+        identity_admin,
+        now=NOW + timedelta(days=31),
+    )
+    assert repeated["purged"] == 0
+    assert identity_admin.deleted_uids == [firebase_uid]
+
+
+def test_cleanup_keeps_user_and_firebase_when_another_workspace_remains(
+    db_session,
+    request_context,
+):
+    deleting_workspace_id = request_context.workspace.id
+    other_workspace = Workspace(id=uuid4(), name="Kept workspace")
+    db_session.add(other_workspace)
+    db_session.flush()
+    db_session.add(Membership(
+        user_id=request_context.user.id,
+        workspace_id=other_workspace.id,
+        role="owner",
+        status="active",
+    ))
+    _schedule(db_session, request_context)
+    identity_admin = RecordingIdentityAdmin()
+
+    summary = purge_due_workspace_deletions(
+        db_session,
+        identity_admin,
+        now=NOW + timedelta(days=31),
+    )
+
+    assert summary["purged"] == 1
+    assert db_session.get(Workspace, deleting_workspace_id) is None
+    assert db_session.get(Workspace, other_workspace.id) is not None
+    assert db_session.get(type(request_context.user), request_context.user.id) is not None
+    assert identity_admin.deleted_uids == []
+
+
+def test_cleanup_refuses_workspace_that_became_shared(db_session, request_context):
+    _schedule(db_session, request_context)
+    from models import User
+
+    other_user = User(
+        id=uuid4(),
+        firebase_uid="firebase-late-member",
+        email="late-member@example.com",
+    )
+    db_session.add(other_user)
+    db_session.flush()
+    db_session.add(Membership(
+        user_id=other_user.id,
+        workspace_id=request_context.workspace.id,
+        role="member",
+        status="active",
+    ))
+    db_session.flush()
+
+    summary = purge_due_workspace_deletions(
+        db_session,
+        RecordingIdentityAdmin(),
+        now=NOW + timedelta(days=31),
+    )
+
+    assert summary["shared"] == 1
+    assert summary["purged"] == 0
+    assert db_session.get(Workspace, request_context.workspace.id) is not None
+
+
+def test_cleanup_rolls_back_when_firebase_identity_deletion_fails(
+    db_session,
+    request_context,
+):
+    workspace_id = request_context.workspace.id
+    user_id = request_context.user.id
+    _schedule(db_session, request_context)
+
+    summary = purge_due_workspace_deletions(
+        db_session,
+        RecordingIdentityAdmin(error=RuntimeError("firebase unavailable")),
+        now=NOW + timedelta(days=31),
+    )
+
+    assert summary["errors"] == 1
+    assert summary["purged"] == 0
+    assert db_session.get(Workspace, workspace_id) is not None
+    assert db_session.get(type(request_context.user), user_id) is not None

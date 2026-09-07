@@ -17,6 +17,7 @@ class FakeFirebaseAuth:
         self.claims = claims
         self.verify_calls: list[tuple[str, object, bool]] = []
         self.revoke_calls: list[tuple[str, object]] = []
+        self.delete_calls: list[tuple[str, object]] = []
 
     def verify_id_token(self, token: str, *, app: object, check_revoked: bool):
         self.verify_calls.append((token, app, check_revoked))
@@ -24,6 +25,9 @@ class FakeFirebaseAuth:
 
     def revoke_refresh_tokens(self, uid: str, *, app: object):
         self.revoke_calls.append((uid, app))
+
+    def delete_user(self, uid: str, *, app: object):
+        self.delete_calls.append((uid, app))
 
 
 @pytest.mark.parametrize(
@@ -102,3 +106,13 @@ def test_firebase_verifier_revokes_refresh_tokens_for_uid():
     verifier.revoke_refresh_tokens("firebase-alice")
 
     assert auth_client.revoke_calls == [("firebase-alice", firebase_app)]
+
+
+def test_firebase_verifier_deletes_user_for_completed_account_erasure():
+    firebase_app = object()
+    auth_client = FakeFirebaseAuth({})
+    verifier = FirebaseIdentityVerifier(auth_client=auth_client, app=firebase_app)
+
+    verifier.delete_user("firebase-alice")
+
+    assert auth_client.delete_calls == [("firebase-alice", firebase_app)]

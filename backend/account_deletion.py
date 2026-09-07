@@ -3,17 +3,18 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app_settings import set_workspace_setting
 from audit import record_audit_event
 from firebase_identity import VerifiedIdentity
-from models import Membership, WorkspaceSetting
+from models import Membership, User, Workspace, WorkspaceSetting
 from tenancy import RequestContext, RequestContextError
 
 
@@ -22,6 +23,8 @@ DELETION_STATE_VERSION = 1
 DELETION_GRACE_DAYS = 30
 MAX_REAUTH_AGE = timedelta(minutes=5)
 MAX_REAUTH_FUTURE_SKEW = timedelta(minutes=1)
+
+logger = logging.getLogger("portfyl.account_deletion")
 
 
 @dataclass(frozen=True)
@@ -190,3 +193,144 @@ def deletion_status_payload(state: WorkspaceDeletion | None) -> dict:
         "execute_after": state.execute_after.isoformat(),
         "grace_days": DELETION_GRACE_DAYS,
     }
+
+
+def _rls_enforced(db: Session) -> bool:
+    return db.get_bind().dialect.name == "postgresql"
+
+
+def _active_workspace_ids(db: Session) -> list[UUID]:
+    """Enumerate active workspaces through the existing job-only RLS policy."""
+    if not _rls_enforced(db):
+        return list(db.scalars(
+            select(Workspace.id).where(Workspace.archived_at.is_(None))
+        ).all())
+    db.execute(text("SELECT set_config('portfyl.job_context', 'true', true)"))
+    try:
+        return list(db.scalars(
+            select(Workspace.id).where(Workspace.archived_at.is_(None))
+        ).all())
+    finally:
+        db.execute(text("SELECT set_config('portfyl.job_context', '', true)"))
+
+
+def _set_cleanup_context(
+    db: Session,
+    workspace_id: UUID,
+    user_id: UUID | None = None,
+) -> None:
+    if not _rls_enforced(db):
+        return
+    db.execute(
+        text("SELECT set_config('portfyl.workspace_id', :value, true)"),
+        {"value": str(workspace_id)},
+    )
+    db.execute(
+        text("SELECT set_config('portfyl.user_id', :value, true)"),
+        {"value": "" if user_id is None else str(user_id)},
+    )
+
+
+def purge_due_workspace_deletions(
+    db: Session,
+    identity_admin,
+    *,
+    now: datetime | None = None,
+) -> dict[str, int]:
+    """Purge due explicit requests, committing each workspace independently.
+
+    ``identity_admin`` is the narrow Firebase boundary and must expose
+    ``delete_user(uid)``. No plan, trial, or subscription state is consulted.
+    """
+    now = _as_utc(now or datetime.now(timezone.utc))
+    summary = {
+        "scanned": 0,
+        "purged": 0,
+        "not_due": 0,
+        "shared": 0,
+        "invalid": 0,
+        "errors": 0,
+    }
+    workspace_ids = _active_workspace_ids(db)
+
+    for workspace_id in workspace_ids:
+        summary["scanned"] += 1
+        try:
+            _set_cleanup_context(db, workspace_id)
+            try:
+                state = get_workspace_deletion(db, workspace_id)
+            except RuntimeError:
+                summary["invalid"] += 1
+                db.rollback()
+                continue
+            if state is None:
+                db.commit()
+                continue
+            if state.execute_after > now:
+                summary["not_due"] += 1
+                db.commit()
+                continue
+
+            _set_cleanup_context(
+                db,
+                workspace_id,
+                user_id=state.requested_by_user_id,
+            )
+            active_members = db.scalar(
+                select(func.count())
+                .select_from(Membership)
+                .where(
+                    Membership.workspace_id == workspace_id,
+                    Membership.status == "active",
+                )
+            ) or 0
+            if active_members != 1:
+                summary["shared"] += 1
+                db.commit()
+                continue
+
+            requesting_membership = db.scalar(
+                select(Membership).where(
+                    Membership.workspace_id == workspace_id,
+                    Membership.user_id == state.requested_by_user_id,
+                    Membership.status == "active",
+                    Membership.role == "owner",
+                )
+            )
+            user = db.scalar(
+                select(User).where(User.id == state.requested_by_user_id)
+            )
+            workspace = db.scalar(
+                select(Workspace).where(Workspace.id == workspace_id)
+            )
+            if requesting_membership is None or user is None or workspace is None:
+                summary["invalid"] += 1
+                db.rollback()
+                continue
+
+            other_memberships = db.scalar(
+                select(func.count())
+                .select_from(Membership)
+                .where(
+                    Membership.user_id == user.id,
+                    Membership.workspace_id != workspace_id,
+                )
+            ) or 0
+
+            db.delete(workspace)
+            db.flush()
+            if other_memberships == 0:
+                user.disabled_at = now
+                db.flush()
+                if user.firebase_uid:
+                    identity_admin.delete_user(user.firebase_uid)
+                db.delete(user)
+                db.flush()
+            db.commit()
+            summary["purged"] += 1
+        except Exception:
+            db.rollback()
+            summary["errors"] += 1
+            logger.exception("Workspace deletion failed; transaction rolled back")
+
+    return summary

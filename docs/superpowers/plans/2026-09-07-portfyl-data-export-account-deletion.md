@@ -86,14 +86,14 @@ React 18, TanStack Query, Vitest, pytest.
 - `purge_due_workspace_deletions(db, verifier, now=...) -> summary`
 - `python backend/purge_account_deletions.py`
 
-- [ ] Write failing tests proving future requests remain, due workspaces are
+- [x] Write failing tests proving future requests remain, due workspaces are
   purged, shared workspaces are preserved, other memberships keep the Portfyl
   and Firebase user, last-workspace deletion removes both, and repeats no-op.
-- [ ] Run the focused tests and record the expected failure.
-- [ ] Implement RLS-safe workspace enumeration, per-workspace deletion, Firebase
+- [x] Run the focused tests and record the expected failure.
+- [x] Implement RLS-safe workspace enumeration, per-workspace deletion, Firebase
   identity removal, independent commits, and machine-readable CLI output.
-- [ ] Run focused tests, the complete fast backend suite, and frontend suite.
-- [ ] Commit the purge slice.
+- [x] Run focused tests, the complete fast backend suite, and frontend suite.
+- [x] Commit the purge slice.
 
 ### Task 4: Settings data-and-privacy UI
 
