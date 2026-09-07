@@ -123,9 +123,27 @@ React 18, TanStack Query, Vitest, pytest.
 - Modify: `docs/superpowers/plans/2026-09-01-portfyl-saas-monetization.md`
 - Modify: this plan
 
-- [ ] Run the complete fast backend suite and frontend suite.
-- [ ] Run local/cloud frontend builds and PostgreSQL integration tests if the
+- [x] Run the complete fast backend suite and frontend suite.
+- [x] Run local/cloud frontend builds and PostgreSQL integration tests if the
   disposable PostgreSQL service is available.
-- [ ] Confirm the working tree does not include concurrent-session files.
-- [ ] Check off the implemented export/deletion items and record verification.
-- [ ] Commit documentation and verification results without pushing.
+- [x] Confirm the working tree does not include concurrent-session files.
+- [x] Check off the implemented export/deletion items and record verification.
+- [x] Commit documentation and verification results without pushing.
+
+## Verification record (2026-09-07)
+
+- Fast backend: `546 passed`.
+- PostgreSQL integration: `321 passed`, including real HTTP/RLS isolation for
+  the export and deletion-status endpoints.
+- Frontend local: `26` files / `142` tests passed.
+- Frontend cloud: `26` files / `142` tests passed.
+- Local and cloud Vite production builds both succeeded. The existing bundle
+  size advisory remains unchanged and is non-fatal.
+- Focused backend: export `5 passed`; scheduling/auth `20 passed`; cleanup/auth/
+  CLI `28 passed`.
+- Focused frontend: Data & privacy UI `3 passed`.
+- `EXPECTED_ALEMBIC_HEAD` remains `0012_rate_limit_buckets`; no new model,
+  table, or migration was required because pending deletion state uses the
+  existing RLS-protected `workspace_settings` table.
+- Concurrent rate-limiting files and the pre-existing untracked local logs/dev
+  compose file were not staged or modified by this work. No push was made.

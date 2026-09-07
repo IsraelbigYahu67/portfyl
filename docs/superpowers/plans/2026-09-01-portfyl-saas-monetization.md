@@ -426,7 +426,7 @@ The broker is a data source, not the identity of the whole application.
       insights, upcoming dividends, and automation performed.
 - [ ] On day eight, downgrade automatically to Free.
 - [ ] Keep all data; objects beyond Free limits become read-only.
-- [ ] Keep raw export and account deletion available.
+- [x] Keep raw export and account deletion available.
 
 Stripe supports trials without a payment method and configurable end behavior:
 [Stripe trial documentation](https://docs.stripe.com/billing/subscriptions/trials).
@@ -860,14 +860,28 @@ derived analytics still require suitable commercial rights.
 - [ ] Define controller/processor roles and legal bases.
 - [ ] Publish privacy notice and subprocessor list.
 - [ ] Minimize collected financial and identity data.
-- [ ] Implement machine-readable export.
-- [ ] Implement verified account deletion and retention workflow.
+- [x] Implement machine-readable export.
+- [x] Implement verified account deletion and retention workflow.
 - [x] Encrypt data in transit and sensitive secrets at rest.
 - [ ] Define breach/incident handling and support identity verification.
 - [ ] Keep analytics free of raw holdings, transactions, and credentials by
       default.
 
 Reference: [European Commission GDPR principles](https://commission.europa.eu/law/law-topic/data-protection/information-business-and-organisations/principles-gdpr_en).
+
+**Implementation record (2026-09-07):** The active workspace can be exported
+as a versioned JSON attachment from Settings on every plan and in both
+editions. The allow-listed bundle uses public UUID relationships and excludes
+broker credentials, ciphertext/key versions, sessions, CSRF material, and
+broker error text. Workspace deletion requires a current session, CSRF, exact
+workspace-name confirmation, and a fresh matching Firebase password
+reauthentication. It creates a cancellable 30-day grace period in the existing
+RLS-protected workspace settings store; the idempotent
+`backend/purge_account_deletions.py` command performs due deletion, rechecks
+sole ownership, preserves other workspaces, and removes the Firebase/Portfyl
+user only after their last workspace. No plan or trial state participates, so
+trial/plan expiration cannot delete imported data. See
+`docs/superpowers/plans/2026-09-07-portfyl-data-export-account-deletion.md`.
 
 ### VAT and billing
 
