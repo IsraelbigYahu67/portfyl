@@ -66,14 +66,14 @@ React 18, TanStack Query, Vitest, pytest.
 - `schedule_workspace_deletion`, `cancel_workspace_deletion`, and
   `get_workspace_deletion`
 
-- [ ] Write failing tests for role and sole-member checks, exact-name
+- [x] Write failing tests for role and sole-member checks, exact-name
   confirmation, verified matching identity, recent Firebase `auth_time`,
   idempotency, cancellation, and workspace isolation.
-- [ ] Run the focused tests and record the expected failure.
-- [ ] Implement the durable workspace-setting state machine, audit events, and
+- [x] Run the focused tests and record the expected failure.
+- [x] Implement the durable workspace-setting state machine, audit events, and
   backend re-authentication checks.
-- [ ] Run focused tests, the complete fast backend suite, and frontend suite.
-- [ ] Commit the verified scheduling slice.
+- [x] Run focused tests, the complete fast backend suite, and frontend suite.
+- [x] Commit the verified scheduling slice.
 
 ### Task 3: Idempotent due-deletion execution
 

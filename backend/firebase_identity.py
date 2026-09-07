@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 import firebase_admin
@@ -19,6 +20,7 @@ class VerifiedIdentity:
     email: str
     email_verified: bool
     display_name: str | None
+    authenticated_at: datetime | None = None
 
 
 def _default_firebase_app():
@@ -53,11 +55,21 @@ class FirebaseIdentityVerifier:
             )
         name = claims.get("name")
         display_name = str(name).strip() if name is not None else None
+        authenticated_at = None
+        try:
+            if claims.get("auth_time") is not None:
+                authenticated_at = datetime.fromtimestamp(
+                    float(claims["auth_time"]),
+                    tz=timezone.utc,
+                )
+        except (TypeError, ValueError, OSError):
+            authenticated_at = None
         return VerifiedIdentity(
             uid=uid,
             email=email,
             email_verified=bool(claims.get("email_verified")),
             display_name=display_name or None,
+            authenticated_at=authenticated_at,
         )
 
     def revoke_refresh_tokens(self, uid: str) -> None:

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from datetime import datetime, timezone
+
 from auth import session_cookie_policy
 from firebase_identity import (
     FirebaseIdentityVerifier,
@@ -58,6 +60,24 @@ def test_firebase_verifier_maps_only_normalized_identity_fields():
         display_name="Alice Investor",
     )
     assert auth_client.verify_calls == [("firebase-token", firebase_app, True)]
+
+
+def test_firebase_verifier_maps_auth_time_for_sensitive_reauthentication():
+    firebase_app = object()
+    auth_client = FakeFirebaseAuth({
+        "uid": "firebase-alice",
+        "email": "alice@example.com",
+        "email_verified": True,
+        "auth_time": 1_788_782_400,
+    })
+    verifier = FirebaseIdentityVerifier(auth_client=auth_client, app=firebase_app)
+
+    identity = verifier.verify_id_token("fresh-token")
+
+    assert identity.authenticated_at == datetime.fromtimestamp(
+        1_788_782_400,
+        tz=timezone.utc,
+    )
 
 
 @pytest.mark.parametrize("claims", [
