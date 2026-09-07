@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from auth import create_session, resolve_session, revoke_session
 from database import get_db
+from edition import Edition
 from firebase_identity import IdentityVerificationError, VerifiedIdentity
 from models import AuditLog, AuthSession, Membership, User, Workspace
 from routers import auth as auth_router
@@ -120,6 +121,12 @@ def verifier() -> StubIdentityVerifier:
 @pytest.fixture
 def client(postgres_engine, empty_auth_database, verifier) -> TestClient:
     app = FastAPI()
+    # main.py always stamps this, and route dependencies read it unguarded
+    # (entitlements.require_capability, rate_limit.rate_limit). LOCAL keeps
+    # these auth/session/RLS tests behaving exactly as before -- the
+    # /api/auth/session rate limit no-ops outside cloud and has its own
+    # dedicated coverage in tests/test_rate_limit_routes.py.
+    app.state.portfyl_edition = Edition.LOCAL
     app.include_router(auth_router.router, prefix="/api")
     app.add_exception_handler(
         auth_router.AuthAPIError,

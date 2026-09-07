@@ -308,6 +308,22 @@ def test_runtime_role_cannot_grant_itself_more_privileges(
         runtime_session.execute(text("ALTER ROLE portfyl_runtime BYPASSRLS"))
 
 
+def test_runtime_role_has_exact_grants_on_rate_limit_buckets(runtime_session: Session):
+    grants = runtime_session.execute(
+        text(
+            """
+            SELECT privilege_type
+            FROM information_schema.role_table_grants
+            WHERE grantee = 'portfyl_runtime'
+              AND table_schema = 'public'
+              AND table_name = 'rate_limit_buckets'
+            ORDER BY privilege_type
+            """
+        )
+    ).scalars().all()
+    assert grants == ["DELETE", "INSERT", "SELECT", "UPDATE"]
+
+
 # ---------------------------------------------------------------------------
 # Where the two layers meet
 # ---------------------------------------------------------------------------
