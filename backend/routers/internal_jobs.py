@@ -188,3 +188,11 @@ async def run_dividends_job(authorization: str | None = Header(default=None)) ->
     from jobs import dividend_notify_all_workspaces
 
     return await _run_job("dividends", dividend_notify_all_workspaces)
+
+
+@router.post("/rate_limit_cleanup")
+async def run_rate_limit_cleanup_job(authorization: str | None = Header(default=None)) -> dict:
+    verify_scheduler_token(authorization)
+    from jobs import rate_limit_cleanup_pass
+
+    return await _run_job("rate_limit_cleanup", rate_limit_cleanup_pass)
