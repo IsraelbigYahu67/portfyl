@@ -81,17 +81,22 @@ redistribution permission. The market-data workstream remains a launch blocker.
 No open-ended period should be published until it matches both provider
 configuration and application cleanup behaviour.
 
-## Export/deletion coverage gaps to review
+## Export/deletion coverage
 
-JSON export schema version 1 satisfies the current requested core scope:
-workspace/membership, portfolios, transactions, watchlists/items, alerts, and
-safe broker metadata. Before claiming a fully comprehensive Article 20 bundle,
-review whether user-provided or account-derived content in benchmarks, options,
-Polymarket, notes, cash-interest settings, notification preferences, and
-personal settings must be added to a future schema version.
+JSON export schema version 2 includes workspace/membership, portfolios,
+transactions, watchlists/items, alerts, safe broker metadata and balances,
+custom benchmarks/components, options, Polymarket positions, trade notes,
+cash-interest settings, notification preferences/history, user-configured
+broker schedule values, and the non-secret assistant model preference.
 
-Deletion is broader than export: tenant-table cascades remove the whole
-workspace, including categories not present in export v1.
+Security/session data, audit/job/migration state, usage/rate-limit records,
+deletion workflow state, operational sync timestamps, third-party market-data
+caches, credentials, ciphertext/key versions, and raw internal IDs are
+deliberately excluded. Revisit that boundary during legal review rather than
+assuming every operational record is portable personal data.
+
+Deletion is broader than export: tenant-table cascades also remove internal
+workspace records that are intentionally not present in the portability bundle.
 
 ## Analytics and telemetry baseline
 

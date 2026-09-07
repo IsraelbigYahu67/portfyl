@@ -16,8 +16,10 @@ paid plan, trial state, or quota.
 - Settings offers a JSON download for the active workspace. The download is
   available while a deletion request is in its grace period.
 - The export contains a versioned manifest, workspace and membership metadata,
-  portfolios, transactions, watchlists and their items, price alerts, and
-  broker-connection metadata.
+  portfolios, transactions, watchlists/items, price alerts, safe broker
+  metadata/balances, custom benchmarks, options and Polymarket positions, trade
+  notes, cash-interest settings, notification preferences/history, and
+  allow-listed workspace/user preferences.
 - Broker credentials, encrypted credential bytes, encryption key versions,
   session tokens, CSRF material, and raw internal integer keys never appear in
   the export. Relationships use public UUIDs.
@@ -44,7 +46,8 @@ The new `backend/routers/account.py` router is nested under the already-mounted
 settings router, producing these portfolio-agnostic paths:
 
 - `GET /api/settings/account/export` returns an attachment with media type
-  `application/json` and schema version `1`.
+  `application/json`. Schema version `2` is current; version `1` was the initial
+  core export and remains a historical contract only.
 - `GET /api/settings/account/deletion` returns the active request and deadline,
   or `scheduled: false`.
 - `POST /api/settings/account/deletion` verifies re-authentication and schedules
@@ -62,7 +65,7 @@ The top-level object is:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "exported_at": "2026-09-07T12:00:00+00:00",
   "workspace": {},
   "membership": {},
@@ -70,7 +73,17 @@ The top-level object is:
   "transactions": [],
   "watchlists": [],
   "alerts": [],
-  "broker_connections": []
+  "broker_connections": [],
+  "benchmarks": [],
+  "options_trades": [],
+  "broker_balances": [],
+  "polymarket_positions": [],
+  "notification_preferences": [],
+  "trade_notes": [],
+  "cash_interest_rates": [],
+  "dividend_notifications": [],
+  "workspace_preferences": {},
+  "user_preferences": {}
 }
 ```
 
@@ -82,6 +95,10 @@ database primary keys.
 Broker metadata is deliberately allow-listed: public ID, public portfolio ID,
 broker, environment, auto-sync/attention state, last sync, CSV coverage, and
 creation time. Error text and every credential-related column are excluded.
+Discord preferences similarly omit webhook URL/ciphertext/key version. User
+preferences include only the assistant model; the encrypted AI key is excluded.
+Workspace preferences include only user-configured broker schedule values, not
+the deletion state or operational last-run timestamp.
 
 ## Deletion persistence and execution
 

@@ -121,7 +121,7 @@ export default function DataPrivacySettings() {
         <div>
           <div className="text-sm font-medium text-ink">Workspace export</div>
           <p className="text-xs text-muted mt-1">
-            Download portfolios, transactions, watchlists, alerts, and safe broker metadata as JSON.
+            Download your portfolio data, preferences, notes, alerts, and safe integration metadata as versioned JSON.
           </p>
         </div>
         <button

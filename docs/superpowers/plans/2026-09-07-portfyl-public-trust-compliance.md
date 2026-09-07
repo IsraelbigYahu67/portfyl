@@ -66,6 +66,22 @@ React/Vite route tests, pytest, Vitest.
       contractual permission.
 - [ ] Leave sending requests and accepting terms for explicit owner authority.
 
+### Task 3a: Close the workspace export coverage gap
+
+**Files:**
+- Modify: `backend/workspace_export.py`
+- Modify: `backend/tests/test_account_export.py`
+- Modify: privacy/export design and compliance inventory
+
+- [x] Write a failing test for custom benchmarks, options, broker balances,
+      Polymarket positions, trade notes, cash-interest settings, notification
+      preferences/history, and safe workspace/user preferences.
+- [x] Bump the export schema version and add explicitly workspace-scoped,
+      deterministic, public-ID-only serializers.
+- [x] Prove Discord/AI secrets, deletion state, raw internal keys, and
+      cross-tenant rows remain excluded.
+- [x] Run focused, fast, and PostgreSQL isolation tests plus frontend tests.
+
 ### Task 4: Add public trust routes after operator/legal inputs
 
 **Files (anticipated):**
@@ -108,6 +124,9 @@ React/Vite route tests, pytest, Vitest.
 
 - Fast backend suite: `546 passed`.
 - Frontend local suite: `26` files / `142` tests passed.
+- Export-v2 follow-up: focused export `6 passed`; fast backend `547 passed`;
+  PostgreSQL privacy/RLS `2 passed`; frontend local `26` files / `142` tests
+  passed.
 - `git diff --check` reported no whitespace error; the existing Windows
   LF-to-CRLF working-copy advisory remains non-fatal.
 - No production configuration, provider account, e-mail, contract, or legal

@@ -9,14 +9,25 @@ from uuid import UUID, uuid4
 from fastapi import FastAPI
 
 from models import (
+    Benchmark,
+    BenchmarkComponent,
+    BrokerBalance,
     BrokerConnection,
+    CashInterestRate,
+    DiscordWebhook,
+    DividendNotification,
     Membership,
+    OptionsTrade,
     Portfolio,
+    PolymarketPosition,
     PriceAlert,
+    TradeNote,
     Transaction,
+    UserSetting,
     Watchlist,
     WatchlistItem,
     Workspace,
+    WorkspaceSetting,
 )
 from routers.account import export_workspace_data
 from routers.settings import router as settings_router
@@ -110,7 +121,7 @@ def _seed_export_rows(db, context):
         date=date(2026, 1, 1),
     ))
     db.flush()
-    return portfolio
+    return portfolio, transaction
 
 
 def test_export_contains_portable_workspace_data_without_cross_tenant_rows(
@@ -125,7 +136,7 @@ def test_export_contains_portable_workspace_data_without_cross_tenant_rows(
         exported_at=EXPORTED_AT,
     )
 
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["exported_at"] == "2026-09-07T12:30:00+00:00"
     assert payload["workspace"]["id"] == str(request_context.workspace.public_id)
     assert payload["membership"] == {
@@ -202,6 +213,177 @@ def test_export_orders_rows_deterministically(db_session, request_context):
     )
 
     assert [row["name"] for row in payload["portfolios"]] == ["Earlier", "Retirement"]
+
+
+def test_export_v2_includes_remaining_user_data_but_not_secrets_or_internal_state(
+    db_session,
+    request_context,
+):
+    portfolio, transaction = _seed_export_rows(db_session, request_context)
+    benchmark = Benchmark(
+        public_id=UUID("70000000-0000-4000-8000-000000000001"),
+        workspace_id=request_context.workspace.id,
+        portfolio_id=portfolio.id,
+        name="Balanced",
+        kind="custom",
+        is_default=True,
+        is_preset=False,
+    )
+    db_session.add(benchmark)
+    db_session.flush()
+    db_session.add_all([
+        BenchmarkComponent(
+            public_id=UUID("71000000-0000-4000-8000-000000000001"),
+            workspace_id=request_context.workspace.id,
+            benchmark_id=benchmark.id,
+            ticker="SPY",
+            weight=0.6,
+        ),
+        OptionsTrade(
+            public_id=UUID("72000000-0000-4000-8000-000000000001"),
+            workspace_id=request_context.workspace.id,
+            portfolio_id=portfolio.id,
+            underlying="MSFT",
+            strike=450,
+            expiry=date(2026, 12, 18),
+            put_call="C",
+            quantity=1,
+            open_price=8.5,
+            open_date=date(2026, 1, 10),
+            status="open",
+            notes="covered call",
+        ),
+        BrokerBalance(
+            public_id=UUID("73000000-0000-4000-8000-000000000001"),
+            workspace_id=request_context.workspace.id,
+            portfolio_id=portfolio.id,
+            broker="ibkr",
+            base_currency="USD",
+            cash=500,
+            stock=2000,
+            options_value=120,
+            net_liquidation=2620,
+            cash_by_currency='{"USD": 500}',
+            as_of=date(2026, 9, 6),
+        ),
+        PolymarketPosition(
+            public_id=UUID("74000000-0000-4000-8000-000000000001"),
+            workspace_id=request_context.workspace.id,
+            portfolio_id=portfolio.id,
+            condition_id="condition-1",
+            asset_id="asset-1",
+            market_slug="example-market",
+            question="Will the example happen?",
+            outcome="Yes",
+            size=10,
+            avg_price=0.4,
+            current_price=0.5,
+            status="open",
+        ),
+        DiscordWebhook(
+            public_id=UUID("75000000-0000-4000-8000-000000000001"),
+            workspace_id=request_context.workspace.id,
+            portfolio_id=portfolio.id,
+            webhook_url="https://discord.com/api/webhooks/123/NEVER-EXPORT",
+            notify_trades=True,
+            notify_dividends=False,
+            notify_milestones=True,
+        ),
+        TradeNote(
+            public_id=UUID("76000000-0000-4000-8000-000000000001"),
+            workspace_id=request_context.workspace.id,
+            transaction_id=transaction.id,
+            content="Why I bought",
+            tags="quality,long-term",
+            sentiment="bullish",
+        ),
+        CashInterestRate(
+            public_id=UUID("77000000-0000-4000-8000-000000000001"),
+            workspace_id=request_context.workspace.id,
+            portfolio_id=portfolio.id,
+            currency="USD",
+            annual_rate=0.03,
+            enabled=True,
+            start_date=date(2026, 1, 1),
+        ),
+        DividendNotification(
+            public_id=UUID("78000000-0000-4000-8000-000000000001"),
+            workspace_id=request_context.workspace.id,
+            portfolio_id=portfolio.id,
+            ticker="MSFT",
+            ex_date=date(2026, 8, 20),
+        ),
+        WorkspaceSetting(
+            workspace_id=request_context.workspace.id,
+            key="broker_sync_mode",
+            value="daily",
+        ),
+        WorkspaceSetting(
+            workspace_id=request_context.workspace.id,
+            key="privacy.workspace_deletion",
+            value='{"requested_by_user_id":"INTERNAL"}',
+        ),
+        UserSetting(
+            user_id=request_context.user.id,
+            key="deepseek_model",
+            value="deepseek-reasoner",
+        ),
+        UserSetting(
+            user_id=request_context.user.id,
+            key="deepseek_api_key",
+            value="encrypted:NEVER-EXPORT-AI-KEY",
+        ),
+    ])
+    other_portfolio = db_session.query(Portfolio).filter_by(name="Must not leak").one()
+    db_session.add(OptionsTrade(
+        workspace_id=other_portfolio.workspace_id,
+        portfolio_id=other_portfolio.id,
+        underlying="CROSS-TENANT-OPTION",
+        strike=1,
+        expiry=date(2026, 12, 18),
+        put_call="P",
+        quantity=1,
+        open_price=1,
+        open_date=date(2026, 1, 10),
+        status="open",
+    ))
+    db_session.flush()
+
+    payload = build_workspace_export(
+        db_session,
+        request_context,
+        exported_at=EXPORTED_AT,
+    )
+    encoded = json.dumps(payload)
+
+    assert payload["benchmarks"][0]["components"] == [{
+        "id": "71000000-0000-4000-8000-000000000001",
+        "benchmark_id": "70000000-0000-4000-8000-000000000001",
+        "ticker": "SPY",
+        "weight": 0.6,
+    }]
+    assert payload["options_trades"][0]["notes"] == "covered call"
+    assert payload["broker_balances"][0]["cash_by_currency"] == {"USD": 500}
+    assert payload["polymarket_positions"][0]["question"] == "Will the example happen?"
+    assert payload["notification_preferences"][0]["notify_dividends"] is False
+    assert payload["trade_notes"][0]["transaction_id"] == str(transaction.public_id)
+    assert payload["cash_interest_rates"][0]["annual_rate"] == 0.03
+    assert payload["dividend_notifications"][0]["ticker"] == "MSFT"
+    assert payload["workspace_preferences"] == {"broker_sync_mode": "daily"}
+    assert payload["user_preferences"] == {"assistant_model": "deepseek-reasoner"}
+
+    for forbidden in (
+        "NEVER-EXPORT",
+        "NEVER-EXPORT-AI-KEY",
+        "webhook_url",
+        "deepseek_api_key",
+        "privacy.workspace_deletion",
+        "requested_by_user_id",
+        "workspace_id",
+        "transaction_id\": 1",
+        "CROSS-TENANT-OPTION",
+    ):
+        assert forbidden not in encoded
 
 
 def test_export_endpoint_returns_named_json_attachment(db_session, request_context):

@@ -132,6 +132,15 @@ React 18, TanStack Query, Vitest, pytest.
 
 ## Verification record (2026-09-07)
 
+Schema version `2` follow-up (2026-09-07) extends the portable bundle to the
+remaining user-provided workspace data: custom benchmarks/components, options,
+broker balances, Polymarket positions, trade notes, cash-interest settings,
+notification preferences/history, and safe preference allow-lists. It retains
+public-ID relationships and excludes Discord/AI secrets, deletion state,
+operational schedule state, raw internal keys, and cross-tenant rows.
+Focused export tests: `6 passed`; complete fast backend: `547 passed`;
+PostgreSQL privacy/RLS: `2 passed`; frontend local: `26` files / `142` tests.
+
 - Fast backend: `546 passed`.
 - PostgreSQL integration: `321 passed`, including real HTTP/RLS isolation for
   the export and deletion-status endpoints.
