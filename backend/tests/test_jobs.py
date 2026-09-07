@@ -5,8 +5,9 @@ import os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import asyncio
+import logging
 import pytest
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import patch, AsyncMock
 
 from models import BrokerConnection, DiscordWebhook, DividendNotification
@@ -529,3 +530,56 @@ def test_tick_does_not_advance_last_run_when_pass_raises(db_session):
         with pytest.raises(RuntimeError):
             _run(autosync_tick(db_session, TEST_WORKSPACE_ID, now=now))
     assert load_sync_schedule(db_session, TEST_WORKSPACE_ID)["last_run"] == stamped
+
+
+from models import RateLimitBucket
+from jobs import rate_limit_cleanup_pass
+
+
+class TestRateLimitCleanupPass:
+    NOW = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+    def _seed(self, db_session, *, expired: int, live: int):
+        for i in range(expired):
+            db_session.add(RateLimitBucket(
+                key=f"expired-{i}", count=1, expires_at=self.NOW - timedelta(minutes=1),
+            ))
+        for i in range(live):
+            db_session.add(RateLimitBucket(
+                key=f"live-{i}", count=1, expires_at=self.NOW + timedelta(minutes=5),
+            ))
+        db_session.commit()
+
+    def test_deletes_only_expired_rows(self, db_session):
+        self._seed(db_session, expired=3, live=2)
+
+        result = _run(rate_limit_cleanup_pass(db_session, now=self.NOW))
+
+        assert result == [{"deleted": 3}]
+        remaining = db_session.query(RateLimitBucket).all()
+        assert {row.key for row in remaining} == {"live-0", "live-1"}
+
+    def test_records_nothing_when_no_expired_rows(self, db_session):
+        self._seed(db_session, expired=0, live=2)
+
+        result = _run(rate_limit_cleanup_pass(db_session, now=self.NOW))
+
+        assert result == []
+
+    def test_respects_batch_and_max_rows_bounds(self, db_session, caplog):
+        self._seed(db_session, expired=10, live=0)
+
+        with caplog.at_level(logging.INFO, logger="portfyl.jobs"):
+            result = _run(rate_limit_cleanup_pass(db_session, now=self.NOW, batch_size=3, max_rows=7))
+
+        assert result == [{"deleted": 7}]
+        assert db_session.query(RateLimitBucket).count() == 3  # 10 - 7
+        assert any("deleted=7 remaining_backlog=3" in message for message in caplog.messages)
+
+    def test_logs_the_cleanup_event_even_when_nothing_expired(self, db_session, caplog):
+        self._seed(db_session, expired=0, live=2)
+
+        with caplog.at_level(logging.INFO, logger="portfyl.jobs"):
+            _run(rate_limit_cleanup_pass(db_session, now=self.NOW))
+
+        assert any("deleted=0 remaining_backlog=0" in message for message in caplog.messages)

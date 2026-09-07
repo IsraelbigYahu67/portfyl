@@ -59,7 +59,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yfinance as yf
-from sqlalchemy import select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from app_settings import get_workspace_setting, set_workspace_setting
@@ -85,7 +85,7 @@ SYNC_COLOR = 0x059669      # green — same as trade notifications
 # and needs_attention on instead (see models.BrokerConnection).
 BROKER_AUTOSYNC_FAILURE_THRESHOLD = int(os.environ.get("BROKER_AUTOSYNC_FAILURE_THRESHOLD", 5))
 
-RECURRING_JOB_NAMES = ("alerts", "autosync", "dividends")
+RECURRING_JOB_NAMES = ("alerts", "autosync", "dividends", "rate_limit_cleanup")
 
 
 def mark_job_succeeded(
@@ -737,3 +737,48 @@ async def alert_check_all_workspaces(db: Session) -> list[dict]:
             allow_external_notifications=allow_external_notifications,
         ))
     return results
+
+
+async def rate_limit_cleanup_pass(
+    db: Session,
+    now: datetime | None = None,
+    *,
+    batch_size: int = 10_000,
+    max_rows: int = 100_000,
+) -> list[dict]:
+    """Delete expired rate_limit_buckets rows in bounded batches. Global,
+    non-tenant infrastructure state -- unlike every other pass in this
+    module, this one never enumerates or scopes by workspace (see
+    models.RateLimitBucket and docs/security/tenant-isolation-matrix.md's
+    "Non-tenant infrastructure tables" section). Returns one summary dict
+    (not one per deleted row -- there is no meaningful per-row "event" here)
+    so _run_job's len(happened) still logs a truthy 1 when work occurred."""
+    from models import RateLimitBucket
+
+    cutoff = now or datetime.now(timezone.utc)
+    deleted_total = 0
+    while deleted_total < max_rows:
+        remaining_budget = max_rows - deleted_total
+        this_batch = batch_size if batch_size < remaining_budget else remaining_budget
+        keys = db.scalars(
+            select(RateLimitBucket.key)
+            .where(RateLimitBucket.expires_at <= cutoff)
+            .limit(this_batch)
+        ).all()
+        if not keys:
+            break
+        db.execute(delete(RateLimitBucket).where(RateLimitBucket.key.in_(keys)))
+        db.commit()
+        deleted_total += len(keys)
+        if len(keys) < this_batch:
+            break
+
+    remaining = db.scalar(
+        select(func.count()).select_from(RateLimitBucket).where(RateLimitBucket.expires_at <= cutoff)
+    ) or 0
+    # The spec's dedicated "rate_limit_cleanup" structured observability
+    # event -- always emitted (not gated on remaining > 0), since this is a
+    # low-frequency (hourly) job where "ran, nothing to clean" is itself
+    # useful signal, unlike the generic per-check logs this module avoids.
+    log.info("rate_limit_cleanup deleted=%d remaining_backlog=%d", deleted_total, remaining)
+    return [{"deleted": deleted_total}] if deleted_total else []
