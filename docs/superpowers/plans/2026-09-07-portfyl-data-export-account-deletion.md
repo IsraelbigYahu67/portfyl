@@ -44,13 +44,13 @@ React 18, TanStack Query, Vitest, pytest.
 - `build_workspace_export(db, context, exported_at=...) -> dict`
 - `GET /api/settings/account/export`
 
-- [ ] Write failing tests for the required collections, public UUID
+- [x] Write failing tests for the required collections, public UUID
   relationships, cross-tenant exclusion, deterministic order, attachment
   headers, and secret exclusion.
-- [ ] Run the focused tests and record the expected failure.
-- [ ] Implement allow-listed serialization and the export endpoint.
-- [ ] Run focused tests, the complete fast backend suite, and frontend suite.
-- [ ] Commit the export slice.
+- [x] Run the focused tests and record the expected failure.
+- [x] Implement allow-listed serialization and the export endpoint.
+- [x] Run focused tests, the complete fast backend suite, and frontend suite.
+- [x] Commit the export slice.
 
 ### Task 2: Verified grace-period state machine
 

@@ -105,3 +105,11 @@ def get_audit_log(
         "page_size": page_size,
         "total": total,
     }
+
+
+# Account/privacy routes inherit this router's `/settings` prefix. Keeping the
+# nesting here avoids a second registration point in main.py and preserves the
+# frontend's existing portfolio-agnostic `/settings` request context.
+from routers.account import router as account_router  # noqa: E402
+
+router.include_router(account_router)
