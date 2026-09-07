@@ -9,6 +9,16 @@
 > trials is superseded and must not be executed. Those sections are retained as
 > historical design context; the remaining non-payment work stays active.
 
+> **Implementation reconciliation (2026-09-07):** The edition boundary,
+> PostgreSQL/tenancy foundation, encrypted secrets/external jobs, provider-
+> neutral Free-plan enforcement and quotas, rate limiting/trusted Cloudflare
+> edge, EU Cloud Run deployment, and workspace export/deletion workflow are
+> implemented. The current launch blockers are commercial market-data rights,
+> product validation, public legal/support surfaces, monitoring plus a recorded
+> production-like restore drill, unified onboarding, and private-beta evidence.
+> See the focused plans dated 2026-09-03 through 2026-09-07 rather than treating
+> superseded Stripe/trial checklist text as active work.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > `superpowers:subagent-driven-development` (recommended) or
 > `superpowers:executing-plans` to implement this plan task-by-task. Steps use
@@ -459,9 +469,9 @@ Implementation requirements:
 
 ### P0: required before accepting money
 
-- [ ] Central edition/capability registry with fail-closed `local`/`cloud`
+- [x] Central edition/capability registry with fail-closed `local`/`cloud`
       startup configuration.
-- [ ] Backend route-registration and frontend route/navigation tests proving
+- [x] Backend route-registration and frontend route/navigation tests proving
       Tax Report and Screener exist only in `local`.
 - [ ] Cloud pricing, onboarding, help, sitemap, analytics events, and upgrade
       prompts contain no Tax Report or Screener claims.
@@ -748,7 +758,9 @@ cloud positioning solves a paid problem.
 - [x] Complete Workstream C: identity and tenant isolation.
 - [x] Complete Workstream D: encrypted secrets and external jobs.
 - [x] Implement edition-specific backend and frontend route manifests.
-- [ ] Configure backups, monitoring, audit, rate limits, and EU deployment.
+- [x] Configure audit, rate limits, trusted Cloudflare edge, and EU deployment.
+- [ ] Verify production backup retention, run a recorded restore drill, and
+      configure monitoring/alert notification paths.
 
 **Exit gate:** Cross-tenant tests pass for every resource class, multiple web
 instances run without duplicate work, and a production-like backup restores
@@ -761,7 +773,9 @@ Tax Report nor Screener, while both remain usable in the private local build.
 > this phase are no longer active. Onboarding remains deferred; a separate,
 > approved plan is required before implementing any future paid checkout.
 
-- [ ] Complete Workstream E: Stripe, trial, entitlements, and quotas.
+- [x] Complete the active Workstream E scope: provider-neutral plans,
+      deterministic Free cloud access, entitlements, and quotas. Payments and
+      trials remain deferred.
 - [ ] Build unified onboarding and demo/import activation.
 - [ ] Add lifecycle e-mails and billing recovery.
 - [ ] Complete privacy, terms, export, deletion, and support surfaces.
@@ -962,8 +976,9 @@ Portfyl is ready to accept public payments only when every item below is true:
 - [ ] The complete Alice/Bob isolation test matrix passes.
 - [x] Broker, AI, and webhook secrets are encrypted and absent from logs.
 - [x] Background jobs are external, tenant-aware, and idempotent.
-- [ ] Stripe webhook replay cannot duplicate or corrupt subscription state.
-- [ ] Every plan capability and quota is backend-enforced.
+- [ ] A future payment-provider webhook cannot duplicate or corrupt
+      subscription state (deferred until a provider is selected).
+- [x] Every currently active plan capability and quota is backend-enforced.
 - [ ] Cloud OpenAPI, frontend routes, navigation, pricing, help, and direct-URL
       tests expose neither Tax Report nor Screener.
 - [ ] The private local build still exposes and tests Tax Report and Screener
@@ -986,13 +1001,15 @@ Portfyl is ready to accept public payments only when every item below is true:
 2. [ ] Interview 10-15 target users and rank non-tax paid pains.
 3. [ ] Request commercial-display quotes from at least three data providers for
        the exact remaining cloud feature set.
-4. [ ] Publish/test the proposed Free, Investor, and Pro pricing page without
+4. [x] Publish/test the proposed Free, Investor, and Pro comparison page without
        Tax Report or Screener claims.
 5. [x] Write the focused edition/capability-boundary implementation plan.
 6. [x] Write the focused PostgreSQL migration plan.
 7. [x] Write the focused identity/workspace/tenant-isolation plan.
-8. [ ] Write the focused encrypted-secrets/jobs and Stripe/entitlements plans.
-9. [ ] Execute those plans in dependency order with test and review gates.
+8. [x] Write the focused encrypted-secrets/jobs and provider-neutral
+       plans/entitlements plans.
+9. [x] Execute the active non-payment plans in dependency order with test and
+       review gates.
 10. [ ] Run a 20-50-user private beta before public billing.
 
 ### Dependency order
