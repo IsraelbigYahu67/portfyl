@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from rate_limit import rate_limit
+
 from audit import record_audit_event
 from auth import (
     clear_session_cookie,
@@ -163,7 +165,7 @@ def _require_csrf(request: Request, session: AuthSession) -> None:
         raise AuthAPIError(403, "csrf_failed")
 
 
-@router.post("/session", status_code=201)
+@router.post("/session", status_code=201, dependencies=[Depends(rate_limit("auth_session", by="ip"))])
 def exchange_session(
     payload: SessionExchange,
     request: Request,
