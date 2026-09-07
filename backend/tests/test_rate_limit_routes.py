@@ -197,3 +197,40 @@ class TestBrokerSyncRateLimit:
 
         assert first.status_code == 404
         assert second.status_code == 429  # same broker_sync bucket, intentionally shared
+
+
+class TestAssistantChatRateLimit:
+    def test_second_call_from_the_same_workspace_is_429(
+        self, monkeypatch, db_session, request_context, default_portfolio
+    ):
+        from routers import assistant
+        import entitlements
+
+        monkeypatch.setattr(entitlements, "ensure_capability", lambda *a, **k: None)
+        monkeypatch.setattr(
+            rate_limit, "RATE_LIMIT_RULES",
+            {"assistant_chat": RateLimitRule(name="assistant_chat", limit=1, window_seconds=60)},
+        )
+        monkeypatch.setattr(rate_limit, "KEY_SECRET", b"test-key-secret")
+        monkeypatch.setattr(rate_limit, "SessionLocal", lambda: _shared_limiter_session(db_session))
+
+        app = _rate_limited_app(cloud=True)
+        app.include_router(assistant.router, prefix="/api")
+        app.dependency_overrides[get_db] = lambda: db_session
+        app.dependency_overrides[get_request_context] = lambda: request_context
+        app.dependency_overrides[require_csrf] = lambda: request_context
+        app.dependency_overrides[require_portfolio] = lambda: default_portfolio
+
+        provider = AsyncMock(return_value=("answer", {"total_tokens": 4}))
+        payload = {"messages": [{"role": "user", "content": "hi"}]}
+        with patch("routers.assistant._call_deepseek", provider), TestClient(app) as client:
+            first = client.post(
+                "/api/assistant/chat", json=payload, headers={"Idempotency-Key": "req-1"}
+            )
+            second = client.post(
+                "/api/assistant/chat", json=payload, headers={"Idempotency-Key": "req-2"}
+            )
+
+        assert first.status_code != 429  # capability check bypassed; limiter let it through
+        assert second.status_code == 429
+        assert second.json() == {"code": "rate_limit_exceeded", "rule": "assistant_chat"}

@@ -15,6 +15,7 @@ from models import Transaction, Portfolio
 from routers.portfolios import require_portfolio
 from app_settings import get_user_secret, get_user_setting, set_user_secret, set_user_setting
 from tenancy import RequestContext, get_request_context, require_csrf
+from rate_limit import rate_limit
 from entitlements import (
     EffectiveEntitlements,
     EntitlementDenied,
@@ -281,7 +282,7 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage]
 
 
-@router.post("/chat", dependencies=[Depends(require_capability("assistant_byok"))])
+@router.post("/chat", dependencies=[Depends(require_capability("assistant_byok")), Depends(rate_limit("assistant_chat", by="workspace"))])
 async def chat(
     payload: ChatRequest,
     db: Session = Depends(get_db),
