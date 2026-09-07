@@ -235,6 +235,23 @@ class UsageCounter(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
 
+class RateLimitBucket(Base):
+    """Global, non-tenant fixed-window rate-limit state -- one row per
+    (rule, identity, window). Deliberately outside RLS: see job_runs above
+    and docs/security/tenant-isolation-matrix.md's "Non-tenant
+    infrastructure tables" section. `key` is an opaque HMAC-SHA256 digest
+    (rate_limit.py) -- never a raw IP or workspace id."""
+
+    __tablename__ = "rate_limit_buckets"
+    __table_args__ = (
+        CheckConstraint("count >= 0", name="ck_rate_limit_bucket_nonnegative"),
+    )
+
+    key = Column(String(64), primary_key=True)
+    count = Column(Integer, nullable=False, default=0, server_default="0")
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+
+
 class UsageReservation(Base):
     __tablename__ = "usage_reservations"
     __table_args__ = (
