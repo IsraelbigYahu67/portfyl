@@ -21,6 +21,15 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 from database import SessionLocal, assert_alembic_head, get_db
 from edition import Edition, edition_from_env
 from entitlements import EntitlementDenied, entitlement_denied_handler
+from cloud_gate import CloudApiGateMiddleware
+from rate_limit import (
+    InvalidClientIp,
+    RateLimitExceeded,
+    RateLimitUnavailable,
+    invalid_client_ip_handler,
+    rate_limit_exceeded_handler,
+    rate_limit_unavailable_handler,
+)
 from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, cash, alerts, settings, capabilities, auth as auth_router
 from tenancy import (
     RequestContextError,
@@ -40,6 +49,9 @@ app.add_exception_handler(
     request_context_error_handler,
 )
 app.add_exception_handler(EntitlementDenied, entitlement_denied_handler)
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitUnavailable, rate_limit_unavailable_handler)
+app.add_exception_handler(InvalidClientIp, invalid_client_ip_handler)
 
 
 # The desktop SPA is same-origin (baked into the image), but the native app calls
@@ -55,6 +67,13 @@ _frontend_origin = os.getenv("FRONTEND_ORIGIN")
 if _frontend_origin:
     # Optional extra allowed origin(s), comma-separated (e.g. a hosted frontend).
     _cors_origins.extend(o.strip() for o in _frontend_origin.split(",") if o.strip())
+
+if PORTFYL_EDITION is Edition.CLOUD:
+    # Registered before CORSMiddleware's own add_middleware() call so it
+    # ends up more inner than CORS in Starlette's wrap order (later-added
+    # middleware wraps outermost) -- CORS then still decorates this gate's
+    # own direct 400/403/429/503 responses instead of skipping them.
+    app.add_middleware(CloudApiGateMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -140,6 +159,13 @@ _JOB_MAX_AGES = {
     "autosync": timedelta(hours=2),
     "dividends": timedelta(hours=25),
 }
+if PORTFYL_EDITION is Edition.CLOUD:
+    # rate_limit_cleanup only ever runs in cloud (internal_jobs.router is
+    # cloud-only); local must never expect a heartbeat for a job it never
+    # schedules, or /health would report permanently degraded there.
+    _JOB_MAX_AGES["rate_limit_cleanup"] = timedelta(hours=2)
+
+
 def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)

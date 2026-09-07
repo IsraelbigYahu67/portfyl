@@ -4,6 +4,29 @@ import importlib
 
 from fastapi.testclient import TestClient
 
+import edge_trust
+import rate_limit
+from rate_limit import RateLimitRule
+
+# The cloud edition mounts CloudApiGateMiddleware, which rejects every
+# untrusted /api/* request with 403 *before* routing -- so in cloud these
+# requests must first satisfy the gate, or the 404/405 assertions below
+# would be measuring the gate instead of route registration.
+_GATE_HEADERS = {
+    "X-Portfyl-Edge-Token": "test-edge-token",
+    "CF-Connecting-IP": "203.0.113.9",
+}
+
+
+def _let_requests_past_the_cloud_gate(monkeypatch):
+    monkeypatch.setattr(edge_trust, "EDGE_TOKEN", "test-edge-token")
+    monkeypatch.setattr(
+        rate_limit,
+        "RATE_LIMIT_RULES",
+        {"global": RateLimitRule(name="global", limit=1000, window_seconds=60)},
+    )
+    monkeypatch.setattr(rate_limit, "consume_rate_limit", lambda **kwargs: None)
+
 
 LOCAL_ONLY_API_PATHS = {
     "/api/analytics/tax-report",
@@ -46,12 +69,13 @@ def test_cloud_edition_omits_owner_only_and_payment_routes(monkeypatch):
             not path.startswith("/api/billing/")
             for path in main.app.openapi()["paths"]
         )
+        _let_requests_past_the_cloud_gate(monkeypatch)
         client = TestClient(main.app)
         for path in LOCAL_ONLY_API_PATHS:
-            assert client.get(path).status_code == 404
+            assert client.get(path, headers=_GATE_HEADERS).status_code == 404
         for path in BILLING_API_PATHS:
             method = client.post if path not in {"/api/billing/prices", "/api/billing/entitlements"} else client.get
-            assert method(path).status_code in (404, 405)
+            assert method(path, headers=_GATE_HEADERS).status_code in (404, 405)
     finally:
         # Leave the process in the test suite's declared local edition so test
         # ordering cannot leak a cloud app into later imports.
