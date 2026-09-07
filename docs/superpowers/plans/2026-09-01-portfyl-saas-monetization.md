@@ -877,8 +877,8 @@ derived analytics still require suitable commercial rights.
 - [x] Implement machine-readable export.
 - [x] Implement verified account deletion and retention workflow.
 - [x] Encrypt data in transit and sensitive secrets at rest.
-- [ ] Define breach/incident handling and support identity verification.
-- [ ] Keep analytics free of raw holdings, transactions, and credentials by
+- [x] Define breach/incident handling and support identity verification.
+- [x] Keep analytics free of raw holdings, transactions, and credentials by
       default.
 
 Reference: [European Commission GDPR principles](https://commission.europa.eu/law/law-topic/data-protection/information-business-and-organisations/principles-gdpr_en).
@@ -896,6 +896,14 @@ sole ownership, preserves other workspaces, and removes the Firebase/Portfyl
 user only after their last workspace. No plan or trial state participates, so
 trial/plan expiration cannot delete imported data. See
 `docs/superpowers/plans/2026-09-07-portfyl-data-export-account-deletion.md`.
+
+The technical processing inventory confirms that no product-analytics,
+advertising, session-replay, or tracking SDK is present; operational logging,
+audit, usage, and rate-limit data follow explicit minimization/redaction rules.
+The severity, containment, evidence-minimization, support identity verification,
+notification-assessment, recovery, and drill process is defined in
+`docs/operations/security-incident-response.md`. Public contact/customer-
+communication channels and a completed tabletop drill remain open launch gates.
 
 ### VAT and billing
 
