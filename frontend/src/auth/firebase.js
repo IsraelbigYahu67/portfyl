@@ -79,6 +79,18 @@ export async function getIdToken(user, forceRefresh = false) {
   return user.getIdToken(forceRefresh);
 }
 
+export async function reauthenticateWithPassword(email, password) {
+  const auth = await readyAuth();
+  try {
+    const credential = await signInWithEmailAndPassword(auth, email, password);
+    return await credential.user.getIdToken(true);
+  } finally {
+    // Portfyl's HttpOnly session remains the durable credential. The temporary
+    // Firebase session exists only long enough to prove this sensitive action.
+    if (auth.currentUser) await signOut(auth);
+  }
+}
+
 export async function signOutFirebaseClient() {
   if (!_auth) return;
   await signOut(_auth);

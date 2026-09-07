@@ -6,6 +6,7 @@ import { usePortfolio } from "../App";
 import DiscordSettings from "../components/DiscordSettings";
 import SyncScheduleSettings from "../components/SyncScheduleSettings";
 import Toggle from "../components/ui/Toggle";
+import DataPrivacySettings from "../components/DataPrivacySettings";
 
 export default function Settings() {
   const queryClient = useQueryClient();
@@ -265,6 +266,8 @@ export default function Settings() {
       <SyncScheduleSettings />
 
       <DiscordSettings />
+
+      <DataPrivacySettings />
     </div>
   );
 }

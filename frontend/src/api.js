@@ -116,6 +116,30 @@ export const logoutSession = () => api.post("/auth/logout").then((r) => r.data);
 export const logoutAllSessions = () => api.post("/auth/logout-all").then((r) => r.data);
 export const fetchCapabilities = () => api.get("/capabilities").then((r) => r.data);
 
+export const fetchDeletionStatus = () =>
+  api.get("/settings/account/deletion").then((r) => r.data);
+
+export const scheduleWorkspaceDeletion = (payload) =>
+  api.post("/settings/account/deletion", payload).then((r) => r.data);
+
+export const cancelWorkspaceDeletion = () =>
+  api.delete("/settings/account/deletion").then((r) => r.data);
+
+export function exportFilename(contentDisposition) {
+  const match = String(contentDisposition || "").match(/filename="([^"]+)"/i);
+  return match?.[1] || "portfyl-workspace-export.json";
+}
+
+export async function downloadWorkspaceExport() {
+  const response = await api.get("/settings/account/export", {
+    responseType: "blob",
+  });
+  return {
+    blob: response.data,
+    filename: exportFilename(response.headers?.["content-disposition"]),
+  };
+}
+
 // ----- Portfolios CRUD (not portfolio-scoped) ---------------------------------
 
 export const fetchPortfolios = () => api.get("/portfolios").then((r) => r.data);

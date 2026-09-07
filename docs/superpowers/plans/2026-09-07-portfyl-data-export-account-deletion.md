@@ -110,12 +110,12 @@ React 18, TanStack Query, Vitest, pytest.
   the in-memory Firebase client back out.
 - Settings renders export, schedule, pending-deadline, and cancel states.
 
-- [ ] Write failing component/API tests for download, password re-auth, typed
+- [x] Write failing component/API tests for download, password re-auth, typed
   confirmation, pending state, errors, and cancellation.
-- [ ] Run focused frontend tests and record the expected failure.
-- [ ] Implement API helpers, Firebase re-auth, and accessible Settings UI.
-- [ ] Run focused tests, the complete fast backend suite, and frontend suite.
-- [ ] Commit the frontend slice.
+- [x] Run focused frontend tests and record the expected failure.
+- [x] Implement API helpers, Firebase re-auth, and accessible Settings UI.
+- [x] Run focused tests, the complete fast backend suite, and frontend suite.
+- [x] Commit the frontend slice.
 
 ### Task 5: Compliance record and final verification
 
