@@ -5,7 +5,7 @@ sync via API), then view performance, allocation, dividends, options, tax
 reports, and an AI assistant across one or more portfolios. Now multi-tenant
 (Firebase-verified identities, workspace-scoped PostgreSQL data) —
 **a multi-user SaaS conversion is in progress**, with tenant isolation and the
-edition boundary done, while paid checkout and onboarding remain deferred; see below.
+edition boundary and first-run onboarding done, while paid checkout remains deferred; see below.
 (Formerly "Snowball Analytics" — some internal identifiers still carry the
 `sb_` prefix for backwards compatibility; see the naming notes below.)
 
@@ -38,7 +38,9 @@ before starting any auth, tenancy, database, or billing work.
   **Everything in the rest of this file now describes
   that implemented state**, not the old single-user SQLite one. What's
   **still pending**: Workstream A's external product/data validation and
-  commercial market-data rights, a future paid checkout, and onboarding. Don't
+  commercial market-data rights, and a future paid checkout. Empty workspaces
+  now receive unified demo/import/broker onboarding, and CSV imports require a
+  duplicate-aware preview before commit with a guarded 24-hour undo point. Don't
   reintroduce single-user/`owner_id="default"`/SQLite-primary
   assumptions anywhere in this codebase — that state is gone, not deferred.
 - Deploy stack for the cloud edition: **Google Cloud Run + Neon (managed

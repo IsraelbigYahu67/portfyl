@@ -21,16 +21,26 @@ from entitlements import (
     require_capability,
     resolve_entitlements,
 )
-from models import BrokerConnection, Portfolio, Transaction, Workspace
+from models import BrokerConnection, Portfolio, TradeNote, Transaction, Workspace
 from cash_ledger import TRADE_TYPES, POSITION_TYPES
 from schemas import TransactionCreate, TransactionResponse
 from fx import fetch_fx_to_czk, bulk_fetch_fx
 from routers.portfolios import require_portfolio
 from ticker_map import yf_symbol
 from cache import tenant_cache_key
-from tenancy import RequestContext, get_request_context
+from tenancy import RequestContext, get_request_context, require_csrf
 import market_data
 from import_workflow import build_preview
+from import_undo import (
+    capture_portfolio_state,
+    clear_undo_snapshot,
+    load_undo_snapshot,
+    restore_snapshot,
+    save_undo_snapshot,
+    snapshot_fingerprint,
+    undo_status,
+)
+from audit import record_audit_event
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -645,6 +655,7 @@ async def preview_import_csv(
     """Parse and reconcile an upload without mutating portfolio data."""
     parsed = _parse_import_content(await _read_import_upload(file))
     current_rows = _portfolio_txns(db, portfolio).all()
+    current_state = capture_portfolio_state(db, portfolio)
     preview = build_preview(
         current_rows=current_rows,
         incoming_rows=parsed.rows,
@@ -654,14 +665,282 @@ async def preview_import_csv(
         source_events=parsed.source_events,
         skipped=parsed.skipped,
         format_name=parsed.format_name,
+        current_state_fingerprint=snapshot_fingerprint(current_state),
     )
+    if preview["mode"] == "replace":
+        preview["counts"]["notes_removed"] = len(current_state["notes"])
+    else:
+        preview["counts"]["notes_removed"] = 0
     rows_to_insert = preview.pop("rows_to_insert")
     preview["sample"] = _preview_sample(rows_to_insert)
     preview["sample_truncated"] = len(rows_to_insert) > IMPORT_SAMPLE_LIMIT
     return preview
 
 
-@router.post("/import-csv")
+def _prepare_import_transactions(rows: list[dict], portfolio: Portfolio) -> list[Transaction]:
+    prepared_rows = [dict(row) for row in rows]
+    fx_needed = {
+        (row["currency"], row["date"])
+        for row in prepared_rows
+        if not row.get("fx_to_czk")
+    }
+    fx_map = bulk_fetch_fx(fx_needed)
+    prepared: list[Transaction] = []
+    errors: list[str] = []
+    for row in prepared_rows:
+        try:
+            if not row.get("fx_to_czk"):
+                currency = row["currency"].upper()
+                row["fx_to_czk"] = (
+                    1.0 if currency == "CZK" else fx_map.get((currency, row["date"]))
+                )
+            prepared.append(Transaction(
+                **row,
+                workspace_id=portfolio.workspace_id,
+                portfolio_id=portfolio.id,
+            ))
+        except Exception as exc:
+            errors.append(str(exc))
+    if errors:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "CSV validation failed", "errors": errors[:100]},
+        )
+    return prepared
+
+
+def _check_import_capacity(
+    db: Session,
+    portfolio: Portfolio,
+    prepared: list[Transaction],
+    *,
+    replace: bool,
+) -> None:
+    if db.get_bind().dialect.name == "postgresql":
+        db.query(Workspace.id).filter(
+            Workspace.id == portfolio.workspace_id
+        ).with_for_update().one()
+    entitlements = resolve_entitlements(
+        db,
+        edition=edition_from_env(os.environ),
+        workspace_id=portfolio.workspace_id,
+        env=os.environ,
+    )
+    existing_transactions = db.query(Transaction).filter(
+        Transaction.workspace_id == portfolio.workspace_id
+    ).all()
+    replaced_count = sum(
+        transaction.portfolio_id == portfolio.id
+        for transaction in existing_transactions
+    ) if replace else 0
+    ensure_count_limit(
+        entitlements,
+        "transactions",
+        used=len(existing_transactions) - replaced_count,
+        increase=len(prepared),
+    )
+    retained = (
+        [row for row in existing_transactions if row.portfolio_id != portfolio.id]
+        if replace else existing_transactions
+    )
+    ensure_final_count_limit(
+        entitlements,
+        "active_positions",
+        current=_active_position_count(existing_transactions),
+        final=_active_position_count([*retained, *prepared]),
+    )
+
+
+def _delete_portfolio_transaction_rows(db: Session, portfolio: Portfolio) -> None:
+    transaction_ids = [
+        row_id for (row_id,) in db.query(Transaction.id).filter(
+            Transaction.workspace_id == portfolio.workspace_id,
+            Transaction.portfolio_id == portfolio.id,
+        ).all()
+    ]
+    if transaction_ids:
+        db.query(TradeNote).filter(
+            TradeNote.workspace_id == portfolio.workspace_id,
+            TradeNote.transaction_id.in_(transaction_ids),
+        ).delete(synchronize_session="fetch")
+    _portfolio_txns(db, portfolio).delete(synchronize_session="fetch")
+    db.flush()
+
+
+@router.post("/import-csv/commit")
+async def commit_import_csv(
+    file: UploadFile = File(...),
+    preview_id: str = "",
+    replace: bool = False,
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+    context: RequestContext = Depends(require_csrf),
+):
+    parsed = _parse_import_content(await _read_import_upload(file))
+    if db.get_bind().dialect.name == "postgresql":
+        db.query(Workspace.id).filter(
+            Workspace.id == portfolio.workspace_id
+        ).with_for_update().one()
+    current_rows = _portfolio_txns(db, portfolio).all()
+    before = capture_portfolio_state(db, portfolio)
+    preview = build_preview(
+        current_rows=current_rows,
+        incoming_rows=parsed.rows,
+        requested_replace=replace,
+        mandatory_replace=parsed.mandatory_replace,
+        portfolio_public_id=str(portfolio.public_id),
+        source_events=parsed.source_events,
+        skipped=parsed.skipped,
+        format_name=parsed.format_name,
+        current_state_fingerprint=snapshot_fingerprint(before),
+    )
+    if not preview_id or preview_id != preview["preview_id"]:
+        raise HTTPException(
+            status_code=409,
+            detail="The file, import mode, or portfolio changed after preview. Preview again.",
+        )
+
+    rows_to_insert = preview["rows_to_insert"]
+    if preview["mode"] == "append" and not rows_to_insert:
+        counts = preview["counts"]
+        return {
+            "imported": 0,
+            "duplicates_skipped": counts["duplicates_in_file"] + counts["duplicates_existing"],
+            "projected": counts["projected"],
+            "format": parsed.format_name,
+            "mode": preview["mode"],
+            "replaced": False,
+            "undo": get_import_undo_status(db=db, portfolio=portfolio),
+        }
+
+    prepared = _prepare_import_transactions(rows_to_insert, portfolio)
+    replace_effective = preview["mode"] == "replace"
+    _check_import_capacity(db, portfolio, prepared, replace=replace_effective)
+    try:
+        if replace_effective:
+            _delete_portfolio_transaction_rows(db, portfolio)
+        db.add_all(prepared)
+        if parsed.t212_covered_through is not None:
+            portfolio.t212_csv_covered_through = parsed.t212_covered_through
+            connection = db.query(BrokerConnection).filter(
+                BrokerConnection.portfolio_id == portfolio.id,
+                BrokerConnection.workspace_id == portfolio.workspace_id,
+                BrokerConnection.broker == "trading212",
+            ).first()
+            if connection:
+                connection.t212_csv_covered_through = parsed.t212_covered_through
+        db.flush()
+        after = capture_portfolio_state(db, portfolio)
+        save_undo_snapshot(
+            db,
+            portfolio,
+            before=before,
+            after=after,
+            mode=preview["mode"],
+            imported=len(prepared),
+            format_name=parsed.format_name,
+        )
+        record_audit_event(
+            db,
+            actor_user_id=context.user.id,
+            workspace_id=portfolio.workspace_id,
+            action="portfolio.import.committed",
+            target_type="portfolio",
+            target_id=str(portfolio.public_id),
+            metadata={
+                "format": parsed.format_name,
+                "mode": preview["mode"],
+                "imported": len(prepared),
+                "duplicates_skipped": (
+                    preview["counts"]["duplicates_in_file"]
+                    + (preview["counts"]["duplicates_existing"] if not replace_effective else 0)
+                ),
+            },
+        )
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Import rolled back: {exc}")
+
+    duplicates_skipped = preview["counts"]["duplicates_in_file"]
+    if not replace_effective:
+        duplicates_skipped += preview["counts"]["duplicates_existing"]
+    return {
+        "imported": len(prepared),
+        "duplicates_skipped": duplicates_skipped,
+        "projected": preview["counts"]["projected"],
+        "removed": preview["counts"]["removed"],
+        "format": parsed.format_name,
+        "mode": preview["mode"],
+        "replaced": replace_effective,
+        "events": parsed.source_events,
+        "processed_events": parsed.source_events - parsed.skipped,
+        "undo": get_import_undo_status(db=db, portfolio=portfolio),
+    }
+
+
+@router.get("/import-csv/undo")
+def get_import_undo_status(
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+):
+    status = undo_status(db, portfolio)
+    if status.get("reason") == "expired":
+        clear_undo_snapshot(db, portfolio)
+        db.commit()
+    return status
+
+
+@router.post("/import-csv/undo")
+def undo_import_csv(
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+    context: RequestContext = Depends(require_csrf),
+):
+    status = undo_status(db, portfolio)
+    if not status["available"]:
+        if status.get("reason") == "expired":
+            clear_undo_snapshot(db, portfolio)
+            db.commit()
+            raise HTTPException(status_code=410, detail="The import undo window has expired")
+        if status.get("reason") == "portfolio_changed":
+            raise HTTPException(
+                status_code=409,
+                detail="Portfolio data changed after the import; undo was not applied",
+            )
+        raise HTTPException(status_code=404, detail="No import is available to undo")
+
+    try:
+        payload = load_undo_snapshot(db, portfolio)
+        if payload is None:
+            raise HTTPException(status_code=404, detail="No import is available to undo")
+        restored = restore_snapshot(db, portfolio, payload["before"])
+        clear_undo_snapshot(db, portfolio)
+        record_audit_event(
+            db,
+            actor_user_id=context.user.id,
+            workspace_id=portfolio.workspace_id,
+            action="portfolio.import.undone",
+            target_type="portfolio",
+            target_id=str(portfolio.public_id),
+            metadata={"format": payload["format"], "mode": payload["mode"], "restored": restored},
+        )
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Import undo rolled back: {exc}")
+    return {"restored": restored, "undone": True}
+
+
+# Compatibility helper for existing direct normalization tests. This function
+# is intentionally no longer registered as an HTTP route; clients must use the
+# preview/commit protocol above.
 async def import_csv(
     file: UploadFile = File(...),
     replace: bool = False,

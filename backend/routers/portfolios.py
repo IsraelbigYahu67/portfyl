@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import date
+import os
 from typing import Optional
 from uuid import UUID
 
@@ -11,8 +13,16 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database import get_db
-from entitlements import require_capacity, require_writable_resource
-from models import BrokerConnection, Portfolio, Transaction
+from edition import edition_from_env
+from entitlements import (
+    ensure_count_limit,
+    ensure_final_count_limit,
+    require_capacity,
+    require_writable_resource,
+    resolve_entitlements,
+)
+from models import BrokerConnection, Portfolio, Transaction, Workspace
+from audit import record_audit_event
 from tenancy import (
     RequestContext,
     RequestContextError,
@@ -23,6 +33,48 @@ from tenancy import (
 
 
 router = APIRouter(prefix="/portfolios", tags=["portfolios"])
+
+
+_DEMO_TRANSACTIONS = (
+    {
+        "ticker": None, "name": None, "type": "deposit", "shares": 0.0,
+        "price": 0.0, "amount": 200_000.0, "currency": "CZK",
+        "date": date(2025, 1, 2), "fx_to_czk": 1.0,
+        "notes": "Sample opening balance",
+    },
+    {
+        "ticker": "AAPL", "name": "Apple (sample)", "type": "buy", "shares": 3.0,
+        "price": 180.0, "currency": "USD", "date": date(2025, 1, 6),
+        "fx_to_czk": 23.0, "cash_amount": 12_420.0, "cash_currency": "CZK",
+        "notes": "Sample transaction",
+    },
+    {
+        "ticker": "MSFT", "name": "Microsoft (sample)", "type": "buy", "shares": 2.0,
+        "price": 410.0, "currency": "USD", "date": date(2025, 1, 8),
+        "fx_to_czk": 23.0, "cash_amount": 18_860.0, "cash_currency": "CZK",
+        "notes": "Sample transaction",
+    },
+    {
+        "ticker": "VWCE.DE", "name": "Vanguard FTSE All-World (sample)",
+        "type": "buy", "shares": 4.0, "price": 120.0, "currency": "EUR",
+        "date": date(2025, 1, 10), "fx_to_czk": 25.0,
+        "cash_amount": 12_000.0, "cash_currency": "CZK",
+        "notes": "Sample transaction",
+    },
+    {
+        "ticker": "MSFT", "name": "Microsoft (sample)", "type": "dividend",
+        "shares": 2.0, "price": 0.75, "currency": "USD",
+        "date": date(2025, 3, 15), "fx_to_czk": 23.0,
+        "cash_amount": 34.5, "cash_currency": "CZK",
+        "notes": "Sample dividend",
+    },
+    {
+        "ticker": "AAPL", "name": "Apple (sample)", "type": "sell", "shares": 1.0,
+        "price": 210.0, "currency": "USD", "date": date(2025, 4, 2),
+        "fx_to_czk": 23.0, "cash_amount": 4_830.0, "cash_currency": "CZK",
+        "notes": "Sample transaction",
+    },
+)
 
 
 class PortfolioCreate(BaseModel):
@@ -116,6 +168,91 @@ def create_portfolio(
             status_code=409,
             detail=f"A portfolio named '{name}' already exists",
         )
+    return result
+
+
+@router.post("/demo")
+def create_demo_portfolio(
+    context: RequestContext = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
+    """Create one deterministic, removable sample portfolio for onboarding."""
+    if db.get_bind().dialect.name == "postgresql":
+        db.execute(
+            select(Workspace.id)
+            .where(Workspace.id == context.workspace.id)
+            .with_for_update()
+        ).one()
+    existing_portfolios = db.scalar(
+        select(func.count()).select_from(Portfolio).where(
+            Portfolio.workspace_id == context.workspace.id
+        )
+    ) or 0
+    if existing_portfolios:
+        raise HTTPException(
+            status_code=409,
+            detail="A demo can only be created in an empty workspace",
+        )
+
+    entitlements = resolve_entitlements(
+        db,
+        edition=edition_from_env(os.environ),
+        workspace_id=context.workspace.id,
+        env=os.environ,
+    )
+    ensure_count_limit(entitlements, "portfolios", used=0, increase=1)
+    workspace_transactions = db.scalar(
+        select(func.count()).select_from(Transaction).where(
+            Transaction.workspace_id == context.workspace.id
+        )
+    ) or 0
+    ensure_count_limit(
+        entitlements,
+        "transactions",
+        used=workspace_transactions,
+        increase=len(_DEMO_TRANSACTIONS),
+    )
+    ensure_final_count_limit(
+        entitlements,
+        "active_positions",
+        current=0,
+        final=3,
+    )
+
+    portfolio = Portfolio(
+        workspace_id=context.workspace.id,
+        name="Portfyl demo",
+        color="#6D7048",
+        is_default=True,
+    )
+    try:
+        db.add(portfolio)
+        db.flush()
+        db.add_all([
+            Transaction(
+                **values,
+                source="demo",
+                workspace_id=context.workspace.id,
+                portfolio_id=portfolio.id,
+            )
+            for values in _DEMO_TRANSACTIONS
+        ])
+        record_audit_event(
+            db,
+            actor_user_id=context.user.id,
+            workspace_id=context.workspace.id,
+            action="onboarding.demo.created",
+            target_type="portfolio",
+            target_id=str(portfolio.public_id),
+            metadata={"transactions": len(_DEMO_TRANSACTIONS)},
+        )
+        db.flush()
+        db.refresh(portfolio)
+        result = {**_serialize(portfolio, {portfolio.id: len(_DEMO_TRANSACTIONS)}), "demo": True}
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return result
 
 

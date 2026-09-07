@@ -21,6 +21,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgotPassword";
+import Onboarding from "./pages/Onboarding";
 import { fetchCapabilities, fetchFxRate, fetchPortfolios, setActivePortfolioId, getActivePortfolioId } from "./api";
 import { ToastProvider } from "./components/ui/Toast";
 import { ConfirmProvider } from "./components/ui/ConfirmDialog";
@@ -409,6 +410,7 @@ function AuthGate() {
 
 function AppLayout() {
   const { platform } = usePlatform();
+  const { portfolios, isLoading: portfoliosLoading } = usePortfolio();
   const { data: capabilityState } = useQuery({
     queryKey: ["capabilities"],
     queryFn: fetchCapabilities,
@@ -417,6 +419,14 @@ function AppLayout() {
   });
   const runtimeCapabilities = capabilityState?.capabilities || [];
   const editionRoutes = enabledEditionEntries(EDITION_ROUTES, runtimeCapabilities);
+
+  if (portfoliosLoading) {
+    return <AuthSplash />;
+  }
+
+  if (!portfolios.length) {
+    return <Onboarding />;
+  }
 
   if (!platform) {
     return (

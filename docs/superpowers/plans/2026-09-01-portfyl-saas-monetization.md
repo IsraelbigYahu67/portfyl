@@ -12,10 +12,11 @@
 > **Implementation reconciliation (2026-09-07):** The edition boundary,
 > PostgreSQL/tenancy foundation, encrypted secrets/external jobs, provider-
 > neutral Free-plan enforcement and quotas, rate limiting/trusted Cloudflare
-> edge, EU Cloud Run deployment, and workspace export/deletion workflow are
+> edge, EU Cloud Run deployment, workspace export/deletion workflow, and the
+> unified demo/import onboarding plus safe CSV preview/undo workflow are
 > implemented. The current launch blockers are commercial market-data rights,
 > product validation, public legal/support surfaces, monitoring plus a recorded
-> production-like restore drill, unified onboarding, and private-beta evidence.
+> production-like restore drill, broader product packaging, and private-beta evidence.
 > See the focused plans dated 2026-09-03 through 2026-09-07 rather than treating
 > superseded Stripe/trial checklist text as active work.
 
@@ -475,8 +476,10 @@ Implementation requirements:
       Tax Report and Screener exist only in `local`.
 - [ ] Cloud pricing, onboarding, help, sitemap, analytics events, and upgrade
       prompts contain no Tax Report or Screener claims.
-- [ ] Unified account/import onboarding with a demo portfolio.
-- [ ] Import preview, duplicate detection, reconciliation, and undo.
+- [x] Unified account/import onboarding with a demo portfolio. See
+      `docs/superpowers/plans/2026-09-07-portfyl-onboarding-import-safety.md`.
+- [x] Import preview, duplicate detection, reconciliation, and guarded 24-hour
+      undo. See the same focused plan.
 - [ ] Consolidated view across broker accounts.
 - [ ] Czech and English localization.
 - [ ] Source and last-updated status for market/fundamental data.
@@ -776,7 +779,8 @@ Tax Report nor Screener, while both remain usable in the private local build.
 - [x] Complete the active Workstream E scope: provider-neutral plans,
       deterministic Free cloud access, entitlements, and quotas. Payments and
       trials remain deferred.
-- [ ] Build unified onboarding and demo/import activation.
+- [x] Build unified onboarding and demo/import activation, including a
+      duplicate-aware preview and guarded 24-hour undo.
 - [ ] Add lifecycle e-mails and billing recovery.
 - [ ] Complete privacy, terms, export, deletion, and support surfaces.
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 import asyncio
 import io
 
@@ -13,8 +13,18 @@ from import_workflow import (
     canonical_transaction,
     deduplicate_rows,
 )
-from models import Transaction
-from routers.portfolio import preview_import_csv
+from import_undo import (
+    capture_portfolio_state,
+    save_undo_snapshot,
+    undo_status,
+)
+from models import TradeNote, Transaction
+from routers.portfolio import (
+    commit_import_csv,
+    get_import_undo_status,
+    preview_import_csv,
+    undo_import_csv,
+)
 from tests.helpers import make_txn
 
 
@@ -175,6 +185,7 @@ def test_preview_id_changes_with_mode_portfolio_content_or_current_state():
     assert build_preview(**{**kwargs, "requested_replace": True})["preview_id"] != baseline
     assert build_preview(**{**kwargs, "portfolio_public_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"})["preview_id"] != baseline
     assert build_preview(**{**kwargs, "incoming_rows": [row(ticker="NVDA")]})["preview_id"] != baseline
+    assert build_preview(**{**kwargs, "incoming_rows": [row(ticker="MSFT", name="Renamed") ]})["preview_id"] != baseline
     assert build_preview(**{**kwargs, "current_rows": [row(price=151)]})["preview_id"] != baseline
 
 
@@ -263,3 +274,269 @@ def test_preview_rejects_upload_larger_than_five_mib(
 
     assert exc_info.value.status_code == 413
     assert "5 MiB" in str(exc_info.value.detail)
+
+
+def _preview(
+    csv: str,
+    *,
+    db_session,
+    default_portfolio,
+    request_context,
+    replace: bool = False,
+):
+    return asyncio.run(preview_import_csv(
+        file=_upload(csv),
+        replace=replace,
+        db=db_session,
+        portfolio=default_portfolio,
+        _context=request_context,
+    ))
+
+
+def _commit(
+    csv: str,
+    preview_id: str,
+    *,
+    db_session,
+    default_portfolio,
+    request_context,
+    replace: bool = False,
+):
+    return asyncio.run(commit_import_csv(
+        file=_upload(csv),
+        preview_id=preview_id,
+        replace=replace,
+        db=db_session,
+        portfolio=default_portfolio,
+        context=request_context,
+    ))
+
+
+def test_commit_requires_matching_preview_and_current_state(
+    db_session,
+    default_portfolio,
+    request_context,
+):
+    csv = "date,ticker,type,shares,price,currency\n2026-01-03,MSFT,buy,1,400,USD\n"
+    preview = _preview(
+        csv,
+        db_session=db_session,
+        default_portfolio=default_portfolio,
+        request_context=request_context,
+    )
+
+    changed_csv = "date,ticker,type,shares,price,currency\n2026-01-03,NVDA,buy,1,400,USD\n"
+    with pytest.raises(HTTPException) as changed_file:
+        _commit(
+            changed_csv,
+            preview["preview_id"],
+            db_session=db_session,
+            default_portfolio=default_portfolio,
+            request_context=request_context,
+        )
+    assert changed_file.value.status_code == 409
+    assert "preview" in str(changed_file.value.detail).lower()
+
+    db_session.add(make_txn("AAPL", portfolio_id=default_portfolio.id))
+    db_session.commit()
+    with pytest.raises(HTTPException) as changed_state:
+        _commit(
+            csv,
+            preview["preview_id"],
+            db_session=db_session,
+            default_portfolio=default_portfolio,
+            request_context=request_context,
+        )
+    assert changed_state.value.status_code == 409
+    assert db_session.query(Transaction).count() == 1
+
+
+def test_append_commit_skips_duplicates_and_creates_undo_point(
+    db_session,
+    default_portfolio,
+    request_context,
+):
+    db_session.add(make_txn(
+        "AAPL", "buy", 2, 150,
+        date=date(2026, 1, 2),
+        portfolio_id=default_portfolio.id,
+    ))
+    db_session.commit()
+    csv = """date,ticker,type,shares,price,currency
+2026-01-02,AAPL,buy,2,150,USD
+2026-01-03,MSFT,buy,1,400,USD
+2026-01-03,MSFT,buy,1,400,USD
+"""
+    preview = _preview(
+        csv,
+        db_session=db_session,
+        default_portfolio=default_portfolio,
+        request_context=request_context,
+    )
+
+    with patch("routers.portfolio.bulk_fetch_fx", return_value={
+        ("USD", date(2026, 1, 3)): 23.0,
+    }):
+        result = _commit(
+            csv,
+            preview["preview_id"],
+            db_session=db_session,
+            default_portfolio=default_portfolio,
+            request_context=request_context,
+        )
+
+    assert result["imported"] == 1
+    assert result["duplicates_skipped"] == 2
+    assert result["projected"] == 2
+    assert [item.ticker for item in db_session.query(Transaction).order_by(Transaction.date)] == [
+        "AAPL", "MSFT",
+    ]
+    status = get_import_undo_status(db=db_session, portfolio=default_portfolio)
+    assert status["available"] is True
+    assert status["mode"] == "append"
+    assert status["imported"] == 1
+
+
+def test_replace_undo_restores_public_ids_and_trade_notes(
+    db_session,
+    default_portfolio,
+    request_context,
+):
+    original = make_txn(
+        "AAPL", "buy", 2, 150,
+        date=date(2026, 1, 2),
+        portfolio_id=default_portfolio.id,
+    )
+    db_session.add(original)
+    db_session.flush()
+    db_session.add(TradeNote(
+        workspace_id=default_portfolio.workspace_id,
+        transaction_id=original.id,
+        content="Keep this thesis",
+        tags="quality",
+        sentiment="bullish",
+    ))
+    db_session.commit()
+    original_public_id = original.public_id
+    csv = "date,ticker,type,shares,price,currency\n2026-02-01,MSFT,buy,1,400,USD\n"
+    preview = _preview(
+        csv,
+        replace=True,
+        db_session=db_session,
+        default_portfolio=default_portfolio,
+        request_context=request_context,
+    )
+    with patch("routers.portfolio.bulk_fetch_fx", return_value={
+        ("USD", date(2026, 2, 1)): 23.0,
+    }):
+        _commit(
+            csv,
+            preview["preview_id"],
+            replace=True,
+            db_session=db_session,
+            default_portfolio=default_portfolio,
+            request_context=request_context,
+        )
+    assert [item.ticker for item in db_session.query(Transaction).all()] == ["MSFT"]
+
+    result = undo_import_csv(
+        db=db_session,
+        portfolio=default_portfolio,
+        context=request_context,
+    )
+
+    restored = db_session.query(Transaction).one()
+    note = db_session.query(TradeNote).one()
+    assert result["restored"] == 1
+    assert restored.ticker == "AAPL"
+    assert restored.public_id == original_public_id
+    assert note.transaction_id == restored.id
+    assert note.content == "Keep this thesis"
+    assert get_import_undo_status(db=db_session, portfolio=default_portfolio)["available"] is False
+
+
+def test_undo_refuses_to_overwrite_post_import_manual_change(
+    db_session,
+    default_portfolio,
+    request_context,
+):
+    csv = "date,ticker,type,shares,price,currency\n2026-02-01,MSFT,buy,1,400,USD\n"
+    preview = _preview(
+        csv,
+        db_session=db_session,
+        default_portfolio=default_portfolio,
+        request_context=request_context,
+    )
+    with patch("routers.portfolio.bulk_fetch_fx", return_value={
+        ("USD", date(2026, 2, 1)): 23.0,
+    }):
+        _commit(
+            csv,
+            preview["preview_id"],
+            db_session=db_session,
+            default_portfolio=default_portfolio,
+            request_context=request_context,
+        )
+    db_session.add(make_txn("NVDA", portfolio_id=default_portfolio.id))
+    db_session.commit()
+
+    status = get_import_undo_status(db=db_session, portfolio=default_portfolio)
+    assert status["available"] is False
+    assert status["reason"] == "portfolio_changed"
+    with pytest.raises(HTTPException) as exc_info:
+        undo_import_csv(
+            db=db_session,
+            portfolio=default_portfolio,
+            context=request_context,
+        )
+    assert exc_info.value.status_code == 409
+    assert {item.ticker for item in db_session.query(Transaction)} == {"MSFT", "NVDA"}
+
+
+def test_undo_snapshot_expires_after_twenty_four_hours(
+    db_session,
+    default_portfolio,
+):
+    state = capture_portfolio_state(db_session, default_portfolio)
+    created_at = datetime(2026, 9, 7, 12, tzinfo=timezone.utc)
+    save_undo_snapshot(
+        db_session,
+        default_portfolio,
+        before=state,
+        after=state,
+        mode="append",
+        imported=1,
+        format_name="Native",
+        now=created_at,
+    )
+
+    assert undo_status(
+        db_session,
+        default_portfolio,
+        now=created_at + timedelta(hours=23, minutes=59),
+    )["available"] is True
+    expired = undo_status(
+        db_session,
+        default_portfolio,
+        now=created_at + timedelta(hours=24),
+    )
+    assert expired["available"] is False
+    assert expired["reason"] == "expired"
+
+
+def test_mutating_import_routes_use_csrf_dependency_and_legacy_route_is_absent():
+    from routers.portfolio import router
+    from tenancy import require_csrf
+
+    routes = {
+        (method, route.path): route
+        for route in router.routes
+        for method in route.methods
+    }
+    assert ("POST", "/portfolio/import-csv") not in routes
+    for key in (
+        ("POST", "/portfolio/import-csv/commit"),
+        ("POST", "/portfolio/import-csv/undo"),
+    ):
+        calls = {dependency.call for dependency in routes[key].dependant.dependencies}
+        assert require_csrf in calls

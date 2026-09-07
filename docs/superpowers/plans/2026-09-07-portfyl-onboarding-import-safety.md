@@ -69,15 +69,15 @@ TanStack Query, Vitest, pytest.
 - Modify: `backend/tests/test_t212_import.py`
 - Create/modify: focused import tests
 
-- [ ] Write failing tests for changed-file/current-state rejection, exact
+- [x] Write failing tests for changed-file/current-state rejection, exact
       duplicate skipping, atomic replacement, snapshot retention, expiry,
       conflict, one-shot restore, and trade-note restoration.
-- [ ] Add commit, undo-status, and undo endpoints with CSRF dependencies.
-- [ ] Persist compressed snapshots under an internal workspace-setting key and
+- [x] Add commit, undo-status, and undo endpoints with CSRF dependencies.
+- [x] Persist compressed snapshots under an internal workspace-setting key and
       record bounded audit metadata only.
-- [ ] Retire the direct mutating HTTP route while preserving normalization test
+- [x] Retire the direct mutating HTTP route while preserving normalization test
       coverage through an internal helper.
-- [ ] Run focused tests to green.
+- [x] Run focused tests to green.
 
 ### Task 4: Add atomic demo and empty-workspace onboarding
 
@@ -89,13 +89,13 @@ TanStack Query, Vitest, pytest.
 - Modify: `frontend/src/App.jsx`
 - Modify: `frontend/src/api.js`
 
-- [ ] Write failing backend tests for deterministic demo rows, tenant scope,
+- [x] Write failing backend tests for deterministic demo rows, tenant scope,
       plan limits, atomicity, and refusal in a non-empty workspace.
-- [ ] Implement `POST /portfolios/demo` and reuse ordinary plan enforcement.
-- [ ] Write failing frontend tests for the three onboarding paths and errors.
-- [ ] Render onboarding whenever the selected workspace has no portfolios;
+- [x] Implement `POST /portfolios/demo` and reuse ordinary plan enforcement.
+- [x] Write failing frontend tests for the three onboarding paths and errors.
+- [x] Render onboarding whenever the selected workspace has no portfolios;
       create/select an empty portfolio before import or broker setup.
-- [ ] Run focused backend/frontend tests to green.
+- [x] Run focused backend/frontend tests to green.
 
 ### Task 5: Replace one-click import UI with preview/commit/undo
 
@@ -104,14 +104,14 @@ TanStack Query, Vitest, pytest.
 - Create: `frontend/src/pages/Import.test.jsx`
 - Modify: `frontend/src/api.js`
 
-- [ ] Write failing UI tests proving commit is unavailable before preview and
+- [x] Write failing UI tests proving commit is unavailable before preview and
       reconciliation/removal/duplicate counts are visible afterward.
-- [ ] Add the preview/review/commit state machine and explicit replacement
+- [x] Add the preview/review/commit state machine and explicit replacement
       confirmation.
-- [ ] Show undo availability after commit and handle expiry/conflict without
+- [x] Show undo availability after commit and handle expiry/conflict without
       claiming current data was changed.
-- [ ] Invalidate all derived and portfolio-count queries after commit/undo.
-- [ ] Run focused and full frontend tests.
+- [x] Invalidate all derived and portfolio-count queries after commit/undo.
+- [x] Run focused and full frontend tests.
 
 ### Task 6: Tenant verification and plan reconciliation
 
@@ -120,10 +120,26 @@ TanStack Query, Vitest, pytest.
 - Modify: `docs/superpowers/plans/2026-09-01-portfyl-saas-monetization.md`
 - Modify: this plan
 
-- [ ] Prove Alice cannot preview, commit, inspect, or undo against Bob's
+- [x] Prove Alice cannot preview, commit, inspect, or undo against Bob's
       portfolio through application scoping and forced RLS.
-- [ ] Run the complete fast backend suite and frontend suite.
-- [ ] Run relevant PostgreSQL RLS tests and both local/cloud frontend builds.
-- [ ] Mark the unified onboarding and import preview/duplicate/reconciliation/
+- [x] Run the complete fast backend suite and frontend suite.
+- [x] Run relevant PostgreSQL RLS tests and both local/cloud frontend builds.
+- [x] Mark the unified onboarding and import preview/duplicate/reconciliation/
       undo P0 items complete only with recorded passing evidence.
-- [ ] Commit the completed slice locally without pushing.
+- [x] Commit the completed slice locally without pushing.
+
+## Verification record (2026-09-07)
+
+- Focused backend workflow/onboarding/Trading 212 tests: `44 passed`.
+- Complete fast backend suite: `566 passed`.
+- Frontend local and cloud suites: `28` files / `149` tests passed in each
+  edition.
+- Local and cloud production Vite builds succeeded. The existing large-chunk
+  advisory remains non-fatal.
+- PostgreSQL import flow plus foreign-portfolio mutation matrix: `19 passed`,
+  including a real preview, commit, and undo cycle that changed only Alice's
+  workspace under forced RLS.
+- `git diff --check` reported no whitespace errors; the existing Windows
+  LF-to-CRLF working-copy advisory remains non-fatal.
+- No Alembic revision or reserved rate-limiting file was changed. No push or
+  production deployment was performed.

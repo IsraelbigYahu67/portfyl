@@ -332,7 +332,7 @@ def test_foreign_portfolio_mutation_is_not_addressable(
     body runs -- no upstream HTTP call, no write, for any of these."""
     files = (
         {"file": ("matrix.csv", b"Action,Time\n", "text/csv")}
-        if url.endswith("import-csv") else None
+        if url.endswith(("import-csv/preview", "import-csv/commit")) else None
     )
     with _Hermetic():
         foreign = _request(

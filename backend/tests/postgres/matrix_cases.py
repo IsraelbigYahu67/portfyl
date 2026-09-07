@@ -271,6 +271,7 @@ PORTFOLIO_SCOPED_READS: tuple[tuple[str, str], ...] = (
     ("benchmarks", "/api/analytics/benchmarks"),
     ("cash", "/api/cash"),
     ("cash-interest-rates", "/api/cash/interest-rates"),
+    ("import-undo-status", "/api/portfolio/import-csv/undo"),
     ("alerts", "/api/alerts"),
     ("broker-connections", "/api/broker/trading212/status"),
     ("broker-ibkr-status", "/api/broker/ibkr/status"),
@@ -290,7 +291,9 @@ PORTFOLIO_SCOPED_READS: tuple[tuple[str, str], ...] = (
 #: act on it. Each must 404 for Bob's portfolio -- including the ones that
 #: reach third-party services, which must never even be called.
 PORTFOLIO_SCOPED_MUTATIONS: tuple[tuple[str, str, str, Any], ...] = (
-    ("import", "POST", "/api/portfolio/import-csv", None),
+    ("import-preview", "POST", "/api/portfolio/import-csv/preview", None),
+    ("import-commit", "POST", "/api/portfolio/import-csv/commit", None),
+    ("import-undo", "POST", "/api/portfolio/import-csv/undo", None),
     ("transactions-delete-all", "DELETE", "/api/portfolio/transactions", None),
     ("broker-sync", "POST", "/api/broker/trading212/sync", None),
     ("broker-auto-sync", "POST", "/api/broker/trading212/auto-sync", {"enabled": True}),

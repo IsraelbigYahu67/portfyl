@@ -29,6 +29,22 @@ IDENTITY_FIELDS = (
     "notes",
 )
 
+_IMPORTED_FIELDS = (
+    "date",
+    "type",
+    "ticker",
+    "name",
+    "shares",
+    "price",
+    "amount",
+    "currency",
+    "cash_amount",
+    "cash_currency",
+    "notes",
+    "source",
+    "fx_to_czk",
+)
+
 
 def _get(row: Any, key: str) -> Any:
     if isinstance(row, Mapping):
@@ -119,21 +135,40 @@ def state_fingerprint(rows: Sequence[Any]) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+def _imported_row(row: Any) -> dict[str, str | None]:
+    return {
+        "date": _date(_get(row, "date")),
+        "type": _text(_get(row, "type"), lower=True),
+        "ticker": _text(_get(row, "ticker"), upper=True),
+        "name": _text(_get(row, "name")),
+        "shares": _number(_get(row, "shares")),
+        "price": _number(_get(row, "price")),
+        "amount": _number(_get(row, "amount")),
+        "currency": _text(_get(row, "currency"), upper=True),
+        "cash_amount": _number(_get(row, "cash_amount")),
+        "cash_currency": _text(_get(row, "cash_currency"), upper=True),
+        "notes": _text(_get(row, "notes")),
+        "source": _text(_get(row, "source"), lower=True),
+        "fx_to_czk": _number(_get(row, "fx_to_czk")),
+    }
+
+
 def _preview_fingerprint(
     *,
     current_rows: Sequence[Any],
     incoming_rows: Sequence[Any],
     portfolio_public_id: str,
     mode: str,
+    current_state_fingerprint: str | None,
 ) -> str:
     payload = {
         "version": 1,
         "portfolio_id": str(portfolio_public_id),
         "mode": mode,
-        "current": state_fingerprint(current_rows),
+        "current": current_state_fingerprint or state_fingerprint(current_rows),
         # Preserve source-file multiplicity here even though duplicate rows are
         # collapsed for insertion. A changed upload requires a fresh preview.
-        "incoming": [canonical_transaction(row) for row in incoming_rows],
+        "incoming": [_imported_row(row) for row in incoming_rows],
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
@@ -149,6 +184,7 @@ def build_preview(
     source_events: int,
     skipped: int,
     format_name: str,
+    current_state_fingerprint: str | None = None,
 ) -> dict[str, Any]:
     """Compare one normalized upload to the persisted portfolio state."""
     replace = bool(requested_replace or mandatory_replace)
@@ -181,6 +217,7 @@ def build_preview(
             incoming_rows=incoming_rows,
             portfolio_public_id=portfolio_public_id,
             mode=mode,
+            current_state_fingerprint=current_state_fingerprint,
         ),
         "format": format_name,
         "mode": mode,
@@ -202,4 +239,3 @@ def build_preview(
         # never an unbounded second copy of an uploaded portfolio.
         "rows_to_insert": rows_to_insert,
     }
-

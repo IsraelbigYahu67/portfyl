@@ -144,6 +144,7 @@ export async function downloadWorkspaceExport() {
 
 export const fetchPortfolios = () => api.get("/portfolios").then((r) => r.data);
 export const createPortfolio = (data) => api.post("/portfolios", data).then((r) => r.data);
+export const createDemoPortfolio = () => api.post("/portfolios/demo").then((r) => r.data);
 export const updatePortfolio = (id, data) => api.patch(`/portfolios/${id}`, data).then((r) => r.data);
 export const deletePortfolio = (id) => api.delete(`/portfolios/${id}`).then((r) => r.data);
 export const fetchOverview = (currency = "USD") =>
@@ -168,11 +169,19 @@ export const fetchFxRate = (pair = "USDCZK") =>
   api.get(`/market/fx/${pair}`).then((r) => r.data);
 export const createTransaction = (data) => api.post("/portfolio/transactions", data).then((r) => r.data);
 export const deleteTransaction = (id) => api.delete(`/portfolio/transactions/${id}`).then((r) => r.data);
-export const importCSV = (file, replace = false) => {
+const importForm = (file) => {
   const form = new FormData();
   form.append("file", file);
-  return api.post(`/portfolio/import-csv`, form, { params: { replace } }).then((r) => r.data);
+  return form;
 };
+export const previewImportCSV = (file, replace = false) =>
+  api.post("/portfolio/import-csv/preview", importForm(file), { params: { replace } }).then((r) => r.data);
+export const commitImportCSV = (file, previewId, replace = false) =>
+  api.post("/portfolio/import-csv/commit", importForm(file), {
+    params: { preview_id: previewId, replace },
+  }).then((r) => r.data);
+export const fetchImportUndo = () => api.get("/portfolio/import-csv/undo").then((r) => r.data);
+export const undoLastImport = () => api.post("/portfolio/import-csv/undo").then((r) => r.data);
 export const clearAllTransactions = () =>
   api.delete("/portfolio/transactions").then((r) => r.data);
 export const fetchQuote = (ticker) => api.get(`/market/quote/${ticker}`).then((r) => r.data);
