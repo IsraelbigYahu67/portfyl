@@ -99,6 +99,10 @@ async def _stamp_correlation_id(request: Request, call_next):
 
 app.include_router(auth_router.router, prefix="/api")
 app.include_router(capabilities.build_router(PORTFYL_EDITION), prefix="/api")
+if PORTFYL_EDITION is Edition.CLOUD:
+    from routers import test_plans
+
+    app.include_router(test_plans.router, prefix="/api")
 app.include_router(portfolios.router, prefix="/api")
 app.include_router(portfolio.router, prefix="/api")
 app.include_router(

@@ -39,6 +39,9 @@ BILLING_API_PATHS = {
     "/api/billing/portal",
     "/api/billing/webhook",
 }
+TEST_PLAN_API_PATHS = {
+    "/api/test-plans",
+}
 
 
 def _reload_main(monkeypatch, edition: str):
@@ -53,6 +56,7 @@ def test_local_edition_registers_owner_only_routes(monkeypatch):
 
     assert LOCAL_ONLY_API_PATHS <= set(main.app.openapi()["paths"])
     assert BILLING_API_PATHS.isdisjoint(main.app.openapi()["paths"])
+    assert TEST_PLAN_API_PATHS.isdisjoint(main.app.openapi()["paths"])
     client = TestClient(main.app)
     for path in LOCAL_ONLY_API_PATHS:
         # Authentication may reject the request, but the route itself exists.
@@ -69,6 +73,7 @@ def test_cloud_edition_omits_owner_only_and_payment_routes(monkeypatch):
             not path.startswith("/api/billing/")
             for path in main.app.openapi()["paths"]
         )
+        assert TEST_PLAN_API_PATHS <= set(main.app.openapi()["paths"])
         _let_requests_past_the_cloud_gate(monkeypatch)
         client = TestClient(main.app)
         for path in LOCAL_ONLY_API_PATHS:

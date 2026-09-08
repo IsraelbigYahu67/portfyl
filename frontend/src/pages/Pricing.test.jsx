@@ -1,68 +1,59 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { fetchTestPlan, updateTestPlan } from "../api";
 import Pricing from "./Pricing";
 
 
+vi.mock("../api", () => ({
+  fetchTestPlan: vi.fn(),
+  updateTestPlan: vi.fn(),
+}));
+
+
 describe("Pricing", () => {
-  it("shows the static plan catalogue and discloses that payments are coming soon", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fetchTestPlan.mockResolvedValue({
+      plan: "free",
+      switching_enabled: true,
+      payments_enabled: false,
+    });
+  });
+
+  it("shows the catalogue and makes the no-payment test boundary explicit", async () => {
     render(<Pricing />);
 
     expect(screen.getByRole("heading", { name: "Plans" })).toBeInTheDocument();
-    expect(screen.getByText(/Paid plans are coming soon/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/All cloud workspaces currently use the Free plan\./i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Free plan switching during private testing/i)).toBeInTheDocument();
+    expect(screen.getByText(/No payment method, checkout, charge, or subscription/i)).toBeInTheDocument();
     expect(screen.getByText("€4.99 / month")).toBeInTheDocument();
-    expect(screen.getByText("or €49.00 annually")).toBeInTheDocument();
+    expect(screen.getByText("Planned price: €49.00 annually")).toBeInTheDocument();
     expect(screen.getByText("€7.99 / month")).toBeInTheDocument();
-    expect(screen.getByText("or €79.00 annually")).toBeInTheDocument();
+    expect(screen.getByText("Planned price: €79.00 annually")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Active for testing" })).toBeDisabled();
     expect(screen.queryByText(/Manage billing|trial|Stripe/i)).not.toBeInTheDocument();
   });
 
-  it("opens and closes an informational dialog instead of starting checkout", () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
+  it("switches the workspace plan without starting checkout", async () => {
+    updateTestPlan.mockResolvedValue({ plan: "investor" });
     render(<Pricing />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Investor monthly.*coming soon/i }));
+    const button = await screen.findByRole("button", { name: "Use Investor for testing" });
+    fireEvent.click(button);
 
-    const dialog = screen.getByRole("dialog", { name: "Payments are coming soon" });
-    expect(dialog).toHaveTextContent("Payments are not available yet");
-    expect(dialog).toHaveTextContent("Investor");
-    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
-    expect(fetchSpy).not.toHaveBeenCalled();
-
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-
-    fetchSpy.mockRestore();
+    await waitFor(() => expect(updateTestPlan).toHaveBeenCalledWith("investor"));
+    expect(await screen.findByText("Current test plan")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Active for testing" })).toBeDisabled();
   });
 
-  it("provides an explicit close control for the dialog", () => {
+  it("keeps the current plan and reports a failed change", async () => {
+    updateTestPlan.mockRejectedValue(new Error("network"));
     render(<Pricing />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Pro annual.*coming soon/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Use Pro for testing" }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  it("contains focus and restores it to the invoking CTA after closing", () => {
-    render(<Pricing />);
-
-    const invoker = screen.getByRole("button", { name: /Investor monthly.*coming soon/i });
-    fireEvent.click(invoker);
-
-    const closeButton = screen.getByRole("button", { name: "Close" });
-    const confirmationButton = screen.getByRole("button", { name: "Got it" });
-    confirmationButton.focus();
-    fireEvent.keyDown(window, { key: "Tab" });
-    expect(closeButton).toHaveFocus();
-
-    fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
-    expect(confirmationButton).toHaveFocus();
-
-    fireEvent.click(closeButton);
-    expect(invoker).toHaveFocus();
+    expect(await screen.findByRole("alert")).toHaveTextContent("The plan could not be changed");
+    expect(screen.getByRole("button", { name: "Active for testing" })).toBeDisabled();
   });
 });

@@ -82,6 +82,24 @@ React/Vite route tests, pytest, Vitest.
       cross-tenant rows remain excluded.
 - [x] Run focused, fast, and PostgreSQL isolation tests plus frontend tests.
 
+### Task 3b: Record the private-test legal boundary
+
+**Files:**
+- Create: `docs/compliance/private-test-legal-status.md`
+- Modify: `docs/compliance/data-processing-inventory.md`
+- Modify: `docs/operations/security-incident-response.md`
+
+- [x] Record the Czech, free, no-payment, owner-only private-test boundary.
+- [x] Record `tom.zoubek@gmail.com` as the approved privacy, support, and
+      security contact for this stage.
+- [x] Record the active Cloudflare Access exact-email control; allow
+      individually approved private testers while forbidding public sign-up
+      and broad domain/group rules before the launch gate closes.
+- [x] Record that no 18+ restriction is intended without claiming the current
+      product is ready for minors.
+- [x] Define the minor/child, retention, processor, market-data, controller,
+      legal-review, drill, and restore prerequisites that remain open.
+
 ### Task 4: Add public trust routes after operator/legal inputs
 
 **Files (anticipated):**
@@ -114,11 +132,16 @@ React/Vite route tests, pytest, Vitest.
 
 ## Current publication blockers
 
-- Controller/legal entity details and jurisdiction.
-- Verified privacy/support/security contact channels.
+- Controller/legal entity name, legal form, postal address, and registration
+  details. The jurisdiction is confirmed as the Czech Republic.
+- `tom.zoubek@gmail.com` is verified as the private-test privacy, support, and
+  security contact; dedicated public channels remain an optional launch
+  decision.
 - Production Neon PITR retention value.
 - Final legal bases, retention schedule, consumer terms, and counsel review.
 - Contracted commercial market-data provider and transfer terms.
+- A reviewed child/minor access model, because an 18+ restriction is not
+  intended.
 
 ## Verification record (2026-09-07)
 
@@ -131,3 +154,14 @@ React/Vite route tests, pytest, Vitest.
   LF-to-CRLF working-copy advisory remains non-fatal.
 - No production configuration, provider account, e-mail, contract, or legal
   acceptance was changed by this documentation slice.
+
+## Private-test boundary verification (2026-09-08)
+
+- The operator confirmed the Czech, owner-only, free private-test boundary,
+  the contact address, and that no 18+ restriction is intended.
+- Cloudflare Access remains the release control; public legal routes and
+  external users remain blocked by the recorded launch gate.
+- `git diff --check` reported no whitespace error; the existing Windows
+  LF-to-CRLF working-copy advisory remains non-fatal.
+- No legal identity, public terms, privacy notice, processor contract, or
+  qualified legal approval was fabricated or implied.

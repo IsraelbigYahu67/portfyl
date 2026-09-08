@@ -51,6 +51,12 @@ describe("api request context (workspace + CSRF + UUID portfolio ids)", () => {
     expect(config.params.portfolio_id).toBeUndefined();
   });
 
+  it("never injects portfolio_id for the private-test plan endpoint", async () => {
+    setActivePortfolioId("11111111-1111-4111-8111-111111111111");
+    const config = await applyRequestInterceptors({ method: "put", url: "/test-plans", params: {} });
+    expect(config.params.portfolio_id).toBeUndefined();
+  });
+
   it("omits portfolio_id entirely when no portfolio is active", async () => {
     setActivePortfolioId(null);
     const config = await applyRequestInterceptors({ method: "get", url: "/alerts", params: {} });

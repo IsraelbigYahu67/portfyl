@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -28,6 +28,9 @@ import ShinyText from "./reactbits/ShinyText";
 const TTM_COLOR = "#9b7bd1";
 const TTM_SIDE_REVEAL = 2;
 const TTM_RADIUS = 4;
+const PERIOD_LABEL_MIN_GAP = 3;
+const PERIOD_LABEL_MIN_FONT_SIZE = 7;
+const PERIOD_AXIS_RESERVED_WIDTH = 52;
 
 // ---------------------------------------------------------------------------
 // Navigation helpers
@@ -167,22 +170,104 @@ function currencySymbol(code) {
 // Sub-components
 // ---------------------------------------------------------------------------
 
+function useElementWidth(fallbackWidth = 360) {
+  const [element, setElement] = useState(null);
+  const [width, setWidth] = useState(fallbackWidth);
+  const ref = useCallback((node) => setElement(node), []);
+
+  useEffect(() => {
+    if (!element) return undefined;
+
+    const updateWidth = () => {
+      const nextWidth = element.getBoundingClientRect().width;
+      if (nextWidth > 0) setWidth(nextWidth);
+    };
+
+    updateWidth();
+    if (typeof ResizeObserver === "undefined") return undefined;
+
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [element]);
+
+  return [ref, width];
+}
+
+// Keep every period visible while guaranteeing a small visual gutter between
+// adjacent labels. Start with a smaller axis font, shrink it when that is
+// enough, and rotate only once a horizontal label would use the 3px gutter.
+export function financialPeriodAxisLayout(labels, containerWidth, isQuarterly = false) {
+  const count = labels?.length || 0;
+  const maxFontSize = isQuarterly ? 8 : 9;
+  if (!count) return { fontSize: maxFontSize, angle: 0 };
+
+  const plotWidth = Math.max(1, containerWidth - PERIOD_AXIS_RESERVED_WIDTH);
+  const availableWidth = Math.max(1, plotWidth / count - PERIOD_LABEL_MIN_GAP);
+  const longestLabelLength = Math.max(...labels.map((label) => String(label ?? "").length), 1);
+  // 0.72em is intentionally conservative for tabular digits in the UI fonts.
+  const estimatedWidthAt = (fontSize) => longestLabelLength * fontSize * 0.72;
+  const horizontalFontSize = Math.floor(availableWidth / (longestLabelLength * 0.72));
+
+  if (horizontalFontSize >= PERIOD_LABEL_MIN_FONT_SIZE) {
+    return { fontSize: Math.min(maxFontSize, horizontalFontSize), angle: 0 };
+  }
+
+  const fontSize = PERIOD_LABEL_MIN_FONT_SIZE;
+  const textWidth = estimatedWidthAt(fontSize);
+  const textHeight = fontSize * 1.15;
+  const angles = [-45, -55, -65, -72, -78, -82, -90];
+  const angle = angles.find((candidate) => {
+    const radians = Math.abs(candidate) * Math.PI / 180;
+    const projectedWidth = textWidth * Math.cos(radians) + textHeight * Math.sin(radians);
+    return projectedWidth <= availableWidth;
+  }) ?? -90;
+
+  // At -90 degrees the projected width is the text height. Extremely dense
+  // series therefore get one final font reduction instead of overlapping.
+  const rotatedFontSize = angle === -90 && textHeight > availableWidth
+    ? Math.max(5, Math.floor(availableWidth / 1.15))
+    : fontSize;
+  return { fontSize: rotatedFontSize, angle };
+}
+
 // Two-line x-axis tick for the financials bar charts: period label on top,
 // vs-previous-column % change (see columnChanges) beneath it. Rendering the
 // change inside the tick keeps it centred under its column at any chart
 // width. The change line uses the darker 700-shade green/red plus a bold
 // weight so it stays readable at chart-axis size.
-function ChangeTick({ x, y, payload, index, changes, fontSize = 11, changeFontSize = 11, changeDecimals = 1 }) {
+function ChangeTick({
+  x,
+  y,
+  payload,
+  index,
+  changes,
+  fontSize = 11,
+  changeFontSize = 11,
+  changeDecimals = 1,
+  periodAngle = 0,
+  changeAngle = -45,
+  showChange = true,
+}) {
   const change = changes?.[payload?.index ?? index] ?? null;
+  const periodY = 10;
+  const changeY = periodAngle ? 36 : 28;
   return (
     <g transform={`translate(${x},${y})`}>
-      <text dy={10} textAnchor="middle" fill={AXIS_TICK.fill} fontSize={fontSize}>
+      <text
+        y={periodY}
+        textAnchor={periodAngle ? "end" : "middle"}
+        transform={periodAngle ? `rotate(${periodAngle}, 0, ${periodY})` : undefined}
+        fill={AXIS_TICK.fill}
+        fontSize={fontSize}
+      >
         {payload.value}
       </text>
-      {change != null && (
+      {showChange && change != null && (
         <text
-          dy={24}
-          textAnchor="middle"
+          y={changeY}
+          textAnchor="end"
+          transform={`rotate(${changeAngle}, 0, ${changeY})`}
           fill={change >= 0 ? "#047857" : "#b91c1c"}
           fontSize={changeFontSize}
           fontWeight={700}
@@ -227,6 +312,7 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
   const cs = currencySymbol(currencyCode);
   const { name, years, values, yoy, cagr } = metric;
   const isQuarterly = period === "quarterly";
+  const [chartRef, chartWidth] = useElementWidth();
 
   if (!years?.length) {
     return (
@@ -274,9 +360,10 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
     change: changes[i],
     hasTtmOverlay: showTtmOverlay && i === rows.length - 1,
   }));
+  const periodAxis = financialPeriodAxisLayout(rows.map((row) => row.year), chartWidth, isQuarterly);
+  const changeAngle = rows.length > 12 ? -65 : rows.length > 7 ? -55 : -45;
   // Quarterly history is often longer than six periods. Keep its second line
-  // visible nonetheless: Recharts thins crowded labels itself, and the QoQ
-  // numbers are the point of switching to this view.
+  // visible; the adaptive tick layout makes room without dropping periods.
   const showChangeLine = isQuarterly || rows.length <= 10;
   // Only widen the y-domain when the TTM level falls outside the bars' own
   // range — a functional domain costs recharts its nice round ticks, so keep
@@ -313,30 +400,32 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
         </div>
       </div>
       <div className="text-xl font-bold tabular-nums">{fmtVal(values[values.length - 1])}</div>
-      <div className="h-36 mt-2">
+      <div
+        ref={chartRef}
+        className="mt-2"
+        style={{ height: periodAxis.angle ? 192 : 176 }}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rowsWithChange} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
             <CartesianGrid strokeDasharray="2 4" stroke={GRID_STROKE} vertical={false} />
             <XAxis
               dataKey="year"
               tick={
-                showChangeLine ? (
-                  <ChangeTick
-                    changes={changes}
-                    fontSize={isQuarterly ? 9 : 11}
-                    changeFontSize={rows.length > 7 ? 9 : 11}
-                    changeDecimals={rows.length > 7 ? 0 : 1}
-                  />
-                ) : (
-                  { ...AXIS_TICK, fontSize: isQuarterly ? 9 : 11 }
-                )
+                <ChangeTick
+                  changes={changes}
+                  fontSize={periodAxis.fontSize}
+                  changeFontSize={rows.length > 7 ? 9 : 11}
+                  changeDecimals={rows.length > 7 ? 0 : 1}
+                  periodAngle={periodAxis.angle}
+                  changeAngle={changeAngle}
+                  showChange={showChangeLine}
+                />
               }
               tickLine={false}
               axisLine={{ stroke: GRID_STROKE }}
               interval={0}
-              angle={isQuarterly && data.length > 6 ? -35 : 0}
-              textAnchor={isQuarterly && data.length > 6 ? "end" : "middle"}
-              height={showChangeLine ? 34 : isQuarterly && data.length > 6 ? 28 : 16}
+              minTickGap={PERIOD_LABEL_MIN_GAP}
+              height={showChangeLine ? (periodAxis.angle ? 76 : 62) : periodAxis.angle ? 50 : 20}
             />
             <YAxis
               tick={{ ...AXIS_TICK, fontSize: 10 }}
@@ -1445,6 +1534,7 @@ function buildMergedSeries(metric, estimateRows, mode = "annual") {
 export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null }) {
   const cs = currencySymbol(currencyCode);
   const isQuarterly = data?.some((d) => /^Q[1-4]/.test(d.label));
+  const [chartRef, chartWidth] = useElementWidth();
   if (!data?.length) {
     return (
       <div className="bg-surface rounded-lg p-4 flex flex-col h-full">
@@ -1490,11 +1580,10 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
   // optional historical YoY field is absent.
   const lastActualGrowth = lastActualIdx >= 0 ? changes[lastActualIdx] : null;
   const headlineGrowthLabel = isQuarterly ? "QoQ" : "YoY";
-  // Estimate years carry a trailing "E" (e.g. "2027E"), one character wider
-  // than a plain year — past ~8 columns that no longer fits the horizontal
-  // pitch of a 3-up card, so angle the labels the same way dense quarterly
-  // views already do.
-  const denseLabels = isQuarterly ? data.length > 6 : data.length > 8;
+  // Forecast labels are wider than plain years, so include the actual rendered
+  // labels in the same width-aware sizing used by the historical cards.
+  const periodAxis = financialPeriodAxisLayout(rows.map((row) => row.label), chartWidth, isQuarterly);
+  const changeAngle = rows.length > 12 ? -65 : rows.length > 7 ? -55 : -45;
   // Only widen the y-domain when the TTM level falls outside the bars' own
   // range — a functional domain costs recharts its nice round ticks, so keep
   // the default auto axis whenever the overlay already fits.
@@ -1534,30 +1623,32 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
           <div className="text-[10px] text-muted">{lastActual.label}</div>
         )}
       </div>
-      <div className="h-36 mt-2">
+      <div
+        ref={chartRef}
+        className="mt-2"
+        style={{ height: periodAxis.angle ? 192 : 176 }}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rowsWithChange} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
             <CartesianGrid strokeDasharray="2 4" stroke={GRID_STROKE} vertical={false} />
             <XAxis
               dataKey="label"
               tick={
-                showChangeLine ? (
-                  <ChangeTick
-                    changes={changes}
-                    fontSize={isQuarterly ? 9 : 11}
-                    changeFontSize={rows.length > 7 ? 9 : 11}
-                    changeDecimals={rows.length > 7 ? 0 : 1}
-                  />
-                ) : (
-                  { ...AXIS_TICK, fontSize: isQuarterly ? 9 : 11 }
-                )
+                <ChangeTick
+                  changes={changes}
+                  fontSize={periodAxis.fontSize}
+                  changeFontSize={rows.length > 7 ? 9 : 11}
+                  changeDecimals={rows.length > 7 ? 0 : 1}
+                  periodAngle={periodAxis.angle}
+                  changeAngle={changeAngle}
+                  showChange={showChangeLine}
+                />
               }
               tickLine={false}
               axisLine={{ stroke: GRID_STROKE }}
               interval={0}
-              angle={denseLabels ? -35 : 0}
-              textAnchor={denseLabels ? "end" : "middle"}
-              height={showChangeLine ? 34 : denseLabels ? 32 : 16}
+              minTickGap={PERIOD_LABEL_MIN_GAP}
+              height={showChangeLine ? (periodAxis.angle ? 76 : 62) : periodAxis.angle ? 50 : 20}
             />
             <YAxis
               tick={{ ...AXIS_TICK, fontSize: 10 }}

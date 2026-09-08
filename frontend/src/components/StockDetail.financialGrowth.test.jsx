@@ -1,5 +1,9 @@
 import { render, screen } from "@testing-library/react";
-import { MergedMetricBarChart, MetricBarChart } from "./StockDetail";
+import {
+  financialPeriodAxisLayout,
+  MergedMetricBarChart,
+  MetricBarChart,
+} from "./StockDetail";
 
 // Recharts needs element dimensions that jsdom does not provide. This thin
 // adapter keeps the chart configuration real and exposes the custom x-axis
@@ -55,6 +59,29 @@ const longQuarterlyActuals = [
   { label: "Q4 '25", value: 194.87171, isEstimate: false },
   { label: "Q1 '26", value: 214.358881, isEstimate: false },
 ];
+
+describe("financial period axis layout", () => {
+  it("uses a smaller horizontal font when ten annual labels have enough room", () => {
+    const layout = financialPeriodAxisLayout(
+      Array.from({ length: 10 }, (_, index) => String(2017 + index)),
+      420,
+      false,
+    );
+
+    expect(layout).toEqual({ fontSize: 9, angle: 0 });
+  });
+
+  it("rotates dense quarter labels instead of allowing them to overlap", () => {
+    const layout = financialPeriodAxisLayout(
+      Array.from({ length: 12 }, (_, index) => `Q${index % 4 + 1} '${24 + Math.floor(index / 4)}`),
+      300,
+      true,
+    );
+
+    expect(layout.fontSize).toBeLessThanOrEqual(8);
+    expect(layout.angle).toBeLessThan(0);
+  });
+});
 
 describe("MergedMetricBarChart quarterly growth labels", () => {
   it.each([

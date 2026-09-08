@@ -21,7 +21,8 @@ before starting any auth, tenancy, database, or billing work.
   Screener. No billing.
 - `PORTFYL_EDITION=cloud` — multi-tenant SaaS with Free / Investor EUR 4.99 /
   Pro EUR 7.99 plans. Paid checkout and trials are not active; the pricing page
-  is comparison-only and cloud workspaces currently resolve to Free. Paddle is
+  lets authorized private testers switch workspace entitlements without
+  payment. This test selection creates no purchase or subscription. Paddle is
   the likely future payment provider but is not implemented. Tax Report and
   Screener are **permanently excluded from cloud** — not deferred, a deliberate
   product decision (see plan §2, §7, §12).
@@ -102,8 +103,9 @@ before starting any auth, tenancy, database, or billing work.
   auto-injects `portfolio_id` (a UUID `public_id`, not an integer) from the
   active portfolio into every request — call sites never pass it.
   **Exceptions**: prefixes in `PORTFOLIO_AGNOSTIC_PREFIXES` (`/portfolios`,
-  `/market`, `/watchlists`, `/settings`, `/auth`) must NOT receive it. If you
-  add a cross-portfolio endpoint, add its prefix there or it will 404/mis-route.
+  `/market`, `/watchlists`, `/settings`, `/auth`, `/capabilities`,
+  `/test-plans`) must NOT receive it. If you add a cross-portfolio endpoint,
+  add its prefix there or it will 404/mis-route.
   The same interceptor also attaches `X-Workspace-ID` (once a workspace is
   resolved) and `X-CSRF-Token` (on mutating methods) — see `AuthProvider`
   (`frontend/src/auth/AuthProvider.jsx`) and `configureRequestContext` in `api.js`.

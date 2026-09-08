@@ -13,11 +13,15 @@ from sqlalchemy import func, select, text
 import uuid
 from sqlalchemy.orm import Session
 
+from app_settings import get_workspace_setting
 from plans import MINIMUM_PLAN, PlanLimits, PlanTier, plan_allows, plan_limits
 from database import get_db
 from edition import CAPABILITY_REGISTRY, CapabilityClass, Edition, edition_allows
 from models import UsageCounter, UsageReservation
 from tenancy import RequestContext, get_request_context
+
+
+PRIVATE_TEST_PLAN_SETTING_KEY = "private_test_plan"
 
 
 def utcnow() -> datetime:
@@ -109,14 +113,20 @@ def resolve_entitlements(
     if edition is Edition.LOCAL:
         return _local_entitlements()
 
-    tier = PlanTier.FREE
+    raw_tier = get_workspace_setting(db, workspace_id, PRIVATE_TEST_PLAN_SETTING_KEY)
+    try:
+        tier = PlanTier(raw_tier) if raw_tier else PlanTier.FREE
+    except ValueError:
+        # Fail closed if a stale or manually edited setting contains an
+        # unsupported value.
+        tier = PlanTier.FREE
     capabilities = tuple(
         key for key in CAPABILITY_REGISTRY
         if edition_allows(edition, key) and key in MINIMUM_PLAN and plan_allows(tier, key)
     )
     return EffectiveEntitlements(
         plan=tier,
-        source="free",
+        source="test_selection" if raw_tier == tier.value else "free",
         effective_until=None,
         in_grace=False,
         cancel_at_period_end=False,

@@ -1,11 +1,33 @@
 # Portfyl Data Processing Inventory
 
-Last technical review: 2026-09-07
+Last technical review: 2026-09-08
 
 This document describes the implemented Portfyl runtime. It is an engineering
 record for privacy review, incident response, export/deletion maintenance, and
 vendor due diligence. It is not a published privacy notice and does not choose
 legal bases on behalf of the service operator.
+
+## Current operator and release status
+
+- The owner confirmed on 2026-09-08 that the service is currently a private,
+  free test operated from the Czech Republic, with no payments and no public
+  self-registration.
+- `tom.zoubek@gmail.com` is the approved privacy, support, and security contact
+  for this private-test stage.
+- Cloudflare Access currently allows only that exact e-mail to reach
+  `portfyl.com` by one-time PIN. The operator may add individually approved
+  tester e-mails, but public sign-up and broad whole-domain/group Access rules
+  remain outside the approved operating boundary.
+- An admitted tester may select a workspace test plan in the Plans page. The
+  selection is stored as a workspace setting and audited, but creates no
+  payment, subscription, trial, invoice, or billing-customer record.
+- No 18+ product restriction is intended. Because the current test admits no
+  external users, the future child/minor contract, consent, parental-
+  authorization, and child-readable-transparency design remains a public-
+  launch gate.
+- The controller's full legal identity, legal form, postal address, and any
+  registration identifiers are not decided. Public legal pages remain gated;
+  see `docs/compliance/private-test-legal-status.md`.
 
 ## System boundary
 

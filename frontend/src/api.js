@@ -36,7 +36,7 @@ export const api = axios.create({ baseURL: "/api" });
 
 // Endpoints that are NOT portfolio-scoped — these must not receive portfolio_id
 // or they'd 404 / mis-route.
-const PORTFOLIO_AGNOSTIC_PREFIXES = ["/portfolios", "/market", "/watchlists", "/settings", "/auth", "/capabilities"];
+const PORTFOLIO_AGNOSTIC_PREFIXES = ["/portfolios", "/market", "/watchlists", "/settings", "/auth", "/capabilities", "/test-plans"];
 
 function isPortfolioAgnostic(url) {
   if (!url) return false;
@@ -115,6 +115,8 @@ export const exchangeSession = (idToken) =>
 export const logoutSession = () => api.post("/auth/logout").then((r) => r.data);
 export const logoutAllSessions = () => api.post("/auth/logout-all").then((r) => r.data);
 export const fetchCapabilities = () => api.get("/capabilities").then((r) => r.data);
+export const fetchTestPlan = () => api.get("/test-plans").then((r) => r.data);
+export const updateTestPlan = (plan) => api.put("/test-plans", { plan }).then((r) => r.data);
 
 export const fetchDeletionStatus = () =>
   api.get("/settings/account/deletion").then((r) => r.data);

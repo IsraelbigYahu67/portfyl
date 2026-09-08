@@ -4,9 +4,17 @@ from datetime import datetime, timezone
 
 import pytest
 
+import entitlements as entitlements_module
+from app_settings import set_workspace_setting
 from plans import MINIMUM_PLAN, PlanTier
 from edition import CAPABILITY_REGISTRY, CapabilityClass, Edition
-from entitlements import EntitlementDenied, ensure_capability, ensure_count_limit, resolve_entitlements
+from entitlements import (
+    PRIVATE_TEST_PLAN_SETTING_KEY,
+    EntitlementDenied,
+    ensure_capability,
+    ensure_count_limit,
+    resolve_entitlements,
+)
 
 
 NOW = datetime(2026, 9, 4, 10, 0, tzinfo=timezone.utc)
@@ -20,13 +28,70 @@ def test_cloud_defaults_to_free(db_session, test_workspace):
     assert "portfolio_analytics" not in result.capabilities
 
 
-def test_cloud_free_resolution_does_not_query_payment_state(test_workspace):
+def test_cloud_free_resolution_only_reads_test_plan_setting(test_workspace, monkeypatch):
     class DatabaseMustNotBeUsed:
         def __getattr__(self, name):
             raise AssertionError(f"cloud entitlement resolution touched db.{name}")
 
+    seen = {}
+
+    def get_test_setting(db, workspace_id, key):
+        seen.update(db=db, workspace_id=workspace_id, key=key)
+        return None
+
+    monkeypatch.setattr(entitlements_module, "get_workspace_setting", get_test_setting)
     result = resolve_entitlements(
         DatabaseMustNotBeUsed(),
+        edition=Edition.CLOUD,
+        workspace_id=test_workspace.id,
+        now=NOW,
+    )
+
+    assert result.plan is PlanTier.FREE
+    assert result.source == "free"
+    assert seen["workspace_id"] == test_workspace.id
+    assert seen["key"] == PRIVATE_TEST_PLAN_SETTING_KEY
+
+
+@pytest.mark.parametrize(
+    ("selected", "expected_capability"),
+    [
+        (PlanTier.INVESTOR, "portfolio_analytics"),
+        (PlanTier.PRO, "advanced_research"),
+    ],
+)
+def test_cloud_uses_workspace_test_plan(
+    db_session, test_workspace, selected, expected_capability
+):
+    set_workspace_setting(
+        db_session,
+        test_workspace.id,
+        PRIVATE_TEST_PLAN_SETTING_KEY,
+        selected.value,
+    )
+
+    result = resolve_entitlements(
+        db_session,
+        edition=Edition.CLOUD,
+        workspace_id=test_workspace.id,
+        now=NOW,
+    )
+
+    assert result.plan is selected
+    assert result.source == "test_selection"
+    assert expected_capability in result.capabilities
+
+
+def test_cloud_invalid_test_plan_fails_closed(db_session, test_workspace):
+    set_workspace_setting(
+        db_session,
+        test_workspace.id,
+        PRIVATE_TEST_PLAN_SETTING_KEY,
+        "enterprise",
+    )
+
+    result = resolve_entitlements(
+        db_session,
         edition=Edition.CLOUD,
         workspace_id=test_workspace.id,
         now=NOW,

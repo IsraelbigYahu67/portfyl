@@ -1,11 +1,15 @@
 # Portfyl Security and Privacy Incident Response
 
-Last reviewed: 2026-09-07
+Last reviewed: 2026-09-08
 
 This is the operator playbook for suspected confidentiality, integrity,
 availability, authentication, tenant-isolation, credential, or personal-data
 incidents. It complements the Cloud Run, Neon restore, KMS, scheduler, audit,
 and account-deletion runbooks.
+
+For the current private-test stage, the approved privacy, support, and security
+contact is `tom.zoubek@gmail.com`. This contact does not substitute for naming
+the controller or assigning incident roles before external users are admitted.
 
 ## Priorities
 
