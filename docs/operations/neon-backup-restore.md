@@ -77,9 +77,20 @@ using the template at the bottom of this file.
    ```powershell
    $env:DATABASE_URL = "<branch connection string, portfyl_runtime role>"
    $env:PORTFYL_EDITION = "cloud"   # backend/edition.py fails closed without this
+   # Local drill-only values; never copy production edge/rate-limit secrets.
+   $env:PORTFYL_EDGE_TOKEN = "local-restore-drill-edge-token"
+   $env:RATE_LIMIT_KEY_SECRET = "local-restore-drill-rate-limit-secret"
+   foreach ($rule in @("GLOBAL", "AUTH_SESSION", "BROKER_SYNC", "ASSISTANT_CHAT")) {
+       [Environment]::SetEnvironmentVariable("RATE_LIMIT_${rule}_LIMIT", "100", "Process")
+       [Environment]::SetEnvironmentVariable("RATE_LIMIT_${rule}_WINDOW_SECONDS", "60", "Process")
+   }
    cd backend && python -m uvicorn main:app --host 127.0.0.1 --port 8123
    # in another shell: curl http://127.0.0.1:8123/ (expect 200) and
-   # curl http://127.0.0.1:8123/api/auth/me (expect 401, not a 500/crash)
+   # curl http://127.0.0.1:8123/health (database status must be "ok")
+   # Direct /api/auth/me must return 403 (trusted-edge rejection).
+   # With X-Portfyl-Edge-Token: local-restore-drill-edge-token and
+   # CF-Connecting-IP: 127.0.0.1, /api/auth/me must return 401 with
+   # code authentication_required. This writes only a drill rate-limit bucket.
    ```
 
    **Do not** point `tests/postgres/` fixtures at the branch — `postgres_engine`
@@ -89,7 +100,7 @@ using the template at the bottom of this file.
    e.g. Neon's default `neondb` — so in practice it fails safe rather than
    destroying the branch, but it still isn't a smoke test). Confirm the
    application actually behaves correctly against the restored data (clean
-   startup, no `assert_alembic_head` failure, correct 401 body shape) — not
+   startup, no `assert_alembic_head` failure, correct 403/401 body shapes) — not
    just that the raw counts match.
 
 8. **Switch `DATABASE_URL` only after approval.** Promoting a recovery
@@ -153,3 +164,26 @@ Notes: Surfaced and fixed two real bugs while running this for real: (1) the dri
     (2) The app now requires PORTFYL_EDITION to be set (backend/edition.py, landed concurrently
     with this drill) -- added that to the smoke-test snippet above.
 ```
+
+### 2026-09-09 — recovery with real portfolio data
+
+See [operational verification](operational-verification-2026-09-09.md) for
+the full evidence and unresolved operational findings.
+
+- Verified production history retention: **21,600 seconds (6 hours)**.
+- Source: `main` / `br-icy-poetry-b1p4g4w1`; WAL position `0/387CD48`,
+  captured at `2026-09-09T10:07:31.066603+00:00`.
+- Branch: `restore-drill-2026-09-09` / `br-twilight-block-b1yrvpgi`.
+- Source contained actual transactions and 12 nonempty application tables.
+- Source-to-recovery counts and transaction controls matched; Alembic head,
+  forced RLS/policies, and runtime role checks passed.
+- Cloud backend startup, database health, edge rejection, unauthenticated
+  session response, and scoped runtime portfolio read checks passed.
+- CLI capture and validation on the branch both exited 0.
+- Smoke completed at `2026-09-09T10:09:36.692444+00:00` (approximately
+  2 minutes 6 seconds from baseline; not a production failover RTO).
+- No production promotion. Recovery branch deleted after verification;
+  a subsequent branch listing contained only `main`. Local drill credentials
+  removed. Exact control totals remain in ignored `control-files/`.
+- This closes the real-data recovery rehearsal gap, but scheduler, monitoring,
+  retention-policy approval, and human incident exercises remain open.

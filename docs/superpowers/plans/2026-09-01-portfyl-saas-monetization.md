@@ -1,5 +1,25 @@
 # Portfyl SaaS & Monetization Master Plan
 
+> **Operational remediation (2026-09-09, after the audit):** Five recurring
+> Scheduler jobs are enabled and have successful production heartbeats;
+> dependency health is now `ok`. Uptime monitoring validates JSON health,
+> with enabled dependency, 5xx, and Scheduler-error policies connected to the
+> approved operator e-mail. Actual inbox delivery was exercised with a temporary
+> failing job. Recovery and private-test retention are documented, due account
+> deletion and bounded retention cleanup run daily, and artifact cleanup keeps
+> production/rollback images. The operator-attended incident exercise and
+> product/legal/public-beta gates remain open.
+> See `docs/operations/operational-remediation-2026-09-09.md`.
+
+> **Operational verification (2026-09-09):** Real-data Neon recovery, control
+> totals, schema/RLS, and backend/runtime smoke checks passed. Production PITR
+> is configured for 6 hours; log retention is 30 days (`_Default`) / 400 days
+> (`_Required`). Overall operations are not ready: the deployed region has no
+> Scheduler jobs, monitoring policies, uptime checks, or notification channels;
+> `/health` returns HTTP 200 with a degraded scheduler. Retention-policy approval
+> and an operator-attended incident exercise remain open. See
+> `docs/operations/operational-verification-2026-09-09.md` for evidence and fixes.
+
 > **Payment update (2026-09-05):** Paid checkout and automatic trials are
 > deferred. The locally implemented Stripe runtime was retired before it was
 > enabled; cloud workspaces currently resolve to Free and the pricing page is
@@ -15,8 +35,8 @@
 > edge, EU Cloud Run deployment, workspace export/deletion workflow, and the
 > unified demo/import onboarding plus safe CSV preview/undo workflow are
 > implemented. The current launch blockers are commercial market-data rights,
-> product validation, public legal/support surfaces, monitoring plus a recorded
-> production-like restore drill, broader product packaging, and private-beta evidence.
+> product validation, public legal/support surfaces, an operator-attended
+> incident drill, broader product packaging, and private-beta evidence.
 > See the focused plans dated 2026-09-03 through 2026-09-07 rather than treating
 > superseded Stripe/trial checklist text as active work.
 
@@ -762,7 +782,7 @@ cloud positioning solves a paid problem.
 - [x] Complete Workstream D: encrypted secrets and external jobs.
 - [x] Implement edition-specific backend and frontend route manifests.
 - [x] Configure audit, rate limits, trusted Cloudflare edge, and EU deployment.
-- [ ] Verify production backup retention, run a recorded restore drill, and
+- [x] Verify production backup retention, run a recorded restore drill, and
       configure monitoring/alert notification paths.
 
 **Exit gate:** Cross-tenant tests pass for every resource class, multiple web
@@ -773,8 +793,8 @@ Tax Report nor Screener, while both remain usable in the private local build.
 ### Phase 2: monetization and onboarding — estimated 3-4 weeks
 
 > **Superseded payment scope:** The Stripe/trial and billing-recovery items in
-> this phase are no longer active. Onboarding remains deferred; a separate,
-> approved plan is required before implementing any future paid checkout.
+> this phase are no longer active. Onboarding is complete; a separate, approved
+> plan is required before implementing any future paid checkout.
 
 - [x] Complete the active Workstream E scope: provider-neutral plans,
       deterministic Free cloud access, entitlements, and quotas. Payments and
@@ -806,7 +826,7 @@ not only arbitrary limits.
 - [ ] Perform an authorization/security review.
 - [ ] Load-test imports, analytics, and concurrent syncs.
 - [ ] Simulate broker, market-data, e-mail, and Stripe outages.
-- [ ] Run a restore drill and document recovery time.
+- [x] Run a restore drill and document recovery time.
 - [ ] Record activation, retention, conversion, churn reasons, support load,
       and data cost per active user.
 
@@ -906,8 +926,9 @@ advertising, session-replay, or tracking SDK is present; operational logging,
 audit, usage, and rate-limit data follow explicit minimization/redaction rules.
 The severity, containment, evidence-minimization, support identity verification,
 notification-assessment, recovery, and drill process is defined in
-`docs/operations/security-incident-response.md`. Public contact/customer-
-communication channels and a completed tabletop drill remain open launch gates.
+`docs/operations/security-incident-response.md`. A technical rehearsal is in
+`docs/operations/incident-tabletop-2026-09-09.md`; public contact/customer-
+communication channels and an operator-attended drill remain open launch gates.
 
 ### VAT and billing
 
@@ -981,24 +1002,25 @@ trusted result or automated update.
 Portfyl is ready to accept public payments only when every item below is true:
 
 - [ ] Written commercial market-data rights cover the launched features.
-- [ ] PostgreSQL is production source of truth and migrations are reversible
+- [x] PostgreSQL is production source of truth and migrations are reversible
       or have a documented recovery path.
-- [ ] Production-like backup restore has succeeded.
-- [ ] Authentication supports verified users and revocable sessions.
-- [ ] The complete Alice/Bob isolation test matrix passes.
+- [x] Production-like backup restore has succeeded.
+- [x] Authentication supports verified users and revocable sessions.
+- [x] The complete Alice/Bob isolation test matrix passes.
 - [x] Broker, AI, and webhook secrets are encrypted and absent from logs.
 - [x] Background jobs are external, tenant-aware, and idempotent.
 - [ ] A future payment-provider webhook cannot duplicate or corrupt
       subscription state (deferred until a provider is selected).
 - [x] Every currently active plan capability and quota is backend-enforced.
-- [ ] Cloud OpenAPI, frontend routes, navigation, pricing, help, and direct-URL
+- [x] Cloud OpenAPI, frontend routes, navigation, pricing, help, and direct-URL
       tests expose neither Tax Report nor Screener.
-- [ ] The private local build still exposes and tests Tax Report and Screener
+- [x] The private local build still exposes and tests Tax Report and Screener
       without requiring Stripe.
 - [ ] Trial expiry downgrades without deleting data.
 - [ ] Founder pricing behavior is covered by subscription tests.
 - [ ] Privacy, terms, export, deletion, cancellation, and support flows work.
-- [ ] Monitoring, incident response, and customer communication paths exist.
+- [ ] Monitoring and internal alert delivery work; an operator-attended incident
+      drill and public customer communication path remain outstanding.
 - [ ] A private beta found no unresolved critical security or data-integrity
       issue.
 - [ ] Measured unit economics support Investor at EUR 4.99 and Pro at EUR

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from firebase_admin import auth as firebase_auth
 
 from datetime import datetime, timezone
 
@@ -111,6 +112,21 @@ def test_firebase_verifier_revokes_refresh_tokens_for_uid():
 def test_firebase_verifier_deletes_user_for_completed_account_erasure():
     firebase_app = object()
     auth_client = FakeFirebaseAuth({})
+    verifier = FirebaseIdentityVerifier(auth_client=auth_client, app=firebase_app)
+
+    verifier.delete_user("firebase-alice")
+
+    assert auth_client.delete_calls == [("firebase-alice", firebase_app)]
+
+
+def test_firebase_verifier_treats_already_deleted_user_as_success():
+    class MissingUserFirebaseAuth(FakeFirebaseAuth):
+        def delete_user(self, uid: str, *, app: object):
+            self.delete_calls.append((uid, app))
+            raise firebase_auth.UserNotFoundError("user is already absent")
+
+    firebase_app = object()
+    auth_client = MissingUserFirebaseAuth({})
     verifier = FirebaseIdentityVerifier(auth_client=auth_client, app=firebase_app)
 
     verifier.delete_user("firebase-alice")

@@ -8,7 +8,7 @@ import asyncio
 import logging
 import pytest
 from datetime import date, datetime, timedelta, timezone
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, Mock
 
 from models import BrokerConnection, DiscordWebhook, DividendNotification
 from jobs import broker_autosync_pass, dividend_exdate_pass
@@ -534,6 +534,80 @@ def test_tick_does_not_advance_last_run_when_pass_raises(db_session):
 
 from models import RateLimitBucket
 from jobs import rate_limit_cleanup_pass
+
+
+class TestAccountDeletionCleanupPass:
+    NOW = datetime(2026, 9, 9, 3, 17, tzinfo=timezone.utc)
+
+    def test_reports_purged_work_without_exposing_workspace_details(
+        self, db_session, monkeypatch
+    ):
+        from jobs import account_deletion_cleanup_pass
+
+        summary = {
+            "scanned": 2,
+            "purged": 1,
+            "not_due": 1,
+            "shared": 0,
+            "invalid": 0,
+            "errors": 0,
+        }
+        purge = Mock(return_value=summary)
+        monkeypatch.setattr("account_deletion.purge_due_workspace_deletions", purge)
+        monkeypatch.setattr(
+            "data_retention.cleanup_retained_operational_data",
+            Mock(return_value={
+                "auth_sessions": 0,
+                "usage_reservations": 0,
+                "notification_outbox": 0,
+                "dividend_notifications": 0,
+            }),
+        )
+        identity_admin = object()
+
+        result = _run(
+            account_deletion_cleanup_pass(
+                db_session,
+                now=self.NOW,
+                identity_admin=identity_admin,
+            )
+        )
+
+        assert result == [{"purged": 1}]
+        purge.assert_called_once_with(db_session, identity_admin, now=self.NOW)
+
+    def test_raises_when_any_workspace_failed(self, db_session, monkeypatch):
+        from jobs import account_deletion_cleanup_pass
+
+        monkeypatch.setattr(
+            "account_deletion.purge_due_workspace_deletions",
+            Mock(return_value={
+                "scanned": 1,
+                "purged": 0,
+                "not_due": 0,
+                "shared": 0,
+                "invalid": 0,
+                "errors": 1,
+            }),
+        )
+        monkeypatch.setattr(
+            "data_retention.cleanup_retained_operational_data",
+            Mock(return_value={
+                "auth_sessions": 0,
+                "usage_reservations": 0,
+                "notification_outbox": 0,
+                "dividend_notifications": 0,
+            }),
+        )
+
+        with pytest.raises(RuntimeError, match="1 error"):
+            _run(
+                account_deletion_cleanup_pass(
+                    db_session,
+                    now=self.NOW,
+                    identity_admin=object(),
+                )
+            )
 
 
 class TestRateLimitCleanupPass:

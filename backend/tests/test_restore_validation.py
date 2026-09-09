@@ -157,6 +157,18 @@ def test_restore_validator_rejects_runtime_role_with_bypassrls():
     assert any("BYPASSRLS" in error for error in result.errors)
 
 
+def test_restore_validator_rejects_missing_runtime_role():
+    inspector = FakeInspector(
+        runtime_role={"exists": False, "rolsuper": False, "rolbypassrls": False}
+    )
+    result = validate_restore(
+        inspector, RestoreControl(table_counts={}, control_totals={}),
+        expected_head="0003_job_workspace_enumeration",
+    )
+    assert result.ok is False
+    assert "portfyl_runtime role does not exist" in result.errors
+
+
 def test_capture_control_reads_all_tables_and_totals():
     inspector = FakeInspector(
         table_counts={table: 3 for table in ALL_TABLES},

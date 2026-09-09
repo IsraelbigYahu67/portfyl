@@ -164,10 +164,11 @@ _JOB_MAX_AGES = {
     "dividends": timedelta(hours=25),
 }
 if PORTFYL_EDITION is Edition.CLOUD:
-    # rate_limit_cleanup only ever runs in cloud (internal_jobs.router is
-    # cloud-only); local must never expect a heartbeat for a job it never
-    # schedules, or /health would report permanently degraded there.
+    # Cleanup jobs only ever run in cloud (internal_jobs.router is cloud-only);
+    # local must never expect heartbeats for jobs it never schedules, or
+    # /health would report permanently degraded there.
     _JOB_MAX_AGES["rate_limit_cleanup"] = timedelta(hours=2)
+    _JOB_MAX_AGES["account_deletion_cleanup"] = timedelta(hours=26)
 
 
 def _as_utc(value: datetime) -> datetime:

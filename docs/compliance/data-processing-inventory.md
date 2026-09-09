@@ -48,14 +48,14 @@ legal bases on behalf of the service operator.
 | Category | Examples and source | Primary storage | External processing or recipient | Current deletion/export behaviour |
 |---|---|---|---|---|
 | Identity | Firebase UID, normalized e-mail, display name, verification and disabled timestamps | Firebase Authentication and `users` | Google Firebase | Workspace export includes only safe membership metadata. The Portfyl/Firebase user is removed after deletion of the last workspace. |
-| Sessions and security | Digests of opaque session and CSRF tokens, expiry/revocation/last-seen time, user agent | `auth_sessions` | Cloudflare and Cloud Run process request metadata in transit | Never exported. Cascades when the final Portfyl user is deleted. Expired/revoked-row cleanup policy remains to be fixed. |
+| Sessions and security | Digests of opaque session and CSRF tokens, expiry/revocation/last-seen time, user agent | `auth_sessions` | Cloudflare and Cloud Run process request metadata in transit | Never exported. Cascades when the final Portfyl user is deleted. Expired/revoked rows are removed 30 days after becoming invalid. |
 | Workspace and membership | Workspace name/public UUID, role, status, timestamps | `workspaces`, `memberships` | Neon, Cloud Run | Exported with public identifiers. Sole-owner deletion cascades after a cancellable 30-day grace period; shared workspace deletion is refused. |
 | Portfolio financial data | Portfolio metadata, transactions, tickers, quantities, prices, cash, currencies, dates, notes, FX rates | `portfolios`, `transactions`, `broker_balances`, `cash_interest_rates`, `options_trades`, `polymarket_positions`, `trade_notes` | Neon; selected tickers/date ranges are sent to market-data sources as needed | Core portfolio and transaction data is exported; current export schema intentionally does not yet include every derived/specialist table. Tenant rows cascade with workspace deletion. |
 | Research and organization | Watchlists/items, benchmarks/components, price alerts | Corresponding workspace tables | Market-data providers when data is requested for a ticker | Watchlists/items and alerts are exported; benchmarks are currently outside export schema v1. Tenant rows cascade with workspace deletion. |
 | Broker connections | Broker, environment, sync state/coverage, encrypted API credentials and key version, bounded operational state | `broker_connections` | Trading 212 or IBKR when the user connects/syncs | Export contains allow-listed connection metadata only. Credentials, ciphertext, key versions, and raw error text are excluded. Rows cascade with workspace deletion. |
 | Notification integrations | Encrypted Discord webhook, notification preferences, delivery/dedup state and bounded errors | `discord_webhooks`, `dividend_notifications`, `notification_outbox` | Discord only when configured and triggered by the user | Secret URLs are never exported or logged. Workspace deletion cascades integration and queued delivery state. |
 | User/workspace settings | Theme/display preferences, workspace configuration, deletion-request state | `user_settings`, `workspace_settings` | Normally none | Deletion state is not part of export v1. Workspace settings cascade with workspace; personal settings cascade with final user deletion. |
-| Usage and abuse prevention | Capability metric/period/count, idempotency reservations, HMAC rate-limit identity/count/expiry | `usage_counters`, `usage_reservations`, `rate_limit_buckets` | Cloud Run/Neon; Cloudflare supplies edge/client-IP context | Not exported. Workspace usage rows cascade with workspace. Rate-limit buckets contain opaque HMAC keys, not raw IP/workspace IDs, and are deleted by bounded expiry cleanup. |
+| Usage and abuse prevention | Capability metric/period/count, idempotency reservations, HMAC rate-limit identity/count/expiry | `usage_counters`, `usage_reservations`, `rate_limit_buckets` | Cloud Run/Neon; Cloudflare supplies edge/client-IP context | Not exported. Workspace usage rows cascade with workspace. Finalized/released reservations are deleted after 90 days; expired HMAC rate-limit buckets are deleted hourly. |
 | Audit and jobs | Security action, actor, public target, bounded metadata, recurring-job status, migration validation/counts | `audit_logs`, `job_runs`, `data_migration_runs` | Neon and operator logs | Audit rows are RLS-scoped and cascade with actor/workspace deletion; no shadow copy of deleted financial data is kept. Global operational/migration record retention remains an operator decision. |
 | Runtime logs | Correlation ID, route/status/timing, error classification, job outcome | Cloud Run logging | Google Cloud | Secret-shape redaction is enforced. Request bodies and raw portfolio payloads must not be logged. Production log-retention value remains an operator decision. |
 | In-process market cache | Short-lived quote/fundamental responses keyed by market symbols/request parameters | Web-instance memory only | Yahoo/yfinance, Shibui Finance, SEC EDGAR or broker APIs depending on route | Not durable and not exported. Disappears on expiry or instance termination. Commercial cloud rights remain unresolved. |
@@ -86,22 +86,26 @@ redistribution permission. The market-data workstream remains a launch blocker.
 - Workspace-owned rows cascade when the due purge runs. The Firebase/Portfyl
   identity is deleted only after the last workspace membership is gone.
 - Rate-limit buckets have an expiry timestamp and a bounded cleanup job.
+- Expired/revoked session rows are removed after 30 days; finalized/released
+  usage reservations and completed/terminal notification-outbox rows are
+  removed after 90 days; dividend-notification deduplication rows are removed
+  after 400 days. Each category is bounded to 10,000 deletions per daily run.
 - In-process caches are TTL-bound or disappear with the instance.
 
-### Must be decided and then enforced or documented
+### Approved current private-test baseline
 
-- Neon production PITR/backup retention and the treatment of deleted data in
-  expiring backups.
-- Cloud Run log retention and access policy.
-- Expired/revoked authentication-session cleanup.
-- Audit-log, job-run, migration-record, usage-reservation, notification-outbox,
-  and broker-sync diagnostic retention.
-- Support and security-incident evidence retention.
-- Any legal/accounting record retention introduced with a future payment
-  provider.
+- The exact periods, event-based rules, provider settings, cleanup bounds, and
+  public-review triggers are recorded in
+  [private-test-retention-policy.md](private-test-retention-policy.md).
+- Neon PITR is six hours for the current private test. Cloud Logging is 30 days
+  in `_Default` and 400 days in the locked `_Required` bucket.
+- Audit and migration records remain for the associated user/workspace lifetime
+  and cascade on deletion. `job_runs` holds only the latest success per job.
+- Support and incident records are deleted 365 days after closure unless a
+  documented legal hold applies.
 
-No open-ended period should be published until it matches both provider
-configuration and application cleanup behaviour.
+Public/beta legal adequacy, accounting retention, and a longer recovery
+objective remain separate approval gates.
 
 ## Export/deletion coverage
 

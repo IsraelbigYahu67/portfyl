@@ -196,3 +196,13 @@ async def run_rate_limit_cleanup_job(authorization: str | None = Header(default=
     from jobs import rate_limit_cleanup_pass
 
     return await _run_job("rate_limit_cleanup", rate_limit_cleanup_pass)
+
+
+@router.post("/account_deletion_cleanup")
+async def run_account_deletion_cleanup_job(
+    authorization: str | None = Header(default=None),
+) -> dict:
+    verify_scheduler_token(authorization)
+    from jobs import account_deletion_cleanup_pass
+
+    return await _run_job("account_deletion_cleanup", account_deletion_cleanup_pass)

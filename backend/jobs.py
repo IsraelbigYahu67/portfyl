@@ -85,7 +85,13 @@ SYNC_COLOR = 0x059669      # green — same as trade notifications
 # and needs_attention on instead (see models.BrokerConnection).
 BROKER_AUTOSYNC_FAILURE_THRESHOLD = int(os.environ.get("BROKER_AUTOSYNC_FAILURE_THRESHOLD", 5))
 
-RECURRING_JOB_NAMES = ("alerts", "autosync", "dividends", "rate_limit_cleanup")
+RECURRING_JOB_NAMES = (
+    "alerts",
+    "autosync",
+    "dividends",
+    "rate_limit_cleanup",
+    "account_deletion_cleanup",
+)
 
 
 def mark_job_succeeded(
@@ -782,3 +788,50 @@ async def rate_limit_cleanup_pass(
     # useful signal, unlike the generic per-check logs this module avoids.
     log.info("rate_limit_cleanup deleted=%d remaining_backlog=%d", deleted_total, remaining)
     return [{"deleted": deleted_total}] if deleted_total else []
+
+
+async def account_deletion_cleanup_pass(
+    db: Session,
+    now: datetime | None = None,
+    *,
+    identity_admin=None,
+) -> list[dict]:
+    """Execute explicit workspace-deletion requests whose grace period ended.
+
+    The underlying state machine rechecks sole ownership, commits each
+    workspace independently, deletes the Firebase identity only after its last
+    workspace, and is safe to retry. Any per-workspace failure keeps this
+    recurring job's heartbeat stale so monitoring and Scheduler retries expose
+    the incomplete pass.
+    """
+    from account_deletion import purge_due_workspace_deletions
+    from data_retention import cleanup_retained_operational_data
+    from firebase_identity import FirebaseIdentityVerifier
+
+    summary = purge_due_workspace_deletions(
+        db,
+        identity_admin or FirebaseIdentityVerifier(),
+        now=now,
+    )
+    retention = cleanup_retained_operational_data(db, now=now)
+    log.info(
+        "account_deletion_cleanup scanned=%d purged=%d not_due=%d shared=%d invalid=%d errors=%d",
+        summary["scanned"],
+        summary["purged"],
+        summary["not_due"],
+        summary["shared"],
+        summary["invalid"],
+        summary["errors"],
+    )
+    log.info(
+        "data_retention_cleanup auth_sessions=%d usage_reservations=%d notification_outbox=%d dividend_notifications=%d",
+        retention["auth_sessions"],
+        retention["usage_reservations"],
+        retention["notification_outbox"],
+        retention["dividend_notifications"],
+    )
+    if summary["errors"]:
+        raise RuntimeError(
+            f"account deletion cleanup completed with {summary['errors']} error(s)"
+        )
+    return [{"purged": summary["purged"]}] if summary["purged"] else []

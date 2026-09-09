@@ -1,6 +1,4 @@
-"""main.py: the cloud-only rate-limit gate's registration position relative
-to CORSMiddleware, its exception handlers, and the cloud-only
-rate_limit_cleanup entry in _JOB_MAX_AGES."""
+"""main.py: cloud gate ordering and cloud-only maintenance heartbeats."""
 from __future__ import annotations
 
 import importlib
@@ -46,18 +44,20 @@ def test_cloud_edition_registers_the_gate_more_inner_than_cors(monkeypatch):
         _reload_main(monkeypatch, "local")
 
 
-def test_cloud_health_thresholds_include_rate_limit_cleanup(monkeypatch):
+def test_cloud_health_thresholds_include_cleanup_jobs(monkeypatch):
     try:
         main = _reload_main(monkeypatch, "cloud")
         assert "rate_limit_cleanup" in main._JOB_MAX_AGES
+        assert "account_deletion_cleanup" in main._JOB_MAX_AGES
     finally:
         _reload_main(monkeypatch, "local")
 
 
-def test_local_health_thresholds_never_include_rate_limit_cleanup(monkeypatch):
+def test_local_health_thresholds_never_include_cleanup_jobs(monkeypatch):
     try:
         main = _reload_main(monkeypatch, "local")
         assert "rate_limit_cleanup" not in main._JOB_MAX_AGES
+        assert "account_deletion_cleanup" not in main._JOB_MAX_AGES
     finally:
         _reload_main(monkeypatch, "local")
 

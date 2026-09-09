@@ -1,0 +1,19 @@
+{
+  "scheduler": [
+    {"name": "alerts", "schedule": "*/15 * * * *"},
+    {"name": "autosync", "schedule": "0 * * * *"},
+    {"name": "dividends", "schedule": "0 */12 * * *"},
+    {"name": "rate_limit_cleanup", "schedule": "0 * * * *"},
+    {"name": "account_deletion_cleanup", "schedule": "17 3 * * *"}
+  ],
+  "timeZone": "Etc/UTC",
+  "attemptDeadline": "300s",
+  "retryConfig": {"retryCount": 3, "minBackoffDuration": "30s", "maxBackoffDuration": "300s", "maxDoublings": 3},
+  "healthCheck": {
+    "displayName": "Portfyl dependency health",
+    "period": "300s",
+    "timeout": "30s",
+    "httpCheck": {"requestMethod": "GET", "useSsl": true, "port": 443, "path": "/health", "validateSsl": true},
+    "contentMatchers": [{"content": "\"ok\"", "matcher": "MATCHES_JSON_PATH", "jsonPathMatcher": {"jsonPath": "$.status", "jsonMatcher": "EXACT_MATCH"}}]
+  }
+}

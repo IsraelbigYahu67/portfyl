@@ -310,7 +310,18 @@ currency (`billingbudgets.googleapis.com` rejects a mismatch with a generic
 `describe` command above before picking an amount; a CZK-currency billing
 account cannot take a `USD` budget.
 
-**Artifact Registry — keep only the latest image**:
+**Artifact Registry — preserve deployable and rollback images**:
+
+`deploy/ar-cleanup-policy.json` retains the five most recent versions, all
+versions younger than seven days, and versions tagged with `production` or
+`rollback` prefixes. Keep policies override deletion. The previous keep-one
+policy left the running revision's source image unavailable on 2026-09-09.
+After a successful deployment, tag its exact digest `production`; before
+moving that tag on a later deployment, tag the previous production digest
+`rollback`. Deploy using immutable digests and keep both tags current.
+
+Use the **registry's region**, which may differ from the Cloud Run region
+(current registry: `europe-west3`; service: `europe-west1`).
 
 ```powershell
 gcloud artifacts repositories set-cleanup-policies cloud-run-source-deploy --project=$PROJECT_ID --location=$REGION --policy=deploy/ar-cleanup-policy.json --no-dry-run
@@ -359,7 +370,7 @@ gcloud run services update $SERVICE --region=$REGION --update-env-vars="PORTFYL_
 Use `--update-env-vars` here: `--set-env-vars` replaces the whole environment
 map and would remove the KMS settings from step 6.
 
-Then create the three scheduler jobs. Cron expressions mirror today's
+Then create the five scheduler jobs. Cron expressions mirror today's
 poller intervals except autosync: the old 60-second in-process heartbeat
 only existed so `jobs.sync_due()` could catch a due schedule within a
 minute — Cloud Scheduler's minimum useful resolution is coarser than that
@@ -376,6 +387,8 @@ gcloud scheduler jobs create http portfyl-autosync --location=$REGION --schedule
 gcloud scheduler jobs create http portfyl-dividends --location=$REGION --schedule="0 */12 * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/dividends" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
 
 gcloud scheduler jobs create http portfyl-rate-limit-cleanup --location=$REGION --schedule="0 * * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/rate_limit_cleanup" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
+
+gcloud scheduler jobs create http portfyl-account-deletion-cleanup --location=$REGION --schedule="17 3 * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/account_deletion_cleanup" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
 ```
 
 Verify: `gcloud scheduler jobs run portfyl-alerts --location=$REGION` should
@@ -393,10 +406,19 @@ portfyl-rate-limit-cleanup --location=$REGION` should log a
 expired) tagged with a `job-rate_limit_cleanup-…` correlation id, and the
 same overlap drill must produce
 `{"job":"rate_limit_cleanup","skipped":"already running"}`.
+Before enabling `portfyl-account-deletion-cleanup`, inspect production for due
+requests without mutating them and test the purge state machine on disposable
+fixtures. Its first forced run must report a healthy heartbeat in `/health`;
+never infer completion from Scheduler's run acknowledgement alone.
 
 ---
 
 ## Ongoing rules
+
+- Scheduler schedules, retry limits, and JSON health matching are versioned
+  in `deploy/operations.json`; alert policy templates are in
+  `deploy/monitoring-policies.json`. See
+  `docs/operations/scheduler-monitoring.md` for verification and recovery.
 
 - **Always migrate before you deploy** (step 5) — never redeploy the service
   image without first running `deploy/run-migrations.ps1` against the same

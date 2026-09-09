@@ -1,0 +1,116 @@
+[
+  {
+    "displayName": "Portfyl unavailable or dependency degraded",
+    "combiner": "OR",
+    "enabled": true,
+    "notificationChannels": [
+      "__NOTIFICATION_CHANNEL__"
+    ],
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "Portfyl /health must return JSON status=ok. Inspect database and scheduler heartbeats; HTTP 200 alone is insufficient. Check Cloud Run logs and docs/operations/operational-verification-2026-09-09.md. Do not weaken the trusted-edge or tenant controls."
+    },
+    "conditions": [
+      {
+        "displayName": "Dependency health fails from two or more checkers",
+        "conditionThreshold": {
+          "filter": "metric.type=\"monitoring.googleapis.com/uptime_check/check_passed\" AND metric.label.check_id=\"__HEALTH_CHECK_ID__\" AND resource.type=\"uptime_url\"",
+          "aggregations": [
+            {
+              "alignmentPeriod": "600s",
+              "perSeriesAligner": "ALIGN_NEXT_OLDER",
+              "crossSeriesReducer": "REDUCE_COUNT_FALSE"
+            }
+          ],
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 1,
+          "duration": "300s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      },
+      {
+        "displayName": "No uptime observations for 15 minutes",
+        "conditionAbsent": {
+          "filter": "metric.type=\"monitoring.googleapis.com/uptime_check/check_passed\" AND metric.label.check_id=\"__HEALTH_CHECK_ID__\" AND resource.type=\"uptime_url\"",
+          "duration": "900s",
+          "trigger": {
+            "count": 1
+          },
+          "aggregations": [
+            {
+              "alignmentPeriod": "300s",
+              "perSeriesAligner": "ALIGN_NEXT_OLDER"
+            }
+          ]
+        }
+      }
+    ],
+    "alertStrategy": {
+      "autoClose": "1800s"
+    }
+  },
+  {
+    "displayName": "Portfyl repeated HTTP server errors",
+    "combiner": "OR",
+    "enabled": true,
+    "notificationChannels": [
+      "__NOTIFICATION_CHANNEL__"
+    ],
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "At least five HTTP 5xx responses in a five-minute aligned window. Inspect the active revision, failed endpoint classes, database and scheduled-job status. Avoid copying raw request/portfolio data into incident records."
+    },
+    "conditions": [
+      {
+        "displayName": "At least 5 HTTP 5xx in 5 minutes",
+        "conditionThreshold": {
+          "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"portfyl\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\"",
+          "aggregations": [
+            {
+              "alignmentPeriod": "300s",
+              "perSeriesAligner": "ALIGN_SUM",
+              "crossSeriesReducer": "REDUCE_SUM"
+            }
+          ],
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 4,
+          "duration": "0s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      }
+    ],
+    "alertStrategy": {
+      "autoClose": "1800s"
+    }
+  },
+  {
+    "displayName": "Portfyl scheduler execution error",
+    "combiner": "OR",
+    "enabled": true,
+    "notificationChannels": [
+      "__NOTIFICATION_CHANNEL__"
+    ],
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "Cloud Scheduler reported an error for a Portfyl job. Check OIDC audience/caller, service configuration and job logs. Heartbeat-based detection also covers stale successful runs."
+    },
+    "conditions": [
+      {
+        "displayName": "Portfyl Scheduler ERROR log",
+        "conditionMatchedLog": {
+          "filter": "resource.type=\"cloud_scheduler_job\" AND resource.labels.job_id=~\"^portfyl-\" AND severity>=ERROR"
+        }
+      }
+    ],
+    "alertStrategy": {
+      "notificationRateLimit": {
+        "period": "900s"
+      },
+      "autoClose": "1800s"
+    }
+  }
+]

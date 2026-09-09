@@ -167,3 +167,8 @@ Gaps / corrective actions / owners / due dates:
 Run at least one cross-tenant scenario and one restore/credential-rotation
 scenario before private beta. A written runbook alone does not close the drill
 or monitoring launch gates.
+
+The automated technical rehearsal from 2026-09-09 is recorded in
+[incident-tabletop-2026-09-09.md](incident-tabletop-2026-09-09.md). Human
+attendance, a disposable credential rotation, and notification ownership remain
+required before that gate is closed.

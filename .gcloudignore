@@ -10,6 +10,7 @@
 .git/
 .claude/
 .playwright-mcp/
+*.log
 
 # Root-level screenshots / scratch captures (design QA, not app source).
 /*.png

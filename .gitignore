@@ -3,6 +3,7 @@ node_modules/
 frontend/dist/
 __pycache__/
 *.pyc
+*.log
 .venv/
 
 # data & secrets — the DB holds real portfolio data, never commit it

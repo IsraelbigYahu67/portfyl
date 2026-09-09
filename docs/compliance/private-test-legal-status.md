@@ -83,19 +83,16 @@ future requirements.
 
 ## Retention boundary
 
-Code currently enforces a cancellable 30-day workspace-deletion grace period,
-bounded rate-limit expiry cleanup, and in-memory market-cache TTLs. The
-following values remain publication blockers because they are not yet fixed
-and verified against production configuration:
+The implemented private-test schedule is recorded in
+[private-test-retention-policy.md](private-test-retention-policy.md). It accepts
+the verified six-hour Neon PITR window for this operator-only test, preserves
+the verified 30-day `_Default` and locked 400-day `_Required` Cloud Logging
+settings, and fixes the application/support periods and cleanup bounds.
 
-- Neon backup/PITR retention and expiry of deleted rows in backups;
-- Cloud Run log retention and access policy;
-- expired/revoked Portfyl session cleanup;
-- audit, job, migration, usage-reservation, notification, sync-diagnostic,
-  support, and incident-evidence retention.
-
-Do not publish an open-ended phrase such as "kept only as long as necessary"
-as a substitute for selecting, configuring, and testing these periods.
+The daily scheduler executes due 30-day workspace deletions and clears expired
+technical records. Public/beta adequacy, final legal bases, accounting records,
+and the public recovery objective remain publication blockers. Do not copy the
+private-test periods into a public notice without that review.
 
 ## Private-test plan switching evidence
 
@@ -118,9 +115,10 @@ legal routes are enabled:
       `tom.zoubek@gmail.com`.
 - [x] Confirm the current service is a free private test with no payments.
 - [x] Confirm the operating country is the Czech Republic.
-- [ ] Approve legal bases per processing purpose and the final retention
-      schedule.
-- [ ] Verify production Neon PITR and Cloud Run log-retention settings.
+- [ ] Approve legal bases per processing purpose and the final public retention
+      schedule. The current private-test schedule is implemented and recorded.
+- [x] Verify production Neon PITR and Cloud Run log-retention settings
+      (2026-09-09; policy approval remains open).
 - [ ] Verify every current processor/subprocessor, region, transfer safeguard,
       and applicable DPA.
 - [ ] Resolve commercial market-data and broker-API rights for the intended

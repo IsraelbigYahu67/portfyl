@@ -201,6 +201,8 @@ def validate_restore(
             errors.append(f"{table}: no row security policy present")
 
     runtime_role = inspector.runtime_role_flags()
+    if not runtime_role.get("exists"):
+        errors.append("portfyl_runtime role does not exist")
     if runtime_role.get("rolbypassrls"):
         errors.append("portfyl_runtime role has BYPASSRLS")
     if runtime_role.get("rolsuper"):
@@ -283,7 +285,10 @@ def main(argv: list[str] | None = None) -> int:
 
     engine = create_engine(_normalize_url(database_url), pool_pre_ping=True)
     try:
-        with engine.connect() as connection:
+        with engine.connect().execution_options(isolation_level="REPEATABLE READ") as connection:
+            # One consistent snapshot for counts and totals, enforced read-only
+            # even when the supplied inspection role can bypass RLS.
+            connection.execute(text("SET TRANSACTION READ ONLY"))
             inspector = PostgresRestoreInspector(connection)
             if args.capture:
                 control = capture_control(inspector)

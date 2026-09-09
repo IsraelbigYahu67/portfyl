@@ -83,6 +83,11 @@ class FirebaseIdentityVerifier:
     def delete_user(self, uid: str) -> None:
         try:
             self._auth_client.delete_user(uid, app=self._app)
+        except firebase_auth.UserNotFoundError:
+            # A prior attempt can delete Firebase successfully and then lose
+            # its database commit. Treat an already-absent identity as the
+            # desired state so the retry can finish the Portfyl transaction.
+            return
         except Exception as exc:
             raise IdentityVerificationError(
                 "Firebase user deletion failed"
