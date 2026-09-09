@@ -122,6 +122,7 @@ build. Its clean Cloud Build install audited 380 packages with zero findings.
 
 - Local and cloud frontend tests: **28 files / 151 tests passed** in each mode.
 - Frontend dependency audit: **0 vulnerabilities** after a clean install.
+- Python requirements audit: `pip-audit` found **0 known vulnerabilities**.
 - Cloud production build: passed within Cloud Build.
 - Backend fast suite: **584 passed**, 109 warnings.
 - Full disposable PostgreSQL/RLS suite: **326 passed**, 10 warnings. Docker was
