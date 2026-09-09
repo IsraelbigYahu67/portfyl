@@ -31,7 +31,7 @@ remaining operator-attended exercise or legal notification decision gate.
   actions, and the complete Alice/Bob matrix. Treat scope as unknown until both
   application predicates and database policies pass.
 - **Recovery gate exercised:** the backend fast suite passed 584 tests; the
-  previously completed disposable PostgreSQL isolation suite passed 321 tests;
+  full disposable PostgreSQL/RLS suite passed 326 tests on 2026-09-09;
   the real Neon restore check proved unscoped runtime reads invisible and the
   selected workspace count correct. Live direct-origin `/api/auth/me` returned
   403 and an unauthenticated internal cleanup POST returned 401.
@@ -56,10 +56,13 @@ remaining operator-attended exercise or legal notification decision gate.
   booted against the branch and smoke checks passed; the branch was deleted
   after verification. Observed elapsed time was about 2 minutes 6 seconds and
   is not an RTO promise.
-- **Credential boundary:** no secret was rotated because there was no exposure.
-  A future attended drill must choose a disposable credential, execute both
-  versions of the rejection check, and record the owner without printing the
-  secret.
+- **Credential boundary:** a new isolated Secret Manager secret was created
+  with two cryptographically random versions. Version 1 was disabled and an
+  access attempt was rejected with `FAILED_PRECONDITION`; version 2 remained
+  accessible. The temporary secret was then deleted. No value was printed,
+  granted to a runtime identity, or referenced by production. A future attended
+  drill should repeat the decision path with an application-bound disposable
+  credential and a known-good redeploy.
 
 ## Monitoring and communication evidence
 
@@ -75,7 +78,7 @@ remaining operator-attended exercise or legal notification decision gate.
 | Action | Owner | Due |
 | --- | --- | --- |
 | Run both scenarios with a named human incident lead and record decisions | Product/operator | Before private beta |
-| Perform a disposable credential rotation and old-value rejection check | Security/operator | Before private beta |
+| Repeat rotation with an application-bound disposable credential and known-good redeploy | Security/operator | During the attended pre-beta drill |
 | Name the controller and notification decision owner | Product/legal | Before external users |
 | Establish public support/status and approved customer-message paths | Product/operator | Before external users |
 | Set and fund a public-beta recovery objective beyond the private-test six-hour history | Product/operator | Before public beta |

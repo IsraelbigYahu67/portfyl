@@ -124,6 +124,9 @@ build. Its clean Cloud Build install audited 380 packages with zero findings.
 - Frontend dependency audit: **0 vulnerabilities** after a clean install.
 - Cloud production build: passed within Cloud Build.
 - Backend fast suite: **584 passed**, 109 warnings.
+- Full disposable PostgreSQL/RLS suite: **326 passed**, 10 warnings. Docker was
+  started for this follow-up, and the disposable container/network were removed
+  after the run.
 - Migration completed and all five production job heartbeats are healthy.
 - Scheduler execution logs explicitly recorded HTTP 200 for all five jobs;
   their API statuses were success (empty protobuf status, equivalent to code 0).
@@ -142,7 +145,8 @@ observation is routine operations rather than evidence claimed in advance.
 Still open: an operator-attended incident exercise, a separately approved
 public-beta recovery objective, controller/legal/public support decisions,
 commercial market-data rights, product interviews, and private-beta evidence.
-The automated technical incident rehearsal is recorded in
+The automated technical incident rehearsal, including an isolated Secret
+Manager version-rotation and old-version rejection check, is recorded in
 [incident-tabletop-2026-09-09.md](incident-tabletop-2026-09-09.md); it does not
 claim human attendance or a legal notification decision.
 
