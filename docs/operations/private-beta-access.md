@@ -23,23 +23,40 @@ depending on a separate Google-managed certificate for the beta hostname.
 
 ## Invite a tester
 
-1. Run the database admission job:
+`deploy/manage-beta-tester.ps1` writes both systems from one invocation when
+`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (an Access-policy-edit
+scoped API token) are set in the environment: it admits the e-mail in
+`beta_invites` via the Cloud Run job, then adds the same normalized address as
+an exact `Email` Include rule on the reusable policy `Portfyl private beta
+testers`, preserving every other rule untouched. Without those two variables
+set, the script only updates `beta_invites` and prints a warning that the
+Cloudflare side still needs the manual step below — this was the only
+behavior before 2026-09-11 and remains the fallback.
+
+1. Run:
 
    ```powershell
+   $env:CLOUDFLARE_ACCOUNT_ID = "<account id>"
+   $env:CLOUDFLARE_API_TOKEN = "<Access: Apps and Policies Edit token>"
    .\deploy\manage-beta-tester.ps1 -Action invite -Email tester@example.com
    ```
 
-2. In Cloudflare Zero Trust, edit the reusable policy
-   `Portfyl private beta testers` and add one exact `Email` Include rule for
-   the same normalized address. Preserve every existing exact e-mail.
-3. Send `https://app.portfyl.com/register` to the tester. They must use the
+   Add `-WhatIf` to preview the Cloudflare policy change without applying it.
+   If the two environment variables are absent, manually add one exact
+   `Email` Include rule for the same normalized address in Cloudflare Zero
+   Trust instead, preserving every existing exact e-mail.
+2. Send `https://app.portfyl.com/register` to the tester. They must use the
    same e-mail for Cloudflare Access and Firebase registration.
-4. Verify the Cloudflare Access authentication log and confirm the first
+3. Verify the Cloudflare Access authentication log and confirm the first
    successful Portfyl login changed the invite from `invited` to `accepted`:
 
    ```powershell
-   .\deploy\manage-beta-tester.ps1 -Action list
+   .\deploy\manage-beta-tester.ps1 -Action list -CheckCloudflare
    ```
+
+   `-CheckCloudflare` additionally fetches the live policy's e-mail list so
+   the two systems can be compared by eye; it needs the same two Cloudflare
+   environment variables and makes no changes.
 
 Invitations expire after 30 days by default until first acceptance. Override
 that window with `-ExpiresDays`; an accepted tester remains admitted until
@@ -47,13 +64,18 @@ explicit revocation.
 
 ## Revoke a tester
 
-1. Remove the exact e-mail from the Cloudflare reusable policy first and
-   revoke the Access application tokens if immediate termination is required.
-2. Run:
+Run:
 
-   ```powershell
-   .\deploy\manage-beta-tester.ps1 -Action revoke -Email tester@example.com
-   ```
+```powershell
+.\deploy\manage-beta-tester.ps1 -Action revoke -Email tester@example.com
+```
+
+With the two Cloudflare environment variables set, this also removes the
+e-mail from the reusable policy's Include rules. Revoke the Access
+application's own tokens separately if immediate session termination (not
+just future admission) is required. Without the environment variables set,
+remove the exact e-mail from the Cloudflare reusable policy by hand first, as
+before 2026-09-11.
 
 The command marks the invite revoked, disables the Portfyl user, revokes all
 Portfyl sessions, and revokes Firebase refresh tokens when a Firebase UID is
