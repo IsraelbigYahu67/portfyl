@@ -34,7 +34,7 @@ Change subsequently authorized by the user's request to publish through Cloudfla
 retain the existing identity provider, policy, and session settings, but scope
 the protected application to `/api` and all tracker/auth routes:
 
-`/dashboard`, `/overview`, `/allocation`, `/transactions`, `/cash`, `/import`,
+`/dashboard`, `/overview`, `/allocation`, `/transactions`, `/import`,
 `/dividends`, `/analytics`, `/search`, `/stock`, `/watchlists`, `/assistant`,
 `/settings`, `/pricing`, `/login`, `/register`, `/verify-email`, `/forgot-password`.
 

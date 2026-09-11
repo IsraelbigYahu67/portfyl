@@ -9,7 +9,6 @@ import Dashboard from "./pages/Dashboard";
 import Overview from "./pages/Overview";
 import Allocation from "./pages/Allocation";
 import Transactions from "./pages/Transactions";
-import Cash from "./pages/Cash";
 import Import from "./pages/Import";
 import Dividends from "./pages/Dividends";
 import Analytics from "./pages/Analytics";
@@ -461,7 +460,6 @@ function AppLayout() {
               <Route path="/overview" element={<Overview />} />
               <Route path="/allocation" element={<Allocation />} />
               <Route path="/transactions" element={<Transactions />} />
-              <Route path="/cash" element={<Cash />} />
               <Route path="/import" element={<Import />} />
               <Route path="/dividends" element={<Dividends />} />
               <Route path="/analytics" element={<Analytics />} />
