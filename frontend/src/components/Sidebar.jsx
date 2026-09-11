@@ -6,9 +6,10 @@ import AccountMenu from "./AccountMenu";
 import SegmentedControl from "./ui/SegmentedControl";
 import { EDITION_NAVIGATION } from "@edition-manifest";
 import { enabledEditionEntries } from "../editions/filter";
+import { TRACKER_HOME } from "../lib/routes";
 
 const T212_LINKS = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: TRACKER_HOME, label: "Dashboard", icon: LayoutDashboard },
   { to: "/overview", label: "Overview", icon: Layers },
   { to: "/allocation", label: "Allocation", icon: PieChart },
   { to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
@@ -58,7 +59,7 @@ export default function Sidebar({ capabilities = [] }) {
       {platform && (
         <div className="px-3 pt-2">
           <button
-            onClick={() => { setPlatform(null); navigate("/"); }}
+            onClick={() => { setPlatform(null); navigate(TRACKER_HOME); }}
             className="w-full flex items-center gap-2 text-xs text-muted hover:text-brand px-2 py-1.5 rounded-lg hover:bg-surface-hover transition-colors"
           >
             <ArrowLeft size={12} />

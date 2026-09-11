@@ -5,6 +5,7 @@ import { editionManifestPath, resolveFrontendEdition } from "./edition.config.js
 export default defineConfig(({ mode }) => {
   const edition = resolveFrontendEdition(process.env, mode);
   return {
+    define: { "import.meta.env.VITE_PORTFYL_EDITION": JSON.stringify(edition) },
     plugins: [react()],
     resolve: {
       alias: {

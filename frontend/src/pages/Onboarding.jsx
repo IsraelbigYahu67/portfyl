@@ -4,6 +4,7 @@ import { BarChart3, Link2, Upload, Loader2 } from "lucide-react";
 
 import { createDemoPortfolio, createPortfolio } from "../api";
 import { usePlatform, usePortfolio } from "../App";
+import { TRACKER_HOME } from "../lib/routes";
 
 
 function errorMessage(error) {
@@ -54,7 +55,7 @@ export default function Onboarding() {
       icon: BarChart3,
       title: "Explore sample portfolio",
       description: "Use clearly labelled sample data. You can replace or clear it at any time.",
-      action: () => activate(createDemoPortfolio, "/", "demo"),
+      action: () => activate(createDemoPortfolio, TRACKER_HOME, "demo"),
     },
     {
       key: "broker",

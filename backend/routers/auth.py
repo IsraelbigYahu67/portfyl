@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from rate_limit import rate_limit
 
 from audit import record_audit_event
+from beta_access import BetaAccessDenied, require_active_invite
 from auth import (
     clear_session_cookie,
     create_session,
@@ -24,6 +25,7 @@ from auth import (
     set_session_cookie,
 )
 from database import get_db, set_rls_context
+from edition import Edition
 from firebase_identity import (
     FirebaseIdentityVerifier,
     IdentityVerificationError,
@@ -178,6 +180,15 @@ def exchange_session(
         raise AuthAPIError(401, "authentication_required") from exc
     if not identity.email_verified:
         raise AuthAPIError(403, "email_verification_required")
+
+    # Cloudflare Access is the outer private-beta gate, but Portfyl owns the
+    # authoritative admission decision. Enforce it before _provision_identity
+    # so an uninvited Firebase identity cannot create any application records.
+    if request.app.state.portfyl_edition is Edition.CLOUD:
+        try:
+            require_active_invite(db, identity.email)
+        except BetaAccessDenied as exc:
+            raise AuthAPIError(403, "beta_access_required") from exc
 
     user = _provision_identity(db, identity)
     issued = create_session(

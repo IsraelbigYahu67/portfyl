@@ -72,6 +72,7 @@ TENANT_RLS_TABLES: tuple[str, ...] = (
 ALL_TABLES: tuple[str, ...] = (
     "users",
     "auth_sessions",
+    "beta_invites",
     "job_runs",
     "rate_limit_buckets",
 ) + TENANT_RLS_TABLES

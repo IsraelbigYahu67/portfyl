@@ -116,5 +116,8 @@ const ERROR_MESSAGES = {
 };
 
 export function mapFirebaseAuthError(error) {
+  if (error?.response?.data?.code === "beta_access_required") {
+    return "This e-mail does not have an active Portfyl private beta invitation.";
+  }
   return ERROR_MESSAGES[error?.code] || "Something went wrong. Please try again.";
 }

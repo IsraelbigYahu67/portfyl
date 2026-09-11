@@ -3,6 +3,7 @@ import { fetchSummary, fetchT212Status } from "../api";
 import { useCurrency, usePortfolio, usePlatform } from "../App";
 import { TrendingUp, TrendingDown, BarChart3, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { TRACKER_HOME } from "../lib/routes";
 
 export default function PlatformLanding() {
   const { currency } = useCurrency();
@@ -50,7 +51,7 @@ export default function PlatformLanding() {
 
   function selectPlatform(key) {
     setPlatform(key);
-    navigate("/");
+    navigate(TRACKER_HOME);
   }
 
   return (

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { TRACKER_HOME } from "./lib/routes";
 import { Loader2 } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import PlatformLanding from "./pages/PlatformLanding";
@@ -456,7 +457,7 @@ function AppLayout() {
         <Routes>
           {platform === "t212" && (
             <>
-              <Route path="/" element={<Dashboard />} />
+              <Route path={TRACKER_HOME} element={<Dashboard />} />
               <Route path="/overview" element={<Overview />} />
               <Route path="/allocation" element={<Allocation />} />
               <Route path="/transactions" element={<Transactions />} />
@@ -477,7 +478,7 @@ function AppLayout() {
           {/* An authenticated visitor landing on a public auth URL (stale tab,
               browser back button after login, etc.) gets sent home instead of
               a blank route. */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to={TRACKER_HOME} replace />} />
         </Routes>
       </main>
     </div>

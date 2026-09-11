@@ -1,6 +1,6 @@
 # Portfyl Private-Test Legal Status
 
-Last reviewed: 2026-09-08
+Last reviewed: 2026-09-11
 
 This record states the current operating boundary for Portfyl. It is an
 internal compliance and release-control document, not a public privacy notice
@@ -16,11 +16,14 @@ or final consumer terms.
 - The operator does not intend to impose an 18+ product rule. This does not
   remove the need for a child/minor legal-capacity and transparency design
   before access is offered to anyone other than the current adult owner.
-- `portfyl.com` is currently protected by Cloudflare Access. The current Allow
-  policy contains the exact e-mail `tom.zoubek@gmail.com`, authenticated by a
-  one-time PIN. The operator may add individually approved tester e-mails, but
-  not a public, whole-domain, or broad group rule. The application name is
-  `Portfyl testing` and its Access session duration is 24 hours.
+- `portfyl.com` is a public marketing landing page. The complete tracker
+  hostname `app.portfyl.com` is protected by the Cloudflare Access application
+  `Portfyl private beta`. Its reusable Allow policy contains the exact e-mail
+  `tom.zoubek@gmail.com`, authenticated by a one-time PIN. The operator may add
+  individually approved tester e-mails, but not an Everyone, whole-domain, or
+  broad group rule. The Access session duration is 24 hours. PostgreSQL
+  `beta_invites` independently prevents uninvited Firebase identities from
+  creating Portfyl application accounts or workspaces.
 
 ## Current release boundary
 

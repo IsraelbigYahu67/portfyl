@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import Onboarding from "./Onboarding";
+import { TRACKER_HOME } from "../lib/routes";
 
 
 const mocks = vi.hoisted(() => ({
@@ -28,9 +29,9 @@ vi.mock("../App", () => ({
 
 function mount() {
   return render(
-    <MemoryRouter initialEntries={["/"]}>
+    <MemoryRouter initialEntries={[TRACKER_HOME]}>
       <Routes>
-        <Route path="/" element={<Onboarding />} />
+        <Route path={TRACKER_HOME} element={<Onboarding />} />
         <Route path="/import" element={<div>Import destination</div>} />
         <Route path="/settings" element={<div>Settings destination</div>} />
       </Routes>

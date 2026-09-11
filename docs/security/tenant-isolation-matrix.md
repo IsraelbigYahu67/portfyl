@@ -138,9 +138,10 @@ database.
 ### Non-tenant infrastructure tables
 
 Not every table is workspace-scoped, and not every non-tenant table needs
-RLS. `job_runs` (recurring-job heartbeats) and `rate_limit_buckets`
+RLS. `job_runs` (recurring-job heartbeats), `rate_limit_buckets`
 (fixed-window rate-limit counters,
-`docs/superpowers/specs/2026-09-05-portfyl-rate-limiting-design.md`) are
+`docs/superpowers/specs/2026-09-05-portfyl-rate-limiting-design.md`), and
+`beta_invites` (global identity-admission records) are
 process-wide infrastructure state, never keyed by workspace, and are
 deliberately excluded from `RLS_TABLES` (`tests/postgres/test_rls.py`) and
 `WORKSPACE_SCOPED_TABLES` (`tests/postgres/test_runtime_role.py`). Each
@@ -153,6 +154,7 @@ has all four (`SELECT, INSERT, UPDATE, DELETE`).
 | --- | --- | --- |
 | `job_runs` | `SELECT, INSERT, UPDATE` | absent from `RLS_TABLES`/`WORKSPACE_SCOPED_TABLES` by design (no dedicated grants test) |
 | `rate_limit_buckets` | `SELECT, INSERT, UPDATE, DELETE` | `test_runtime_role_has_exact_grants_on_rate_limit_buckets` (`tests/postgres/test_runtime_role.py`); absent from `RLS_TABLES`/`WORKSPACE_SCOPED_TABLES` by design |
+| `beta_invites` | `SELECT, INSERT, UPDATE, DELETE` | `test_runtime_role_has_exact_grants_on_beta_invites` (`tests/postgres/test_runtime_role.py`); global beta admission, not tenant data |
 
 ## Adding a resource
 

@@ -53,7 +53,7 @@ class Base(DeclarativeBase):
     pass
 
 
-EXPECTED_ALEMBIC_HEAD = "0012_rate_limit_buckets"
+EXPECTED_ALEMBIC_HEAD = "0013_private_beta_invites"
 
 
 def assert_alembic_head(

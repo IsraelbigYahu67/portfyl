@@ -324,6 +324,22 @@ def test_runtime_role_has_exact_grants_on_rate_limit_buckets(runtime_session: Se
     assert grants == ["DELETE", "INSERT", "SELECT", "UPDATE"]
 
 
+def test_runtime_role_has_exact_grants_on_beta_invites(runtime_session: Session):
+    grants = runtime_session.execute(
+        text(
+            """
+            SELECT privilege_type
+            FROM information_schema.role_table_grants
+            WHERE grantee = 'portfyl_runtime'
+              AND table_schema = 'public'
+              AND table_name = 'beta_invites'
+            ORDER BY privilege_type
+            """
+        )
+    ).scalars().all()
+    assert grants == ["DELETE", "INSERT", "SELECT", "UPDATE"]
+
+
 # ---------------------------------------------------------------------------
 # Where the two layers meet
 # ---------------------------------------------------------------------------

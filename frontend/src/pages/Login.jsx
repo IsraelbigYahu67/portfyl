@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { LogIn } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
+import { TRACKER_HOME } from "../lib/routes";
 import { getIdToken, mapFirebaseAuthError, sendVerificationEmail, signInWithEmailPassword } from "../auth/firebase";
 
 export default function Login() {
@@ -34,7 +35,7 @@ export default function Login() {
       }
       const idToken = await getIdToken(firebaseUser, true);
       await loginWithIdToken(idToken);
-      navigate("/", { replace: true });
+      navigate(TRACKER_HOME, { replace: true });
     } catch (err) {
       // The client SDK's emailVerified flag can be stale (cached ID token
       // claims); the backend is the source of truth and re-rejects with this

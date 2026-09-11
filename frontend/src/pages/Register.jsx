@@ -47,8 +47,10 @@ export default function Register() {
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center gap-2 text-center">
           <img src="/portfyl-mark.png" alt="" className="w-12 h-12 object-contain" />
-          <h1 className="font-display font-bold text-xl text-ink">Create your account</h1>
-          <p className="text-sm text-muted">A personal workspace is created for you automatically.</p>
+          <h1 className="font-display font-bold text-xl text-ink">Join the private beta</h1>
+          <p className="text-sm text-muted">
+            Use the same e-mail address that received your Portfyl invitation.
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="card space-y-4" noValidate>
@@ -98,7 +100,7 @@ export default function Register() {
 
           <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2" disabled={submitting}>
             <UserPlus size={15} />
-            {submitting ? "Creating account…" : "Create account"}
+            {submitting ? "Creating account…" : "Create beta account"}
           </button>
 
           <p className="text-xs text-muted text-center pt-1">

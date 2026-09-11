@@ -1,0 +1,5 @@
+# Build context: an isolated directory containing a verified cloud build in dist/.
+# Pin the currently running runtime by digest to preserve its backend and schema.
+ARG PORTFYL_RUNTIME_IMAGE
+FROM ${PORTFYL_RUNTIME_IMAGE}
+COPY dist/ /app/frontend/dist/

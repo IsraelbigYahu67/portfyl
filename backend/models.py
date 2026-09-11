@@ -73,6 +73,36 @@ class User(Base):
     disabled_at = Column(DateTime(timezone=True), nullable=True)
 
 
+class BetaInvite(Base):
+    """Global admission record for the invitation-only cloud beta."""
+
+    __tablename__ = "beta_invites"
+    __table_args__ = (
+        CheckConstraint(
+            "email = lower(trim(email))",
+            name="ck_beta_invites_email_normalized",
+        ),
+        CheckConstraint(
+            "status IN ('invited', 'accepted', 'revoked')",
+            name="ck_beta_invites_status",
+        ),
+    )
+
+    id = _uuid_primary_key()
+    email = Column(String, nullable=False, unique=True, index=True)
+    status = Column(String, nullable=False, default="invited", server_default="invited")
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    accepted_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class Workspace(Base):
     __tablename__ = "workspaces"
 

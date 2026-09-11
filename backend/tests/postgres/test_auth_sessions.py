@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
+import rate_limit
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, func, select
@@ -15,7 +16,7 @@ from auth import create_session, resolve_session, revoke_session
 from database import get_db
 from edition import Edition
 from firebase_identity import IdentityVerificationError, VerifiedIdentity
-from models import AuditLog, AuthSession, Membership, User, Workspace
+from models import AuditLog, AuthSession, BetaInvite, Membership, User, Workspace
 from routers import auth as auth_router
 
 
@@ -103,11 +104,13 @@ def admin_session(postgres_engine):
 @pytest.fixture
 def empty_auth_database(postgres_engine):
     with admin_session(postgres_engine) as db:
+        db.execute(delete(BetaInvite))
         db.execute(delete(User))
         db.execute(delete(Workspace))
         db.commit()
     yield
     with admin_session(postgres_engine) as db:
+        db.execute(delete(BetaInvite))
         db.execute(delete(User))
         db.execute(delete(Workspace))
         db.commit()
@@ -176,6 +179,60 @@ def test_unverified_identity_is_rejected(client: TestClient, postgres_engine):
     assert response.json()["code"] == "email_verification_required"
     with admin_session(postgres_engine) as db:
         assert db.scalar(select(func.count()).select_from(User)) == 0
+
+
+def test_cloud_beta_rejects_uninvited_identity_before_provisioning(
+    client: TestClient,
+    postgres_engine,
+    monkeypatch,
+):
+    monkeypatch.setattr(rate_limit, "RATE_LIMIT_RULES", {
+        "auth_session": rate_limit.RateLimitRule("auth_session", 100, 60),
+    })
+    monkeypatch.setattr(rate_limit, "consume_rate_limit", lambda **_kwargs: None)
+    client.app.state.portfyl_edition = Edition.CLOUD
+
+    response = client.post(
+        "/api/auth/session",
+        json={"id_token": "alice-token"},
+        headers={"CF-Connecting-IP": "203.0.113.10"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "beta_access_required"
+    with admin_session(postgres_engine) as db:
+        assert db.scalar(select(func.count()).select_from(User)) == 0
+        assert db.scalar(select(func.count()).select_from(Workspace)) == 0
+        assert db.scalar(select(func.count()).select_from(AuthSession)) == 0
+
+
+def test_cloud_beta_accepts_invite_and_provisions_once(
+    client: TestClient,
+    postgres_engine,
+    monkeypatch,
+):
+    with admin_session(postgres_engine) as db:
+        db.add(BetaInvite(email="alice@example.com", status="invited"))
+        db.commit()
+    monkeypatch.setattr(rate_limit, "RATE_LIMIT_RULES", {
+        "auth_session": rate_limit.RateLimitRule("auth_session", 100, 60),
+    })
+    monkeypatch.setattr(rate_limit, "consume_rate_limit", lambda **_kwargs: None)
+    client.app.state.portfyl_edition = Edition.CLOUD
+
+    response = client.post(
+        "/api/auth/session",
+        json={"id_token": "alice-token"},
+        headers={"CF-Connecting-IP": "203.0.113.11"},
+    )
+
+    assert response.status_code == 201
+    with admin_session(postgres_engine) as db:
+        invite = db.scalar(select(BetaInvite).where(BetaInvite.email == "alice@example.com"))
+        assert invite is not None
+        assert invite.status == "accepted"
+        assert invite.accepted_at is not None
+        assert db.scalar(select(func.count()).select_from(User)) == 1
 
 
 def test_verified_owner_claims_only_exact_normalized_pending_email(

@@ -14,8 +14,9 @@ legal bases on behalf of the service operator.
   self-registration.
 - `tom.zoubek@gmail.com` is the approved privacy, support, and security contact
   for this private-test stage.
-- Cloudflare Access currently allows only that exact e-mail to reach
-  `portfyl.com` by one-time PIN. The operator may add individually approved
+- The public landing page is available at `portfyl.com`. Cloudflare Access
+  currently allows only that exact e-mail to reach the complete
+  `app.portfyl.com` tracker hostname by one-time PIN. The operator may add individually approved
   tester e-mails, but public sign-up and broad whole-domain/group Access rules
   remain outside the approved operating boundary.
 - An admitted tester may select a workspace test plan in the Plans page. The

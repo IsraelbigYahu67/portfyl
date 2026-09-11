@@ -1,0 +1,54 @@
+{
+  "id": "035de1d7-6186-4ba5-b240-4602b54d264d",
+  "uid": "035de1d7-6186-4ba5-b240-4602b54d264d",
+  "type": "self_hosted",
+  "name": "Portfyl testing",
+  "aud": "3646f972065ffba61b26726fc2f783bcdfb05837d346812933c492e23f11f26e",
+  "created_at": "2026-09-07T19:09:51Z",
+  "updated_at": "2026-09-07T19:09:51Z",
+  "domain": "portfyl.com",
+  "self_hosted_domains": [
+    "portfyl.com"
+  ],
+  "destinations": [
+    {
+      "type": "public",
+      "uri": "portfyl.com"
+    }
+  ],
+  "app_launcher_visible": true,
+  "allowed_idps": [
+    "dd1fcd29-0c77-47e5-b96a-820ef957ff9d"
+  ],
+  "tags": [],
+  "auto_redirect_to_identity": true,
+  "policies": [
+    {
+      "created_at": "2026-09-07T19:09:05Z",
+      "decision": "allow",
+      "exclude": [],
+      "id": "b6f0c838-536a-4606-aa7c-b7191a0d681f",
+      "include": [
+        {
+          "email": {
+            "email": "tom.zoubek@gmail.com"
+          }
+        }
+      ],
+      "name": "Only me",
+      "require": [],
+      "connection_rules": {
+        "rdp": {}
+      },
+      "uid": "b6f0c838-536a-4606-aa7c-b7191a0d681f",
+      "updated_at": "2026-09-07T19:09:05Z",
+      "reusable": true,
+      "precedence": 1
+    }
+  ],
+  "session_duration": "24h",
+  "enable_binding_cookie": false,
+  "http_only_cookie_attribute": false,
+  "options_preflight_bypass": false,
+  "eager_redirect_cookie_setting": true
+}

@@ -1,0 +1,13 @@
+# Submit an isolated context containing Dockerfile.frontend-overlay as Dockerfile
+# and a verified frontend cloud build in dist/. Pin _BASE_IMAGE to the live digest.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg
+      - PORTFYL_RUNTIME_IMAGE=${_BASE_IMAGE}
+      - --tag
+      - ${_TARGET_IMAGE}
+      - .
+images:
+  - ${_TARGET_IMAGE}

@@ -3,6 +3,7 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
 import Login from "./Login";
 import Register from "./Register";
 import ForgotPassword from "./ForgotPassword";
+import { TRACKER_HOME } from "../lib/routes";
 
 const authMocks = vi.hoisted(() => ({
   loginWithIdToken: vi.fn(() => Promise.resolve({})),
@@ -30,7 +31,7 @@ function renderAt(path) {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify-email" element={<div>Verify email page</div>} />
-        <Route path="/" element={<div>Home</div>} />
+        <Route path={TRACKER_HOME} element={<div>Home</div>} />
       </Routes>
     </MemoryRouter>
   );
@@ -47,7 +48,7 @@ describe("Register", () => {
     fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "new@example.com" } });
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "s3cret!123" } });
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "s3cret!123" } });
-    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+    fireEvent.click(screen.getByRole("button", { name: /create beta account/i }));
 
     await waitFor(() =>
       expect(firebaseMocks.registerWithEmailPassword).toHaveBeenCalledWith("new@example.com", "s3cret!123")
@@ -61,7 +62,7 @@ describe("Register", () => {
     fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "new@example.com" } });
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "s3cret!123" } });
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "different!123" } });
-    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+    fireEvent.click(screen.getByRole("button", { name: /create beta account/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/don't match/i);
     expect(firebaseMocks.registerWithEmailPassword).not.toHaveBeenCalled();
@@ -99,6 +100,26 @@ describe("Login", () => {
 
     await waitFor(() => expect(authMocks.loginWithIdToken).toHaveBeenCalledWith("id-token-123"));
     expect(await screen.findByText("Home")).toBeInTheDocument();
+  });
+
+  it("explains when the verified e-mail has no private-beta invitation", async () => {
+    firebaseMocks.signInWithEmailPassword.mockResolvedValueOnce({
+      email: "outsider@example.com",
+      emailVerified: true,
+    });
+    authMocks.loginWithIdToken.mockRejectedValueOnce({
+      response: { status: 403, data: { code: "beta_access_required" } },
+    });
+    firebaseMocks.mapFirebaseAuthError.mockImplementationOnce(
+      () => "This e-mail does not have an active Portfyl private beta invitation."
+    );
+
+    renderAt("/login");
+    fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "outsider@example.com" } });
+    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "s3cret!123" } });
+    fireEvent.click(screen.getByRole("button", { name: /log in/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/private beta invitation/i);
   });
 });
 
