@@ -131,3 +131,57 @@ The following checks were still required under the retired design:
   leakage.
 
 The mocked Stripe unit tests do not replace these external checks.
+
+## Reuse assessment for a future payment-provider integration (2026-09-11)
+
+Prepared to inform the open Paddle-vs-Stripe decision in
+`docs/superpowers/plans/2026-09-11-portfyl-revenue-launch-closing-plan.md`
+§5.1. Read directly from commit `230338d` (not restored or re-run).
+
+**Provider-agnostic and directly reusable regardless of which provider is
+chosen:**
+- `backend/models.py`'s subscription/customer/trial schema shape and
+  `backend/alembic/versions/0010_billing_entitlements.py`'s tables
+  (`billing_customers`, `subscriptions`, `trial_grants`, `billing_actions`;
+  `stripe_events` would be renamed/generalized for a webhook-dedup table).
+- `backend/billing_config.py`'s `PlanTier`/`BillingInterval`/`PlanLimits`/
+  `PublicPrice` dataclasses and the founder-price-lock mechanism itself: a
+  `current_price_version` field lets existing subscribers stay pinned to the
+  price-version ("v1", "v2", ...) they signed up under while new signups get
+  the current version. `backend/tests/test_founder_pricing.py` exercises this
+  against `billing_reconciliation.project_subscription()` and
+  `entitlements.resolve_entitlements()` — a real, tested implementation of
+  the master spec's founder-price-lock promise, not just a plan.
+- `backend/billing_reconciliation.py`, `backend/billing_jobs.py`, the
+  `entitlements.py` extensions, `backend/trials.py`, and the webhook-replay/
+  idempotency patterns in `backend/routers/billing.py` — these encode the
+  actual subscription-lifecycle state machine (renewal, failed payment,
+  grace period, cancellation, resubscription-to-a-new-price-generation) and
+  don't reference the Stripe SDK directly.
+- Every non-gateway test file: `test_billing_reconciliation.py`,
+  `test_founder_pricing.py`, `test_plan_enforcement.py`, `test_trials.py`,
+  `test_usage_quotas.py`, `test_hosted_assistant.py`.
+
+**Provider-specific and would need a Paddle-shaped rewrite:**
+- `backend/stripe_service.py` (84 lines) — a thin `StripeGatewayProtocol`
+  adapter (`create_customer`, `create_checkout`, `create_portal`,
+  `retrieve_subscription`, `construct_event`) built directly on Stripe's
+  Customer/Checkout Session/Billing Portal object model. Paddle's Billing API
+  (overlay checkout + subscription/transaction webhooks, Merchant-of-Record)
+  doesn't map onto this 1:1 — this file would be replaced, not adapted.
+- The `stripe_prices: Mapping[(PlanTier, BillingInterval, version), price_id]`
+  field in `billing_config.py` — trivial to swap for Paddle price IDs, but
+  it's the one Stripe-shaped literal in that file.
+- The Stripe-specific portions of `backend/routers/billing.py` (checkout
+  session creation, portal redirect, webhook signature verification via
+  `stripe.Webhook.construct_event`) and `deploy/cloudrun.md`'s Stripe
+  secrets/webhook setup section.
+
+**Bottom line:** the retired implementation is not a false start — it's
+roughly 90% provider-agnostic subscription/entitlement/trial machinery that
+already passed 803 backend tests, plus one clearly-isolated ~350-line Stripe
+gateway. If Paddle is chosen, expect to write a `PaddleGateway` module and
+adjust the checkout/webhook routes; expect to reuse everything else. If
+Stripe is chosen after all (e.g. because an accountant is already set up for
+EU VAT OSS), this commit is close to a direct restore plus the still-open
+external sandbox rehearsal from the "Canceled Stripe gate" section above.
