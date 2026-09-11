@@ -145,8 +145,10 @@ Reference: https://developers.cloudflare.com/cloudflare-one/access-controls/poli
 
 ## Private beta hostname and admission — 2026-09-11
 
-- Added Cloud Run domain mapping and proxied Cloudflare CNAME for
-  `app.portfyl.com`.
+- Added a proxied Cloudflare CNAME for `app.portfyl.com` and the fail-closed
+  Worker route `app.portfyl.com/*` (`portfyl-beta-proxy`). The Worker forwards
+  to Cloud Run with the edge token stored as a Cloudflare secret. Its
+  `workers.dev` and preview endpoints are disabled.
 - Created the whole-hostname Access application `Portfyl private beta`, using
   the existing reusable exact-email policy, renamed to
   `Portfyl private beta testers`. The original path-scoped Access application
@@ -155,3 +157,9 @@ Reference: https://developers.cloudflare.com/cloudflare-one/access-controls/poli
 - Added the application-owned `beta_invites` admission gate before user and
   workspace provisioning, plus an operator-only Cloud Run Job wrapper for
   invite/list/revoke operations. See `private-beta-access.md`.
+- Migration `portfyl-migrate-8kw4c` succeeded and revision
+  `portfyl-00011-zjr` serves 100% of production traffic from image digest
+  `sha256:1bd071a37dfc9945df6a6308cc12e2bd577e86226ee6bd717220ed8dbe99881d`.
+- Final checks returned `200` for the public home, Access redirects for all
+  anonymous beta routes, `403` for a direct-origin API request, and the
+  expected `401` from the beta API after authenticated Access traversal.

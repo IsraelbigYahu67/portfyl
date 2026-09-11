@@ -14,6 +14,13 @@ the verified Firebase e-mail before it may create a `User`, `Workspace`,
 `Membership`, or `AuthSession`. Existing users were inserted as accepted by
 Alembic migration `0013_private_beta_invites`.
 
+Requests for the beta hostname run through the Cloudflare Worker
+`portfyl-beta-proxy` on route `app.portfyl.com/*`. The Worker proxies to the
+Cloud Run service URL and supplies `PORTFYL_EDGE_TOKEN` from an encrypted
+Worker secret. Its `workers.dev` and preview URLs are disabled, and the route
+is configured to fail closed. This avoids exposing a second public origin or
+depending on a separate Google-managed certificate for the beta hostname.
+
 ## Invite a tester
 
 1. Run the database admission job:
@@ -60,6 +67,20 @@ present.
 - An e-mail absent from `beta_invites` must receive
   `403 {"code":"beta_access_required"}` from the session exchange without
   creating application records.
-- Delete the `app.portfyl.com` Access application, DNS CNAME, and Cloud Run
-  domain mapping to roll back the hostname. The existing path-scoped Access
+- Delete the `app.portfyl.com` Access application, Worker route, Worker, and
+  DNS CNAME to roll back the hostname. The existing path-scoped Access
   application on `portfyl.com` remains in place as a fallback.
+
+## Production deployment 2026-09-11
+
+- Git commit: `830054d` on `origin/main`.
+- Migration execution: `portfyl-migrate-8kw4c`.
+- Cloud Run revision: `portfyl-00011-zjr`, serving 100% of traffic.
+- Container image digest: `sha256:1bd071a37dfc9945df6a6308cc12e2bd577e86226ee6bd717220ed8dbe99881d`.
+- Worker: `portfyl-beta-proxy`; route ID
+  `588a1044481c45d0b25af98fa07cffad`.
+- Anonymous checks: public home `200`; beta root, registration, and API `302`
+  to Access; direct Cloud Run API `403`.
+- Authenticated edge check: beta root `200`; beta `/api/auth/me` reached the
+  backend and returned the expected `401` without a Portfyl session. The
+  temporary verification credential and policy were removed afterward.
