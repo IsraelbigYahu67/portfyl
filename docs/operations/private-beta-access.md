@@ -20,6 +20,8 @@ Cloud Run service URL and supplies `PORTFYL_EDGE_TOKEN` from an encrypted
 Worker secret. Its `workers.dev` and preview URLs are disabled, and the route
 is configured to fail closed. This avoids exposing a second public origin or
 depending on a separate Google-managed certificate for the beta hostname.
+The versioned Worker source and deployment configuration live in
+`deploy/cloudflare/`.
 
 ## Invite a tester
 
