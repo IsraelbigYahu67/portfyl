@@ -123,3 +123,9 @@ def test_0012_migration_upgrades_and_downgrades_cleanly(postgres_engine: Engine,
                 "SELECT indexname FROM pg_indexes WHERE tablename = 'rate_limit_buckets'"
             )).scalars().all()
             assert "ix_rate_limit_buckets_expires_at" in indexes
+
+        # postgres_engine is session-scoped and shared by every other test file.
+        # Re-upgrade to head (not just this revision) so a later migration added
+        # after 0012 -- e.g. 0013_private_beta_invites -- isn't left permanently
+        # un-applied for the rest of the test session.
+        command.upgrade(alembic_config, "head")
