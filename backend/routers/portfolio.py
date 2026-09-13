@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from typing import List
 from dataclasses import dataclass
@@ -571,6 +572,66 @@ def get_transactions(db: Session = Depends(get_db), portfolio: Portfolio = Depen
         .order_by(Transaction.date.desc())
         .all()
     )
+
+
+_TXN_SORT_COLUMNS = {
+    "date": Transaction.date,
+    "ticker": Transaction.ticker,
+    "type": Transaction.type,
+}
+
+
+@router.get("/transactions/page")
+def get_transactions_page(
+    offset: int = 0,
+    limit: int = 50,
+    q: str | None = None,
+    type: str | None = None,
+    sort: str = "-date",
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+):
+    if offset < 0:
+        raise HTTPException(422, "offset must be >= 0")
+    if limit not in (25, 50, 100):
+        raise HTTPException(422, "limit must be 25, 50, or 100")
+
+    sort_key = sort[1:] if sort.startswith("-") else sort
+    if sort_key not in _TXN_SORT_COLUMNS:
+        raise HTTPException(422, f"invalid sort: {sort!r}")
+    if type and type not in TRADE_TYPES:
+        raise HTTPException(422, f"invalid transaction type: {type!r}")
+
+    query = _portfolio_txns(db, portfolio).filter(Transaction.type.in_(TRADE_TYPES))
+    if q:
+        like = f"%{q.lower()}%"
+        query = query.filter(
+            or_(
+                func.lower(Transaction.ticker).like(like),
+                func.lower(func.coalesce(Transaction.notes, "")).like(like),
+            )
+        )
+    if type:
+        query = query.filter(Transaction.type == type)
+
+    total = query.count()
+    column = _TXN_SORT_COLUMNS[sort_key]
+    descending = sort.startswith("-")
+    ordered_column = column.desc() if descending else column.asc()
+    id_order = Transaction.id.desc() if descending else Transaction.id.asc()
+    items = (
+        query.order_by(ordered_column, id_order)
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "items": [TransactionResponse.model_validate(item) for item in items],
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+    }
 
 
 @router.post(
