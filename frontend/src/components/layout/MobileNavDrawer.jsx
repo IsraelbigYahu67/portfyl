@@ -12,12 +12,20 @@ function prefersReducedMotion() {
 export default function MobileNavDrawer({ groups, open, onClose }) {
   const { pathname } = useLocation();
   const previousPathnameRef = useRef(pathname);
-  const containerRef = useFocusTrap({ active: open, onEscape: onClose });
+  const restoreFocusRef = useRef(true);
+  const containerRef = useFocusTrap({ active: open, onEscape: onClose, restoreFocusRef });
+
+  useEffect(() => {
+    if (open) restoreFocusRef.current = true;
+  }, [open]);
 
   useEffect(() => {
     const routeChanged = previousPathnameRef.current !== pathname;
     previousPathnameRef.current = pathname;
-    if (routeChanged && open) onClose();
+    if (routeChanged && open) {
+      restoreFocusRef.current = false;
+      onClose();
+    }
   }, [pathname, open, onClose]);
 
   if (!open) return null;

@@ -14,7 +14,7 @@ function isAvailable(element) {
   return !element.hidden && style.display !== "none" && style.visibility !== "hidden";
 }
 
-export function useFocusTrap({ active, onEscape, initialFocusRef } = {}) {
+export function useFocusTrap({ active, onEscape, initialFocusRef, restoreFocusRef } = {}) {
   const containerRef = useRef(null);
   const previouslyFocusedRef = useRef(null);
   const onEscapeRef = useRef(onEscape);
@@ -63,11 +63,11 @@ export function useFocusTrap({ active, onEscape, initialFocusRef } = {}) {
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = previousOverflow;
-      if (previouslyFocusedRef.current?.isConnected) {
+      if (restoreFocusRef?.current !== false && previouslyFocusedRef.current?.isConnected) {
         previouslyFocusedRef.current.focus();
       }
     };
-  }, [active, initialFocusRef]);
+  }, [active, initialFocusRef, restoreFocusRef]);
 
   return containerRef;
 }

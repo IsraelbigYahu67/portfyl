@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import AppShell from "./AppShell";
 import { NAV_GROUPS } from "./navigation";
@@ -19,13 +19,13 @@ vi.mock("../../App", () => ({
 vi.mock("../PortfolioSwitcher", () => ({ default: () => <div>Portfolio switcher</div> }));
 vi.mock("../AccountMenu", () => ({ default: () => <div>Account menu</div> }));
 
-function renderShell() {
+function renderShell(children = <h1>Test Page</h1>) {
   const queryClient = new QueryClient();
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <AppShell groups={NAV_GROUPS}>
-          <h1>Test Page</h1>
+          {children}
         </AppShell>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -59,6 +59,18 @@ describe("AppShell", () => {
     expect(screen.getByRole("dialog", { name: /navigation/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /close navigation menu/i }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("keeps focus on page content after navigation from the drawer", () => {
+    renderShell(
+      <Routes>
+        <Route path="/" element={<h1>Test Page</h1>} />
+        <Route path="/allocation" element={<h1>Allocation Page</h1>} />
+      </Routes>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /open navigation menu/i }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("link", { name: /allocation/i }));
+    expect(screen.getByRole("heading", { name: "Allocation Page" })).toHaveFocus();
   });
 
   it("does not render fixed viewport-height classes anywhere in the shell", () => {

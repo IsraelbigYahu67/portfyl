@@ -11,6 +11,15 @@ describe("ui primitives", () => {
     render(<SectionHeader icon={Calendar}>Earnings Calendar</SectionHeader>);
     expect(screen.getByText("Earnings Calendar")).toBeInTheDocument();
   });
+  it("SectionHeader stacks and wraps wide actions on small screens", () => {
+    const { container } = render(
+      <SectionHeader action={<button type="button">Wide filters</button>}>Performance</SectionHeader>,
+    );
+    const root = container.firstElementChild;
+    const action = screen.getByRole("button", { name: "Wide filters" }).parentElement;
+    expect(root).toHaveClass("flex-col", "sm:flex-row");
+    expect(action).toHaveClass("flex-wrap", "min-w-0");
+  });
   it("Skeleton renders a shimmer element", () => {
     const { container } = render(<Skeleton w="4rem" h="1rem" />);
     expect(container.querySelector(".shimmer")).toBeTruthy();

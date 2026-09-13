@@ -1,11 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { describe, expect, it } from "vitest";
 import { useFocusTrap } from "./useFocusTrap";
 
-function Harness() {
+function Harness({ allowNoRestore = false }) {
   const [open, setOpen] = useState(false);
-  const trapRef = useFocusTrap({ active: open, onEscape: () => setOpen(false) });
+  const restoreFocusRef = useRef(true);
+  const trapRef = useFocusTrap({ active: open, onEscape: () => setOpen(false), restoreFocusRef });
   return (
     <div>
       <button onClick={() => setOpen(true)}>Open</button>
@@ -13,6 +14,12 @@ function Harness() {
         <div ref={trapRef} role="dialog" aria-modal="true">
           <button>First</button>
           <button>Last</button>
+          {allowNoRestore && (
+            <button onClick={() => {
+              restoreFocusRef.current = false;
+              setOpen(false);
+            }}>Close without restore</button>
+          )}
         </div>
       )}
     </div>
@@ -57,5 +64,14 @@ describe("useFocusTrap", () => {
     expect(document.body.style.overflow).toBe("hidden");
     fireEvent.keyDown(document, { key: "Escape" });
     expect(document.body.style.overflow).not.toBe("hidden");
+  });
+
+  it("can skip focus restoration when closing for navigation", () => {
+    render(<Harness allowNoRestore />);
+    const opener = screen.getByText("Open");
+    opener.focus();
+    fireEvent.click(opener);
+    fireEvent.click(screen.getByText("Close without restore"));
+    expect(opener).not.toHaveFocus();
   });
 });

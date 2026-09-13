@@ -147,7 +147,7 @@ export default function Dashboard() {
         {{
           performance: (
             <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "100ms" }}>
-              <SectionHeader icon={TrendingUp} action={<div className="flex items-center gap-3">
+              <SectionHeader icon={TrendingUp} action={<div className="flex flex-wrap items-center gap-3">
                   <div className="flex gap-0.5 bg-surface-hover rounded-lg p-0.5">
                     {["value", "growth"].map((m) => (
                       <button
@@ -163,7 +163,7 @@ export default function Dashboard() {
                       </button>
                     ))}
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex flex-wrap gap-1">
                     {PERIODS.map((p) => (
                       <button
                         key={p}
