@@ -15,6 +15,8 @@ import {
 } from "recharts";
 import { CATEGORICAL, GAIN_COLOR, AXIS_TICK, GRID_STROKE } from "../lib/chartTheme";
 import { formatMoney, formatQuantity, formatShortDate } from "../lib/format";
+import { getApiErrorMessage } from "../lib/apiError";
+import { AsyncSection } from "../components/ui";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -38,7 +40,7 @@ function isKnownUpcoming(row, currentDay) {
 }
 
 export default function Dividends() {
-  const { data, isLoading, isFetching, isError, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["dividends"],
     queryFn: fetchDividends,
     staleTime: 5 * 60 * 1000,
@@ -117,19 +119,14 @@ export default function Dividends() {
 
       <GrowthSection rows={growth} loading={growthLoading} />
 
-      {isLoading ? (
-        <div className="text-center py-20 text-muted">Loading dividend data…</div>
-      ) : isError ? (
-        <div role="alert" className="card text-center py-10">
-          <p className="font-medium text-ink">Could not load dividend data.</p>
-          <p className="text-sm text-muted mt-1">The estimate provider may be temporarily unavailable.</p>
-          <button type="button" className="btn-ghost mt-4" onClick={() => refetch()}>
-            Try again
-          </button>
-        </div>
-      ) : !data?.length ? (
-        <div className="text-center py-20 text-muted">No holdings found. Import a portfolio to see dividend info.</div>
-      ) : (
+      <AsyncSection
+        isLoading={isLoading}
+        error={error ? new Error(`Could not load dividend data. ${getApiErrorMessage(error)}`) : null}
+        onRetry={() => refetch()}
+        loading={<div className="card animate-pulse h-48" />}
+        isEmpty={!data?.length}
+        empty={<div className="text-center py-20 text-muted">No holdings found. Import a portfolio to see dividend info.</div>}
+      >
         <>
           <section className="space-y-3">
             <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
@@ -187,7 +184,7 @@ export default function Dividends() {
             </section>
           )}
         </>
-      )}
+      </AsyncSection>
     </div>
   );
 }

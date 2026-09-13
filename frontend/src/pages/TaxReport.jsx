@@ -11,6 +11,7 @@ import {
   formatQuantity,
   formatShortDate,
 } from "../lib/format";
+import { AsyncSection } from "../components/ui";
 
 // Czech §4 capital gains exemption rules. Kept on the client so the labels can
 // be tweaked without touching the API.
@@ -148,7 +149,7 @@ export default function TaxReport() {
       ? formatSharedMoney(czk, "CZK")
       : formatSharedMoney(usd, "USD");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["tax-report", year],
     queryFn: () => fetchTaxReport(year),
   });
@@ -233,11 +234,16 @@ export default function TaxReport() {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="card animate-pulse h-32 flex items-center justify-center text-muted">
-          Generating tax report…
-        </div>
-      ) : (
+      <AsyncSection
+        isLoading={isLoading}
+        error={error}
+        onRetry={() => refetch()}
+        loading={(
+          <div className="card animate-pulse h-32 flex items-center justify-center text-muted">
+            Generating tax report…
+          </div>
+        )}
+      >
         <>
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
             <MetricCard
@@ -513,7 +519,7 @@ export default function TaxReport() {
             )}
           </div>
         </>
-      )}
+      </AsyncSection>
     </div>
   );
 }

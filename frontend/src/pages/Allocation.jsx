@@ -7,6 +7,7 @@ import { groupPositions } from "../lib/positionsPie";
 import { TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { TickerLink, useStockDetail } from "../components/StockDetail";
 import BreakdownChart from "../components/BreakdownChart";
+import { AsyncSection } from "../components/ui";
 
 const fmtPct = (n) => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
 
@@ -23,6 +24,7 @@ export default function Allocation() {
   const {
     data: holdings = [],
     isLoading: holdingsLoading,
+    error: holdingsError,
     refetch: refetchHoldings,
     isFetching,
   } = useQuery({
@@ -30,7 +32,12 @@ export default function Allocation() {
     queryFn: () => fetchAllHoldings(currency),
   });
 
-  const { data: breakdown, isLoading: breakdownLoading } = useQuery({
+  const {
+    data: breakdown,
+    isLoading: breakdownLoading,
+    error: breakdownError,
+    refetch: refetchBreakdown,
+  } = useQuery({
     queryKey: ["sector-breakdown", currency],
     queryFn: () => fetchSectorBreakdown(currency),
   });
@@ -74,6 +81,17 @@ export default function Allocation() {
         </button>
       </div>
 
+      <AsyncSection
+        isLoading={breakdownLoading || holdingsLoading}
+        error={holdingsError || breakdownError}
+        onRetry={() => Promise.all([refetchHoldings(), refetchBreakdown()])}
+        loading={(
+          <div className="card animate-pulse h-48 flex items-center justify-center text-muted">
+            Loading allocation data...
+          </div>
+        )}
+      >
+        <>
       {breakdownLoading || holdingsLoading ? (
         <div className="card animate-pulse h-48 flex items-center justify-center text-muted">
           Loading allocation data...
@@ -219,6 +237,8 @@ export default function Allocation() {
           </div>
         )}
       </div>
+        </>
+      </AsyncSection>
     </div>
   );
 }

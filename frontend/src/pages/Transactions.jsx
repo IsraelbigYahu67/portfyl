@@ -6,6 +6,7 @@ import { TickerLink } from "../components/StockDetail";
 import TradeNoteModal from "../components/TradeNoteModal";
 import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/Toast";
+import { AsyncSection } from "../components/ui";
 
 const TYPE_COLORS = { buy: "text-gain", sell: "text-loss", dividend: "text-yellow-600" };
 
@@ -99,7 +100,7 @@ export default function Transactions() {
   const [filter, setFilter] = useState("");
   const [noteTarget, setNoteTarget] = useState(null);
 
-  const { data: txns = [], isLoading } = useQuery({ queryKey: ["transactions"], queryFn: fetchTransactions });
+  const { data: txns = [], isLoading, error, refetch } = useQuery({ queryKey: ["transactions"], queryFn: fetchTransactions });
   const { data: allNotes = [] } = useQuery({ queryKey: ["trade-notes-all"], queryFn: fetchAllTradeNotes });
   const notesMap = Object.fromEntries(allNotes.map((n) => [n.transaction_id, n]));
 
@@ -150,13 +151,18 @@ export default function Transactions() {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="card animate-pulse h-40 flex items-center justify-center text-muted">Loading…</div>
-      ) : filtered.length === 0 ? (
-        <div className="card text-muted text-sm text-center py-12">
-          No transactions yet. Import a CSV or add one manually.
-        </div>
-      ) : (
+      <AsyncSection
+        isLoading={isLoading}
+        error={error}
+        onRetry={() => refetch()}
+        loading={<div className="card animate-pulse h-40 flex items-center justify-center text-muted">Loading…</div>}
+        isEmpty={filtered.length === 0}
+        empty={(
+          <div className="card text-muted text-sm text-center py-12">
+            No transactions yet. Import a CSV or add one manually.
+          </div>
+        )}
+      >
         <div className="card p-0 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -210,7 +216,7 @@ export default function Transactions() {
             </table>
           </div>
         </div>
-      )}
+      </AsyncSection>
 
       {open && <AddModal onClose={() => setOpen(false)} />}
       {noteTarget && <TradeNoteModal transaction={noteTarget} onClose={() => setNoteTarget(null)} />}
