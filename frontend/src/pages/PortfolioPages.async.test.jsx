@@ -10,7 +10,7 @@ import TaxReport from "./TaxReport";
 const api = vi.hoisted(() => ({
   fetchAllHoldings: vi.fn(),
   fetchSectorBreakdown: vi.fn(),
-  fetchTransactions: vi.fn(),
+  fetchTransactionsPage: vi.fn(),
   fetchAllTradeNotes: vi.fn(),
   createTransaction: vi.fn(),
   deleteTransaction: vi.fn(),
@@ -62,7 +62,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   api.fetchAllHoldings.mockResolvedValue([]);
   api.fetchSectorBreakdown.mockResolvedValue({ sectors: [], countries: [], currencies: [], asset_types: [] });
-  api.fetchTransactions.mockResolvedValue([]);
+  api.fetchTransactionsPage.mockResolvedValue({ items: [], total: 0, offset: 0, limit: 50 });
   api.fetchAllTradeNotes.mockResolvedValue([]);
   api.fetchDividends.mockResolvedValue([]);
   api.fetchDividendForecast.mockResolvedValue({ months: [], total_paid: 0, total_estimated: 0 });
@@ -88,14 +88,14 @@ it("keeps Allocation's legitimate empty copy", async () => {
 });
 
 it("distinguishes Transactions failure from an empty ledger and retries", async () => {
-  api.fetchTransactions
+  api.fetchTransactionsPage
     .mockRejectedValueOnce({ response: { data: { detail: "Transactions unavailable" } } })
-    .mockResolvedValue([]);
+    .mockResolvedValue({ items: [], total: 0, offset: 0, limit: 50 });
   renderPage(Transactions);
 
   expect(await screen.findByRole("alert")).toHaveTextContent("Transactions unavailable");
   fireEvent.click(screen.getByRole("button", { name: /retry/i }));
-  await waitFor(() => expect(api.fetchTransactions).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(api.fetchTransactionsPage).toHaveBeenCalledTimes(2));
 });
 
 it("keeps Transactions' legitimate empty copy", async () => {

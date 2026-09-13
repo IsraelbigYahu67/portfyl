@@ -159,6 +159,12 @@ export const fetchHoldings = (currency = "USD") =>
 export const fetchAllHoldings = (currency = "USD") =>
   api.get(`/portfolio/holdings`, { params: { currency, include_closed: true } }).then((r) => r.data);
 export const fetchTransactions = () => api.get("/portfolio/transactions").then((r) => r.data);
+export const fetchTransactionsPage = ({ offset = 0, limit = 50, q = "", type = "", sort = "-date" } = {}) =>
+  api
+    .get("/portfolio/transactions/page", {
+      params: { offset, limit, q: q || undefined, type: type || undefined, sort },
+    })
+    .then((r) => r.data);
 export const fetchPerformance = (currency = "USD", period = "all") =>
   api.get(`/portfolio/performance`, { params: { currency, period } }).then((r) => r.data);
 export const fetchBenchmarks = (benchmarks = [], period = "all") =>
