@@ -1,6 +1,8 @@
 """Tests for screener jobs and their shared filtering semantics."""
 
 import time
+import threading
+from unittest.mock import patch
 
 from routers.market import _in_range
 from services import screener_jobs as sj
@@ -126,3 +128,128 @@ def test_job_response_serializes_timestamps_as_utc_iso8601():
 
     assert response["created_at"] == "1970-01-01T00:00:00Z"
     assert response["expires_at"] == "1970-01-01T00:30:00Z"
+
+
+def _fake_row(symbol, price=100.0, pe=15.0):
+    return {
+        "ticker": symbol,
+        "name": symbol,
+        "price": price,
+        "market_cap": 1e9,
+        "pe": pe,
+        "sector": "Technology",
+    }
+
+
+def _wait_for_status(job_id, user_id, statuses, timeout=3.0):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        job = sj.get_job(user_id, job_id)
+        if job is not None and job.status in statuses:
+            return job
+        time.sleep(0.02)
+    raise AssertionError(f"job {job_id} did not reach {statuses} in time")
+
+
+def test_submit_job_deduplicates_identical_active_request_for_same_user():
+    """Repeated clicks must not enqueue duplicate scans for one user/request."""
+    _reset_registry()
+    gate = threading.Event()
+
+    def slow_row(symbol):
+        gate.wait(timeout=2)
+        return _fake_row(symbol)
+
+    request = {"universe": "tech_large", "sort_by": "market_cap", "sort_desc": True}
+    with patch("services.screener_jobs._ticker_row", side_effect=slow_row):
+        first = sj.submit_job("user-1", request)
+        second = sj.submit_job("user-1", dict(request))
+        assert first.job_id == second.job_id
+        gate.set()
+        _wait_for_status(first.job_id, "user-1", {"completed", "failed", "cancelled"})
+
+
+def test_submit_job_does_not_deduplicate_across_users():
+    """The same filters from another identity must create a separate job."""
+    _reset_registry()
+    request = {"universe": "tech_large", "sort_by": "market_cap", "sort_desc": True}
+    with patch("services.screener_jobs._ticker_row", side_effect=lambda symbol: _fake_row(symbol)):
+        first = sj.submit_job("user-1", request)
+        second = sj.submit_job("user-2", dict(request))
+        assert first.job_id != second.job_id
+        _wait_for_status(first.job_id, "user-1", {"completed", "failed", "cancelled"})
+        _wait_for_status(second.job_id, "user-2", {"completed", "failed", "cancelled"})
+
+
+def test_job_completes_and_progress_reaches_total():
+    """Every settled ticker future increments progress exactly once."""
+    _reset_registry()
+    tickers = ["AAA", "BBB", "CCC"]
+    with (
+        patch("services.screener_jobs._universe_tickers", return_value=tickers),
+        patch("services.screener_jobs._ticker_row", side_effect=lambda symbol: _fake_row(symbol)),
+    ):
+        job = sj.submit_job(
+            "user-1",
+            {"universe": "tech_large", "sort_by": "market_cap", "sort_desc": True},
+        )
+        done = _wait_for_status(job.job_id, "user-1", {"completed"})
+
+    assert done.completed_count == done.scan_total == 3
+    assert len(done.result_items) == 3
+
+
+def test_job_cancellation_stops_scheduling_further_batches():
+    """Cancellation may finish current calls but must not launch another batch."""
+    _reset_registry()
+    tickers = [f"T{index}" for index in range(40)]
+    started = threading.Event()
+    release = threading.Event()
+
+    def slow_row(symbol):
+        started.set()
+        release.wait(timeout=2)
+        return _fake_row(symbol)
+
+    with (
+        patch("services.screener_jobs._universe_tickers", return_value=tickers),
+        patch("services.screener_jobs._ticker_row", side_effect=slow_row),
+    ):
+        job = sj.submit_job(
+            "user-1",
+            {"universe": "tech_large", "sort_by": "market_cap", "sort_desc": True},
+        )
+        assert started.wait(timeout=2)
+        assert sj.cancel_job("user-1", job.job_id) is True
+        release.set()
+        done = _wait_for_status(job.job_id, "user-1", {"cancelled"})
+
+    assert done.completed_count < len(tickers)
+
+
+def test_get_job_hides_wrong_user_and_missing_ids():
+    """Job lookup must not disclose another user's in-memory job."""
+    _reset_registry()
+    with patch("services.screener_jobs._ticker_row", side_effect=lambda symbol: _fake_row(symbol)):
+        job = sj.submit_job("user-1", {"universe": "tech_large"})
+        _wait_for_status(job.job_id, "user-1", {"completed", "failed", "cancelled"})
+
+    assert sj.get_job("user-2", job.job_id) is None
+    assert sj.get_job("user-1", "not-a-real-id") is None
+
+
+def test_cancel_job_hides_wrong_user_and_missing_ids():
+    """Cancellation must not reveal or mutate jobs outside the caller identity."""
+    _reset_registry()
+    gate = threading.Event()
+
+    def slow_row(symbol):
+        gate.wait(timeout=2)
+        return _fake_row(symbol)
+
+    with patch("services.screener_jobs._ticker_row", side_effect=slow_row):
+        job = sj.submit_job("user-1", {"universe": "tech_large"})
+        assert sj.cancel_job("user-2", job.job_id) is False
+        assert sj.cancel_job("user-1", "not-a-real-id") is False
+        gate.set()
+        _wait_for_status(job.job_id, "user-1", {"completed", "failed", "cancelled"})
