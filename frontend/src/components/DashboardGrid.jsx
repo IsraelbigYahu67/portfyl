@@ -1,12 +1,15 @@
 import { useState, useCallback } from "react";
 import { Responsive, WidthProvider } from "react-grid-layout/legacy";
-import { GripVertical, X, Plus, RotateCcw } from "lucide-react";
+import { GripVertical, X, Plus, RotateCcw, ChevronUp, ChevronDown } from "lucide-react";
 import "react-grid-layout/css/styles.css";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
 const STORAGE_KEY = "sb_dashboard_layout";
-const VISIBLE_KEY = "sb_dashboard_widgets";
+// Order-first persistence: the widget sequence is the source of truth, and
+// desktop drag/resize coordinates are an optional decoration on top of it.
+const ORDER_KEY = "sb_dashboard_widget_order_v2";
+const HIDDEN_KEY = "sb_dashboard_widgets_hidden";
 
 const ALL_WIDGETS = [
   { id: "performance", label: "Performance", minW: 3, minH: 4 },
@@ -15,6 +18,8 @@ const ALL_WIDGETS = [
   { id: "movers", label: "Top Movers", minW: 4, minH: 4 },
   { id: "insiderBuys", label: "Insider activity (1Y)", minW: 3, minH: 4 },
 ];
+
+const KNOWN_IDS = ALL_WIDGETS.map((w) => w.id);
 
 const DEFAULT_LAYOUTS = {
   lg: [
@@ -26,6 +31,35 @@ const DEFAULT_LAYOUTS = {
   ],
 };
 
+// Stored ids that no longer exist are dropped, duplicates removed, and every
+// known widget appended in its default position — so a layout saved by an
+// older build silently migrates instead of rendering holes.
+export function normalizeWidgetOrder(stored, knownIds) {
+  const valid = (Array.isArray(stored) ? stored : []).filter(
+    (id, index, all) => knownIds.includes(id) && all.indexOf(id) === index
+  );
+  return [...valid, ...knownIds.filter((id) => !valid.includes(id))];
+}
+
+function getStoredOrder() {
+  try {
+    const stored = localStorage.getItem(ORDER_KEY);
+    return normalizeWidgetOrder(stored ? JSON.parse(stored) : null, KNOWN_IDS);
+  } catch {
+    return KNOWN_IDS;
+  }
+}
+
+function getHidden() {
+  try {
+    const stored = localStorage.getItem(HIDDEN_KEY);
+    const ids = stored ? JSON.parse(stored) : [];
+    return Array.isArray(ids) ? ids.filter((id) => KNOWN_IDS.includes(id)) : [];
+  } catch {
+    return [];
+  }
+}
+
 function getStoredLayouts() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -35,105 +69,101 @@ function getStoredLayouts() {
   }
 }
 
-function getVisibleWidgets() {
-  try {
-    const stored = localStorage.getItem(VISIBLE_KEY);
-    if (!stored) return ALL_WIDGETS.map((w) => w.id);
-    const ids = JSON.parse(stored);
-    const known = new Set(ids);
-    for (const w of ALL_WIDGETS) {
-      if (!known.has(w.id)) ids.push(w.id);
-    }
-    return ids;
-  } catch {
-    return ALL_WIDGETS.map((w) => w.id);
-  }
-}
-
 export default function DashboardGrid({ children, editing, onEditToggle }) {
+  const [order, setOrder] = useState(getStoredOrder);
+  const [hidden, setHidden] = useState(getHidden);
   const [layouts, setLayouts] = useState(() => getStoredLayouts() || DEFAULT_LAYOUTS);
-  const [visible, setVisible] = useState(getVisibleWidgets);
-  const [showAdd, setShowAdd] = useState(false);
 
-  const onLayoutChange = useCallback((layout, allLayouts) => {
-    setLayouts(allLayouts);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(allLayouts));
+  const persistOrder = useCallback((next) => {
+    setOrder(next);
+    localStorage.setItem(ORDER_KEY, JSON.stringify(next));
   }, []);
 
-  const removeWidget = (id) => {
-    const next = visible.filter((v) => v !== id);
-    setVisible(next);
-    localStorage.setItem(VISIBLE_KEY, JSON.stringify(next));
+  const persistHidden = useCallback((next) => {
+    setHidden(next);
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify(next));
+  }, []);
+
+  const visible = order.filter((id) => !hidden.includes(id));
+
+  const onLayoutChange = useCallback(
+    (layout, allLayouts) => {
+      if (allLayouts) {
+        setLayouts(allLayouts);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(allLayouts));
+      }
+      if (layout) {
+        const visibleIds = [...layout]
+          .sort((a, b) => a.y - b.y || a.x - b.x)
+          .map((l) => l.i)
+          .filter((id) => KNOWN_IDS.includes(id) && !hidden.includes(id));
+        if (visibleIds.length) {
+          persistOrder([...visibleIds, ...order.filter((id) => hidden.includes(id))]);
+        }
+      }
+    },
+    [hidden, order, persistOrder]
+  );
+
+  const move = (id) => (direction) => {
+    const vis = order.filter((x) => !hidden.includes(x));
+    const index = vis.indexOf(id);
+    const target = direction === "up" ? index - 1 : index + 1;
+    if (target < 0 || target >= vis.length) return;
+    const nextVisible = [...vis];
+    [nextVisible[index], nextVisible[target]] = [nextVisible[target], nextVisible[index]];
+    persistOrder([...nextVisible, ...order.filter((x) => hidden.includes(x))]);
   };
 
-  const addWidget = (id) => {
-    if (visible.includes(id)) return;
-    const next = [...visible, id];
-    setVisible(next);
-    localStorage.setItem(VISIBLE_KEY, JSON.stringify(next));
-    const widget = ALL_WIDGETS.find((w) => w.id === id);
-    const newLayouts = { ...layouts };
-    const lgLayout = [...(newLayouts.lg || [])];
-    lgLayout.push({ i: id, x: 0, y: Infinity, w: widget.minW * 2, h: widget.minH });
-    newLayouts.lg = lgLayout;
-    setLayouts(newLayouts);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newLayouts));
-    setShowAdd(false);
-  };
+  const hide = (id) => persistHidden([...hidden, id]);
+
+  const restore = (id) => persistHidden(hidden.filter((h) => h !== id));
 
   const resetLayout = () => {
+    persistOrder(KNOWN_IDS);
+    persistHidden([]);
     setLayouts(DEFAULT_LAYOUTS);
-    setVisible(ALL_WIDGETS.map((w) => w.id));
     localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(VISIBLE_KEY);
   };
 
   const filteredLayouts = {};
   for (const [bp, layout] of Object.entries(layouts)) {
-    filteredLayouts[bp] = layout.filter((l) => visible.includes(l.i));
+    filteredLayouts[bp] = (layout || []).filter((l) => visible.includes(l.i));
   }
 
-  const hiddenWidgets = ALL_WIDGETS.filter((w) => !visible.includes(w.id));
+  const hiddenWidgets = ALL_WIDGETS.filter((w) => hidden.includes(w.id));
+
+  const visibleList = order.filter((id) => !hidden.includes(id));
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          {editing && (
-            <>
+      {editing && (
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={resetLayout}
+              className="flex items-center gap-1.5 text-xs text-muted hover:text-ink px-2.5 py-1.5 rounded-lg border border-hairline transition-colors"
+            >
+              <RotateCcw size={12} /> Reset
+            </button>
+            {hiddenWidgets.map((w) => (
               <button
-                onClick={resetLayout}
-                className="flex items-center gap-1.5 text-xs text-muted hover:text-ink px-2.5 py-1.5 rounded-lg border border-hairline transition-colors"
+                key={w.id}
+                type="button"
+                aria-label={`Restore ${w.label}`}
+                onClick={() => restore(w.id)}
+                className="flex items-center gap-1.5 text-xs text-brand hover:text-brand/80 px-2.5 py-1.5 rounded-lg border border-brand/30 hover:border-brand/50 transition-colors"
               >
-                <RotateCcw size={12} /> Reset
+                <Plus size={12} /> Restore {w.label}
               </button>
-              {hiddenWidgets.length > 0 && (
-                <div className="relative">
-                  <button
-                    onClick={() => setShowAdd(!showAdd)}
-                    className="flex items-center gap-1.5 text-xs text-brand hover:text-brand/80 px-2.5 py-1.5 rounded-lg border border-brand/30 hover:border-brand/50 transition-colors"
-                  >
-                    <Plus size={12} /> Add Widget
-                  </button>
-                  {showAdd && (
-                    <div className="absolute top-full left-0 mt-1 bg-surface-card border border-hairline rounded-lg shadow-lg py-1 z-50 min-w-[160px]">
-                      {hiddenWidgets.map((w) => (
-                        <button
-                          key={w.id}
-                          onClick={() => addWidget(w.id)}
-                          className="w-full text-left px-3 py-2 text-sm text-ink hover:bg-surface-hover"
-                        >
-                          {w.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
+            ))}
+          </div>
+          <p className="text-[11px] text-muted lg:hidden">
+            Ordering follows the saved sequence on small screens.
+          </p>
         </div>
-      </div>
+      )}
 
       {editing ? (
         <ResponsiveGridLayout
@@ -148,7 +178,7 @@ export default function DashboardGrid({ children, editing, onEditToggle }) {
           draggableHandle=".drag-handle"
           margin={[16, 16]}
         >
-          {visible.map((id) => {
+          {visibleList.map((id, index) => {
             const widget = ALL_WIDGETS.find((w) => w.id === id);
             const childContent = children[id];
             return (
@@ -158,23 +188,43 @@ export default function DashboardGrid({ children, editing, onEditToggle }) {
                     <GripVertical size={12} />
                     {widget?.label}
                   </div>
-                  <button
-                    onClick={() => removeWidget(id)}
-                    className="text-muted hover:text-red-500 transition-colors"
-                  >
-                    <X size={12} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      aria-label={`Move ${widget?.label} up`}
+                      disabled={index === 0}
+                      onClick={() => move(id)("up")}
+                      className="text-muted hover:text-ink disabled:opacity-30 disabled:hover:text-muted transition-colors"
+                    >
+                      <ChevronUp size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Move ${widget?.label} down`}
+                      disabled={index === visibleList.length - 1}
+                      onClick={() => move(id)("down")}
+                      className="text-muted hover:text-ink disabled:opacity-30 disabled:hover:text-muted transition-colors"
+                    >
+                      <ChevronDown size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Hide ${widget?.label}`}
+                      onClick={() => hide(id)}
+                      className="text-muted hover:text-red-500 transition-colors"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
                 </div>
-                <div className="h-full pt-8 overflow-hidden">
-                  {childContent}
-                </div>
+                <div className="h-full pt-8 overflow-hidden">{childContent}</div>
               </div>
             );
           })}
         </ResponsiveGridLayout>
       ) : (
         <div className="space-y-6">
-          {visible.map((id, i) => (
+          {visibleList.map((id, i) => (
             <div key={id} className="animate-fade-up" style={{ animationDelay: `${Math.min(i * 60, 360)}ms` }}>
               {children[id]}
             </div>
