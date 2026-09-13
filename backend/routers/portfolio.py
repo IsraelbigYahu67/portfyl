@@ -7,6 +7,7 @@ import pandas as pd
 import pytz
 import io
 import logging
+import math
 import os
 from datetime import date, datetime, timedelta
 
@@ -1396,6 +1397,81 @@ def _pay_date_from_calendar(yf_ticker) -> str | None:
 
 
 _USD_FX_CACHE: dict[str, float] = {}
+
+
+def _positive_finite(value) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) and number > 0 else None
+
+
+def _normalize_dividend_row(
+    *,
+    ticker,
+    name,
+    shares,
+    currency,
+    dividend_rate,
+    provider_yield,
+    price,
+    ex_date,
+    pay_date,
+    as_of,
+):
+    rate = _positive_finite(dividend_rate)
+    quoted_yield = _positive_finite(provider_yield)
+    market_price = _positive_finite(price)
+    warnings = []
+
+    if (
+        ex_date
+        and pay_date
+        and date.fromisoformat(pay_date) < date.fromisoformat(ex_date)
+    ):
+        pay_date = None
+        date_status = "inconsistent"
+        warnings.append("pay_date_before_ex_date")
+    elif ex_date and pay_date:
+        date_status = "complete"
+    elif ex_date:
+        date_status = "ex_date_only"
+    elif pay_date:
+        date_status = "pay_date_only"
+    else:
+        date_status = "unavailable"
+
+    income_status = "estimated" if rate else "unavailable"
+    implied_yield = rate / market_price * 100 if rate and market_price else None
+    if rate is None and dividend_rate is not None:
+        warnings.append("non_positive_rate")
+    if implied_yield is not None and implied_yield > 35:
+        income_status = "review"
+        warnings.append("implausible_implied_yield")
+    if implied_yield and quoted_yield:
+        gap = abs(implied_yield - quoted_yield)
+        if gap - 5 > 1e-9 and gap / min(implied_yield, quoted_yield) > 0.5:
+            income_status = "review"
+            warnings.append("provider_fields_disagree")
+
+    annual_income = shares * rate if rate and income_status == "estimated" else None
+    return {
+        "ticker": ticker,
+        "name": name,
+        "shares": round(float(shares), 8),
+        "currency": currency,
+        "dividend_rate": round(rate, 4) if rate else None,
+        "dividend_yield": round(quoted_yield, 2) if quoted_yield else None,
+        "annual_income": round(annual_income, 2) if annual_income is not None else None,
+        "ex_date": ex_date,
+        "pay_date": pay_date,
+        "date_status": date_status,
+        "income_status": income_status,
+        "warnings": warnings,
+        "source": "yahoo_finance",
+        "as_of": as_of,
+    }
 
 
 def _live_to_usd(ccy: str) -> float:
