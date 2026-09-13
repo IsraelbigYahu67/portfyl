@@ -1,6 +1,8 @@
 import pytest
 
+from routers import portfolio
 from routers.portfolio import _normalize_dividend_row
+from tests.helpers import make_txn
 
 
 BASE = {
@@ -77,3 +79,39 @@ def test_provenance_is_additive():
     out = row()
     assert out["source"] == "yahoo_finance"
     assert out["as_of"] == BASE["as_of"]
+
+
+def test_endpoint_uses_one_timestamp_and_excludes_review_income_from_rows(
+    db_session, pid, default_portfolio, monkeypatch
+):
+    db_session.add(make_txn("SAFE", "buy", 10, 100, portfolio_id=pid))
+    db_session.add(make_txn("RISK", "buy", 10, 100, portfolio_id=pid))
+    db_session.commit()
+    infos = {
+        "SAFE": {
+            "shortName": "Safe Corp",
+            "dividendRate": 2,
+            "dividendYield": 2,
+            "regularMarketPrice": 100,
+            "currency": "USD",
+            "exDividendDate": 1787184000,
+            "dividendDate": 1788998400,
+        },
+        "RISK": {
+            "shortName": "Risk Corp",
+            "dividendRate": 40,
+            "dividendYield": 40,
+            "regularMarketPrice": 100,
+            "currency": "USD",
+        },
+    }
+    monkeypatch.setattr(portfolio.market_data, "get_infos", lambda _: infos)
+    monkeypatch.setattr(portfolio.market_data, "get_info", lambda ticker: infos[ticker])
+    monkeypatch.setattr(portfolio, "_pay_date_from_calendar", lambda _: None)
+
+    rows = portfolio.get_dividends(db=db_session, portfolio=default_portfolio)
+
+    assert len({item["as_of"] for item in rows}) == 1
+    risky = next(item for item in rows if item["ticker"] == "RISK")
+    assert risky["annual_income"] is None
+    assert risky["income_status"] == "review"

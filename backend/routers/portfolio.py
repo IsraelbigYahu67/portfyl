@@ -9,7 +9,7 @@ import io
 import logging
 import math
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from uuid import UUID
 
@@ -1502,12 +1502,13 @@ def get_dividends(
         return []
 
     active = _build_holdings(transactions)
-    market_data.get_infos(list(active.keys()))  # warm cache concurrently/bounded
+    infos = market_data.get_infos(list(active.keys()))
+    as_of = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     result = []
 
     for ticker in active:
         try:
-            info = market_data.get_info(ticker) or {}
+            info = infos.get(ticker) or {}
             name = info.get("shortName") or info.get("longName") or ticker
             div_rate = info.get("dividendRate") or info.get("trailingAnnualDividendRate")
             div_yield = info.get("dividendYield")
@@ -1519,22 +1520,23 @@ def get_dividends(
             if not pay_date:
                 pay_date = _pay_date_from_calendar(yf.Ticker(yf_symbol(ticker)))
 
-            if not div_rate and not div_yield:
+            if div_rate is None and div_yield is None:
                 continue
 
-            annual_income = (shares * float(div_rate)) if div_rate else None
-
-            result.append({
-                "ticker": ticker,
-                "name": name,
-                "ex_date": ex_date,
-                "pay_date": pay_date,
-                "dividend_rate": round(float(div_rate), 4) if div_rate else None,
-                "dividend_yield": round(float(div_yield), 2) if div_yield else None,
-                "annual_income": round(annual_income, 2) if annual_income is not None else None,
-                "currency": currency,
-                "shares": round(shares, 4),
-            })
+            result.append(
+                _normalize_dividend_row(
+                    ticker=ticker,
+                    name=name,
+                    shares=shares,
+                    currency=currency,
+                    dividend_rate=div_rate,
+                    provider_yield=div_yield,
+                    price=info.get("currentPrice") or info.get("regularMarketPrice"),
+                    ex_date=ex_date,
+                    pay_date=pay_date,
+                    as_of=as_of,
+                )
+            )
         except Exception:
             continue
 
