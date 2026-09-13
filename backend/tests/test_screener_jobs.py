@@ -171,3 +171,55 @@ def test_cancel_job_returns_false_for_wrong_user_or_missing():
         assert sj.cancel_job("user-2", job.job_id) is False
         assert sj.cancel_job("user-1", "not-a-real-id") is False
         _wait_for_status(job.job_id, "user-1", {"completed", "failed", "cancelled"})
+
+
+import pytest
+from fastapi import HTTPException
+
+from routers.market import create_screener_job, get_screener_job, cancel_screener_job, ScreenerJobRequest
+from tenancy import RequestContext
+
+
+class _FakeUser:
+    def __init__(self, id):
+        self.id = id
+
+
+def _ctx(user_id: str) -> RequestContext:
+    # RequestContext only needs `.user.id` for this endpoint; the other fields
+    # are left None, matching how other fast-suite tests exercise router
+    # functions directly without a full authenticated HTTP request.
+    return RequestContext(user=_FakeUser(user_id), workspace=None, membership=None, session=None)
+
+
+def test_create_screener_job_endpoint_returns_202_shaped_payload():
+    _reset_registry()
+    with patch("services.screener_jobs._ticker_row", side_effect=lambda sym: _fake_row(sym)):
+        body = ScreenerJobRequest(universe="tech_large")
+        job = create_screener_job(body, ctx=_ctx("user-1"))
+        assert job["status"] in ("queued", "running")
+        assert job["job_id"]
+        assert job["result"] is None
+        _wait_for_status(job["job_id"], "user-1", {"completed", "failed", "cancelled"})
+
+
+def test_get_screener_job_endpoint_404s_for_wrong_user():
+    _reset_registry()
+    with patch("services.screener_jobs._ticker_row", side_effect=lambda sym: _fake_row(sym)):
+        body = ScreenerJobRequest(universe="tech_large")
+        job = create_screener_job(body, ctx=_ctx("user-1"))
+        _wait_for_status(job["job_id"], "user-1", {"completed", "failed", "cancelled"})
+        with pytest.raises(HTTPException) as exc_info:
+            get_screener_job(job["job_id"], offset=0, limit=50, ctx=_ctx("user-2"))
+        assert exc_info.value.status_code == 404
+
+
+def test_cancel_screener_job_endpoint_404s_when_not_cancellable():
+    _reset_registry()
+    with patch("services.screener_jobs._ticker_row", side_effect=lambda sym: _fake_row(sym)):
+        body = ScreenerJobRequest(universe="tech_large")
+        job = create_screener_job(body, ctx=_ctx("user-1"))
+        _wait_for_status(job["job_id"], "user-1", {"completed", "failed", "cancelled"})
+        with pytest.raises(HTTPException) as exc_info:
+            cancel_screener_job(job["job_id"], ctx=_ctx("user-1"))
+        assert exc_info.value.status_code == 404
