@@ -1,11 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import App from "./App";
 import { TRACKER_HOME } from "./lib/routes";
 
 const PORTFOLIO_ID = "11111111-1111-4111-8111-111111111111";
+const mocks = vi.hoisted(() => ({
+  fetchCapabilities: vi.fn(),
+  fetchPortfolios: vi.fn(),
+}));
 
 vi.mock("./auth/AuthProvider", () => ({
   AuthProvider: ({ children }) => children,
@@ -22,21 +27,19 @@ vi.mock("./api", async () => {
   const actual = await vi.importActual("./api");
   return {
     ...actual,
-    fetchCapabilities: () => Promise.resolve({ capabilities: [] }),
+    fetchCapabilities: mocks.fetchCapabilities,
     fetchFxRate: () => Promise.resolve({ rate: 20 }),
-    fetchPortfolios: () => Promise.resolve([
-      {
-        id: "11111111-1111-4111-8111-111111111111",
-        name: "Test portfolio",
-        is_default: true,
-        transaction_count: 0,
-      },
-    ]),
+    fetchPortfolios: mocks.fetchPortfolios,
   };
 });
 
 vi.mock("./components/AutoLoad", () => ({ default: () => null }));
-vi.mock("./pages/Dashboard", () => ({ default: () => <div>Dashboard</div> }));
+vi.mock("./pages/Dashboard", () => ({
+  default: () => <h1>Portfolio overview</h1>,
+}));
+vi.mock("./pages/Onboarding", () => ({
+  default: () => <h1>Create your first portfolio</h1>,
+}));
 vi.mock("./pages/Cash", () => ({ default: () => <div>Cash page</div> }));
 
 function LocationProbe() {
@@ -44,27 +47,107 @@ function LocationProbe() {
   return <output data-testid="location">{pathname}</output>;
 }
 
-describe("tracker routing", () => {
+function renderApp(path = TRACKER_HOME) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[path]}>
+        <LocationProbe />
+        <App />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+describe("authenticated routing", () => {
   beforeEach(() => {
     localStorage.clear();
-    localStorage.setItem("sb_platform", "t212");
     localStorage.setItem("sb_portfolio_id", PORTFOLIO_ID);
     localStorage.setItem("sb_theme", "light");
+    mocks.fetchCapabilities.mockReset().mockResolvedValue({ capabilities: [] });
+    mocks.fetchPortfolios.mockReset().mockResolvedValue([{
+      id: PORTFOLIO_ID,
+      name: "CSV portfolio",
+      is_default: true,
+      transaction_count: 0,
+    }]);
+  });
+
+  it("routes a portfolio user directly to Dashboard without broker state", async () => {
+    localStorage.removeItem("sb_platform");
+    renderApp();
+
+    expect(await screen.findByRole("heading", { name: /portfolio overview/i }))
+      .toBeInTheDocument();
+  });
+
+  it("removes the obsolete platform key", async () => {
+    localStorage.setItem("sb_platform", "t212");
+    renderApp();
+
+    await screen.findByRole("heading", { name: /portfolio overview/i });
+    expect(localStorage.getItem("sb_platform")).toBeNull();
+  });
+
+  it("keeps users with no portfolio in onboarding", async () => {
+    mocks.fetchPortfolios.mockResolvedValue([]);
+    renderApp();
+
+    expect(await screen.findByRole("heading", { name: /create your first portfolio/i }))
+      .toBeInTheDocument();
+  });
+
+  it("keeps edition navigation capability-filtered", async () => {
+    const first = renderApp();
+    await screen.findByRole("heading", { name: /portfolio overview/i });
+    expect(screen.queryByRole("link", { name: /tax report/i })).not.toBeInTheDocument();
+    first.unmount();
+
+    mocks.fetchCapabilities.mockResolvedValue({ capabilities: ["tax_report"] });
+    renderApp();
+    expect(await screen.findByRole("link", { name: /tax report/i })).toBeInTheDocument();
+  });
+
+  it("shows portfolio navigation without a platform reset action", async () => {
+    renderApp();
+
+    await screen.findByRole("heading", { name: /portfolio overview/i });
+    expect(screen.getByRole("link", { name: /dashboard/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /trading 212|change platform/i }))
+      .not.toBeInTheDocument();
+  });
+
+  it("switches portfolios without writing obsolete platform state", async () => {
+    mocks.fetchPortfolios.mockResolvedValue([
+      {
+        id: PORTFOLIO_ID,
+        name: "CSV portfolio",
+        is_default: true,
+        transaction_count: 0,
+      },
+      {
+        id: "33333333-3333-4333-8333-333333333333",
+        name: "Second portfolio",
+        is_default: false,
+        transaction_count: 2,
+      },
+    ]);
+    renderApp();
+    await screen.findByRole("heading", { name: /portfolio overview/i });
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const removeItem = vi.spyOn(Storage.prototype, "removeItem");
+
+    fireEvent.click(screen.getByRole("button", { name: /switch portfolio/i }));
+    fireEvent.click(screen.getByText("Second portfolio").closest("button"));
+
+    expect(setItem.mock.calls.some(([key]) => key === "sb_platform")).toBe(false);
+    expect(removeItem.mock.calls.some(([key]) => key === "sb_platform")).toBe(false);
   });
 
   it("does not expose Cash in navigation or at /cash", async () => {
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-
-    render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={["/cash"]}>
-          <LocationProbe />
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
+    renderApp("/cash");
 
     await waitFor(() => {
       expect(screen.getByTestId("location").textContent).toBe(TRACKER_HOME);

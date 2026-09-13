@@ -1,6 +1,6 @@
-import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, PieChart, ArrowLeftRight, Upload, Loader2, CalendarDays, Activity, Settings, Search, Star, ArrowLeft, Bot, Sun, Moon, Monitor, Layers } from "lucide-react";
-import { useCurrency, usePalette, usePlatform } from "../App";
+import { NavLink } from "react-router-dom";
+import { LayoutDashboard, PieChart, ArrowLeftRight, Upload, Loader2, CalendarDays, Activity, Settings, Search, Star, Bot, Sun, Moon, Monitor, Layers } from "lucide-react";
+import { useCurrency, usePalette } from "../App";
 import PortfolioSwitcher from "./PortfolioSwitcher";
 import AccountMenu from "./AccountMenu";
 import SegmentedControl from "./ui/SegmentedControl";
@@ -31,14 +31,10 @@ const PALETTE_OPTIONS = [
 export default function Sidebar({ capabilities = [] }) {
   const { currency, setCurrency, rate, rateLoading } = useCurrency();
   const { palette, setPalette, theme, setTheme, themeStyle, setThemeStyle } = usePalette();
-  const { platform, setPlatform } = usePlatform();
-  const navigate = useNavigate();
   const czk_unavailable = !rateLoading && rate === null;
 
   const editionLinks = enabledEditionEntries(EDITION_NAVIGATION, capabilities);
-  const links = platform === "t212" ? [...T212_LINKS, ...editionLinks] : editionLinks;
-
-  const platformLabel = platform === "t212" ? "Trading 212" : null;
+  const links = [...T212_LINKS, ...editionLinks];
 
   return (
     <aside className="w-[232px] shrink-0 bg-surface-card border-r border-surface-border flex flex-col h-screen sticky top-0"
@@ -54,18 +50,6 @@ export default function Sidebar({ capabilities = [] }) {
       <div className="px-3 pt-2">
         <PortfolioSwitcher />
       </div>
-
-      {platform && (
-        <div className="px-3 pt-2">
-          <button
-            onClick={() => { setPlatform(null); navigate(TRACKER_HOME); }}
-            className="w-full flex items-center gap-2 text-xs text-muted hover:text-brand px-2 py-1.5 rounded-lg hover:bg-surface-hover transition-colors"
-          >
-            <ArrowLeft size={12} />
-            <span className="font-medium">{platformLabel}</span>
-          </button>
-        </div>
-      )}
 
       <nav className="flex-1 px-2.5 py-2 space-y-0.5 overflow-y-auto">
         {links.map(({ to, label, icon: Icon }) => (

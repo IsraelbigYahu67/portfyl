@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { BarChart3, Link2, Upload, Loader2 } from "lucide-react";
 
 import { createDemoPortfolio, createPortfolio } from "../api";
-import { usePlatform, usePortfolio } from "../App";
+import { usePortfolio } from "../App";
 import { TRACKER_HOME } from "../lib/routes";
 
 
@@ -17,7 +17,6 @@ function errorMessage(error) {
 export default function Onboarding() {
   const navigate = useNavigate();
   const { setCurrentId, refetchPortfolios } = usePortfolio();
-  const { setPlatform } = usePlatform();
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
 
@@ -27,7 +26,6 @@ export default function Onboarding() {
     try {
       const portfolio = await create();
       setCurrentId(portfolio.id);
-      setPlatform("t212");
       await refetchPortfolios();
       navigate(destination);
     } catch (err) {

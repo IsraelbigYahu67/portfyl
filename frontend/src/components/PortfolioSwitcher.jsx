@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Briefcase, Check, ChevronDown, Pencil, Plus, Trash2, X } from "lucide-react";
-import { usePortfolio, usePlatform } from "../App";
+import { usePortfolio } from "../App";
 import { createPortfolio, deletePortfolio, updatePortfolio } from "../api";
 import { useConfirm } from "./ui/ConfirmDialog";
 import { useToast } from "./ui/Toast";
@@ -55,7 +55,6 @@ function NameModal({ title, initial = "", confirmLabel, busy, onCancel, onSubmit
 
 export default function PortfolioSwitcher() {
   const { portfolios, current, setCurrentId, refetchPortfolios } = usePortfolio();
-  const { setPlatform } = usePlatform();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
@@ -123,7 +122,6 @@ export default function PortfolioSwitcher() {
 
   const onSelect = (id) => {
     if (id !== current?.id) {
-      setPlatform(null);
       setCurrentId(id);
     }
     setOpen(false);
