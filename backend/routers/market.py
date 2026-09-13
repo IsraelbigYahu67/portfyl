@@ -2253,9 +2253,12 @@ def _ticker_screener_row(sym: str) -> dict[str, Any]:
 
 
 def _in_range(val: float | None, lo: float | None, hi: float | None) -> bool:
-    """Check if val is within [lo, hi] (inclusive). None bounds are ignored."""
+    """Check if val is within [lo, hi] (inclusive). A missing value only
+    fails the filter when at least one bound for that metric was actually
+    set; if the caller left the metric unfiltered, a provider that simply
+    didn't return the field must not silently exclude the row."""
     if val is None:
-        return False
+        return lo is None and hi is None
     if lo is not None and val < lo:
         return False
     if hi is not None and val > hi:
