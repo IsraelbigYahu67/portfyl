@@ -1,12 +1,21 @@
-"""Tests for the screener job service (backend/services/screener_jobs.py)
-and the _in_range missing-value fix it depends on."""
+"""Tests for screener jobs and their shared filtering semantics."""
 
-import threading
 import time
+import threading
 from unittest.mock import patch
 
-from routers.market import _in_range
+import pytest
+from fastapi import HTTPException
+
+from routers.market import (
+    _in_range,
+    create_screener_job,
+    get_screener_job,
+    cancel_screener_job,
+    ScreenerJobRequest,
+)
 from services import screener_jobs as sj
+from tenancy import RequestContext
 
 
 def _reset_registry():
@@ -14,170 +23,246 @@ def _reset_registry():
         sj._JOBS.clear()
 
 
-
 def test_in_range_no_bounds_and_no_value_is_true():
-    # A metric nobody filtered on must never exclude a row just because the
-    # provider didn't return that field.
+    """An unfiltered missing metric must not exclude a provider row."""
     assert _in_range(None, None, None) is True
 
 
 def test_in_range_missing_value_with_a_bound_is_false():
+    """A missing metric cannot satisfy an explicit lower or upper bound."""
     assert _in_range(None, 10, None) is False
     assert _in_range(None, None, 10) is False
     assert _in_range(None, 5, 10) is False
 
 
 def test_in_range_present_value_still_respects_bounds():
+    """The missing-value fix must preserve inclusive range filtering."""
     assert _in_range(5, 10, None) is False
     assert _in_range(15, 10, None) is True
     assert _in_range(15, None, 10) is False
-    assert _in_range(7, 5, 10) is True
+    assert _in_range(5, None, 10) is True
 
 
 def test_fingerprint_is_stable_for_same_user_and_request():
-    req = {"universe": "sp500", "sort_by": "market_cap", "sort_desc": True}
-    assert sj._fingerprint("user-1", req) == sj._fingerprint("user-1", dict(req))
+    """Equivalent request mappings must deduplicate for one user."""
+    request = {"universe": "sp500", "sort_by": "market_cap", "sort_desc": True}
+    assert sj._fingerprint("user-1", request) == sj._fingerprint("user-1", dict(request))
 
 
 def test_fingerprint_differs_by_user_or_request():
-    req = {"universe": "sp500"}
-    assert sj._fingerprint("user-1", req) != sj._fingerprint("user-2", req)
-    assert sj._fingerprint("user-1", req) != sj._fingerprint("user-1", {"universe": "nasdaq100"})
+    """A fingerprint must not reuse jobs across users or scan inputs."""
+    request = {"universe": "sp500"}
+    assert sj._fingerprint("user-1", request) != sj._fingerprint("user-2", request)
+    assert sj._fingerprint("user-1", request) != sj._fingerprint(
+        "user-1", {"universe": "nasdaq100"}
+    )
 
 
 def test_prune_removes_expired_jobs():
+    """Terminal jobs cease to be addressable once their TTL elapses."""
     _reset_registry()
     job = sj.ScreenerJob(
-        job_id="j1", user_id="user-1", fingerprint="fp1", status="completed",
-        request={}, created_at=sj._now() - 3600, expires_at=sj._now() - 1,
-        scan_total=1, completed_count=1, result_items=[], unavailable_count=0,
-        error=None, cancel_requested=False,
+        job_id="j1",
+        user_id="user-1",
+        fingerprint="fp1",
+        status="completed",
+        request={},
+        created_at=sj._now() - 3600,
+        expires_at=sj._now() - 1,
+        scan_total=1,
+        completed_count=1,
+        result_items=[],
+        unavailable_count=0,
+        error=None,
+        cancel_requested=False,
     )
     with sj._REGISTRY_LOCK:
         sj._JOBS["j1"] = job
+
     sj._prune_expired_and_over_capacity()
+
     with sj._REGISTRY_LOCK:
         assert "j1" not in sj._JOBS
 
 
 def test_prune_enforces_max_retained_jobs():
+    """Capacity cleanup evicts oldest retained jobs before newer ones."""
     _reset_registry()
-    now = sj._now()
+    now = time.time()
     with sj._REGISTRY_LOCK:
-        for i in range(25):
-            sj._JOBS[f"j{i}"] = sj.ScreenerJob(
-                job_id=f"j{i}", user_id="user-1", fingerprint=f"fp{i}", status="completed",
-                request={}, created_at=now - i, expires_at=now + 1800,
-                scan_total=1, completed_count=1, result_items=[], unavailable_count=0,
-                error=None, cancel_requested=False,
+        for index in range(25):
+            job_id = f"j{index}"
+            sj._JOBS[job_id] = sj.ScreenerJob(
+                job_id=job_id,
+                user_id="user-1",
+                fingerprint=f"fp{index}",
+                status="completed",
+                request={},
+                created_at=now - index,
+                expires_at=now + 1800,
+                scan_total=1,
+                completed_count=1,
+                result_items=[],
+                unavailable_count=0,
+                error=None,
+                cancel_requested=False,
             )
+
     sj._prune_expired_and_over_capacity()
+
     with sj._REGISTRY_LOCK:
         assert len(sj._JOBS) == sj.MAX_RETAINED_JOBS
-        # Oldest jobs (highest i, since created_at = now - i means larger i is older) are evicted first.
         assert "j0" in sj._JOBS
         assert "j24" not in sj._JOBS
 
 
-def _fake_row(sym, price=100.0, pe=15.0):
-    return {"ticker": sym, "name": sym, "price": price, "market_cap": 1e9, "pe": pe, "sector": "Technology"}
+def test_job_response_serializes_timestamps_as_utc_iso8601():
+    """The API contract must not expose internal unix timestamps."""
+    job = sj.ScreenerJob(
+        job_id="j1",
+        user_id="user-1",
+        fingerprint="fp1",
+        status="completed",
+        request={},
+        created_at=0,
+        expires_at=1800,
+        scan_total=1,
+        completed_count=1,
+        result_items=[],
+        unavailable_count=0,
+        error=None,
+        cancel_requested=False,
+    )
+
+    response = job.to_response(offset=0, limit=50)
+
+    assert response["created_at"] == "1970-01-01T00:00:00Z"
+    assert response["expires_at"] == "1970-01-01T00:30:00Z"
+
+
+def _fake_row(symbol, price=100.0, pe=15.0):
+    return {
+        "ticker": symbol,
+        "name": symbol,
+        "price": price,
+        "market_cap": 1e9,
+        "pe": pe,
+        "sector": "Technology",
+    }
 
 
 def _wait_for_status(job_id, user_id, statuses, timeout=3.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
         job = sj.get_job(user_id, job_id)
-        if job is not None and job.status in statuses:
+        if job and job.status in statuses:
             return job
-        time.sleep(0.02)
+        time.sleep(0.01)
     raise AssertionError(f"job {job_id} did not reach {statuses} in time")
 
 
-def test_submit_job_dedups_identical_request_from_same_user():
+def test_submit_job_deduplicates_identical_active_request_for_same_user():
+    """Repeated clicks must not enqueue duplicate scans for one user/request."""
     _reset_registry()
     gate = threading.Event()
 
-    def slow_row(sym):
+    def slow_row(symbol):
         gate.wait(timeout=2)
-        return _fake_row(sym)
+        return _fake_row(symbol)
 
+    request = {"universe": "tech_large", "sort_by": "market_cap", "sort_desc": True}
     with patch("services.screener_jobs._ticker_row", side_effect=slow_row):
-        req = {"universe": "tech_large", "tickers": "", "sort_by": "market_cap", "sort_desc": True, "limit": 50}
-        job1 = sj.submit_job("user-1", req)
-        job2 = sj.submit_job("user-1", dict(req))
-        assert job1.job_id == job2.job_id
+        first = sj.submit_job("user-1", request)
+        second = sj.submit_job("user-1", dict(request))
+        assert first.job_id == second.job_id
         gate.set()
-        _wait_for_status(job1.job_id, "user-1", {"completed", "failed", "cancelled"})
+        _wait_for_status(first.job_id, "user-1", {"completed", "failed", "cancelled"})
 
 
-def test_submit_job_does_not_dedup_across_users():
+def test_submit_job_does_not_deduplicate_across_users():
+    """The same filters from another identity must create a separate job."""
     _reset_registry()
-    with patch("services.screener_jobs._ticker_row", side_effect=lambda sym: _fake_row(sym)):
-        req = {"universe": "tech_large", "tickers": "", "sort_by": "market_cap", "sort_desc": True, "limit": 50}
-        job1 = sj.submit_job("user-1", req)
-        job2 = sj.submit_job("user-2", dict(req))
-        assert job1.job_id != job2.job_id
-        _wait_for_status(job1.job_id, "user-1", {"completed", "failed", "cancelled"})
-        _wait_for_status(job2.job_id, "user-2", {"completed", "failed", "cancelled"})
+    request = {"universe": "tech_large", "sort_by": "market_cap", "sort_desc": True}
+    with patch("services.screener_jobs._ticker_row", side_effect=lambda symbol: _fake_row(symbol)):
+        first = sj.submit_job("user-1", request)
+        second = sj.submit_job("user-2", dict(request))
+        assert first.job_id != second.job_id
+        _wait_for_status(first.job_id, "user-1", {"completed", "failed", "cancelled"})
+        _wait_for_status(second.job_id, "user-2", {"completed", "failed", "cancelled"})
 
 
 def test_job_completes_and_progress_reaches_total():
+    """Every settled ticker future increments progress exactly once."""
     _reset_registry()
     tickers = ["AAA", "BBB", "CCC"]
-    with patch("services.screener_jobs._universe_tickers", return_value=tickers), \
-         patch("services.screener_jobs._ticker_row", side_effect=lambda sym: _fake_row(sym)):
-        job = sj.submit_job("user-1", {"universe": "tech_large", "tickers": "", "sort_by": "market_cap", "sort_desc": True, "limit": 50})
+    with (
+        patch("services.screener_jobs._universe_tickers", return_value=tickers),
+        patch("services.screener_jobs._ticker_row", side_effect=lambda symbol: _fake_row(symbol)),
+    ):
+        job = sj.submit_job(
+            "user-1",
+            {"universe": "tech_large", "sort_by": "market_cap", "sort_desc": True},
+        )
         done = _wait_for_status(job.job_id, "user-1", {"completed"})
-        assert done.completed_count == done.scan_total == len(tickers)
-        assert done.result_items and len(done.result_items) == len(tickers)
+
+    assert done.completed_count == done.scan_total == 3
+    assert len(done.result_items) == 3
 
 
 def test_job_cancellation_stops_scheduling_further_batches():
+    """Cancellation may finish current calls but must not launch another batch."""
     _reset_registry()
-    tickers = [f"T{i}" for i in range(40)]
+    tickers = [f"T{index}" for index in range(40)]
     started = threading.Event()
     release = threading.Event()
 
-    def slow_row(sym):
+    def slow_row(symbol):
         started.set()
         release.wait(timeout=2)
-        return _fake_row(sym)
+        return _fake_row(symbol)
 
-    with patch("services.screener_jobs._universe_tickers", return_value=tickers), \
-         patch("services.screener_jobs._ticker_row", side_effect=slow_row):
-        job = sj.submit_job("user-1", {"universe": "tech_large", "tickers": "", "sort_by": "market_cap", "sort_desc": True, "limit": 50})
+    with (
+        patch("services.screener_jobs._universe_tickers", return_value=tickers),
+        patch("services.screener_jobs._ticker_row", side_effect=slow_row),
+    ):
+        job = sj.submit_job(
+            "user-1",
+            {"universe": "tech_large", "sort_by": "market_cap", "sort_desc": True},
+        )
         assert started.wait(timeout=2)
         assert sj.cancel_job("user-1", job.job_id) is True
         release.set()
         done = _wait_for_status(job.job_id, "user-1", {"cancelled"})
-        # Cancellation must stop scheduling further batches; it must not have
-        # processed every one of the 40 tickers (batch size is 12).
-        assert done.completed_count < len(tickers)
+
+    assert done.completed_count < len(tickers)
 
 
-def test_get_job_returns_none_for_wrong_user_or_missing():
+def test_get_job_hides_wrong_user_and_missing_ids():
+    """Job lookup must not disclose another user's in-memory job."""
     _reset_registry()
-    with patch("services.screener_jobs._ticker_row", side_effect=lambda sym: _fake_row(sym)):
-        job = sj.submit_job("user-1", {"universe": "tech_large", "tickers": "", "sort_by": "market_cap", "sort_desc": True, "limit": 50})
+    with patch("services.screener_jobs._ticker_row", side_effect=lambda symbol: _fake_row(symbol)):
+        job = sj.submit_job("user-1", {"universe": "tech_large"})
         _wait_for_status(job.job_id, "user-1", {"completed", "failed", "cancelled"})
-        assert sj.get_job("user-2", job.job_id) is None
-        assert sj.get_job("user-1", "not-a-real-id") is None
+
+    assert sj.get_job("user-2", job.job_id) is None
+    assert sj.get_job("user-1", "not-a-real-id") is None
 
 
-def test_cancel_job_returns_false_for_wrong_user_or_missing():
+def test_cancel_job_hides_wrong_user_and_missing_ids():
+    """Cancellation must not reveal or mutate jobs outside the caller identity."""
     _reset_registry()
-    with patch("services.screener_jobs._ticker_row", side_effect=lambda sym: _fake_row(sym)):
-        job = sj.submit_job("user-1", {"universe": "tech_large", "tickers": "", "sort_by": "market_cap", "sort_desc": True, "limit": 50})
+    gate = threading.Event()
+
+    def slow_row(symbol):
+        gate.wait(timeout=2)
+        return _fake_row(symbol)
+
+    with patch("services.screener_jobs._ticker_row", side_effect=slow_row):
+        job = sj.submit_job("user-1", {"universe": "tech_large"})
         assert sj.cancel_job("user-2", job.job_id) is False
         assert sj.cancel_job("user-1", "not-a-real-id") is False
+        gate.set()
         _wait_for_status(job.job_id, "user-1", {"completed", "failed", "cancelled"})
-
-
-import pytest
-from fastapi import HTTPException
-
-from routers.market import create_screener_job, get_screener_job, cancel_screener_job, ScreenerJobRequest
-from tenancy import RequestContext
 
 
 class _FakeUser:
