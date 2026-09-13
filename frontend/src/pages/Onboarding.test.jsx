@@ -77,6 +77,20 @@ describe("Onboarding", () => {
     expect(await screen.findByText("Settings destination")).toBeInTheDocument();
   });
 
+  it("navigates before the portfolio refetch can unmount onboarding", async () => {
+    let finishRefetch;
+    mocks.refetchPortfolios.mockReturnValueOnce(new Promise((resolve) => {
+      finishRefetch = resolve;
+    }));
+    mount();
+
+    fireEvent.click(screen.getByRole("button", { name: /connect a broker/i }));
+
+    await waitFor(() => expect(mocks.setCurrentId).toHaveBeenCalledWith("portfolio-id"));
+    expect(await screen.findByText("Settings destination")).toBeInTheDocument();
+    finishRefetch({});
+  });
+
   it("shows an actionable API error without navigating", async () => {
     mocks.createDemoPortfolio.mockRejectedValueOnce({
       response: { data: { detail: "Demo limit reached" } },

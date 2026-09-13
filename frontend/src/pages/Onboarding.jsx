@@ -26,8 +26,8 @@ export default function Onboarding() {
     try {
       const portfolio = await create();
       setCurrentId(portfolio.id);
-      await refetchPortfolios();
       navigate(destination);
+      await refetchPortfolios();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
