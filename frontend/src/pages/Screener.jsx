@@ -2,7 +2,10 @@ import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchScreener } from "../editions/localApi";
 import { useStockDetail } from "../components/StockDetail";
-import { Search, SlidersHorizontal, RefreshCw, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { useScreenerJob } from "../hooks/useScreenerJob";
+import Pagination from "../components/ui/Pagination";
+import AsyncSection from "../components/ui/AsyncSection";
+import { SlidersHorizontal, RefreshCw, Play, X, RotateCcw } from "lucide-react";
 
 const UNIVERSE_OPTIONS = [
   { value: "sp500", label: "S&P 500 (full index)", slow: true },
@@ -33,6 +36,8 @@ const SECTORS = [
   "Real Estate", "Utilities", "Communication Services",
 ];
 
+const RESULTS_LIMIT = 50;
+
 function fmtMoney(v) {
   if (v == null || isNaN(v)) return "—";
   if (Math.abs(v) >= 1e12) return `$${(v / 1e12).toFixed(2)}T`;
@@ -51,6 +56,95 @@ function fmtNum(v) {
   return Number(v).toFixed(2);
 }
 
+function ResultsTable({ results, shibuiMode, onRowClick }) {
+  return (
+    <div className="rounded-xl border border-surface-border overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm whitespace-nowrap">
+          <thead>
+            <tr className="border-b border-surface-border bg-surface-card">
+              <th className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Ticker</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Name</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Price</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Mkt Cap</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">P/E</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Fwd P/E</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">P/B</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">P/S</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Div Yield</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">ROE</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Net Margin</th>
+              {shibuiMode ? (
+                <>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Op. Margin</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider" title="Piotroski F-Score (0-9)">Piotroski</th>
+                </>
+              ) : (
+                <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Beta</th>
+              )}
+              <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Target</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Sector</th>
+              {!shibuiMode && (
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Rating</th>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {results.map((r) => (
+              <tr
+                key={r.ticker}
+                onClick={() => onRowClick(r.ticker)}
+                className="border-b border-surface-border last:border-0 hover:bg-surface-hover transition-colors cursor-pointer"
+              >
+                <td className="px-4 py-3 font-mono font-semibold text-ink">{r.ticker}</td>
+                <td className="px-4 py-3 text-muted max-w-[160px] truncate">{r.name}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-ink font-medium">{fmtMoney(r.price)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtMoney(r.market_cap)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.pe)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.forward_pe)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.pb)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.ps)}</td>
+                <td className="px-4 py-3 text-right tabular-nums">
+                  {r.div_yield != null ? (
+                    <span className="text-gain font-medium">{fmtPct(r.div_yield)}</span>
+                  ) : "—"}
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtPct(r.roe)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtPct(r.net_margin)}</td>
+                {shibuiMode ? (
+                  <>
+                    <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtPct(r.operating_margin)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-muted">{r.piotroski_f_score ?? "—"}</td>
+                  </>
+                ) : (
+                  <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.beta)}</td>
+                )}
+                <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtMoney(r.target_mean)}</td>
+                <td className="px-4 py-3 text-muted max-w-[120px] truncate">{r.sector ?? "—"}</td>
+                {!shibuiMode && (
+                  <td className="px-4 py-3">
+                    {r.rating ? (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        r.rating === "strong_buy" || r.rating === "buy"
+                          ? "bg-gain/20 text-gain"
+                          : r.rating === "hold"
+                          ? "bg-amber-500/20 text-amber-600"
+                          : "bg-loss/20 text-loss"
+                      }`}>
+                        {r.rating.replace("_", " ")}
+                      </span>
+                    ) : "—"}
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function Screener() {
   const { openStock } = useStockDetail();
   const [universe, setUniverse] = useState("sp500");
@@ -63,6 +157,7 @@ export default function Screener() {
   const [minPiotroski, setMinPiotroski] = useState("");
   const [sortBy, setSortBy] = useState("market_cap");
   const [showFilters, setShowFilters] = useState(false);
+  const [offset, setOffset] = useState(0);
 
   const isShibui = universe === "shibui_all";
 
@@ -72,7 +167,7 @@ export default function Screener() {
       // entirely, scans ~10,344 NYSE/NASDAQ symbols in one query. Div yield
       // filtering isn't wired on that path yet -- only pe/ps/roe/market_cap/
       // operating_margin/piotroski/sector.
-      const p = { source: "shibui", sort_by: sortBy, sort_desc: true, limit: 50 };
+      const p = { source: "shibui", sort_by: sortBy, sort_desc: true, limit: RESULTS_LIMIT };
       if (sector) p.sector = sector;
       if (maxPE) p.max_pe = Number(maxPE);
       if (minROE) p.min_roe = Number(minROE);
@@ -80,7 +175,7 @@ export default function Screener() {
       if (minPiotroski) p.min_piotroski = Number(minPiotroski);
       return p;
     }
-    const p = { universe, sort_by: sortBy, sort_desc: true, limit: 50 };
+    const p = { universe, sort_by: sortBy, sort_desc: true, limit: RESULTS_LIMIT };
     if (customTickers.trim()) p.tickers = customTickers.trim().toUpperCase();
     if (sector) p.sector = sector;
     if (maxPE) p.max_pe = Number(maxPE);
@@ -89,14 +184,46 @@ export default function Screener() {
     return p;
   }, [universe, customTickers, sector, maxPE, minDivYield, minROE, minOperatingMargin, minPiotroski, sortBy, isShibui]);
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ["screener", buildParams()],
+  // The Shibui whole-market path stays synchronous: it is one bounded query,
+  // not a per-ticker scan. The yfinance path runs as a background job.
+  const shibuiQuery = useQuery({
+    queryKey: ["screener", "shibui", buildParams()],
     queryFn: () => fetchScreener(buildParams()),
+    enabled: isShibui,
     staleTime: 5 * 60 * 1000,
   });
 
-  const results = data?.results ?? [];
-  const shibuiMode = data?.source === "shibui";
+  const { job, createJob, cancel, retry, setPage } = useScreenerJob();
+
+  const runScan = useCallback(() => {
+    setOffset(0);
+    createJob(buildParams());
+  }, [createJob, buildParams]);
+
+  const isRunning = job && (job.status === "queued" || job.status === "running");
+  const isFailed = job?.status === "failed";
+  const isCompleted = job?.status === "completed";
+
+  const shibuiMode = isShibui && shibuiQuery.data?.source === "shibui";
+  const results = isShibui ? shibuiQuery.data?.results ?? [] : isCompleted ? job.result.items : [];
+  const total = isShibui ? results.length : isCompleted ? job.result.total : 0;
+
+  const changePage = (next) => {
+    setOffset(next);
+    setPage(next);
+  };
+
+  const resetFilters = () => {
+    setUniverse("sp500");
+    setCustomTickers("");
+    setSector("");
+    setMaxPE("");
+    setMinDivYield("");
+    setMinROE("");
+    setMinOperatingMargin("");
+    setMinPiotroski("");
+    setSortBy("market_cap");
+  };
 
   return (
     <div className="space-y-6">
@@ -119,14 +246,45 @@ export default function Screener() {
             <SlidersHorizontal size={14} />
             Filters
           </button>
-          <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-card border border-surface-border text-sm text-muted hover:text-ink transition-colors disabled:opacity-50"
-          >
-            <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
-            Refresh
-          </button>
+          {isShibui ? (
+            <button
+              onClick={() => shibuiQuery.refetch()}
+              disabled={shibuiQuery.isFetching}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-card border border-surface-border text-sm text-muted hover:text-ink transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={14} className={shibuiQuery.isFetching ? "animate-spin" : ""} />
+              Refresh
+            </button>
+          ) : (
+            <>
+              {isRunning && (
+                <button
+                  onClick={cancel}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-card border border-surface-border text-sm text-muted hover:text-ink transition-colors"
+                >
+                  <X size={14} />
+                  Cancel
+                </button>
+              )}
+              {isFailed && (
+                <button
+                  onClick={retry}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-card border border-surface-border text-sm text-muted hover:text-ink transition-colors"
+                >
+                  <RotateCcw size={14} />
+                  Retry
+                </button>
+              )}
+              <button
+                onClick={runScan}
+                disabled={isRunning}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand text-white border border-brand text-sm transition-colors disabled:opacity-50"
+              >
+                <Play size={14} />
+                Run Scan
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -153,7 +311,7 @@ export default function Screener() {
               ) : (
                 UNIVERSE_OPTIONS.find((o) => o.value === universe)?.slow && !customTickers.trim() && (
                   <p className="text-[11px] text-muted mt-1">
-                    First scan fetches every constituent (~1 min); results are cached for an hour.
+                    Runs in the background — you can cancel or navigate away and come back.
                   </p>
                 )
               )}
@@ -256,24 +414,16 @@ export default function Screener() {
           </div>
           <div className="flex justify-between items-center flex-wrap gap-2">
             <p className="text-xs text-muted">
-              {data?.total ?? 0} results (showing up to 50)
-              {shibuiMode && data?.capped_at_limit && " — more may match, refine filters to narrow down"}
-              {shibuiMode && data?.default_market_cap_floor_applied && " · $500M market-cap floor applied by default"}
+              {isShibui
+                ? `${total} results${shibuiQuery.data?.capped_at_limit ? " — more may match, refine filters to narrow down" : ""}`
+                : isCompleted
+                  ? `${total} results`
+                  : isRunning
+                    ? `Scanning… ${job.progress.completed} / ${job.progress.total} (${job.progress.percent}%)`
+                    : "No scan run yet"}
+              {shibuiMode && shibuiQuery.data?.default_market_cap_floor_applied && " · $500M market-cap floor applied by default"}
             </p>
-            <button
-              onClick={() => {
-                setUniverse("sp500");
-                setCustomTickers("");
-                setSector("");
-                setMaxPE("");
-                setMinDivYield("");
-                setMinROE("");
-                setMinOperatingMargin("");
-                setMinPiotroski("");
-                setSortBy("market_cap");
-              }}
-              className="text-xs text-muted hover:text-ink"
-            >
+            <button onClick={resetFilters} className="text-xs text-muted hover:text-ink">
               Reset filters
             </button>
           </div>
@@ -281,97 +431,42 @@ export default function Screener() {
       )}
 
       {/* Results */}
-      {isLoading ? (
-        <div className="text-center py-20 text-muted">Loading screener data…</div>
-      ) : !results.length ? (
+      {!isShibui && !job ? (
         <div className="text-center py-20 text-muted">
-          No stocks match your criteria. Try expanding the filters.
+          Choose a universe and filters, then click “Run Scan”.
         </div>
       ) : (
-        <div className="rounded-xl border border-surface-border overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm whitespace-nowrap">
-              <thead>
-                <tr className="border-b border-surface-border bg-surface-card">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Ticker</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Name</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Price</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Mkt Cap</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">P/E</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Fwd P/E</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">P/B</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">P/S</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Div Yield</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">ROE</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Net Margin</th>
-                  {shibuiMode ? (
-                    <>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Op. Margin</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider" title="Piotroski F-Score (0-9)">Piotroski</th>
-                    </>
-                  ) : (
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Beta</th>
-                  )}
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Target</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Sector</th>
-                  {!shibuiMode && (
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Rating</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((r) => (
-                  <tr
-                    key={r.ticker}
-                    onClick={() => openStock(r.ticker)}
-                    className="border-b border-surface-border last:border-0 hover:bg-surface-hover transition-colors cursor-pointer"
-                  >
-                    <td className="px-4 py-3 font-mono font-semibold text-ink">{r.ticker}</td>
-                    <td className="px-4 py-3 text-muted max-w-[160px] truncate">{r.name}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-ink font-medium">{fmtMoney(r.price)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtMoney(r.market_cap)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.pe)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.forward_pe)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.pb)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.ps)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      {r.div_yield != null ? (
-                        <span className="text-gain font-medium">{fmtPct(r.div_yield)}</span>
-                      ) : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtPct(r.roe)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtPct(r.net_margin)}</td>
-                    {shibuiMode ? (
-                      <>
-                        <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtPct(r.operating_margin)}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-muted">{r.piotroski_f_score ?? "—"}</td>
-                      </>
-                    ) : (
-                      <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtNum(r.beta)}</td>
-                    )}
-                    <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtMoney(r.target_mean)}</td>
-                    <td className="px-4 py-3 text-muted max-w-[120px] truncate">{r.sector ?? "—"}</td>
-                    {!shibuiMode && (
-                      <td className="px-4 py-3">
-                        {r.rating ? (
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            r.rating === "strong_buy" || r.rating === "buy"
-                              ? "bg-gain/20 text-gain"
-                              : r.rating === "hold"
-                              ? "bg-amber-500/20 text-amber-600"
-                              : "bg-loss/20 text-loss"
-                          }`}>
-                            {r.rating.replace("_", " ")}
-                          </span>
-                        ) : "—"}
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <AsyncSection
+          isLoading={isShibui ? shibuiQuery.isLoading : isRunning}
+          error={isShibui ? shibuiQuery.error : isFailed ? new Error(job.error || "Scan failed") : null}
+          onRetry={isShibui ? () => shibuiQuery.refetch() : retry}
+          loading={(
+            <div className="text-center py-20 text-muted">
+              {isShibui
+                ? "Loading screener data…"
+                : `Scanning… ${job.progress.completed} / ${job.progress.total} (${job.progress.percent}%)`}
+            </div>
+          )}
+          isEmpty={isShibui ? !shibuiQuery.isLoading && !shibuiQuery.error && !results.length : isCompleted && results.length === 0}
+          empty={(
+            <div className="text-center py-20 text-muted">
+              {isShibui
+                ? "No stocks match your criteria. Try expanding the filters."
+                : "No stocks match your criteria. Try expanding the filters."}
+            </div>
+          )}
+        >
+          <ResultsTable results={results} shibuiMode={shibuiMode} onRowClick={openStock} />
+          {!isShibui && isCompleted && (
+            <Pagination
+              offset={offset}
+              limit={RESULTS_LIMIT}
+              total={total}
+              onOffsetChange={changePage}
+              ariaLabel="Screener results pages"
+            />
+          )}
+        </AsyncSection>
       )}
     </div>
   );
