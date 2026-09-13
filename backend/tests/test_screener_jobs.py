@@ -1,6 +1,10 @@
 """Tests for the screener job service (backend/services/screener_jobs.py)
 and the _in_range missing-value fix it depends on."""
 
+import threading
+import time
+from unittest.mock import patch
+
 from routers.market import _in_range
 from services import screener_jobs as sj
 
@@ -73,3 +77,97 @@ def test_prune_enforces_max_retained_jobs():
         # Oldest jobs (highest i, since created_at = now - i means larger i is older) are evicted first.
         assert "j0" in sj._JOBS
         assert "j24" not in sj._JOBS
+
+
+def _fake_row(sym, price=100.0, pe=15.0):
+    return {"ticker": sym, "name": sym, "price": price, "market_cap": 1e9, "pe": pe, "sector": "Technology"}
+
+
+def _wait_for_status(job_id, user_id, statuses, timeout=3.0):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        job = sj.get_job(user_id, job_id)
+        if job is not None and job.status in statuses:
+            return job
+        time.sleep(0.02)
+    raise AssertionError(f"job {job_id} did not reach {statuses} in time")
+
+
+def test_submit_job_dedups_identical_request_from_same_user():
+    _reset_registry()
+    gate = threading.Event()
+
+    def slow_row(sym):
+        gate.wait(timeout=2)
+        return _fake_row(sym)
+
+    with patch("services.screener_jobs._ticker_row", side_effect=slow_row):
+        req = {"universe": "tech_large", "tickers": "", "sort_by": "market_cap", "sort_desc": True, "limit": 50}
+        job1 = sj.submit_job("user-1", req)
+        job2 = sj.submit_job("user-1", dict(req))
+        assert job1.job_id == job2.job_id
+        gate.set()
+        _wait_for_status(job1.job_id, "user-1", {"completed", "failed", "cancelled"})
+
+
+def test_submit_job_does_not_dedup_across_users():
+    _reset_registry()
+    with patch("services.screener_jobs._ticker_row", side_effect=lambda sym: _fake_row(sym)):
+        req = {"universe": "tech_large", "tickers": "", "sort_by": "market_cap", "sort_desc": True, "limit": 50}
+        job1 = sj.submit_job("user-1", req)
+        job2 = sj.submit_job("user-2", dict(req))
+        assert job1.job_id != job2.job_id
+        _wait_for_status(job1.job_id, "user-1", {"completed", "failed", "cancelled"})
+        _wait_for_status(job2.job_id, "user-2", {"completed", "failed", "cancelled"})
+
+
+def test_job_completes_and_progress_reaches_total():
+    _reset_registry()
+    tickers = ["AAA", "BBB", "CCC"]
+    with patch("services.screener_jobs._universe_tickers", return_value=tickers), \
+         patch("services.screener_jobs._ticker_row", side_effect=lambda sym: _fake_row(sym)):
+        job = sj.submit_job("user-1", {"universe": "tech_large", "tickers": "", "sort_by": "market_cap", "sort_desc": True, "limit": 50})
+        done = _wait_for_status(job.job_id, "user-1", {"completed"})
+        assert done.completed_count == done.scan_total == len(tickers)
+        assert done.result_items and len(done.result_items) == len(tickers)
+
+
+def test_job_cancellation_stops_scheduling_further_batches():
+    _reset_registry()
+    tickers = [f"T{i}" for i in range(40)]
+    started = threading.Event()
+    release = threading.Event()
+
+    def slow_row(sym):
+        started.set()
+        release.wait(timeout=2)
+        return _fake_row(sym)
+
+    with patch("services.screener_jobs._universe_tickers", return_value=tickers), \
+         patch("services.screener_jobs._ticker_row", side_effect=slow_row):
+        job = sj.submit_job("user-1", {"universe": "tech_large", "tickers": "", "sort_by": "market_cap", "sort_desc": True, "limit": 50})
+        assert started.wait(timeout=2)
+        assert sj.cancel_job("user-1", job.job_id) is True
+        release.set()
+        done = _wait_for_status(job.job_id, "user-1", {"cancelled"})
+        # Cancellation must stop scheduling further batches; it must not have
+        # processed every one of the 40 tickers (batch size is 12).
+        assert done.completed_count < len(tickers)
+
+
+def test_get_job_returns_none_for_wrong_user_or_missing():
+    _reset_registry()
+    with patch("services.screener_jobs._ticker_row", side_effect=lambda sym: _fake_row(sym)):
+        job = sj.submit_job("user-1", {"universe": "tech_large", "tickers": "", "sort_by": "market_cap", "sort_desc": True, "limit": 50})
+        _wait_for_status(job.job_id, "user-1", {"completed", "failed", "cancelled"})
+        assert sj.get_job("user-2", job.job_id) is None
+        assert sj.get_job("user-1", "not-a-real-id") is None
+
+
+def test_cancel_job_returns_false_for_wrong_user_or_missing():
+    _reset_registry()
+    with patch("services.screener_jobs._ticker_row", side_effect=lambda sym: _fake_row(sym)):
+        job = sj.submit_job("user-1", {"universe": "tech_large", "tickers": "", "sort_by": "market_cap", "sort_desc": True, "limit": 50})
+        assert sj.cancel_job("user-2", job.job_id) is False
+        assert sj.cancel_job("user-1", "not-a-real-id") is False
+        _wait_for_status(job.job_id, "user-1", {"completed", "failed", "cancelled"})
