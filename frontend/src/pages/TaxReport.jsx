@@ -5,6 +5,12 @@ import { useCurrency } from "../App";
 import MetricCard from "../components/MetricCard";
 import { FileText, Download, TrendingUp, TrendingDown, ShieldCheck, AlertTriangle, Hourglass } from "lucide-react";
 import { TickerLink } from "../components/StockDetail";
+import {
+  formatMoney as formatSharedMoney,
+  formatPercent,
+  formatQuantity,
+  formatShortDate,
+} from "../lib/format";
 
 // Czech §4 capital gains exemption rules. Kept on the client so the labels can
 // be tweaked without touching the API.
@@ -22,6 +28,19 @@ const fmtCzk = (n) => {
     maximumFractionDigits: 0,
   }) + " Kč";
 };
+
+const GainPercent = ({ value }) => value == null ? (
+  <span
+    title="Percentage is not meaningful for a basis below one cent."
+    aria-label="Percentage is not meaningful for a basis below one cent."
+  >
+    —
+  </span>
+) : formatPercent(value, { sign: false });
+
+const csvFixed = (value, digits) => (
+  value == null ? "" : Number(value).toFixed(digits)
+);
 
 function CzechTaxYearCard({ y }) {
   // Cards collapse the per-year summary into actionable rows. Order matters:
@@ -119,23 +138,15 @@ export default function TaxReport() {
   const [tab, setTab] = useState("realized");
 
   const convert = (n) => (currency === "CZK" && rate ? n * rate : n);
-  const fmt = (n) => {
-    if (n == null) return "—";
-    const sign = n < 0 ? "-" : "";
-    const str = Math.abs(convert(n)).toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    return currency === "CZK" ? `${sign}${str} Kč` : `${sign}$${str}`;
-  };
+  const fmt = (n) => formatSharedMoney(convert(n), currency);
 
   // For amounts the backend also provides in CZK at trade-time FX. In CZK mode
   // these are authoritative for Czech filing — use them instead of fmt()'s
   // approximate live-rate conversion of the USD figure.
   const fmtMoney = (usd, czk) =>
-    currency === "CZK" ? (czk == null ? "—" : fmtCzk(czk)) : fmt(usd);
-
-  const fmtPct = (n) => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
+    currency === "CZK"
+      ? formatSharedMoney(czk, "CZK")
+      : formatSharedMoney(usd, "USD");
 
   const { data, isLoading } = useQuery({
     queryKey: ["tax-report", year],
@@ -160,7 +171,7 @@ export default function TaxReport() {
     const czk = (n) => (n == null ? "" : n);
     let csv = "Section,Ticker,Buy Date,Sell Date,Shares,Cost Basis (USD),Proceeds (USD),Gain/Loss (USD),Cost Basis (CZK),Proceeds (CZK),Gain/Loss (CZK),Gain %,Holding Days,Term\n";
     for (const g of gains) {
-      csv += `Realized,${g.ticker},${g.buy_date},${g.sell_date},${g.shares},${g.cost_basis},${g.proceeds},${g.gain},${czk(g.cost_basis_czk)},${czk(g.proceeds_czk)},${czk(g.gain_czk)},${g.gain_pct}%,${g.holding_days},${g.term}\n`;
+      csv += `Realized,${g.ticker},${g.buy_date},${g.sell_date},${csvFixed(g.shares, 8)},${csvFixed(g.cost_basis, 6)},${csvFixed(g.proceeds, 6)},${csvFixed(g.gain, 6)},${csvFixed(g.cost_basis_czk, 6)},${csvFixed(g.proceeds_czk, 6)},${csvFixed(g.gain_czk, 6)},${g.gain_pct == null ? "" : g.gain_pct},${g.holding_days},${g.term}\n`;
     }
     if (dividendIncome.length) {
       csv += "\nSection,Ticker,Amount (USD),Amount (CZK)\n";
@@ -171,7 +182,7 @@ export default function TaxReport() {
     if (unrealized.length) {
       csv += "\nSection,Ticker,Buy Date,Shares,Cost Basis,Market Value,Unrealized Gain,Gain %,Holding Days,Term\n";
       for (const u of unrealized) {
-        csv += `Unrealized,${u.ticker},${u.buy_date},${u.shares},${u.cost_basis},${u.market_value},${u.unrealized_gain},${u.gain_pct}%,${u.holding_days},${u.term}\n`;
+        csv += `Unrealized,${u.ticker},${u.buy_date},${csvFixed(u.shares, 8)},${csvFixed(u.cost_basis, 6)},${csvFixed(u.market_value, 6)},${csvFixed(u.unrealized_gain, 6)},${u.gain_pct == null ? "" : u.gain_pct},${u.holding_days},${u.term}\n`;
       }
     }
 
@@ -301,19 +312,19 @@ export default function TaxReport() {
                             <td className="px-4 py-3 font-mono font-bold text-sm">
                               <TickerLink ticker={g.ticker}>{g.ticker}</TickerLink>
                             </td>
-                            <td className="px-4 py-3 text-sm text-muted tabular-nums">{g.buy_date}</td>
-                            <td className="px-4 py-3 text-sm text-muted tabular-nums">{g.sell_date}</td>
-                            <td className="px-4 py-3 text-sm text-right tabular-nums">{g.shares}</td>
-                            <td className="px-4 py-3 text-sm text-right tabular-nums">{fmt(g.cost_basis)}</td>
-                            <td className="px-4 py-3 text-sm text-right tabular-nums">{fmt(g.proceeds)}</td>
+                            <td className="px-4 py-3 text-sm text-muted tabular-nums">{formatShortDate(g.buy_date)}</td>
+                            <td className="px-4 py-3 text-sm text-muted tabular-nums">{formatShortDate(g.sell_date)}</td>
+                            <td className="px-4 py-3 text-sm text-right tabular-nums">{formatQuantity(g.shares)}</td>
+                            <td className="px-4 py-3 text-sm text-right tabular-nums">{fmtMoney(g.cost_basis, g.cost_basis_czk)}</td>
+                            <td className="px-4 py-3 text-sm text-right tabular-nums">{fmtMoney(g.proceeds, g.proceeds_czk)}</td>
                             <td className={`px-4 py-3 text-sm text-right tabular-nums font-medium ${up ? "text-gain" : "text-loss"}`}>
                               <span className="flex items-center justify-end gap-1">
                                 {up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                                {fmt(g.gain)}
+                                {fmtMoney(g.gain, g.gain_czk)}
                               </span>
                             </td>
                             <td className={`px-4 py-3 text-sm text-right tabular-nums ${up ? "text-gain" : "text-loss"}`}>
-                              {fmtPct(g.gain_pct)}
+                              <GainPercent value={g.gain_pct} />
                             </td>
                             <td className="px-4 py-3 text-sm text-right tabular-nums text-muted">{g.holding_days}d</td>
                             <td className="px-4 py-3">
@@ -390,18 +401,18 @@ export default function TaxReport() {
                             <td className="px-4 py-3 font-mono font-bold text-sm">
                               <TickerLink ticker={u.ticker}>{u.ticker}</TickerLink>
                             </td>
-                            <td className="px-4 py-3 text-sm text-muted tabular-nums">{u.buy_date}</td>
-                            <td className="px-4 py-3 text-sm text-right tabular-nums">{u.shares}</td>
-                            <td className="px-4 py-3 text-sm text-right tabular-nums">{fmt(u.cost_basis)}</td>
-                            <td className="px-4 py-3 text-sm text-right tabular-nums font-medium">{fmt(u.market_value)}</td>
+                            <td className="px-4 py-3 text-sm text-muted tabular-nums">{formatShortDate(u.buy_date)}</td>
+                            <td className="px-4 py-3 text-sm text-right tabular-nums">{formatQuantity(u.shares)}</td>
+                            <td className="px-4 py-3 text-sm text-right tabular-nums">{formatSharedMoney(u.cost_basis, "USD")}</td>
+                            <td className="px-4 py-3 text-sm text-right tabular-nums font-medium">{formatSharedMoney(u.market_value, "USD")}</td>
                             <td className={`px-4 py-3 text-sm text-right tabular-nums font-medium ${up ? "text-gain" : "text-loss"}`}>
                               <span className="flex items-center justify-end gap-1">
                                 {up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                                {fmt(u.unrealized_gain)}
+                                {formatSharedMoney(u.unrealized_gain, "USD")}
                               </span>
                             </td>
                             <td className={`px-4 py-3 text-sm text-right tabular-nums ${up ? "text-gain" : "text-loss"}`}>
-                              {fmtPct(u.gain_pct)}
+                              <GainPercent value={u.gain_pct} />
                             </td>
                             <td className="px-4 py-3 text-sm text-right tabular-nums text-muted">{u.holding_days}d</td>
                             <td className="px-4 py-3">
