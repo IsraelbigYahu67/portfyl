@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, PieChart, ArrowLeftRight, Upload, Loader2, CalendarDays, Activity, Settings, Search, Star, ArrowLeft, Bot, Sun, Moon, Monitor, Wallet, Layers } from "lucide-react";
+import { LayoutDashboard, PieChart, ArrowLeftRight, Upload, Loader2, CalendarDays, Activity, Settings, Search, Star, ArrowLeft, Bot, Sun, Moon, Monitor, Layers } from "lucide-react";
 import { useCurrency, usePalette, usePlatform } from "../App";
 import PortfolioSwitcher from "./PortfolioSwitcher";
 import AccountMenu from "./AccountMenu";
@@ -13,7 +13,6 @@ const T212_LINKS = [
   { to: "/overview", label: "Overview", icon: Layers },
   { to: "/allocation", label: "Allocation", icon: PieChart },
   { to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
-  { to: "/cash", label: "Cash", icon: Wallet },
   { to: "/search", label: "Search", icon: Search },
   { to: "/watchlists", label: "Watchlists", icon: Star },
   { to: "/import", label: "Import CSV", icon: Upload },
