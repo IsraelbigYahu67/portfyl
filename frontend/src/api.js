@@ -149,8 +149,6 @@ export const createPortfolio = (data) => api.post("/portfolios", data).then((r) 
 export const createDemoPortfolio = () => api.post("/portfolios/demo").then((r) => r.data);
 export const updatePortfolio = (id, data) => api.patch(`/portfolios/${id}`, data).then((r) => r.data);
 export const deletePortfolio = (id) => api.delete(`/portfolios/${id}`).then((r) => r.data);
-export const fetchOverview = (currency = "USD") =>
-  api.get("/portfolios/overview", { params: { currency } }).then((r) => r.data);
 
 // ----- Everything below is portfolio-scoped via the interceptor ---------------
 
@@ -161,6 +159,12 @@ export const fetchHoldings = (currency = "USD") =>
 export const fetchAllHoldings = (currency = "USD") =>
   api.get(`/portfolio/holdings`, { params: { currency, include_closed: true } }).then((r) => r.data);
 export const fetchTransactions = () => api.get("/portfolio/transactions").then((r) => r.data);
+export const fetchTransactionsPage = ({ offset = 0, limit = 50, q = "", type = "", sort = "-date" } = {}) =>
+  api
+    .get("/portfolio/transactions/page", {
+      params: { offset, limit, q: q || undefined, type: type || undefined, sort },
+    })
+    .then((r) => r.data);
 export const fetchPerformance = (currency = "USD", period = "all") =>
   api.get(`/portfolio/performance`, { params: { currency, period } }).then((r) => r.data);
 export const fetchBenchmarks = (benchmarks = [], period = "all") =>

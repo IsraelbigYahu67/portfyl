@@ -1,6 +1,7 @@
 import { FileText, Filter } from "lucide-react";
 import TaxReport from "../pages/TaxReport";
 import Screener from "../pages/Screener";
+import { fetchLocalTaxReport } from "./localApi";
 
 export const EDITION_ROUTES = Object.freeze([
   { path: "/tax-report", capability: "tax_report", Component: TaxReport },
@@ -11,6 +12,10 @@ export const EDITION_NAVIGATION = Object.freeze([
   { to: "/tax-report", label: "Tax Report", icon: FileText, capability: "tax_report" },
   { to: "/screener", label: "Screener", icon: Filter, capability: "screener" },
 ]);
+
+export const fetchEditionDashboardSignals = async () => ({
+  taxReport: await fetchLocalTaxReport(),
+});
 
 export function EditionShell() {
   return null;

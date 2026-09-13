@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { useQuery, useQueryClient, useIsFetching } from "@tanstack/react-query";
-import { fetchSummary, fetchHoldings, fetchPerformance, fetchBenchmarks, fetchMovers, fetchEarnings, fetchInsiderBuys } from "../api";
+import { fetchSummary, fetchHoldings, fetchPerformance, fetchBenchmarks, fetchMovers, fetchEarnings, fetchInsiderBuys, fetchDividends } from "../api";
 import { useCurrency } from "../App";
+import { fetchEditionDashboardSignals } from "@edition-manifest";
 import MetricCard from "../components/MetricCard";
 import PerformanceChart from "../components/PerformanceChart";
 import { RefreshCw, TrendingUp, TrendingDown, Calendar, LayoutGrid, Lock, UserCheck, PieChart, Activity } from "lucide-react";
 import { formatMoney, formatPercent } from "../lib/format";
-import { Card, SectionHeader, SkeletonRows, SkeletonChart, EmptyState, DeltaPill } from "../components/ui";
+import { AsyncSection, Card, SectionHeader, SkeletonRows, SkeletonChart, EmptyState, DeltaPill, ChartSummary } from "../components/ui";
 import Heatmap from "../components/Heatmap";
 import { TickerLink } from "../components/StockDetail";
 import DashboardGrid from "../components/DashboardGrid";
 import PortfolioHero from "../components/PortfolioHero";
+import DashboardAttention from "../components/DashboardAttention";
+import { derivePortfolioAlerts } from "../lib/portfolioAlerts";
 import { CATEGORICAL } from "../lib/chartTheme";
 
 const MOVER_PERIODS = [
@@ -47,15 +50,15 @@ export default function Dashboard() {
       prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
     );
 
-  const { data: summary, isLoading: sl } = useQuery({
+  const { data: summary, isLoading: sl, error: summaryError, refetch: refetchSummary } = useQuery({
     queryKey: ["summary", currency],
     queryFn: () => fetchSummary(currency),
   });
-  const { data: holdings = [], isLoading: hl } = useQuery({
+  const { data: holdings = [], isLoading: hl, error: holdingsError, refetch: refetchHoldings } = useQuery({
     queryKey: ["holdings", currency],
     queryFn: () => fetchHoldings(currency),
   });
-  const { data: perf = [], isLoading: pl } = useQuery({
+  const { data: perf = [], isLoading: pl, error: performanceError, refetch: refetchPerformance } = useQuery({
     queryKey: ["performance", currency, period],
     queryFn: () => fetchPerformance(currency, period.toLowerCase()),
   });
@@ -65,21 +68,42 @@ export default function Dashboard() {
     enabled: activeBenchmarks.length > 0,
   });
 
-  const { data: movers, isLoading: ml } = useQuery({
+  const { data: movers, isLoading: ml, error: moversError, refetch: refetchMovers } = useQuery({
     queryKey: ["movers", moverPeriod],
     queryFn: () => fetchMovers(moverPeriod),
   });
 
-  const { data: earnings = [], isLoading: el } = useQuery({
+  const { data: earnings = [], isLoading: el, error: earningsError, refetch: refetchEarnings } = useQuery({
     queryKey: ["earnings"],
     queryFn: fetchEarnings,
   });
 
-  const { data: insiderBuys = [], isLoading: il } = useQuery({
+  const { data: insiderBuys = [], isLoading: il, error: insiderError, refetch: refetchInsider } = useQuery({
     queryKey: ["insider-buys"],
     queryFn: fetchInsiderBuys,
     staleTime: 30 * 60 * 1000,
   });
+
+  const { data: dividends = [], isLoading: dl, error: dividendsError, refetch: refetchDividends } = useQuery({
+    queryKey: ["dividends"],
+    queryFn: fetchDividends,
+  });
+
+  const { data: editionSignals } = useQuery({
+    queryKey: ["edition-dashboard-signals"],
+    queryFn: fetchEditionDashboardSignals,
+  });
+
+  const alerts = derivePortfolioAlerts({
+    holdings,
+    dividends,
+    taxReport: editionSignals?.taxReport ?? null,
+    earnings,
+    today: new Date().toISOString().slice(0, 10),
+  });
+  const alertsLoading = dl;
+  const alertsError = dividendsError;
+
 
   const heroSeries = (perf || [])
     .map((p) => ({ value: p.value }))
@@ -97,7 +121,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold">Portfolio Overview</h1>
+          <h1 className="text-xl font-bold" tabIndex={-1}>Dashboard</h1>
           {summary?.last_updated && (
             <p className="text-xs text-muted mt-0.5">
               Updated {new Date(summary.last_updated).toLocaleTimeString()}
@@ -135,12 +159,19 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <PortfolioHero summary={summary} loading={sl} currency={currency} series={heroSeries} />
+      <AsyncSection
+        isLoading={sl}
+        error={summaryError}
+        onRetry={() => refetchSummary()}
+        loading={<PortfolioHero loading currency={currency} series={[]} />}
+      >
+        <PortfolioHero summary={summary} currency={currency} series={heroSeries} />
+      </AsyncSection>
       <DashboardGrid editing={editingLayout} onEditToggle={() => setEditingLayout(!editingLayout)}>
         {{
           performance: (
             <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "100ms" }}>
-              <SectionHeader icon={TrendingUp} action={<div className="flex items-center gap-3">
+              <SectionHeader icon={TrendingUp} action={<div className="flex flex-wrap items-center gap-3">
                   <div className="flex gap-0.5 bg-surface-hover rounded-lg p-0.5">
                     {["value", "growth"].map((m) => (
                       <button
@@ -156,7 +187,7 @@ export default function Dashboard() {
                       </button>
                     ))}
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex flex-wrap gap-1">
                     {PERIODS.map((p) => (
                       <button
                         key={p}
@@ -190,9 +221,12 @@ export default function Dashboard() {
                   </button>
                 ))}
               </div>
-              {pl ? (
-                <div className="flex-1"><SkeletonChart height={256} /></div>
-              ) : (
+              <AsyncSection
+                isLoading={pl}
+                error={performanceError}
+                onRetry={() => refetchPerformance()}
+                loading={<div className="flex-1"><SkeletonChart height={256} /></div>}
+              >
                 <PerformanceChart
                   data={perf}
                   currency={currency}
@@ -200,81 +234,128 @@ export default function Dashboard() {
                   benchmarks={benchmarkData}
                   benchmarkMeta={BENCHMARKS.filter((b) => activeBenchmarks.includes(b.key))}
                 />
-              )}
+                <ChartSummary title="Performance chart data">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="text-muted">
+                        <th className="pr-3 font-medium">Date</th>
+                        <th className="font-medium">{chartMode === "value" ? "Value" : "Growth %"}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(perf || []).map((point) => (
+                        <tr key={point.date}>
+                          <td className="pr-3 tabular-nums">{point.date}</td>
+                          <td className="tabular-nums">
+                            {chartMode === "value" ? formatMoney(point.value, currency) : `${point.pnl_pct}%`}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </ChartSummary>
+              </AsyncSection>
             </Card>
           ),
 
-          heatmap: (
-            <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "150ms" }}>
-              <SectionHeader icon={LayoutGrid}>Heatmap</SectionHeader>
-              {hl ? (
-                <div className="flex-1"><SkeletonChart height={256} /></div>
-              ) : holdings.length === 0 ? (
-                <div className="flex-1 flex"><EmptyState icon={LayoutGrid} title="No holdings to map" hint="Import transactions to see your heatmap." /></div>
-              ) : (
-                <Heatmap />
-              )}
-            </Card>
-          ),
+          concentration: (
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold text-muted uppercase tracking-wider">Concentration</h2>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "150ms" }}>
+                  <SectionHeader icon={LayoutGrid}>Heatmap</SectionHeader>
+                  <AsyncSection
+                    isLoading={hl}
+                    error={holdingsError}
+                    onRetry={() => refetchHoldings()}
+                    loading={<div className="flex-1"><SkeletonChart height={256} /></div>}
+                    isEmpty={holdings.length === 0}
+                    empty={<div className="flex-1 flex"><EmptyState icon={LayoutGrid} title="No holdings to map" hint="Import transactions to see your heatmap." /></div>}
+                  >
+                    <Heatmap />
+                  </AsyncSection>
+                </Card>
 
-          earnings: (
-            <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "200ms" }}>
-              <SectionHeader icon={Calendar}>Earnings Calendar</SectionHeader>
-              {el ? (
-                <SkeletonRows rows={6} cols={3} />
-              ) : earnings.length === 0 ? (
-                <EmptyState icon={Calendar} title="No upcoming earnings" hint="None of your current holdings report soon." />
-              ) : (
-                <div className="space-y-2.5">
-                  {earnings.slice(0, 10).map((e) => (
-                    <div key={e.ticker} className="flex items-center gap-3 text-sm">
-                      <TickerLink ticker={e.ticker} className="w-16 font-mono font-semibold text-left" />
-                      <span className="flex-1 text-muted truncate">{e.name}</span>
-                      <span className="tabular-nums text-muted w-20 text-right">
-                        {e.date}
-                      </span>
-                      <span className="tabular-nums text-ink font-medium w-16 text-right">
-                        {e.time}
-                      </span>
-                      <span className="tabular-nums text-muted w-20 text-right">
-                        {e.eps_estimate != null ? `EPS ${e.eps_estimate}` : "—"}
-                      </span>
+                <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "200ms" }}>
+                  <SectionHeader icon={PieChart}>Top 10 Holdings</SectionHeader>
+                  <AsyncSection
+                    isLoading={hl}
+                    error={holdingsError}
+                    onRetry={() => refetchHoldings()}
+                    loading={<SkeletonRows rows={8} cols={3} />}
+                    isEmpty={holdings.length === 0}
+                    empty={<EmptyState icon={PieChart} title="No holdings yet" hint="Import your transactions to see your top positions." action={<a href="/import" className="btn-primary text-xs">Import CSV</a>} />}
+                  >
+                    <div className="space-y-2.5">
+                      {holdings.slice(0, 10).map((h) => (
+                        <div key={h.ticker} className="flex items-center gap-3">
+                          <TickerLink ticker={h.ticker} className="w-16 font-mono font-semibold text-sm text-left" />
+                          <div className="flex-1 bg-surface-hover rounded-full h-2.5 relative">
+                            <div
+                              className="bg-brand rounded-full h-2.5 transition-all"
+                              style={{ width: `${h.weight}%` }}
+                            />
+                          </div>
+                          <span className="text-sm font-semibold tabular-nums w-14 text-right text-ink">
+                            {h.weight.toFixed(1)}%
+                          </span>
+                          <span className="text-sm tabular-nums w-28 text-right text-muted">
+                            {formatMoney(h.market_value, currency)}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-            </Card>
+                  </AsyncSection>
+                </Card>
+              </div>
+            </div>
           ),
 
-          holdings: (
-            <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "250ms" }}>
-              <SectionHeader icon={PieChart}>Top 10 Holdings</SectionHeader>
-              {hl ? (
-                <SkeletonRows rows={8} cols={3} />
-              ) : holdings.length === 0 ? (
-                <EmptyState icon={PieChart} title="No holdings yet" hint="Import your transactions to see your top positions." action={<a href="/import" className="btn-primary text-xs">Import CSV</a>} />
-              ) : (
-                <div className="space-y-2.5">
-                  {holdings.slice(0, 10).map((h) => (
-                    <div key={h.ticker} className="flex items-center gap-3">
-                      <TickerLink ticker={h.ticker} className="w-16 font-mono font-semibold text-sm text-left" />
-                      <div className="flex-1 bg-surface-hover rounded-full h-2.5 relative">
-                        <div
-                          className="bg-brand rounded-full h-2.5 transition-all"
-                          style={{ width: `${h.weight}%` }}
-                        />
-                      </div>
-                      <span className="text-sm font-semibold tabular-nums w-14 text-right text-ink">
-                        {h.weight.toFixed(1)}%
-                      </span>
-                      <span className="text-sm tabular-nums w-28 text-right text-muted">
-                        {formatMoney(h.market_value, currency)}
-                      </span>
+          attention: (
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold text-muted uppercase tracking-wider">Needs attention</h2>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "250ms" }}>
+                  <SectionHeader icon={Activity}>Attention signals</SectionHeader>
+                  <DashboardAttention
+                    alerts={alerts}
+                    isLoading={alertsLoading}
+                    error={alertsError}
+                    onRetry={() => refetchDividends()}
+                  />
+                </Card>
+
+                <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "300ms" }}>
+                  <SectionHeader icon={Calendar}>Earnings Calendar</SectionHeader>
+                  <AsyncSection
+                    isLoading={el}
+                    error={earningsError}
+                    onRetry={() => refetchEarnings()}
+                    loading={<SkeletonRows rows={6} cols={3} />}
+                    isEmpty={earnings.length === 0}
+                    empty={<EmptyState icon={Calendar} title="No upcoming earnings" hint="None of your current holdings report soon." />}
+                  >
+                    <div className="space-y-2.5">
+                      {earnings.slice(0, 10).map((e) => (
+                        <div key={e.ticker} className="flex items-center gap-3 text-sm">
+                          <TickerLink ticker={e.ticker} className="w-16 font-mono font-semibold text-left" />
+                          <span className="flex-1 text-muted truncate">{e.name}</span>
+                          <span className="tabular-nums text-muted w-20 text-right">
+                            {e.date}
+                          </span>
+                          <span className="tabular-nums text-ink font-medium w-16 text-right">
+                            {e.time}
+                          </span>
+                          <span className="tabular-nums text-muted w-20 text-right">
+                            {e.eps_estimate != null ? `EPS ${e.eps_estimate}` : "—"}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-            </Card>
+                  </AsyncSection>
+                </Card>
+              </div>
+            </div>
           ),
 
           insiderBuys: (() => {
@@ -287,13 +368,19 @@ export default function Dashboard() {
             const thSortable = (key, align) => `${thBase} ${align} cursor-pointer select-none transition-colors ${insiderSort === key ? "text-brand" : "text-muted hover:text-ink"}`;
             const sortArrow = (key) => insiderSort === key ? " ▼" : "";
             return (
-            <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "300ms" }}>
-              <SectionHeader icon={UserCheck}>Insider Buys (1Y)</SectionHeader>
-              {il ? (
-                <SkeletonRows rows={6} cols={6} />
-              ) : sorted.length === 0 ? (
-                <EmptyState icon={UserCheck} title="No insider buys" hint="No insider purchases across your holdings in the last 12 months." />
-              ) : (
+            <details className="animate-fade-up">
+              <summary className="cursor-pointer select-none text-sm font-semibold text-muted uppercase tracking-wider mb-3">
+                Insider activity (1Y)
+              </summary>
+              <Card className="h-full flex flex-col" style={{ animationDelay: "300ms" }}>
+              <AsyncSection
+                isLoading={il}
+                error={insiderError}
+                onRetry={() => refetchInsider()}
+                loading={<SkeletonRows rows={6} cols={6} />}
+                isEmpty={sorted.length === 0}
+                empty={<EmptyState icon={UserCheck} title="No insider buys" hint="No insider purchases across your holdings in the last 12 months." />}
+              >
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -345,8 +432,9 @@ export default function Dashboard() {
                     </tbody>
                   </table>
                 </div>
-              )}
-            </Card>
+              </AsyncSection>
+              </Card>
+            </details>
             );
           })(),
 
@@ -384,11 +472,14 @@ export default function Dashboard() {
                     ))}
                   </div>
                 </div>}>Top Movers</SectionHeader>
-              {ml ? (
-                <SkeletonRows rows={6} cols={3} />
-              ) : (!movers?.gainers?.length && !movers?.losers?.length) ? (
-                <EmptyState icon={Activity} title="No movers yet" hint="Import transactions to track daily gainers and losers." />
-              ) : (
+              <AsyncSection
+                isLoading={ml}
+                error={moversError}
+                onRetry={() => refetchMovers()}
+                loading={<SkeletonRows rows={6} cols={3} />}
+                isEmpty={!movers?.gainers?.length && !movers?.losers?.length}
+                empty={<EmptyState icon={Activity} title="No movers yet" hint="Import transactions to track daily gainers and losers." />}
+              >
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   <div>
                     <h3 className="text-xs font-medium text-gain mb-2 flex items-center gap-1">
@@ -433,7 +524,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
-              )}
+              </AsyncSection>
             </Card>
           ),
         }}

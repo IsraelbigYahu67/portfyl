@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   createDemoPortfolio: vi.fn(),
   setCurrentId: vi.fn(),
   refetchPortfolios: vi.fn(),
-  setPlatform: vi.fn(),
 }));
 
 vi.mock("../api", () => ({
@@ -23,15 +22,15 @@ vi.mock("../App", () => ({
     setCurrentId: mocks.setCurrentId,
     refetchPortfolios: mocks.refetchPortfolios,
   }),
-  usePlatform: () => ({ setPlatform: mocks.setPlatform }),
 }));
 
 
 function mount() {
   return render(
-    <MemoryRouter initialEntries={[TRACKER_HOME]}>
+    <MemoryRouter initialEntries={["/onboarding"]}>
       <Routes>
-        <Route path={TRACKER_HOME} element={<Onboarding />} />
+        <Route path="/onboarding" element={<Onboarding />} />
+        <Route path={TRACKER_HOME} element={<div>Dashboard destination</div>} />
         <Route path="/import" element={<div>Import destination</div>} />
         <Route path="/settings" element={<div>Settings destination</div>} />
       </Routes>
@@ -55,7 +54,6 @@ describe("Onboarding", () => {
 
     await waitFor(() => expect(mocks.createPortfolio).toHaveBeenCalledWith({ name: "My portfolio" }));
     expect(mocks.setCurrentId).toHaveBeenCalledWith("portfolio-id");
-    expect(mocks.setPlatform).toHaveBeenCalledWith("t212");
     expect(await screen.findByText("Import destination")).toBeInTheDocument();
   });
 
@@ -66,8 +64,7 @@ describe("Onboarding", () => {
 
     await waitFor(() => expect(mocks.createDemoPortfolio).toHaveBeenCalledTimes(1));
     expect(mocks.setCurrentId).toHaveBeenCalledWith("demo-id");
-    expect(mocks.setPlatform).toHaveBeenCalledWith("t212");
-    expect(screen.getByText(/sample data.*replace or clear/i)).toBeInTheDocument();
+    expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
   });
 
   it("creates a portfolio before sending the user to broker settings", async () => {
@@ -78,6 +75,20 @@ describe("Onboarding", () => {
     await waitFor(() => expect(mocks.createPortfolio).toHaveBeenCalledWith({ name: "My portfolio" }));
     expect(mocks.setCurrentId).toHaveBeenCalledWith("portfolio-id");
     expect(await screen.findByText("Settings destination")).toBeInTheDocument();
+  });
+
+  it("navigates before the portfolio refetch can unmount onboarding", async () => {
+    let finishRefetch;
+    mocks.refetchPortfolios.mockReturnValueOnce(new Promise((resolve) => {
+      finishRefetch = resolve;
+    }));
+    mount();
+
+    fireEvent.click(screen.getByRole("button", { name: /connect a broker/i }));
+
+    await waitFor(() => expect(mocks.setCurrentId).toHaveBeenCalledWith("portfolio-id"));
+    expect(await screen.findByText("Settings destination")).toBeInTheDocument();
+    finishRefetch({});
   });
 
   it("shows an actionable API error without navigating", async () => {

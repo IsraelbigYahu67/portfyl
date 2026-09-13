@@ -9,9 +9,12 @@ import pytest
 
 from tests.helpers import make_txn
 from routers.analytics import (
+    LOT_EPSILON,
     _compute_capital_gains,
     _compute_czech_tax_by_year,
     _compute_unrealized_gains,
+    _consume_fifo,
+    tax_report,
 )
 
 
@@ -123,6 +126,67 @@ class TestCapitalGains:
         assert len(gains_2025) == 1
         gains_all = _compute_capital_gains(txns)
         assert len(gains_all) == 2
+
+
+def test_consume_fifo_clamps_residuals_at_epsilon():
+    lots = [{"remaining": 1.0, "shares": 1.0, "price": 10.0}]
+    matched = _consume_fifo(lots, 1.0 - LOT_EPSILON / 2)
+    assert lots[0]["remaining"] == 0.0
+    assert matched[0][1] == pytest.approx(1.0 - LOT_EPSILON / 2)
+
+
+def test_consume_fifo_does_not_emit_dust_match():
+    lots = [{"remaining": LOT_EPSILON / 2, "shares": 1.0, "price": 10.0}]
+    assert _consume_fifo(lots, 1) == []
+
+
+def test_realized_row_precision_and_tiny_basis_percentage():
+    txns = [
+        make_txn("DUST", "buy", 0.00000002, 100, date=date(2024, 1, 1), fx_to_czk=20),
+        make_txn("DUST", "sell", 0.00000002, 200, date=date(2024, 2, 1), fx_to_czk=20),
+    ]
+    row = _compute_capital_gains(txns)[0]
+    assert row["shares"] == 0.00000002
+    assert row["cost_basis"] == 0.000002
+    assert row["proceeds"] == 0.000004
+    assert row["gain"] == 0.000002
+    assert row["gain_pct"] is None
+
+
+def test_split_adjusted_multi_lot_rows_reconcile_with_summary(
+    db_session, pid, default_portfolio
+):
+    txns = [
+        make_txn("SPLT", "buy", 1, 10.123456, date=date(2024, 1, 1), fx_to_czk=20, portfolio_id=pid),
+        make_txn("SPLT", "buy", 2, 20.654321, date=date(2024, 2, 1), fx_to_czk=21, portfolio_id=pid),
+        make_txn("SPLT", "split_close", 3, 1, date=date(2024, 3, 1), fx_to_czk=1, portfolio_id=pid),
+        make_txn("SPLT", "split_open", 6, 1, date=date(2024, 3, 1), fx_to_czk=1, portfolio_id=pid),
+        make_txn("SPLT", "sell", 6, 15.987654, date=date(2024, 4, 1), fx_to_czk=22, portfolio_id=pid),
+    ]
+    db_session.add_all(txns)
+    db_session.commit()
+
+    report = tax_report(year=2024, db=db_session, portfolio=default_portfolio)
+
+    assert len(report["gains"]) == 2
+    assert round(sum(item["gain"] for item in report["gains"]), 2) == report["summary"]["total_realized"]
+    assert round(sum(item["gain_czk"] for item in report["gains"]), 2) == report["summary"]["total_realized_czk"]
+
+
+def test_missing_trade_fx_remains_explicitly_incomplete(
+    db_session, pid, default_portfolio
+):
+    db_session.add_all([
+        make_txn("NOFX", "buy", 1, 10, date=date(2024, 1, 1), fx_to_czk=None, portfolio_id=pid),
+        make_txn("NOFX", "sell", 1, 20, date=date(2024, 2, 1), fx_to_czk=22, portfolio_id=pid),
+    ])
+    db_session.commit()
+
+    report = tax_report(year=2024, db=db_session, portfolio=default_portfolio)
+
+    assert report["gains"][0]["cost_basis_czk"] is None
+    assert report["gains"][0]["gain_czk"] is None
+    assert report["summary"]["fx_complete"] is False
 
 
 class TestCzechTax:

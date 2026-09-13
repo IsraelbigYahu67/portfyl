@@ -1,11 +1,14 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchTransactions, createTransaction, deleteTransaction, fetchAllTradeNotes } from "../api";
+import { fetchTransactionsPage, createTransaction, deleteTransaction, fetchAllTradeNotes } from "../api";
 import { Plus, Trash2, X, StickyNote } from "lucide-react";
 import { TickerLink } from "../components/StockDetail";
 import TradeNoteModal from "../components/TradeNoteModal";
 import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/Toast";
+import { AsyncSection } from "../components/ui";
+import Pagination from "../components/ui/Pagination";
 
 const TYPE_COLORS = { buy: "text-gain", sell: "text-loss", dividend: "text-yellow-600" };
 
@@ -96,20 +99,46 @@ export default function Transactions() {
   const confirm = useConfirm();
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const [filter, setFilter] = useState("");
   const [noteTarget, setNoteTarget] = useState(null);
+  const [params, setParams] = useSearchParams();
 
-  const { data: txns = [], isLoading } = useQuery({ queryKey: ["transactions"], queryFn: fetchTransactions });
+  const offset = Number(params.get("offset") || 0);
+  const limit = Number(params.get("limit") || 50);
+  const filter = params.get("q") || "";
+
+  const updateParams = (patch, resetOffset = false) => {
+    const next = new URLSearchParams(params);
+    Object.entries(patch).forEach(([k, v]) => {
+      if (v === undefined || v === null || v === "") next.delete(k);
+      else next.set(k, String(v));
+    });
+    if (resetOffset) next.set("offset", "0");
+    setParams(next, { replace: true });
+  };
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["transactions", offset, limit, filter],
+    queryFn: () => fetchTransactionsPage({ offset, limit, q: filter }),
+    placeholderData: (previousData) => previousData,
+  });
+  const txns = data?.items ?? [];
+  const total = data?.total ?? 0;
+
   const { data: allNotes = [] } = useQuery({ queryKey: ["trade-notes-all"], queryFn: fetchAllTradeNotes });
   const notesMap = Object.fromEntries(allNotes.map((n) => [n.transaction_id, n]));
 
   const delMut = useMutation({
     mutationFn: deleteTransaction,
     onSuccess: () => {
-      ["transactions", "holdings", "summary", "heatmap", "performance"].forEach((k) =>
+      ["holdings", "summary", "heatmap", "performance"].forEach((k) =>
         qc.invalidateQueries({ queryKey: [k] })
       );
+      qc.invalidateQueries({ queryKey: ["transactions"] });
       toast.success("Transaction deleted");
+      // If the deleted row was the only one on this page, step back one page.
+      if (txns.length === 1 && offset > 0) {
+        updateParams({ offset: String(Math.max(0, offset - limit)) });
+      }
     },
     onError: (err) =>
       toast.error(err.response?.data?.detail || "Failed to delete transaction"),
@@ -125,12 +154,7 @@ export default function Transactions() {
     if (ok) delMut.mutate(t.id);
   };
 
-  const filtered = filter
-    ? txns.filter((t) =>
-        t.ticker.toLowerCase().includes(filter.toLowerCase()) ||
-        t.type.includes(filter.toLowerCase())
-      )
-    : txns;
+  const hasFilter = filter.trim().length > 0;
 
   return (
     <div className="space-y-4">
@@ -141,7 +165,7 @@ export default function Transactions() {
             className="input w-48"
             placeholder="Filter by ticker…"
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={(e) => updateParams({ q: e.target.value }, true)}
           />
           <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-2">
             <Plus size={15} />
@@ -150,13 +174,20 @@ export default function Transactions() {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="card animate-pulse h-40 flex items-center justify-center text-muted">Loading…</div>
-      ) : filtered.length === 0 ? (
-        <div className="card text-muted text-sm text-center py-12">
-          No transactions yet. Import a CSV or add one manually.
-        </div>
-      ) : (
+      <AsyncSection
+        isLoading={isLoading}
+        error={error}
+        onRetry={() => refetch()}
+        loading={<div className="card animate-pulse h-40 flex items-center justify-center text-muted">Loading…</div>}
+        isEmpty={txns.length === 0}
+        empty={(
+          <div className="card text-muted text-sm text-center py-12">
+            {hasFilter
+              ? `No transactions match “${filter}”.`
+              : "No transactions yet. Import a CSV or add one manually."}
+          </div>
+        )}
+      >
         <div className="card p-0 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -170,7 +201,7 @@ export default function Transactions() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
-                {filtered.map((t) => (
+                {txns.map((t) => (
                   <tr key={t.id} className="hover:bg-surface-hover transition-colors">
                     <td className="px-4 py-3 text-sm text-ink">{t.date}</td>
                     <td className="px-4 py-3 font-mono font-bold text-sm">
@@ -209,8 +240,18 @@ export default function Transactions() {
               </tbody>
             </table>
           </div>
+          <div className="px-4">
+            <Pagination
+              offset={offset}
+              limit={limit}
+              total={total}
+              onOffsetChange={(next) => updateParams({ offset: String(next) })}
+              onLimitChange={(next) => updateParams({ limit: String(next) }, true)}
+              ariaLabel="Transactions pages"
+            />
+          </div>
         </div>
-      )}
+      </AsyncSection>
 
       {open && <AddModal onClose={() => setOpen(false)} />}
       {noteTarget && <TradeNoteModal transaction={noteTarget} onClose={() => setNoteTarget(null)} />}

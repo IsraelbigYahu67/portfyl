@@ -3,10 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchAllHoldings, fetchSectorBreakdown } from "../api";
 import { useCurrency } from "../App";
 import { formatMoney } from "../lib/format";
-import { groupPositions } from "../lib/positionsPie";
+import { allocationRows, boundedAllocationRows } from "../lib/allocationBreakdown";
 import { TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { TickerLink, useStockDetail } from "../components/StockDetail";
 import BreakdownChart from "../components/BreakdownChart";
+import AllocationBreakdownList from "../components/AllocationBreakdownList";
+import SegmentedControl from "../components/ui/SegmentedControl";
+import { AsyncSection, ChartSummary } from "../components/ui";
 
 const fmtPct = (n) => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
 
@@ -23,6 +26,7 @@ export default function Allocation() {
   const {
     data: holdings = [],
     isLoading: holdingsLoading,
+    error: holdingsError,
     refetch: refetchHoldings,
     isFetching,
   } = useQuery({
@@ -30,15 +34,47 @@ export default function Allocation() {
     queryFn: () => fetchAllHoldings(currency),
   });
 
-  const { data: breakdown, isLoading: breakdownLoading } = useQuery({
+  const {
+    data: breakdown,
+    isLoading: breakdownLoading,
+    error: breakdownError,
+    refetch: refetchBreakdown,
+  } = useQuery({
     queryKey: ["sector-breakdown", currency],
     queryFn: () => fetchSectorBreakdown(currency),
   });
 
-  // Positions pie: >2% holdings get their own slice, the rest fold into
-  // "Other". Derived from the same holdings query as the table, so the pie
-  // always matches the Weight column (and refreshes with "Refresh prices").
-  const positions = useMemo(() => groupPositions(holdings), [holdings]);
+  const [category, setCategory] = useState("position");
+  const [positionState, setPositionState] = useState("active");
+
+  const categoryOptions = useMemo(() => {
+    const options = [
+      { value: "position", label: "Position" },
+      { value: "sector", label: "Sector" },
+      { value: "asset_type", label: "Asset type" },
+      { value: "currency", label: "Currency" },
+    ];
+    if (breakdown?.accounts?.length) options.push({ value: "account", label: "Account" });
+    return options;
+  }, [breakdown]);
+
+  const rows = useMemo(
+    () => allocationRows({ category, holdings, breakdown }),
+    [category, holdings, breakdown]
+  );
+  const bounded = useMemo(() => boundedAllocationRows(rows, 7), [rows]);
+  const soldHoldings = useMemo(() => holdings.filter((h) => h.closed), [holdings]);
+  const top3Weight = useMemo(
+    () => Math.round(rows.slice(0, 3).reduce((sum, r) => sum + r.weight, 0) * 10) / 10,
+    [rows]
+  );
+  const CATEGORY_TITLE = {
+    position: "Positions",
+    sector: "Sector Allocation",
+    asset_type: "Asset Type",
+    currency: "Currency Exposure",
+    account: "Account",
+  };
 
   const [sort, setSort] = useState({ key: "market_value", dir: "desc" });
 
@@ -74,40 +110,118 @@ export default function Allocation() {
         </button>
       </div>
 
+      <AsyncSection
+        isLoading={breakdownLoading || holdingsLoading}
+        error={holdingsError || breakdownError}
+        onRetry={() => Promise.all([refetchHoldings(), refetchBreakdown()])}
+        loading={(
+          <div className="card animate-pulse h-48 flex items-center justify-center text-muted">
+            Loading allocation data...
+          </div>
+        )}
+      >
+        <>
       {breakdownLoading || holdingsLoading ? (
         <div className="card animate-pulse h-48 flex items-center justify-center text-muted">
           Loading allocation data...
         </div>
       ) : (
         <>
-          <BreakdownChart
-            title="Positions"
-            data={positions}
-            currencyLabel={currency}
-            legendColumns={2}
-          />
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <BreakdownChart
-              title="Sector Allocation"
-              data={breakdown?.sectors}
-              currencyLabel={currency}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <SegmentedControl
+              aria-label="Allocation category"
+              value={category}
+              onChange={setCategory}
+              options={categoryOptions}
             />
-            <BreakdownChart
-              title="Country Allocation"
-              data={breakdown?.countries}
-              currencyLabel={currency}
-            />
-            <BreakdownChart
-              title="Currency Exposure"
-              data={breakdown?.currencies}
-              currencyLabel={currency}
-            />
-            <BreakdownChart
-              title="Asset Type"
-              data={breakdown?.asset_types}
-              currencyLabel={currency}
-            />
+            {category === "position" && (
+              <SegmentedControl
+                aria-label="Position state"
+                value={positionState}
+                onChange={setPositionState}
+                options={[
+                  { value: "active", label: "Active positions" },
+                  { value: "sold", label: "Sold positions" },
+                ]}
+              />
+            )}
           </div>
+
+          {category === "position" && positionState === "sold" ? (
+            <div className="card p-0 overflow-hidden">
+              {soldHoldings.length === 0 ? (
+                <div className="text-muted text-sm text-center py-12">No sold positions.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="border-b border-surface-border">
+                      <tr>
+                        {["Ticker", "Company", "Value if held", "P&L if held"].map((h) => (
+                          <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-surface-border">
+                      {soldHoldings.map((h) => (
+                        <tr key={h.ticker} onClick={() => openStock(h.ticker)} className="hover:bg-surface-hover transition-colors cursor-pointer bg-loss/10">
+                          <td className="px-4 py-3 font-mono font-bold text-sm">
+                            <TickerLink ticker={h.ticker} className="text-left">{h.ticker}</TickerLink>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-muted max-w-xs truncate">{h.name}</td>
+                          <td className="px-4 py-3 tabular-nums text-sm text-right text-muted">
+                            {h.pnl_if_held != null ? fmt(h.pnl_if_held) : "—"}
+                          </td>
+                          <td className={`px-4 py-3 tabular-nums text-sm text-right ${(h.pnl_if_held_pct ?? 0) >= 0 ? "text-gain" : "text-loss"}`}>
+                            {h.pnl_if_held_pct != null ? fmtPct(h.pnl_if_held_pct) : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-muted">
+                Largest {category === "position" ? "position" : "category"}:{" "}
+                <span className="text-ink font-medium">{rows[0]?.name ?? "—"}</span>
+                {" · "}Top 3 combined: <span className="text-ink font-medium">{top3Weight}%</span>
+              </p>
+              <BreakdownChart
+                title={CATEGORY_TITLE[category]}
+                data={bounded}
+                currencyLabel={currency}
+                legendColumns={2}
+              />
+              <ChartSummary title={`${CATEGORY_TITLE[category]} chart data`}>
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="text-muted">
+                      <th className="pr-3 font-medium">{category === "position" ? "Ticker" : "Category"}</th>
+                      <th className="pr-3 font-medium">Value</th>
+                      <th className="font-medium">Weight</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bounded.map((row) => (
+                      <tr key={row.name}>
+                        <td className="pr-3">{row.name}</td>
+                        <td className="pr-3 tabular-nums">{fmt(row.value)}</td>
+                        <td className="tabular-nums">{row.weight}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </ChartSummary>
+              <div className="card">
+                <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider">
+                  Full Breakdown
+                </h2>
+                <AllocationBreakdownList rows={rows} currency={currency} />
+              </div>
+            </>
+          )}
         </>
       )}
 
@@ -219,6 +333,8 @@ export default function Allocation() {
           </div>
         )}
       </div>
+        </>
+      </AsyncSection>
     </div>
   );
 }

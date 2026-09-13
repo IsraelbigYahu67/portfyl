@@ -18,6 +18,8 @@ import {
   deleteAlert,
   checkAlerts,
 } from "../api";
+import { AsyncSection } from "../components/ui";
+import { getApiErrorMessage } from "../lib/apiError";
 
 function fmtPrice(v, code = "USD") {
   if (v == null) return "—";
@@ -123,7 +125,7 @@ function AddTickerForm({ watchlistId }) {
       )}
       {addMut.isError && (
         <div className="absolute right-0 mt-1 text-[10px] text-loss">
-          {addMut.error?.response?.data?.detail || "Add failed"}
+          {getApiErrorMessage(addMut.error, "Add failed")}
         </div>
       )}
     </div>
@@ -343,7 +345,7 @@ function PriceAlertsPanel({ prefillTicker, onConsumePrefill }) {
         </button>
         {add.isError && (
           <span className="text-xs text-loss">
-            {add.error?.response?.data?.detail || "Failed to add alert"}
+            {getApiErrorMessage(add.error, "Failed to add alert")}
           </span>
         )}
       </form>
@@ -450,7 +452,7 @@ function NewWatchlistForm() {
       </button>
       {createMut.isError && (
         <span className="text-xs text-loss">
-          {createMut.error?.response?.data?.detail || "Failed"}
+          {getApiErrorMessage(createMut.error, "Failed")}
         </span>
       )}
     </form>
@@ -459,7 +461,7 @@ function NewWatchlistForm() {
 
 export default function Watchlists() {
   const [prefillTicker, setPrefillTicker] = useState("");
-  const { data: watchlists = [], isLoading, isError } = useQuery({
+  const { data: watchlists = [], isLoading, error, refetch } = useQuery({
     queryKey: ["watchlists"],
     queryFn: fetchWatchlists,
     staleTime: 30_000,
@@ -482,29 +484,28 @@ export default function Watchlists() {
         onConsumePrefill={() => setPrefillTicker("")}
       />
 
-      {isLoading && (
-        <div className="text-center py-16 text-muted text-sm animate-pulse">
-          Loading watchlists…
+      <AsyncSection
+        isLoading={isLoading}
+        error={error}
+        onRetry={() => refetch()}
+        loading={(
+          <div className="text-center py-16 text-muted text-sm animate-pulse">
+            Loading watchlists…
+          </div>
+        )}
+        isEmpty={watchlists.length === 0}
+        empty={(
+          <div className="text-center py-16 text-muted text-sm">
+            No watchlists yet. Create one above to start tracking.
+          </div>
+        )}
+      >
+        <div className="space-y-6">
+          {watchlists.map((wl) => (
+            <WatchlistCard key={wl.id} wl={wl} onAlert={setPrefillTicker} />
+          ))}
         </div>
-      )}
-
-      {isError && (
-        <div className="text-center py-16 text-loss text-sm">
-          Could not load watchlists.
-        </div>
-      )}
-
-      {!isLoading && !isError && watchlists.length === 0 && (
-        <div className="text-center py-16 text-muted text-sm">
-          No watchlists yet. Create one above to start tracking.
-        </div>
-      )}
-
-      <div className="space-y-6">
-        {watchlists.map((wl) => (
-          <WatchlistCard key={wl.id} wl={wl} onAlert={setPrefillTicker} />
-        ))}
-      </div>
+      </AsyncSection>
     </div>
   );
 }

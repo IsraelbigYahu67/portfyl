@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from typing import List
 from dataclasses import dataclass
@@ -7,8 +8,9 @@ import pandas as pd
 import pytz
 import io
 import logging
+import math
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from uuid import UUID
 
@@ -570,6 +572,66 @@ def get_transactions(db: Session = Depends(get_db), portfolio: Portfolio = Depen
         .order_by(Transaction.date.desc())
         .all()
     )
+
+
+_TXN_SORT_COLUMNS = {
+    "date": Transaction.date,
+    "ticker": Transaction.ticker,
+    "type": Transaction.type,
+}
+
+
+@router.get("/transactions/page")
+def get_transactions_page(
+    offset: int = 0,
+    limit: int = 50,
+    q: str | None = None,
+    type: str | None = None,
+    sort: str = "-date",
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+):
+    if offset < 0:
+        raise HTTPException(422, "offset must be >= 0")
+    if limit not in (25, 50, 100):
+        raise HTTPException(422, "limit must be 25, 50, or 100")
+
+    sort_key = sort[1:] if sort.startswith("-") else sort
+    if sort_key not in _TXN_SORT_COLUMNS:
+        raise HTTPException(422, f"invalid sort: {sort!r}")
+    if type and type not in TRADE_TYPES:
+        raise HTTPException(422, f"invalid transaction type: {type!r}")
+
+    query = _portfolio_txns(db, portfolio).filter(Transaction.type.in_(TRADE_TYPES))
+    if q:
+        like = f"%{q.lower()}%"
+        query = query.filter(
+            or_(
+                func.lower(Transaction.ticker).like(like),
+                func.lower(func.coalesce(Transaction.notes, "")).like(like),
+            )
+        )
+    if type:
+        query = query.filter(Transaction.type == type)
+
+    total = query.count()
+    column = _TXN_SORT_COLUMNS[sort_key]
+    descending = sort.startswith("-")
+    ordered_column = column.desc() if descending else column.asc()
+    id_order = Transaction.id.desc() if descending else Transaction.id.asc()
+    items = (
+        query.order_by(ordered_column, id_order)
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "items": [TransactionResponse.model_validate(item) for item in items],
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+    }
 
 
 @router.post(
@@ -1398,6 +1460,81 @@ def _pay_date_from_calendar(yf_ticker) -> str | None:
 _USD_FX_CACHE: dict[str, float] = {}
 
 
+def _positive_finite(value) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) and number > 0 else None
+
+
+def _normalize_dividend_row(
+    *,
+    ticker,
+    name,
+    shares,
+    currency,
+    dividend_rate,
+    provider_yield,
+    price,
+    ex_date,
+    pay_date,
+    as_of,
+):
+    rate = _positive_finite(dividend_rate)
+    quoted_yield = _positive_finite(provider_yield)
+    market_price = _positive_finite(price)
+    warnings = []
+
+    if (
+        ex_date
+        and pay_date
+        and date.fromisoformat(pay_date) < date.fromisoformat(ex_date)
+    ):
+        pay_date = None
+        date_status = "inconsistent"
+        warnings.append("pay_date_before_ex_date")
+    elif ex_date and pay_date:
+        date_status = "complete"
+    elif ex_date:
+        date_status = "ex_date_only"
+    elif pay_date:
+        date_status = "pay_date_only"
+    else:
+        date_status = "unavailable"
+
+    income_status = "estimated" if rate else "unavailable"
+    implied_yield = rate / market_price * 100 if rate and market_price else None
+    if rate is None and dividend_rate is not None:
+        warnings.append("non_positive_rate")
+    if implied_yield is not None and implied_yield > 35:
+        income_status = "review"
+        warnings.append("implausible_implied_yield")
+    if implied_yield and quoted_yield:
+        gap = abs(implied_yield - quoted_yield)
+        if gap - 5 > 1e-9 and gap / min(implied_yield, quoted_yield) > 0.5:
+            income_status = "review"
+            warnings.append("provider_fields_disagree")
+
+    annual_income = shares * rate if rate and income_status == "estimated" else None
+    return {
+        "ticker": ticker,
+        "name": name,
+        "shares": round(float(shares), 8),
+        "currency": currency,
+        "dividend_rate": round(rate, 4) if rate else None,
+        "dividend_yield": round(quoted_yield, 2) if quoted_yield else None,
+        "annual_income": round(annual_income, 2) if annual_income is not None else None,
+        "ex_date": ex_date,
+        "pay_date": pay_date,
+        "date_status": date_status,
+        "income_status": income_status,
+        "warnings": warnings,
+        "source": "yahoo_finance",
+        "as_of": as_of,
+    }
+
+
 def _live_to_usd(ccy: str) -> float:
     """Best-effort live conversion rate from `ccy` to USD. Returns 1.0 on failure."""
     c = (ccy or "USD").upper()
@@ -1426,12 +1563,13 @@ def get_dividends(
         return []
 
     active = _build_holdings(transactions)
-    market_data.get_infos(list(active.keys()))  # warm cache concurrently/bounded
+    infos = market_data.get_infos(list(active.keys()))
+    as_of = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     result = []
 
     for ticker in active:
         try:
-            info = market_data.get_info(ticker) or {}
+            info = infos.get(ticker) or {}
             name = info.get("shortName") or info.get("longName") or ticker
             div_rate = info.get("dividendRate") or info.get("trailingAnnualDividendRate")
             div_yield = info.get("dividendYield")
@@ -1443,22 +1581,23 @@ def get_dividends(
             if not pay_date:
                 pay_date = _pay_date_from_calendar(yf.Ticker(yf_symbol(ticker)))
 
-            if not div_rate and not div_yield:
+            if div_rate is None and div_yield is None:
                 continue
 
-            annual_income = (shares * float(div_rate)) if div_rate else None
-
-            result.append({
-                "ticker": ticker,
-                "name": name,
-                "ex_date": ex_date,
-                "pay_date": pay_date,
-                "dividend_rate": round(float(div_rate), 4) if div_rate else None,
-                "dividend_yield": round(float(div_yield), 2) if div_yield else None,
-                "annual_income": round(annual_income, 2) if annual_income is not None else None,
-                "currency": currency,
-                "shares": round(shares, 4),
-            })
+            result.append(
+                _normalize_dividend_row(
+                    ticker=ticker,
+                    name=name,
+                    shares=shares,
+                    currency=currency,
+                    dividend_rate=div_rate,
+                    provider_yield=div_yield,
+                    price=info.get("currentPrice") or info.get("regularMarketPrice"),
+                    ex_date=ex_date,
+                    pay_date=pay_date,
+                    as_of=as_of,
+                )
+            )
         except Exception:
             continue
 

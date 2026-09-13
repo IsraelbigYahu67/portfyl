@@ -9,6 +9,7 @@ import {
   removeWatchlistItem,
 } from "../api";
 import { StockOverview } from "../components/StockDetail";
+import { AsyncSection } from "../components/ui";
 
 function WatchlistMenu({ ticker }) {
   const qc = useQueryClient();
@@ -140,7 +141,7 @@ export default function Stock() {
   const canGoBack = location.key !== "default";
   const goBack = () => (canGoBack ? navigate(-1) : navigate("/"));
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["fundamentals", ticker],
     queryFn: () => fetchFundamentals(ticker),
     staleTime: 5 * 60 * 1000,
@@ -162,24 +163,21 @@ export default function Stock() {
       </div>
 
       <div className="bg-surface-card border border-surface-border rounded-xl shadow-lg">
-        {isLoading ? (
-          <div className="h-96 flex items-center justify-center text-muted text-sm animate-pulse">
-            Loading fundamentals for {ticker}…
-          </div>
-        ) : isError || !data ? (
-          <div className="p-10 text-center text-muted">
-            <h2 className="text-lg font-bold font-mono mb-2">{ticker}</h2>
-            <p>Could not load fundamentals for {ticker}.</p>
-            <p className="text-xs text-muted mt-1">
-              {error?.response?.data?.detail || error?.message || "Try again later."}
-            </p>
-          </div>
-        ) : (
+        <AsyncSection
+          isLoading={isLoading}
+          error={error || (!isLoading && !data ? new Error(`Could not load fundamentals for ${ticker}.`) : null)}
+          onRetry={() => refetch()}
+          loading={(
+            <div className="h-96 flex items-center justify-center text-muted text-sm animate-pulse">
+              Loading fundamentals for {ticker}…
+            </div>
+          )}
+        >
           <StockOverview
             data={data}
-            headerTrailing={<WatchlistMenu ticker={data.ticker} />}
+            headerTrailing={<WatchlistMenu ticker={data?.ticker || ticker} />}
           />
-        )}
+        </AsyncSection>
       </div>
     </div>
   );

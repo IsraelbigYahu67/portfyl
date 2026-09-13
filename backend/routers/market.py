@@ -17,6 +17,9 @@ import alphavantage_client
 import edgar_client
 from cache import ttl_cache
 from entitlements import require_capability
+from pydantic import BaseModel
+from tenancy import RequestContext, get_request_context
+from services import screener_jobs
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -2253,9 +2256,12 @@ def _ticker_screener_row(sym: str) -> dict[str, Any]:
 
 
 def _in_range(val: float | None, lo: float | None, hi: float | None) -> bool:
-    """Check if val is within [lo, hi] (inclusive). None bounds are ignored."""
+    """Check if val is within [lo, hi] (inclusive). A missing value only
+    fails the filter when at least one bound for that metric was actually
+    set; if the caller left the metric unfiltered, a provider that simply
+    didn't return the field must not silently exclude the row."""
     if val is None:
-        return False
+        return lo is None and hi is None
     if lo is not None and val < lo:
         return False
     if hi is not None and val > hi:
@@ -2565,3 +2571,60 @@ def stock_screener(
         "total": len(filtered),
         "filters_applied": bool(sector or min_pe is not None or max_pe is not None),
     }
+
+
+# ---------------------------------------------------------------------------
+# Screener jobs (local edition only): the yfinance universe scan is slow
+# enough that a blocking request is a bad UX, so the SPA creates a background
+# job, polls it, and can cancel it. The Shibui whole-market path stays
+# synchronous because it is a single bounded query, not a per-ticker scan.
+# ---------------------------------------------------------------------------
+
+
+class ScreenerJobRequest(BaseModel):
+    universe: str = "sp500"
+    tickers: str = ""
+    sector: str = ""
+    min_pe: float | None = None
+    max_pe: float | None = None
+    min_forward_pe: float | None = None
+    max_forward_pe: float | None = None
+    min_pb: float | None = None
+    max_pb: float | None = None
+    min_div_yield: float | None = None
+    max_div_yield: float | None = None
+    min_market_cap: float | None = None
+    max_market_cap: float | None = None
+    min_roe: float | None = None
+    max_roe: float | None = None
+    min_net_margin: float | None = None
+    max_net_margin: float | None = None
+    min_ps: float | None = None
+    max_ps: float | None = None
+    sort_by: str = "market_cap"
+    sort_desc: bool = True
+
+
+def create_screener_job(body: ScreenerJobRequest, ctx: RequestContext = Depends(get_request_context)):
+    job = screener_jobs.submit_job(str(ctx.user.id), body.model_dump())
+    return job.to_response(offset=0, limit=50)
+
+
+def get_screener_job(
+    job_id: str,
+    offset: int = 0,
+    limit: int = 50,
+    ctx: RequestContext = Depends(get_request_context),
+):
+    job = screener_jobs.get_job(str(ctx.user.id), job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Screener job not found or expired")
+    safe_limit = limit if limit in (25, 50, 100) else 50
+    return job.to_response(offset=max(0, offset), limit=safe_limit)
+
+
+def cancel_screener_job(job_id: str, ctx: RequestContext = Depends(get_request_context)):
+    cancelled = screener_jobs.cancel_job(str(ctx.user.id), job_id)
+    if not cancelled:
+        raise HTTPException(status_code=404, detail="Screener job not found or already finished")
+    return {"job_id": job_id, "status": "cancelled"}

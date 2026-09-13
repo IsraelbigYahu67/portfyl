@@ -12,7 +12,7 @@ import {
   fetchHeatmap,
   fetchFundamentals,
   fetchHistory,
-  fetchTransactions,
+  fetchTransactionsPage,
   fetchAllTradeNotes,
   fetchWatchlists,
   fetchDividends,
@@ -135,7 +135,7 @@ export default function AutoLoad() {
       //    warm the Watchlists list instead — it backs both Search-style add
       //    flows and the Watchlists page.
       if (!(await runTasks([
-        [["transactions"], () => fetchTransactions()],
+        [["transactions", 0, 50, ""], () => fetchTransactionsPage()],
         [["trade-notes-all"], () => fetchAllTradeNotes()],
         [["watchlists"], () => fetchWatchlists()],
       ]))) return;

@@ -3,10 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { TRACKER_HOME } from "./lib/routes";
 import { Loader2 } from "lucide-react";
-import Sidebar from "./components/Sidebar";
-import PlatformLanding from "./pages/PlatformLanding";
+import AppShell from "./components/layout/AppShell";
+import { buildNavGroups } from "./components/layout/navigation";
 import Dashboard from "./pages/Dashboard";
-import Overview from "./pages/Overview";
 import Allocation from "./pages/Allocation";
 import Transactions from "./pages/Transactions";
 import Import from "./pages/Import";
@@ -27,13 +26,12 @@ import { ToastProvider } from "./components/ui/Toast";
 import { ConfirmProvider } from "./components/ui/ConfirmDialog";
 import AutoLoad from "./components/AutoLoad";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
-import { EDITION_ROUTES, EditionShell } from "@edition-manifest";
+import { EDITION_NAVIGATION, EDITION_ROUTES, EditionShell } from "@edition-manifest";
 import { enabledEditionEntries } from "./editions/filter";
 
 const CurrencyContext = createContext(null);
 const PortfolioContext = createContext(null);
 const PaletteContext = createContext(null);
-const PlatformContext = createContext(null);
 
 const PALETTES = {
   blue: {
@@ -89,10 +87,6 @@ const GLASS_CHART = ["var(--brand)", "#4EDEA3", "#FFB95F", "#A78BFA", "#38BDF8",
 
 export function usePalette() {
   return useContext(PaletteContext);
-}
-
-export function usePlatform() {
-  return useContext(PlatformContext);
 }
 
 export function resolveDark(theme) {
@@ -328,27 +322,6 @@ function PaletteProvider({ children }) {
   );
 }
 
-function PlatformProvider({ children }) {
-  const [platform, setPlatformState] = useState(
-    () => localStorage.getItem("sb_platform") || null
-  );
-
-  const setPlatform = useCallback((p) => {
-    if (p) {
-      localStorage.setItem("sb_platform", p);
-    } else {
-      localStorage.removeItem("sb_platform");
-    }
-    setPlatformState(p);
-  }, []);
-
-  return (
-    <PlatformContext.Provider value={{ platform, setPlatform }}>
-      {children}
-    </PlatformContext.Provider>
-  );
-}
-
 export default function App() {
   return (
     // Appearance is a device-level preference, independent of auth state --
@@ -372,7 +345,7 @@ function AuthSplash() {
 }
 
 // Public auth routes are mounted outside every protected provider (portfolio,
-// currency, toast, confirm, platform) -- none of that state exists yet for a
+// currency, toast, and confirm) -- none of that state exists yet for a
 // visitor who hasn't authenticated. The full application only mounts once
 // AuthProvider has resolved a session with both a user and a workspace.
 function AuthGate() {
@@ -398,9 +371,7 @@ function AuthGate() {
       <CurrencyProvider>
         <ToastProvider>
           <ConfirmProvider>
-            <PlatformProvider>
-              <AppLayout />
-            </PlatformProvider>
+            <AppLayout />
           </ConfirmProvider>
         </ToastProvider>
       </CurrencyProvider>
@@ -409,7 +380,6 @@ function AuthGate() {
 }
 
 function AppLayout() {
-  const { platform } = usePlatform();
   const { portfolios, isLoading: portfoliosLoading } = usePortfolio();
   const { data: capabilityState } = useQuery({
     queryKey: ["capabilities"],
@@ -419,6 +389,11 @@ function AppLayout() {
   });
   const runtimeCapabilities = capabilityState?.capabilities || [];
   const editionRoutes = enabledEditionEntries(EDITION_ROUTES, runtimeCapabilities);
+  const navGroups = buildNavGroups(EDITION_NAVIGATION, runtimeCapabilities);
+
+  useEffect(() => {
+    localStorage.removeItem("sb_platform");
+  }, []);
 
   if (portfoliosLoading) {
     return <AuthSplash />;
@@ -428,57 +403,32 @@ function AppLayout() {
     return <Onboarding />;
   }
 
-  if (!platform) {
-    return (
-      <div className="flex min-h-screen">
-        <EditionShell />
-        <Sidebar capabilities={runtimeCapabilities} />
-        <main className="flex-1 p-6 overflow-y-auto min-w-0 max-h-screen">
-          <Routes>
-            {editionRoutes.map(({ path, Component }) => (
-              <Route key={path} path={path} element={<Component />} />
-            ))}
-            <Route path="*" element={<PlatformLanding />} />
-          </Routes>
-        </main>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex min-h-screen">
+    <AppShell groups={navGroups}>
       <EditionShell />
-      {/* Background prefetcher — warms the React Query cache for every T212 page
-          in priority order so navigation is instant. Renders nothing. */}
-      {platform === "t212" && <AutoLoad />}
-      <Sidebar capabilities={runtimeCapabilities} />
-      <main className="flex-1 p-6 overflow-y-auto min-w-0 max-h-screen">
-        <Routes>
-          {platform === "t212" && (
-            <>
-              <Route path={TRACKER_HOME} element={<Dashboard />} />
-              <Route path="/overview" element={<Overview />} />
-              <Route path="/allocation" element={<Allocation />} />
-              <Route path="/transactions" element={<Transactions />} />
-              <Route path="/import" element={<Import />} />
-              <Route path="/dividends" element={<Dividends />} />
-              <Route path="/analytics" element={<Analytics />} />
-              <Route path="/search" element={<Search />} />
-              <Route path="/stock/:ticker" element={<Stock />} />
-              <Route path="/watchlists" element={<Watchlists />} />
-              <Route path="/assistant" element={<Assistant />} />
-              {editionRoutes.map(({ path, Component }) => (
-                <Route key={path} path={path} element={<Component />} />
-              ))}
-            </>
-          )}
-          <Route path="/settings" element={<Settings />} />
-          {/* An authenticated visitor landing on a public auth URL (stale tab,
-              browser back button after login, etc.) gets sent home instead of
-              a blank route. */}
-          <Route path="*" element={<Navigate to={TRACKER_HOME} replace />} />
-        </Routes>
-      </main>
-    </div>
+      {/* Background prefetcher warms portfolio pages in priority order. */}
+      <AutoLoad />
+      <Routes>
+        <Route path={TRACKER_HOME} element={<Dashboard />} />
+        <Route path="/overview" element={<Navigate to={TRACKER_HOME} replace />} />
+        <Route path="/allocation" element={<Allocation />} />
+        <Route path="/transactions" element={<Transactions />} />
+        <Route path="/import" element={<Import />} />
+        <Route path="/dividends" element={<Dividends />} />
+        <Route path="/analytics" element={<Analytics />} />
+        <Route path="/search" element={<Search />} />
+        <Route path="/stock/:ticker" element={<Stock />} />
+        <Route path="/watchlists" element={<Watchlists />} />
+        <Route path="/assistant" element={<Assistant />} />
+        {editionRoutes.map(({ path, Component }) => (
+          <Route key={path} path={path} element={<Component />} />
+        ))}
+        <Route path="/settings" element={<Settings />} />
+        {/* An authenticated visitor landing on a public auth URL (stale tab,
+            browser back button after login, etc.) gets sent home instead of
+            a blank route. */}
+        <Route path="*" element={<Navigate to={TRACKER_HOME} replace />} />
+      </Routes>
+    </AppShell>
   );
 }

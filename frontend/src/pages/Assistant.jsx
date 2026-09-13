@@ -17,6 +17,8 @@ import {
   deleteAssistantConfig,
   sendAssistantMessage,
 } from "../api";
+import { AsyncSection } from "../components/ui";
+import { getApiErrorMessage } from "../lib/apiError";
 
 const MODELS = [
   { value: "deepseek-chat", label: "DeepSeek Chat (V3) — fast" },
@@ -32,7 +34,12 @@ const SUGGESTIONS = [
 export default function Assistant() {
   const queryClient = useQueryClient();
 
-  const { data: config, isLoading: configLoading } = useQuery({
+  const {
+    data: config,
+    isLoading: configLoading,
+    error: configQueryError,
+    refetch: refetchConfig,
+  } = useQuery({
     queryKey: ["assistant-config"],
     queryFn: fetchAssistantConfig,
     staleTime: 60 * 1000,
@@ -64,7 +71,7 @@ export default function Assistant() {
       setMessages((prev) => [...prev, data.reply]);
     },
     onError: (err) => {
-      setChatError(err.response?.data?.detail || "The assistant request failed. Try again.");
+      setChatError(getApiErrorMessage(err, "The assistant request failed. Try again."));
     },
   });
 
@@ -76,7 +83,7 @@ export default function Assistant() {
       setConfigError(null);
       queryClient.invalidateQueries({ queryKey: ["assistant-config"] });
     },
-    onError: (err) => setConfigError(err.response?.data?.detail || "Failed to save settings"),
+    onError: (err) => setConfigError(getApiErrorMessage(err, "Failed to save settings")),
   });
 
   const deleteMutation = useMutation({
@@ -141,6 +148,13 @@ export default function Assistant() {
         </div>
       </div>
 
+      <AsyncSection
+        isLoading={configLoading}
+        error={configQueryError}
+        onRetry={() => refetchConfig()}
+        loading={<div className="card h-48 animate-pulse" />}
+      >
+      <>
       {/* Config panel */}
       {panelOpen && (
         <div className="card mb-4 space-y-4">
@@ -311,6 +325,8 @@ export default function Assistant() {
           )}
         </div>
       </div>
+      </>
+      </AsyncSection>
     </div>
   );
 }
