@@ -6,7 +6,7 @@ import MetricCard from "../components/MetricCard";
 import PerformanceChart from "../components/PerformanceChart";
 import { RefreshCw, TrendingUp, TrendingDown, Calendar, LayoutGrid, Lock, UserCheck, PieChart, Activity } from "lucide-react";
 import { formatMoney, formatPercent } from "../lib/format";
-import { Card, SectionHeader, SkeletonRows, SkeletonChart, EmptyState, DeltaPill } from "../components/ui";
+import { AsyncSection, Card, SectionHeader, SkeletonRows, SkeletonChart, EmptyState, DeltaPill } from "../components/ui";
 import Heatmap from "../components/Heatmap";
 import { TickerLink } from "../components/StockDetail";
 import DashboardGrid from "../components/DashboardGrid";
@@ -47,15 +47,15 @@ export default function Dashboard() {
       prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
     );
 
-  const { data: summary, isLoading: sl } = useQuery({
+  const { data: summary, isLoading: sl, error: summaryError, refetch: refetchSummary } = useQuery({
     queryKey: ["summary", currency],
     queryFn: () => fetchSummary(currency),
   });
-  const { data: holdings = [], isLoading: hl } = useQuery({
+  const { data: holdings = [], isLoading: hl, error: holdingsError, refetch: refetchHoldings } = useQuery({
     queryKey: ["holdings", currency],
     queryFn: () => fetchHoldings(currency),
   });
-  const { data: perf = [], isLoading: pl } = useQuery({
+  const { data: perf = [], isLoading: pl, error: performanceError, refetch: refetchPerformance } = useQuery({
     queryKey: ["performance", currency, period],
     queryFn: () => fetchPerformance(currency, period.toLowerCase()),
   });
@@ -65,17 +65,17 @@ export default function Dashboard() {
     enabled: activeBenchmarks.length > 0,
   });
 
-  const { data: movers, isLoading: ml } = useQuery({
+  const { data: movers, isLoading: ml, error: moversError, refetch: refetchMovers } = useQuery({
     queryKey: ["movers", moverPeriod],
     queryFn: () => fetchMovers(moverPeriod),
   });
 
-  const { data: earnings = [], isLoading: el } = useQuery({
+  const { data: earnings = [], isLoading: el, error: earningsError, refetch: refetchEarnings } = useQuery({
     queryKey: ["earnings"],
     queryFn: fetchEarnings,
   });
 
-  const { data: insiderBuys = [], isLoading: il } = useQuery({
+  const { data: insiderBuys = [], isLoading: il, error: insiderError, refetch: refetchInsider } = useQuery({
     queryKey: ["insider-buys"],
     queryFn: fetchInsiderBuys,
     staleTime: 30 * 60 * 1000,
@@ -135,7 +135,14 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <PortfolioHero summary={summary} loading={sl} currency={currency} series={heroSeries} />
+      <AsyncSection
+        isLoading={sl}
+        error={summaryError}
+        onRetry={() => refetchSummary()}
+        loading={<PortfolioHero loading currency={currency} series={[]} />}
+      >
+        <PortfolioHero summary={summary} currency={currency} series={heroSeries} />
+      </AsyncSection>
       <DashboardGrid editing={editingLayout} onEditToggle={() => setEditingLayout(!editingLayout)}>
         {{
           performance: (
@@ -190,9 +197,12 @@ export default function Dashboard() {
                   </button>
                 ))}
               </div>
-              {pl ? (
-                <div className="flex-1"><SkeletonChart height={256} /></div>
-              ) : (
+              <AsyncSection
+                isLoading={pl}
+                error={performanceError}
+                onRetry={() => refetchPerformance()}
+                loading={<div className="flex-1"><SkeletonChart height={256} /></div>}
+              >
                 <PerformanceChart
                   data={perf}
                   currency={currency}
@@ -200,31 +210,37 @@ export default function Dashboard() {
                   benchmarks={benchmarkData}
                   benchmarkMeta={BENCHMARKS.filter((b) => activeBenchmarks.includes(b.key))}
                 />
-              )}
+              </AsyncSection>
             </Card>
           ),
 
           heatmap: (
             <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "150ms" }}>
               <SectionHeader icon={LayoutGrid}>Heatmap</SectionHeader>
-              {hl ? (
-                <div className="flex-1"><SkeletonChart height={256} /></div>
-              ) : holdings.length === 0 ? (
-                <div className="flex-1 flex"><EmptyState icon={LayoutGrid} title="No holdings to map" hint="Import transactions to see your heatmap." /></div>
-              ) : (
+              <AsyncSection
+                isLoading={hl}
+                error={holdingsError}
+                onRetry={() => refetchHoldings()}
+                loading={<div className="flex-1"><SkeletonChart height={256} /></div>}
+                isEmpty={holdings.length === 0}
+                empty={<div className="flex-1 flex"><EmptyState icon={LayoutGrid} title="No holdings to map" hint="Import transactions to see your heatmap." /></div>}
+              >
                 <Heatmap />
-              )}
+              </AsyncSection>
             </Card>
           ),
 
           earnings: (
             <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "200ms" }}>
               <SectionHeader icon={Calendar}>Earnings Calendar</SectionHeader>
-              {el ? (
-                <SkeletonRows rows={6} cols={3} />
-              ) : earnings.length === 0 ? (
-                <EmptyState icon={Calendar} title="No upcoming earnings" hint="None of your current holdings report soon." />
-              ) : (
+              <AsyncSection
+                isLoading={el}
+                error={earningsError}
+                onRetry={() => refetchEarnings()}
+                loading={<SkeletonRows rows={6} cols={3} />}
+                isEmpty={earnings.length === 0}
+                empty={<EmptyState icon={Calendar} title="No upcoming earnings" hint="None of your current holdings report soon." />}
+              >
                 <div className="space-y-2.5">
                   {earnings.slice(0, 10).map((e) => (
                     <div key={e.ticker} className="flex items-center gap-3 text-sm">
@@ -242,18 +258,21 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
-              )}
+              </AsyncSection>
             </Card>
           ),
 
           holdings: (
             <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "250ms" }}>
               <SectionHeader icon={PieChart}>Top 10 Holdings</SectionHeader>
-              {hl ? (
-                <SkeletonRows rows={8} cols={3} />
-              ) : holdings.length === 0 ? (
-                <EmptyState icon={PieChart} title="No holdings yet" hint="Import your transactions to see your top positions." action={<a href="/import" className="btn-primary text-xs">Import CSV</a>} />
-              ) : (
+              <AsyncSection
+                isLoading={hl}
+                error={holdingsError}
+                onRetry={() => refetchHoldings()}
+                loading={<SkeletonRows rows={8} cols={3} />}
+                isEmpty={holdings.length === 0}
+                empty={<EmptyState icon={PieChart} title="No holdings yet" hint="Import your transactions to see your top positions." action={<a href="/import" className="btn-primary text-xs">Import CSV</a>} />}
+              >
                 <div className="space-y-2.5">
                   {holdings.slice(0, 10).map((h) => (
                     <div key={h.ticker} className="flex items-center gap-3">
@@ -273,7 +292,7 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
-              )}
+              </AsyncSection>
             </Card>
           ),
 
@@ -289,11 +308,14 @@ export default function Dashboard() {
             return (
             <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "300ms" }}>
               <SectionHeader icon={UserCheck}>Insider Buys (1Y)</SectionHeader>
-              {il ? (
-                <SkeletonRows rows={6} cols={6} />
-              ) : sorted.length === 0 ? (
-                <EmptyState icon={UserCheck} title="No insider buys" hint="No insider purchases across your holdings in the last 12 months." />
-              ) : (
+              <AsyncSection
+                isLoading={il}
+                error={insiderError}
+                onRetry={() => refetchInsider()}
+                loading={<SkeletonRows rows={6} cols={6} />}
+                isEmpty={sorted.length === 0}
+                empty={<EmptyState icon={UserCheck} title="No insider buys" hint="No insider purchases across your holdings in the last 12 months." />}
+              >
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -345,7 +367,7 @@ export default function Dashboard() {
                     </tbody>
                   </table>
                 </div>
-              )}
+              </AsyncSection>
             </Card>
             );
           })(),
@@ -384,11 +406,14 @@ export default function Dashboard() {
                     ))}
                   </div>
                 </div>}>Top Movers</SectionHeader>
-              {ml ? (
-                <SkeletonRows rows={6} cols={3} />
-              ) : (!movers?.gainers?.length && !movers?.losers?.length) ? (
-                <EmptyState icon={Activity} title="No movers yet" hint="Import transactions to track daily gainers and losers." />
-              ) : (
+              <AsyncSection
+                isLoading={ml}
+                error={moversError}
+                onRetry={() => refetchMovers()}
+                loading={<SkeletonRows rows={6} cols={3} />}
+                isEmpty={!movers?.gainers?.length && !movers?.losers?.length}
+                empty={<EmptyState icon={Activity} title="No movers yet" hint="Import transactions to track daily gainers and losers." />}
+              >
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   <div>
                     <h3 className="text-xs font-medium text-gain mb-2 flex items-center gap-1">
@@ -433,7 +458,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
-              )}
+              </AsyncSection>
             </Card>
           ),
         }}

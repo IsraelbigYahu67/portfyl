@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { Activity, RefreshCw, TrendingDown, TrendingUp, Shield, Target, Wallet } from "lucide-react";
 import { TickerLink } from "../components/StockDetail";
+import { AsyncSection } from "../components/ui";
 import {
   CATEGORICAL, GAIN_COLOR, NEUTRAL_COLOR, AXIS_TICK, GRID_STROKE, TOOLTIP_STYLE,
 } from "../lib/chartTheme";
@@ -251,22 +252,22 @@ export default function Analytics() {
     if (def) setBenchmarkId(def.id);
   }, [benchmarks, benchmarkId]);
 
-  const { data: metrics, isLoading: ml, refetch, isFetching } = useQuery({
+  const { data: metrics = {}, isLoading: ml, error: metricsError, refetch: refetchMetrics, isFetching } = useQuery({
     queryKey: ["risk-metrics", period, benchmarkId],
     queryFn: () => fetchRiskMetrics(period.toLowerCase(), benchmarkId),
   });
 
-  const { data: comparison, isLoading: bl } = useQuery({
+  const { data: comparison = {}, isLoading: bl, error: comparisonError, refetch: refetchComparison } = useQuery({
     queryKey: ["benchmark-comparison", period, benchmarkId],
     queryFn: () => fetchBenchmarkComparison(period.toLowerCase(), benchmarkId),
   });
 
-  const { data: sectors, isLoading: sl } = useQuery({
+  const { data: sectors = { sectors: [], countries: [], asset_types: [] }, isLoading: sl, error: sectorsError, refetch: refetchSectors } = useQuery({
     queryKey: ["sector-breakdown", currency],
     queryFn: () => fetchSectorBreakdown(currency),
   });
 
-  const { data: corr, isLoading: cl } = useQuery({
+  const { data: corr = {}, isLoading: cl, error: correlationError, refetch: refetchCorrelation } = useQuery({
     queryKey: ["correlation", period],
     queryFn: () => fetchCorrelation(period.toLowerCase()),
   });
@@ -311,21 +312,28 @@ export default function Analytics() {
               </button>
             ))}
           </div>
-          <button onClick={() => refetch()} className="btn-ghost flex items-center gap-2 text-sm" disabled={isFetching}>
+          <button onClick={() => refetchMetrics()} className="btn-ghost flex items-center gap-2 text-sm" disabled={isFetching}>
             <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
           </button>
         </div>
       </div>
 
-      {ml ? (
-        <div className="card animate-pulse h-32 flex items-center justify-center text-muted">
-          Calculating risk metrics…
-        </div>
-      ) : !metrics || metrics.sharpe_ratio == null ? (
-        <div className="card text-muted text-sm text-center py-12">
-          Not enough data to compute risk metrics. Add more transactions and try again.
-        </div>
-      ) : (
+      <AsyncSection
+        isLoading={ml}
+        error={metricsError}
+        onRetry={() => refetchMetrics()}
+        loading={(
+          <div className="card animate-pulse h-32 flex items-center justify-center text-muted">
+            Calculating risk metrics…
+          </div>
+        )}
+        isEmpty={!metrics || metrics.sharpe_ratio == null}
+        empty={(
+          <div className="card text-muted text-sm text-center py-12">
+            Not enough data to compute risk metrics. Add more transactions and try again.
+          </div>
+        )}
+      >
         <>
           {metrics.lifetime && (
             <section>
@@ -410,15 +418,22 @@ export default function Analytics() {
               <TrendingUp size={14} className="text-brand" />
               vs {benchName} — Active Performance
             </h2>
-            {bl ? (
-              <div className="card animate-pulse h-48 flex items-center justify-center text-muted">
-                Loading benchmark comparison…
-              </div>
-            ) : !comparison?.series?.length ? (
-              <div className="card text-muted text-sm text-center py-8">
-                No overlapping data with this benchmark over the selected window.
-              </div>
-            ) : (
+            <AsyncSection
+              isLoading={bl}
+              error={comparisonError}
+              onRetry={() => refetchComparison()}
+              loading={(
+                <div className="card animate-pulse h-48 flex items-center justify-center text-muted">
+                  Loading benchmark comparison…
+                </div>
+              )}
+              isEmpty={!comparison?.series?.length}
+              empty={(
+                <div className="card text-muted text-sm text-center py-8">
+                  No overlapping data with this benchmark over the selected window.
+                </div>
+              )}
+            >
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                 <div className="card xl:col-span-2">
                   <div className="flex items-center justify-between mb-3">
@@ -486,7 +501,7 @@ export default function Analytics() {
                   />
                 </div>
               </div>
-            )}
+            </AsyncSection>
           </section>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -591,7 +606,7 @@ export default function Analytics() {
             </div>
           </div>
         </>
-      )}
+      </AsyncSection>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="card">
@@ -599,11 +614,14 @@ export default function Analytics() {
             <Target size={14} />
             Sector Allocation
           </h2>
-          {sl ? (
-            <div className="h-64 flex items-center justify-center text-muted text-sm animate-pulse">Loading sectors…</div>
-          ) : !sectors?.sectors?.length ? (
-            <div className="text-muted text-sm">No sector data available.</div>
-          ) : (
+          <AsyncSection
+            isLoading={sl}
+            error={sectorsError}
+            onRetry={() => refetchSectors()}
+            loading={<div className="h-64 flex items-center justify-center text-muted text-sm animate-pulse">Loading sectors…</div>}
+            isEmpty={!sectors?.sectors?.length}
+            empty={<div className="text-muted text-sm">No sector data available.</div>}
+          >
             <div className="flex flex-col gap-4">
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
@@ -632,18 +650,21 @@ export default function Analytics() {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-          )}
+          </AsyncSection>
         </div>
 
         <div className="card">
           <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider">
             Country Exposure
           </h2>
-          {sl ? (
-            <div className="h-64 flex items-center justify-center text-muted text-sm animate-pulse">Loading…</div>
-          ) : !sectors?.countries?.length ? (
-            <div className="text-muted text-sm">No country data available.</div>
-          ) : (
+          <AsyncSection
+            isLoading={sl}
+            error={sectorsError}
+            onRetry={() => refetchSectors()}
+            loading={<div className="h-64 flex items-center justify-center text-muted text-sm animate-pulse">Loading…</div>}
+            isEmpty={!sectors?.countries?.length}
+            empty={<div className="text-muted text-sm">No country data available.</div>}
+          >
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={sectors.countries} layout="vertical" margin={{ left: 0, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
@@ -656,7 +677,7 @@ export default function Analytics() {
                 <Bar dataKey="weight" fill={CATEGORICAL[0]} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          )}
+          </AsyncSection>
         </div>
       </div>
 
@@ -664,11 +685,14 @@ export default function Analytics() {
         <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider">
           Asset Type Breakdown
         </h2>
-        {sl ? (
-          <div className="h-24 flex items-center justify-center text-muted text-sm animate-pulse">Loading…</div>
-        ) : !sectors?.asset_types?.length ? (
-          <div className="text-muted text-sm">No asset type data available.</div>
-        ) : (
+        <AsyncSection
+          isLoading={sl}
+          error={sectorsError}
+          onRetry={() => refetchSectors()}
+          loading={<div className="h-24 flex items-center justify-center text-muted text-sm animate-pulse">Loading…</div>}
+          isEmpty={!sectors?.asset_types?.length}
+          empty={<div className="text-muted text-sm">No asset type data available.</div>}
+        >
           <div className="space-y-2">
             {sectors.asset_types.map((row, i) => (
               <div key={row.name} className="flex items-center gap-3">
@@ -691,7 +715,7 @@ export default function Analytics() {
               </div>
             ))}
           </div>
-        )}
+        </AsyncSection>
       </div>
 
       <div className="card">
@@ -701,13 +725,16 @@ export default function Analytics() {
         <p className="text-[10px] text-muted mb-3">
           How your holdings move together. High correlation (red) means less diversification benefit.
         </p>
-        {cl ? (
-          <div className="h-32 flex items-center justify-center text-muted text-sm animate-pulse">Computing correlations…</div>
-        ) : !corr?.tickers?.length || corr.tickers.length < 2 ? (
-          <div className="text-muted text-sm">Need at least 2 holdings for correlation analysis.</div>
-        ) : (
+        <AsyncSection
+          isLoading={cl}
+          error={correlationError}
+          onRetry={() => refetchCorrelation()}
+          loading={<div className="h-32 flex items-center justify-center text-muted text-sm animate-pulse">Computing correlations…</div>}
+          isEmpty={!corr?.tickers?.length || corr.tickers.length < 2}
+          empty={<div className="text-muted text-sm">Need at least 2 holdings for correlation analysis.</div>}
+        >
           <CorrelationMatrix tickers={corr.tickers} matrix={corr.matrix} />
-        )}
+        </AsyncSection>
       </div>
     </div>
   );
