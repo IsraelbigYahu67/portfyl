@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
 import Dashboard from "./Dashboard";
 
@@ -11,16 +12,28 @@ const api = vi.hoisted(() => ({
   fetchMovers: vi.fn(),
   fetchEarnings: vi.fn(),
   fetchInsiderBuys: vi.fn(),
+  fetchDividends: vi.fn(),
 }));
 
 vi.mock("../api", () => api);
+vi.mock("@edition-manifest", () => ({
+  fetchEditionDashboardSignals: async () => ({ taxReport: null }),
+}));
 vi.mock("../App", () => ({
   useCurrency: () => ({ currency: "USD", rate: 22 }),
 }));
 vi.mock("../components/DashboardGrid", () => ({
-  default: ({ children }) => (
-    <div>{Object.entries(children).map(([key, child]) => <section key={key}>{child}</section>)}</div>
-  ),
+  default: ({ children }) => {
+    // Mirror the real grid's fixed widget order.
+    const order = ["performance", "concentration", "attention", "movers", "insiderBuys"];
+    return (
+      <div>
+        {order
+          .filter((key) => children[key])
+          .map((key) => <section key={key}>{children[key]}</section>)}
+      </div>
+    );
+  },
 }));
 vi.mock("../components/PortfolioHero", () => ({
   default: () => <div>Healthy portfolio hero</div>,
@@ -37,7 +50,9 @@ function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <Dashboard />
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -53,6 +68,7 @@ beforeEach(() => {
     .mockResolvedValue({ gainers: [], losers: [] });
   api.fetchEarnings.mockResolvedValue([]);
   api.fetchInsiderBuys.mockResolvedValue([]);
+  api.fetchDividends.mockResolvedValue([]);
 });
 
 it("keeps healthy dashboard widgets visible when Movers fails and retries only Movers", async () => {
@@ -68,4 +84,18 @@ it("keeps healthy dashboard widgets visible when Movers fails and retries only M
   expect(api.fetchSummary).toHaveBeenCalledTimes(1);
   expect(api.fetchHoldings).toHaveBeenCalledTimes(1);
   expect(api.fetchPerformance).toHaveBeenCalledTimes(1);
+});
+
+it("orders dashboard widgets by purpose and collapses insider activity", async () => {
+  renderPage();
+
+  await screen.findByText("Healthy performance chart");
+
+  const order = ["Portfolio Performance", "Concentration", "Needs attention", "Top Movers", "Insider activity (1Y)"];
+  const nodes = order.map((label) => screen.getByText(label));
+  for (let i = 1; i < nodes.length; i += 1) {
+    expect(
+      nodes[i - 1].compareDocumentPosition(nodes[i]) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  }
 });
