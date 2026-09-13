@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchDividends, fetchDividendForecast, fetchDividendGrowth } from "../api";
-import { CalendarDays, RefreshCw, TrendingUp, DollarSign } from "lucide-react";
+import { AlertTriangle, CalendarDays, RefreshCw, TrendingUp, DollarSign } from "lucide-react";
 import { useStockDetail } from "../components/StockDetail";
 import MetricCard from "../components/MetricCard";
 import {
@@ -14,12 +14,18 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { CATEGORICAL, GAIN_COLOR, AXIS_TICK, GRID_STROKE } from "../lib/chartTheme";
+import { formatMoney, formatQuantity, formatShortDate } from "../lib/format";
 
 const today = new Date().toISOString().slice(0, 10);
 
-function statusBadge(exDate) {
-  if (!exDate) return null;
-  const diff = Math.ceil((new Date(exDate) - new Date(today)) / 86400000);
+function statusBadge(row) {
+  if (row.date_status === "inconsistent") {
+    return <span className="text-xs px-2 py-0.5 rounded-full bg-loss/20 text-loss">Needs review</span>;
+  }
+  if (!row.ex_date) {
+    return <span className="text-xs px-2 py-0.5 rounded-full bg-surface-hover text-muted">Date unavailable</span>;
+  }
+  const diff = Math.ceil((new Date(row.ex_date) - new Date(today)) / 86400000);
   if (diff < 0) return <span className="text-xs px-2 py-0.5 rounded-full bg-surface-hover text-muted">Past</span>;
   if (diff === 0) return <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">Today</span>;
   if (diff <= 7) return <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">In {diff}d</span>;
@@ -27,16 +33,8 @@ function statusBadge(exDate) {
   return <span className="text-xs px-2 py-0.5 rounded-full bg-surface-hover text-muted">In {diff}d</span>;
 }
 
-function fmt(dateStr) {
-  if (!dateStr) return <span className="text-muted">—</span>;
-  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
-function fmtMoney(v, ccy = "USD") {
-  if (v == null) return "—";
-  const symbol = ccy === "USD" ? "$" : "";
-  const suffix = ccy === "USD" ? "" : ` ${ccy}`;
-  return `${symbol}${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${suffix}`;
+function isKnownUpcoming(row, currentDay) {
+  return row.date_status !== "inconsistent" && row.ex_date && row.ex_date >= currentDay;
 }
 
 export default function Dividends() {
@@ -67,8 +65,29 @@ export default function Dividends() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const upcoming = data?.filter((d) => d.ex_date && d.ex_date >= today) ?? [];
-  const past = data?.filter((d) => !d.ex_date || d.ex_date < today) ?? [];
+  const rows = data ?? [];
+  const needsReview = rows.filter((row) => row.date_status === "inconsistent" || !row.ex_date);
+  const knownUpcoming = rows.filter(
+    (row) => !needsReview.includes(row) && isKnownUpcoming(row, today),
+  );
+  const past = rows.filter(
+    (row) => !needsReview.includes(row) && !knownUpcoming.includes(row),
+  );
+  const estimatedByCurrency = rows.reduce((totals, row) => {
+    if (row.income_status === "estimated" && row.annual_income != null) {
+      const currency = row.currency || "USD";
+      totals[currency] = (totals[currency] || 0) + Number(row.annual_income);
+    }
+    return totals;
+  }, {});
+  const estimatedTotals = Object.entries(estimatedByCurrency);
+  if (!estimatedTotals.length && rows.length) {
+    estimatedTotals.push([rows[0].currency || "USD", 0]);
+  }
+  const latestAsOf = rows.reduce(
+    (latest, row) => (row.as_of && (!latest || row.as_of > latest) ? row.as_of : latest),
+    null,
+  );
 
   const refreshing = isFetching || forecastFetching;
   const refreshAll = () => {
@@ -104,13 +123,47 @@ export default function Dividends() {
         <div className="text-center py-20 text-muted">No holdings found. Import a portfolio to see dividend info.</div>
       ) : (
         <>
-          {upcoming.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
+              Estimated annual income
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {estimatedTotals.map(([currency, amount]) => (
+                <MetricCard
+                  key={currency}
+                  icon={TrendingUp}
+                  label={currency}
+                  value={formatMoney(amount, currency)}
+                />
+              ))}
+            </div>
+            <details className="text-xs text-muted">
+              <summary>Estimate source and freshness</summary>
+              <p className="mt-2">
+                Estimates come from Yahoo Finance and are not guaranteed payments.
+                {latestAsOf && <> Data retrieved {new Date(latestAsOf).toLocaleString()}.</>}
+              </p>
+            </details>
+          </section>
+
+          {knownUpcoming.length > 0 && (
             <section>
               <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
-                <CalendarDays size={13} /> Upcoming ex-dates
+                <CalendarDays size={13} /> Known upcoming dates
               </h2>
               <div className="rounded-xl border border-surface-border overflow-hidden">
-                <Table rows={upcoming} />
+                <Table rows={knownUpcoming} />
+              </div>
+            </section>
+          )}
+
+          {needsReview.length > 0 && (
+            <section>
+              <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
+                <AlertTriangle size={13} /> Date unavailable or needs review
+              </h2>
+              <div className="rounded-xl border border-surface-border overflow-hidden">
+                <Table rows={needsReview} />
               </div>
             </section>
           )}
@@ -118,7 +171,7 @@ export default function Dividends() {
           {past.length > 0 && (
             <section>
               <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
-                <CalendarDays size={13} /> Past / no upcoming date
+                <CalendarDays size={13} /> Past dates
               </h2>
               <div className="rounded-xl border border-surface-border overflow-hidden">
                 <Table rows={past} />
@@ -153,8 +206,8 @@ function ForecastChart({ forecast, loading }) {
         <DollarSign size={13} /> Dividend income {forecast.year}
       </h2>
       <div className="grid grid-cols-2 gap-4">
-        <MetricCard icon={DollarSign} label="Paid YTD" value={fmtMoney(forecast.total_paid)} />
-        <MetricCard icon={TrendingUp} label="Estimated remaining" value={fmtMoney(forecast.total_estimated)} />
+        <MetricCard icon={DollarSign} label="Paid YTD" value={formatMoney(forecast.total_paid)} />
+        <MetricCard icon={TrendingUp} label="Estimated remaining" value={formatMoney(forecast.total_estimated)} />
       </div>
       <div className="rounded-xl border border-surface-border bg-surface-card p-4">
         <ResponsiveContainer width="100%" height={260}>
@@ -211,7 +264,7 @@ function ForecastTooltip({ active, payload, label }) {
                 title={e.status === "paid" ? "Already paid" : "Estimated"}
               >
                 {e.status === "paid" ? "" : "~"}
-                {fmtMoney(e.amount)}
+                {formatMoney(e.amount)}
               </span>
             </div>
           ))}
@@ -224,18 +277,18 @@ function ForecastTooltip({ active, payload, label }) {
         {paid > 0 && (
           <div className="flex justify-between gap-6">
             <span className="text-muted">Paid</span>
-            <span className="font-medium text-gain">{fmtMoney(paid)}</span>
+            <span className="font-medium text-gain">{formatMoney(paid)}</span>
           </div>
         )}
         {est > 0 && (
           <div className="flex justify-between gap-6">
             <span className="text-muted">Estimated</span>
-            <span className="font-medium text-brand">{fmtMoney(est)}</span>
+            <span className="font-medium text-brand">{formatMoney(est)}</span>
           </div>
         )}
         <div className="flex justify-between gap-6">
           <span className="text-muted">Total</span>
-          <span className="font-medium text-ink">{fmtMoney(paid + est)}</span>
+          <span className="font-medium text-ink">{formatMoney(paid + est)}</span>
         </div>
       </div>
     </div>
@@ -264,21 +317,24 @@ function Table({ rows }) {
           >
             <td className="px-4 py-3 font-mono font-semibold text-ink">{row.ticker}</td>
             <td className="px-4 py-3 text-muted max-w-[180px] truncate">{row.name}</td>
-            <td className="px-4 py-3 text-muted tabular-nums">{row.shares.toLocaleString()}</td>
-            <td className="px-4 py-3 text-muted tabular-nums">{fmt(row.ex_date)}</td>
-            <td className="px-4 py-3 text-muted tabular-nums">{fmt(row.pay_date)}</td>
+            <td className="px-4 py-3 text-muted tabular-nums">{formatQuantity(row.shares)}</td>
+            <td className="px-4 py-3 text-muted tabular-nums">{formatShortDate(row.ex_date)}</td>
+            <td className="px-4 py-3 text-muted tabular-nums">{formatShortDate(row.pay_date)}</td>
             <td className="px-4 py-3 text-muted tabular-nums">
               {row.dividend_rate != null ? (
-                <span className="flex items-center gap-1">
-                  <DollarSign size={11} className="text-brand" />
-                  {row.dividend_rate.toFixed(2)} {row.currency}
-                </span>
+                formatMoney(row.dividend_rate, row.currency)
               ) : <span className="text-muted">—</span>}
             </td>
             <td className="px-4 py-3 text-ink tabular-nums font-medium">
-              {row.annual_income != null
-                ? `${row.annual_income.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${row.currency}`
-                : <span className="text-muted">—</span>}
+              {row.income_status === "review" ? (
+                <span className="inline-flex items-center gap-1 text-loss" title={(row.warnings || []).join(", ")}>
+                  <AlertTriangle size={13} aria-hidden="true" /> Review estimate
+                </span>
+              ) : row.income_status === "unavailable" || row.annual_income == null ? (
+                <span className="text-muted">Unavailable</span>
+              ) : (
+                formatMoney(row.annual_income, row.currency)
+              )}
             </td>
             <td className="px-4 py-3 tabular-nums">
               {row.dividend_yield != null ? (
@@ -288,7 +344,7 @@ function Table({ rows }) {
                 </span>
               ) : <span className="text-muted">—</span>}
             </td>
-            <td className="px-4 py-3">{statusBadge(row.ex_date)}</td>
+            <td className="px-4 py-3">{statusBadge(row)}</td>
           </tr>
         ))}
       </tbody>
