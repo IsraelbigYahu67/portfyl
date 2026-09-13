@@ -2,8 +2,8 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { editionManifestPath, resolveFrontendEdition } from "./edition.config.js";
 
-export default defineConfig(({ mode }) => {
-  const edition = resolveFrontendEdition(process.env, mode);
+export function createConfig({ mode, env = process.env }) {
+  const edition = resolveFrontendEdition(env, mode);
   return {
     define: { "import.meta.env.VITE_PORTFYL_EDITION": JSON.stringify(edition) },
     plugins: [react()],
@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => {
         // CSRF header). All backend routes -- including /api/auth/* -- live
         // under /api; there is no separate top-level /login or /logout route.
         "/api": {
-          target: "http://localhost:8000",
+          target: env.VITE_API_PROXY_TARGET || "http://localhost:8000",
           changeOrigin: true,
         },
       },
@@ -35,4 +35,6 @@ export default defineConfig(({ mode }) => {
       passWithNoTests: true,
     },
   };
-});
+}
+
+export default defineConfig(({ mode }) => createConfig({ mode, env: process.env }));
