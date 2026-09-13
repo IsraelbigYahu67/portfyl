@@ -2,11 +2,11 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useRef,
   useState,
 } from "react";
 import { AlertTriangle } from "lucide-react";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 const ConfirmContext = createContext(null);
 
@@ -63,34 +63,12 @@ function ConfirmDialog({ title, message, confirmLabel, cancelLabel, danger, onRe
   const titleId = "confirm-dialog-title";
   const descId = "confirm-dialog-desc";
 
-  useEffect(() => {
+  const containerRef = useFocusTrap({
+    active: true,
+    onEscape: () => onResolve(false),
     // Destructive dialogs default focus to Cancel so an accidental Enter is safe.
-    (danger ? cancelBtnRef : confirmBtnRef).current?.focus();
-
-    const onKey = (e) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onResolve(false);
-      } else if (e.key === "Tab") {
-        // Trap focus between the only two controls.
-        e.preventDefault();
-        const next =
-          document.activeElement === confirmBtnRef.current
-            ? cancelBtnRef.current
-            : confirmBtnRef.current;
-        next?.focus();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [danger, onResolve]);
+    initialFocusRef: danger ? cancelBtnRef : confirmBtnRef,
+  });
 
   return (
     <div
@@ -101,6 +79,7 @@ function ConfirmDialog({ title, message, confirmLabel, cancelLabel, danger, onRe
       }}
     >
       <div
+        ref={containerRef}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={titleId}
