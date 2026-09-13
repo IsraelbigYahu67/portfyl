@@ -11,3 +11,8 @@ export const EDITION_NAVIGATION = Object.freeze([
   { to: "/pricing", label: "Plans", icon: Layers3, capability: "settings" },
 ]);
 export const EditionShell = UpgradePrompt;
+
+// Cloud has no Tax Report, so there is no local tax-completeness signal to
+// surface. Resolving null keeps the Dashboard's edition hook symmetric without
+// importing any local-only API module into the cloud bundle.
+export const fetchEditionDashboardSignals = async () => ({ taxReport: null });

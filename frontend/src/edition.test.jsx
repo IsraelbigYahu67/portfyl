@@ -1,15 +1,26 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { editionManifestPath, resolveFrontendEdition } from "../edition.config.js";
 import {
   EDITION_NAVIGATION as CLOUD_NAVIGATION,
   EDITION_ROUTES as CLOUD_ROUTES,
+  fetchEditionDashboardSignals as cloudDashboardSignals,
 } from "./editions/cloud";
+import cloudManifestSource from "./editions/cloud.jsx?raw";
 import {
   EDITION_NAVIGATION as LOCAL_NAVIGATION,
   EDITION_ROUTES as LOCAL_ROUTES,
+  fetchEditionDashboardSignals as localDashboardSignals,
 } from "./editions/local";
 import { enabledEditionEntries } from "./editions/filter";
+
+vi.mock("./editions/localApi", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    fetchLocalTaxReport: vi.fn(async () => ({ summary: { fx_complete: false } })),
+  };
+});
 
 
 describe("edition build configuration", () => {
@@ -44,5 +55,11 @@ describe("edition manifests", () => {
     expect(enabledEditionEntries(LOCAL_ROUTES, [])).toEqual([]);
     expect(enabledEditionEntries(LOCAL_ROUTES, ["tax_report"]).map((entry) => entry.path))
       .toEqual(["/tax-report"]);
+  });
+
+  it("exposes edition-safe dashboard signals without importing local API into cloud", async () => {
+    await expect(localDashboardSignals()).resolves.toEqual({ taxReport: { summary: { fx_complete: false } } });
+    await expect(cloudDashboardSignals()).resolves.toEqual({ taxReport: null });
+    expect(cloudManifestSource).not.toContain("localApi");
   });
 });
