@@ -57,7 +57,7 @@ it("keeps analytics metrics visible when correlation fails and retries only corr
 
   expect(await screen.findByRole("heading", { name: /portfolio analytics/i })).toBeInTheDocument();
   expect(await screen.findByText("Sharpe Ratio")).toBeInTheDocument();
-  const correlationCard = screen.getByRole("heading", { name: /correlation matrix/i }).closest(".card");
+  const correlationCard = screen.getByRole("heading", { name: /strongest correlations/i }).closest(".card");
   expect(within(correlationCard).getByRole("alert")).toHaveTextContent("Correlation unavailable");
 
   fireEvent.click(within(correlationCard).getByRole("button", { name: /retry/i }));

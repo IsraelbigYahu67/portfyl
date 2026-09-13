@@ -19,6 +19,7 @@ import { AsyncSection } from "../components/ui";
 import {
   CATEGORICAL, GAIN_COLOR, NEUTRAL_COLOR, AXIS_TICK, GRID_STROKE, TOOLTIP_STYLE,
 } from "../lib/chartTheme";
+import { topAbsoluteCorrelationPairs } from "../lib/correlationPairs";
 
 const PERIODS = ["3M", "6M", "1Y", "2Y"];
 
@@ -208,6 +209,49 @@ function CorrelationMatrix({ tickers, matrix }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function CorrelationMatrixSelector({ allTickers, matrix }) {
+  const [selected, setSelected] = useState(allTickers.slice(0, Math.min(12, allTickers.length)));
+  const MAX_SELECTED = 12;
+
+  const toggle = (ticker) =>
+    setSelected((prev) =>
+      prev.includes(ticker)
+        ? prev.filter((t) => t !== ticker)
+        : prev.length >= MAX_SELECTED
+          ? prev
+          : [...prev, ticker]
+    );
+
+  const indices = selected.map((t) => allTickers.indexOf(t));
+  const subMatrix = indices.map((i) => indices.map((j) => matrix[i][j]));
+
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="flex flex-wrap gap-1.5">
+        {allTickers.map((t) => {
+          const isSelected = selected.includes(t);
+          const disabled = !isSelected && selected.length >= MAX_SELECTED;
+          return (
+            <button
+              key={t}
+              type="button"
+              disabled={disabled}
+              onClick={() => toggle(t)}
+              title={disabled ? `Up to ${MAX_SELECTED} holdings can be shown at once` : undefined}
+              className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+                isSelected ? "bg-brand text-white border-brand" : "border-surface-border text-muted"
+              } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+            >
+              {t}
+            </button>
+          );
+        })}
+      </div>
+      <CorrelationMatrix tickers={selected} matrix={subMatrix} />
     </div>
   );
 }
@@ -720,7 +764,7 @@ export default function Analytics() {
 
       <div className="card">
         <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider">
-          Correlation Matrix
+          Strongest Correlations
         </h2>
         <p className="text-[10px] text-muted mb-3">
           How your holdings move together. High correlation (red) means less diversification benefit.
@@ -733,7 +777,24 @@ export default function Analytics() {
           isEmpty={!corr?.tickers?.length || corr.tickers.length < 2}
           empty={<div className="text-muted text-sm">Need at least 2 holdings for correlation analysis.</div>}
         >
-          <CorrelationMatrix tickers={corr.tickers} matrix={corr.matrix} />
+          <>
+            <ul className="space-y-1.5">
+              {topAbsoluteCorrelationPairs(corr.tickers, corr.matrix, 10).map((p) => (
+                <li key={`${p.a}-${p.b}`} className="flex items-center justify-between text-sm">
+                  <span className="font-mono">
+                    <TickerLink ticker={p.a}>{p.a}</TickerLink> / <TickerLink ticker={p.b}>{p.b}</TickerLink>
+                  </span>
+                  <span className={`tabular-nums font-medium ${p.value >= 0 ? "text-loss" : "text-gain"}`}>
+                    {p.value.toFixed(2)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <details className="mt-4">
+              <summary className="text-xs text-muted cursor-pointer select-none">Advanced: full matrix</summary>
+              <CorrelationMatrixSelector allTickers={corr.tickers} matrix={corr.matrix} />
+            </details>
+          </>
         </AsyncSection>
       </div>
     </div>
