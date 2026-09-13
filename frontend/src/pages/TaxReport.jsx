@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { fetchTaxReport } from "../editions/localApi";
 import { useCurrency } from "../App";
 import MetricCard from "../components/MetricCard";
@@ -12,6 +12,7 @@ import {
   formatShortDate,
 } from "../lib/format";
 import { AsyncSection } from "../components/ui";
+import Pagination from "../components/ui/Pagination";
 
 // Czech §4 capital gains exemption rules. Kept on the client so the labels can
 // be tweaked without touching the API.
@@ -135,8 +136,31 @@ function CzechTaxPanel({ years, year }) {
 
 export default function TaxReport() {
   const { currency, rate } = useCurrency();
-  const [year, setYear] = useState(null);
-  const [tab, setTab] = useState("realized");
+  const [params, setParams] = useSearchParams();
+
+  const year = params.get("year") ? Number(params.get("year")) : null;
+  const tab = params.get("tab") || "realized";
+  const page = Number(params.get("page") || 0);
+  const ROWS_PER_PAGE = 50;
+
+  const setTab = (next) => {
+    const p = new URLSearchParams(params);
+    p.set("tab", next);
+    p.set("page", "0");
+    setParams(p, { replace: true });
+  };
+  const setYear = (next) => {
+    const p = new URLSearchParams(params);
+    if (next == null) p.delete("year");
+    else p.set("year", String(next));
+    p.set("page", "0");
+    setParams(p, { replace: true });
+  };
+  const setPage = (next) => {
+    const p = new URLSearchParams(params);
+    p.set("page", String(next));
+    setParams(p, { replace: true });
+  };
 
   const convert = (n) => (currency === "CZK" && rate ? n * rate : n);
   const fmt = (n) => formatSharedMoney(convert(n), currency);
@@ -163,6 +187,9 @@ export default function TaxReport() {
 
   const shortGains = gains.filter((g) => g.term === "short");
   const longGains = gains.filter((g) => g.term === "long");
+
+  const pagedGains = gains.slice(page * ROWS_PER_PAGE, (page + 1) * ROWS_PER_PAGE);
+  const pagedUnrealized = unrealized.slice(page * ROWS_PER_PAGE, (page + 1) * ROWS_PER_PAGE);
 
   const exportCSV = () => {
     if (!gains.length && !dividendIncome.length) return;
@@ -296,6 +323,7 @@ export default function TaxReport() {
             </div>
 
             {tab === "realized" && (
+              <>
               <div className="overflow-x-auto">
                 {!gains.length ? (
                   <div className="text-muted text-sm text-center py-12">
@@ -311,7 +339,7 @@ export default function TaxReport() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-border">
-                      {gains.map((g, i) => {
+                      {pagedGains.map((g, i) => {
                         const up = g.gain >= 0;
                         return (
                           <tr key={i} className="hover:bg-surface-hover transition-colors">
@@ -384,9 +412,22 @@ export default function TaxReport() {
                   </table>
                 )}
               </div>
+              {gains.length > ROWS_PER_PAGE && (
+                <div className="px-4">
+                  <Pagination
+                    offset={page * ROWS_PER_PAGE}
+                    limit={ROWS_PER_PAGE}
+                    total={gains.length}
+                    onOffsetChange={(nextOffset) => setPage(Math.floor(nextOffset / ROWS_PER_PAGE))}
+                    ariaLabel="Tax report realized gains pages"
+                  />
+                </div>
+              )}
+              </>
             )}
 
             {tab === "unrealized" && (
+              <>
               <div className="overflow-x-auto">
                 {!unrealized.length ? (
                   <div className="text-muted text-sm text-center py-12">No open positions with lot data.</div>
@@ -400,7 +441,7 @@ export default function TaxReport() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-border">
-                      {unrealized.map((u, i) => {
+                      {pagedUnrealized.map((u, i) => {
                         const up = u.unrealized_gain >= 0;
                         return (
                           <tr key={i} className="hover:bg-surface-hover transition-colors">
@@ -466,6 +507,18 @@ export default function TaxReport() {
                   </table>
                 )}
               </div>
+              {unrealized.length > ROWS_PER_PAGE && (
+                <div className="px-4">
+                  <Pagination
+                    offset={page * ROWS_PER_PAGE}
+                    limit={ROWS_PER_PAGE}
+                    total={unrealized.length}
+                    onOffsetChange={(nextOffset) => setPage(Math.floor(nextOffset / ROWS_PER_PAGE))}
+                    ariaLabel="Tax report unrealized gains pages"
+                  />
+                </div>
+              )}
+              </>
             )}
 
             {tab === "dividends" && (
