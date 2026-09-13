@@ -149,8 +149,6 @@ export const createPortfolio = (data) => api.post("/portfolios", data).then((r) 
 export const createDemoPortfolio = () => api.post("/portfolios/demo").then((r) => r.data);
 export const updatePortfolio = (id, data) => api.patch(`/portfolios/${id}`, data).then((r) => r.data);
 export const deletePortfolio = (id) => api.delete(`/portfolios/${id}`).then((r) => r.data);
-export const fetchOverview = (currency = "USD") =>
-  api.get("/portfolios/overview", { params: { currency } }).then((r) => r.data);
 
 // ----- Everything below is portfolio-scoped via the interceptor ---------------
 

@@ -157,4 +157,14 @@ describe("authenticated routing", () => {
     });
     expect(screen.queryByRole("link", { name: "Cash" })).not.toBeInTheDocument();
   });
+
+  it("redirects the retired overview route to the tracker home", async () => {
+    renderApp("/overview");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location").textContent).toBe(TRACKER_HOME);
+    });
+    expect(await screen.findByRole("heading", { name: /portfolio overview/i }))
+      .toBeInTheDocument();
+  });
 });

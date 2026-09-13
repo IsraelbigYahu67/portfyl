@@ -3,9 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { TRACKER_HOME } from "./lib/routes";
 import { Loader2 } from "lucide-react";
-import Sidebar from "./components/Sidebar";
+import AppShell from "./components/layout/AppShell";
+import { buildNavGroups } from "./components/layout/navigation";
 import Dashboard from "./pages/Dashboard";
-import Overview from "./pages/Overview";
 import Allocation from "./pages/Allocation";
 import Transactions from "./pages/Transactions";
 import Import from "./pages/Import";
@@ -26,7 +26,7 @@ import { ToastProvider } from "./components/ui/Toast";
 import { ConfirmProvider } from "./components/ui/ConfirmDialog";
 import AutoLoad from "./components/AutoLoad";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
-import { EDITION_ROUTES, EditionShell } from "@edition-manifest";
+import { EDITION_NAVIGATION, EDITION_ROUTES, EditionShell } from "@edition-manifest";
 import { enabledEditionEntries } from "./editions/filter";
 
 const CurrencyContext = createContext(null);
@@ -389,6 +389,7 @@ function AppLayout() {
   });
   const runtimeCapabilities = capabilityState?.capabilities || [];
   const editionRoutes = enabledEditionEntries(EDITION_ROUTES, runtimeCapabilities);
+  const navGroups = buildNavGroups(EDITION_NAVIGATION, runtimeCapabilities);
 
   useEffect(() => {
     localStorage.removeItem("sb_platform");
@@ -403,34 +404,31 @@ function AppLayout() {
   }
 
   return (
-    <div className="flex min-h-screen">
+    <AppShell groups={navGroups}>
       <EditionShell />
       {/* Background prefetcher warms portfolio pages in priority order. */}
       <AutoLoad />
-      <Sidebar capabilities={runtimeCapabilities} />
-      <main className="flex-1 p-6 overflow-y-auto min-w-0 max-h-screen">
-        <Routes>
-          <Route path={TRACKER_HOME} element={<Dashboard />} />
-          <Route path="/overview" element={<Overview />} />
-          <Route path="/allocation" element={<Allocation />} />
-          <Route path="/transactions" element={<Transactions />} />
-          <Route path="/import" element={<Import />} />
-          <Route path="/dividends" element={<Dividends />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="/search" element={<Search />} />
-          <Route path="/stock/:ticker" element={<Stock />} />
-          <Route path="/watchlists" element={<Watchlists />} />
-          <Route path="/assistant" element={<Assistant />} />
-          {editionRoutes.map(({ path, Component }) => (
-            <Route key={path} path={path} element={<Component />} />
-          ))}
-          <Route path="/settings" element={<Settings />} />
-          {/* An authenticated visitor landing on a public auth URL (stale tab,
-              browser back button after login, etc.) gets sent home instead of
-              a blank route. */}
-          <Route path="*" element={<Navigate to={TRACKER_HOME} replace />} />
-        </Routes>
-      </main>
-    </div>
+      <Routes>
+        <Route path={TRACKER_HOME} element={<Dashboard />} />
+        <Route path="/overview" element={<Navigate to={TRACKER_HOME} replace />} />
+        <Route path="/allocation" element={<Allocation />} />
+        <Route path="/transactions" element={<Transactions />} />
+        <Route path="/import" element={<Import />} />
+        <Route path="/dividends" element={<Dividends />} />
+        <Route path="/analytics" element={<Analytics />} />
+        <Route path="/search" element={<Search />} />
+        <Route path="/stock/:ticker" element={<Stock />} />
+        <Route path="/watchlists" element={<Watchlists />} />
+        <Route path="/assistant" element={<Assistant />} />
+        {editionRoutes.map(({ path, Component }) => (
+          <Route key={path} path={path} element={<Component />} />
+        ))}
+        <Route path="/settings" element={<Settings />} />
+        {/* An authenticated visitor landing on a public auth URL (stale tab,
+            browser back button after login, etc.) gets sent home instead of
+            a blank route. */}
+        <Route path="*" element={<Navigate to={TRACKER_HOME} replace />} />
+      </Routes>
+    </AppShell>
   );
 }

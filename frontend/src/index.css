@@ -101,6 +101,26 @@
 }
 
 @layer utilities {
+  .skip-link {
+    position: fixed;
+    top: -4rem;
+    left: 0.5rem;
+    z-index: 100;
+    border: 1px solid var(--hairline);
+    border-radius: 0.5rem;
+    background: var(--surface-card);
+    color: var(--ink);
+    padding: 0.625rem 0.875rem;
+    font-weight: 600;
+    box-shadow: var(--shadow-ambient);
+    transition: top 0.15s ease;
+  }
+  .skip-link:focus {
+    top: 0.5rem;
+    outline: 3px solid var(--brand-light);
+    outline-offset: 2px;
+  }
+
   .shimmer {
     position: relative;
     overflow: hidden;
