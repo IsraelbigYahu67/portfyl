@@ -9,7 +9,7 @@ import { TickerLink, useStockDetail } from "../components/StockDetail";
 import BreakdownChart from "../components/BreakdownChart";
 import AllocationBreakdownList from "../components/AllocationBreakdownList";
 import SegmentedControl from "../components/ui/SegmentedControl";
-import { AsyncSection } from "../components/ui";
+import { AsyncSection, ChartSummary } from "../components/ui";
 
 const fmtPct = (n) => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
 
@@ -194,6 +194,26 @@ export default function Allocation() {
                 currencyLabel={currency}
                 legendColumns={2}
               />
+              <ChartSummary title={`${CATEGORY_TITLE[category]} chart data`}>
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="text-muted">
+                      <th className="pr-3 font-medium">{category === "position" ? "Ticker" : "Category"}</th>
+                      <th className="pr-3 font-medium">Value</th>
+                      <th className="font-medium">Weight</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bounded.map((row) => (
+                      <tr key={row.name}>
+                        <td className="pr-3">{row.name}</td>
+                        <td className="pr-3 tabular-nums">{fmt(row.value)}</td>
+                        <td className="tabular-nums">{row.weight}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </ChartSummary>
               <div className="card">
                 <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider">
                   Full Breakdown

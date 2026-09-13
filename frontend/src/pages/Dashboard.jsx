@@ -7,7 +7,7 @@ import MetricCard from "../components/MetricCard";
 import PerformanceChart from "../components/PerformanceChart";
 import { RefreshCw, TrendingUp, TrendingDown, Calendar, LayoutGrid, Lock, UserCheck, PieChart, Activity } from "lucide-react";
 import { formatMoney, formatPercent } from "../lib/format";
-import { AsyncSection, Card, SectionHeader, SkeletonRows, SkeletonChart, EmptyState, DeltaPill } from "../components/ui";
+import { AsyncSection, Card, SectionHeader, SkeletonRows, SkeletonChart, EmptyState, DeltaPill, ChartSummary } from "../components/ui";
 import Heatmap from "../components/Heatmap";
 import { TickerLink } from "../components/StockDetail";
 import DashboardGrid from "../components/DashboardGrid";
@@ -234,6 +234,26 @@ export default function Dashboard() {
                   benchmarks={benchmarkData}
                   benchmarkMeta={BENCHMARKS.filter((b) => activeBenchmarks.includes(b.key))}
                 />
+                <ChartSummary title="Performance chart data">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="text-muted">
+                        <th className="pr-3 font-medium">Date</th>
+                        <th className="font-medium">{chartMode === "value" ? "Value" : "Growth %"}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(perf || []).map((point) => (
+                        <tr key={point.date}>
+                          <td className="pr-3 tabular-nums">{point.date}</td>
+                          <td className="tabular-nums">
+                            {chartMode === "value" ? formatMoney(point.value, currency) : `${point.pnl_pct}%`}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </ChartSummary>
               </AsyncSection>
             </Card>
           ),

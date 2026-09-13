@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchRiskMetrics,
-  fetchSectorBreakdown,
   fetchCorrelation,
   fetchBenchmarkCatalog,
   fetchBenchmarkComparison,
@@ -10,12 +9,11 @@ import {
 import { useCurrency } from "../App";
 import MetricCard, { InfoIcon } from "../components/MetricCard";
 import {
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line,
+  Tooltip, ResponsiveContainer, XAxis, YAxis, CartesianGrid, LineChart, Line,
 } from "recharts";
-import { Activity, RefreshCw, TrendingDown, TrendingUp, Shield, Target, Wallet } from "lucide-react";
+import { Activity, RefreshCw, TrendingDown, TrendingUp, Shield, Wallet } from "lucide-react";
 import { TickerLink } from "../components/StockDetail";
-import { AsyncSection } from "../components/ui";
+import { AsyncSection, ChartSummary } from "../components/ui";
 import {
   CATEGORICAL, GAIN_COLOR, NEUTRAL_COLOR, AXIS_TICK, GRID_STROKE, TOOLTIP_STYLE,
 } from "../lib/chartTheme";
@@ -268,16 +266,6 @@ export default function Analytics() {
     const sign = n < 0 ? "-" : "";
     return currency === "CZK" ? `${sign}${str} Kč` : `${sign}$${str}`;
   };
-  // For values the backend ALREADY returns in the active currency (the sector
-  // breakdown is fetched with `currency`). Unlike fmt(), this must NOT re-apply
-  // the CZK rate, otherwise CZK figures get double-converted.
-  const fmtCur = (n) => {
-    if (n == null) return "—";
-    const str = Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const sign = n < 0 ? "-" : "";
-    return currency === "CZK" ? `${sign}${str} Kč` : `${sign}$${str}`;
-  };
-
   const { data: benchmarks } = useQuery({
     queryKey: ["benchmark-catalog"],
     queryFn: fetchBenchmarkCatalog,
@@ -296,27 +284,25 @@ export default function Analytics() {
     if (def) setBenchmarkId(def.id);
   }, [benchmarks, benchmarkId]);
 
-  const { data: metrics = {}, isLoading: ml, error: metricsError, refetch: refetchMetrics, isFetching } = useQuery({
+  const { data: metrics = {}, isLoading: ml, error: metricsError, refetch: refetchMetrics, isFetching, dataUpdatedAt: metricsUpdatedAt } = useQuery({
     queryKey: ["risk-metrics", period, benchmarkId],
     queryFn: () => fetchRiskMetrics(period.toLowerCase(), benchmarkId),
   });
 
-  const { data: comparison = {}, isLoading: bl, error: comparisonError, refetch: refetchComparison } = useQuery({
+  const { data: comparison = {}, isLoading: bl, error: comparisonError, refetch: refetchComparison, dataUpdatedAt: comparisonUpdatedAt } = useQuery({
     queryKey: ["benchmark-comparison", period, benchmarkId],
     queryFn: () => fetchBenchmarkComparison(period.toLowerCase(), benchmarkId),
   });
 
-  const { data: sectors = { sectors: [], countries: [], asset_types: [] }, isLoading: sl, error: sectorsError, refetch: refetchSectors } = useQuery({
-    queryKey: ["sector-breakdown", currency],
-    queryFn: () => fetchSectorBreakdown(currency),
-  });
-
-  const { data: corr = {}, isLoading: cl, error: correlationError, refetch: refetchCorrelation } = useQuery({
+  const { data: corr = {}, isLoading: cl, error: correlationError, refetch: refetchCorrelation, dataUpdatedAt: correlationUpdatedAt } = useQuery({
     queryKey: ["correlation", period],
     queryFn: () => fetchCorrelation(period.toLowerCase()),
   });
 
   const benchName = metrics?.benchmark?.name || comparison?.benchmark?.name || "benchmark";
+  const loadedAt = (ts) => (ts ? new Date(ts).toLocaleTimeString() : "—");
+  const dataContext = (ts) => `Period: ${period} · Data loaded ${loadedAt(ts)}`;
+  const correlationPairs = topAbsoluteCorrelationPairs(corr.tickers, corr.matrix, 10);
 
   return (
     <div className="space-y-6">
@@ -379,6 +365,7 @@ export default function Analytics() {
         )}
       >
         <>
+          <p className="text-[10px] text-muted mb-3">{dataContext(metricsUpdatedAt)}</p>
           {metrics.lifetime && (
             <section>
               <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider flex items-center gap-2">
@@ -458,10 +445,11 @@ export default function Analytics() {
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-muted mb-1 uppercase tracking-wider flex items-center gap-2">
               <TrendingUp size={14} className="text-brand" />
               vs {benchName} — Active Performance
             </h2>
+            <p className="text-[10px] text-muted mb-3">{dataContext(comparisonUpdatedAt)}</p>
             <AsyncSection
               isLoading={bl}
               error={comparisonError}
@@ -502,6 +490,28 @@ export default function Analytics() {
                       <Line type="monotone" dataKey="active_pct" stroke={CATEGORICAL[0]} strokeWidth={1} strokeDasharray="4 4" dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
+                  <ChartSummary title="Benchmark comparison chart data">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="text-muted">
+                          <th className="pr-3 font-medium">Date</th>
+                          <th className="pr-3 font-medium">Portfolio</th>
+                          <th className="pr-3 font-medium">{benchName}</th>
+                          <th className="font-medium">Active</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(comparison.series || []).map((row) => (
+                          <tr key={row.date}>
+                            <td className="pr-3 tabular-nums">{row.date}</td>
+                            <td className="pr-3 tabular-nums">{row.portfolio_pct}%</td>
+                            <td className="pr-3 tabular-nums">{row.benchmark_pct}%</td>
+                            <td className="tabular-nums">{row.active_pct}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </ChartSummary>
                 </div>
                 <div className="grid grid-cols-2 gap-3 content-start">
                   <MetricCard
@@ -652,116 +662,6 @@ export default function Analytics() {
         </>
       </AsyncSection>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="card">
-          <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider flex items-center gap-2">
-            <Target size={14} />
-            Sector Allocation
-          </h2>
-          <AsyncSection
-            isLoading={sl}
-            error={sectorsError}
-            onRetry={() => refetchSectors()}
-            loading={<div className="h-64 flex items-center justify-center text-muted text-sm animate-pulse">Loading sectors…</div>}
-            isEmpty={!sectors?.sectors?.length}
-            empty={<div className="text-muted text-sm">No sector data available.</div>}
-          >
-            <div className="flex flex-col gap-4">
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie
-                    data={sectors.sectors}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={95}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {sectors.sectors.map((_, i) => (
-                      <Cell key={i} fill={CATEGORICAL[i % CATEGORICAL.length]} stroke="transparent" />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={TOOLTIP_STYLE}
-                    formatter={(v, _, props) => [`${fmtCur(v)} (${props.payload.weight}%)`, props.payload.name]}
-                  />
-                  <Legend
-                    formatter={(v) => <span className="text-xs text-muted">{v}</span>}
-                    iconType="circle"
-                    iconSize={8}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </AsyncSection>
-        </div>
-
-        <div className="card">
-          <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider">
-            Country Exposure
-          </h2>
-          <AsyncSection
-            isLoading={sl}
-            error={sectorsError}
-            onRetry={() => refetchSectors()}
-            loading={<div className="h-64 flex items-center justify-center text-muted text-sm animate-pulse">Loading…</div>}
-            isEmpty={!sectors?.countries?.length}
-            empty={<div className="text-muted text-sm">No country data available.</div>}
-          >
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={sectors.countries} layout="vertical" margin={{ left: 0, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
-                <XAxis type="number" tick={AXIS_TICK} tickFormatter={(v) => `${v}%`} />
-                <YAxis type="category" dataKey="name" tick={AXIS_TICK} width={100} />
-                <Tooltip
-                  contentStyle={TOOLTIP_STYLE}
-                  formatter={(v) => [`${v}%`, "Weight"]}
-                />
-                <Bar dataKey="weight" fill={CATEGORICAL[0]} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </AsyncSection>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider">
-          Asset Type Breakdown
-        </h2>
-        <AsyncSection
-          isLoading={sl}
-          error={sectorsError}
-          onRetry={() => refetchSectors()}
-          loading={<div className="h-24 flex items-center justify-center text-muted text-sm animate-pulse">Loading…</div>}
-          isEmpty={!sectors?.asset_types?.length}
-          empty={<div className="text-muted text-sm">No asset type data available.</div>}
-        >
-          <div className="space-y-2">
-            {sectors.asset_types.map((row, i) => (
-              <div key={row.name} className="flex items-center gap-3">
-                <span className="w-20 text-xs text-muted shrink-0">{row.name}</span>
-                <div className="flex-1 bg-surface rounded-full h-2 overflow-hidden">
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${Math.min(100, row.weight)}%`,
-                      backgroundColor: CATEGORICAL[i % CATEGORICAL.length],
-                    }}
-                  />
-                </div>
-                <span className="w-20 text-right text-xs tabular-nums text-muted shrink-0">
-                  {fmtCur(row.value)}
-                </span>
-                <span className="w-14 text-right text-xs tabular-nums text-muted shrink-0">
-                  {row.weight}%
-                </span>
-              </div>
-            ))}
-          </div>
-        </AsyncSection>
-      </div>
-
       <div className="card">
         <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider">
           Strongest Correlations
@@ -769,6 +669,7 @@ export default function Analytics() {
         <p className="text-[10px] text-muted mb-3">
           How your holdings move together. High correlation (red) means less diversification benefit.
         </p>
+        <p className="text-[10px] text-muted mb-3">{dataContext(correlationUpdatedAt)}</p>
         <AsyncSection
           isLoading={cl}
           error={correlationError}
@@ -779,7 +680,7 @@ export default function Analytics() {
         >
           <>
             <ul className="space-y-1.5">
-              {topAbsoluteCorrelationPairs(corr.tickers, corr.matrix, 10).map((p) => (
+              {correlationPairs.map((p) => (
                 <li key={`${p.a}-${p.b}`} className="flex items-center justify-between text-sm">
                   <span className="font-mono">
                     <TickerLink ticker={p.a}>{p.a}</TickerLink> / <TickerLink ticker={p.b}>{p.b}</TickerLink>
@@ -790,6 +691,24 @@ export default function Analytics() {
                 </li>
               ))}
             </ul>
+            <ChartSummary title="Strongest correlation pairs data">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="text-muted">
+                    <th className="pr-3 font-medium">Pair</th>
+                    <th className="font-medium">Correlation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {correlationPairs.map((p) => (
+                    <tr key={`${p.a}-${p.b}`}>
+                      <td className="pr-3 font-mono">{p.a} / {p.b}</td>
+                      <td className="tabular-nums">{p.value.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ChartSummary>
             <details className="mt-4">
               <summary className="text-xs text-muted cursor-pointer select-none">Advanced: full matrix</summary>
               <CorrelationMatrixSelector allTickers={corr.tickers} matrix={corr.matrix} />

@@ -46,7 +46,6 @@ beforeEach(() => {
     worst_day: -2,
   });
   api.fetchBenchmarkComparison.mockResolvedValue({ series: [] });
-  api.fetchSectorBreakdown.mockResolvedValue({ sectors: [], countries: [], asset_types: [] });
   api.fetchCorrelation
     .mockRejectedValueOnce({ response: { data: { detail: "Correlation unavailable" } } })
     .mockResolvedValue({ tickers: [], matrix: [] });
@@ -64,5 +63,4 @@ it("keeps analytics metrics visible when correlation fails and retries only corr
   await waitFor(() => expect(api.fetchCorrelation).toHaveBeenCalledTimes(2));
   expect(api.fetchRiskMetrics).toHaveBeenCalledTimes(1);
   expect(api.fetchBenchmarkComparison).toHaveBeenCalledTimes(1);
-  expect(api.fetchSectorBreakdown).toHaveBeenCalledTimes(1);
 });
