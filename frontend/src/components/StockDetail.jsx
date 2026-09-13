@@ -23,6 +23,7 @@ import {
   CATEGORICAL, NEUTRAL_COLOR, GAIN_COLOR, LOSS_COLOR, AXIS_TICK, GRID_STROKE, TOOLTIP_STYLE,
 } from "../lib/chartTheme";
 import { KpiBox } from "./ui";
+import Pagination from "./ui/Pagination";
 import ShinyText from "./reactbits/ShinyText";
 
 const TTM_COLOR = "#9b7bd1";
@@ -3286,8 +3287,10 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
 
 const insiderTypeOf = (t) => (t.side === "buy" ? "buy" : t.side === "sell" ? "sell" : "other");
 
-function InsiderTransactionsSection({ transactions, currencyCode, currentPrice }) {
+export function InsiderTransactionsSection({ transactions, currencyCode, currentPrice }) {
   const [activeTypes, setActiveTypes] = useState(() => new Set());
+  const INSIDER_ROWS_PER_PAGE = 25;
+  const [insiderPage, setInsiderPage] = useState(0);
   if (!transactions || !transactions.length) return null;
   const cs = currencySymbol(currencyCode);
   const gridCols = "grid-cols-[1fr_auto_auto_auto_auto_auto_auto]";
@@ -3304,6 +3307,14 @@ function InsiderTransactionsSection({ transactions, currencyCode, currentPrice }
     setActiveTypes((prev) => toggleSetValue(prev, value, typeOptions.length));
   const visibleTransactions =
     activeTypes.size === 0 ? transactions : transactions.filter((t) => activeTypes.has(insiderTypeOf(t)));
+
+  // Reset to page 1 whenever the active type filter changes the row count,
+  // so a stale page index can never point past the end of a shorter list.
+  useEffect(() => setInsiderPage(0), [activeTypes]);
+  const pagedTransactions = visibleTransactions.slice(
+    insiderPage * INSIDER_ROWS_PER_PAGE,
+    (insiderPage + 1) * INSIDER_ROWS_PER_PAGE
+  );
 
   return (
     <div>
@@ -3328,13 +3339,13 @@ function InsiderTransactionsSection({ transactions, currencyCode, currentPrice }
           <span className="w-24 text-right" title="Unrealized P&L vs current price">P&amp;L (vs now)</span>
           <span className="w-20 text-right">Date</span>
         </div>
-        <ul className="max-h-96 overflow-y-auto">
-          {!visibleTransactions.length && (
+        <ul>
+          {!pagedTransactions.length && (
             <li className="px-4 py-6 text-center text-sm text-muted">
               No transactions match the selected filter.
             </li>
           )}
-          {visibleTransactions.map((t, i) => {
+          {pagedTransactions.map((t, i) => {
             const isBuy = t.side === "buy";
             const isSell = t.side === "sell";
             const rowBg = isBuy
@@ -3462,6 +3473,15 @@ function InsiderTransactionsSection({ transactions, currencyCode, currentPrice }
             );
           })}
         </ul>
+        <div className="px-4">
+          <Pagination
+            offset={insiderPage * INSIDER_ROWS_PER_PAGE}
+            limit={INSIDER_ROWS_PER_PAGE}
+            total={visibleTransactions.length}
+            onOffsetChange={(next) => setInsiderPage(Math.floor(next / INSIDER_ROWS_PER_PAGE))}
+            ariaLabel="Insider transactions pages"
+          />
+        </div>
       </div>
       <div className="text-[10px] text-muted mt-2">
         Source: yfinance · transaction types from Form 4 filings · P&amp;L shown
