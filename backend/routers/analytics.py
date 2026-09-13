@@ -161,6 +161,7 @@ CZ_TIME_TEST_DAYS = 365 * 3 + 1
 CZ_VALUE_TEST_LIMIT_CZK = 100_000
 CZ_TIME_TEST_CAP_CZK = 40_000_000
 CZ_TIME_TEST_CAP_FROM_YEAR = 2024
+LOT_EPSILON = 1e-8
 
 
 _POSITION_EVENT_ORDER = {
@@ -215,14 +216,23 @@ def _apply_split_to_lots(ticker_lots: list[dict], ratio: float) -> None:
 def _consume_fifo(ticker_lots: list[dict], shares: float) -> list[tuple[dict, float]]:
     matched: list[tuple[dict, float]] = []
     remaining = float(shares or 0.0)
+    if abs(remaining) <= LOT_EPSILON:
+        return matched
     for lot in ticker_lots:
-        if remaining <= 0:
+        if remaining <= LOT_EPSILON:
             break
-        if lot["remaining"] <= 0:
+        if lot["remaining"] <= LOT_EPSILON:
+            lot["remaining"] = 0.0
             continue
         sold = min(remaining, lot["remaining"])
+        if sold <= LOT_EPSILON:
+            continue
         lot["remaining"] -= sold
         remaining -= sold
+        if abs(lot["remaining"]) <= LOT_EPSILON:
+            lot["remaining"] = 0.0
+        if abs(remaining) <= LOT_EPSILON:
+            remaining = 0.0
         matched.append((lot, sold))
     return matched
 
@@ -320,20 +330,24 @@ def _compute_capital_gains(transactions: list, tax_year: int | None = None):
                 "ticker": txn.ticker,
                 "sell_date": txn.date.isoformat(),
                 "buy_date": lot["date"].isoformat(),
-                "shares": round(sold_from_lot, 4),
-                "cost_basis": round(cost_basis, 2),
-                "proceeds": round(proceeds, 2),
-                "gain": round(gain, 2),
-                "gain_pct": round((gain / cost_basis * 100) if cost_basis > 0 else 0, 2),
+                "shares": round(sold_from_lot, 8),
+                "cost_basis": round(cost_basis, 6),
+                "proceeds": round(proceeds, 6),
+                "gain": round(gain, 6),
+                "gain_pct": None if abs(cost_basis) < 0.005 else round(gain / cost_basis * 100, 2),
                 "holding_days": holding_days,
                 "term": "long" if is_long_term else "short",
                 # Czech tax fields — booleans are unconditional; CZK amounts may
                 # be None if any FX rate is missing.
                 "cz_exempt_time_test": cz_exempt_time_test,
                 "cz_exempt_date": _add_years(lot["date"], 3).isoformat(),
-                "cost_basis_czk": round(cost_basis_czk, 2) if cost_basis_czk is not None else None,
-                "proceeds_czk": round(proceeds_czk, 2) if proceeds_czk is not None else None,
-                "gain_czk": round(gain_czk, 2) if gain_czk is not None else None,
+                "cost_basis_czk": round(cost_basis_czk, 6) if cost_basis_czk is not None else None,
+                "proceeds_czk": round(proceeds_czk, 6) if proceeds_czk is not None else None,
+                "gain_czk": round(gain_czk, 6) if gain_czk is not None else None,
+                "_gain_raw": gain,
+                "_cost_basis_czk_raw": cost_basis_czk,
+                "_proceeds_czk_raw": proceeds_czk,
+                "_gain_czk_raw": gain_czk,
             })
 
     return gains
@@ -350,8 +364,16 @@ def _compute_czech_tax_by_year(gains: list) -> list[dict]:
     out: list[dict] = []
     for yr in sorted(by_year):
         ygains = by_year[yr]
-        proceeds_czk_vals = [g["proceeds_czk"] for g in ygains if g["proceeds_czk"] is not None]
-        gain_czk_vals = [g["gain_czk"] for g in ygains if g["gain_czk"] is not None]
+        proceeds_czk_vals = [
+            g.get("_proceeds_czk_raw", g["proceeds_czk"])
+            for g in ygains
+            if g["proceeds_czk"] is not None
+        ]
+        gain_czk_vals = [
+            g.get("_gain_czk_raw", g["gain_czk"])
+            for g in ygains
+            if g["gain_czk"] is not None
+        ]
         incomplete = (
             len(proceeds_czk_vals) != len(ygains) or len(gain_czk_vals) != len(ygains)
         )
@@ -360,11 +382,11 @@ def _compute_czech_tax_by_year(gains: list) -> list[dict]:
         value_test_passed = gross_proceeds_czk <= CZ_VALUE_TEST_LIMIT_CZK and not incomplete
 
         time_test_exempt_gain_czk = sum(
-            g["gain_czk"] for g in ygains
+            g.get("_gain_czk_raw", g["gain_czk"]) for g in ygains
             if g["cz_exempt_time_test"] and g["gain_czk"] is not None
         )
         taxable_gain_czk_pre_cap = sum(
-            g["gain_czk"] for g in ygains
+            g.get("_gain_czk_raw", g["gain_czk"]) for g in ygains
             if not g["cz_exempt_time_test"] and g["gain_czk"] is not None
         )
 
@@ -417,13 +439,21 @@ def tax_report(
     short_gains = [g for g in gains if g["term"] == "short"]
     long_gains = [g for g in gains if g["term"] == "long"]
 
-    total_short = sum(g["gain"] for g in short_gains)
-    total_long = sum(g["gain"] for g in long_gains)
+    total_short = sum(g.get("_gain_raw", g["gain"]) for g in short_gains)
+    total_long = sum(g.get("_gain_raw", g["gain"]) for g in long_gains)
 
     # CZK totals from the per-transaction FX captured at trade time (not today's
     # live rate). None when any contributing leg is missing its FX snapshot.
-    short_gain_czk = [g["gain_czk"] for g in short_gains if g["gain_czk"] is not None]
-    long_gain_czk = [g["gain_czk"] for g in long_gains if g["gain_czk"] is not None]
+    short_gain_czk = [
+        g.get("_gain_czk_raw", g["gain_czk"])
+        for g in short_gains
+        if g["gain_czk"] is not None
+    ]
+    long_gain_czk = [
+        g.get("_gain_czk_raw", g["gain_czk"])
+        for g in long_gains
+        if g["gain_czk"] is not None
+    ]
     total_short_czk = sum(short_gain_czk)
     total_long_czk = sum(long_gain_czk)
     realized_fx_complete = (
@@ -461,10 +491,15 @@ def tax_report(
     # that year; for "all years" we return a per-year breakdown.
     czech_tax = _compute_czech_tax_by_year(gains)
 
+    response_gains = [
+        {key: value for key, value in gain.items() if not key.startswith("_")}
+        for gain in gains
+    ]
+
     return {
         "year": year or "all",
         "available_years": all_years,
-        "gains": gains,
+        "gains": response_gains,
         "summary": {
             "total_realized": round(total_short + total_long, 2),
             "short_term_gains": round(total_short, 2),
@@ -490,7 +525,11 @@ def _compute_unrealized_gains(transactions: list):
     lots = _build_lot_queue(transactions)
 
     unrealized = []
-    tickers_with_lots = {t: ls for t, ls in lots.items() if any(l["remaining"] > 0 for l in ls)}
+    tickers_with_lots = {
+        ticker: ticker_lots
+        for ticker, ticker_lots in lots.items()
+        if any(lot["remaining"] > LOT_EPSILON for lot in ticker_lots)
+    }
     infos = market_data.get_infos(list(tickers_with_lots.keys()))  # bounded batch
 
     for ticker, ticker_lots in tickers_with_lots.items():
@@ -499,7 +538,7 @@ def _compute_unrealized_gains(transactions: list):
         price_to_usd = _ccy_to_usd(listing_ccy)
 
         for lot in ticker_lots:
-            if lot["remaining"] <= 0:
+            if lot["remaining"] <= LOT_EPSILON:
                 continue
             # Normalize both legs to USD so a non-USD listing (incl. GBp pence)
             # can't mix native cost basis with a differently-denominated market
@@ -514,11 +553,11 @@ def _compute_unrealized_gains(transactions: list):
             unrealized.append({
                 "ticker": ticker,
                 "buy_date": lot["date"].isoformat(),
-                "shares": round(lot["remaining"], 4),
-                "cost_basis": round(cost_basis, 2),
-                "market_value": round(market_value, 2),
-                "unrealized_gain": round(gain, 2),
-                "gain_pct": round((gain / cost_basis * 100) if cost_basis > 0 else 0, 2),
+                "shares": round(lot["remaining"], 8),
+                "cost_basis": round(cost_basis, 6),
+                "market_value": round(market_value, 6),
+                "unrealized_gain": round(gain, 6),
+                "gain_pct": None if abs(cost_basis) < 0.005 else round(gain / cost_basis * 100, 2),
                 "holding_days": holding_days,
                 "term": "long" if holding_days > 365 else "short",
                 "cz_exempt_date": exempt_date.isoformat(),
