@@ -38,7 +38,7 @@ function isKnownUpcoming(row, currentDay) {
 }
 
 export default function Dividends() {
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ["dividends"],
     queryFn: fetchDividends,
     staleTime: 5 * 60 * 1000,
@@ -119,6 +119,14 @@ export default function Dividends() {
 
       {isLoading ? (
         <div className="text-center py-20 text-muted">Loading dividend data…</div>
+      ) : isError ? (
+        <div role="alert" className="card text-center py-10">
+          <p className="font-medium text-ink">Could not load dividend data.</p>
+          <p className="text-sm text-muted mt-1">The estimate provider may be temporarily unavailable.</p>
+          <button type="button" className="btn-ghost mt-4" onClick={() => refetch()}>
+            Try again
+          </button>
+        </div>
       ) : !data?.length ? (
         <div className="text-center py-20 text-muted">No holdings found. Import a portfolio to see dividend info.</div>
       ) : (

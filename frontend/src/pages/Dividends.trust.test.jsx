@@ -96,3 +96,12 @@ it("shows review instead of suspect annual income and names provenance", async (
   expect(screen.getByText(/not guaranteed payments/i)).toBeInTheDocument();
   expect(screen.getByText(/Estimated annual income/i)).toBeInTheDocument();
 });
+
+it("does not present a failed dividend request as an empty portfolio", async () => {
+  api.fetchDividends.mockRejectedValue(new Error("provider unavailable"));
+
+  renderPage();
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(/could not load dividend data/i);
+  expect(screen.queryByText(/no holdings found/i)).not.toBeInTheDocument();
+});
