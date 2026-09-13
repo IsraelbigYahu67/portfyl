@@ -7,6 +7,7 @@ import { groupPositions } from "../lib/positionsPie";
 import { TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { TickerLink, useStockDetail } from "../components/StockDetail";
 import BreakdownChart from "../components/BreakdownChart";
+import AllocationBarList from "../components/AllocationBarList";
 import { AsyncSection } from "../components/ui";
 
 const fmtPct = (n) => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
@@ -42,9 +43,10 @@ export default function Allocation() {
     queryFn: () => fetchSectorBreakdown(currency),
   });
 
-  // Positions pie: >2% holdings get their own slice, the rest fold into
-  // "Other". Derived from the same holdings query as the table, so the pie
-  // always matches the Weight column (and refreshes with "Refresh prices").
+  // Positions pie: the 7 largest holdings by weight get their own slice, the
+  // rest fold into "Other". Derived from the same holdings query as the table,
+  // so the pie always matches the Weight column (and refreshes with "Refresh
+  // prices"). The full sorted breakdown is the bar list below the chart.
   const positions = useMemo(() => groupPositions(holdings), [holdings]);
 
   const [sort, setSort] = useState({ key: "market_value", dir: "desc" });
@@ -104,6 +106,12 @@ export default function Allocation() {
             currencyLabel={currency}
             legendColumns={2}
           />
+          <div className="card">
+            <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider">
+              Full Breakdown
+            </h2>
+            <AllocationBarList holdings={holdings} currency={currency} />
+          </div>
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <BreakdownChart
               title="Sector Allocation"
