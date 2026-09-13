@@ -1,0 +1,134 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+
+import Search from "./Search";
+import Watchlists from "./Watchlists";
+import Settings from "./Settings";
+import Assistant from "./Assistant";
+import Stock from "./Stock";
+
+const api = vi.hoisted(() => ({
+  searchTickers: vi.fn(),
+  fetchWatchlists: vi.fn(),
+  createWatchlist: vi.fn(),
+  deleteWatchlist: vi.fn(),
+  addWatchlistItem: vi.fn(),
+  removeWatchlistItem: vi.fn(),
+  fetchAlerts: vi.fn(),
+  createAlert: vi.fn(),
+  updateAlert: vi.fn(),
+  deleteAlert: vi.fn(),
+  checkAlerts: vi.fn(),
+  fetchT212Status: vi.fn(),
+  connectT212: vi.fn(),
+  disconnectT212: vi.fn(),
+  syncT212: vi.fn(),
+  setT212AutoSync: vi.fn(),
+  fetchAssistantConfig: vi.fn(),
+  saveAssistantConfig: vi.fn(),
+  deleteAssistantConfig: vi.fn(),
+  sendAssistantMessage: vi.fn(),
+  fetchFundamentals: vi.fn(),
+}));
+
+vi.mock("../api", () => api);
+vi.mock("../App", () => ({
+  usePortfolio: () => ({ current: { id: "portfolio-1", name: "Research portfolio" } }),
+}));
+vi.mock("../components/DiscordSettings", () => ({ default: () => null }));
+vi.mock("../components/SyncScheduleSettings", () => ({ default: () => null }));
+vi.mock("../components/DataPrivacySettings", () => ({ default: () => null }));
+vi.mock("../components/StockDetail", () => ({
+  StockOverview: ({ data }) => <div>Overview for {data.ticker}</div>,
+}));
+
+function renderPage(Page, path = "/") {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="*" element={<Page />} />
+          <Route path="/stock/:ticker" element={<Page />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  api.searchTickers.mockResolvedValue({ results: [] });
+  api.fetchWatchlists.mockResolvedValue([]);
+  api.fetchAlerts.mockResolvedValue([]);
+  api.fetchT212Status.mockResolvedValue({ connected: false });
+  api.fetchAssistantConfig.mockResolvedValue({ configured: false });
+  api.fetchFundamentals.mockResolvedValue({ ticker: "AAPL" });
+});
+
+it("distinguishes Search's prompt and empty results from request failure, then retries", async () => {
+  api.searchTickers
+    .mockRejectedValueOnce({ response: { data: { detail: "Search provider unavailable" } } })
+    .mockResolvedValue({ results: [] });
+  renderPage(Search);
+  expect(screen.getByText(/start typing/i)).toBeInTheDocument();
+
+  fireEvent.change(screen.getByPlaceholderText(/search by ticker/i), { target: { value: "AAPL" } });
+  expect(await screen.findByRole("alert")).toHaveTextContent("Search provider unavailable");
+  fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+  await waitFor(() => expect(api.searchTickers).toHaveBeenCalledTimes(2));
+  expect(await screen.findByText(/no matches for/i)).toBeInTheDocument();
+});
+
+it("distinguishes no watchlists from a load failure and retries", async () => {
+  api.fetchWatchlists
+    .mockRejectedValueOnce({ response: { data: { detail: "Watchlists unavailable" } } })
+    .mockResolvedValue([]);
+  renderPage(Watchlists);
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Watchlists unavailable");
+  fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+  await waitFor(() => expect(api.fetchWatchlists).toHaveBeenCalledTimes(2));
+  expect(await screen.findByText(/no watchlists yet/i)).toBeInTheDocument();
+});
+
+it("distinguishes a disconnected broker from status failure and retries", async () => {
+  api.fetchT212Status
+    .mockRejectedValueOnce({ response: { data: { detail: "Connection status unavailable" } } })
+    .mockResolvedValue({ connected: false });
+  renderPage(Settings);
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Connection status unavailable");
+  expect(screen.queryByText("Not connected")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+  await waitFor(() => expect(api.fetchT212Status).toHaveBeenCalledTimes(2));
+  expect(await screen.findByText("Not connected")).toBeInTheDocument();
+});
+
+it("distinguishes an unconfigured assistant from config failure and retries", async () => {
+  api.fetchAssistantConfig
+    .mockRejectedValueOnce({ response: { data: { detail: "Assistant config unavailable" } } })
+    .mockResolvedValue({ configured: false });
+  renderPage(Assistant);
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Assistant config unavailable");
+  expect(screen.queryByText(/add a deepseek api key/i)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+  await waitFor(() => expect(api.fetchAssistantConfig).toHaveBeenCalledTimes(2));
+  expect(await screen.findByText(/add a deepseek api key/i)).toBeInTheDocument();
+});
+
+it("shows a safe Stock provider error with Retry and recovers", async () => {
+  api.fetchFundamentals
+    .mockRejectedValueOnce({ response: { data: { detail: { private: "raw object" } } } })
+    .mockResolvedValue({ ticker: "AAPL" });
+  renderPage(Stock, "/stock/AAPL");
+
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("We couldn't load this data.");
+  expect(alert).not.toHaveTextContent("raw object");
+  fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+  await waitFor(() => expect(api.fetchFundamentals).toHaveBeenCalledTimes(2));
+  expect(await screen.findByText("Overview for AAPL")).toBeInTheDocument();
+});

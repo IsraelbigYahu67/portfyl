@@ -6,7 +6,9 @@ import { usePortfolio } from "../App";
 import DiscordSettings from "../components/DiscordSettings";
 import SyncScheduleSettings from "../components/SyncScheduleSettings";
 import Toggle from "../components/ui/Toggle";
+import { AsyncSection } from "../components/ui";
 import DataPrivacySettings from "../components/DataPrivacySettings";
+import { getApiErrorMessage } from "../lib/apiError";
 
 export default function Settings() {
   const queryClient = useQueryClient();
@@ -14,10 +16,15 @@ export default function Settings() {
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
   const [showKey, setShowKey] = useState(false);
-  const [error, setError] = useState(null);
+  const [actionError, setActionError] = useState(null);
   const [success, setSuccess] = useState(null);
 
-  const { data: status, isLoading } = useQuery({
+  const {
+    data: status,
+    isLoading,
+    error: statusError,
+    refetch: refetchStatus,
+  } = useQuery({
     queryKey: ["t212-status", currentPortfolio?.id],
     queryFn: fetchT212Status,
     enabled: currentPortfolio?.id != null,
@@ -28,7 +35,7 @@ export default function Settings() {
     onSuccess: () => {
       setApiKey("");
       setApiSecret("");
-      setError(null);
+      setActionError(null);
       setSuccess("Connected to Trading 212 successfully");
       queryClient.invalidateQueries({ queryKey: ["t212-status"] });
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
@@ -39,28 +46,28 @@ export default function Settings() {
     },
     onError: (err) => {
       setSuccess(null);
-      setError(err.response?.data?.detail || "Failed to connect");
+      setActionError(getApiErrorMessage(err, "Failed to connect"));
     },
   });
 
   const disconnectMutation = useMutation({
     mutationFn: disconnectT212,
     onSuccess: () => {
-      setError(null);
+      setActionError(null);
       setSuccess("Disconnected from Trading 212");
       queryClient.invalidateQueries({ queryKey: ["t212-status"] });
       setTimeout(() => setSuccess(null), 4000);
     },
     onError: (err) => {
       setSuccess(null);
-      setError(err.response?.data?.detail || "Failed to disconnect");
+      setActionError(getApiErrorMessage(err, "Failed to disconnect"));
     },
   });
 
   const syncMutation = useMutation({
     mutationFn: syncT212,
     onSuccess: (data) => {
-      setError(null);
+      setActionError(null);
       setSuccess(
         `Synced ${data.total_imported} transactions (${data.imported_orders} orders, ${data.imported_dividends} dividends)`
       );
@@ -71,14 +78,14 @@ export default function Settings() {
     },
     onError: (err) => {
       setSuccess(null);
-      setError(err.response?.data?.detail || "Sync failed");
+      setActionError(getApiErrorMessage(err, "Sync failed"));
     },
   });
 
   const autoSyncMutation = useMutation({
     mutationFn: setT212AutoSync,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["t212-status"] }),
-    onError: (err) => setError(err.response?.data?.detail || "Failed to update auto-sync"),
+    onError: (err) => setActionError(getApiErrorMessage(err, "Failed to update auto-sync")),
   });
 
   const connected = status?.connected;
@@ -99,6 +106,14 @@ export default function Settings() {
         </div>
       )}
 
+      <AsyncSection
+        isLoading={isLoading}
+        error={statusError}
+        onRetry={() => refetchStatus()}
+        loading={(
+          <div className="h-52 bg-surface-card border border-surface-border rounded-xl animate-pulse" />
+        )}
+      >
       <div className="bg-surface-card border border-surface-border rounded-xl p-6 space-y-5">
         <div className="flex items-center justify-between">
           <div>
@@ -115,14 +130,14 @@ export default function Settings() {
                 : "bg-surface-hover text-muted"
             }`}
           >
-            {isLoading ? "..." : connected ? "Connected" : "Not connected"}
+            {connected ? "Connected" : "Not connected"}
           </span>
         </div>
 
-        {error && (
+        {actionError && (
           <div className="flex items-center gap-2 text-sm text-loss bg-loss/10 border border-loss/30 rounded-lg px-4 py-3">
             <AlertCircle size={16} className="shrink-0" />
-            {error}
+            {actionError}
           </div>
         )}
 
@@ -133,7 +148,7 @@ export default function Settings() {
           </div>
         )}
 
-        {!connected && !isLoading && (
+        {!connected && (
           <div className="space-y-3">
             <div>
               <label className="block text-sm text-muted mb-1.5">API Key</label>
@@ -182,7 +197,7 @@ export default function Settings() {
           </div>
         )}
 
-        {connected && !isLoading && (
+        {connected && (
           <div className="space-y-4">
             {status.needs_attention && (
               <div className="flex items-start gap-2 text-sm text-loss bg-loss/10 border border-loss/30 rounded-lg px-4 py-3">
@@ -262,6 +277,7 @@ export default function Settings() {
           </div>
         )}
       </div>
+      </AsyncSection>
 
       <SyncScheduleSettings />
 
