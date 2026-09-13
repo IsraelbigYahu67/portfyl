@@ -1,5 +1,8 @@
 ﻿const DASH = "—";
 
+const LOCALE_BY_CURRENCY = { CZK: "cs-CZ", USD: "en-US" };
+const SUPPORTED_CURRENCY_CODES = new Set(["CZK", "EUR", "GBP", "USD"]);
+
 // Prefix/suffix per currency. Note GBp/GBX (London pence) is distinct from GBP
 // (pounds) and must be checked on the raw code before upper-casing collapses them.
 export function currencyParts(currency) {
@@ -13,15 +16,54 @@ export function currencyParts(currency) {
   }
 }
 
-export function formatMoney(n, currency = "USD") {
-  if (n == null || Number.isNaN(n)) return DASH;
-  const sign = n < 0 ? "-" : "";
-  const str = Math.abs(n).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  const { prefix = "", suffix = "" } = currencyParts(currency);
-  return `${sign}${prefix}${str}${suffix}`;
+export function formatMoney(value, currency = "USD") {
+  if (value == null || !Number.isFinite(Number(value))) return DASH;
+  const n = Number(value);
+  const code = currency === "GBp" || currency === "GBX"
+    ? currency
+    : String(currency || "USD").toUpperCase();
+
+  if (n !== 0 && Math.abs(n) < 0.01) {
+    if (code === "CZK") return n > 0 ? "<0,01 Kč" : ">-0,01 Kč";
+    const { prefix = "", suffix = "" } = currencyParts(code);
+    return n > 0 ? `<${prefix}0.01${suffix}` : `>-${prefix}0.01${suffix}`;
+  }
+
+  if (code === "GBp" || code === "GBX") {
+    return `${n.toLocaleString("en-GB", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} p`;
+  }
+
+  if (!SUPPORTED_CURRENCY_CODES.has(code)) {
+    return `$${n.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+
+  try {
+    return new Intl.NumberFormat(LOCALE_BY_CURRENCY[code] || "en-US", {
+      style: "currency",
+      currency: code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(n);
+  } catch {
+    return new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(n);
+  }
+}
+
+export function formatQuantity(value) {
+  if (value == null || !Number.isFinite(Number(value))) return DASH;
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 8,
+    useGrouping: true,
+  }).format(Number(value));
 }
 
 export function formatPercent(n, { sign = true, digits = 2 } = {}) {
@@ -57,6 +99,14 @@ export function formatShortDate(iso, options = { month: "short", day: "numeric" 
   const [y, m, d] = String(iso).split("-").map(Number);
   if (!y || !m || !d) return DASH;
   return new Date(y, m - 1, d).toLocaleDateString("en-US", options);
+}
+
+export function formatLongDate(iso) {
+  return formatShortDate(iso, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 }
 
 export function formatNumberSpaced(n, digits = 0) {

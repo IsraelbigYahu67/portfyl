@@ -1,15 +1,17 @@
 ﻿import { formatMoney, formatPercent, formatCompact, formatNumber, formatShortDate, formatNumberSpaced, formatMoneySpaced } from "./format";
 
+import { formatLongDate, formatQuantity } from "./format";
+
 describe("formatMoney", () => {
   it("formats USD with symbol and 2dp", () => {
     expect(formatMoney(1234.5, "USD")).toBe("$1,234.50");
   });
   it("formats CZK with suffix", () => {
-    expect(formatMoney(1234.5, "CZK")).toBe("1,234.50 Kč");
+    expect(formatMoney(1234.5, "CZK")).toMatch(/^1[\s\u00a0]234,50\sKč$/);
   });
   it("puts the sign before the symbol for negatives", () => {
     expect(formatMoney(-12, "USD")).toBe("-$12.00");
-    expect(formatMoney(-12, "CZK")).toBe("-12.00 Kč");
+    expect(formatMoney(-12, "CZK")).toMatch(/^-12,00[\s\u00a0]Kč$/);
   });
   it("returns an em dash for null/undefined", () => {
     expect(formatMoney(null)).toBe("—");
@@ -23,8 +25,22 @@ describe("formatMoney", () => {
     expect(formatMoney(250, "GBp")).toBe("250.00 p");
     expect(formatMoney(250, "GBX")).toBe("250.00 p");
   });
-  it("falls back to $ for an unmapped currency", () => {
+  it("keeps the existing dollar fallback for an unmapped currency", () => {
     expect(formatMoney(12, "ZZZ")).toBe("$12.00");
+  });
+  it("exposes non-zero sub-cent values instead of rounding them to zero", () => {
+    expect(formatMoney(0.004, "USD")).toBe("<$0.01");
+    expect(formatMoney(-0.004, "USD")).toBe(">-$0.01");
+    expect(formatMoney(0.004, "CZK")).toBe("<0,01 Kč");
+    expect(formatMoney(-0.004, "CZK")).toBe(">-0,01 Kč");
+  });
+});
+
+describe("formatQuantity", () => {
+  it("keeps up to eight quantity decimals without trailing zeroes", () => {
+    expect(formatQuantity(1)).toBe("1");
+    expect(formatQuantity(0.00000001)).toBe("0.00000001");
+    expect(formatQuantity(1.23)).toBe("1.23");
   });
 });
 
@@ -68,6 +84,15 @@ describe("formatShortDate", () => {
   it("returns an em dash for missing input", () => {
     expect(formatShortDate(null)).toBe("—");
     expect(formatShortDate("")).toBe("—");
+  });
+});
+
+describe("formatLongDate", () => {
+  it("renders a date-only ISO string without shifting its calendar day", () => {
+    expect(formatLongDate("2026-09-13")).toMatch(/September 13, 2026/);
+  });
+  it("returns an em dash for missing input", () => {
+    expect(formatLongDate(null)).toBe("—");
   });
 });
 
