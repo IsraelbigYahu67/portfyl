@@ -100,14 +100,17 @@ describe("authenticated routing", () => {
   });
 
   it("keeps edition navigation capability-filtered", async () => {
+    const editionLink = import.meta.env.VITE_PORTFYL_EDITION === "cloud"
+      ? { capability: "settings", name: /plans/i }
+      : { capability: "tax_report", name: /tax report/i };
     const first = renderApp();
     await screen.findByRole("heading", { name: /portfolio overview/i });
-    expect(screen.queryByRole("link", { name: /tax report/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: editionLink.name })).not.toBeInTheDocument();
     first.unmount();
 
-    mocks.fetchCapabilities.mockResolvedValue({ capabilities: ["tax_report"] });
+    mocks.fetchCapabilities.mockResolvedValue({ capabilities: [editionLink.capability] });
     renderApp();
-    expect(await screen.findByRole("link", { name: /tax report/i })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: editionLink.name })).toBeInTheDocument();
   });
 
   it("shows portfolio navigation without a platform reset action", async () => {
