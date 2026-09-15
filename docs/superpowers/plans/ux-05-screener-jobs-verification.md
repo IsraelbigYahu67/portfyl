@@ -48,18 +48,23 @@ scan of the cloud build output (`frontend/dist/assets/*.js` after
 
 ## Browser matrix
 
-**Not executed in this environment** — no browser-automation tool was
-available to this session. Outstanding manual checks (390×844, 768×1024,
-1024×768, 1440×900):
+Executed on 2026-09-14 in Chrome against the local edition.
 
-- Create job returns in ~2s; scan continues in the background.
-- Progress updates while polling; polling pauses on hidden tab and resumes.
-- Cancel stops the job and the UI reflects `cancelled`.
-- Retry re-submits the last filter set (or reuses a deduped job within TTL).
-- Navigating away and back within 30 min reconnects via `sessionStorage`.
-- Results paginate (25/50/100).
-- Shibui "Whole Market" still works synchronously.
-- No console errors or failed requests.
+| Check | Result |
+| --- | --- |
+| Non-blocking create | PASS — Run Scan returned control in about 390 ms and immediately rendered `Scanning… 0 / 6 (0%)` with Cancel. |
+| Progress | PASS — a 30-ticker run visibly advanced while polling. Hidden-tab pause/resume was not separately instrumented. |
+| Cancel | PASS after blocker fix — cancellation leaves the page in an explicit `Scan cancelled` state; a stale in-flight poll can no longer overwrite it. |
+| Retry | PASS after blocker fix — Retry is rendered for cancelled and failed jobs and re-submits the same filters. |
+| Reconnect | PASS — after navigating to Allocation and back, Screener reconnected at `Scanning… 28 / 30 (93%)` and completed with 30 rows. |
+| Pagination size | PASS after blocker fix — a 30-row result exposes 25/50/100 choices. Selecting 25 rendered rows 1–25 and fetched the first page with `limit=25`. |
+| Shibui Whole Market | PASS — selecting the universe synchronously returned 50 results and changed the primary action to Refresh. |
+| Viewports | PASS for the empty/shell state at 390×844, 768×1024, 1024×768, and 1440×900; no document-level horizontal overflow. The populated yfinance and Shibui tables were inspected on desktop. |
+| Console | PASS — no console errors or warnings were recorded. |
+
+The Phase 5 release blockers found in the initial browser run are resolved.
+Polling behavior in a truly hidden browser tab still needs a targeted browser
+or integration test.
 
 ## Warnings / deferrals
 

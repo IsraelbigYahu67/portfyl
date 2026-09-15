@@ -11,6 +11,7 @@ export function useScreenerJob() {
   const lastRequestRef = useRef(null);
   const intervalRef = useRef(null);
   const pageRef = useRef({ offset: 0, limit: 50 });
+  const cancelledJobIdsRef = useRef(new Set());
 
   const stopPolling = useCallback(() => {
     if (intervalRef.current) {
@@ -23,6 +24,7 @@ export function useScreenerJob() {
   const pollOnce = useCallback(async (jobId) => {
     try {
       const data = await fetchScreenerJob(jobId, { ...pageRef.current });
+      if (cancelledJobIdsRef.current.has(jobId)) return null;
       setJob(data);
       if (TERMINAL_STATUSES.has(data.status)) {
         stopPolling();
@@ -51,6 +53,7 @@ export function useScreenerJob() {
     lastRequestRef.current = params;
     pageRef.current = { ...pageRef.current, offset: 0 };
     const data = await createScreenerJob(params);
+    cancelledJobIdsRef.current.delete(data.job_id);
     setJob(data);
     sessionStorage.setItem(SESSION_KEY, data.job_id);
     if (!TERMINAL_STATUSES.has(data.status)) {
@@ -67,6 +70,7 @@ export function useScreenerJob() {
   const cancel = useCallback(async () => {
     if (!job?.job_id) return;
     await cancelScreenerJob(job.job_id);
+    cancelledJobIdsRef.current.add(job.job_id);
     stopPolling();
     sessionStorage.removeItem(SESSION_KEY);
     setJob((prev) => (prev ? { ...prev, status: "cancelled" } : prev));
@@ -74,8 +78,8 @@ export function useScreenerJob() {
 
   // Re-fetch the completed job's requested page. While the scan is running this
   // just updates the page the next poll will read.
-  const setPage = useCallback((offset) => {
-    pageRef.current = { ...pageRef.current, offset };
+  const setPage = useCallback((offset, limit = pageRef.current.limit) => {
+    pageRef.current = { offset, limit };
     if (job?.job_id) pollOnce(job.job_id);
   }, [job, pollOnce]);
 

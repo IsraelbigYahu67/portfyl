@@ -28,8 +28,8 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
       <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider">
         {title}
       </h2>
-      <div className="flex items-start gap-6">
-        <div className="w-48 h-48 shrink-0">
+      <div className="flex flex-col items-stretch gap-6 sm:flex-row sm:items-start">
+        <div className="w-48 h-48 shrink-0 self-center sm:self-auto">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
@@ -85,10 +85,10 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
                 style={{ backgroundColor: colorFor(item, i) }}
               />
               <span className="text-ink truncate flex-1">{item.name}</span>
-              <span className="tabular-nums text-muted w-14 text-right">
+              <span className="tabular-nums text-muted w-14 text-right shrink-0">
                 {item.weight}%
               </span>
-              <span className="tabular-nums text-muted w-24 text-right">
+              <span className="tabular-nums text-muted w-24 text-right shrink-0">
                 {fmt(item.value)}
               </span>
             </div>

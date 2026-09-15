@@ -107,5 +107,6 @@ describe("useScreenerJob", () => {
       await result.current.cancel();
     });
     expect(localApi.cancelScreenerJob).toHaveBeenCalledWith("j5");
+    expect(result.current.job.status).toBe("cancelled");
   });
 });

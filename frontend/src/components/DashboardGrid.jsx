@@ -41,6 +41,24 @@ export function normalizeWidgetOrder(stored, knownIds) {
   return [...valid, ...knownIds.filter((id) => !valid.includes(id))];
 }
 
+export function swapLayoutPositions(layouts, firstId, secondId) {
+  return Object.fromEntries(
+    Object.entries(layouts).map(([breakpoint, layout]) => {
+      const first = layout.find((item) => item.i === firstId);
+      const second = layout.find((item) => item.i === secondId);
+      if (!first || !second) return [breakpoint, layout];
+      return [
+        breakpoint,
+        layout.map((item) => {
+          if (item.i === firstId) return { ...item, x: second.x, y: second.y };
+          if (item.i === secondId) return { ...item, x: first.x, y: first.y };
+          return item;
+        }),
+      ];
+    })
+  );
+}
+
 function getStoredOrder() {
   try {
     const stored = localStorage.getItem(ORDER_KEY);
@@ -112,6 +130,11 @@ export default function DashboardGrid({ children, editing, onEditToggle }) {
     if (target < 0 || target >= vis.length) return;
     const nextVisible = [...vis];
     [nextVisible[index], nextVisible[target]] = [nextVisible[target], nextVisible[index]];
+    setLayouts((current) => {
+      const nextLayouts = swapLayoutPositions(current, id, vis[target]);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextLayouts));
+      return nextLayouts;
+    });
     persistOrder([...nextVisible, ...order.filter((x) => hidden.includes(x))]);
   };
 
@@ -167,6 +190,7 @@ export default function DashboardGrid({ children, editing, onEditToggle }) {
 
       {editing ? (
         <ResponsiveGridLayout
+          key={visibleList.join("|")}
           className="layout"
           layouts={filteredLayouts}
           breakpoints={{ lg: 0 }}

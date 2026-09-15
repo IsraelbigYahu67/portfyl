@@ -1196,7 +1196,7 @@ export function StockOverview({ data, headerTrailing = null }) {
   return (
     <>
       {/* ----- Header (always visible) ----- */}
-      <div className="flex items-start justify-between px-6 py-4 border-b border-surface-border">
+      <div className="flex flex-col gap-4 px-4 py-4 border-b border-surface-border sm:flex-row sm:items-start sm:justify-between sm:px-6">
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-3 flex-wrap">
             <h2 className="text-3xl font-bold font-mono"><ShinyText text={data.ticker} /></h2>
@@ -1238,13 +1238,13 @@ export function StockOverview({ data, headerTrailing = null }) {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="text-left sm:text-right">
             <div className="text-3xl font-bold tabular-nums">
               {data.price != null ? `${cs}${data.price.toFixed(2)}` : "—"}
             </div>
             {priceChange != null && (
-              <div className={`text-base font-medium flex items-center justify-end gap-1 ${priceUp ? "text-gain" : "text-loss"}`}>
+              <div className={`text-base font-medium flex items-center justify-start gap-1 sm:justify-end ${priceUp ? "text-gain" : "text-loss"}`}>
                 {priceUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                 {data.change != null && `${data.change >= 0 ? "+" : ""}${data.change.toFixed(2)} `}
                 ({fmtPct(priceChange)})
@@ -1256,7 +1256,7 @@ export function StockOverview({ data, headerTrailing = null }) {
         </div>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 space-y-6 sm:p-6">
         {reportConfig.config.order.map((id) => {
           if (!reportConfig.isVisible(id)) return null;
           const content = sections[id];
@@ -3329,8 +3329,8 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
           onReset={() => setActiveTypes(new Set())}
         />
       </div>
-      <div className="bg-surface rounded-lg overflow-hidden">
-        <div className={`grid ${gridCols} gap-3 px-4 py-2 border-b border-surface-border text-[10px] uppercase tracking-wider text-muted font-medium`}>
+      <div className="bg-surface rounded-lg overflow-x-auto">
+        <div className={`grid ${gridCols} min-w-[700px] gap-3 px-4 py-2 border-b border-surface-border text-[10px] uppercase tracking-wider text-muted font-medium`}>
           <span>Insider</span>
           <span className="w-32 text-left">Type · Transaction</span>
           <span className="w-20 text-right">Shares</span>
@@ -3339,7 +3339,7 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
           <span className="w-24 text-right" title="Unrealized P&L vs current price">P&amp;L (vs now)</span>
           <span className="w-20 text-right">Date</span>
         </div>
-        <ul>
+        <ul className="min-w-[700px]">
           {!pagedTransactions.length && (
             <li className="px-4 py-6 text-center text-sm text-muted">
               No transactions match the selected filter.

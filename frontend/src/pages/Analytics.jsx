@@ -306,19 +306,19 @@ export default function Analytics() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-xl font-bold flex items-center gap-2">
             <Activity size={20} className="text-brand" />
             Portfolio Analytics
           </h1>
           <p className="text-xs text-muted mt-0.5">Risk metrics, diversification, and correlations</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <select
             value={benchmarkId ?? ""}
             onChange={(e) => setBenchmarkId(e.target.value || null)}
-            className="text-xs bg-surface border border-surface-hover rounded-md px-2 py-1 text-ink hover:border-brand focus:outline-none focus:border-brand"
+            className="min-w-0 max-w-full text-xs bg-surface border border-surface-hover rounded-md px-2 py-1 text-ink hover:border-brand focus:outline-none focus:border-brand"
             title="Benchmark for beta / alpha / tracking error"
           >
             {benchmarks?.map((b) => (

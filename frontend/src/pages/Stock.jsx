@@ -150,7 +150,7 @@ export default function Stock() {
   });
 
   return (
-    <div className="max-w-7xl mx-auto py-2">
+    <div className="max-w-7xl min-w-0 mx-auto py-2">
       <div className="flex items-center gap-3 mb-4">
         <button
           type="button"

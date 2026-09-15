@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import DashboardGrid, { ALL_WIDGETS, normalizeWidgetOrder } from "./DashboardGrid";
+import DashboardGrid, { ALL_WIDGETS, normalizeWidgetOrder, swapLayoutPositions } from "./DashboardGrid";
 
 const ORDER_KEY = "sb_dashboard_widget_order_v2";
 const HIDDEN_KEY = "sb_dashboard_widgets_hidden";
@@ -53,6 +53,18 @@ describe("DashboardGrid", () => {
     expect(domOrder(container)[0]).toBe("performance");
   });
 
+  it("moves a default-grid widget visually and keeps the new reading order", () => {
+    const { container } = renderGrid({ editing: true });
+
+    fireEvent.click(screen.getByRole("button", { name: /move concentration up/i }));
+
+    expect(domOrder(container)[0]).toBe("concentration");
+    expect(JSON.parse(localStorage.getItem(ORDER_KEY))[0]).toBe("concentration");
+    const storedLayout = JSON.parse(localStorage.getItem(LAYOUT_KEY)).lg;
+    expect(storedLayout.find((item) => item.i === "concentration").y).toBe(0);
+    expect(storedLayout.find((item) => item.i === "performance").y).toBe(5);
+  });
+
   it("hides and restores a widget via named, focusable buttons", () => {
     renderGrid({ editing: true });
 
@@ -75,5 +87,23 @@ describe("DashboardGrid", () => {
     const { container } = renderGrid();
 
     expect(domOrder(container)).toEqual(ALL_WIDGETS.map((w) => w.id));
+  });
+});
+
+describe("swapLayoutPositions", () => {
+  it("swaps coordinates without changing widget dimensions", () => {
+    const layouts = {
+      lg: [
+        { i: "performance", x: 0, y: 0, w: 6, h: 5 },
+        { i: "attention", x: 0, y: 5, w: 6, h: 4 },
+      ],
+    };
+
+    const swapped = swapLayoutPositions(layouts, "attention", "performance");
+
+    expect(swapped.lg).toEqual([
+      { i: "performance", x: 0, y: 5, w: 6, h: 5 },
+      { i: "attention", x: 0, y: 0, w: 6, h: 4 },
+    ]);
   });
 });

@@ -1025,13 +1025,15 @@ def get_history(ticker: str, period: str = "1y"):
         hist = stock.history(period=period)
         if hist.empty:
             raise ValueError("No historical data")
-        return {
-            "ticker": ticker.upper(),
-            "data": [
-                {"date": str(idx.date()), "close": round(float(row["Close"]), 2)}
-                for idx, row in hist.iterrows()
-            ],
-        }
+        points = []
+        for idx, row in hist.iterrows():
+            close = _f(row["Close"])
+            if close is None:
+                continue
+            points.append({"date": str(idx.date()), "close": round(close, 2)})
+        if not points:
+            raise ValueError("No finite historical data")
+        return {"ticker": ticker.upper(), "data": points}
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 

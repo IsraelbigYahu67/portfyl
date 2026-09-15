@@ -7,6 +7,31 @@ from unittest.mock import patch
 import pytest
 
 
+def test_history_drops_non_finite_yfinance_closes(monkeypatch):
+    import pandas as pd
+    import routers.market as market
+
+    class FakeTicker:
+        def history(self, period):
+            assert period == "1y"
+            return pd.DataFrame(
+                {"Close": [100.125, float("nan"), float("inf"), 101.875]},
+                index=pd.to_datetime(["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"]),
+            )
+
+    monkeypatch.setattr(market.yf, "Ticker", lambda _ticker: FakeTicker())
+
+    payload = market.get_history.__wrapped__("nvda")
+
+    assert payload == {
+        "ticker": "NVDA",
+        "data": [
+            {"date": "2026-01-01", "close": 100.12},
+            {"date": "2026-01-04", "close": 101.88},
+        ],
+    }
+
+
 class TestStockScreener:
     """Unit tests for the stock screener."""
 

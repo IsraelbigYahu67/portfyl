@@ -41,7 +41,7 @@ describe("Screener page (job-based)", () => {
     expect(localApi.createScreenerJob).toHaveBeenCalled();
   });
 
-  it("shows a Cancel button while running and a Retry button after failure", async () => {
+  it("shows the cancelled state and retries the last filter set", async () => {
     vi.spyOn(localApi, "createScreenerJob").mockResolvedValue({
       job_id: "jy", status: "running", progress: { completed: 1, total: 10, percent: 10 }, result: null, error: null,
     });
@@ -56,5 +56,28 @@ describe("Screener page (job-based)", () => {
     const cancelButton = await screen.findByRole("button", { name: /cancel/i });
     fireEvent.click(cancelButton);
     await waitFor(() => expect(localApi.cancelScreenerJob).toHaveBeenCalledWith("jy"));
+    expect(await screen.findByText(/scan cancelled\. retry/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    await waitFor(() => expect(localApi.createScreenerJob).toHaveBeenCalledTimes(2));
+  });
+
+  it("requests the selected result-page size", async () => {
+    vi.spyOn(localApi, "createScreenerJob").mockResolvedValue({
+      job_id: "jp", status: "queued", progress: { completed: 0, total: 60, percent: 0 }, result: null, error: null,
+    });
+    vi.spyOn(localApi, "fetchScreenerJob").mockImplementation((_jobId, page) => Promise.resolve({
+      job_id: "jp", status: "completed",
+      progress: { completed: 60, total: 60, percent: 100 },
+      result: { items: [{ ticker: "AAA", name: "Aaa Inc", price: 10, market_cap: 1e9 }], total: 60, ...page },
+      error: null,
+    }));
+
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /run scan/i }));
+    await screen.findByText("AAA", {}, { timeout: 3000 });
+
+    fireEvent.change(screen.getByLabelText(/rows per page/i), { target: { value: "25" } });
+    await waitFor(() => expect(localApi.fetchScreenerJob).toHaveBeenLastCalledWith("jp", { offset: 0, limit: 25 }));
   });
 });

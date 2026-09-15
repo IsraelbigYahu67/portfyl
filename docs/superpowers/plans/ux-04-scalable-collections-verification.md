@@ -62,23 +62,43 @@ URL state).
 
 ## Browser matrix
 
-**Not executed in this environment** — no browser-automation tool was
-available to this session. The roadmap's per-phase browser matrix (390×844,
-768×1024, 1024×768, 1440×900 against the worktree server) remains outstanding
-for:
+Executed on 2026-09-14 in Chrome against the local Vite and FastAPI servers.
+An isolated 130-transaction, 13-holding fixture portfolio was created for the
+run and deleted afterwards.
 
-- Transactions: default page ≤50 rows; paging; filter resets to page 1 and
-  updates the URL; deleting the last row returns to the nearest valid page;
-  page-size selector 25/50/100.
-- Allocation: ≤8 chart segments (7 named + Other); Full Breakdown lists every
-  open position by weight with label/value/percentage.
-- Analytics: ≤10 strongest pairs by default; advanced matrix allows ≤12
-  selections and visibly refuses a 13th.
-- Tax Report: both tables paginate at 50; tab/year/page survive reload and
-  back/forward.
-- Stock Detail: insider table paginates at 25; filter change resets to page 1.
-- No horizontal overflow at any of the four viewports; no unexpected console
-  errors or failed requests.
+| Surface | Result |
+| --- | --- |
+| Transactions | PASS — 50 rows on the first page, 50 on the second (`?offset=50`), and 25 after selecting the 25-row size. Filtering for AAPL reset to offset 0, produced 10 AAPL rows, and wrote `limit=25&q=AAPL` to the URL. Back/forward restored the URL-backed state. |
+| Allocation | PASS for collection bounds — 8 chart segments (7 named + Other) and all 13 holdings in Full Breakdown. |
+| Analytics | PASS for collection bounds — 10 strongest pairs; 12 matrix selections allowed, the thirteenth disabled, and replacing one selection kept the cap at 12. |
+| Tax Report | PASS for exercised data — 65 realized rows paginate 50/15 and page 2 uses `?page=1`; the unrealized tab showed all 39 fixture rows. `tab=unrealized&year=2024` survived a full reload. The fixture did not contain more than 50 unrealized lots, so a second unrealized page was not browser-exercised. |
+| Stock Detail | PASS for pagination — AAPL showed 79 insider rows in 25-row pages; Next produced 26–50 and switching to the 33-row SELL filter reset to 1–25. |
+| Console/network | PASS after blocker fix — the browser console stayed clean and `GET /api/market/history/NVDA?period=1y` returned 200 after non-finite close values were filtered from the history response. |
+
+The four-viewport overflow check produced these results:
+
+| Surface | 390×844 | 768×1024 | 1024×768 | 1440×900 |
+| --- | --- | --- | --- | --- |
+| Transactions | PASS | PASS | PASS | PASS |
+| Allocation | PASS | PASS | PASS | PASS |
+| Analytics | PASS | PASS | PASS | PASS |
+| Tax Report | PASS | PASS | PASS | PASS |
+| Stock Detail | PASS | PASS | PASS | PASS |
+
+The initial run found three mobile overflow defects at 390 px. The 2026-09-14
+fix recheck passed after these changes:
+
+- Allocation stacks its chart and breakdown on narrow screens and lets legend
+  values shrink within the card.
+- Analytics wraps the page heading, benchmark selector, and period controls.
+- Stock Detail wraps the quote/actions row and provides an explicit horizontal
+  scroller for wide insider rows. At 390 px the document width stayed bounded;
+  only the intended insider and DCF regions scrolled internally.
+
+Deleting the last transaction from the last page was not exercised in the
+browser; its automated regression coverage remains the evidence for that
+path. Tax Report history navigation was represented by direct URL reload;
+back/forward was exercised on Transactions.
 
 ## Warnings
 

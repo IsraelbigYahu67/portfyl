@@ -36,7 +36,7 @@ const SECTORS = [
   "Real Estate", "Utilities", "Communication Services",
 ];
 
-const RESULTS_LIMIT = 50;
+const SHIBUI_RESULTS_LIMIT = 50;
 
 function fmtMoney(v) {
   if (v == null || isNaN(v)) return "—";
@@ -158,6 +158,7 @@ export default function Screener() {
   const [sortBy, setSortBy] = useState("market_cap");
   const [showFilters, setShowFilters] = useState(false);
   const [offset, setOffset] = useState(0);
+  const [limit, setLimit] = useState(50);
 
   const isShibui = universe === "shibui_all";
 
@@ -167,7 +168,7 @@ export default function Screener() {
       // entirely, scans ~10,344 NYSE/NASDAQ symbols in one query. Div yield
       // filtering isn't wired on that path yet -- only pe/ps/roe/market_cap/
       // operating_margin/piotroski/sector.
-      const p = { source: "shibui", sort_by: sortBy, sort_desc: true, limit: RESULTS_LIMIT };
+      const p = { source: "shibui", sort_by: sortBy, sort_desc: true, limit: SHIBUI_RESULTS_LIMIT };
       if (sector) p.sector = sector;
       if (maxPE) p.max_pe = Number(maxPE);
       if (minROE) p.min_roe = Number(minROE);
@@ -175,7 +176,7 @@ export default function Screener() {
       if (minPiotroski) p.min_piotroski = Number(minPiotroski);
       return p;
     }
-    const p = { universe, sort_by: sortBy, sort_desc: true, limit: RESULTS_LIMIT };
+    const p = { universe, sort_by: sortBy, sort_desc: true, limit: SHIBUI_RESULTS_LIMIT };
     if (customTickers.trim()) p.tickers = customTickers.trim().toUpperCase();
     if (sector) p.sector = sector;
     if (maxPE) p.max_pe = Number(maxPE);
@@ -202,6 +203,8 @@ export default function Screener() {
 
   const isRunning = job && (job.status === "queued" || job.status === "running");
   const isFailed = job?.status === "failed";
+  const isCancelled = job?.status === "cancelled";
+  const isRetryable = isFailed || isCancelled;
   const isCompleted = job?.status === "completed";
 
   const shibuiMode = isShibui && shibuiQuery.data?.source === "shibui";
@@ -210,7 +213,13 @@ export default function Screener() {
 
   const changePage = (next) => {
     setOffset(next);
-    setPage(next);
+    setPage(next, limit);
+  };
+
+  const changeLimit = (nextLimit) => {
+    setLimit(nextLimit);
+    setOffset(0);
+    setPage(0, nextLimit);
   };
 
   const resetFilters = () => {
@@ -266,7 +275,7 @@ export default function Screener() {
                   Cancel
                 </button>
               )}
-              {isFailed && (
+              {isRetryable && (
                 <button
                   onClick={retry}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-card border border-surface-border text-sm text-muted hover:text-ink transition-colors"
@@ -420,7 +429,9 @@ export default function Screener() {
                   ? `${total} results`
                   : isRunning
                     ? `Scanning… ${job.progress.completed} / ${job.progress.total} (${job.progress.percent}%)`
-                    : "No scan run yet"}
+                    : isCancelled
+                      ? "Scan cancelled"
+                      : "No scan run yet"}
               {shibuiMode && shibuiQuery.data?.default_market_cap_floor_applied && " · $500M market-cap floor applied by default"}
             </p>
             <button onClick={resetFilters} className="text-xs text-muted hover:text-ink">
@@ -434,6 +445,10 @@ export default function Screener() {
       {!isShibui && !job ? (
         <div className="text-center py-20 text-muted">
           Choose a universe and filters, then click “Run Scan”.
+        </div>
+      ) : !isShibui && isCancelled ? (
+        <div className="text-center py-20 text-muted" role="status">
+          Scan cancelled. Retry to run the same filters again.
         </div>
       ) : (
         <AsyncSection
@@ -460,9 +475,10 @@ export default function Screener() {
           {!isShibui && isCompleted && (
             <Pagination
               offset={offset}
-              limit={RESULTS_LIMIT}
+              limit={limit}
               total={total}
               onOffsetChange={changePage}
+              onLimitChange={changeLimit}
               ariaLabel="Screener results pages"
             />
           )}

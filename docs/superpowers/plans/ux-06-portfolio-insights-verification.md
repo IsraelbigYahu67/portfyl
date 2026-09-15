@@ -46,17 +46,34 @@ suite is unaffected and stays a CI gate.
 
 ## Browser matrix
 
-**Not executed in this environment** — no browser-automation tool was
-available to this session. Outstanding manual checks (390×844, 768×1024,
-1024×768, 1440×900):
+Executed on 2026-09-14 in Chrome against the same isolated fixture used for
+Phase 4.
 
-- Dashboard order, independent widget failure recovery, keyboard
-  Move/Hide/Restore, collapsed insider activity, alert links.
-- Allocation category/state switching, seven-plus-Other chart with complete
-  text list, sold separation, summary copy.
-- Analytics risk-first order with no allocation duplicates, top-ten
-  correlations, ≤12 advanced matrix, chart summaries.
-- No horizontal overflow, console errors, or failed requests.
+| Surface | Result |
+| --- | --- |
+| Dashboard composition | PASS — the live order is Performance, Concentration, Needs attention, Top Movers, then Insider activity. Alert links target `/dividends`, and Insider activity is a closed `<details>` element by default. |
+| Dashboard controls | PASS after blocker fix — Hide/Restore/Reset still work, and Move up/down now swaps both the persisted order and grid coordinates. A grid remount applies the new positions immediately; the browser recheck moved Concentration above Performance visually. |
+| Allocation composition | PASS — Position produced 7 named segments plus Other and a complete 13-row list; Sector had 6 groups, Asset type 1, Currency 1, and Position 13. Active/Sold switching worked, Sold showed its empty state, and the summary read `Largest position: META · Top 3 combined: 39.5%`. |
+| Analytics composition | PASS — risk and benchmark sections precede risk-adjusted returns, drawdown, and correlations; no allocation duplicate blocks were present. The top-ten and 12-selection bounds passed. |
+| Console | PASS — no console errors or warnings were recorded. |
+
+The initial run logged `GET /api/market/history/NVDA?period=1y` as 500 because
+the provider returned non-finite close values. The endpoint now drops NaN and
+infinite values before JSON serialization. A targeted backend regression test
+passes, and the clean-server browser recheck logged the NVDA request as 200.
+Requests carrying the deleted fixture id briefly returned the expected 404
+during cleanup and are not counted as product failures.
+
+| Surface | 390×844 | 768×1024 | 1024×768 | 1440×900 |
+| --- | --- | --- | --- | --- |
+| Dashboard | PASS | PASS | PASS | PASS |
+| Allocation | PASS | PASS | PASS | PASS |
+| Analytics | PASS | PASS | PASS | PASS |
+
+The 390 px recheck passed after the Allocation chart/list and Analytics header
+were made responsive. Together with the working Move controls and the 200
+history response, the Phase 6 browser gate now passes. Independent widget
+failure recovery was not fault-injected during this live run.
 
 ## Warnings / deferrals
 
