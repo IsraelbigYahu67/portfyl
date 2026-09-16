@@ -28,6 +28,7 @@ export function createConfig({ mode, env = process.env }) {
       },
     },
     test: {
+      include: ["src/**/*.test.{js,jsx}"],
       globals: true,
       environment: "jsdom",
       setupFiles: "./src/test/setup.js",

@@ -31,3 +31,13 @@ it('has no API imports beyond the startup allowlist', () => {
   const names = source.match(/\bfetch[A-Z]\w*/g);
   expect([...new Set(names)].sort()).toEqual(['fetchHoldings', 'fetchPerformance', 'fetchSummary']);
 });
+it('rewarms a switched portfolio after PortfolioProvider clears the entire cache', async () => {
+  const client = new QueryClient();
+  const view = render(<QueryClientProvider client={client}><StartupPrefetch /></QueryClientProvider>);
+  await waitFor(() => expect(api.fetchSummary).toHaveBeenCalledTimes(1));
+  // This is the existing switch order owned by PortfolioProvider, before the new ID is active.
+  client.clear(); state.currentId = 'p2';
+  view.rerender(<QueryClientProvider client={client}><StartupPrefetch /></QueryClientProvider>);
+  await waitFor(() => expect(api.fetchSummary).toHaveBeenCalledTimes(2));
+  client.clear();
+});
