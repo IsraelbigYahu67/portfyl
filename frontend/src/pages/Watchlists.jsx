@@ -102,8 +102,10 @@ export default function Watchlists() {
   const capabilitySet = new Set(capabilities.data?.capabilities || []);
   let alertDisabledReason = "";
   if (capabilities.isError || (capabilities.data && !capabilitySet.has("notification_integrations"))) alertDisabledReason = "notification integrations are not available";
+  else if (!capabilities.data) alertDisabledReason = "notification capabilities are still loading";
   else if (webhook.isError) alertDisabledReason = "Discord connection status could not be loaded";
-  else if (webhook.data && !webhook.data.connected) alertDisabledReason = "Discord is not connected";
+  else if (!webhook.data) alertDisabledReason = "Discord connection status is still loading";
+  else if (webhook.data.connected !== true) alertDisabledReason = "Discord is not connected";
   const alertsByTicker = useMemo(() => new Map((alerts.data || []).map((alert) => [alert.ticker, alert])), [alerts.data]);
   const lists = watchlists.data || [];
   return (

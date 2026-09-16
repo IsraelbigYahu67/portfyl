@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ConfirmProvider } from "../components/ui/ConfirmDialog";
 import { ToastProvider } from "../components/ui/Toast";
 import Watchlists from "./Watchlists";
@@ -32,11 +32,23 @@ const lists = [
   ] },
 ];
 
-function renderPage() {
+function RouteProbe() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  return <><output data-testid="location">{location.search}</output><button onClick={() => navigate(-1)}>Browser back</button></>;
+}
+
+function renderPage(path = "/watchlists") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter><ToastProvider><ConfirmProvider><Watchlists /></ConfirmProvider></ToastProvider></MemoryRouter>
+      <MemoryRouter initialEntries={[path]}><ToastProvider><ConfirmProvider>
+        <RouteProbe />
+        <Routes>
+          <Route path="/watchlists" element={<Watchlists />} />
+          <Route path="/stock/:ticker" element={<h1>Stock research</h1>} />
+        </Routes>
+      </ConfirmProvider></ToastProvider></MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -81,5 +93,47 @@ it("disables alert creation with a reason and notifications deep link", async ()
   renderPage();
   expect((await screen.findAllByText(/Discord is not connected/i)).length).toBeGreaterThan(0);
   expect(screen.getAllByRole("link", { name: /notifications/i })[0]).toHaveAttribute("href", "/settings?section=notifications");
+  expect(screen.getByRole("button", { name: "Create price alert for AAPL" })).toBeDisabled();
+});
+
+it("keeps list search and sorting through stock navigation, back, and reload", async () => {
+  const page = renderPage("/watchlists?from=research");
+  await screen.findByRole("link", { name: /AAPL Apple/i });
+  fireEvent.change(screen.getByRole("textbox", { name: "Search Ideas" }), { target: { value: "beta" } });
+  fireEvent.change(screen.getByRole("combobox", { name: "Sort Ideas" }), { target: { value: "change_desc" } });
+  const savedSearch = screen.getByTestId("location").textContent;
+  expect(savedSearch).toContain("from=research");
+  fireEvent.click(screen.getByRole("link", { name: /BETA Beta Corp/i }));
+  expect(screen.getByRole("heading", { name: "Stock research" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Browser back" }));
+  expect(await screen.findByRole("textbox", { name: "Search Ideas" })).toHaveValue("beta");
+  expect(screen.getByRole("combobox", { name: "Sort Ideas" })).toHaveValue("change_desc");
+  expect(screen.queryByRole("link", { name: /AAPL Apple/i })).not.toBeInTheDocument();
+  expect(screen.getByRole("textbox", { name: "Search Second" })).toHaveValue("");
+  page.unmount();
+  renderPage(`/watchlists${savedSearch}`);
+  expect(await screen.findByRole("textbox", { name: "Search Ideas" })).toHaveValue("beta");
+  expect(screen.getByRole("combobox", { name: "Sort Ideas" })).toHaveValue("change_desc");
+});
+
+it.each(["fetchCapabilities", "fetchDiscordWebhook"])("blocks alert creation until %s resolves", async (request) => {
+  let resolveStatus;
+  api[request].mockImplementationOnce(() => new Promise((resolve) => { resolveStatus = resolve; }));
+  renderPage();
+  await screen.findByRole("link", { name: /AAPL Apple/i });
+  expect(screen.getByRole("button", { name: "Create price alert for AAPL" })).toBeDisabled();
+  fireEvent.change(screen.getByRole("textbox", { name: "Alert ticker" }), { target: { value: "AAPL" } });
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Target price" }), { target: { value: "200" } });
+  expect(screen.getByRole("button", { name: "Add alert" })).toBeDisabled();
+  expect(api.createAlert).not.toHaveBeenCalled();
+  resolveStatus(request === "fetchCapabilities" ? { capabilities: ["notification_integrations"] } : { connected: true });
+  await waitFor(() => expect(screen.getByRole("button", { name: "Create price alert for AAPL" })).toBeEnabled());
+  expect(screen.getByRole("button", { name: "Add alert" })).toBeEnabled();
+});
+
+it("explains capability-denied alerts even when Discord is connected", async () => {
+  api.fetchCapabilities.mockResolvedValue({ capabilities: [] });
+  renderPage();
+  expect((await screen.findAllByText(/notification integrations are not available/i)).length).toBeGreaterThan(0);
   expect(screen.getByRole("button", { name: "Create price alert for AAPL" })).toBeDisabled();
 });

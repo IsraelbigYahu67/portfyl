@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Loader2, Search, Trash2, TrendingDown, TrendingUp, X } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   addWatchlistItem,
   deleteWatchlist,
@@ -84,8 +84,22 @@ export function WatchlistCard({ wl, onAlert, alertsByTicker = new Map(), alertDi
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState("ticker");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchKey = `wl.${wl.id}.q`;
+  const sortKey = `wl.${wl.id}.sort`;
+  const search = searchParams.get(searchKey) || "";
+  const requestedSort = searchParams.get(sortKey);
+  const sort = ["change_desc", "change_asc", "market_cap_desc"].includes(requestedSort) ? requestedSort : "ticker";
+  const updateView = (key, value, defaultValue) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (value === defaultValue) next.delete(key);
+      else next.set(key, value);
+      return next;
+    }, { replace: true });
+  };
+  const setSearch = (value) => updateView(searchKey, value, "");
+  const setSort = (value) => updateView(sortKey, value, "ticker");
 
   const visibleItems = useMemo(() => {
     const needle = search.trim().toLowerCase();
