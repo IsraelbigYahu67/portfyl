@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
+import { preloadRoute } from "./navigation";
 
 function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia
@@ -70,10 +71,12 @@ export default function MobileNavDrawer({ groups, open, onClose }) {
                   {group.label}
                 </h2>
                 <div className="space-y-0.5">
-                  {group.items.map(({ to, label, icon: Icon }) => (
+                  {group.items.map(({ to, label, icon: Icon, preload }) => (
                     <NavLink
                       key={to}
                       to={to}
+                      onMouseEnter={() => preloadRoute(preload)}
+                      onFocus={() => preloadRoute(preload)}
                       end={to === "/"}
                       className={({ isActive }) => (
                         `min-h-11 flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-colors ${

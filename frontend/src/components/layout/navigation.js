@@ -60,9 +60,16 @@ export const EDITION_ENTRY_GROUP = Object.freeze({
 
 export const DEFAULT_EDITION_GROUP = "system";
 
-export function buildNavGroups(editionEntries, capabilities) {
+export function preloadRoute(preload) {
+  return Promise.resolve().then(() => preload?.()).catch(() => {});
+}
+
+export function buildNavGroups(editionEntries, capabilities, sharedRoutes = []) {
   const enabled = new Set(capabilities || []);
-  const groups = NAV_GROUPS.map((group) => ({ ...group, items: [...group.items] }));
+  const groups = NAV_GROUPS.map((group) => ({ ...group, items: group.items.map(item => {
+    const preload = sharedRoutes.find(route => route.path === item.to)?.preload;
+    return preload ? { ...item, preload } : { ...item };
+  }) }));
 
   for (const entry of editionEntries || []) {
     if (!enabled.has(entry.capability)) continue;

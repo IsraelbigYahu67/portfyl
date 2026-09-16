@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import AccountMenu from "../AccountMenu";
 import PortfolioSwitcher from "../PortfolioSwitcher";
+import { preloadRoute } from "./navigation";
 
 export default function DesktopSidebar({ groups }) {
   return (
@@ -29,10 +30,12 @@ export default function DesktopSidebar({ groups }) {
                 {group.label}
               </h2>
               <div className="space-y-0.5">
-                {group.items.map(({ to, label, icon: Icon }) => (
+                {group.items.map(({ to, label, icon: Icon, preload }) => (
                   <NavLink
                     key={to}
                     to={to}
+                    onMouseEnter={() => preloadRoute(preload)}
+                    onFocus={() => preloadRoute(preload)}
                     end={to === "/"}
                     className={({ isActive }) => (
                       `flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-all ${
