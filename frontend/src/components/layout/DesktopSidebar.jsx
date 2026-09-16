@@ -1,27 +1,8 @@
-import { Loader2, Monitor, Moon, Sun } from "lucide-react";
 import { NavLink } from "react-router-dom";
-import { useCurrency, usePalette } from "../../App";
 import AccountMenu from "../AccountMenu";
 import PortfolioSwitcher from "../PortfolioSwitcher";
-import SegmentedControl from "../ui/SegmentedControl";
-
-const PALETTE_OPTIONS = [
-  { key: "blue", label: "Arctic Blue" },
-  { key: "green", label: "Mint Green" },
-  { key: "purple", label: "Soft Iris" },
-];
-
-const PALETTE_COLORS = {
-  blue: "#2563EB",
-  green: "#059669",
-  purple: "#7C3AED",
-};
 
 export default function DesktopSidebar({ groups }) {
-  const { currency, setCurrency, rate, rateLoading } = useCurrency();
-  const { palette, setPalette, theme, setTheme, themeStyle, setThemeStyle } = usePalette();
-  const czkUnavailable = !rateLoading && rate === null;
-
   return (
     <aside
       className="w-[232px] shrink-0 bg-surface-card border-r border-surface-border flex flex-col"
@@ -74,88 +55,6 @@ export default function DesktopSidebar({ groups }) {
       <div className="mt-auto pb-3 space-y-3">
         <div className="px-3">
           <AccountMenu />
-        </div>
-
-        <div className="px-4">
-          <p className="text-[10px] text-muted mb-1.5 pl-0.5">Style</p>
-          <SegmentedControl
-            block
-            size="sm"
-            aria-label="Theme style"
-            value={themeStyle}
-            onChange={setThemeStyle}
-            options={[
-              { value: "glass", label: "Classic", title: "Classic glass theme" },
-              { value: "neu", label: "Premium", title: "Warm glass-hybrid theme" },
-            ]}
-          />
-        </div>
-
-        <div className={`px-4 ${themeStyle === "neu" ? "opacity-40 pointer-events-none" : ""}`}>
-          <p className="text-[10px] text-muted mb-1.5 pl-0.5">Appearance</p>
-          <SegmentedControl
-            block
-            size="sm"
-            aria-label="Appearance"
-            value={theme}
-            onChange={setTheme}
-            options={[
-              { value: "light", label: <Sun size={13} />, title: "Light", disabled: themeStyle === "neu" },
-              { value: "dark", label: <Moon size={13} />, title: "Dark", disabled: themeStyle === "neu" },
-              { value: "system", label: <Monitor size={13} />, title: "System", disabled: themeStyle === "neu" },
-            ]}
-          />
-        </div>
-
-        <div className={`px-4 ${themeStyle === "neu" ? "opacity-40 pointer-events-none" : ""}`}>
-          <p className="text-[10px] text-muted mb-1.5 pl-0.5">Accent</p>
-          <div className="flex gap-1.5">
-            {PALETTE_OPTIONS.map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setPalette(key)}
-                disabled={themeStyle === "neu"}
-                title={label}
-                aria-label={`Theme: ${label}`}
-                aria-pressed={palette === key}
-                className={`w-5 h-5 rounded-full transition-all ${
-                  palette === key ? "ring-2 ring-offset-1 ring-slate-400 scale-110" : "hover:scale-110"
-                }`}
-                style={{ backgroundColor: PALETTE_COLORS[key] }}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div className="px-4 space-y-2">
-          <p className="text-[10px] text-muted pl-0.5">Display currency</p>
-          <div className="flex items-center gap-0.5 bg-surface-hover rounded-lg p-0.5">
-            {["USD", "CZK"].map((currencyCode) => (
-              <button
-                key={currencyCode}
-                onClick={() => setCurrency(currencyCode)}
-                disabled={currencyCode === "CZK" && czkUnavailable}
-                title={currencyCode === "CZK" && czkUnavailable ? "Rate unavailable" : undefined}
-                aria-label={`Display currency: ${currencyCode}`}
-                aria-pressed={currency === currencyCode}
-                className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ${
-                  currency === currencyCode
-                    ? "bg-brand text-white"
-                    : czkUnavailable && currencyCode === "CZK"
-                      ? "text-muted cursor-not-allowed"
-                      : "text-muted hover:text-ink"
-                }`}
-              >
-                {currencyCode === "CZK" && rateLoading
-                  ? <Loader2 size={11} className="animate-spin mx-auto" aria-hidden="true" />
-                  : currencyCode}
-              </button>
-            ))}
-          </div>
-          {currency === "CZK" && rate && (
-            <p className="text-[10px] text-muted text-center tabular-nums">1 USD = {rate.toFixed(2)} Kc</p>
-          )}
-          {czkUnavailable && <p className="text-[10px] text-loss text-center">Rate unavailable</p>}
         </div>
 
         <div className="px-5 text-[11px] text-muted" style={{ opacity: 0.7 }}>

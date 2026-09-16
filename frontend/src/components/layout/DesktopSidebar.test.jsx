@@ -53,4 +53,12 @@ describe("DesktopSidebar", () => {
     renderSidebar();
     expect(screen.getByRole("navigation", { name: /primary/i })).toBeInTheDocument();
   });
+
+  it("keeps portfolio and account controls but no longer renders device preferences", () => {
+    renderSidebar();
+    expect(screen.getByText("Portfolio switcher")).toBeInTheDocument();
+    expect(screen.getByText("Account menu")).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Theme style" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /display currency/i })).not.toBeInTheDocument();
+  });
 });

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 import Onboarding from "./Onboarding";
 import { TRACKER_HOME } from "../lib/routes";
@@ -32,10 +32,15 @@ function mount() {
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path={TRACKER_HOME} element={<div>Dashboard destination</div>} />
         <Route path="/import" element={<div>Import destination</div>} />
-        <Route path="/settings" element={<div>Settings destination</div>} />
+        <Route path="/settings" element={<><div>Settings destination</div><LocationProbe /></>} />
       </Routes>
     </MemoryRouter>
   );
+}
+
+function LocationProbe() {
+  const location = useLocation();
+  return <output aria-label="location">{location.pathname}{location.search}</output>;
 }
 
 
@@ -75,6 +80,7 @@ describe("Onboarding", () => {
     await waitFor(() => expect(mocks.createPortfolio).toHaveBeenCalledWith({ name: "My portfolio" }));
     expect(mocks.setCurrentId).toHaveBeenCalledWith("portfolio-id");
     expect(await screen.findByText("Settings destination")).toBeInTheDocument();
+    expect(screen.getByLabelText("location")).toHaveTextContent("/settings?section=connections");
   });
 
   it("navigates before the portfolio refetch can unmount onboarding", async () => {

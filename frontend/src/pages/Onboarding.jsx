@@ -62,7 +62,7 @@ export default function Onboarding() {
       description: "Create an empty portfolio, then review available connection options.",
       action: () => activate(
         () => createPortfolio({ name: "My portfolio" }),
-        "/settings",
+        "/settings?section=connections",
         "broker",
       ),
     },
