@@ -33,7 +33,7 @@ vi.mock("./api", async () => {
   };
 });
 
-vi.mock("./components/AutoLoad", () => ({ default: () => null }));
+vi.mock("./components/StartupPrefetch", () => ({ default: () => null }));
 vi.mock("./pages/Dashboard", () => ({
   default: () => <h1>Portfolio overview</h1>,
 }));

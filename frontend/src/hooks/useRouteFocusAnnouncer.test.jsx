@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useRef } from "react";
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { describe, expect, it } from "vitest";
@@ -38,6 +38,13 @@ function Harness() {
 }
 
 describe("useRouteFocusAnnouncer", () => {
+  it('focuses a heading that arrives after the route fallback', async () => {
+    const content = heading => <MemoryRouter initialEntries={['/a']}><Shell><Routes><Route path="/a" element={<PageA />} /><Route path="/b" element={heading ? <h1>Deferred page</h1> : <div role="status">Loading page</div>} /></Routes></Shell></MemoryRouter>;
+    const view = render(content(false));
+    fireEvent.click(screen.getByText('Go to B'));
+    view.rerender(content(true));
+    await waitFor(() => expect(screen.getByText('Deferred page')).toHaveFocus());
+  });
   it("focuses the new page's h1 after a route change", async () => {
     render(
       <MemoryRouter initialEntries={["/a"]}>

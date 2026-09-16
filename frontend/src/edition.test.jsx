@@ -42,6 +42,15 @@ describe("edition build configuration", () => {
 });
 
 describe("edition manifests", () => {
+  it('keeps every edition page lazy with a shared route/navigation loader', () => {
+    for (const [routes, navigation] of [[LOCAL_ROUTES, LOCAL_NAVIGATION], [CLOUD_ROUTES, CLOUD_NAVIGATION]]) {
+      for (const route of routes) {
+        expect(route.Component.$$typeof).toBe(Symbol.for('react.lazy'));
+        expect(navigation.find(item => item.to === route.path).preload).toBe(route.preload);
+      }
+    }
+    expect(cloudManifestSource).not.toMatch(/TaxReport|Screener/);
+  });
   it("keeps owner-only tools local and plan comparison cloud-only", () => {
     expect(LOCAL_ROUTES.map((entry) => entry.path)).toEqual(["/tax-report", "/screener"]);
     expect(LOCAL_NAVIGATION.map((entry) => entry.to)).toEqual(["/tax-report", "/screener"]);

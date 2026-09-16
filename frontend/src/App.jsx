@@ -1,30 +1,21 @@
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, Suspense } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { TRACKER_HOME } from "./lib/routes";
 import { Loader2 } from "lucide-react";
 import AppShell from "./components/layout/AppShell";
 import { buildNavGroups } from "./components/layout/navigation";
-import Dashboard from "./pages/Dashboard";
-import Allocation from "./pages/Allocation";
-import Transactions from "./pages/Transactions";
-import Import from "./pages/Import";
-import Dividends from "./pages/Dividends";
-import Analytics from "./pages/Analytics";
-import Settings from "./pages/Settings";
-import Assistant from "./pages/Assistant";
-import Search from "./pages/Search";
-import Stock from "./pages/Stock";
-import Watchlists from "./pages/Watchlists";
+import { SHARED_AUTHENTICATED_ROUTES, LazyOnboarding, LazyImport } from "./routes/authenticatedRoutes";
+import RouteFallback from "./components/layout/RouteFallback";
+import RouteBoundary from "./components/layout/RouteBoundary";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgotPassword";
-import Onboarding from "./pages/Onboarding";
 import { fetchCapabilities, fetchFxRate, fetchPortfolios, setActivePortfolioId, getActivePortfolioId } from "./api";
 import { ToastProvider } from "./components/ui/Toast";
 import { ConfirmProvider } from "./components/ui/ConfirmDialog";
-import AutoLoad from "./components/AutoLoad";
+import StartupPrefetch from "./components/StartupPrefetch";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { EDITION_NAVIGATION, EDITION_ROUTES, EditionShell } from "@edition-manifest";
 import { enabledEditionEntries } from "./editions/filter";
@@ -398,7 +389,7 @@ function AppLayout() {
   });
   const runtimeCapabilities = capabilityState?.capabilities || [];
   const editionRoutes = enabledEditionEntries(EDITION_ROUTES, runtimeCapabilities);
-  const navGroups = buildNavGroups(EDITION_NAVIGATION, runtimeCapabilities);
+  const navGroups = buildNavGroups(EDITION_NAVIGATION, runtimeCapabilities, SHARED_AUTHENTICATED_ROUTES);
 
   useEffect(() => {
     localStorage.removeItem("sb_platform");
@@ -409,39 +400,32 @@ function AppLayout() {
   }
 
   if (!activePortfolios.length && pendingImportPortfolio && pathname === "/import") {
-    return <main className="min-h-screen bg-bg px-4 py-8"><div className="mx-auto max-w-3xl"><Import focused /></div></main>;
+    return <main className="min-h-screen bg-bg px-4 py-8"><div className="mx-auto max-w-3xl"><RouteBoundary key={pathname}><Suspense fallback={<RouteFallback />}><LazyImport focused /></Suspense></RouteBoundary></div></main>;
   }
 
   if (!activePortfolios.length) {
-    return <Onboarding />;
+    return <RouteBoundary key={pathname}><Suspense fallback={<RouteFallback />}><LazyOnboarding /></Suspense></RouteBoundary>;
   }
 
   return (
     <AppShell groups={navGroups}>
       <EditionShell />
-      {/* Background prefetcher warms portfolio pages in priority order. */}
-      <AutoLoad />
+      <StartupPrefetch />
+      <RouteBoundary key={pathname}>
+      <Suspense fallback={<RouteFallback />}>
       <Routes>
-        <Route path={TRACKER_HOME} element={<Dashboard />} />
+        {SHARED_AUTHENTICATED_ROUTES.map(({ path, Component }) => <Route key={path} path={path} element={<Component />} />)}
         <Route path="/overview" element={<Navigate to={TRACKER_HOME} replace />} />
-        <Route path="/allocation" element={<Allocation />} />
-        <Route path="/transactions" element={<Transactions />} />
-        <Route path="/import" element={<Import />} />
-        <Route path="/dividends" element={<Dividends />} />
-        <Route path="/analytics" element={<Analytics />} />
-        <Route path="/search" element={<Search />} />
-        <Route path="/stock/:ticker" element={<Stock />} />
-        <Route path="/watchlists" element={<Watchlists />} />
-        <Route path="/assistant" element={<Assistant />} />
         {editionRoutes.map(({ path, Component }) => (
           <Route key={path} path={path} element={<Component />} />
         ))}
-        <Route path="/settings" element={<Settings />} />
         {/* An authenticated visitor landing on a public auth URL (stale tab,
             browser back button after login, etc.) gets sent home instead of
             a blank route. */}
         <Route path="*" element={<Navigate to={TRACKER_HOME} replace />} />
       </Routes>
+      </Suspense>
+      </RouteBoundary>
     </AppShell>
   );
 }

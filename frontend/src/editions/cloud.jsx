@@ -1,14 +1,15 @@
 import { Layers3 } from "lucide-react";
-import Pricing from "../pages/Pricing";
+import { lazy } from "react";
 import UpgradePrompt from "../components/UpgradePrompt";
 
 // Plan comparison is cloud-only. It is static until a payment provider is
 // deliberately implemented; the local edition does not advertise SaaS tiers.
+const loadPricing = () => import("../pages/Pricing");
 export const EDITION_ROUTES = Object.freeze([
-  { path: "/pricing", capability: "settings", Component: Pricing },
+  { path: "/pricing", capability: "settings", Component: lazy(loadPricing), preload: loadPricing },
 ]);
 export const EDITION_NAVIGATION = Object.freeze([
-  { to: "/pricing", label: "Plans", icon: Layers3, capability: "settings" },
+  { to: "/pricing", label: "Plans", icon: Layers3, capability: "settings", preload: loadPricing },
 ]);
 export const EditionShell = UpgradePrompt;
 
