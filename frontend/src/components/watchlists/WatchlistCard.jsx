@@ -12,6 +12,7 @@ import { getApiErrorMessage } from "../../lib/apiError";
 import { formatCompact, formatMoney, formatPercent } from "../../lib/format";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
+import { TickerLink } from "../TickerLink";
 
 function compareNullable(left, right, direction) {
   const leftMissing = left == null || Number.isNaN(Number(left));
@@ -163,13 +164,13 @@ export function WatchlistCard({ wl, onAlert, alertsByTicker = new Map(), alertDi
             const alert = alertsByTicker.get(item.ticker);
             return (
               <li key={item.id} className="flex items-center gap-3 px-4 py-3 hover:bg-surface-hover">
-                <Link aria-label={`${item.ticker} ${quote.name || item.ticker}`} to={`/stock/${encodeURIComponent(item.ticker)}`} className="flex min-w-0 flex-1 items-center gap-3">
+                <TickerLink aria-label={`${item.ticker} ${quote.name || item.ticker}`} ticker={item.ticker} className="flex min-w-0 flex-1 items-center gap-3">
                   <span className="w-16 shrink-0 font-mono font-bold">{item.ticker}</span>
                   <span className="min-w-0 flex-1 truncate text-sm">{quote.name || item.ticker}</span>
                   <span className="hidden w-24 text-right text-sm tabular-nums sm:block">{formatMoney(quote.price, quote.currency || "USD")}</span>
                   <span className={`flex w-24 items-center justify-end gap-1 text-xs tabular-nums ${change == null ? "text-muted" : up ? "text-gain" : "text-loss"}`}>{change != null && (up ? <TrendingUp size={11} /> : <TrendingDown size={11} />)}{formatPercent(change)}</span>
                   <span className="hidden w-24 text-right text-xs text-muted tabular-nums lg:block">{formatCompact(quote.market_cap, quote.currency || "USD")}</span>
-                </Link>
+                </TickerLink>
                 {alert && <span className="text-xs font-medium text-muted">{alert.status === "triggered" ? "Triggered" : "Active"}</span>}
                 <button type="button" disabled={Boolean(alertDisabledReason)} onClick={() => onAlert?.(item.ticker)} aria-label={`Create price alert for ${item.ticker}`} title={alertDisabledReason || "Create price alert"} className="p-1 text-muted hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"><Bell size={14} /></button>
                 <button type="button" onClick={() => askRemoveItem(item)} aria-label={`Remove ${item.ticker} from ${wl.name}`} className="p-1 text-muted hover:text-red-600"><X size={14} /></button>

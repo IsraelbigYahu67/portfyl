@@ -21,6 +21,7 @@ const api = vi.hoisted(() => ({
   fetchDiscordWebhook: vi.fn(),
 }));
 vi.mock("../api", () => api);
+vi.mock("../hooks/useStockIntentPrefetch", () => ({ useStockIntentPrefetch: () => ({}) }));
 
 const lists = [
   { id: "one", name: "Ideas", count: 2, items: [

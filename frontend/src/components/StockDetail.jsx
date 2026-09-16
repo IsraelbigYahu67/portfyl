@@ -25,6 +25,7 @@ import {
 import { KpiBox } from "./ui";
 import Pagination from "./ui/Pagination";
 import ShinyText from "./reactbits/ShinyText";
+import { TickerLink } from "./TickerLink";
 
 const TTM_COLOR = "#9b7bd1";
 const TTM_SIDE_REVEAL = 2;
@@ -57,18 +58,7 @@ export function useStockDetail() {
 // Convenience: a link that navigates to the stock overview page. Drops in
 // anywhere a bare ticker is rendered. Using `<Link>` (not a button) so
 // middle-click / Cmd-click open a new tab.
-export function TickerLink({ ticker, className = "", children }) {
-  if (!ticker) return <span className={className}>{children ?? "—"}</span>;
-  return (
-    <Link
-      to={stockUrl(ticker)}
-      onClick={(e) => e.stopPropagation()}
-      className={`hover:text-brand hover:underline underline-offset-2 transition-colors ${className}`}
-    >
-      {children ?? ticker}
-    </Link>
-  );
-}
+export { TickerLink } from "./TickerLink";
 
 // ---------------------------------------------------------------------------
 // Formatting helpers

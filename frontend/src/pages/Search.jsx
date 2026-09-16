@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { TickerLink } from "../components/TickerLink";
 import { useQuery } from "@tanstack/react-query";
 import { Search as SearchIcon, Loader2, ArrowRight } from "lucide-react";
 import { searchTickers } from "../api";
@@ -92,8 +92,8 @@ export default function Search() {
             <ul className="bg-surface-card border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
               {results.map((r) => (
                 <li key={`${r.symbol}-${r.exchange ?? ""}`}>
-                  <Link
-                    to={`/stock/${encodeURIComponent(r.symbol)}`}
+                  <TickerLink
+                    ticker={r.symbol}
                     className="flex items-center gap-3 px-4 py-3 hover:bg-surface-hover group transition-colors"
                   >
                     <div className="flex-shrink-0 w-16 font-mono font-bold text-base">
@@ -109,7 +109,7 @@ export default function Search() {
                       size={16}
                       className="text-muted group-hover:text-brand transition-colors"
                     />
-                  </Link>
+                  </TickerLink>
                 </li>
               ))}
             </ul>
