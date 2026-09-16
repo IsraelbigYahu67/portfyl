@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "measure:bundle": "node scripts/measure-initial-bundle.mjs dist",
     "dev": "vite --mode edition-local",
     "build": "vite build --mode edition-local",
     "build:cloud": "vite build --mode edition-cloud",
