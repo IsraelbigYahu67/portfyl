@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import {
   AlertCircle,
   CheckCircle,
@@ -8,12 +9,10 @@ import {
   FileText,
   Info,
   RotateCcw,
-  Trash2,
   Upload,
 } from "lucide-react";
 
 import {
-  clearAllTransactions,
   commitImportCSV,
   fetchImportUndo,
   previewImportCSV,
@@ -125,29 +124,6 @@ export default function Import() {
     onError: (err) => toast.error(apiError(err)),
   });
 
-  const clearMutation = useMutation({
-    mutationFn: clearAllTransactions,
-    onSuccess: () => {
-      invalidatePortfolio();
-      setFile(null);
-      setPreview(null);
-      setResult(null);
-      setError(null);
-      toast.success("Portfolio cleared");
-    },
-    onError: (err) => toast.error(apiError(err)),
-  });
-
-  async function handleClear() {
-    const accepted = await confirm({
-      title: "Clear portfolio?",
-      message: "All transactions in this portfolio will be permanently deleted. This cannot be undone.",
-      confirmLabel: "Delete all",
-      danger: true,
-    });
-    if (accepted) clearMutation.mutate();
-  }
-
   async function handleUndo() {
     const accepted = await confirm({
       title: "Undo last import?",
@@ -184,10 +160,6 @@ export default function Import() {
           <p className="text-xs text-muted mt-1">Preview every change before it reaches your portfolio.</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={handleClear} className="btn-ghost flex items-center gap-2 text-sm text-red-600" disabled={clearMutation.isPending}>
-            <Trash2 size={14} />
-            {clearMutation.isPending ? "Clearing…" : "Clear portfolio"}
-          </button>
           <button onClick={downloadSample} className="btn-ghost flex items-center gap-2 text-sm">
             <Download size={14} /> Download sample
           </button>
@@ -354,6 +326,7 @@ export default function Import() {
             <p className="font-semibold text-gain">{plural(result.imported, "transaction")} imported</p>
             {result.duplicates_skipped > 0 && <p className="text-xs text-muted mt-1">{plural(result.duplicates_skipped, "exact duplicate")} skipped.</p>}
             <button onClick={() => { setFile(null); setResult(null); }} className="mt-3 text-xs text-muted hover:text-ink">Import another file →</button>
+            <Link to="/settings?section=data" className="ml-4 mt-3 inline-block text-xs text-muted hover:text-ink">Manage portfolio data</Link>
           </div>
         </div>
       )}

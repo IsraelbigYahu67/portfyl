@@ -36,7 +36,7 @@ function mount(path) {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
-        <Settings />
+        <Settings dataManagement={<div>Portfolio management</div>} />
         <LocationProbe />
       </MemoryRouter>
     </QueryClientProvider>,

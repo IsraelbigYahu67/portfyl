@@ -8,6 +8,7 @@ import { usePortfolio } from "../App";
 import DataPrivacySettings from "../components/DataPrivacySettings";
 import DiscordSettings from "../components/DiscordSettings";
 import PreferencesSettings from "../components/settings/PreferencesSettings";
+import PortfolioDataManagement from "../components/settings/PortfolioDataManagement";
 import SettingsSectionNav, { SETTINGS_SECTIONS } from "../components/settings/SettingsSectionNav";
 import SyncScheduleSettings from "../components/SyncScheduleSettings";
 import { AsyncSection } from "../components/ui";
@@ -180,7 +181,7 @@ export function DataSettings({ headingRef, children }) {
   );
 }
 
-export default function Settings({ dataManagement = null }) {
+export default function Settings({ dataManagement = <PortfolioDataManagement /> }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const headingRef = useRef(null);
   const focusAfterNavigation = useRef(false);

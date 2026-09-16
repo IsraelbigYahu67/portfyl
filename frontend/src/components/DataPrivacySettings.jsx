@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Download, Loader2, Trash2, X } from "lucide-react";
 
@@ -10,6 +10,7 @@ import {
 } from "../api";
 import { useAuth } from "../auth/AuthProvider";
 import { mapFirebaseAuthError, reauthenticateWithPassword } from "../auth/firebase";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 
 function errorMessage(error, fallback) {
@@ -34,6 +35,15 @@ export default function DataPrivacySettings() {
   const [confirmation, setConfirmation] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
+  const deleteButtonRef = useRef(null);
+  const confirmationInputRef = useRef(null);
+  const closeDialog = () => setDialogOpen(false);
+  const dialogRef = useFocusTrap({
+    active: dialogOpen,
+    onEscape: closeDialog,
+    initialFocusRef: confirmationInputRef,
+    restoreFocusRef: deleteButtonRef,
+  });
   const queryKey = ["workspace-deletion", currentWorkspace?.id];
 
   const { data: deletion, isLoading } = useQuery({
@@ -152,6 +162,7 @@ export default function DataPrivacySettings() {
 
         {!isLoading && (deletion?.scheduled ? (
           <button
+            ref={deleteButtonRef}
             type="button"
             onClick={() => cancelMutation.mutate()}
             disabled={cancelMutation.isPending}
@@ -178,9 +189,11 @@ export default function DataPrivacySettings() {
       {dialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="presentation">
           <div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-workspace-title"
+            aria-describedby="delete-workspace-description"
             className="w-full max-w-md bg-surface-card border border-surface-border rounded-xl p-6 shadow-2xl space-y-4"
           >
             <div className="flex items-start justify-between gap-4">
@@ -188,14 +201,14 @@ export default function DataPrivacySettings() {
                 <h3 id="delete-workspace-title" className="text-lg font-semibold text-loss">
                   Schedule workspace deletion
                 </h3>
-                <p className="text-sm text-muted mt-1">
+                <p id="delete-workspace-description" className="text-sm text-muted mt-1">
                   Portfyl waits 30 days before permanent deletion. Access and export remain available during the grace period.
                 </p>
               </div>
               <button
                 type="button"
                 aria-label="Close deletion dialog"
-                onClick={() => setDialogOpen(false)}
+                onClick={closeDialog}
                 className="text-muted hover:text-ink"
               >
                 <X size={18} />
@@ -205,6 +218,7 @@ export default function DataPrivacySettings() {
             <label className="block text-sm text-muted">
               Type {currentWorkspace.name} to confirm
               <input
+                ref={confirmationInputRef}
                 type="text"
                 value={confirmation}
                 onChange={(event) => setConfirmation(event.target.value)}

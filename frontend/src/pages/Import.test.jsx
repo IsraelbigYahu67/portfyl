@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 
 import Import from "./Import";
 
@@ -38,7 +39,7 @@ function mount() {
   });
   return render(
     <QueryClientProvider client={client}>
-      <Import />
+      <MemoryRouter><Import /></MemoryRouter>
     </QueryClientProvider>
   );
 }
@@ -104,6 +105,14 @@ describe("Import preview and undo", () => {
     expect(screen.getByText(/2 exact duplicates will be skipped/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^import 1 transaction$/i }));
     await waitFor(() => expect(mocks.commitImportCSV).toHaveBeenCalledWith(file, "preview-1", false));
+    expect(await screen.findByRole("link", { name: /manage portfolio data/i })).toHaveAttribute("href", "/settings?section=data");
+  });
+
+  it("does not expose destructive portfolio clearing", async () => {
+    mount();
+    expect(await screen.findByRole("heading", { name: "Import CSV" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /clear portfolio/i })).not.toBeInTheDocument();
+    expect(mocks.clearAllTransactions).not.toHaveBeenCalled();
   });
 
   it("shows replacement removals before destructive commit", async () => {

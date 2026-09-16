@@ -110,6 +110,26 @@ describe("DataPrivacySettings", () => {
     expect(await screen.findByText(/scheduled for/i)).toBeInTheDocument();
   });
 
+  it("traps focus, closes on Escape, and restores focus to the opener", async () => {
+    mount();
+    const opener = await screen.findByRole("button", { name: /delete workspace/i });
+    opener.focus();
+    fireEvent.click(opener);
+
+    const confirmation = screen.getByLabelText(/type alice workspace/i);
+    const password = screen.getByLabelText(/^password$/i);
+    const close = screen.getByRole("button", { name: /close deletion dialog/i });
+    expect(confirmation).toHaveFocus();
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription(/waits 30 days/i);
+
+    password.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(close).toHaveFocus();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+  });
+
   it("shows a pending deadline and allows cancellation", async () => {
     mocks.fetchDeletionStatus.mockResolvedValueOnce({
       scheduled: true,
