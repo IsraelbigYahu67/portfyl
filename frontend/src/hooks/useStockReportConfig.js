@@ -1,6 +1,22 @@
 import { useState, useCallback } from "react";
 
 const STORAGE_KEY = "sb_stock_report_sections";
+const TAB_STORAGE_KEY = "sb_stock_report_tabs";
+
+export const STOCK_TAB_SECTIONS = {
+  overview: ["quickStats", "weekRange"],
+  financials: ["financials", "dividendGrowth", "earningsRecap"],
+  valuation: ["ratiosAnalyst", "valuationHistory", "valuation"],
+  ownership: [
+    "ownership",
+    "insiderVolume",
+    "insiderTx",
+    "shibuiInsiderActivity",
+    "politicalTrades",
+    "shibuiOwnershipFilings",
+  ],
+  filings: ["shibuiFilings"],
+};
 
 export const ALL_SECTIONS = [
   { id: "quickStats", label: "Quick Stats" },
@@ -36,9 +52,29 @@ function save(config) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
 }
 
+export function migrateHiddenSectionsToTabs(stored) {
+  const existing = localStorage.getItem(TAB_STORAGE_KEY);
+  if (existing != null) {
+    try {
+      const parsed = JSON.parse(existing);
+      return Array.isArray(parsed?.hidden) ? parsed.hidden : [];
+    } catch {
+      return [];
+    }
+  }
+
+  const hiddenSections = new Set(stored?.hidden || []);
+  const hidden = Object.entries(STOCK_TAB_SECTIONS)
+    .filter(([, sections]) => sections.length > 0 && sections.every((id) => hiddenSections.has(id)))
+    .map(([tab]) => tab);
+  localStorage.setItem(TAB_STORAGE_KEY, JSON.stringify({ version: 1, hidden }));
+  return hidden;
+}
+
 export default function useStockReportConfig() {
   const [config, setConfig] = useState(() => {
     const stored = load();
+    const hiddenTabs = migrateHiddenSectionsToTabs(stored);
     const storedOrder = stored?.order;
     const order = storedOrder
       ? [...storedOrder, ...DEFAULT_ORDER.filter((id) => !storedOrder.includes(id))]
@@ -46,6 +82,7 @@ export default function useStockReportConfig() {
     return {
       order,
       hidden: new Set(stored?.hidden ?? []),
+      hiddenTabs: new Set(hiddenTabs),
     };
   });
 

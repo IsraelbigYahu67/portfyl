@@ -895,7 +895,13 @@ export function DividendGrowthSection({ ticker, currency = "USD" }) {
 
 // Shared content shell: pure rendering, no fetching. Used by the
 // standalone /stock/:ticker page.
-export function StockOverview({ data, headerTrailing = null }) {
+export function StockOverview({
+  data,
+  headerTrailing = null,
+  sectionIds = null,
+  showHeader = true,
+  showCustomizer = true,
+}) {
   const [period, setPeriod] = useState("annual");
   const reportConfig = useStockReportConfig();
 
@@ -1193,10 +1199,12 @@ export function StockOverview({ data, headerTrailing = null }) {
     shibuiOwnershipFilings: <ShibuiOwnershipFilingsSection ticker={data.ticker} />,
   };
 
+  const renderedSectionIds = sectionIds || reportConfig.config.order;
+
   return (
     <>
       {/* ----- Header (always visible) ----- */}
-      <div className="flex flex-col gap-4 px-4 py-4 border-b border-surface-border sm:flex-row sm:items-start sm:justify-between sm:px-6">
+      {showHeader && <div className="flex flex-col gap-4 px-4 py-4 border-b border-surface-border sm:flex-row sm:items-start sm:justify-between sm:px-6">
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-3 flex-wrap">
             <h2 className="text-3xl font-bold font-mono"><ShinyText text={data.ticker} /></h2>
@@ -1251,13 +1259,13 @@ export function StockOverview({ data, headerTrailing = null }) {
               </div>
             )}
           </div>
-          <SectionCustomizer {...reportConfig} />
+          {showCustomizer && <SectionCustomizer {...reportConfig} />}
           {headerTrailing}
         </div>
-      </div>
+      </div>}
 
       <div className="p-4 space-y-6 sm:p-6">
-        {reportConfig.config.order.map((id) => {
+        {renderedSectionIds.map((id) => {
           if (!reportConfig.isVisible(id)) return null;
           const content = sections[id];
           if (!content) return null;
@@ -2102,7 +2110,7 @@ const YF_TYPE_META = {
   },
 };
 
-function ShibuiFilingsSection({ ticker }) {
+export function ShibuiFilingsSection({ ticker }) {
   const [expanded, setExpanded] = useState(false);
   const { data, isLoading, isError } = useQuery({
     queryKey: ["shibui-filings", ticker],
@@ -2506,7 +2514,7 @@ function PoliticalTradesChart({ ticker, trades, currencyCode, currentPrice, onSe
     queryKey: ["history", ticker, "1y"],
     queryFn: () => fetchHistory(ticker, "1y"),
     staleTime: 30 * 60 * 1000,
-    enabled: !!ticker,
+    enabled: false,
   });
 
   const points = hist?.data;
@@ -3166,7 +3174,7 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
     queryFn: () => fetchHistory(ticker, "1y"),
     staleTime: 5 * 60 * 1000,
     retry: false,
-    enabled: Boolean(ticker),
+    enabled: false,
   });
 
   const buckets = useMemo(() => buildWeeklyBuckets(hist?.data, 52), [hist]);

@@ -1,15 +1,29 @@
-import { useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, Star, Plus, Check, Loader2 } from "lucide-react";
 import {
-  fetchFundamentals,
+  fetchStockView,
   fetchWatchlists,
   addWatchlistItem,
   removeWatchlistItem,
 } from "../api";
-import { StockOverview } from "../components/StockDetail";
-import { AsyncSection } from "../components/ui";
+import { AsyncSection, UrlTabs } from "../components/ui";
+import { StockHeader } from "../components/stock/StockHeader";
+import { StockOverviewTab } from "../components/stock/StockOverviewTab";
+import { StockFinancialsTab } from "../components/stock/StockFinancialsTab";
+import { StockValuationTab } from "../components/stock/StockValuationTab";
+import { StockOwnershipTab } from "../components/stock/StockOwnershipTab";
+import { StockFilingsTab } from "../components/stock/StockFilingsTab";
+
+const STOCK_TABS = [
+  { value: "overview", label: "Overview", panelId: "stock-overview-panel" },
+  { value: "financials", label: "Financials", panelId: "stock-financials-panel" },
+  { value: "valuation", label: "Valuation", panelId: "stock-valuation-panel" },
+  { value: "ownership", label: "Ownership", panelId: "stock-ownership-panel" },
+  { value: "filings", label: "Filings", panelId: "stock-filings-panel" },
+];
+const VALID_TABS = new Set(STOCK_TABS.map((tab) => tab.value));
 
 function WatchlistMenu({ ticker }) {
   const qc = useQueryClient();
@@ -135,15 +149,31 @@ export default function Stock() {
   const ticker = (rawTicker || "").toUpperCase();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const activeTab = VALID_TABS.has(requestedTab) ? requestedTab : "overview";
   // React Router stamps the initial entry with key="default". Anything else
   // means we navigated here from somewhere inside the SPA, so popping that
   // history entry is safe and lands the user back where they came from.
   const canGoBack = location.key !== "default";
   const goBack = () => (canGoBack ? navigate(-1) : navigate("/"));
 
+  useEffect(() => {
+    if (requestedTab === activeTab) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", activeTab);
+    setSearchParams(next, { replace: true });
+  }, [activeTab, requestedTab, searchParams, setSearchParams]);
+
+  const selectTab = (tab) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", tab);
+    setSearchParams(next);
+  };
+
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["fundamentals", ticker],
-    queryFn: () => fetchFundamentals(ticker),
+    queryKey: ["stock-view", ticker, "overview"],
+    queryFn: () => fetchStockView(ticker, "overview"),
     staleTime: 5 * 60 * 1000,
     retry: false,
     enabled: Boolean(ticker),
@@ -173,10 +203,34 @@ export default function Stock() {
             </div>
           )}
         >
-          <StockOverview
-            data={data}
-            headerTrailing={<WatchlistMenu ticker={data?.ticker || ticker} />}
-          />
+          {data ? (
+            <>
+              <StockHeader
+                data={data}
+                trailing={<WatchlistMenu ticker={data.ticker || ticker} />}
+              />
+              <div className="border-b border-surface-border px-4 py-2 sm:px-6">
+                <UrlTabs
+                  ariaLabel="Stock sections"
+                  idPrefix="stock"
+                  items={STOCK_TABS}
+                  value={activeTab}
+                  onChange={selectTab}
+                />
+              </div>
+              <div
+                id={`stock-${activeTab}-panel`}
+                role="tabpanel"
+                aria-labelledby={`stock-${activeTab}-tab`}
+              >
+                {activeTab === "overview" && <StockOverviewTab ticker={ticker} overviewData={data} />}
+                {activeTab === "financials" && <StockFinancialsTab ticker={ticker} overviewData={data} />}
+                {activeTab === "valuation" && <StockValuationTab ticker={ticker} overviewData={data} />}
+                {activeTab === "ownership" && <StockOwnershipTab ticker={ticker} overviewData={data} />}
+                {activeTab === "filings" && <StockFilingsTab ticker={ticker} overviewData={data} />}
+              </div>
+            </>
+          ) : null}
         </AsyncSection>
       </div>
     </div>

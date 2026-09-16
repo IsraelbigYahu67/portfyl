@@ -29,12 +29,16 @@ const api = vi.hoisted(() => ({
   saveAssistantConfig: vi.fn(),
   deleteAssistantConfig: vi.fn(),
   sendAssistantMessage: vi.fn(),
-  fetchFundamentals: vi.fn(),
+  fetchStockView: vi.fn(),
+  fetchHistory: vi.fn(),
+  fetchHoldings: vi.fn(),
+  fetchTransactionsPage: vi.fn(),
 }));
 
 vi.mock("../api", () => api);
 vi.mock("../App", () => ({
   usePortfolio: () => ({ current: { id: "portfolio-1", name: "Research portfolio" } }),
+  useCurrency: () => ({ currency: "USD" }),
 }));
 vi.mock("../components/DiscordSettings", () => ({ default: () => null }));
 vi.mock("../components/SyncScheduleSettings", () => ({ default: () => null }));
@@ -64,7 +68,10 @@ beforeEach(() => {
   api.fetchAlerts.mockResolvedValue([]);
   api.fetchT212Status.mockResolvedValue({ connected: false });
   api.fetchAssistantConfig.mockResolvedValue({ configured: false });
-  api.fetchFundamentals.mockResolvedValue({ ticker: "AAPL" });
+  api.fetchStockView.mockResolvedValue({ ticker: "AAPL", currency: "USD" });
+  api.fetchHistory.mockResolvedValue({ data: [] });
+  api.fetchHoldings.mockResolvedValue([]);
+  api.fetchTransactionsPage.mockResolvedValue({ items: [] });
 });
 
 it("distinguishes Search's prompt and empty results from request failure, then retries", async () => {
@@ -120,7 +127,7 @@ it("distinguishes an unconfigured assistant from config failure and retries", as
 });
 
 it("shows a safe Stock provider error with Retry and recovers", async () => {
-  api.fetchFundamentals
+  api.fetchStockView
     .mockRejectedValueOnce({ response: { data: { detail: { private: "raw object" } } } })
     .mockResolvedValue({ ticker: "AAPL" });
   renderPage(Stock, "/stock/AAPL");
@@ -129,6 +136,6 @@ it("shows a safe Stock provider error with Retry and recovers", async () => {
   expect(alert).toHaveTextContent("We couldn't load this data.");
   expect(alert).not.toHaveTextContent("raw object");
   fireEvent.click(screen.getByRole("button", { name: /retry/i }));
-  await waitFor(() => expect(api.fetchFundamentals).toHaveBeenCalledTimes(2));
-  expect(await screen.findByText("Overview for AAPL")).toBeInTheDocument();
+  await waitFor(() => expect(api.fetchStockView).toHaveBeenCalledTimes(2));
+  expect((await screen.findAllByText("Overview for AAPL")).length).toBeGreaterThan(0);
 });

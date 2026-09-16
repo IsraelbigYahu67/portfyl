@@ -1595,8 +1595,12 @@ def get_fundamentals(ticker: str, view: Optional[str] = None):
         "employees": _f(info.get("fullTimeEmployees")),
         "ratios": {
             key: ratios.get(key)
-            for key in ("pe", "forward_pe", "ps", "pb", "div_yield", "payout_ratio", "roe", "net_margin")
+            for key in (
+                "pe", "forward_pe", "ps", "pb", "ev_ebitda",
+                "div_yield", "payout_ratio", "roe", "net_margin",
+            )
         },
+        "ttm": {"eps": _f(info.get("trailingEps"))},
     }
     financials_payload = {
         "financials": financials,
