@@ -65,7 +65,7 @@ class TestTransactionsPage:
         assert result["limit"] == 100
         assert len(result["items"]) == 30
 
-    @pytest.mark.parametrize("limit", [1, 10, 30, 49, 51, 200])
+    @pytest.mark.parametrize("limit", [10, 30, 49, 51, 200])
     def test_invalid_limit_rejected(self, db_session, default_portfolio, limit):
         with pytest.raises(HTTPException) as exc:
             get_transactions_page(
@@ -217,3 +217,59 @@ class TestTransactionsPage:
         result = get_transactions_page(db=db_session, portfolio=default_portfolio)
 
         assert result["total"] == 3
+
+    def test_exact_ticker_filter_is_normalized_and_returns_latest(self, db_session, pid, default_portfolio):
+        db_session.add_all(
+            [
+                make_txn("AAPL", "buy", 1, 100.0, date=date(2024, 1, 1), portfolio_id=pid),
+                make_txn("AAPL", "sell", 2, 200.0, date=date(2024, 2, 1), portfolio_id=pid),
+                make_txn("AAPLX", "buy", 3, 300.0, date=date(2024, 3, 1), portfolio_id=pid),
+            ]
+        )
+        db_session.commit()
+
+        result = get_transactions_page(
+            ticker="  aapl ", sort="-date", limit=1, db=db_session, portfolio=default_portfolio
+        )
+
+        assert result["total"] == 2
+        assert len(result["items"]) == 1
+        assert result["items"][0].ticker == "AAPL"
+        assert result["items"][0].type == "sell"
+
+    def test_ticker_combines_with_q_and_type(self, db_session, pid, default_portfolio):
+        db_session.add_all(
+            [
+                make_txn("AAPL", "buy", 1, 100.0, date=date(2024, 1, 1), portfolio_id=pid, notes="starter"),
+                make_txn("AAPL", "sell", 1, 110.0, date=date(2024, 2, 1), portfolio_id=pid, notes="trim"),
+                make_txn("MSFT", "buy", 1, 300.0, date=date(2024, 2, 1), portfolio_id=pid, notes="starter"),
+            ]
+        )
+        db_session.commit()
+
+        result = get_transactions_page(
+            ticker="AAPL", q="starter", type="buy", db=db_session, portfolio=default_portfolio
+        )
+
+        assert result["total"] == 1
+        assert result["items"][0].ticker == "AAPL"
+
+    def test_ticker_filter_does_not_leak_another_workspace(self, db_session, default_portfolio):
+        from models import Portfolio, Workspace
+
+        other_workspace = Workspace(name="Other tenant")
+        db_session.add(other_workspace)
+        db_session.flush()
+        other_portfolio = Portfolio(workspace_id=other_workspace.id, name="Other")
+        db_session.add(other_portfolio)
+        db_session.flush()
+        db_session.add(
+            make_txn("NVDA", "buy", 1, 1.0, date=date(2024, 1, 1), portfolio_id=other_portfolio.id)
+        )
+        db_session.commit()
+
+        result = get_transactions_page(
+            ticker="NVDA", db=db_session, portfolio=default_portfolio
+        )
+
+        assert result["total"] == 0

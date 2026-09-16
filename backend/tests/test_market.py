@@ -1080,6 +1080,161 @@ class TestFundamentalsPreferShibui:
         assert payload["financials"]["revenue"]["values"] == []
 
 
+class TestFundamentalViews:
+    def setup_method(self):
+        from cache import cache_clear
+        import routers.market as market
+
+        cache_clear()
+        market._FUND_CACHE.clear()
+
+    @staticmethod
+    def _info():
+        return {
+            "symbol": "AAPL",
+            "longName": "Apple Inc.",
+            "currency": "USD",
+            "currentPrice": 200.0,
+            "regularMarketChange": 2.0,
+            "regularMarketChangePercent": 1.0,
+            "marketCap": 3_000_000_000_000,
+            "sector": "Technology",
+            "trailingPE": 30.0,
+        }
+
+    @staticmethod
+    def _ticker():
+        import pandas as pd
+
+        class StubTicker:
+            income_stmt = pd.DataFrame()
+            balance_sheet = pd.DataFrame()
+            cashflow = pd.DataFrame()
+            quarterly_income_stmt = pd.DataFrame()
+            quarterly_balance_sheet = pd.DataFrame()
+            quarterly_cashflow = pd.DataFrame()
+            recommendations_summary = pd.DataFrame()
+            earnings_estimate = pd.DataFrame()
+            revenue_estimate = pd.DataFrame()
+
+        return StubTicker()
+
+    def test_overview_is_lightweight_and_excludes_heavy_sections(self, monkeypatch):
+        import routers.market as market
+
+        monkeypatch.setattr(market.market_data, "get_info", lambda _sym: self._info())
+        monkeypatch.setattr(
+            market.yf,
+            "Ticker",
+            lambda _sym: (_ for _ in ()).throw(AssertionError("overview must not create a yfinance Ticker")),
+        )
+        monkeypatch.setattr(
+            market,
+            "_shibui_fundamentals",
+            lambda _sym: (_ for _ in ()).throw(AssertionError("overview must not load statements")),
+        )
+
+        payload = market.get_fundamentals("aapl", view="overview")
+
+        assert payload["ticker"] == "AAPL"
+        assert payload["name"] == "Apple Inc."
+        assert payload["price"] == 200.0
+        assert payload["ratios"]["pe"] == 30.0
+        assert "financials" not in payload
+        assert "valuation" not in payload
+        assert "ownership" not in payload
+
+    def test_financials_only_invokes_financial_sources(self, monkeypatch):
+        import routers.market as market
+
+        monkeypatch.setattr(market.market_data, "get_info", lambda _sym: self._info())
+        monkeypatch.setattr(market.yf, "Ticker", lambda _sym: self._ticker())
+        monkeypatch.setattr(market, "_shibui_fundamentals", lambda _sym: None)
+        monkeypatch.setattr(
+            market,
+            "_build_ownership",
+            lambda *_args: (_ for _ in ()).throw(AssertionError("financials must not load ownership")),
+        )
+        monkeypatch.setattr(
+            market,
+            "_sector_avg",
+            lambda *_args: (_ for _ in ()).throw(AssertionError("financials must not load valuation")),
+        )
+
+        payload = market.get_fundamentals("AAPL", view="financials")
+
+        assert "financials" in payload
+        assert "ttm" in payload
+        assert "analyst_estimates" in payload
+        assert "valuation" not in payload
+        assert "ownership" not in payload
+
+    def test_valuation_does_not_load_ownership(self, monkeypatch):
+        import routers.market as market
+
+        monkeypatch.setattr(market.market_data, "get_info", lambda _sym: self._info())
+        monkeypatch.setattr(market.yf, "Ticker", lambda _sym: self._ticker())
+        monkeypatch.setattr(market, "_shibui_fundamentals", lambda _sym: None)
+        monkeypatch.setattr(market, "_sector_avg", lambda _sector: {"pe": 25.0})
+        monkeypatch.setattr(market, "_build_valuation", lambda *_args: {"method": "test"})
+        monkeypatch.setattr(
+            market,
+            "_build_ownership",
+            lambda *_args: (_ for _ in ()).throw(AssertionError("valuation must not load ownership")),
+        )
+
+        payload = market.get_fundamentals("AAPL", view="valuation")
+
+        assert payload["valuation"] == {"method": "test"}
+        assert payload["sector_avg"] == {"pe": 25.0}
+        assert "ownership" not in payload
+        assert "financials" not in payload
+
+    def test_ownership_does_not_load_statements_or_valuation(self, monkeypatch):
+        import routers.market as market
+
+        monkeypatch.setattr(market.market_data, "get_info", lambda _sym: self._info())
+        monkeypatch.setattr(market.yf, "Ticker", lambda _sym: self._ticker())
+        monkeypatch.setattr(
+            market,
+            "_shibui_fundamentals",
+            lambda _sym: (_ for _ in ()).throw(AssertionError("ownership must not load statements")),
+        )
+        monkeypatch.setattr(market, "_build_ownership", lambda *_args: {"institutions_pct": 60.0})
+        monkeypatch.setattr(market, "_build_insider_transactions", lambda *_args: [{"shares": 1}])
+        monkeypatch.setattr(
+            market,
+            "_sector_avg",
+            lambda *_args: (_ for _ in ()).throw(AssertionError("ownership must not load valuation")),
+        )
+
+        payload = market.get_fundamentals("AAPL", view="ownership")
+
+        assert payload["ownership"] == {"institutions_pct": 60.0}
+        assert payload["insider_transactions"] == [{"shares": 1}]
+        assert "financials" not in payload
+        assert "valuation" not in payload
+
+    def test_legacy_payload_and_unknown_view(self, monkeypatch):
+        import routers.market as market
+        from fastapi import HTTPException
+
+        monkeypatch.setattr(market.market_data, "get_info", lambda _sym: self._info())
+        monkeypatch.setattr(market.yf, "Ticker", lambda _sym: self._ticker())
+        monkeypatch.setattr(market, "_shibui_fundamentals", lambda _sym: None)
+        monkeypatch.setattr(market, "_sector_avg", lambda _sector: {})
+        monkeypatch.setattr(market, "_build_valuation", lambda *_args: {})
+        monkeypatch.setattr(market, "_build_ownership", lambda *_args: {})
+        monkeypatch.setattr(market, "_build_insider_transactions", lambda *_args: [])
+
+        payload = market.get_fundamentals("AAPL")
+        assert {"financials", "valuation", "ownership"} <= payload.keys()
+
+        with pytest.raises(HTTPException) as exc:
+            market.get_fundamentals("AAPL", view="bogus")
+        assert exc.value.status_code == 422
+
+
 class TestPoliticianTrades:
     """GET /market/politician-trades/{ticker} (PLAN.md 1g) -- Alpha Vantage
     backed, gated behind ALPHA_VANTAGE_API_KEY, on-demand only."""

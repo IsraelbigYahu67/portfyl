@@ -587,14 +587,15 @@ def get_transactions_page(
     limit: int = 50,
     q: str | None = None,
     type: str | None = None,
+    ticker: str | None = None,
     sort: str = "-date",
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
 ):
     if offset < 0:
         raise HTTPException(422, "offset must be >= 0")
-    if limit not in (25, 50, 100):
-        raise HTTPException(422, "limit must be 25, 50, or 100")
+    if limit not in (1, 25, 50, 100):
+        raise HTTPException(422, "limit must be 1, 25, 50, or 100")
 
     sort_key = sort[1:] if sort.startswith("-") else sort
     if sort_key not in _TXN_SORT_COLUMNS:
@@ -613,6 +614,10 @@ def get_transactions_page(
         )
     if type:
         query = query.filter(Transaction.type == type)
+    if ticker:
+        normalized_ticker = ticker.strip().upper()
+        if normalized_ticker:
+            query = query.filter(Transaction.ticker == normalized_ticker)
 
     total = query.count()
     column = _TXN_SORT_COLUMNS[sort_key]

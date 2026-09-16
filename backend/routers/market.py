@@ -71,10 +71,10 @@ SECTOR_CONSTITUENTS = {
 # the process lifetime. Restarting the backend re-fetches.
 _SECTOR_CACHE: dict[str, dict[str, Any]] = {}
 
-# Full fundamentals payloads are expensive (~15 serial yfinance calls each), so
-# we cache the assembled result per symbol for a few minutes. Keyed by the
-# broker symbol; value is (built_at, payload).
-_FUND_CACHE: dict[str, tuple[float, dict]] = {}
+# Fundamentals views have different upstream costs, so cache each assembled
+# result independently. The second tuple item is the requested view, or
+# ``full`` for the backwards-compatible aggregate response.
+_FUND_CACHE: dict[tuple[str, str], tuple[float, dict]] = {}
 _FUND_TTL = 300.0
 
 # Sanity bounds: yfinance occasionally returns garbage outliers (negative P/E
@@ -1040,7 +1040,7 @@ def get_history(ticker: str, period: str = "1y"):
 
 @router.get("/fundamentals/{ticker}", dependencies=[Depends(require_capability("standard_research"))])
 @ttl_cache(_FUNDAMENTALS_TTL)
-def get_fundamentals(ticker: str):
+def get_fundamentals(ticker: str, view: Optional[str] = None):
     """Comprehensive fundamentals for the stock-detail modal.
 
     Returns up to 10y (annual) / 5y (quarterly) of revenue / EPS / net income
@@ -1048,14 +1048,23 @@ def get_fundamentals(ticker: str):
     valuation & quality ratios, sector-average ratios, and consensus analyst
     data. Each field is best-effort: missing data comes back as null so the
     frontend can render an em-dash."""
+    allowed_views = {"overview", "financials", "valuation", "ownership"}
+    if view is not None and view not in allowed_views:
+        raise HTTPException(status_code=422, detail=f"Unknown fundamentals view: {view}")
+
     sym = ticker.upper()
     yf_sym = yf_symbol(sym)
+    cache_key = (sym, view or "full")
+    needs_financial_data = view is None or view in {"financials", "valuation"}
+    needs_estimates = view is None or view in {"financials", "valuation"}
+    needs_analyst = view is None or view == "valuation"
+    needs_valuation = view is None or view == "valuation"
+    needs_ownership = view is None or view == "ownership"
 
-    cached = _FUND_CACHE.get(sym)
+    cached = _FUND_CACHE.get(cache_key)
     if cached and time.time() - cached[0] < _FUND_TTL:
         return cached[1]
 
-    stock = yf.Ticker(yf_sym)
     # Bounded .info (fail-fast gate + hard timeout) so a junk/delisted ticker
     # can't hang the stock-detail request for minutes.
     info = market_data.get_info(sym) or {}
@@ -1063,33 +1072,40 @@ def get_fundamentals(ticker: str):
     if not info.get("symbol") and not info.get("shortName") and not info.get("longName"):
         raise HTTPException(status_code=404, detail=f"Unknown ticker {ticker}")
 
-    # ---- Annual statements ------------------------------------------------
-    try:
-        income = stock.income_stmt
-    except Exception:
-        income = pd.DataFrame()
-    try:
-        balance = stock.balance_sheet
-    except Exception:
-        balance = pd.DataFrame()
-    try:
-        cashflow = stock.cashflow
-    except Exception:
-        cashflow = pd.DataFrame()
+    # Overview is deliberately info-only. Other views instantiate the lazy
+    # yfinance ticker but access only the properties their branch needs.
+    stock = yf.Ticker(yf_sym) if view != "overview" else None
 
-    # ---- Quarterly statements --------------------------------------------
-    try:
-        q_income = stock.quarterly_income_stmt
-    except Exception:
-        q_income = pd.DataFrame()
-    try:
-        q_balance = stock.quarterly_balance_sheet
-    except Exception:
-        q_balance = pd.DataFrame()
-    try:
-        q_cashflow = stock.quarterly_cashflow
-    except Exception:
-        q_cashflow = pd.DataFrame()
+    # ---- Annual statements ------------------------------------------------
+    income = balance = cashflow = pd.DataFrame()
+    q_income = q_balance = q_cashflow = pd.DataFrame()
+    if needs_financial_data:
+        try:
+            income = stock.income_stmt
+        except Exception:
+            pass
+        try:
+            balance = stock.balance_sheet
+        except Exception:
+            pass
+        try:
+            cashflow = stock.cashflow
+        except Exception:
+            pass
+
+        # ---- Quarterly statements ----------------------------------------
+        try:
+            q_income = stock.quarterly_income_stmt
+        except Exception:
+            pass
+        try:
+            q_balance = stock.quarterly_balance_sheet
+        except Exception:
+            pass
+        try:
+            q_cashflow = stock.quarterly_cashflow
+        except Exception:
+            pass
 
     def _build_fcf_row(cf_df: pd.DataFrame) -> Optional[pd.Series]:
         row = _row(cf_df, "Free Cash Flow")
@@ -1134,7 +1150,7 @@ def get_fundamentals(ticker: str):
     # regardless -- they remain the fallback for whatever Shibui doesn't
     # have below (ROIC, quick ratio inputs, margins), and the sole source
     # when shibui_data is None.
-    shibui_data = _shibui_fundamentals(sym)
+    shibui_data = _shibui_fundamentals(sym) if needs_financial_data else None
     financials = shibui_data["annual"] if shibui_data else _build_financials(income, balance, cashflow, freq="Y")
     financials_quarterly = (
         shibui_data["quarterly"] if shibui_data and shibui_data.get("quarterly")
@@ -1298,23 +1314,24 @@ def get_fundamentals(ticker: str):
         "strong_sell": 0,
         "total": 0,
     }
-    try:
-        rs = stock.recommendations_summary
-        if rs is not None and not rs.empty:
-            row = rs.iloc[0]  # most-recent period bucket
-            analyst.update({
-                "strong_buy": int(row.get("strongBuy", 0) or 0),
-                "buy": int(row.get("buy", 0) or 0),
-                "hold": int(row.get("hold", 0) or 0),
-                "sell": int(row.get("sell", 0) or 0),
-                "strong_sell": int(row.get("strongSell", 0) or 0),
-            })
-            analyst["total"] = (
-                analyst["strong_buy"] + analyst["buy"] + analyst["hold"]
-                + analyst["sell"] + analyst["strong_sell"]
-            )
-    except Exception:
-        pass
+    if needs_analyst:
+        try:
+            rs = stock.recommendations_summary
+            if rs is not None and not rs.empty:
+                row = rs.iloc[0]  # most-recent period bucket
+                analyst.update({
+                    "strong_buy": int(row.get("strongBuy", 0) or 0),
+                    "buy": int(row.get("buy", 0) or 0),
+                    "hold": int(row.get("hold", 0) or 0),
+                    "sell": int(row.get("sell", 0) or 0),
+                    "strong_sell": int(row.get("strongSell", 0) or 0),
+                })
+                analyst["total"] = (
+                    analyst["strong_buy"] + analyst["buy"] + analyst["hold"]
+                    + analyst["sell"] + analyst["strong_sell"]
+                )
+        except Exception:
+            pass
 
     target_mean = _f(info.get("targetMeanPrice"))
     target_high = _f(info.get("targetHighPrice"))
@@ -1488,14 +1505,17 @@ def get_fundamentals(ticker: str):
                 _emit(period)
         return rows
 
-    try:
-        earnings_est_df = stock.earnings_estimate
-    except Exception:
-        earnings_est_df = None
-    try:
-        revenue_est_df = stock.revenue_estimate
-    except Exception:
-        revenue_est_df = None
+    earnings_est_df = None
+    revenue_est_df = None
+    if needs_estimates:
+        try:
+            earnings_est_df = stock.earnings_estimate
+        except Exception:
+            pass
+        try:
+            revenue_est_df = stock.revenue_estimate
+        except Exception:
+            pass
 
     analyst_estimates = {
         "eps": _estimates_block(earnings_est_df, "yearAgoEps"),
@@ -1535,18 +1555,25 @@ def get_fundamentals(ticker: str):
     ratios["forward_pe_fy2_year"] = fwd_eps_rows[1]["year"] if len(fwd_eps_rows) >= 2 else None
 
     sector = info.get("sector")
-    sector_avg = _sector_avg(sector)
-    valuation = _build_valuation(info, financials, ratios, sector_avg, fwd_eps_rows)
-    ownership = _build_ownership(stock, info, sym)
-    insider_transactions = _build_insider_transactions(stock)
+    sector_avg = _sector_avg(sector) if needs_valuation else {}
+    valuation = (
+        _build_valuation(info, financials, ratios, sector_avg, fwd_eps_rows)
+        if needs_valuation
+        else {}
+    )
+    ownership = _build_ownership(stock, info, sym) if needs_ownership else {}
+    insider_transactions = _build_insider_transactions(stock) if needs_ownership else []
 
-    payload = {
+    common = {
         "ticker": sym,
         "name": info.get("longName") or info.get("shortName") or sym,
+        "currency": info.get("currency", "USD"),
+        "fundamentals_source": "shibui" if shibui_data else "yfinance",
+    }
+    overview_payload = {
         "sector": sector,
         "industry": info.get("industry"),
         "country": info.get("country"),
-        "currency": info.get("currency", "USD"),
         "exchange": info.get("exchange"),
         "quote_type": info.get("quoteType"),
         "price": price,
@@ -1566,20 +1593,46 @@ def get_fundamentals(ticker: str):
         "description": info.get("longBusinessSummary"),
         "website": info.get("website"),
         "employees": _f(info.get("fullTimeEmployees")),
+        "ratios": {
+            key: ratios.get(key)
+            for key in ("pe", "forward_pe", "ps", "pb", "div_yield", "payout_ratio", "roe", "net_margin")
+        },
+    }
+    financials_payload = {
         "financials": financials,
         "financials_quarterly": financials_quarterly,
         "ttm": ttm,
+        "analyst_estimates": analyst_estimates,
+        "analyst_estimates_quarterly": analyst_estimates_quarterly,
+    }
+    valuation_payload = {
         "ratios": ratios,
         "sector_avg": sector_avg,
         "valuation": valuation,
         "analyst": analyst,
         "analyst_estimates": analyst_estimates,
         "analyst_estimates_quarterly": analyst_estimates_quarterly,
+    }
+    ownership_payload = {
+        "shares_outstanding": _f(info.get("sharesOutstanding")),
+        "float_shares": _f(info.get("floatShares")),
+        "short_ratio": _f(info.get("shortRatio")),
+        "short_pct_float": _to_pct(_f(info.get("shortPercentOfFloat"))),
         "ownership": ownership,
         "insider_transactions": insider_transactions,
-        "fundamentals_source": "shibui" if shibui_data else "yfinance",
     }
-    _FUND_CACHE[sym] = (time.time(), payload)
+
+    payload = dict(common)
+    if view is None or view == "overview":
+        payload.update(overview_payload)
+    if view is None or view == "financials":
+        payload.update(financials_payload)
+    if view is None or view == "valuation":
+        payload.update(valuation_payload)
+    if view is None or view == "ownership":
+        payload.update(ownership_payload)
+
+    _FUND_CACHE[cache_key] = (time.time(), payload)
     return payload
 
 

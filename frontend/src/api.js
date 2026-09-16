@@ -159,10 +159,17 @@ export const fetchHoldings = (currency = "USD") =>
 export const fetchAllHoldings = (currency = "USD") =>
   api.get(`/portfolio/holdings`, { params: { currency, include_closed: true } }).then((r) => r.data);
 export const fetchTransactions = () => api.get("/portfolio/transactions").then((r) => r.data);
-export const fetchTransactionsPage = ({ offset = 0, limit = 50, q = "", type = "", sort = "-date" } = {}) =>
+export const fetchTransactionsPage = ({ offset = 0, limit = 50, q = "", type = "", ticker = "", sort = "-date" } = {}) =>
   api
     .get("/portfolio/transactions/page", {
-      params: { offset, limit, q: q || undefined, type: type || undefined, sort },
+      params: {
+        offset,
+        limit,
+        q: q || undefined,
+        type: type || undefined,
+        ticker: ticker || undefined,
+        sort,
+      },
     })
     .then((r) => r.data);
 export const fetchPerformance = (currency = "USD", period = "all") =>
@@ -195,6 +202,13 @@ export const fetchHistory = (ticker, period = "1y") =>
   api.get(`/market/history/${ticker}`, { params: { period } }).then((r) => r.data);
 export const fetchFundamentals = (ticker, requestConfig = {}) =>
   api.get(`/market/fundamentals/${ticker}`, requestConfig).then((r) => r.data);
+export const fetchStockView = (ticker, view, requestConfig = {}) =>
+  api
+    .get(`/market/fundamentals/${ticker}`, {
+      ...requestConfig,
+      params: { ...(requestConfig.params || {}), view },
+    })
+    .then((r) => r.data);
 export const searchTickers = (q, limit = 10) =>
   api.get(`/market/search`, { params: { q, limit } }).then((r) => r.data);
 
