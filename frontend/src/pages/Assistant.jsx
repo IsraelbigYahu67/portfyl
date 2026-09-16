@@ -19,6 +19,8 @@ import {
 } from "../api";
 import { AsyncSection } from "../components/ui";
 import { getApiErrorMessage } from "../lib/apiError";
+import AssistantContextDialog from "../components/AssistantContextDialog";
+import { formatDateTime } from "../lib/format";
 
 const MODELS = [
   { value: "deepseek-chat", label: "DeepSeek Chat (V3) — fast" },
@@ -63,12 +65,17 @@ export default function Assistant() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [chatError, setChatError] = useState(null);
+  const [requestedMode, setRequestedMode] = useState("none");
+  const [consentedToPortfolioSummary, setConsentedToPortfolioSummary] = useState(false);
+  const [pendingText, setPendingText] = useState(null);
   const scrollRef = useRef(null);
 
   const chatMutation = useMutation({
-    mutationFn: (msgs) => sendAssistantMessage(msgs),
+    mutationFn: ({ history, mode }) => sendAssistantMessage(history, mode),
     onSuccess: (data) => {
-      setMessages((prev) => [...prev, data.reply]);
+      setMessages((prev) => [...prev, { ...data.reply, metadata: {
+        provider: data.provider, model: data.model, context_mode: data.context_mode, context_as_of: data.context_as_of,
+      } }]);
     },
     onError: (err) => {
       setChatError(getApiErrorMessage(err, "The assistant request failed. Try again."));
@@ -104,12 +111,40 @@ export default function Assistant() {
 
   function send(text) {
     const content = (text ?? input).trim();
-    if (!content || chatMutation.isPending || !configured) return;
+    if (!content || chatMutation.isPending || pendingText !== null || !configured) return;
+    if (requestedMode === "portfolio_summary" && !consentedToPortfolioSummary) {
+      setPendingText(content);
+      return;
+    }
+    submit(content, requestedMode);
+  }
+
+  function submit(content, mode) {
     const next = [...messages, { role: "user", content }];
     setMessages(next);
     setInput("");
     setChatError(null);
-    chatMutation.mutate(next);
+    chatMutation.mutate({ history: next.map(({ role, content }) => ({ role, content })), mode });
+  }
+
+  function resolveConsent(share) {
+    if (pendingText === null) return;
+    const content = pendingText;
+    setPendingText(null);
+    const mode = share ? "portfolio_summary" : "none";
+    setRequestedMode(mode);
+    if (share) setConsentedToPortfolioSummary(true);
+    submit(content, mode);
+  }
+
+  function newConversation() {
+    setMessages([]);
+    setInput("");
+    setChatError(null);
+    setPendingText(null);
+    setConsentedToPortfolioSummary(false);
+    setRequestedMode("none");
+    chatMutation.reset();
   }
 
   function onInputKeyDown(e) {
@@ -120,19 +155,21 @@ export default function Assistant() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-3rem)]">
+    <div className="max-w-3xl mx-auto flex flex-col min-h-[32rem] h-[calc(100dvh-8rem)]">
+      <AssistantContextDialog open={pendingText !== null} provider="DeepSeek" model={config?.model || "deepseek-chat"} onWithoutContext={() => resolveConsent(false)} onShare={() => resolveConsent(true)} />
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
+      <div className="flex flex-wrap gap-3 items-start justify-between mb-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Bot size={20} className="text-brand" />
             <h1 className="text-xl font-semibold">AI Assistant</h1>
           </div>
           <p className="text-sm text-muted">
-            Powered by DeepSeek · aware of your active portfolio
+            Powered by DeepSeek · choose whether to share a portfolio summary
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button type="button" onClick={newConversation} disabled={chatMutation.isPending} className="btn-secondary min-h-11 px-3 text-sm">New conversation</button>
           {configured && (
             <span className="text-xs text-muted font-mono hidden sm:inline">
               {config.model}
@@ -170,7 +207,7 @@ export default function Assistant() {
               >
                 platform.deepseek.com
               </a>
-              . It's stored locally on your backend and only sent to DeepSeek.
+              . It's encrypted on your backend and used for requests to DeepSeek.
             </p>
           </div>
 
@@ -254,10 +291,10 @@ export default function Assistant() {
                 <Sparkles size={22} className="text-brand" />
               </div>
               <p className="text-sm text-ink font-medium mb-1">
-                Ask about your portfolio
+                Ask an investing question
               </p>
               <p className="text-xs text-muted mb-5 max-w-sm">
-                I can see your current holdings, cost basis, and recent transactions.
+                Portfolio data is shared only when you choose a summary and consent for this conversation.
               </p>
               <div className="flex flex-wrap gap-2 justify-center">
                 {SUGGESTIONS.map((s) => (
@@ -275,7 +312,7 @@ export default function Assistant() {
           )}
 
           {messages.map((m, i) => (
-            <MessageBubble key={i} role={m.role} content={m.content} />
+            <MessageBubble key={i} role={m.role} content={m.content} metadata={m.metadata} />
           ))}
 
           {chatMutation.isPending && (
@@ -295,6 +332,13 @@ export default function Assistant() {
 
         {/* Input */}
         <div className="border-t border-surface-border p-3">
+          <label className="flex flex-wrap items-center gap-2 text-xs text-muted mb-2">
+            Portfolio context
+            <select aria-label="Portfolio context" className="input text-sm w-auto max-w-full" value={requestedMode} disabled={chatMutation.isPending || pendingText !== null} onChange={event => setRequestedMode(event.target.value)}>
+              <option value="none">No portfolio data</option>
+              <option value="portfolio_summary">Portfolio summary</option>
+            </select>
+          </label>
           {!configured && !configLoading ? (
             <p className="text-xs text-muted text-center py-2">
               Add a DeepSeek API key above to start chatting.
@@ -302,15 +346,17 @@ export default function Assistant() {
           ) : (
             <div className="flex items-end gap-2">
               <textarea
+                aria-label="Message"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={onInputKeyDown}
                 rows={1}
-                placeholder="Ask about your holdings, allocation, recent trades…"
+                placeholder="Ask an investing question…"
                 disabled={chatMutation.isPending}
                 className="input flex-1 resize-none max-h-40 text-sm disabled:opacity-60"
               />
               <button
+                aria-label="Send message"
                 onClick={() => send()}
                 disabled={!input.trim() || chatMutation.isPending}
                 className="flex items-center justify-center bg-brand text-white rounded-lg w-11 h-11 shrink-0 hover:bg-brand/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -331,7 +377,7 @@ export default function Assistant() {
   );
 }
 
-function MessageBubble({ role, content }) {
+function MessageBubble({ role, content, metadata }) {
   const isUser = role === "user";
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -343,6 +389,12 @@ function MessageBubble({ role, content }) {
         }`}
       >
         {content}
+        {!isUser && metadata && <details className="mt-2 text-xs text-muted whitespace-normal">
+          <summary className="cursor-pointer">Response details</summary>
+          <p>{metadata.provider === "deepseek" ? "DeepSeek" : metadata.provider} · {metadata.model}</p>
+          <p>{metadata.context_mode === "portfolio_summary" ? "Portfolio summary shared" : "No portfolio data shared"}</p>
+          {metadata.context_as_of && <p>Context as of {formatDateTime(metadata.context_as_of)}</p>}
+        </details>}
       </div>
     </div>
   );

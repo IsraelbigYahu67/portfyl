@@ -200,8 +200,8 @@ export const undoLastImport = () => api.post("/portfolio/import-csv/undo").then(
 export const clearAllTransactions = () =>
   api.delete("/portfolio/transactions").then((r) => r.data);
 export const fetchQuote = (ticker) => api.get(`/market/quote/${ticker}`).then((r) => r.data);
-export const fetchHistory = (ticker, period = "1y") =>
-  api.get(`/market/history/${ticker}`, { params: { period } }).then((r) => r.data);
+export const fetchHistory = (ticker, period = "1y", requestConfig = {}) =>
+  api.get(`/market/history/${ticker}`, { ...requestConfig, params: { ...(requestConfig.params || {}), period } }).then((r) => r.data);
 export const fetchFundamentals = (ticker, requestConfig = {}) =>
   api.get(`/market/fundamentals/${ticker}`, requestConfig).then((r) => r.data);
 export const fetchStockView = (ticker, view, requestConfig = {}) =>
@@ -323,8 +323,8 @@ export const fetchAssistantConfig = () => api.get("/assistant/config").then((r) 
 export const saveAssistantConfig = (apiKey, model) =>
   api.put("/assistant/config", { api_key: apiKey, model }).then((r) => r.data);
 export const deleteAssistantConfig = () => api.delete("/assistant/config").then((r) => r.data);
-export const sendAssistantMessage = (messages) =>
-  api.post("/assistant/chat", { messages }).then((r) => r.data);
+export const sendAssistantMessage = (messages, contextMode = "none") =>
+  api.post("/assistant/chat", { messages, context_mode: contextMode }).then((r) => r.data);
 
 // ----- Discord Webhook -------------------------------------------------------
 export const fetchDiscordWebhook = () => api.get("/discord/webhook").then((r) => r.data);

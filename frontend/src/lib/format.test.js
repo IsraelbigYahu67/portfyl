@@ -1,6 +1,12 @@
 ﻿import { formatMoney, formatPercent, formatCompact, formatNumber, formatShortDate, formatNumberSpaced, formatMoneySpaced } from "./format";
 
-import { formatLongDate, formatQuantity } from "./format";
+import { formatLongDate, formatQuantity, formatDateTime } from "./format";
+
+it('formats response timestamps with a timezone and rejects invalid dates', () => {
+  expect(formatDateTime('2026-09-16T10:00:00Z')).toMatch(/2026/);
+  expect(formatDateTime(null)).toBe('—');
+  expect(formatDateTime('invalid')).toBe('—');
+});
 
 describe("formatMoney", () => {
   it("formats USD with symbol and 2dp", () => {

@@ -109,6 +109,15 @@ export function formatLongDate(iso) {
   });
 }
 
+export function formatDateTime(iso) {
+  if (!iso) return DASH;
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return DASH;
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+  }).format(date);
+}
+
 export function formatNumberSpaced(n, digits = 0) {
   if (n == null || Number.isNaN(n)) return DASH;
   const sign = n < 0 ? "-" : "";
