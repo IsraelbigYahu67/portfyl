@@ -55,4 +55,3 @@ it("keeps a clear failure visible and actionable", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("Portfolio is locked");
   expect(screen.getByRole("button", { name: "Clear portfolio" })).toBeEnabled();
 });
-

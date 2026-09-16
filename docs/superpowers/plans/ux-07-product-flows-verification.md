@@ -1,6 +1,6 @@
 # UX-07 Product Flows — Verification Record
 
-Date: 2026-09-16  
+Date: 2026-09-16
 Branch: `codex/ux-07-product-flows`
 Verified implementation/test head: `d69c80d4cb0a4feae315c7eff3265da77d221597`
 Worktree: `C:\Users\tomzo\claude\portfyl`

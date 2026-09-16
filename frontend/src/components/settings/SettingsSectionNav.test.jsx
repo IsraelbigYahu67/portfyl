@@ -27,4 +27,3 @@ it("offers a labelled narrow-screen chooser", () => {
   fireEvent.change(screen.getByRole("combobox", { name: "Settings section" }), { target: { value: "data" } });
   expect(onSelect).toHaveBeenCalledWith("data", true);
 });
-

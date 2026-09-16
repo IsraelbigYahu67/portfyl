@@ -93,4 +93,3 @@ export default function PreferencesSettings({ headingRef }) {
     </section>
   );
 }
-

@@ -37,4 +37,3 @@ it("uses the existing context setters for every device preference", () => {
   expect(context.setCurrency).toHaveBeenCalledWith("USD");
   expect(screen.getByText("1 USD = 22.75 Kc")).toBeInTheDocument();
 });
-
