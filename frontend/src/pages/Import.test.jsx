@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 import Import from "./Import";
 
@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   confirm: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
+  refetchPortfolios: vi.fn(),
+  setCurrentId: vi.fn(),
 }));
 
 vi.mock("../api", () => ({
@@ -31,15 +33,28 @@ vi.mock("../components/ui/ConfirmDialog", () => ({
 vi.mock("../components/ui/Toast", () => ({
   useToast: () => ({ success: mocks.success, error: mocks.error }),
 }));
+vi.mock("../App", () => ({
+  usePortfolio: () => ({
+    current: { id: "portfolio-id", activation_state: "active" },
+    pendingImportPortfolio: null,
+    refetchPortfolios: mocks.refetchPortfolios,
+    setCurrentId: mocks.setCurrentId,
+  }),
+}));
 
 
-function mount() {
+function LocationProbe() {
+  const location = useLocation();
+  return <output aria-label="location">{location.pathname}</output>;
+}
+
+function mount(props = {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter><Import /></MemoryRouter>
+      <MemoryRouter initialEntries={["/import"]}><Import {...props} /><LocationProbe /></MemoryRouter>
     </QueryClientProvider>
   );
 }
@@ -90,6 +105,7 @@ describe("Import preview and undo", () => {
       undo: { available: true, expires_at: "2026-09-08T12:00:00+00:00", imported: 1, mode: "append" },
     });
     mocks.undoLastImport.mockResolvedValue({ restored: 5, undone: true });
+    mocks.refetchPortfolios.mockResolvedValue({ data: [{ id: "portfolio-id", activation_state: "active" }] });
     mocks.confirm.mockResolvedValue(true);
   });
 
@@ -103,6 +119,7 @@ describe("Import preview and undo", () => {
     await waitFor(() => expect(mocks.previewImportCSV).toHaveBeenCalledWith(file, false));
     expect(await screen.findByText(/1 transaction will be added/i)).toBeInTheDocument();
     expect(screen.getByText(/2 exact duplicates will be skipped/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /continue to confirm/i }));
     fireEvent.click(screen.getByRole("button", { name: /^import 1 transaction$/i }));
     await waitFor(() => expect(mocks.commitImportCSV).toHaveBeenCalledWith(file, "preview-1", false));
     expect(await screen.findByRole("link", { name: /manage portfolio data/i })).toHaveAttribute("href", "/settings?section=data");
@@ -113,6 +130,13 @@ describe("Import preview and undo", () => {
     expect(await screen.findByRole("heading", { name: "Import CSV" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /clear portfolio/i })).not.toBeInTheDocument();
     expect(mocks.clearAllTransactions).not.toHaveBeenCalled();
+  });
+
+  it("leaves a focused onboarding import without activating it", async () => {
+    mount({ focused: true });
+    fireEvent.click(screen.getByRole("button", { name: /leave import/i }));
+    expect(screen.getByLabelText("location")).toHaveTextContent("/onboarding");
+    expect(mocks.commitImportCSV).not.toHaveBeenCalled();
   });
 
   it("shows replacement removals before destructive commit", async () => {
@@ -135,7 +159,42 @@ describe("Import preview and undo", () => {
 
     expect(await screen.findByText(/4 current transactions will be removed/i)).toBeInTheDocument();
     expect(screen.getByText(/Trading 212 exports replace the full portfolio/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /continue to confirm/i }));
     expect(screen.getByRole("button", { name: /replace portfolio with 10 transactions/i })).toBeInTheDocument();
+  });
+
+  it("shows the four import stages in order", () => {
+    mount();
+    const steps = screen.getByRole("list", { name: "Import progress" });
+    expect(Array.from(steps.children).map((item) => item.textContent)).toEqual([
+      "1.Select source",
+      "2.Preview changes",
+      "3.Confirm import",
+      "4.Result / Undo",
+    ]);
+  });
+
+  it("invalidates a preview when import mode changes", async () => {
+    const { container } = mount();
+    chooseCsv(container);
+    fireEvent.click(await screen.findByRole("button", { name: /preview import/i }));
+    await screen.findByText(/1 transaction will be added/i);
+    fireEvent.click(screen.getByRole("button", { name: /cancel preview/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /replace existing portfolio/i }));
+    expect(screen.queryByText(/1 transaction will be added/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /preview import/i })).toBeInTheDocument();
+  });
+
+  it("recovers from commit drift by requiring a fresh preview", async () => {
+    mocks.commitImportCSV.mockRejectedValueOnce({ response: { status: 409, data: { detail: "stale" } } });
+    const { container } = mount();
+    chooseCsv(container);
+    fireEvent.click(await screen.findByRole("button", { name: /preview import/i }));
+    await screen.findByText(/1 transaction will be added/i);
+    fireEvent.click(screen.getByRole("button", { name: /continue to confirm/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^import 1 transaction$/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The portfolio changed. Preview the file again.");
+    expect(screen.getByRole("button", { name: /preview import/i })).toBeInTheDocument();
   });
 
   it("offers the persisted undo point and refreshes it after use", async () => {

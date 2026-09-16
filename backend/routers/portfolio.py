@@ -43,6 +43,7 @@ from import_undo import (
     undo_status,
 )
 from audit import record_audit_event
+from portfolio_activation import clear_pending_portfolio
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -924,6 +925,16 @@ async def commit_import_csv(
                 ),
             },
         )
+        if clear_pending_portfolio(db, portfolio):
+            record_audit_event(
+                db,
+                actor_user_id=context.user.id,
+                workspace_id=portfolio.workspace_id,
+                action="onboarding.portfolio.activated",
+                target_type="portfolio",
+                target_id=str(portfolio.public_id),
+                metadata={"kind": "csv_import"},
+            )
         db.commit()
     except HTTPException:
         db.rollback()

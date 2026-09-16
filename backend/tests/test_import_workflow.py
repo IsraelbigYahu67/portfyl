@@ -18,7 +18,8 @@ from import_undo import (
     save_undo_snapshot,
     undo_status,
 )
-from models import TradeNote, Transaction
+from models import AuditLog, TradeNote, Transaction, WorkspaceSetting
+from portfolio_activation import PENDING_PORTFOLIO_SETTING_KEY, set_pending_portfolio
 from routers.portfolio import (
     commit_import_csv,
     get_import_undo_status,
@@ -395,6 +396,57 @@ def test_append_commit_skips_duplicates_and_creates_undo_point(
     assert status["available"] is True
     assert status["mode"] == "append"
     assert status["imported"] == 1
+
+
+def test_successful_pending_import_activates_in_the_commit_transaction(
+    db_session,
+    default_portfolio,
+    request_context,
+):
+    set_pending_portfolio(db_session, default_portfolio)
+    db_session.commit()
+    csv = "date,ticker,type,shares,price,currency\n2026-01-03,MSFT,buy,1,400,USD\n"
+    preview = _preview(
+        csv,
+        db_session=db_session,
+        default_portfolio=default_portfolio,
+        request_context=request_context,
+    )
+
+    with patch("routers.portfolio.bulk_fetch_fx", return_value={("USD", date(2026, 1, 3)): 23.0}):
+        _commit(
+            csv,
+            preview["preview_id"],
+            db_session=db_session,
+            default_portfolio=default_portfolio,
+            request_context=request_context,
+        )
+
+    assert db_session.query(WorkspaceSetting).filter_by(key=PENDING_PORTFOLIO_SETTING_KEY).first() is None
+    audit = db_session.query(AuditLog).filter_by(action="onboarding.portfolio.activated").one()
+    assert audit.event_metadata == {"kind": "csv_import"}
+
+
+def test_failed_pending_import_keeps_activation_marker(
+    db_session,
+    default_portfolio,
+    request_context,
+):
+    set_pending_portfolio(db_session, default_portfolio)
+    db_session.commit()
+    csv = "date,ticker,type,shares,price,currency\n2026-01-03,MSFT,buy,1,400,USD\n"
+
+    with pytest.raises(HTTPException) as exc_info:
+        _commit(
+            csv,
+            "stale-preview",
+            db_session=db_session,
+            default_portfolio=default_portfolio,
+            request_context=request_context,
+        )
+
+    assert exc_info.value.status_code == 409
+    assert db_session.query(WorkspaceSetting).filter_by(key=PENDING_PORTFOLIO_SETTING_KEY).one()
 
 
 def test_replace_undo_restores_public_ids_and_trade_notes(

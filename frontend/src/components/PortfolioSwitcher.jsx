@@ -54,7 +54,8 @@ function NameModal({ title, initial = "", confirmLabel, busy, onCancel, onSubmit
 }
 
 export default function PortfolioSwitcher() {
-  const { portfolios, current, setCurrentId, refetchPortfolios } = usePortfolio();
+  const { activePortfolios, portfolios: allPortfolios, current, setCurrentId, refetchPortfolios } = usePortfolio();
+  const portfolios = activePortfolios || allPortfolios || [];
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();

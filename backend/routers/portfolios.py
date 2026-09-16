@@ -22,6 +22,7 @@ from entitlements import (
     resolve_entitlements,
 )
 from models import BrokerConnection, Portfolio, Transaction, Workspace
+from portfolio_activation import clear_pending_portfolio, pending_portfolio, set_pending_portfolio
 from audit import record_audit_event
 from tenancy import (
     RequestContext,
@@ -87,7 +88,12 @@ class PortfolioUpdate(BaseModel):
     color: Optional[str] = None
 
 
-def _serialize(p: Portfolio, counts: dict[int, int] | None = None) -> dict:
+def _serialize(
+    p: Portfolio,
+    counts: dict[int, int] | None = None,
+    *,
+    activation_state: str = "active",
+) -> dict:
     return {
         "id": str(p.public_id),
         "name": p.name,
@@ -95,6 +101,7 @@ def _serialize(p: Portfolio, counts: dict[int, int] | None = None) -> dict:
         "is_default": bool(p.is_default),
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "transaction_count": counts.get(p.id, 0) if counts is not None else None,
+        "activation_state": activation_state,
     }
 
 
@@ -138,7 +145,16 @@ def list_portfolios(
         )
     ).all()
     counts = _counts_by_portfolio(db, context.workspace.id)
-    return [_serialize(portfolio, counts) for portfolio in rows]
+    pending = pending_portfolio(db, context.workspace.id)
+    pending_id = pending.id if pending is not None else None
+    return [
+        _serialize(
+            portfolio,
+            counts,
+            activation_state="pending_import" if portfolio.id == pending_id else "active",
+        )
+        for portfolio in rows
+    ]
 
 
 @router.post("", dependencies=[Depends(require_capacity("portfolios", Portfolio))])
@@ -168,6 +184,108 @@ def create_portfolio(
             status_code=409,
             detail=f"A portfolio named '{name}' already exists",
         )
+    return result
+
+
+def _next_portfolio_name(db: Session, workspace_id: UUID, base: str = "My portfolio") -> str:
+    names = set(db.scalars(
+        select(Portfolio.name).where(Portfolio.workspace_id == workspace_id)
+    ).all())
+    if base not in names:
+        return base
+    suffix = 2
+    while f"{base} {suffix}" in names:
+        suffix += 1
+    return f"{base} {suffix}"
+
+
+@router.post("/pending-import")
+def create_pending_import_portfolio(
+    context: RequestContext = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
+    if db.get_bind().dialect.name == "postgresql":
+        db.execute(
+            select(Workspace.id)
+            .where(Workspace.id == context.workspace.id)
+            .with_for_update()
+        ).one()
+    existing = pending_portfolio(db, context.workspace.id, clean_stale=True)
+    if existing is not None:
+        result = _serialize(existing, {existing.id: 0}, activation_state="pending_import")
+        db.commit()
+        return result
+
+    used = db.scalar(
+        select(func.count()).select_from(Portfolio).where(
+            Portfolio.workspace_id == context.workspace.id
+        )
+    ) or 0
+    entitlements = resolve_entitlements(
+        db,
+        edition=edition_from_env(os.environ),
+        workspace_id=context.workspace.id,
+        env=os.environ,
+    )
+    ensure_count_limit(entitlements, "portfolios", used=used, increase=1)
+    portfolio = Portfolio(
+        workspace_id=context.workspace.id,
+        name=_next_portfolio_name(db, context.workspace.id),
+        is_default=used == 0,
+    )
+    try:
+        db.add(portfolio)
+        db.flush()
+        set_pending_portfolio(db, portfolio)
+        result = _serialize(portfolio, {portfolio.id: 0}, activation_state="pending_import")
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return result
+
+
+@router.post("/{portfolio_id}/activate")
+def activate_pending_import_portfolio(
+    portfolio_id: UUID,
+    context: RequestContext = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
+    portfolio = _workspace_portfolio(db, context, portfolio_id)
+    marked = pending_portfolio(
+        db,
+        context.workspace.id,
+        clean_stale=True,
+        require_empty=False,
+    )
+    if marked is None or marked.id != portfolio.id:
+        db.rollback()
+        raise RequestContextError(404, "resource_not_found")
+    transaction_count = db.scalar(
+        select(func.count()).select_from(Transaction).where(
+            Transaction.workspace_id == context.workspace.id,
+            Transaction.portfolio_id == portfolio.id,
+        )
+    ) or 0
+    if transaction_count:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Only an empty pending portfolio can be activated")
+    try:
+        clear_pending_portfolio(db, portfolio)
+        record_audit_event(
+            db,
+            actor_user_id=context.user.id,
+            workspace_id=context.workspace.id,
+            action="onboarding.portfolio.activated",
+            target_type="portfolio",
+            target_id=str(portfolio.public_id),
+            metadata={"kind": "blank"},
+        )
+        result = _serialize(portfolio, {portfolio.id: 0}, activation_state="active")
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return result
 
 

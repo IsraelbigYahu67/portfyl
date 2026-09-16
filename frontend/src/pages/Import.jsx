@@ -1,7 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
   CheckCircle,
@@ -20,6 +20,8 @@ import {
 } from "../api";
 import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/Toast";
+import { usePortfolio } from "../App";
+import { TRACKER_HOME } from "../lib/routes";
 
 
 const SAMPLE_NATIVE = `date,ticker,type,shares,price,currency
@@ -67,17 +69,27 @@ function plural(count, one, many = `${one}s`) {
 }
 
 
-export default function Import() {
+const IMPORT_STEPS = ["Select source", "Preview changes", "Confirm import", "Result / Undo"];
+
+export default function Import({ focused = false }) {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
+  const navigate = useNavigate();
+  const { current, pendingImportPortfolio, refetchPortfolios, setCurrentId } = usePortfolio();
   const [file, setFile] = useState(null);
   const [replace, setReplace] = useState(false);
   const [preview, setPreview] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [undoError, setUndoError] = useState(null);
+  const [stage, setStage] = useState("select");
+  const stageIndex = { select: 0, preview: 1, confirm: 2, result: 3 }[stage];
+  const onboardingPending = current?.activation_state === "pending_import" || pendingImportPortfolio?.id === current?.id;
 
-  const invalidatePortfolio = () => queryClient.invalidateQueries();
+  const invalidatePortfolio = (includePortfolios = true) => queryClient.invalidateQueries({
+    predicate: (query) => includePortfolios || query.queryKey[0] !== "portfolios",
+  });
 
   const { data: undo } = useQuery({
     queryKey: ["import-undo"],
@@ -91,6 +103,7 @@ export default function Import() {
       setPreview(data);
       setResult(null);
       setError(null);
+      setStage("preview");
     },
     onError: (err) => {
       setPreview(null);
@@ -104,12 +117,19 @@ export default function Import() {
       setResult(data);
       setPreview(null);
       setError(null);
+      setStage("result");
       queryClient.setQueryData(["import-undo"], data.undo);
-      invalidatePortfolio();
+      invalidatePortfolio(false);
     },
     onError: (err) => {
-      setPreview(null);
-      setError(apiError(err));
+      if (err?.response?.status === 409) {
+        setPreview(null);
+        setStage("select");
+        setError("The portfolio changed. Preview the file again.");
+      } else {
+        setStage("confirm");
+        setError(apiError(err));
+      }
     },
   });
 
@@ -119,9 +139,15 @@ export default function Import() {
       queryClient.setQueryData(["import-undo"], { available: false, reason: null });
       invalidatePortfolio();
       setResult(null);
+      setStage("select");
+      setUndoError(null);
       toast.success("Last import undone");
     },
-    onError: (err) => toast.error(apiError(err)),
+    onError: (err) => {
+      const message = apiError(err);
+      setUndoError(message);
+      toast.error(message);
+    },
   });
 
   async function handleUndo() {
@@ -139,7 +165,27 @@ export default function Import() {
     setPreview(null);
     setResult(null);
     setError(null);
+    setStage("select");
   }, []);
+
+  useEffect(() => {
+    if (!result) return;
+    refetchPortfolios();
+  }, [result, refetchPortfolios]);
+
+  const cancelPreview = () => {
+    setPreview(null);
+    setError(null);
+    setStage("select");
+  };
+
+  const viewPortfolio = async () => {
+    const refreshed = await refetchPortfolios();
+    const rows = refreshed?.data || [];
+    const activated = rows.find((portfolio) => portfolio.id === current?.id) || current;
+    if (activated?.id) setCurrentId(activated.id);
+    navigate(TRACKER_HOME);
+  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -160,11 +206,20 @@ export default function Import() {
           <p className="text-xs text-muted mt-1">Preview every change before it reaches your portfolio.</p>
         </div>
         <div className="flex gap-2">
+          {(focused || onboardingPending) && <button type="button" onClick={() => navigate("/onboarding")} className="btn-ghost text-sm">Leave import</button>}
           <button onClick={downloadSample} className="btn-ghost flex items-center gap-2 text-sm">
             <Download size={14} /> Download sample
           </button>
         </div>
       </div>
+
+      <ol aria-label="Import progress" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {IMPORT_STEPS.map((label, index) => (
+          <li key={label} aria-current={index === stageIndex ? "step" : undefined} className={`rounded-lg border px-3 py-2 text-xs font-medium ${index === stageIndex ? "border-brand bg-brand/10 text-brand" : index < stageIndex ? "border-gain/30 text-gain" : "border-surface-border text-muted"}`}>
+            <span className="mr-1 tabular-nums">{index + 1}.</span>{label}
+          </li>
+        ))}
+      </ol>
 
       {undo?.available && (
         <section className="card border border-blue-500/30 bg-blue-500/5 flex items-start justify-between gap-4" aria-label="Import recovery">
@@ -182,7 +237,9 @@ export default function Import() {
           </button>
         </section>
       )}
+      {undoError && <p role="alert" className="text-sm text-loss">Undo was not applied: {undoError}</p>}
 
+      {stage === "select" && <>
       <section className="card space-y-4">
         <div className="flex items-center gap-2 flex-wrap">
           <FormatBadge format="Trading 212" />
@@ -230,6 +287,8 @@ export default function Import() {
               onChange={(event) => {
                 setReplace(event.target.checked);
                 setPreview(null);
+                setStage("select");
+                setError(null);
               }}
               className="mt-0.5 accent-red-500 w-4 h-4"
             />
@@ -243,15 +302,16 @@ export default function Import() {
           </button>
         </div>
       )}
+      </>}
 
-      {preview && (
+      {preview && stage === "preview" && (
         <section className={`card border space-y-4 ${preview.mode === "replace" ? "border-red-500/40" : "border-brand/30"}`} aria-label="Import preview">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <h2 className="font-semibold">Review changes</h2>
               <FormatBadge format={preview.format} />
             </div>
-            <button onClick={() => setPreview(null)} className="text-xs text-muted hover:text-ink">Change options</button>
+            <button onClick={cancelPreview} className="text-xs text-muted hover:text-ink">Cancel preview</button>
           </div>
 
           {preview.mode === "replace" && (
@@ -299,16 +359,27 @@ export default function Import() {
           )}
 
           <button
-            onClick={() => commitMutation.mutate()}
-            className={`w-full font-semibold px-4 py-2 rounded-lg ${preview.mode === "replace" ? "bg-red-600 hover:bg-red-700 text-white" : "btn-primary"}`}
-            disabled={commitMutation.isPending}
+            type="button"
+            onClick={() => { setStage("confirm"); setError(null); }}
+            className="btn-primary w-full"
           >
-            {commitMutation.isPending
-              ? "Importing…"
-              : preview.mode === "replace"
-                ? `Replace portfolio with ${plural(preview.counts.projected, "transaction")}`
-                : `Import ${plural(preview.counts.added, "transaction")}`}
+            Continue to confirm
           </button>
+        </section>
+      )}
+
+      {preview && stage === "confirm" && (
+        <section className={`card space-y-4 border ${preview.mode === "replace" ? "border-red-500/40" : "border-brand/30"}`} aria-label="Confirm import">
+          <div>
+            <h2 className="font-semibold">Confirm import</h2>
+            <p className="mt-1 text-sm text-muted">{preview.mode === "replace" ? "Replace" : "Append"} mode · {plural(preview.counts.added, "transaction")} added · {plural(preview.counts.removed, "transaction")} removed · {plural(duplicateCount, "duplicate")} skipped · {preview.counts.projected} total after import.</p>
+          </div>
+          <div className="flex gap-3">
+            <button type="button" onClick={() => setStage("preview")} className="btn-ghost flex-1" disabled={commitMutation.isPending}>Back to preview</button>
+            <button type="button" onClick={() => commitMutation.mutate()} className={`flex-1 rounded-lg px-4 py-2 font-semibold ${preview.mode === "replace" ? "bg-red-600 text-white hover:bg-red-700" : "btn-primary"}`} disabled={commitMutation.isPending}>
+              {commitMutation.isPending ? "Importing…" : preview.mode === "replace" ? `Replace portfolio with ${plural(preview.counts.projected, "transaction")}` : `Import ${plural(preview.counts.added, "transaction")}`}
+            </button>
+          </div>
         </section>
       )}
 
@@ -319,13 +390,16 @@ export default function Import() {
         </div>
       )}
 
-      {result && (
+      {result && stage === "result" && (
         <div className="card border border-green-500/40 bg-gain/10 flex items-start gap-3">
           <CheckCircle size={18} className="text-gain mt-0.5 shrink-0" />
           <div className="flex-1">
             <p className="font-semibold text-gain">{plural(result.imported, "transaction")} imported</p>
             {result.duplicates_skipped > 0 && <p className="text-xs text-muted mt-1">{plural(result.duplicates_skipped, "exact duplicate")} skipped.</p>}
-            <button onClick={() => { setFile(null); setResult(null); }} className="mt-3 text-xs text-muted hover:text-ink">Import another file →</button>
+            {result.removed > 0 && <p className="text-xs text-muted mt-1">{plural(result.removed, "previous transaction")} removed.</p>}
+            {result.undo?.available && <p className="mt-1 text-xs text-muted">Undo available until {new Date(result.undo.expires_at).toLocaleString()}.</p>}
+            <button type="button" onClick={viewPortfolio} className="btn-primary mt-3 text-sm">View portfolio</button>
+            <button onClick={() => { setFile(null); setResult(null); setStage("select"); }} className="mt-3 text-xs text-muted hover:text-ink">Import another file →</button>
             <Link to="/settings?section=data" className="ml-4 mt-3 inline-block text-xs text-muted hover:text-ink">Manage portfolio data</Link>
           </div>
         </div>

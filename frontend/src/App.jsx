@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { TRACKER_HOME } from "./lib/routes";
 import { Loader2 } from "lucide-react";
 import AppShell from "./components/layout/AppShell";
@@ -225,23 +225,29 @@ function PortfolioProvider({ children }) {
     queryFn: fetchPortfolios,
     staleTime: 60_000,
   });
+  const activePortfolios = portfolios.filter((portfolio) => portfolio.activation_state !== "pending_import");
+  const pendingImportPortfolio = portfolios.find((portfolio) => portfolio.activation_state === "pending_import") || null;
 
   // Once we know the server-side list, validate the stored id and fall back to the
   // default portfolio if it's gone (e.g. deleted on the server).
   useEffect(() => {
-    if (!portfolios.length) return;
-    const exists = currentId != null && portfolios.some((p) => p.id === currentId);
+    if (!portfolios.length) {
+      setActivePortfolioId(null);
+      return;
+    }
+    const selectable = activePortfolios.length ? activePortfolios : pendingImportPortfolio ? [pendingImportPortfolio] : [];
+    const exists = currentId != null && selectable.some((p) => p.id === currentId);
     if (exists) {
       setActivePortfolioId(currentId);
       return;
     }
-    const fallback = portfolios.find((p) => p.is_default) || portfolios[0];
+    const fallback = selectable.find((p) => p.is_default) || selectable[0];
     if (fallback) {
       setActivePortfolioId(fallback.id);
       setCurrentIdState(fallback.id);
       localStorage.setItem("sb_portfolio_id", String(fallback.id));
     }
-  }, [portfolios, currentId]);
+  }, [portfolios, activePortfolios, pendingImportPortfolio, currentId]);
 
   const setCurrentId = useCallback(
     (id) => {
@@ -261,6 +267,8 @@ function PortfolioProvider({ children }) {
 
   const value = {
     portfolios,
+    activePortfolios,
+    pendingImportPortfolio,
     currentId,
     current: portfolios.find((p) => p.id === currentId) || null,
     setCurrentId,
@@ -380,7 +388,8 @@ function AuthGate() {
 }
 
 function AppLayout() {
-  const { portfolios, isLoading: portfoliosLoading } = usePortfolio();
+  const { activePortfolios, pendingImportPortfolio, isLoading: portfoliosLoading } = usePortfolio();
+  const { pathname } = useLocation();
   const { data: capabilityState } = useQuery({
     queryKey: ["capabilities"],
     queryFn: fetchCapabilities,
@@ -399,7 +408,11 @@ function AppLayout() {
     return <AuthSplash />;
   }
 
-  if (!portfolios.length) {
+  if (!activePortfolios.length && pendingImportPortfolio && pathname === "/import") {
+    return <main className="min-h-screen bg-bg px-4 py-8"><div className="mx-auto max-w-3xl"><Import focused /></div></main>;
+  }
+
+  if (!activePortfolios.length) {
     return <Onboarding />;
   }
 

@@ -8,6 +8,8 @@ import { TRACKER_HOME } from "../lib/routes";
 const mocks = vi.hoisted(() => ({
   createPortfolio: vi.fn(),
   createDemoPortfolio: vi.fn(),
+  createPendingImportPortfolio: vi.fn(),
+  activatePortfolio: vi.fn(),
   setCurrentId: vi.fn(),
   refetchPortfolios: vi.fn(),
 }));
@@ -15,12 +17,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../api", () => ({
   createPortfolio: mocks.createPortfolio,
   createDemoPortfolio: mocks.createDemoPortfolio,
+  createPendingImportPortfolio: mocks.createPendingImportPortfolio,
+  activatePortfolio: mocks.activatePortfolio,
 }));
 
 vi.mock("../App", () => ({
   usePortfolio: () => ({
     setCurrentId: mocks.setCurrentId,
     refetchPortfolios: mocks.refetchPortfolios,
+    pendingImportPortfolio: null,
   }),
 }));
 
@@ -49,6 +54,8 @@ describe("Onboarding", () => {
     vi.clearAllMocks();
     mocks.createPortfolio.mockResolvedValue({ id: "portfolio-id" });
     mocks.createDemoPortfolio.mockResolvedValue({ id: "demo-id" });
+    mocks.createPendingImportPortfolio.mockResolvedValue({ id: "pending-id", activation_state: "pending_import" });
+    mocks.activatePortfolio.mockResolvedValue({ id: "pending-id", activation_state: "active" });
     mocks.refetchPortfolios.mockResolvedValue({});
   });
 
@@ -57,9 +64,18 @@ describe("Onboarding", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /import a csv/i }));
 
-    await waitFor(() => expect(mocks.createPortfolio).toHaveBeenCalledWith({ name: "My portfolio" }));
-    expect(mocks.setCurrentId).toHaveBeenCalledWith("portfolio-id");
+    await waitFor(() => expect(mocks.createPendingImportPortfolio).toHaveBeenCalledTimes(1));
+    expect(mocks.setCurrentId).toHaveBeenCalledWith("pending-id");
     expect(await screen.findByText("Import destination")).toBeInTheDocument();
+  });
+
+  it("activates an explicit blank portfolio before opening the dashboard", async () => {
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: /start with a blank portfolio/i }));
+
+    await waitFor(() => expect(mocks.activatePortfolio).toHaveBeenCalledWith("pending-id"));
+    expect(mocks.setCurrentId).toHaveBeenCalledWith("pending-id");
+    expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
   });
 
   it("creates a clearly labelled demo and opens its dashboard", async () => {

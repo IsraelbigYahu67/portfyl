@@ -323,6 +323,11 @@ def test_export_v2_includes_remaining_user_data_but_not_secrets_or_internal_stat
             key="privacy.workspace_deletion",
             value='{"requested_by_user_id":"INTERNAL"}',
         ),
+        WorkspaceSetting(
+            workspace_id=request_context.workspace.id,
+            key="onboarding_pending_portfolio",
+            value='{"schema_version":1,"portfolio_id":"internal","kind":"csv_import"}',
+        ),
         UserSetting(
             user_id=request_context.user.id,
             key="deepseek_model",
@@ -378,6 +383,7 @@ def test_export_v2_includes_remaining_user_data_but_not_secrets_or_internal_stat
         "webhook_url",
         "deepseek_api_key",
         "privacy.workspace_deletion",
+        "onboarding_pending_portfolio",
         "requested_by_user_id",
         "workspace_id",
         "transaction_id\": 1",

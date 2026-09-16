@@ -147,6 +147,8 @@ export async function downloadWorkspaceExport() {
 export const fetchPortfolios = () => api.get("/portfolios").then((r) => r.data);
 export const createPortfolio = (data) => api.post("/portfolios", data).then((r) => r.data);
 export const createDemoPortfolio = () => api.post("/portfolios/demo").then((r) => r.data);
+export const createPendingImportPortfolio = () => api.post("/portfolios/pending-import").then((r) => r.data);
+export const activatePortfolio = (id) => api.post(`/portfolios/${id}/activate`).then((r) => r.data);
 export const updatePortfolio = (id, data) => api.patch(`/portfolios/${id}`, data).then((r) => r.data);
 export const deletePortfolio = (id) => api.delete(`/portfolios/${id}`).then((r) => r.data);
 

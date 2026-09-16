@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BarChart3, Link2, Upload, Loader2 } from "lucide-react";
 
-import { createDemoPortfolio, createPortfolio } from "../api";
+import { activatePortfolio, createDemoPortfolio, createPendingImportPortfolio, createPortfolio } from "../api";
 import { usePortfolio } from "../App";
 import { TRACKER_HOME } from "../lib/routes";
 
@@ -16,7 +16,7 @@ function errorMessage(error) {
 
 export default function Onboarding() {
   const navigate = useNavigate();
-  const { setCurrentId, refetchPortfolios } = usePortfolio();
+  const { pendingImportPortfolio, setCurrentId, refetchPortfolios } = usePortfolio();
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
 
@@ -35,17 +35,44 @@ export default function Onboarding() {
     }
   }
 
+  async function beginImport() {
+    setBusy("import");
+    setError(null);
+    try {
+      const portfolio = await createPendingImportPortfolio();
+      setCurrentId(portfolio.id);
+      await refetchPortfolios();
+      navigate("/import");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function startBlank() {
+    setBusy("blank");
+    setError(null);
+    try {
+      const pending = pendingImportPortfolio || await createPendingImportPortfolio();
+      const portfolio = await activatePortfolio(pending.id);
+      setCurrentId(portfolio.id);
+      navigate(TRACKER_HOME);
+      await refetchPortfolios();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const choices = [
     {
       key: "import",
       icon: Upload,
       title: "Import a CSV",
       description: "Preview a Trading 212 export or Portfyl CSV before anything is saved.",
-      action: () => activate(
-        () => createPortfolio({ name: "My portfolio" }),
-        "/import",
-        "import",
-      ),
+      action: beginImport,
       primary: true,
     },
     {
@@ -112,6 +139,11 @@ export default function Onboarding() {
         <p className="text-center text-xs text-muted">
           Sample data is marked as demo data and never mixed into a real import unless you choose to keep it.
         </p>
+        <div className="text-center">
+          <button type="button" onClick={startBlank} disabled={busy != null} className="text-sm font-medium text-muted underline-offset-4 hover:text-ink hover:underline disabled:opacity-50">
+            {busy === "blank" ? "Preparing blank portfolio…" : "Start with a blank portfolio"}
+          </button>
+        </div>
       </div>
     </main>
   );

@@ -40,6 +40,9 @@ vi.mock("./pages/Dashboard", () => ({
 vi.mock("./pages/Onboarding", () => ({
   default: () => <h1>Create your first portfolio</h1>,
 }));
+vi.mock("./pages/Import", () => ({
+  default: ({ focused = false }) => <h1>{focused ? "Focused pending import" : "Portfolio import"}</h1>,
+}));
 vi.mock("./pages/Cash", () => ({ default: () => <div>Cash page</div> }));
 
 function LocationProbe() {
@@ -97,6 +100,32 @@ describe("authenticated routing", () => {
 
     expect(await screen.findByRole("heading", { name: /create your first portfolio/i }))
       .toBeInTheDocument();
+  });
+
+  it("restores a pending onboarding import without mounting portfolio navigation", async () => {
+    mocks.fetchPortfolios.mockResolvedValue([{
+      id: PORTFOLIO_ID,
+      name: "My portfolio",
+      is_default: true,
+      transaction_count: 0,
+      activation_state: "pending_import",
+    }]);
+    renderApp("/import");
+
+    expect(await screen.findByRole("heading", { name: "Focused pending import" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /dashboard/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps a pending record hidden from the normal portfolio switcher", async () => {
+    mocks.fetchPortfolios.mockResolvedValue([
+      { id: PORTFOLIO_ID, name: "Active portfolio", is_default: true, transaction_count: 1, activation_state: "active" },
+      { id: "33333333-3333-4333-8333-333333333333", name: "Pending import", is_default: false, transaction_count: 0, activation_state: "pending_import" },
+    ]);
+    renderApp();
+    await screen.findByRole("heading", { name: /portfolio overview/i });
+    fireEvent.click(screen.getByRole("button", { name: /switch portfolio/i }));
+    expect(screen.getAllByText("Active portfolio").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Pending import")).not.toBeInTheDocument();
   });
 
   it("keeps edition navigation capability-filtered", async () => {

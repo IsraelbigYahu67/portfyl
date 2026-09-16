@@ -353,6 +353,8 @@ OWN_MUTATIONS: tuple[tuple[str, str, str, Any, int], ...] = (
 #: silent success and never the 404 the tenancy layer uses.
 CSRF_GATED: tuple[tuple[str, str, str, Any], ...] = (
     ("portfolios-create", "POST", "/api/portfolios", {"name": "csrf probe"}),
+    ("portfolios-pending-import", "POST", "/api/portfolios/pending-import", None),
+    ("portfolios-activate", "POST", "/api/portfolios/{alice_portfolio}/activate", None),
     ("portfolios-update", "PATCH", "/api/portfolios/{alice_portfolio}", {"name": "csrf probe"}),
     ("portfolios-delete", "DELETE", "/api/portfolios/{alice_portfolio}", None),
     ("assistant-key-set", "PUT", "/api/assistant/config",
