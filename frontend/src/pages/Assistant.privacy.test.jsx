@@ -36,6 +36,7 @@ it('pauses for consent, reuses a conversation grant, and clears it on new conver
   expect(screen.getByRole('dialog')).toBeInTheDocument();
   expect(api.sendAssistantMessage).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Share for this conversation' }));
+  expect(screen.getByRole('button', { name: 'Send message' })).toHaveFocus();
   await screen.findByText('Answer');
   expect(api.sendAssistantMessage.mock.calls[0][1]).toBe('portfolio_summary');
   expect(screen.getByText('Portfolio summary shared')).toBeInTheDocument();

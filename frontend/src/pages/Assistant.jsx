@@ -69,6 +69,13 @@ export default function Assistant() {
   const [consentedToPortfolioSummary, setConsentedToPortfolioSummary] = useState(false);
   const [pendingText, setPendingText] = useState(null);
   const scrollRef = useRef(null);
+  const sendControlRef = useRef(null);
+  const previousPendingRef = useRef(null);
+
+  useEffect(() => {
+    if (previousPendingRef.current !== null && pendingText === null) sendControlRef.current?.focus();
+    previousPendingRef.current = pendingText;
+  }, [pendingText]);
 
   const chatMutation = useMutation({
     mutationFn: ({ history, mode }) => sendAssistantMessage(history, mode),
@@ -169,7 +176,7 @@ export default function Assistant() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={newConversation} disabled={chatMutation.isPending} className="btn-secondary min-h-11 px-3 text-sm">New conversation</button>
+          <button type="button" onClick={newConversation} disabled={chatMutation.isPending} className="btn-ghost min-h-11 px-3 text-sm">New conversation</button>
           {configured && (
             <span className="text-xs text-muted font-mono hidden sm:inline">
               {config.model}
@@ -357,9 +364,10 @@ export default function Assistant() {
               />
               <button
                 aria-label="Send message"
+                ref={sendControlRef}
                 onClick={() => send()}
-                disabled={!input.trim() || chatMutation.isPending}
-                className="flex items-center justify-center bg-brand text-white rounded-lg w-11 h-11 shrink-0 hover:bg-brand/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-disabled={!input.trim() || chatMutation.isPending}
+                className="flex items-center justify-center bg-brand text-white rounded-lg w-11 h-11 shrink-0 hover:bg-brand/90 transition-colors aria-disabled:opacity-40 aria-disabled:cursor-not-allowed"
               >
                 {chatMutation.isPending ? (
                   <Loader2 size={18} className="animate-spin" />

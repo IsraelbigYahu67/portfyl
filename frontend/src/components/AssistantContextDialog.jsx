@@ -15,7 +15,7 @@ export default function AssistantContextDialog({ open, provider = 'DeepSeek', mo
           <p>Market data may be delayed. The summary uses recorded transactions and cost basis, without current market valuation. Sharing lasts only for this conversation.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
-          <button type="button" className="btn-secondary min-h-11 px-3" onClick={onWithoutContext}>Ask without portfolio data</button>
+          <button type="button" className="btn-ghost min-h-11 px-3" onClick={onWithoutContext}>Ask without portfolio data</button>
           <button type="button" className="btn-primary min-h-11 px-3" onClick={onShare}>Share for this conversation</button>
         </div>
       </div>
