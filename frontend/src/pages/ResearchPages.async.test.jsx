@@ -1,6 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { ConfirmProvider } from "../components/ui/ConfirmDialog";
+import { ToastProvider } from "../components/ui/Toast";
 
 import Search from "./Search";
 import Watchlists from "./Watchlists";
@@ -20,6 +22,8 @@ const api = vi.hoisted(() => ({
   updateAlert: vi.fn(),
   deleteAlert: vi.fn(),
   checkAlerts: vi.fn(),
+  fetchCapabilities: vi.fn(),
+  fetchDiscordWebhook: vi.fn(),
   fetchT212Status: vi.fn(),
   connectT212: vi.fn(),
   disconnectT212: vi.fn(),
@@ -52,10 +56,12 @@ function renderPage(Page, path = "/") {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path="*" element={<Page />} />
-          <Route path="/stock/:ticker" element={<Page />} />
-        </Routes>
+        <ToastProvider><ConfirmProvider>
+          <Routes>
+            <Route path="*" element={<Page />} />
+            <Route path="/stock/:ticker" element={<Page />} />
+          </Routes>
+        </ConfirmProvider></ToastProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -66,6 +72,8 @@ beforeEach(() => {
   api.searchTickers.mockResolvedValue({ results: [] });
   api.fetchWatchlists.mockResolvedValue([]);
   api.fetchAlerts.mockResolvedValue([]);
+  api.fetchCapabilities.mockResolvedValue({ capabilities: ["notification_integrations"] });
+  api.fetchDiscordWebhook.mockResolvedValue({ connected: true });
   api.fetchT212Status.mockResolvedValue({ connected: false });
   api.fetchAssistantConfig.mockResolvedValue({ configured: false });
   api.fetchStockView.mockResolvedValue({ ticker: "AAPL", currency: "USD" });
@@ -97,7 +105,7 @@ it("distinguishes no watchlists from a load failure and retries", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("Watchlists unavailable");
   fireEvent.click(screen.getByRole("button", { name: /retry/i }));
   await waitFor(() => expect(api.fetchWatchlists).toHaveBeenCalledTimes(2));
-  expect(await screen.findByText(/no watchlists yet/i)).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: /track a stock you are researching/i })).toBeInTheDocument();
 });
 
 it("distinguishes a disconnected broker from status failure and retries", async () => {
