@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUpRight, ChartNoAxesCombined, PieChart, CalendarDays, Layers3, Check, Plus } from "lucide-react";
 import { COPY, LANGUAGES, LANGUAGE_KEY } from "./welcomeCopy";
 import "./Welcome.css";
+import "../fonts.css";
 
 const images = ["allocation", "stock", "dashboard", "performance"];
 const imageSizes = [[1047, 365], [1047, 350], [1047, 345], [1004, 455]];
