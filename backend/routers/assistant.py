@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Literal
 from collections import defaultdict
 import httpx
 import os
@@ -30,6 +30,7 @@ router = APIRouter(prefix="/assistant", tags=["assistant"])
 # DeepSeek exposes an OpenAI-compatible chat completions endpoint.
 DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 DEFAULT_MODEL = "deepseek-chat"
+PROVIDER = "deepseek"
 ALLOWED_MODELS = {"deepseek-chat", "deepseek-reasoner"}
 
 KEY_SETTING = "deepseek_api_key"
@@ -142,7 +143,14 @@ def _build_portfolio_context(db: Session, portfolio: Portfolio) -> str:
     return "\n".join(lines)
 
 
-def _system_prompt(context: str) -> str:
+def _system_prompt(context: str | None) -> str:
+    if context is None:
+        return (
+            "You are Portfyl's assistant, powered by DeepSeek. Explain general investing "
+            "concepts clearly and concisely. Use only information supplied in this conversation. "
+            "If information is missing, say so rather than inventing numbers. Market data "
+            "may be delayed. Avoid definitive buy/sell directives or guarantees."
+        )
     return (
         "You are Portfyl's built-in portfolio assistant, powered by DeepSeek. You help "
         "the user understand and analyze their investment portfolio. Be concise, "
@@ -280,6 +288,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
+    context_mode: Literal["none", "portfolio_summary"] = "none"
 
 
 @router.post("/chat", dependencies=[Depends(require_capability("assistant_byok")), Depends(rate_limit("assistant_chat", by="workspace"))])
@@ -302,7 +311,11 @@ async def chat(
     if not history or history[-1]["role"] != "user":
         raise HTTPException(status_code=400, detail="The last message must be from the user.")
     model = get_user_setting(db, request_context.user.id, MODEL_SETTING) or DEFAULT_MODEL
-    portfolio_context = _build_portfolio_context(db, portfolio)
+    portfolio_context = None
+    context_as_of = None
+    if payload.context_mode == "portfolio_summary":
+        portfolio_context = _build_portfolio_context(db, portfolio)
+        context_as_of = datetime.now(timezone.utc).isoformat()
     messages = [{"role": "system", "content": _system_prompt(portfolio_context)}] + history
 
     api_key = get_user_secret(db, request_context.user.id, KEY_SETTING)
@@ -358,4 +371,7 @@ async def chat(
         usage_reservation = db.merge(usage_reservation)
         finalize_usage(db, usage_reservation)
         db.commit()
-    return {"reply": {"role": "assistant", "content": content}, "model": model, "usage": usage}
+    return {
+        "reply": {"role": "assistant", "content": content}, "model": model, "usage": usage,
+        "provider": PROVIDER, "context_mode": payload.context_mode, "context_as_of": context_as_of,
+    }
