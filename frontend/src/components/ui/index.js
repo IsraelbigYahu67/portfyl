@@ -7,3 +7,4 @@ export { default as AsyncSection } from "./AsyncSection";
 export { DeltaPill } from "./DeltaPill";
 export { default as KpiBox } from "./KpiBox";
 export { default as ChartSummary } from "./ChartSummary";
+export { UrlTabs } from "./UrlTabs";
