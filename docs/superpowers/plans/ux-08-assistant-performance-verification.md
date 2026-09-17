@@ -9,6 +9,8 @@ Node: `22.16.0`; Vite: `6.4.3`
 
 ## Status
 
+**2026-09-17 follow-up:** browser/runtime evidence, six resulting fixes, final bundle measurements, and draft PR [#7](https://github.com/IsraelbigYahu67/portfyl/pull/7) are recorded in [the browser QA follow-up](ux-08-browser-closeout-2026-09-17.md). Remote CI now exists. The phase remains OPEN for the explicitly recorded remaining criteria and delivery review. The sections below preserve the earlier verification snapshot; their statements that browser QA, PR creation and remote CI are pending are historical, not current status.
+
 Implementation, all local automated gates, and both measured bundle targets pass. The phase remains **OPEN** until the authenticated four-viewport browser/network matrix, formal predecessor delivery, and required remote CI are complete. No phase or integration PR was merged.
 
 The continuation started from a clean Plan-7 checkout. A local integration ref, `codex/portfyl-ux-overhaul`, was created at that HEAD; the phase branch starts there. `git merge-base --is-ancestor codex/ux-07-product-flows HEAD` passes. This establishes local ancestry; it does not claim a reviewed predecessor PR merged. The read-only remote check returned only `main` (`e252933c3562f9f634e964b9476204c6aa89e31f`). Remote integration/phase delivery is pending.
