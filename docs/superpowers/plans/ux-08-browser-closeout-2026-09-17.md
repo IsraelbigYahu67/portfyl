@@ -112,3 +112,50 @@ Bytes are gzip bytes. Reduction is `(baseline - final) / baseline * 100`; the ha
 - External vendor happy data, live AI/KMS, assistive-technology speech output, and a full dark-theme matrix were outside this fixture sweep.
 
 Cleanup: all four owned QA listeners on ports 8001, 8002, 5174 and 5175 were stopped after validating their process command lines. `docker compose -f deploy/docker-compose.postgres-test.yml stop` restored the test PostgreSQL service's initial stopped state. No containers, volumes, databases or evidence artifacts were deleted.
+
+## Reconciliation with the 2026-09-16 continuation session — 2026-09-17
+
+The uncommitted working tree left by the 2026-09-16 continuation session (see "Latest
+continuation" in `ux-08-assistant-performance-verification.md`) was never committed.
+It was preserved as branch `wip-2026-09-16-continuation` (commit `c8b73f6`) and four
+of its fixes — independent of, and not present in, `619f153`/`fbb746e` — were
+reconciled onto this branch: lazy-loaded Firebase auth SDK (`frontend/src/auth/firebase.js`,
+dynamic `import()` instead of a static import), stock-intent-prefetch cache cleanup on
+portfolio/currency scope change moved to its own `useStockIntentScopeCleanup` hook,
+`Assistant` API key/model field labels and the `Transactions` filter input's
+accessible name, and native-currency average cost on the Stock overview position
+summary. The continuation's `useStockDetail`/`TickerLink` extraction and
+`headerHeadingLevel` prop were **not** reconciled — they duplicate the already-merged,
+CI-verified `StockDetail.jsx` h1 fix from `619f153` with a different diff, so the
+simpler merged version was kept. Commits: `c880416` (fixes), `37aad39` (roadmap
+phase-7 branch-divergence decision, see below). Unit suites for all eight touched
+files passed in both editions (6 files / 31 tests via `npm test` and `npm run
+test:cloud`); `npm run build` and `npm run build:cloud` both passed.
+
+**Browser verification of these four fixes is incomplete**, blocked by an
+environment issue unrelated to the code changes: a disposable PostgreSQL QA
+database (`docker-compose.postgres-test.yml`, port 55441) and local-edition
+dev servers (backend :8010, frontend :5183, `VITE_API_PROXY_TARGET` pointed at
+the QA backend) were stood up correctly, and the reused test container's leftover
+data — a real user record tied to the repository owner's actual e-mail from the
+prior session — was found and wiped (`down -v`, fresh `alembic upgrade head`)
+before further use, since the working agreement for this QA pass was a throwaway
+account, not the owner's real identity. A throwaway e-mail was beta-invited via
+`manage_beta.py invite`. Both an automated registration attempt and the repository
+owner's own manual login attempt against this same local setup then failed
+identically with Firebase's `auth/invalid-api-key`, confirmed via direct
+`registerWithEmailPassword()` invocation in the page console (not a network-capture
+gap — no request to any `google*` origin was ever made). This reproduced for the
+owner too, so it is not an artifact of automation. The lazy-loaded Firebase SDK
+fix's own mechanism was still confirmed working before this blocker: `firebase_app`/
+`firebase_auth` chunks load only on first auth action, not at page load (verified via
+`read_network_requests`), and the call reached the SDK with correctly formed
+arguments. Root cause of `auth/invalid-api-key` was not diagnosed further — it needs
+Google Cloud/Firebase console access (API key validity/restrictions) that this
+session did not have. The scope-cleanup, a11y-label, and native-currency fixes
+remain unverified in a live browser pending that Firebase access; their unit-test
+coverage above is the only current evidence for them.
+
+Cleanup: the QA backend/frontend processes were force-stopped and the disposable
+PostgreSQL container was brought down (`docker compose down`, no `-v`) after the
+above. No production `.env`/Neon database was used at any point.
