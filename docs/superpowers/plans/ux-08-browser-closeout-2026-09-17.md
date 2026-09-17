@@ -132,29 +132,46 @@ phase-7 branch-divergence decision, see below). Unit suites for all eight touche
 files passed in both editions (6 files / 31 tests via `npm test` and `npm run
 test:cloud`); `npm run build` and `npm run build:cloud` both passed.
 
-**Browser verification of these four fixes is incomplete**, blocked by an
-environment issue unrelated to the code changes: a disposable PostgreSQL QA
-database (`docker-compose.postgres-test.yml`, port 55441) and local-edition
-dev servers (backend :8010, frontend :5183, `VITE_API_PROXY_TARGET` pointed at
-the QA backend) were stood up correctly, and the reused test container's leftover
-data — a real user record tied to the repository owner's actual e-mail from the
-prior session — was found and wiped (`down -v`, fresh `alembic upgrade head`)
-before further use, since the working agreement for this QA pass was a throwaway
-account, not the owner's real identity. A throwaway e-mail was beta-invited via
-`manage_beta.py invite`. Both an automated registration attempt and the repository
-owner's own manual login attempt against this same local setup then failed
-identically with Firebase's `auth/invalid-api-key`, confirmed via direct
-`registerWithEmailPassword()` invocation in the page console (not a network-capture
-gap — no request to any `google*` origin was ever made). This reproduced for the
-owner too, so it is not an artifact of automation. The lazy-loaded Firebase SDK
-fix's own mechanism was still confirmed working before this blocker: `firebase_app`/
+**Browser verification of these four fixes was initially blocked, then unblocked
+— false alarm, corrected same day.** A disposable PostgreSQL QA database
+(`docker-compose.postgres-test.yml`, port 55441) and local-edition dev servers
+(backend :8010, frontend :5183, `VITE_API_PROXY_TARGET` pointed at the QA backend)
+were stood up; the reused test container's leftover data — a real user record tied
+to the repository owner's actual e-mail from the prior session — was found and
+wiped (`down -v`, fresh `alembic upgrade head`) before further use, since the
+working agreement for this QA pass was a throwaway account. A throwaway e-mail was
+beta-invited via `manage_beta.py invite`. Both an automated registration attempt and
+the repository owner's own manual login attempt against this local setup then failed
+identically with Firebase's `auth/invalid-api-key`.
+
+This was first (incorrectly) treated as a real Google Cloud/Firebase configuration
+problem. Direct investigation in the Google Cloud Console (`APIs & Services →
+Credentials`, project `portfyl-cloud-fstxby`) found the API key value, its
+Application restrictions (None) and API restrictions (Identity Toolkit API and Token
+Service API both present and enabled) all correct — and a raw
+`identitytoolkit.googleapis.com/v1/accounts:signUp` REST call with the same key from
+outside the browser succeeded (the resulting throwaway account was immediately
+self-deleted via its own idToken; no residue left in the live Firebase user pool).
+**The actual root cause:** the QA frontend dev server was started from this
+worktree's `frontend/` directory, and `frontend/.env.local` (the file holding
+`VITE_FIREBASE_API_KEY` and friends) is gitignored, so it was never copied into the
+worktree by `git worktree add` — only the main checkout has it. With those vars
+undefined, Firebase's JS SDK throws `auth/invalid-api-key` synchronously inside
+`getAuth()`'s instance factory, before any network call — indistinguishable by
+symptom from a real invalid key. The owner's manual reproduction was against this
+same broken worktree dev server (port 5183), not their normal `start.bat` one (port
+5173), so it was not independent confirmation of a real bug. Fixed by copying
+`frontend/.env.local` into the worktree from the main checkout (gitignored, not
+committed). The lazy-loaded Firebase SDK fix's own mechanism was confirmed working
+throughout this investigation regardless of the blocker: `firebase_app`/
 `firebase_auth` chunks load only on first auth action, not at page load (verified via
 `read_network_requests`), and the call reached the SDK with correctly formed
-arguments. Root cause of `auth/invalid-api-key` was not diagnosed further — it needs
-Google Cloud/Firebase console access (API key validity/restrictions) that this
-session did not have. The scope-cleanup, a11y-label, and native-currency fixes
-remain unverified in a live browser pending that Firebase access; their unit-test
-coverage above is the only current evidence for them.
+arguments both before and after the env fix.
+
+With the worktree's `.env.local` now in place, the scope-cleanup, a11y-label, and
+native-currency fixes are unblocked for live-browser verification; that pass had not
+yet been re-run when this note was written. Their unit-test coverage above remains
+the current evidence for them until that browser pass completes.
 
 Cleanup: the QA backend/frontend processes were force-stopped and the disposable
 PostgreSQL container was brought down (`docker compose down`, no `-v`) after the
