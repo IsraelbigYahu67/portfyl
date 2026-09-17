@@ -5,7 +5,10 @@ export default function AssistantContextDialog({ open, provider = 'DeepSeek', mo
   if (!open) return null;
   return (
     <div data-testid="assistant-context-backdrop" className="fixed inset-0 z-[80] bg-black/40 flex items-center justify-center p-4" onMouseDown={event => {
-      if (event.target === event.currentTarget) onWithoutContext();
+      if (event.target === event.currentTarget) {
+        event.preventDefault();
+        onWithoutContext();
+      }
     }}>
       <div ref={ref} role="dialog" aria-modal="true" aria-labelledby="assistant-consent-title" aria-describedby="assistant-consent-description" className="card w-full max-w-lg max-h-[90dvh] overflow-y-auto space-y-4">
         <h2 id="assistant-consent-title" className="text-lg font-semibold">Share a portfolio summary?</h2>

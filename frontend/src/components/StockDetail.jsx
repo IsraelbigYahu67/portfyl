@@ -1197,7 +1197,7 @@ export function StockOverview({
       {showHeader && <div className="flex flex-col gap-4 px-4 py-4 border-b border-surface-border sm:flex-row sm:items-start sm:justify-between sm:px-6">
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-3 flex-wrap">
-            <h2 className="text-3xl font-bold font-mono"><ShinyText text={data.ticker} /></h2>
+            <h1 className="text-3xl font-bold font-mono"><ShinyText text={data.ticker} /></h1>
             <span className="text-muted text-lg truncate">{data.name}</span>
             {data.exchange && (
               <span className="text-[10px] text-muted uppercase tracking-wider">{data.exchange}</span>

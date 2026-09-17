@@ -60,10 +60,10 @@ export function UrlTabs({ ariaLabel, idPrefix = "url-tabs", items, value, onChan
             tabIndex={selected && !item.disabled ? 0 : -1}
             onClick={() => selectAndFocus(item)}
             onKeyDown={(event) => handleKeyDown(event, item.value)}
-            className={`shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+            className={`shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
               selected
-                ? "bg-[var(--accent)] text-white"
-                : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                ? "bg-brand text-white"
+                : "text-muted hover:bg-surface-hover hover:text-ink"
             } disabled:cursor-not-allowed disabled:opacity-50`}
           >
             {item.label}

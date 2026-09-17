@@ -16,7 +16,7 @@ it('names the recipient and data, traps focus, and dismisses safely', () => {
   fireEvent.keyDown(document, { key: 'Escape' });
   expect(safe).toHaveBeenCalledTimes(1);
   expect(share).not.toHaveBeenCalled();
-  fireEvent.mouseDown(screen.getByTestId('assistant-context-backdrop'));
+  expect(fireEvent.mouseDown(screen.getByTestId('assistant-context-backdrop'))).toBe(false);
   expect(safe).toHaveBeenCalledTimes(2);
   view.rerender(<AssistantContextDialog open={false} onWithoutContext={safe} onShare={share} />);
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

@@ -21,7 +21,7 @@ function HistorySummary({ history, ticker }) {
         One-year price history
       </h3>
       <svg className="mt-3 h-48 w-full" viewBox="0 0 100 40" role="img" aria-label={`${ticker} one-year closing-price chart`} preserveAspectRatio="none">
-        <polyline points={polyline} fill="none" stroke="var(--accent)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+        <polyline points={polyline} fill="none" stroke="var(--brand)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
       </svg>
       <p className="text-xs text-muted">Range: {low.toFixed(2)} to {high.toFixed(2)} across {points.length} closes.</p>
     </section>
