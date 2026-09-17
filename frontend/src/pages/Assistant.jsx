@@ -226,9 +226,10 @@ export default function Assistant() {
           )}
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted">API key</label>
+            <label htmlFor="assistant-api-key" className="text-xs font-medium text-muted">API key</label>
             <div className="relative">
               <input
+                id="assistant-api-key"
                 type={showKey ? "text" : "password"}
                 value={apiKeyInput}
                 onChange={(e) => setApiKeyInput(e.target.value)}
@@ -239,6 +240,7 @@ export default function Assistant() {
               />
               <button
                 type="button"
+                aria-label={showKey ? "Hide API key" : "Show API key"}
                 onClick={() => setShowKey((v) => !v)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
               >
@@ -248,8 +250,9 @@ export default function Assistant() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted">Model</label>
+            <label htmlFor="assistant-model" className="text-xs font-medium text-muted">Model</label>
             <select
+              id="assistant-model"
               value={modelInput}
               onChange={(e) => setModelInput(e.target.value)}
               className="input text-sm"

@@ -10,7 +10,8 @@ const api = vi.hoisted(() => ({
 }));
 
 vi.mock("../../api", () => api);
-vi.mock("../../App", () => ({ useCurrency: () => ({ currency: "USD" }) }));
+const state = vi.hoisted(() => ({ currency: "USD" }));
+vi.mock("../../App", () => ({ useCurrency: () => state }));
 vi.mock("../StockDetail", () => ({ StockOverview: () => <div>Overview KPIs</div> }));
 
 function renderTab() {
@@ -29,10 +30,21 @@ function renderTab() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.currency = "USD";
   api.fetchHistory.mockResolvedValue({ data: [{ date: "2024-01-01", close: 100 }, { date: "2024-12-31", close: 120 }] });
   api.fetchTransactionsPage.mockResolvedValue({
     items: [{ date: "2024-01-02", type: "buy", shares: 2, price: 100, currency: "USD", notes: "Starter lot" }],
   });
+});
+
+it("formats native average cost separately from selected-currency portfolio values", async () => {
+  state.currency = "CZK";
+  api.fetchHoldings.mockResolvedValue([{ ticker: "AAPL", shares: 10, currency: "USD", avg_cost: 180, market_value: 4_000, pnl: 400, pnl_percent: 11.11, weight: 12.5 }]);
+  renderTab();
+
+  const position = await screen.findByRole("region", { name: "Your position" });
+  expect(within(position).getByText("$180.00")).toBeInTheDocument();
+  expect(within(position).getByText(/4.*000,00.*Kč/)).toBeInTheDocument();
 });
 
 it("shows the complete owned position and exact latest transaction", async () => {

@@ -57,6 +57,12 @@ describe("Transactions (server-side pagination)", () => {
     api.fetchAllTradeNotes.mockResolvedValue([]);
   });
 
+  it("names the ticker filter for assistive technology", async () => {
+    api.fetchTransactionsPage.mockResolvedValue(page());
+    renderPage();
+    expect(await screen.findByLabelText("Filter transactions by ticker")).toBeInTheDocument();
+  });
+
   it("fetches the paged endpoint with default offset/limit and renders rows", async () => {
     api.fetchTransactionsPage.mockResolvedValue(page());
     renderPage();

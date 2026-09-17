@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchHeatmap } from "../api";
-import { useStockDetail } from "./StockDetail";
+import { useStockDetail } from "../hooks/useStockDetail";
 
 const PERIODS = [
   { key: "1d", label: "1D" },
