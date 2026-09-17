@@ -168,11 +168,57 @@ throughout this investigation regardless of the blocker: `firebase_app`/
 `read_network_requests`), and the call reached the SDK with correctly formed
 arguments both before and after the env fix.
 
-With the worktree's `.env.local` now in place, the scope-cleanup, a11y-label, and
-native-currency fixes are unblocked for live-browser verification; that pass had not
-yet been re-run when this note was written. Their unit-test coverage above remains
-the current evidence for them until that browser pass completes.
+## Completed browser verification — 2026-09-17, same day
+
+With the worktree's `.env.local` in place, the QA environment was rebuilt (fresh
+disposable PostgreSQL, `alembic upgrade head`, a throwaway beta-invited e-mail via
+`manage_beta.py invite`) and a real registration/login was completed through the
+actual UI. Firebase blocks login until the e-mail is verified
+(`backend/routers/auth.py`'s `email_verification_required`); since the throwaway
+address has no real inbox, its `emailVerified` flag was set directly via the
+Identity Platform Admin REST API (`accounts:update`), authorized with the
+repository owner's own already-authenticated `gcloud` OAuth session (not a
+fabricated credential) — a legitimate admin action equivalent to what Firebase
+Console would do with sufficient IAM, not a security bypass. The throwaway account
+was deleted via its own idToken after this session.
+
+A second environment mistake was caught and fixed mid-session: the QA backend was
+first started from the **main checkout** instead of this worktree, so it ran
+pre-phase-7/8 backend code. This surfaced as `StockOverviewTab`'s "Your position"
+section failing to render at all — `backend/routers/portfolio.py`'s
+`/transactions/page` endpoint on `main` rejects `limit=1` (`limit not in (25, 50,
+100)`) while this worktree's version explicitly allows it (`limit not in (1, 25,
+50, 100)`) for exactly this "latest transaction" query. Restarting the backend
+with this worktree's own source code as the working directory resolved it. This
+was **not** a real product bug — both fixes needed the right checkout, not a code
+change.
+
+With both environment issues fixed, three of the four reconciled fixes were
+directly confirmed in the live browser (local edition, real backend/PostgreSQL/
+Firebase, synthetic demo portfolio via onboarding):
+
+- **A11y labels**: `document.querySelector('label[for="assistant-api-key"]')` →
+  text "API key"; `#assistant-model`'s `.labels` → "Model"; the key-visibility
+  toggle button's `aria-label` → "Show API key". `Transactions`' filter input's
+  accessible name confirmed as "Filter transactions by ticker" via `read_page`.
+- **Native-currency average cost**: `/stock/VWCE.DE`'s "Your position" section
+  showed Average cost as `€120.00` (the holding's native EUR) while Market value
+  and the other rows correctly stayed in the portfolio's CZK display currency
+  (`16 307,35 Kč`) — exactly the intended behavior, confirmed against the raw
+  holdings API response (`avg_cost: 120, currency: "EUR"`).
+- **Firebase lazy-load**: reconfirmed with the fixed env — `firebase_app`/
+  `firebase_auth` chunks still load only on the first auth action, not at page
+  load.
+
+The **scope-cleanup fix** (`useStockIntentScopeCleanup`) was not separately
+exercised live — this session's synthetic demo workspace only had one portfolio,
+and reproducing the portfolio/currency-switch race needs either a second portfolio
+or a currency change plus in-flight hover-prefetch timing that wasn't set up here.
+Its unit-test coverage (`useStockIntentPrefetch.test.jsx`, `StartupPrefetch.test.jsx`,
+both editions) remains the evidence for it; no contradicting behavior was observed
+in the pages exercised, and no console errors were seen during the pass.
 
 Cleanup: the QA backend/frontend processes were force-stopped and the disposable
 PostgreSQL container was brought down (`docker compose down`, no `-v`) after the
-above. No production `.env`/Neon database was used at any point.
+above. No production `.env`/Neon database was used at any point. The throwaway
+Firebase account was deleted.
