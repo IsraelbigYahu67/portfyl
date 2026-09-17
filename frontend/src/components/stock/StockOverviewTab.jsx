@@ -43,7 +43,7 @@ function PositionSummary({ ticker, holding, latest, currency }) {
   const pnlPercent = holding.unrealized_pnl_percent ?? holding.pnl_percent;
   const rows = [
     ["Shares", formatQuantity(holding.shares)],
-    ["Average cost", formatMoney(avgCost, currency)],
+    ["Average cost", formatMoney(avgCost, holding.currency || currency)],
     ["Market value", formatMoney(holding.market_value, currency)],
     ["Unrealized P&L", formatMoney(pnl, currency)],
     ["Unrealized P&L percentage", formatPercent(pnlPercent)],

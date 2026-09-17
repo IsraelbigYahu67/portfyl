@@ -12,17 +12,6 @@
 // exchanged the ID token for a Portfyl session cookie, the Firebase client
 // session is signed out (see AuthProvider.loginWithIdToken) and the backend
 // HttpOnly cookie becomes the only durable credential.
-import { initializeApp, getApps, getApp } from "firebase/app";
-import {
-  getAuth,
-  inMemoryPersistence,
-  setPersistence,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendEmailVerification,
-  sendPasswordResetEmail,
-  signOut,
-} from "firebase/auth";
 
 function firebaseConfig() {
   return {
@@ -35,43 +24,65 @@ function firebaseConfig() {
 
 let _app = null;
 let _auth = null;
-let _persistenceReady = null;
+let _sdkPromise = null;
+let _initialization = null;
 
-// Lazy singletons: nothing below touches Firebase until an auth page actually
-// calls one of these wrappers. That keeps `vite build` and unit tests (which
-// mock this module entirely) free of any dependency on real project config.
-function getFirebaseAuth() {
-  if (_auth) return _auth;
-  _app = getApps().length ? getApp() : initializeApp(firebaseConfig());
-  _auth = getAuth(_app);
-  _persistenceReady = setPersistence(_auth, inMemoryPersistence);
-  return _auth;
+function loadFirebaseSdk() {
+  if (!_sdkPromise) {
+    _sdkPromise = Promise.all([import("firebase/app"), import("firebase/auth")])
+      .then(([app, auth]) => ({ ...app, ...auth }))
+      .catch((error) => {
+        _sdkPromise = null;
+        throw error;
+      });
+  }
+  return _sdkPromise;
 }
 
 async function readyAuth() {
-  const auth = getFirebaseAuth();
-  await _persistenceReady;
-  return auth;
+  if (_auth) return _auth;
+  if (!_initialization) {
+    _initialization = (async () => {
+      const sdk = await loadFirebaseSdk();
+      const app = sdk.getApps().length ? sdk.getApp() : sdk.initializeApp(firebaseConfig());
+      const auth = sdk.getAuth(app);
+      await sdk.setPersistence(auth, sdk.inMemoryPersistence);
+      _app = app;
+      _auth = auth;
+      return auth;
+    })().catch((error) => {
+      _app = null;
+      _auth = null;
+      throw error;
+    }).finally(() => {
+      _initialization = null;
+    });
+  }
+  return _initialization;
 }
 
 export async function registerWithEmailPassword(email, password) {
   const auth = await readyAuth();
+  const { createUserWithEmailAndPassword } = await loadFirebaseSdk();
   const credential = await createUserWithEmailAndPassword(auth, email, password);
   return credential.user;
 }
 
 export async function signInWithEmailPassword(email, password) {
   const auth = await readyAuth();
+  const { signInWithEmailAndPassword } = await loadFirebaseSdk();
   const credential = await signInWithEmailAndPassword(auth, email, password);
   return credential.user;
 }
 
 export async function sendVerificationEmail(user) {
+  const { sendEmailVerification } = await loadFirebaseSdk();
   await sendEmailVerification(user);
 }
 
 export async function sendPasswordReset(email) {
   const auth = await readyAuth();
+  const { sendPasswordResetEmail } = await loadFirebaseSdk();
   await sendPasswordResetEmail(auth, email);
 }
 
@@ -81,6 +92,7 @@ export async function getIdToken(user, forceRefresh = false) {
 
 export async function reauthenticateWithPassword(email, password) {
   const auth = await readyAuth();
+  const { signInWithEmailAndPassword, signOut } = await loadFirebaseSdk();
   try {
     const credential = await signInWithEmailAndPassword(auth, email, password);
     return await credential.user.getIdToken(true);
@@ -93,6 +105,7 @@ export async function reauthenticateWithPassword(email, password) {
 
 export async function signOutFirebaseClient() {
   if (!_auth) return;
+  const { signOut } = await loadFirebaseSdk();
   await signOut(_auth);
 }
 

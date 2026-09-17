@@ -162,6 +162,7 @@ export default function Transactions() {
         <h1 className="text-xl font-bold">Transactions</h1>
         <div className="flex gap-2">
           <input
+            aria-label="Filter transactions by ticker"
             className="input w-48"
             placeholder="Filter by ticker…"
             value={filter}

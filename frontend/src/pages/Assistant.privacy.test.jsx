@@ -62,3 +62,12 @@ it.each(['Ask without portfolio data', 'Escape', 'backdrop'])('resolves %s with 
   expect(api.sendAssistantMessage.mock.calls[0][1]).toBe('none');
   expect(screen.getByLabelText('Portfolio context')).toHaveValue('none');
 });
+
+it('associates connection controls with accessible names without exposing a key', async () => {
+  api.fetchAssistantConfig.mockResolvedValue({ configured: false, model: 'deepseek-chat' });
+  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><Assistant /></QueryClientProvider>);
+
+  expect(await screen.findByLabelText('API key')).toHaveAttribute('type', 'password');
+  expect(screen.getByRole('button', { name: 'Show API key' })).toBeInTheDocument();
+  expect(screen.getByRole('combobox', { name: 'Model' })).toHaveValue('deepseek-chat');
+});

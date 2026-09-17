@@ -2,8 +2,10 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCurrency, usePortfolio } from '../App';
 import { fetchSummary, fetchHoldings, fetchPerformance } from '../api';
+import { useStockIntentScopeCleanup } from '../hooks/useStockIntentScopeCleanup';
 
 export default function StartupPrefetch() {
+  useStockIntentScopeCleanup();
   const client = useQueryClient();
   const { currency } = useCurrency();
   const { ready, currentId } = usePortfolio();

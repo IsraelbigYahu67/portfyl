@@ -48,17 +48,3 @@ it.each(['currency', 'currentId', 'ticker', 'unmount'])('clears pending intent o
   await act(async () => vi.advanceTimersByTime(150));
   expect(api.fetchStockView).not.toHaveBeenCalled();
 });
-it('aborts in-flight intent on scope change and preserves unrelated data', async () => {
-  api.fetchStockView.mockImplementation(() => new Promise(() => {}));
-  api.fetchHistory.mockImplementation(() => new Promise(() => {}));
-  const { result, client, rerender } = setup();
-  client.setQueryData(['unrelated'], 'keep');
-  act(() => result.current.onFocus());
-  await act(async () => vi.advanceTimersByTime(150));
-  const signal = api.fetchStockView.mock.calls[0][2].signal;
-  state.currency = 'EUR';
-  await act(async () => rerender({ symbol: 'aapl' }));
-  expect(signal.aborted).toBe(true);
-  expect(client.getQueryData(['unrelated'])).toBe('keep');
-  expect(client.getQueryCache().find({ queryKey: ['stock-view', 'AAPL', 'overview'] })).toBeUndefined();
-});

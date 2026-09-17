@@ -11,22 +11,13 @@ export function useStockIntentPrefetch(ticker) {
   const symbol = String(ticker || '').toUpperCase();
   const timer = useRef(null);
   const started = useRef(false);
-  const scope = useRef({ currentId, currency });
   const stop = () => {
     clearTimeout(timer.current);
     timer.current = null;
     started.current = false;
   };
   useEffect(() => {
-    const previous = scope.current;
-    scope.current = { currentId, currency };
     stop();
-    if (previous.currentId !== currentId || previous.currency !== currency) {
-      const predicate = query => query.meta?.intentPrefetch && query.getObserversCount() === 0 &&
-        (query.meta.portfolioId !== currentId || query.meta.currency !== currency);
-      void client.cancelQueries({ predicate });
-      client.removeQueries({ predicate });
-    }
     return stop;
   }, [client, symbol, currentId, currency, ready]);
   const start = () => {
