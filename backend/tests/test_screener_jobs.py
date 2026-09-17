@@ -191,6 +191,31 @@ def test_submit_job_does_not_deduplicate_across_users():
         _wait_for_status(second.job_id, "user-2", {"completed", "failed", "cancelled"})
 
 
+def test_immediate_retry_does_not_reuse_a_cancelling_worker():
+    _reset_registry()
+    gate = threading.Event()
+    started = threading.Event()
+
+    def slow_row(symbol):
+        started.set()
+        gate.wait(timeout=3)
+        return _fake_row(symbol)
+
+    request = {"tickers": "AAA,BBB", "sort_by": "market_cap"}
+    with patch("services.screener_jobs._ticker_row", side_effect=slow_row):
+        first = sj.submit_job("user-1", request)
+        try:
+            assert started.wait(timeout=2)
+            assert sj.cancel_job("user-1", first.job_id)
+            second = sj.submit_job("user-1", request)
+            assert second.job_id != first.job_id
+        finally:
+            gate.set()
+            _wait_for_status(first.job_id, "user-1", {"cancelled"})
+        done = _wait_for_status(second.job_id, "user-1", {"completed"})
+        assert len(done.result_items) == 2
+
+
 def test_job_completes_and_progress_reaches_total():
     """Every settled ticker future increments progress exactly once."""
     _reset_registry()

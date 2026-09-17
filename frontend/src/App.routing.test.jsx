@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import App from "./App";
+import App, { usePortfolio } from "./App";
 import { TRACKER_HOME } from "./lib/routes";
 
 const PORTFOLIO_ID = "11111111-1111-4111-8111-111111111111";
@@ -33,7 +33,10 @@ vi.mock("./api", async () => {
   };
 });
 
-vi.mock("./components/StartupPrefetch", () => ({ default: () => null }));
+vi.mock("./components/StartupPrefetch", () => ({ default: () => {
+  const { currentId, ready } = usePortfolio();
+  return <output data-testid="portfolio-ready">{ready ? currentId : "not ready"}</output>;
+} }));
 vi.mock("./pages/Dashboard", () => ({
   default: () => <h1>Portfolio overview</h1>,
 }));
@@ -185,6 +188,26 @@ describe("authenticated routing", () => {
       expect(screen.getByTestId("location").textContent).toBe(TRACKER_HOME);
     });
     expect(screen.queryByRole("link", { name: "Cash" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the switched portfolio ready while refreshing workspace metadata", async () => {
+    const secondId = "33333333-3333-4333-8333-333333333333";
+    const portfolios = [
+      { id: PORTFOLIO_ID, name: "First portfolio", is_default: true, transaction_count: 1 },
+      { id: secondId, name: "Second portfolio", is_default: false, transaction_count: 0 },
+    ];
+    let resolveRefresh;
+    mocks.fetchPortfolios.mockResolvedValueOnce(portfolios).mockImplementation(
+      () => new Promise(resolve => { resolveRefresh = resolve; }),
+    );
+    renderApp();
+    await screen.findByRole("heading", { name: /portfolio overview/i });
+    fireEvent.click(screen.getByRole("button", { name: /switch portfolio/i }));
+    fireEvent.click(screen.getByText("Second portfolio").closest("button"));
+    await waitFor(() => expect(mocks.fetchPortfolios).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId("portfolio-ready")).toHaveTextContent(secondId);
+    resolveRefresh(portfolios);
+    await waitFor(() => expect(screen.getByTestId("portfolio-ready")).toHaveTextContent(secondId));
   });
 
   it("redirects the retired overview route to the tracker home", async () => {

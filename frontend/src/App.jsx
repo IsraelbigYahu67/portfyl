@@ -244,9 +244,10 @@ function PortfolioProvider({ children }) {
     (id) => {
       const next = id == null ? null : String(id);
       if (next == null || next === currentId) return;
-      // Drop ALL cached data before switching so no other portfolio's holdings,
-      // transactions, T212 status, etc. can briefly flash on screen.
-      queryClient.removeQueries();
+      // Drop portfolio data before switching so previous holdings and transactions
+      // cannot flash. Keep workspace metadata while its counts refresh: removing
+      // it unmounts the shell and temporarily resets the active API portfolio.
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== "portfolios" });
       setActivePortfolioId(next);
       setCurrentIdState(next);
       localStorage.setItem("sb_portfolio_id", next);

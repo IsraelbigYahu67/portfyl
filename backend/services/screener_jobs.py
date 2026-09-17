@@ -108,7 +108,7 @@ def _find_reusable_job(user_id: str, fingerprint: str) -> ScreenerJob | None:
         for job in _JOBS.values():
             if job.user_id != user_id or job.fingerprint != fingerprint:
                 continue
-            if job.status in ("queued", "running"):
+            if job.status in ("queued", "running") and not job.cancel_requested:
                 return job
             if job.status == "completed" and job.expires_at and job.expires_at > now:
                 return job
@@ -171,7 +171,7 @@ def submit_job(user_id: str, request: dict[str, Any]) -> ScreenerJob:
         for existing in _JOBS.values():
             if existing.user_id != user_id or existing.fingerprint != fingerprint:
                 continue
-            if existing.status in ("queued", "running"):
+            if existing.status in ("queued", "running") and not existing.cancel_requested:
                 return existing
             if existing.status == "completed" and existing.expires_at and existing.expires_at > now:
                 return existing
