@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -82,6 +83,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Added after CORS so it wraps outermost and compresses the final response
+# body (JSON payloads like a full-history performance series run well past
+# minimum_size uncompressed; small responses are left alone).
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 
 @app.middleware("http")
