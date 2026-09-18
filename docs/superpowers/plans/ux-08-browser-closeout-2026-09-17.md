@@ -106,7 +106,7 @@ Bytes are gzip bytes. Reduction is `(baseline - final) / baseline * 100`; the ha
 
 - Keep phase OPEN pending formal predecessor/delivery review and integration review. PR #7 remains draft.
 - ~~Browser currency-change cancellation and forced unavailable-route-chunk recovery still require explicit runtime evidence.~~ Completed 2026-09-18 — see below.
-- Repeat production-built cold/warm network measurements for the complete authenticated shell before final release; development request allowlists and the static bundle gate do not replace that measurement.
+- ~~Repeat production-built cold/warm network measurements for the complete authenticated shell before final release~~ Completed 2026-09-18 — see below.
 - BYOK browser privacy was checked in both editions. A hosted-only cloud UI session was not checked; the current Assistant UI enables chat from BYOK `configured`. Existing hosted backend coverage does not establish hosted browser acceptance.
 - Public authentication forms were rendered without submitting Firebase credentials. The deletion dialog was tested through cancellation, not Firebase reauthentication or actual workspace deletion. Onboarding used empty portfolio metadata to render the first-run surface, without provisioning a new identity or submitting a full first-run flow.
 - External vendor happy data, live AI/KMS, assistive-technology speech output, and a full dark-theme matrix were outside this fixture sweep.
@@ -290,3 +290,47 @@ a "Reload page" button — with the rest of the app shell (sidebar, portfolio
 switcher) intact around it. Restoring the chunk file and clicking "Reload page"
 loaded the real Allocation page (donut chart, full breakdown) on the same
 click, confirming genuine recovery rather than a dead end.
+
+## Production-built cold/warm network measurement — 2026-09-18
+
+Same session, same seeded QA workspace, same production build served directly
+by the backend (no Vite). Measured via the Performance Resource Timing API
+(`performance.getEntriesByType('resource'/'navigation')`, `transferSize`) rather
+than the static entry-graph gate already covered by "Final bundle gate" above —
+this instead covers the complete authenticated Dashboard's real network cost,
+including its own API calls, matching what "before final release" asked for.
+
+**Before:** cold authenticated Dashboard load (fresh cookie, first render) —
+39 requests, **~108KB** total transfer. Static JS/CSS/fonts were already cheap
+on reload thanks to Starlette's default ETag/`Last-Modified` conditional
+revalidation (only one asset lacked even that). The real cost was 13 API calls
+totalling ~99.7KB — and one of them, `/api/portfolio/performance?period=all`,
+was **90,672 bytes of uncompressed JSON on its own (84% of the entire page's
+network weight)**. Checking response headers directly (`fetch()` +
+`Content-Encoding`) confirmed no compression: `backend/main.py` never
+registered `GZipMiddleware` anywhere, so every API response — regardless of
+size — went out uncompressed, in both editions.
+
+**Fix (commit `aa30c73`):** registered `GZipMiddleware(minimum_size=500)` after
+`CORSMiddleware` (so gzip wraps outermost and compresses the final response,
+CORS headers included). Verified: the same performance endpoint now returns
+`Content-Encoding: gzip` and drops to 15,777 bytes (82.6% smaller); the same
+cold Dashboard load drops to **~31KB total** (13 API calls now ~22.9KB). 667
+fast backend tests plus the 33 real-Postgres tests that build the actual
+`main.app` (`tests/postgres/test_auth_sessions.py`,
+`tests/postgres/test_portfolio_tenancy.py`) still pass.
+
+**Warm reload** (same tab, second navigation): request count and total bytes
+were statistically the same as cold, which is *correct*, not a regression —
+none of the 13 API responses are cacheable (they're per-portfolio live data),
+so they always re-fetch in full; only the already-cheap static assets benefit
+from conditional revalidation. No explicit long-lived `Cache-Control` /
+`immutable` header is set on the hashed static assets (Starlette's
+`StaticFiles` default), so each reload still costs one small conditional
+round-trip per asset instead of zero network requests — a minor, non-blocking
+latency optimization left for a future pass, not pursued here since the
+byte cost is already negligible.
+
+This measurement was local-edition only; cloud edition's Dashboard uses the
+same endpoints behind the same (now-fixed) middleware, so the same reduction
+applies, but a separate cloud-edition browser pass was not run.
