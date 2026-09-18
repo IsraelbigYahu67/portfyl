@@ -107,8 +107,14 @@ blocks *safely scaling past a handful of founder-approved testers*.
 - Public ToS/Privacy/Subprocessors/Support/Security pages — deliberately
   gated behind the legal-entity and counsel-review blockers in
   `private-test-legal-status.md`, not forgotten.
-- Any error tracking (Sentry or equivalent), status page, support-ticket
-  tool, or admin dashboard for tenant/subscription management.
+- Status page, support-ticket tool, or admin dashboard for tenant/subscription
+  management. **Error tracking is now wired (2026-09-18):** Sentry, opt-in via
+  `SENTRY_DSN` (backend, `backend/error_monitoring.py`) and `VITE_SENTRY_DSN`
+  (frontend, `frontend/src/errorMonitoring.js`, lazy-loaded to stay out of the
+  initial-bundle gzip gate) — a no-op until a DSN is set. Still needs an
+  actual Sentry account/project (free Developer tier: 1 seat, ~5k
+  errors/month, 30-day retention — enough for private-beta scale) and the DSN
+  wired into the Cloud Run env and frontend build (see `deploy/cloudrun.md`).
 - Any transactional/lifecycle email provider (welcome, trial-ending,
   payment-failed, receipt). `backend/notifications.py` only defines a
   generic `send()` protocol — no SMTP/SendGrid/Postmark/Resend backend is
@@ -215,13 +221,13 @@ These can run alongside §2, roughly in priority order:
 
 1. ~~**CI/CD**~~ — done, see above. Note the workflow only runs on push/PR to
    `main`; nothing in this session pushed it there yet.
-2. **Support & observability for paying customers** — add error tracking
-   (Sentry is the standard choice), a public status page, a real support
-   channel beyond the founder's personal Gmail (a shared inbox or a
-   lightweight helpdesk), and an internal admin view for looking up a
-   tenant's subscription/plan state without a database console. None of
-   this exists today (verified by direct grep — zero Sentry/APM SDK, zero
-   support-ticket integration).
+2. **Support & observability for paying customers** — ~~add error tracking~~
+   Sentry wired 2026-09-18, needs only a DSN (see §1); still needed: a public
+   status page, a real support channel beyond the founder's personal Gmail (a
+   shared inbox or a lightweight helpdesk), and an internal admin view for
+   looking up a
+   tenant's subscription/plan state without a database console. Status page,
+   support channel, and admin view still don't exist today.
 3. ~~**Unify the beta-invite mechanism.**~~ — done, see above. Still needs one
    supervised live test against the real Cloudflare API before relying on it
    for a real invite/revoke.

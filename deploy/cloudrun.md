@@ -268,6 +268,14 @@ Optional: `--set-env-vars=FRONTEND_ORIGIN=https://your-extra-origin` if a
 separately hosted frontend needs CORS beyond the same-origin SPA baked into
 the image (see `backend/main.py`'s `_cors_origins`).
 
+Optional: `--set-env-vars=SENTRY_DSN=https://<key>@<org>.ingest.sentry.io/<project>`
+(or `--set-secrets` if you'd rather keep it out of plain env vars) turns on
+backend error monitoring (`backend/error_monitoring.py`); unset, it's a
+no-op. `SENTRY_ENVIRONMENT`/`SENTRY_RELEASE`/`SENTRY_TRACES_SAMPLE_RATE` are
+optional overrides. The frontend side is separate: bake `VITE_SENTRY_DSN`
+into the build (`frontend/src/errorMonitoring.js`, lazy-loaded, same no-op
+default) since Vite env vars are compiled in, not read at Cloud Run runtime.
+
 The command prints a **Service URL** (`https://portfyl-….a.run.app`) when
 done.
 

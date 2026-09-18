@@ -22,6 +22,7 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 from database import SessionLocal, assert_alembic_head, get_db
 from edition import Edition, edition_from_env
 from entitlements import EntitlementDenied, entitlement_denied_handler
+from error_monitoring import configure_sentry
 from cloud_gate import CloudApiGateMiddleware
 from rate_limit import (
     InvalidClientIp,
@@ -39,6 +40,7 @@ from tenancy import (
 )
 
 PORTFYL_EDITION = edition_from_env(os.environ)
+configure_sentry(environment=PORTFYL_EDITION.value)
 app = FastAPI(title="Portfyl API", version="1.0.0")
 app.state.portfyl_edition = PORTFYL_EDITION
 app.add_exception_handler(
