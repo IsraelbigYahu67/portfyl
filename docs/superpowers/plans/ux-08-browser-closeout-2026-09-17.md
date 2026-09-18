@@ -105,7 +105,7 @@ Bytes are gzip bytes. Reduction is `(baseline - final) / baseline * 100`; the ha
 ## Remaining criteria and intentional limits
 
 - Keep phase OPEN pending formal predecessor/delivery review and integration review. PR #7 remains draft.
-- Browser currency-change cancellation and forced unavailable-route-chunk recovery still require explicit runtime evidence. Currency cancellation and route recovery have automated coverage; they are not claimed as completed browser checks here.
+- ~~Browser currency-change cancellation and forced unavailable-route-chunk recovery still require explicit runtime evidence.~~ Completed 2026-09-18 — see below.
 - Repeat production-built cold/warm network measurements for the complete authenticated shell before final release; development request allowlists and the static bundle gate do not replace that measurement.
 - BYOK browser privacy was checked in both editions. A hosted-only cloud UI session was not checked; the current Assistant UI enables chat from BYOK `configured`. Existing hosted backend coverage does not establish hosted browser acceptance.
 - Public authentication forms were rendered without submitting Firebase credentials. The deletion dialog was tested through cancellation, not Firebase reauthentication or actual workspace deletion. Onboarding used empty portfolio metadata to render the first-run surface, without provisioning a new identity or submitting a full first-run flow.
@@ -222,3 +222,71 @@ Cleanup: the QA backend/frontend processes were force-stopped and the disposable
 PostgreSQL container was brought down (`docker compose down`, no `-v`) after the
 above. No production `.env`/Neon database was used at any point. The throwaway
 Firebase account was deleted.
+
+## Currency-change cancellation and route-chunk recovery — 2026-09-18
+
+Closed the two remaining browser-evidence gaps from "Remaining criteria" above,
+plus one unplanned fix discovered along the way.
+
+**Environment.** Real FastAPI + PostgreSQL again, this time via the explicit
+`PORTFYL_TESTING=1` switch (relaxes the Postgres-URL check only; the app still
+ran against the disposable `docker-compose.postgres-test.yml` database, freshly
+recreated with `down -v` then `up -d --wait` and migrated to head `0013`) rather
+than a real Firebase login: a workspace/user/portfolio/session row was seeded
+directly with SQLAlchemy and `auth.create_session`, and its raw session cookie
+was injected into the browser via `document.cookie`. This is a materially
+weaker identity path than the rest of this document's real-Firebase-login
+sessions — appropriate here because both target scenarios are pure frontend/
+React-Query behavior with no auth-flow content, and it kept the session
+self-contained (no gcloud/Firebase admin calls). Local edition, backend on
+`:8010`, Vite dev server on `:5183` for the first scenario; a real
+`npm run build` + the same backend serving `frontend/dist` directly (no Vite)
+for the second. Cleanup matched prior sessions: QA backend/frontend processes
+stopped, `docker compose stop` (no `-v`).
+
+**Unplanned finding: `ready` could get stuck `false` for returning users.**
+While setting up the currency-cancellation scenario, ticker hover-prefetch
+silently did nothing on a plain page reload with an already-valid
+`sb_portfolio_id` in `localStorage` (the common returning-user case) — confirmed
+by directly inspecting the mounted `PortfolioContext.Provider`'s committed
+`value` via the React fiber tree (`ready: false` even though `currentId` and
+the freshly re-checked `getActivePortfolioId()` already matched). Root cause:
+`PortfolioProvider`'s reconciliation `useEffect` in `frontend/src/App.jsx`
+cleared the module-level active-portfolio-id to `null` whenever
+`portfolios.length` was `0` — true both for a genuinely empty workspace *and*
+for the render before the first `/api/portfolios` fetch resolves (the query's
+`data` default is also `[]`). When the stored id matched the eventually-resolved
+list (the "exists" branch), the effect only repaired that module variable, with
+no state setter call, so no re-render followed — `ready` stayed pinned to the
+stale `false` computed on the render where the id was still cleared, and
+nothing else in that provider changes state to force a fresh computation.
+Clearing `localStorage.sb_portfolio_id` before reload (forcing the "fallback"
+branch, which does call `setCurrentIdState`) reliably produced `ready: true`
+instead, confirming the branch difference as the cause. Fixed by skipping the
+reset while `isLoading` (commit `33144db`): the id is now only cleared once the
+list is known to be genuinely empty, not merely still loading. Verified fixed
+live (same fiber-inspection method) and via the existing suites — `App.routing.test.jsx`,
+`StartupPrefetch.test.jsx`, `useStockIntentPrefetch.test.jsx`, `TickerLink.test.jsx`,
+25 tests, both editions.
+
+**Currency-change cancellation**, with the fix applied: a `window.XMLHttpRequest`
+shim (delaying only `/api/market/fundamentals/*` and `/api/market/history/*` sends
+by 60s, logging `open`/`send`/`abort`) was injected before hovering a Dashboard
+ticker link. The 150ms hover-intent prefetch fired both requests (`delayed-send`
+logged for both). Navigating to Settings → Preferences and switching the display
+currency (CZK → USD) produced `abort-called` for both, with no `actually-sending`
+ever logged for either — real confirmation that `useStockIntentScopeCleanup`'s
+`cancelQueries({predicate})` reaches the underlying XHR's `abort()` in a live
+browser, not just in the mocked unit tests. The three portfolio-scoped queries
+(`holdings`, `performance`, `summary`) re-fetched correctly under the new
+currency immediately after.
+
+**Forced unavailable-route-chunk recovery**, against the real production build
+(no Vite, no route mocking needed): `npm run build`, then the `Allocation-*.js`
+chunk file was renamed out of `frontend/dist/assets` before backend restart, and
+clicking "Allocation" in the sidebar produced `RouteBoundary`'s fallback exactly
+as its unit test asserts — "This page could not load" / "Reload to try again." /
+a "Reload page" button — with the rest of the app shell (sidebar, portfolio
+switcher) intact around it. Restoring the chunk file and clicking "Reload page"
+loaded the real Allocation page (donut chart, full breakdown) on the same
+click, confirming genuine recovery rather than a dead end.
