@@ -23,9 +23,20 @@ HEAD after the previous phase has merged. No phase branch targets `main`.
 same `main` baseline (`e252933`): the standalone `codex/ux-07-product-flows` (6 commits) and a
 second lineage folded directly into `codex/ux-08-assistant-performance`. The second lineage is
 canonical — it carries phase 7 and phase 8 together with full browser-QA evidence
-(`docs/superpowers/plans/ux-08-browser-closeout-2026-09-17.md`) and green CI on draft
-[PR #7](https://github.com/IsraelbigYahu67/portfyl/pull/7) (base `codex/portfyl-ux-overhaul`).
+(`docs/superpowers/plans/ux-08-browser-closeout-2026-09-17.md`).
 `codex/ux-07-product-flows` is superseded; do not build further phase-7 work on it.
+
+**Integration resolution (2026-09-18):** the canonical phase 7–8 lineage (through `425b0c0`,
+production network measurement/gzip fix) landed directly on `main` via
+`codex/ux-08-assistant-performance`, bypassing the `codex/portfyl-ux-overhaul` integration branch
+this table names and the draft PR that targeted it. Draft
+[PR #7](https://github.com/IsraelbigYahu67/portfyl/pull/7) was closed unmerged as superseded, and
+both `codex/portfyl-ux-overhaul` (tip `bbe0db0`) and `codex/ux-08-assistant-performance` (tip
+`425b0c0`, identical to `main` at the time) were deleted — both were fully contained in `main`'s
+history. All eight phases are now on `main`. Remaining open items are the browser-evidence gaps
+listed in `ux-08-browser-closeout-2026-09-17.md`'s "Remaining criteria and intentional limits"
+section (hosted-only cloud Assistant session, real Firebase reauth for account deletion, a full
+new-identity onboarding run) — none block normal engineering work on top of `main`.
 
 ## Per-phase branch protocol
 
