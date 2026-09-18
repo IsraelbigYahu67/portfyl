@@ -48,7 +48,7 @@ describe("Register", () => {
     fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "new@example.com" } });
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "s3cret!123" } });
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "s3cret!123" } });
-    fireEvent.click(screen.getByRole("button", { name: /create beta account/i }));
+    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() =>
       expect(firebaseMocks.registerWithEmailPassword).toHaveBeenCalledWith("new@example.com", "s3cret!123")
@@ -62,7 +62,7 @@ describe("Register", () => {
     fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "new@example.com" } });
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "s3cret!123" } });
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "different!123" } });
-    fireEvent.click(screen.getByRole("button", { name: /create beta account/i }));
+    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/don't match/i);
     expect(firebaseMocks.registerWithEmailPassword).not.toHaveBeenCalled();

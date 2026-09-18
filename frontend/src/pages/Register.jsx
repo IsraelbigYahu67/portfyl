@@ -47,9 +47,9 @@ export default function Register() {
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center gap-2 text-center">
           <img src="/portfyl-mark.png" alt="" className="w-12 h-12 object-contain" />
-          <h1 className="font-display font-bold text-xl text-ink">Join the private beta</h1>
+          <h1 className="font-display font-bold text-xl text-ink">Create your Portfyl account</h1>
           <p className="text-sm text-muted">
-            Use the same e-mail address that received your Portfyl invitation.
+            Track your portfolio, dividends, and taxes in one place.
           </p>
         </div>
 
@@ -100,7 +100,7 @@ export default function Register() {
 
           <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2" disabled={submitting}>
             <UserPlus size={15} />
-            {submitting ? "Creating account…" : "Create beta account"}
+            {submitting ? "Creating account…" : "Create account"}
           </button>
 
           <p className="text-xs text-muted text-center pt-1">
