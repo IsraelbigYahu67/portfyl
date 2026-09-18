@@ -18,6 +18,7 @@ import {
 import { columnChanges, ttmUnderlayRect } from "../lib/chartChanges";
 import { formatShortDate } from "../lib/format";
 import { buildWeeklyBuckets, assignTransactionsToWeeks, jitterOffsetPx } from "../lib/insiderWeekly";
+import { buildPriceAxis } from "../lib/chartPriceAxis";
 import useStockReportConfig, { ALL_SECTIONS } from "../hooks/useStockReportConfig";
 import {
   CATEGORICAL, NEUTRAL_COLOR, GAIN_COLOR, LOSS_COLOR, AXIS_TICK, GRID_STROKE, TOOLTIP_STYLE,
@@ -3104,7 +3105,7 @@ const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "S
 function formatWeekTick(ts) {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return "";
-  return MONTH_LABELS[d.getUTCMonth()];
+  return `${MONTH_LABELS[d.getUTCMonth()]} '${String(d.getUTCFullYear()).slice(-2)}`;
 }
 
 // Renders every insider buy/sell dot directly onto the chart's SVG via
@@ -3173,6 +3174,15 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
     () => buckets.map((b) => ({ x: b.weekTs, y: b.close })),
     [buckets],
   );
+  const monthTicks = useMemo(() => {
+    const months = new Set();
+    return buckets.filter((bucket) => {
+      const month = bucket.weekKey.slice(0, 7);
+      if (months.has(month)) return false;
+      months.add(month);
+      return true;
+    }).map((bucket) => bucket.weekTs);
+  }, [buckets]);
 
   const dots = useMemo(() => {
     const raw = assignTransactionsToWeeks(transactions, buckets);
@@ -3189,9 +3199,11 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
   if (!dots.length && !hasPriceData) return null;
 
   const closes = chartData.map((r) => r.y).filter((v) => v != null);
-  const minClose = closes.length ? Math.min(...closes) : 0;
-  const maxClose = closes.length ? Math.max(...closes) : 1;
-  const pad = (maxClose - minClose) * 0.1 || maxClose * 0.05 || 1;
+  const priceTicks = buildPriceAxis(closes);
+  const formatPriceTick = (value) => `${cs}${value.toLocaleString("en-US", {
+    maximumFractionDigits: 0,
+  })}`;
+  const priceAxisWidth = Math.max(80, formatPriceTick(priceTicks[4]).length * 8 + 24);
 
   return (
     <div>
@@ -3199,32 +3211,60 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
         Insider Trading Volume
       </h3>
       <div className="bg-surface rounded-lg p-4">
-        <div className="relative h-72">
+        <ul className="flex flex-wrap gap-x-6 gap-y-2 mb-4 text-sm leading-5 text-ink" aria-label="Insider trading chart legend">
+          {[
+            { label: "Close Price", color: CATEGORICAL[0], line: true },
+            { label: "Insider Buys", color: GAIN_COLOR },
+            { label: "Insider Sells", color: LOSS_COLOR },
+          ].map((item) => (
+            <li key={item.label} className="inline-flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className={item.line ? "w-4 h-0.5 shrink-0" : "w-2.5 h-2.5 rounded-full shrink-0"}
+                style={{ backgroundColor: item.color }}
+              />
+              {item.label}
+            </li>
+          ))}
+        </ul>
+        <div className="relative h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData} margin={{ top: 8, right: 24, bottom: 8, left: 8 }}>
+            <ComposedChart data={chartData} margin={{ top: 16, right: 12, bottom: 8, left: 0 }}>
               <CartesianGrid strokeDasharray="2 4" stroke={GRID_STROKE} vertical={false} />
               <XAxis
                 dataKey="x"
                 type="number"
                 domain={["dataMin", "dataMax"]}
+                ticks={monthTicks}
                 tickFormatter={formatWeekTick}
-                tick={{ ...AXIS_TICK, fontSize: 12 }}
+                tick={{ ...AXIS_TICK, fill: "var(--ink)", fontSize: 13, fontWeight: 500 }}
+                interval="preserveStartEnd"
+                minTickGap={8}
+                tickMargin={12}
+                height={40}
+                padding={{ left: 8, right: 8 }}
                 tickLine={false}
                 axisLine={{ stroke: GRID_STROKE }}
               />
               <YAxis
-                domain={[Math.max(0, minClose - pad), maxClose + pad]}
-                tick={{ ...AXIS_TICK, fontSize: 11 }}
-                tickFormatter={(v) => `${cs}${v.toFixed(2)}`}
+                domain={[priceTicks[0], priceTicks[4]]}
+                ticks={priceTicks}
+                interval={0}
+                allowDecimals={false}
+                tick={{ ...AXIS_TICK, fill: "var(--ink)", fontSize: 13, fontWeight: 500 }}
+                tickFormatter={formatPriceTick}
+                tickMargin={12}
+                minTickGap={8}
+                tickCount={5}
                 tickLine={false}
                 axisLine={false}
-                width={64}
+                width={priceAxisWidth}
               />
               <Line
                 type="monotone"
                 dataKey="y"
                 stroke={CATEGORICAL[0]}
-                strokeWidth={1.5}
+                strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
                 connectNulls
@@ -3240,25 +3280,11 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
                   />
                 )}
               />
-              <Legend
-                verticalAlign="top"
-                align="left"
-                height={20}
-                iconType="square"
-                iconSize={9}
-                wrapperStyle={{ paddingBottom: 4 }}
-                formatter={(v) => <span className="text-[10px] text-muted uppercase tracking-wider">{v}</span>}
-                payload={[
-                  { value: "Close Price", type: "line", color: CATEGORICAL[0] },
-                  { value: "Insider Buys", type: "square", color: GAIN_COLOR },
-                  { value: "Insider Sells", type: "square", color: LOSS_COLOR },
-                ]}
-              />
             </ComposedChart>
           </ResponsiveContainer>
           {hoveredDot && (
             <div
-              className="absolute z-10 pointer-events-none bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-sm shadow-lg space-y-0.5 whitespace-nowrap"
+              className="absolute z-10 pointer-events-none bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-sm leading-5 tabular-nums shadow-lg space-y-1 whitespace-nowrap"
               style={{
                 left: hoveredDot.cx,
                 top: hoveredDot.cy,
