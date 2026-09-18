@@ -222,6 +222,13 @@ function PortfolioProvider({ children }) {
   // Once we know the server-side list, validate the stored id and fall back to the
   // default portfolio if it's gone (e.g. deleted on the server).
   useEffect(() => {
+    // Don't touch the active id while the very first fetch is still in flight:
+    // `portfolios` defaults to `[]` during that window too, and clearing the id
+    // here means a returning user whose stored id already matches once the list
+    // resolves never gets a re-render to recompute `ready` — it only fixes the
+    // module-level id, and `currentId`/`portfolios` staying the same after that
+    // means nothing else re-triggers this effect, so `ready` stays stuck false.
+    if (isLoading) return;
     if (!portfolios.length) {
       setActivePortfolioId(null);
       return;
@@ -238,7 +245,7 @@ function PortfolioProvider({ children }) {
       setCurrentIdState(fallback.id);
       localStorage.setItem("sb_portfolio_id", String(fallback.id));
     }
-  }, [portfolios, activePortfolios, pendingImportPortfolio, currentId]);
+  }, [portfolios, activePortfolios, pendingImportPortfolio, currentId, isLoading]);
 
   const setCurrentId = useCallback(
     (id) => {
