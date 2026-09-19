@@ -1,6 +1,16 @@
-// Placeholder mounted by Root.jsx for cloud-only, non-tracker-host /demo/*
-// routes. Task 3 of the public-demo plan replaces this body with the real
-// BrowserRouter + DemoDataProvider + DemoApp tree.
+import { BrowserRouter } from "react-router-dom";
+import { DemoDataProvider } from "./DemoDataContext";
+import DemoApp from "./DemoApp";
+
+// Mounted by Root.jsx for cloud-only, non-tracker-host /demo/* routes. Owns
+// its own BrowserRouter, isolated from the authenticated tracker's routing
+// and providers -- no Firebase, no portfolio API, no shared query client.
 export default function DemoBootstrap() {
-  return <main>Portfyl demo</main>;
+  return (
+    <BrowserRouter>
+      <DemoDataProvider>
+        <DemoApp />
+      </DemoDataProvider>
+    </BrowserRouter>
+  );
 }
