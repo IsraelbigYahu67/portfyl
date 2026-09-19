@@ -24,7 +24,7 @@ describe("DemoApp routing", () => {
     ["/demo/allocation", "Allocation"],
     ["/demo/analytics", "Analytics"],
     ["/demo/dividends", "Dividends"],
-    ["/demo/stock/MSFT", "Stock"],
+    ["/demo/stock/MSFT", "MSFT"],
   ])("renders the %s route", async (path, heading) => {
     renderAt(path);
     expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
