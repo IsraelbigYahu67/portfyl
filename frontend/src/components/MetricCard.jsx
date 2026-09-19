@@ -82,7 +82,7 @@ function InfoIcon({ info }) {
           role="tooltip"
           className="pointer-events-none w-72 max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-1.5rem)] overflow-y-auto
                      bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 shadow-[var(--shadow-ambient)]
-                     text-[11px] leading-relaxed text-muted normal-case tracking-normal font-normal"
+                     text-xs leading-relaxed text-muted normal-case tracking-normal font-normal"
           style={{
             position: "fixed",
             zIndex: 2147483647,
@@ -94,12 +94,12 @@ function InfoIcon({ info }) {
           <span className="block font-semibold text-ink mb-1">{info.title}</span>
           <span className="block text-muted">{info.what}</span>
           {info.formula && (
-            <span className="block mt-1.5 pt-1.5 border-t border-hairline font-mono text-[10px] text-brand">
+            <span className="block mt-1.5 pt-1.5 border-t border-hairline font-mono text-xs text-brand">
               {info.formula}
             </span>
           )}
           {info.note && (
-            <span className="block mt-1 text-[10px] text-muted italic">{info.note}</span>
+            <span className="block mt-1 text-xs text-muted italic">{info.note}</span>
           )}
         </span>,
         document.body
@@ -134,7 +134,7 @@ export default function MetricCard({ icon: Icon, label, value, sub, positive, ne
       {loading ? (
         <div className="h-8 w-28 bg-surface-hover rounded animate-pulse mt-1" />
       ) : (
-        <span className="text-2xl font-display font-bold tabular-nums truncate tracking-tight text-ink">
+        <span className="financial-headline text-2xl font-display font-bold tabular-nums truncate tracking-tight">
           <MetricValue value={value} countUp={countUp} />
         </span>
       )}

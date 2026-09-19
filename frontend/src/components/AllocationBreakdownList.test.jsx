@@ -21,6 +21,12 @@ describe("AllocationBreakdownList", () => {
     expect(screen.getByText(/\$5,000\.00/)).toBeInTheDocument();
   });
 
+  it("value and weight cells use the financial-data semantic class", () => {
+    render(<AllocationBreakdownList rows={rows} currency="USD" />);
+    expect(screen.getByText(/\$5,000\.00/)).toHaveClass("financial-data");
+    expect(screen.getByText("50%")).toHaveClass("financial-data");
+  });
+
   it("renders nothing for an empty row set", () => {
     const { container } = render(<AllocationBreakdownList rows={[]} currency="USD" />);
     expect(container).toBeEmptyDOMElement();

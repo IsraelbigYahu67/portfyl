@@ -94,10 +94,20 @@
   }
   .input:focus { box-shadow: 0 0 0 3px var(--brand-light); }
   .eyebrow {
-    @apply font-display text-[11px] font-semibold uppercase tracking-[0.05em] text-muted;
+    @apply font-display text-xs font-semibold uppercase tracking-[0.05em] text-muted;
   }
   .gain { @apply text-gain; }
   .loss { @apply text-loss; }
+
+  /* Semantic financial typography (readability system). Components add one
+     of these instead of an arbitrary text-[Npx]/opacity utility so every
+     critical number, label, and chart tick clears its documented size
+     floor. See docs/superpowers/plans/2026-09-19-portfyl-readability-system.md. */
+  .financial-headline { font-size: 1rem; line-height: 1.35; font-weight: 650; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .financial-data { font-size: 0.875rem; line-height: 1.4; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .financial-meta { font-size: 0.75rem; line-height: 1.4; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .data-label { font-size: 0.75rem; line-height: 1.4; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; }
+  .chart-label { font-size: 0.75rem; line-height: 1.4; color: var(--muted); font-variant-numeric: tabular-nums; }
 }
 
 @layer utilities {

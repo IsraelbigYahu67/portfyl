@@ -15,10 +15,10 @@ export default function AllocationBreakdownList({ rows, currency }) {
           <div className="flex-1 bg-surface-hover rounded-full h-1.5">
             <div className="bg-brand rounded-full h-1.5" style={{ width: `${Math.min(100, row.weight)}%` }} />
           </div>
-          <span className="w-24 text-right text-xs tabular-nums text-muted shrink-0">
+          <span className="financial-data w-24 text-right shrink-0">
             {formatMoney(row.value, currency)}
           </span>
-          <span className="w-14 text-right text-xs tabular-nums text-muted shrink-0">{row.weight}%</span>
+          <span className="financial-data w-14 text-right shrink-0">{row.weight}%</span>
         </li>
       ))}
     </ul>
