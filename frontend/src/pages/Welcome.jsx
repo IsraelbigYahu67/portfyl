@@ -88,7 +88,7 @@ export default function Welcome() {
           <div className="welcome-eyebrow"><span />{copy.eyebrow}</div>
           <h1 id="welcome-title" ref={headingRef} tabIndex={-1}><Heading lines={copy.heading} /></h1>
           <p className="welcome-lead">{copy.lead[0]}<br className="welcome-desktop-break" /> {copy.lead[1]}</p>
-          <a className="welcome-cta" href="#ukazky">{copy.cta} <ArrowDown size={17} /></a>
+          <div className="welcome-hero-actions"><a className="welcome-cta" href="/demo">{copy.demoCta} <ArrowUpRight size={17} /></a><a className="welcome-preview-link" href="#ukazky">{copy.cta} <ArrowDown size={17} /></a></div>
           <p className="welcome-hero-note">{copy.heroNote}</p>
           <div className="welcome-hero-visual">
             <div className="welcome-orbit welcome-orbit-one" /><div className="welcome-orbit welcome-orbit-two" />
@@ -129,7 +129,7 @@ export default function Welcome() {
             {copy.questions.map(([question, answer], index) => <details key={index}><summary>{question}<Plus size={18} /></summary><p>{answer}</p></details>)}
           </div>
         </section>
-        <section className="welcome-closing welcome-container"><div className="welcome-eyebrow"><span />{copy.closingKicker}</div><h2><Heading lines={copy.closingHeading} /></h2><p>{copy.closingNote}</p><a href="#nahoru">{copy.back} <ArrowUpRight size={16} /></a></section>
+        <section className="welcome-closing welcome-container"><div className="welcome-eyebrow"><span />{copy.closingKicker}</div><h2><Heading lines={copy.closingHeading} /></h2><p>{copy.closingNote}</p><div className="welcome-closing-actions"><a className="welcome-cta" href="/demo">{copy.demoCta} <ArrowUpRight size={17} /></a><a href="#nahoru">{copy.back} <ArrowUpRight size={16} /></a></div></section>
       </main>
       <footer className="welcome-footer welcome-container"><a className="welcome-logo" href="#nahoru"><Brand /></a><span>{copy.footer}</span><small>© {new Date().getFullYear()} Portfyl</small></footer>
     </div>

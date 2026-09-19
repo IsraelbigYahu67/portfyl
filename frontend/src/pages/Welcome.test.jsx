@@ -19,14 +19,18 @@ function chooseCzech() {
   fireEvent.click(screen.getByRole("button", { name: /Pokračovat česky/ }));
 }
 
-it("only links to sections of the public preview, never into the tracker or auth", () => {
+it("keeps navigation links on-page while exposing the public demo as a normal link", () => {
   render(<Welcome />);
   chooseCzech();
   for (const link of screen.getAllByRole("link")) {
     const href = link.getAttribute("href");
+    if (href === "/demo") continue;
     expect(href).toMatch(/^#/);
     expect(document.getElementById(href.slice(1))).not.toBeNull();
   }
+  const demoLinks = screen.getAllByRole("link", { name: COPY.cs.demoCta });
+  expect(demoLinks).toHaveLength(2);
+  demoLinks.forEach((link) => expect(link).toHaveAttribute("href", "/demo"));
 });
 
 it("switches between portfolio and stock previews", () => {
@@ -57,6 +61,7 @@ it.each(LANGUAGES)("shows the full $name page and remembers the selection", ({ c
   expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
   expect(screen.getByText(COPY[code].questions[0][0])).toBeInTheDocument();
   expect(screen.getByText(COPY[code].footer)).toBeInTheDocument();
+  expect(screen.getAllByRole("link", { name: COPY[code].demoCta })).toHaveLength(2);
   expect(document.documentElement.lang).toBe(code);
   expect(document.title).toBe(COPY[code].title);
   expect(localStorage.getItem(LANGUAGE_KEY)).toBe(code);
