@@ -50,6 +50,12 @@ describe("DesktopSidebar", () => {
     }
   });
 
+  it("keeps group headings and the data footnote at least 12px", () => {
+    renderSidebar();
+    expect(screen.getByRole("heading", { name: NAV_GROUPS[0].label })).toHaveClass("data-label");
+    expect(screen.getByText("Live data via Yahoo Finance")).not.toHaveClass("text-[11px]");
+  });
+
   it("renders every item as an accessible nav link", () => {
     renderSidebar();
     expect(screen.getByRole("link", { name: /dashboard/i })).toBeInTheDocument();

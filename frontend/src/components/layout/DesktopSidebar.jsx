@@ -13,7 +13,7 @@ export default function DesktopSidebar({ groups }) {
         <img src="/portfyl-mark.png" alt="Portfyl" className="w-11 h-11 object-contain" />
         <div className="flex flex-col leading-tight">
           <span className="font-display font-bold text-[17px] tracking-tight text-ink">Portfyl</span>
-          <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted">Institutional Grade</span>
+          <span className="data-label">Institutional Grade</span>
         </div>
       </div>
 
@@ -26,7 +26,7 @@ export default function DesktopSidebar({ groups }) {
           const headingId = `desktop-nav-${group.id}`;
           return (
             <section key={group.id} aria-labelledby={headingId}>
-              <h2 id={headingId} className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+              <h2 id={headingId} className="data-label px-3 pb-1">
                 {group.label}
               </h2>
               <div className="space-y-0.5">
@@ -60,7 +60,7 @@ export default function DesktopSidebar({ groups }) {
           <AccountMenu />
         </div>
 
-        <div className="px-5 text-[11px] text-muted" style={{ opacity: 0.7 }}>
+        <div className="px-5 financial-meta">
           Live data via Yahoo Finance
         </div>
       </div>

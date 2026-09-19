@@ -1,9 +1,19 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { fireEvent, render, screen } from "@testing-library/react";
 import Welcome from "./Welcome";
 import { COPY, LANGUAGES, LANGUAGE_KEY } from "./welcomeCopy";
 
 beforeEach(() => localStorage.clear());
 afterEach(() => vi.restoreAllMocks());
+
+it("keeps every declared font-size in Welcome.css at or above the 12px readability floor", async () => {
+  const assetUrl = new URL("./Welcome.css", import.meta.url);
+  const cssPath = path.resolve(decodeURIComponent(assetUrl.pathname).replace(/^\//, ""));
+  const css = await readFile(cssPath, "utf-8");
+  const subFloor = [...css.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].filter(([, n]) => Number(n) < 12);
+  expect(subFloor.map((m) => m[0])).toEqual([]);
+});
 
 function chooseCzech() {
   fireEvent.click(screen.getByRole("button", { name: /Pokračovat česky/ }));
