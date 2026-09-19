@@ -74,7 +74,7 @@ function WatchlistMenu({ ticker }) {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute right-0 mt-2 w-64 z-50 bg-surface-card border border-surface-border rounded-lg shadow-lg overflow-hidden">
-            <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-muted border-b border-surface-border">
+            <div className="px-3 py-2 text-xs uppercase tracking-wider text-muted border-b border-surface-border">
               Watchlists
             </div>
             {watchlists.length === 0 ? (
@@ -120,7 +120,7 @@ function WatchlistMenu({ ticker }) {
                           ) : null}
                         </div>
                         <span className="flex-1 truncate">{w.name}</span>
-                        <span className="text-[10px] text-muted">{w.count}</span>
+                        <span className="text-xs text-muted">{w.count}</span>
                       </button>
                     </li>
                   );

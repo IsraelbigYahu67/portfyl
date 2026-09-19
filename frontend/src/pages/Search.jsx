@@ -101,7 +101,7 @@ export default function Search() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="truncate text-sm">{r.name}</div>
-                      <div className="text-[11px] text-muted truncate">
+                      <div className="text-xs text-muted truncate">
                         {[r.exchange, r.type, r.sector].filter(Boolean).join(" · ")}
                       </div>
                     </div>

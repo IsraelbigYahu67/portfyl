@@ -56,11 +56,11 @@ function CzechTaxYearCard({ y }) {
           <ShieldCheck size={14} className="text-brand" />
           Czech Tax — {y.tax_year}
         </h3>
-        <span className="text-[10px] text-muted">§4 ZDP · {y.trades} trade{y.trades === 1 ? "" : "s"}</span>
+        <span className="text-xs text-muted">§4 ZDP · {y.trades} trade{y.trades === 1 ? "" : "s"}</span>
       </div>
 
       {y.incomplete_fx && (
-        <div className="flex items-start gap-2 text-[11px] text-amber-300 bg-amber-400/5 border border-amber-400/20 rounded p-2">
+        <div className="flex items-start gap-2 text-xs text-amber-300 bg-amber-400/5 border border-amber-400/20 rounded p-2">
           <AlertTriangle size={12} className="mt-0.5 shrink-0" />
           <span>
             Some transactions are missing the CZK exchange rate — totals exclude those rows.
@@ -362,7 +362,7 @@ export default function TaxReport() {
                             </td>
                             <td className="px-4 py-3 text-sm text-right tabular-nums text-muted">{g.holding_days}d</td>
                             <td className="px-4 py-3">
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded ${
                                 g.term === "long"
                                   ? "bg-blue-400/10 text-blue-400"
                                   : "bg-yellow-400/10 text-yellow-400"
@@ -373,14 +373,14 @@ export default function TaxReport() {
                             <td className="px-4 py-3">
                               {g.cz_exempt_time_test ? (
                                 <span
-                                  className="text-[10px] font-bold px-2 py-0.5 rounded bg-gain/10 text-gain"
+                                  className="text-xs font-bold px-2 py-0.5 rounded bg-gain/10 text-gain"
                                   title={`Held >3 years (§4 ZDP) — exempt from CZ income tax. Acquired ${g.buy_date}, exempt from ${g.cz_exempt_date}.`}
                                 >
                                   EXEMPT 3Y
                                 </span>
                               ) : (
                                 <span
-                                  className="text-[10px] font-bold px-2 py-0.5 rounded bg-orange-400/10 text-orange-400"
+                                  className="text-xs font-bold px-2 py-0.5 rounded bg-orange-400/10 text-orange-400"
                                   title={`Held <3 years — taxable in CZ unless annual gross proceeds ≤ ${CZ.VALUE_TEST_LIMIT.toLocaleString("cs-CZ")} Kč. Would be exempt from ${g.cz_exempt_date}.`}
                                 >
                                   TAXABLE
@@ -463,7 +463,7 @@ export default function TaxReport() {
                             </td>
                             <td className="px-4 py-3 text-sm text-right tabular-nums text-muted">{u.holding_days}d</td>
                             <td className="px-4 py-3">
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded ${
                                 u.term === "long"
                                   ? "bg-blue-400/10 text-blue-400"
                                   : "bg-yellow-400/10 text-yellow-400"
@@ -473,12 +473,12 @@ export default function TaxReport() {
                             </td>
                             <td className="px-4 py-3 text-sm">
                               {u.cz_exempt_time_test ? (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-gain/10 text-gain" title={`Exempt from ${u.cz_exempt_date} (§4 ZDP)`}>
+                                <span className="text-xs font-bold px-2 py-0.5 rounded bg-gain/10 text-gain" title={`Exempt from ${u.cz_exempt_date} (§4 ZDP)`}>
                                   EXEMPT
                                 </span>
                               ) : (
                                 <span
-                                  className="inline-flex items-center gap-1 text-[11px] tabular-nums text-amber-300"
+                                  className="inline-flex items-center gap-1 text-xs tabular-nums text-amber-300"
                                   title={`Tax-free if sold on or after ${u.cz_exempt_date} (§4 ZDP, 3-year time test)`}
                                 >
                                   <Hourglass size={10} />
