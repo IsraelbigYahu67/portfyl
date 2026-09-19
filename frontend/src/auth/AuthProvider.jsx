@@ -8,6 +8,7 @@ import {
   logoutSession,
 } from "../api";
 import { signOutFirebaseClient } from "./firebase";
+import { useAnalytics } from "../analytics/AnalyticsProvider";
 
 const AuthContext = createContext(null);
 
@@ -37,6 +38,7 @@ function pickWorkspace(workspaces, preferredId) {
  */
 export function AuthProvider({ children }) {
   const queryClient = useQueryClient();
+  const analytics = useAnalytics();
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState(null);
   const [workspaces, setWorkspaces] = useState([]);
@@ -97,6 +99,17 @@ export function AuthProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Identifies the signed-in user with analytics once the account has fully
+  // loaded (a user id AND a provisioned workspace) and consent is accepted,
+  // in whichever order those become true first. currentWorkspace.id only
+  // gates *when* this fires -- it is never sent as an identify property,
+  // only the opaque user id is.
+  useEffect(() => {
+    if (analytics.ready && analytics.consent === "accepted" && user?.id && currentWorkspace?.id) {
+      analytics.identify(String(user.id));
+    }
+  }, [analytics.ready, analytics.consent, analytics.identify, user?.id, currentWorkspace?.id]);
+
   const loginWithIdToken = useCallback(
     async (idToken) => {
       const payload = await exchangeSession(idToken);
@@ -120,16 +133,20 @@ export function AuthProvider({ children }) {
       await logoutSession();
     } finally {
       clearAccount();
+      // An explicit sign-out, unlike an unauthenticated initial /me request,
+      // ends this browser's analytics identity too.
+      analytics.reset();
     }
-  }, [clearAccount]);
+  }, [clearAccount, analytics.reset]);
 
   const logoutAll = useCallback(async () => {
     try {
       await logoutAllSessions();
     } finally {
       clearAccount();
+      analytics.reset();
     }
-  }, [clearAccount]);
+  }, [clearAccount, analytics.reset]);
 
   const selectWorkspace = useCallback(
     (workspaceId) => {
@@ -138,8 +155,13 @@ export function AuthProvider({ children }) {
       setCurrentWorkspaceId(match.id);
       configureRequestContext({ workspaceId: match.id, csrfToken });
       queryClient.clear();
+      // Same person, different workspace: drop any workspace-scoped adapter
+      // state and re-identify by user id only -- the workspace itself is
+      // never sent to analytics.
+      analytics.reset();
+      if (user?.id) analytics.identify(String(user.id));
     },
-    [workspaces, currentWorkspaceId, csrfToken, queryClient]
+    [workspaces, currentWorkspaceId, csrfToken, queryClient, analytics.reset, analytics.identify, user?.id]
   );
 
   const value = useMemo(

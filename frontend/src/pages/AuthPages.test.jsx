@@ -4,6 +4,8 @@ import Login from "./Login";
 import Register from "./Register";
 import ForgotPassword from "./ForgotPassword";
 import { TRACKER_HOME } from "../lib/routes";
+import AnalyticsProvider from "../analytics/AnalyticsProvider";
+import { createMemoryAdapter } from "../analytics/analyticsClient";
 
 const authMocks = vi.hoisted(() => ({
   loginWithIdToken: vi.fn(() => Promise.resolve({})),
@@ -23,18 +25,28 @@ const firebaseMocks = vi.hoisted(() => ({
 }));
 vi.mock("../auth/firebase", () => firebaseMocks);
 
-function renderAt(path) {
-  return render(
+afterEach(() => localStorage.clear());
+
+function renderAt(path, { initialConsent = "accepted" } = {}) {
+  const adapter = createMemoryAdapter();
+  // Stable reference across the test's lifetime -- see useDemoAnalytics.test.jsx's
+  // note on why an inline arrow here would cause AnalyticsProvider to reset on
+  // every rerender (its effect depends on [consent, adapterFactory]).
+  const adapterFactory = () => adapter;
+  const result = render(
     <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/verify-email" element={<div>Verify email page</div>} />
-        <Route path={TRACKER_HOME} element={<div>Home</div>} />
-      </Routes>
+      <AnalyticsProvider initialConsent={initialConsent} adapterFactory={adapterFactory}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/verify-email" element={<div>Verify email page</div>} />
+          <Route path={TRACKER_HOME} element={<div>Home</div>} />
+        </Routes>
+      </AnalyticsProvider>
     </MemoryRouter>
   );
+  return { ...result, adapter };
 }
 
 describe("Register", () => {
@@ -66,6 +78,61 @@ describe("Register", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/don't match/i);
     expect(firebaseMocks.registerWithEmailPassword).not.toHaveBeenCalled();
+  });
+
+  it("captures signup_started with source_surface=direct when there is no ?source param", async () => {
+    const { adapter } = renderAt("/register");
+    await waitFor(() =>
+      expect(adapter.events).toContainEqual(["signup_started", { source_surface: "direct", language: "en" }])
+    );
+  });
+
+  it("captures signup_started with source_surface=demo for ?source=demo, and never forwards other params", async () => {
+    const { adapter } = renderAt("/register?source=demo&utm_source=evil&foo=bar");
+    await waitFor(() =>
+      expect(adapter.events).toContainEqual(["signup_started", { source_surface: "demo", language: "en" }])
+    );
+    const [, properties] = adapter.events.find(([name]) => name === "signup_started");
+    expect(Object.keys(properties).sort()).toEqual(["language", "source_surface"]);
+  });
+
+  it("falls back to direct for an unrecognized ?source value", async () => {
+    const { adapter } = renderAt("/register?source=malicious");
+    await waitFor(() =>
+      expect(adapter.events).toContainEqual(["signup_started", { source_surface: "direct", language: "en" }])
+    );
+  });
+
+  it("captures signup_completed with source_surface only, after registration succeeds and before navigation", async () => {
+    const fakeUser = { email: "new@example.com" };
+    firebaseMocks.registerWithEmailPassword.mockResolvedValueOnce(fakeUser);
+
+    const { adapter } = renderAt("/register?source=demo");
+    fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "new@example.com" } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "s3cret!123" } });
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "s3cret!123" } });
+    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+
+    await waitFor(() =>
+      expect(adapter.events).toContainEqual(["signup_completed", { source_surface: "demo" }])
+    );
+    expect(await screen.findByText("Verify email page")).toBeInTheDocument();
+
+    const serialized = JSON.stringify(adapter.events);
+    expect(serialized).not.toMatch(/new@example\.com/);
+  });
+
+  it("does not capture signup_completed when registration fails", async () => {
+    firebaseMocks.registerWithEmailPassword.mockRejectedValueOnce({ code: "auth/email-already-in-use" });
+
+    const { adapter } = renderAt("/register");
+    fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "taken@example.com" } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "s3cret!123" } });
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "s3cret!123" } });
+    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(adapter.events.map(([name]) => name)).not.toContain("signup_completed");
   });
 });
 
