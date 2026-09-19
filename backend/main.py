@@ -24,6 +24,7 @@ from edition import Edition, edition_from_env
 from entitlements import EntitlementDenied, entitlement_denied_handler
 from error_monitoring import configure_sentry
 from cloud_gate import CloudApiGateMiddleware
+from security_headers import SecurityHeadersMiddleware
 from rate_limit import (
     InvalidClientIp,
     RateLimitExceeded,
@@ -90,6 +91,12 @@ app.add_middleware(
 # body (JSON payloads like a full-history performance series run well past
 # minimum_size uncompressed; small responses are left alone).
 app.add_middleware(GZipMiddleware, minimum_size=500)
+
+# Added after GZip so it wraps the rendered SPA HTML at the very outermost
+# layer and sees the final Content-Type; it only stamps headers onto
+# text/html responses, so it never touches JSON API responses or static
+# assets served from /assets.
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 @app.middleware("http")
