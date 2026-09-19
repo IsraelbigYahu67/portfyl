@@ -19,62 +19,13 @@ import StartupPrefetch from "./components/StartupPrefetch";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { EDITION_NAVIGATION, EDITION_ROUTES, EditionShell } from "@edition-manifest";
 import { enabledEditionEntries } from "./editions/filter";
+import { PALETTES, DARK_SURFACES, LIGHT_TOKENS, NEU_TOKENS, GLASS_CHART, SEMANTIC_THEME_TOKENS } from "./lib/themeTokens";
+
+export { NEU_TOKENS } from "./lib/themeTokens";
 
 const CurrencyContext = createContext(null);
 const PortfolioContext = createContext(null);
 const PaletteContext = createContext(null);
-
-const PALETTES = {
-  blue: {
-    brand: "#3B82F6", brandHover: "#2563EB", brandLight: "#DBEAFE", brandLightDark: "#1E3A5F",
-    bg: "#F3F5FB", bgSubtle: "#E8ECF5", sidebarActive: "rgba(59,130,246,0.16)",
-  },
-  green: {
-    brand: "#34D399", brandHover: "#10B981", brandLight: "#D1FAE5", brandLightDark: "#0F3D30",
-    bg: "#F3F5FB", bgSubtle: "#E8ECF5", sidebarActive: "rgba(52,211,153,0.16)",
-  },
-  purple: {
-    brand: "#A78BFA", brandHover: "#8B5CF6", brandLight: "#EDE9FE", brandLightDark: "#2E2555",
-    bg: "#F3F5FB", bgSubtle: "#E8ECF5", sidebarActive: "rgba(167,139,250,0.16)",
-  },
-};
-
-// Neutral dark surfaces shared across all hues (the brand stays vivid in dark mode).
-// bgSubtle sits a step above the card so hover states / progress tracks stay visible.
-const DARK_SURFACES = {
-  bg: "#020617", bgSubtle: "#0B1326", surfaceCard: "#131B2E", surfaceCardElevated: "#1F2435",
-  border: "#2A3245", ink: "#DAE2FD", muted: "#8A93B3", hairline: "#2A3245",
-};
-const LIGHT_TOKENS = {
-  surfaceCard: "#FFFFFF", surfaceCardElevated: "#F7F9FD", border: "#DDE3F0",
-  ink: "#10162B", muted: "#6B7592", hairline: "#DDE3F0",
-};
-
-// "Premium" — warm glassmorphism/neumorphism hybrid: soft dual shadows (the
-// neumorphic half) layered on translucent, blurred surfaces (the glass half)
-// over a warm mesh-gradient background (.theme-premium body in index.css).
-// One fixed light appearance — ignores Light/Dark/System entirely, same as
-// the historical Neumorphism style this replaces.
-// See docs/superpowers/specs/2026-08-30-portfyl-premium-redesign-design.md.
-export const NEU_TOKENS = {
-  bg: "#F3E8DA", bgSubtle: "#ECE0CF",
-  surfaceCard: "rgba(250,245,237,0.78)", surfaceCardElevated: "rgba(253,249,243,0.92)",
-  border: "rgba(120,105,84,0.14)", hairline: "rgba(120,105,84,0.14)",
-  ink: "#3A352C", muted: "#6B6353",
-  brand: "#6D7048", brandHover: "#5C5F3C", brandLight: "#E4E5D3",
-  gain: "#5B7A4C", loss: "#B8543A",
-  glassBorderAlpha: "rgba(120,105,84,0.16)", glassOverlayAlpha: "rgba(255,252,247,0.55)",
-  blurCard: "14px", blurOverlay: "22px",
-  shadowAmbient: "7px 7px 18px rgba(190,172,146,0.5), -7px -7px 18px rgba(255,253,248,0.9)",
-  shadowInset: "inset 3px 3px 8px rgba(190,172,146,0.45), inset -3px -3px 8px rgba(255,253,248,0.85)",
-  radiusCard: "1.25rem",
-  chart: ["#A9AB88", "#DBAA89", "#D4C3A1", "#B7AFA3", "#7C8A5A", "#C08457", "#9E8E6E", "#8A8478"],
-};
-// Classic's chart series previously lived only in index.css's :root block
-// (--chart-1..8); pulled into this constant so applyAppearance() can reset
-// them inline the same way both branches reset every other token, since an
-// inline style always outranks a :root declaration.
-const GLASS_CHART = ["var(--brand)", "#4EDEA3", "#FFB95F", "#A78BFA", "#38BDF8", "#FB7185", "#FACC15", "#64748B"];
 
 export function usePalette() {
   return useContext(PaletteContext);
@@ -136,8 +87,9 @@ function applyAppearance(name, isDark, themeStyle) {
   s.setProperty("--shadow-ambient", isDark ? "0px 4px 20px rgba(0,0,0,0.5)" : "0px 4px 20px rgba(16,22,43,0.10)");
   s.setProperty("--shadow-inset", "none");
   s.setProperty("--radius-card", "0.5rem");
-  s.setProperty("--gain", isDark ? "#34D399" : "#10B981");
-  s.setProperty("--loss", isDark ? "#F87171" : "#EF4444");
+  const semantic = isDark ? SEMANTIC_THEME_TOKENS.classicDark : SEMANTIC_THEME_TOKENS.classicLight;
+  s.setProperty("--gain", semantic.gain);
+  s.setProperty("--loss", semantic.loss);
   GLASS_CHART.forEach((color, i) => s.setProperty(`--chart-${i + 1}`, color));
   if (isDark) {
     s.setProperty("--bg", DARK_SURFACES.bg);
