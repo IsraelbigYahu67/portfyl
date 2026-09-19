@@ -1,5 +1,5 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { CATEGORICAL, TOOLTIP_STYLE } from "../lib/chartTheme";
+import { CATEGORICAL, TOOLTIP_STYLE, LEGEND_TEXT_STYLE } from "../lib/chartTheme";
 
 export default function AllocationChart({ holdings, currency = "USD", rate = null }) {
   const convert = (n) => (currency === "CZK" && rate ? n * rate : n);
@@ -40,7 +40,7 @@ export default function AllocationChart({ holdings, currency = "USD", rate = nul
           ]}
         />
         <Legend
-          formatter={(v) => <span className="text-xs text-muted">{v}</span>}
+          formatter={(v) => <span style={LEGEND_TEXT_STYLE}>{v}</span>}
           iconType="circle"
           iconSize={8}
         />

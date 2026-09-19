@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchHeatmap } from "../api";
 import { useStockDetail } from "./StockDetail";
+import { GAIN_COLOR, LOSS_COLOR } from "../lib/chartTheme";
 
 const PERIODS = [
   { key: "1d", label: "1D" },
@@ -18,15 +19,15 @@ const PERIODS = [
 // color-mix() so heatmap tiles track the live theme/accent instead of an
 // independent hardcoded scale.
 const STOPS = [
-  { min: 3,    color: "color-mix(in srgb, var(--gain) 100%, black 15%)" },
-  { min: 1.5,  color: "var(--gain)" },
-  { min: 0.5,  color: "color-mix(in srgb, var(--gain) 70%, var(--surface-card) 30%)" },
-  { min: 0,    color: "color-mix(in srgb, var(--gain) 35%, var(--surface-card) 65%)" },
+  { min: 3,    color: `color-mix(in srgb, ${GAIN_COLOR} 100%, black 15%)` },
+  { min: 1.5,  color: GAIN_COLOR },
+  { min: 0.5,  color: `color-mix(in srgb, ${GAIN_COLOR} 70%, var(--surface-card) 30%)` },
+  { min: 0,    color: `color-mix(in srgb, ${GAIN_COLOR} 35%, var(--surface-card) 65%)` },
   { min: -0.001, color: "var(--surface-card-elevated)" }, // ~0%, avoids float-equality edge case
-  { min: -0.5, color: "color-mix(in srgb, var(--loss) 35%, var(--surface-card) 65%)" },
-  { min: -1.5, color: "color-mix(in srgb, var(--loss) 70%, var(--surface-card) 30%)" },
-  { min: -3,   color: "var(--loss)" },
-  { min: -Infinity, color: "color-mix(in srgb, var(--loss) 100%, black 15%)" },
+  { min: -0.5, color: `color-mix(in srgb, ${LOSS_COLOR} 35%, var(--surface-card) 65%)` },
+  { min: -1.5, color: `color-mix(in srgb, ${LOSS_COLOR} 70%, var(--surface-card) 30%)` },
+  { min: -3,   color: LOSS_COLOR },
+  { min: -Infinity, color: `color-mix(in srgb, ${LOSS_COLOR} 100%, black 15%)` },
 ];
 
 function getColor(pct) {
@@ -159,7 +160,7 @@ export default function Heatmap() {
             <button
               key={p.key}
               onClick={() => setPeriod(p.key)}
-              className={`px-2 py-1 text-[11px] rounded-md font-medium transition-colors ${
+              className={`px-2 py-1 text-xs rounded-md font-medium transition-colors ${
                 period === p.key
                   ? "bg-surface-card text-brand font-semibold shadow-sm"
                   : "text-muted hover:text-ink"
@@ -205,7 +206,7 @@ export default function Heatmap() {
                       className="absolute z-50 bg-surface-card-elevated border border-hairline rounded-lg shadow-xl p-3 min-w-[240px] max-h-[300px] overflow-y-auto"
                       style={{ bottom: "calc(100% + 8px)", right: 0 }}
                     >
-                      <div className="text-[10px] font-semibold text-muted uppercase mb-2">Small positions (&lt;1%)</div>
+                      <div className="text-xs font-semibold text-muted uppercase mb-2">Small positions (&lt;1%)</div>
                       <div className="space-y-1.5">
                         {[...smallItems].sort((a, b) => b.weight - a.weight).map((s) => (
                           <div
@@ -243,21 +244,27 @@ export default function Heatmap() {
                 }}
                 title={`${t.item.ticker} | ${t.item.change_pct >= 0 ? "+" : ""}${t.item.change_pct}% | Weight: ${t.item.weight}%`}
               >
+                {/* Treemap tile text is inherently area-constrained -- a tile
+                    proportional to a sub-1% holding is only a few CSS px
+                    wide. We raise the floors as far as the tile can bear
+                    (was 8/8/9px) without labels overflowing their box; the
+                    exact ticker/change/weight remain available via the tile
+                    title tooltip and the click-through to stock detail. */}
                 <span
                   className="font-mono font-bold leading-tight"
-                  style={{ fontSize: `${Math.max(9, Math.min(22, Math.sqrt(area) / 6))}px` }}
+                  style={{ fontSize: `${Math.max(10, Math.min(22, Math.sqrt(area) / 6))}px` }}
                 >
                   {t.item.ticker}
                 </span>
                 <span
                   className="font-medium leading-tight mt-0.5"
-                  style={{ fontSize: `${Math.max(8, Math.min(14, Math.sqrt(area) / 10))}px` }}
+                  style={{ fontSize: `${Math.max(9, Math.min(14, Math.sqrt(area) / 10))}px` }}
                 >
                   {t.item.change_pct >= 0 ? "+" : ""}{t.item.change_pct}%
                 </span>
                 <span
                   className="opacity-80 leading-tight mt-0.5 font-semibold"
-                  style={{ fontSize: `${Math.max(8, Math.min(13, Math.sqrt(area) / 12))}px` }}
+                  style={{ fontSize: `${Math.max(9, Math.min(13, Math.sqrt(area) / 12))}px` }}
                 >
                   {t.item.weight}%
                 </span>
