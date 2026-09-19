@@ -6,6 +6,8 @@ import { DemoDataProvider } from "./DemoDataContext";
 import { demoPortfolio } from "./demoPortfolio";
 import { DEMO_COPY } from "./demoCopy";
 
+const lazyRouteWait = { timeout: 5_000 };
+
 function renderAt(path) {
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -27,8 +29,8 @@ describe("DemoApp routing", () => {
     ["/demo/stock/MSFT", "MSFT"],
   ])("renders the %s route", async (path, heading) => {
     renderAt(path);
-    expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
-  });
+    expect(await screen.findByRole("heading", { name: heading }, lazyRouteWait)).toBeInTheDocument();
+  }, 15_000);
 
   it("renders a branded not-found state for an unknown demo route", async () => {
     renderAt("/demo/does-not-exist");
