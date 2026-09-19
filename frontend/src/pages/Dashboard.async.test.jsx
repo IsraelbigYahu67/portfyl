@@ -14,8 +14,14 @@ const api = vi.hoisted(() => ({
   fetchInsiderBuys: vi.fn(),
   fetchDividends: vi.fn(),
 }));
+const activationMocks = vi.hoisted(() => ({
+  recordPopulatedDashboard: vi.fn(() => true),
+}));
 
 vi.mock("../api", () => api);
+vi.mock("../analytics/useRegisteredActivation", () => ({
+  useRegisteredActivation: () => ({ recordPopulatedDashboard: activationMocks.recordPopulatedDashboard }),
+}));
 vi.mock("@edition-manifest", () => ({
   fetchEditionDashboardSignals: async () => ({ taxReport: null }),
 }));
@@ -106,6 +112,38 @@ it("gives the heatmap an accessible data summary", async () => {
 
   await screen.findByText("Healthy heatmap");
   expect(screen.getByRole("group", { name: "Heatmap holdings data" })).toHaveTextContent("MSFT");
+});
+
+it("records a populated dashboard once summary and holdings both load with real data", async () => {
+  renderPage();
+  await screen.findByText("Healthy performance chart");
+  await waitFor(() => expect(activationMocks.recordPopulatedDashboard).toHaveBeenCalledTimes(1));
+});
+
+it("does not record a populated dashboard while summary is still loading", async () => {
+  let resolveSummary;
+  api.fetchSummary.mockReturnValueOnce(new Promise((resolve) => { resolveSummary = resolve; }));
+  renderPage();
+  await screen.findByText("Healthy performance chart");
+  expect(activationMocks.recordPopulatedDashboard).not.toHaveBeenCalled();
+  resolveSummary({ total_value: 1000, total_pnl: 100 });
+  await waitFor(() => expect(activationMocks.recordPopulatedDashboard).toHaveBeenCalledTimes(1));
+});
+
+it("does not record a populated dashboard when summary fails to load", async () => {
+  api.fetchSummary.mockRejectedValueOnce(new Error("boom"));
+  renderPage();
+  await waitFor(() => expect(api.fetchSummary).toHaveBeenCalled());
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(activationMocks.recordPopulatedDashboard).not.toHaveBeenCalled();
+});
+
+it("does not record a populated dashboard when holdings are empty", async () => {
+  api.fetchHoldings.mockResolvedValue([]);
+  renderPage();
+  await waitFor(() => expect(api.fetchHoldings).toHaveBeenCalled());
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(activationMocks.recordPopulatedDashboard).not.toHaveBeenCalled();
 });
 
 it("keeps insider table headers and notes at least 12px in source (no text-[10px]/text-[11px])", async () => {

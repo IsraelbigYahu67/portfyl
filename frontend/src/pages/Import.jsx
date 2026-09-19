@@ -22,6 +22,7 @@ import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/Toast";
 import { usePortfolio } from "../App";
 import { TRACKER_HOME } from "../lib/routes";
+import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
 
 
 const SAMPLE_NATIVE = `date,ticker,type,shares,price,currency
@@ -77,6 +78,7 @@ export default function Import({ focused = false }) {
   const toast = useToast();
   const navigate = useNavigate();
   const { current, pendingImportPortfolio, refetchPortfolios, setCurrentId } = usePortfolio();
+  const { recordPortfolioDataImported } = useRegisteredActivation();
   const [file, setFile] = useState(null);
   const [replace, setReplace] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -120,6 +122,7 @@ export default function Import({ focused = false }) {
       setStage("result");
       queryClient.setQueryData(["import-undo"], data.undo);
       invalidatePortfolio(false);
+      recordPortfolioDataImported("csv");
     },
     onError: (err) => {
       if (err?.response?.status === 409) {

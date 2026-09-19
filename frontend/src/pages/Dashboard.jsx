@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient, useIsFetching } from "@tanstack/react-query";
 import { fetchSummary, fetchHoldings, fetchPerformance, fetchBenchmarks, fetchMovers, fetchEarnings, fetchInsiderBuys, fetchDividends } from "../api";
 import { useCurrency } from "../App";
+import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
 import { fetchEditionDashboardSignals } from "@edition-manifest";
 import MetricCard from "../components/MetricCard";
 import PerformanceChart from "../components/PerformanceChart";
@@ -36,6 +37,7 @@ const BENCHMARKS = [
 export default function Dashboard() {
   const { currency, rate } = useCurrency();
   const queryClient = useQueryClient();
+  const { recordPopulatedDashboard } = useRegisteredActivation();
   const refreshing = useIsFetching() > 0;
   const [period, setPeriod] = useState("All");
   const [chartMode, setChartMode] = useState("growth");
@@ -103,6 +105,13 @@ export default function Dashboard() {
   });
   const alertsLoading = dl;
   const alertsError = dividendsError;
+
+  // Keyed on a boolean, not the summary/holdings objects themselves, so a
+  // same-shape refetch (e.g. currency change) doesn't re-fire this effect.
+  const hasPopulatedDashboard = !sl && !hl && !summaryError && !holdingsError && Boolean(summary) && holdings.length > 0;
+  useEffect(() => {
+    if (hasPopulatedDashboard) recordPopulatedDashboard();
+  }, [hasPopulatedDashboard, recordPopulatedDashboard]);
 
 
   const heroSeries = (perf || [])

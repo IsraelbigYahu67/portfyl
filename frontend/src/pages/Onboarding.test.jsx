@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   activatePortfolio: vi.fn(),
   setCurrentId: vi.fn(),
   refetchPortfolios: vi.fn(),
+  recordPortfolioCreated: vi.fn(() => true),
+  recordPortfolioDataImported: vi.fn(() => true),
 }));
 
 vi.mock("../api", () => ({
@@ -26,6 +28,13 @@ vi.mock("../App", () => ({
     setCurrentId: mocks.setCurrentId,
     refetchPortfolios: mocks.refetchPortfolios,
     pendingImportPortfolio: null,
+  }),
+}));
+
+vi.mock("../analytics/useRegisteredActivation", () => ({
+  useRegisteredActivation: () => ({
+    recordPortfolioCreated: mocks.recordPortfolioCreated,
+    recordPortfolioDataImported: mocks.recordPortfolioDataImported,
   }),
 }));
 
@@ -67,6 +76,8 @@ describe("Onboarding", () => {
     await waitFor(() => expect(mocks.createPendingImportPortfolio).toHaveBeenCalledTimes(1));
     expect(mocks.setCurrentId).toHaveBeenCalledWith("pending-id");
     expect(await screen.findByText("Import destination")).toBeInTheDocument();
+    expect(mocks.recordPortfolioCreated).toHaveBeenCalledWith("csv");
+    expect(mocks.recordPortfolioDataImported).not.toHaveBeenCalled();
   });
 
   it("activates an explicit blank portfolio before opening the dashboard", async () => {
@@ -76,6 +87,8 @@ describe("Onboarding", () => {
     await waitFor(() => expect(mocks.activatePortfolio).toHaveBeenCalledWith("pending-id"));
     expect(mocks.setCurrentId).toHaveBeenCalledWith("pending-id");
     expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
+    expect(mocks.recordPortfolioCreated).toHaveBeenCalledWith("blank");
+    expect(mocks.recordPortfolioDataImported).not.toHaveBeenCalled();
   });
 
   it("creates a clearly labelled demo and opens its dashboard", async () => {
@@ -86,6 +99,8 @@ describe("Onboarding", () => {
     await waitFor(() => expect(mocks.createDemoPortfolio).toHaveBeenCalledTimes(1));
     expect(mocks.setCurrentId).toHaveBeenCalledWith("demo-id");
     expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
+    expect(mocks.recordPortfolioCreated).toHaveBeenCalledWith("demo");
+    expect(mocks.recordPortfolioDataImported).toHaveBeenCalledWith("demo");
   });
 
   it("creates a portfolio before sending the user to broker settings", async () => {
@@ -97,6 +112,8 @@ describe("Onboarding", () => {
     expect(mocks.setCurrentId).toHaveBeenCalledWith("portfolio-id");
     expect(await screen.findByText("Settings destination")).toBeInTheDocument();
     expect(screen.getByLabelText("location")).toHaveTextContent("/settings?section=connections");
+    expect(mocks.recordPortfolioCreated).toHaveBeenCalledWith("broker");
+    expect(mocks.recordPortfolioDataImported).not.toHaveBeenCalled();
   });
 
   it("navigates before the portfolio refetch can unmount onboarding", async () => {
@@ -122,5 +139,7 @@ describe("Onboarding", () => {
     fireEvent.click(screen.getByRole("button", { name: /explore sample portfolio/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Demo limit reached");
+    expect(mocks.recordPortfolioCreated).not.toHaveBeenCalled();
+    expect(mocks.recordPortfolioDataImported).not.toHaveBeenCalled();
   });
 });

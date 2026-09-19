@@ -6,16 +6,24 @@ import Settings from "./Settings";
 
 const mocks = vi.hoisted(() => ({
   fetchT212Status: vi.fn(),
+  syncT212: vi.fn(),
   discordMount: vi.fn(),
   dataMount: vi.fn(),
+  recordPortfolioDataImported: vi.fn(() => true),
 }));
 
 vi.mock("../api", () => ({
   fetchT212Status: mocks.fetchT212Status,
   connectT212: vi.fn(),
   disconnectT212: vi.fn(),
-  syncT212: vi.fn(),
+  syncT212: mocks.syncT212,
   setT212AutoSync: vi.fn(),
+}));
+
+vi.mock("../analytics/useRegisteredActivation", () => ({
+  useRegisteredActivation: () => ({
+    recordPortfolioDataImported: mocks.recordPortfolioDataImported,
+  }),
 }));
 vi.mock("../App", () => ({
   usePortfolio: () => ({ current: { id: "portfolio-1", name: "Imported portfolio" } }),
@@ -88,4 +96,40 @@ it("navigates with real links, preserves parameters, and focuses the new heading
   await waitFor(() => expect(heading).toHaveFocus());
   expect(screen.getByLabelText("location")).toHaveTextContent("/settings?section=notifications&source=alert");
   expect(mocks.discordMount).toHaveBeenCalled();
+});
+
+describe("Trading 212 sync activation measurement", () => {
+  beforeEach(() => {
+    mocks.fetchT212Status.mockResolvedValue({ connected: true, auto_sync: false, api_key_preview: "••••1234" });
+  });
+
+  it("emits a broker import when a sync actually imports transactions", async () => {
+    mocks.syncT212.mockResolvedValueOnce({ total_imported: 5, imported_orders: 3, imported_dividends: 2 });
+    mount("/settings?section=connections");
+
+    fireEvent.click(await screen.findByRole("button", { name: /sync now/i }));
+
+    await waitFor(() => expect(mocks.recordPortfolioDataImported).toHaveBeenCalledWith("broker"));
+    expect(mocks.recordPortfolioDataImported).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not emit a broker import when a sync finds nothing new", async () => {
+    mocks.syncT212.mockResolvedValueOnce({ total_imported: 0, imported_orders: 0, imported_dividends: 0 });
+    mount("/settings?section=connections");
+
+    fireEvent.click(await screen.findByRole("button", { name: /sync now/i }));
+
+    await waitFor(() => expect(screen.getByText(/Synced 0 transactions/i)).toBeInTheDocument());
+    expect(mocks.recordPortfolioDataImported).not.toHaveBeenCalled();
+  });
+
+  it("does not emit a broker import when a sync fails", async () => {
+    mocks.syncT212.mockRejectedValueOnce({ response: { data: { detail: "Sync failed" } } });
+    mount("/settings?section=connections");
+
+    fireEvent.click(await screen.findByRole("button", { name: /sync now/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sync failed");
+    expect(mocks.recordPortfolioDataImported).not.toHaveBeenCalled();
+  });
 });

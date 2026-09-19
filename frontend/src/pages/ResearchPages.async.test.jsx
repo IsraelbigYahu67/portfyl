@@ -44,6 +44,13 @@ vi.mock("../App", () => ({
   usePortfolio: () => ({ current: { id: "portfolio-1", name: "Research portfolio" } }),
   useCurrency: () => ({ currency: "USD" }),
 }));
+vi.mock("../analytics/useRegisteredActivation", () => ({
+  useRegisteredActivation: () => ({
+    recordPortfolioCreated: () => false,
+    recordPortfolioDataImported: () => false,
+    recordPopulatedDashboard: () => false,
+  }),
+}));
 vi.mock("../components/DiscordSettings", () => ({ default: () => null }));
 vi.mock("../components/SyncScheduleSettings", () => ({ default: () => null }));
 vi.mock("../components/DataPrivacySettings", () => ({ default: () => null }));

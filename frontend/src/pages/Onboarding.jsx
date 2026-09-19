@@ -5,6 +5,7 @@ import { BarChart3, Link2, Upload, Loader2 } from "lucide-react";
 import { activatePortfolio, createDemoPortfolio, createPendingImportPortfolio, createPortfolio } from "../api";
 import { usePortfolio } from "../App";
 import { TRACKER_HOME } from "../lib/routes";
+import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
 
 
 function errorMessage(error) {
@@ -17,6 +18,7 @@ function errorMessage(error) {
 export default function Onboarding() {
   const navigate = useNavigate();
   const { pendingImportPortfolio, setCurrentId, refetchPortfolios } = usePortfolio();
+  const { recordPortfolioCreated, recordPortfolioDataImported } = useRegisteredActivation();
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
 
@@ -26,6 +28,10 @@ export default function Onboarding() {
     try {
       const portfolio = await create();
       setCurrentId(portfolio.id);
+      recordPortfolioCreated(kind);
+      // createDemoPortfolio populates its data as part of creation itself --
+      // unlike csv/broker, there is no separate later import step for it.
+      if (kind === "demo") recordPortfolioDataImported("demo");
       navigate(destination);
       await refetchPortfolios();
     } catch (err) {
@@ -41,6 +47,7 @@ export default function Onboarding() {
     try {
       const portfolio = await createPendingImportPortfolio();
       setCurrentId(portfolio.id);
+      recordPortfolioCreated("csv");
       await refetchPortfolios();
       navigate("/import");
     } catch (err) {
@@ -57,6 +64,7 @@ export default function Onboarding() {
       const pending = pendingImportPortfolio || await createPendingImportPortfolio();
       const portfolio = await activatePortfolio(pending.id);
       setCurrentId(portfolio.id);
+      recordPortfolioCreated("blank");
       navigate(TRACKER_HOME);
       await refetchPortfolios();
     } catch (err) {
