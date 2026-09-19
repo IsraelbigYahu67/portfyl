@@ -99,3 +99,20 @@ it("orders dashboard widgets by purpose and collapses insider activity", async (
     ).toBeTruthy();
   }
 });
+
+it("gives the heatmap an accessible data summary", async () => {
+  api.fetchHoldings.mockResolvedValue([{ ticker: "MSFT", weight: 100, market_value: 1000 }]);
+  renderPage();
+
+  await screen.findByText("Healthy heatmap");
+  expect(screen.getByRole("group", { name: "Heatmap holdings data" })).toHaveTextContent("MSFT");
+});
+
+it("keeps insider table headers and notes at least 12px in source (no text-[10px]/text-[11px])", async () => {
+  const path = await import("node:path");
+  const { readFile } = await import("node:fs/promises");
+  const assetUrl = new URL("./Dashboard.jsx", import.meta.url);
+  const pathname = path.resolve(decodeURIComponent(assetUrl.pathname).replace(/^\//, ""));
+  const src = await readFile(pathname, "utf-8");
+  expect(src).not.toMatch(/text-\[(8|9|10|11)px\]/);
+});

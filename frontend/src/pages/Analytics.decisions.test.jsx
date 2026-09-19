@@ -87,4 +87,13 @@ describe("Analytics decisions", () => {
     expect(screen.getAllByText(/Period: 1Y · Data loaded/).length).toBeGreaterThan(0);
     expect(screen.getByRole("group", { name: "Strongest correlation pairs data" })).toHaveTextContent("AAPL / MSFT");
   });
+
+  it("correlation matrix cells use the financial-data semantic class, not sub-12px text", async () => {
+    const { container } = renderPage();
+    await screen.findByText(/Time-Weighted/i);
+    await screen.findAllByText("-0.20");
+    const matrixCells = container.querySelectorAll(".financial-data");
+    const values = Array.from(matrixCells).map((el) => el.textContent);
+    expect(values).toContain("-0.20");
+  });
 });

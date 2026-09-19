@@ -273,6 +273,24 @@ export default function Dashboard() {
                     empty={<div className="flex-1 flex"><EmptyState icon={LayoutGrid} title="No holdings to map" hint="Import transactions to see your heatmap." /></div>}
                   >
                     <Heatmap />
+                    <ChartSummary title="Heatmap holdings data">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="text-muted">
+                            <th className="pr-3 font-medium">Ticker</th>
+                            <th className="font-medium">Weight</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {holdings.map((h) => (
+                            <tr key={h.ticker}>
+                              <td className="pr-3 font-mono">{h.ticker}</td>
+                              <td className="tabular-nums">{h.weight}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </ChartSummary>
                   </AsyncSection>
                 </Card>
 
@@ -364,7 +382,7 @@ export default function Dashboard() {
               if (insiderSort === "pnl") return (b.pnl ?? -Infinity) - (a.pnl ?? -Infinity);
               return (b.date || "").localeCompare(a.date || "");
             });
-            const thBase = "text-[10px] font-medium uppercase tracking-wider pb-2";
+            const thBase = "text-xs font-medium uppercase tracking-wider pb-2";
             const thSortable = (key, align) => `${thBase} ${align} cursor-pointer select-none transition-colors ${insiderSort === key ? "text-brand" : "text-muted hover:text-ink"}`;
             const sortArrow = (key) => insiderSort === key ? " ▼" : "";
             return (
@@ -404,7 +422,7 @@ export default function Dashboard() {
                           </td>
                           <td className="py-1.5 pr-3 text-muted max-w-[180px] truncate" title={`${b.insider || ""}${b.position ? ` — ${b.position}` : ""}`}>
                             {b.insider || "—"}
-                            {b.position && <span className="text-muted text-[10px] ml-1">({b.position})</span>}
+                            {b.position && <span className="text-muted text-xs ml-1">({b.position})</span>}
                           </td>
                           <td className="py-1.5 pr-3 text-right tabular-nums text-ink">
                             {b.shares != null ? Math.abs(b.shares).toLocaleString() : "—"}
@@ -419,7 +437,7 @@ export default function Dashboard() {
                             {b.pnl != null ? (
                               <span title={`Current: ${formatMoney(b.current_price, b.currency)}`}>
                                 {b.pnl >= 0 ? "+" : ""}{formatMoney(b.pnl, b.currency)}
-                                {b.pnl_pct != null && <span className="text-[10px] ml-1">({b.pnl_pct >= 0 ? "+" : ""}{b.pnl_pct.toFixed(1)}%)</span>}
+                                {b.pnl_pct != null && <span className="text-xs ml-1">({b.pnl_pct >= 0 ? "+" : ""}{b.pnl_pct.toFixed(1)}%)</span>}
                               </span>
                             ) : "—"}
                           </td>

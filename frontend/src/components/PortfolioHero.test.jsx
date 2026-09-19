@@ -19,6 +19,17 @@ describe("PortfolioHero", () => {
     expect(screen.getByText(/Cash/i)).toBeInTheDocument();
   });
 
+  it("net worth headline uses financial-headline and the positions/cash line uses financial-data", () => {
+    window.matchMedia = (q) => ({
+      matches: true, media: q, onchange: null,
+      addEventListener() {}, removeEventListener() {},
+      addListener() {}, removeListener() {}, dispatchEvent() { return false; },
+    });
+    render(<PortfolioHero summary={summary} loading={false} currency="USD" series={[]} />);
+    expect(screen.getByText(/\$260,310\.55/)).toHaveClass("financial-headline");
+    expect(screen.getByText(/Cash/i).closest("div")).toHaveClass("financial-data");
+  });
+
   it("renders skeletons while loading without throwing", () => {
     const { container } = render(<PortfolioHero summary={undefined} loading currency="USD" series={[]} />);
     expect(container.querySelector(".shimmer")).toBeTruthy();

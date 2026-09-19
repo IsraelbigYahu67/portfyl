@@ -70,4 +70,15 @@ describe("Allocation composition decisions", () => {
     expect(screen.getByText("Value if held")).toBeInTheDocument();
     expect(screen.getAllByText("OLD").length).toBeGreaterThan(0);
   });
+
+  it("sold-position badges and if-held notes use financial-meta, never text-[10px]", async () => {
+    renderPage();
+    await screen.findByText(/Largest position/i);
+    fireEvent.click(screen.getByRole("button", { name: "Sold positions" }));
+    await screen.findByText("Value if held");
+
+    expect(screen.getByText("Sold")).toHaveClass("financial-meta");
+    expect(screen.getByText(/if held: \+\$5\.00/)).toHaveClass("financial-meta");
+    expect(screen.getByText(/if held: \+2\.00%/)).toHaveClass("financial-meta");
+  });
 });
