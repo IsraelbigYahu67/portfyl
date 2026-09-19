@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUpRight, ChartNoAxesCombined, PieChart, CalendarDays, Layers3, Check, Plus } from "lucide-react";
 import { COPY, LANGUAGES, LANGUAGE_KEY } from "./welcomeCopy";
+import { useAnalytics } from "../analytics/AnalyticsProvider";
+import { ANALYTICS_COPY, getAnalyticsLanguage } from "../analytics/analyticsCopy";
 import "./Welcome.css";
 import "../fonts.css";
 
@@ -22,6 +24,16 @@ function Brand({ children }) {
 
 function Heading({ lines }) {
   return <>{lines[0]}<br /><span>{lines[1]}</span></>;
+}
+
+function AnalyticsPreferencesLink() {
+  const { reopenAnalyticsPreferences } = useAnalytics();
+  const t = ANALYTICS_COPY[getAnalyticsLanguage()];
+  return (
+    <button type="button" onClick={reopenAnalyticsPreferences} className="welcome-preview-link" style={{ background: "none", border: "none", cursor: "pointer" }}>
+      {t.manage}
+    </button>
+  );
 }
 
 export default function Welcome() {
@@ -131,7 +143,7 @@ export default function Welcome() {
         </section>
         <section className="welcome-closing welcome-container"><div className="welcome-eyebrow"><span />{copy.closingKicker}</div><h2><Heading lines={copy.closingHeading} /></h2><p>{copy.closingNote}</p><div className="welcome-closing-actions"><a className="welcome-cta" href="/demo">{copy.demoCta} <ArrowUpRight size={17} /></a><a href="#nahoru">{copy.back} <ArrowUpRight size={16} /></a></div></section>
       </main>
-      <footer className="welcome-footer welcome-container"><a className="welcome-logo" href="#nahoru"><Brand /></a><span>{copy.footer}</span><small>© {new Date().getFullYear()} Portfyl</small></footer>
+      <footer className="welcome-footer welcome-container"><a className="welcome-logo" href="#nahoru"><Brand /></a><span>{copy.footer}</span><AnalyticsPreferencesLink /><small>© {new Date().getFullYear()} Portfyl</small></footer>
     </div>
   );
 }

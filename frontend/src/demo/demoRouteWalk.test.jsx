@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import DemoApp from "./DemoApp";
 import { DemoDataProvider } from "./DemoDataContext";
 import { demoPortfolio } from "./demoPortfolio";
+import AnalyticsProvider from "../analytics/AnalyticsProvider";
+import { createMemoryAdapter } from "../analytics/analyticsClient";
 
 const ROUTES = [
   ["/demo", "Overview"], ["/demo/allocation", "Allocation"], ["/demo/analytics", "Analytics"], ["/demo/dividends", "Dividends"],
@@ -19,7 +21,13 @@ afterEach(() => {
 
 describe("public demo route walk", () => {
   it.each(ROUTES)("renders %s anonymously with the public-demo boundary", async (path, heading) => {
-    render(<MemoryRouter initialEntries={[path]}><DemoDataProvider><DemoApp /></DemoDataProvider></MemoryRouter>);
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <AnalyticsProvider initialConsent="pending" adapterFactory={() => createMemoryAdapter()}>
+          <DemoDataProvider><DemoApp /></DemoDataProvider>
+        </AnalyticsProvider>
+      </MemoryRouter>
+    );
 
     expect(await screen.findByRole("heading", { name: heading }, lazyRouteWait)).toBeInTheDocument();
     expect(screen.getAllByText(/Synthetic demo/i).length).toBeGreaterThan(0);

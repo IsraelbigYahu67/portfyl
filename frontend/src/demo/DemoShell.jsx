@@ -1,6 +1,8 @@
 import { NavLink } from "react-router-dom";
 import { useDemoData } from "./DemoDataContext";
 import { DEMO_COPY, getDemoLanguage } from "./demoCopy";
+import { useAnalytics } from "../analytics/AnalyticsProvider";
+import { ANALYTICS_COPY, getAnalyticsLanguage } from "../analytics/analyticsCopy";
 
 const REG_TARGET = `${import.meta.env.VITE_APP_ORIGIN || "https://app.portfyl.com"}/register?source=demo`;
 
@@ -16,6 +18,16 @@ const NAV_ITEMS = [
 // the marketing site, and the registration CTA. No import/sync/settings/
 // assistant/transaction/refresh controls -- those private-app actions are
 // omitted entirely, not shown disabled.
+function AnalyticsPreferencesLink() {
+  const { reopenAnalyticsPreferences } = useAnalytics();
+  const t = ANALYTICS_COPY[getAnalyticsLanguage()];
+  return (
+    <button type="button" onClick={reopenAnalyticsPreferences} className="text-sm text-muted hover:text-ink">
+      {t.manage}
+    </button>
+  );
+}
+
 export default function DemoShell({ children }) {
   const data = useDemoData();
   const t = DEMO_COPY[getDemoLanguage()];
@@ -51,8 +63,9 @@ export default function DemoShell({ children }) {
 
       <main className="flex-1 p-4 max-w-6xl w-full mx-auto">{children}</main>
 
-      <footer className="border-t border-hairline px-4 py-3">
+      <footer className="border-t border-hairline px-4 py-3 flex items-center gap-4">
         <a href="/" className="text-sm text-muted hover:text-ink">{t.backHome}</a>
+        <AnalyticsPreferencesLink />
       </footer>
     </div>
   );

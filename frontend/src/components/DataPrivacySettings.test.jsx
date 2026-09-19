@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import DataPrivacySettings from "./DataPrivacySettings";
+import AnalyticsProvider from "../analytics/AnalyticsProvider";
+import { createMemoryAdapter } from "../analytics/analyticsClient";
 
 
 const mocks = vi.hoisted(() => ({
@@ -36,7 +38,9 @@ function mount() {
   });
   return render(
     <QueryClientProvider client={client}>
-      <DataPrivacySettings />
+      <AnalyticsProvider initialConsent="pending" adapterFactory={() => createMemoryAdapter()}>
+        <DataPrivacySettings />
+      </AnalyticsProvider>
     </QueryClientProvider>
   );
 }
@@ -69,6 +73,12 @@ describe("DataPrivacySettings", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it("embeds the analytics preferences section", async () => {
+    mount();
+    expect(await screen.findByRole("region", { name: "Analytics preferences" })).toBeInTheDocument();
+    expect(screen.getByText("Analytics: awaiting your decision")).toBeInTheDocument();
   });
 
   it("downloads the active workspace JSON attachment", async () => {

@@ -5,15 +5,19 @@ import DemoApp from "./DemoApp";
 import { DemoDataProvider } from "./DemoDataContext";
 import { demoPortfolio } from "./demoPortfolio";
 import { DEMO_COPY } from "./demoCopy";
+import AnalyticsProvider from "../analytics/AnalyticsProvider";
+import { createMemoryAdapter } from "../analytics/analyticsClient";
 
 const lazyRouteWait = { timeout: 5_000 };
 
 function renderAt(path) {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <DemoDataProvider>
-        <DemoApp />
-      </DemoDataProvider>
+      <AnalyticsProvider initialConsent="pending" adapterFactory={() => createMemoryAdapter()}>
+        <DemoDataProvider>
+          <DemoApp />
+        </DemoDataProvider>
+      </AnalyticsProvider>
     </MemoryRouter>
   );
 }
@@ -79,9 +83,11 @@ describe("DemoDataProvider failure mode", () => {
     const badValue = { ...demoPortfolio, holdings: demoPortfolio.holdings.slice(0, 9) };
     render(
       <MemoryRouter initialEntries={["/demo"]}>
-        <DemoDataProvider value={badValue}>
-          <DemoApp />
-        </DemoDataProvider>
+        <AnalyticsProvider initialConsent="pending" adapterFactory={() => createMemoryAdapter()}>
+          <DemoDataProvider value={badValue}>
+            <DemoApp />
+          </DemoDataProvider>
+        </AnalyticsProvider>
       </MemoryRouter>
     );
     expect(await screen.findByText(DEMO_COPY.en.unavailableTitle)).toBeInTheDocument();
