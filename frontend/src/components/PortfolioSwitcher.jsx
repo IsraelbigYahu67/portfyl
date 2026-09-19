@@ -168,11 +168,11 @@ export default function PortfolioSwitcher() {
                   </span>
                   <span className="truncate">{p.name}</span>
                   {p.is_default && (
-                    <span className="text-[10px] uppercase tracking-wider text-muted ml-1">
+                    <span className="text-xs uppercase tracking-wider text-muted ml-1">
                       default
                     </span>
                   )}
-                  <span className="ml-auto text-[10px] text-muted tabular-nums">
+                  <span className="ml-auto text-xs text-muted tabular-nums">
                     {p.transaction_count ?? 0}
                   </span>
                 </button>

@@ -182,7 +182,7 @@ export default function DashboardGrid({ children, editing, onEditToggle }) {
               </button>
             ))}
           </div>
-          <p className="text-[11px] text-muted lg:hidden">
+          <p className="text-xs text-muted lg:hidden">
             Ordering follows the saved sequence on small screens.
           </p>
         </div>

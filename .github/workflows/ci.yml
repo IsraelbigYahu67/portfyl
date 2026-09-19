@@ -90,6 +90,12 @@ jobs:
       - name: Test initial bundle measurement
         working-directory: frontend
         run: node --test scripts/measure-initial-bundle.test.mjs
+      - name: Test readability audit script
+        working-directory: frontend
+        run: node --test scripts/audit-readability.test.mjs
+      - name: Readability audit
+        working-directory: frontend
+        run: npm run audit:readability
       - name: Production build
         working-directory: frontend
         run: npm run ${{ matrix.edition == 'cloud' && 'build:cloud' || 'build' }}
