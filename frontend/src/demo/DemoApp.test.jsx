@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, afterEach } from "vitest";
 import DemoApp from "./DemoApp";
@@ -10,16 +10,18 @@ import { createMemoryAdapter } from "../analytics/analyticsClient";
 
 const lazyRouteWait = { timeout: 5_000 };
 
-function renderAt(path) {
-  return render(
+function renderAt(path, { initialConsent = "pending" } = {}) {
+  const adapter = createMemoryAdapter();
+  const result = render(
     <MemoryRouter initialEntries={[path]}>
-      <AnalyticsProvider initialConsent="pending" adapterFactory={() => createMemoryAdapter()}>
+      <AnalyticsProvider initialConsent={initialConsent} adapterFactory={() => adapter}>
         <DemoDataProvider>
           <DemoApp />
         </DemoDataProvider>
       </AnalyticsProvider>
     </MemoryRouter>
   );
+  return { ...result, adapter };
 }
 
 afterEach(() => localStorage.clear());
@@ -75,6 +77,36 @@ describe("DemoShell", () => {
     for (const control of controls) {
       expect(control.textContent).not.toMatch(forbidden);
     }
+  });
+
+  it("emits demo_started (direct entry) and one demo_page_viewed per visited route", async () => {
+    const { adapter } = renderAt("/demo/allocation", { initialConsent: "accepted" });
+    await screen.findByRole("heading", { name: "Allocation" }, lazyRouteWait);
+    await waitFor(() =>
+      expect(adapter.events).toEqual(
+        expect.arrayContaining([
+          ["demo_started", { language: "en", entry_point: "direct" }],
+          ["demo_page_viewed", { demo_page: "allocation", language: "en" }],
+        ])
+      )
+    );
+  });
+
+  it("emits demo_stock_viewed for a valid demo symbol", async () => {
+    const { adapter } = renderAt("/demo/stock/MSFT", { initialConsent: "accepted" });
+    await screen.findByRole("heading", { name: "MSFT" }, lazyRouteWait);
+    await waitFor(() =>
+      expect(adapter.events).toContainEqual(["demo_stock_viewed", { demo_symbol: "MSFT" }])
+    );
+  });
+
+  it("emits signup_cta_clicked with source_surface=demo when the registration CTA is clicked", async () => {
+    const { adapter } = renderAt("/demo", { initialConsent: "accepted" });
+    const cta = await screen.findByRole("link", { name: DEMO_COPY.en.createAccount });
+    cta.click();
+    await waitFor(() =>
+      expect(adapter.events).toContainEqual(["signup_cta_clicked", { source_surface: "demo", language: "en" }])
+    );
   });
 });
 

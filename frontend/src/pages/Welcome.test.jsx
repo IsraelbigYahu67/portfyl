@@ -1,17 +1,19 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import Welcome from "./Welcome";
 import { COPY, LANGUAGES, LANGUAGE_KEY } from "./welcomeCopy";
 import AnalyticsProvider from "../analytics/AnalyticsProvider";
 import { createMemoryAdapter } from "../analytics/analyticsClient";
 
-function renderWelcome() {
-  return render(
-    <AnalyticsProvider initialConsent="pending" adapterFactory={() => createMemoryAdapter()}>
+function renderWelcome({ initialConsent = "pending" } = {}) {
+  const adapter = createMemoryAdapter();
+  const result = render(
+    <AnalyticsProvider initialConsent={initialConsent} adapterFactory={() => adapter}>
       <Welcome />
     </AnalyticsProvider>
   );
+  return { ...result, adapter };
 }
 
 beforeEach(() => localStorage.clear());
@@ -101,4 +103,27 @@ it("still works if browser storage is blocked", () => {
   renderWelcome();
   chooseCzech();
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Vaše investice.");
+});
+
+it("captures landing_viewed once analytics is ready, never before", async () => {
+  const { adapter } = renderWelcome({ initialConsent: "accepted" });
+  await waitFor(() => expect(adapter.events).toHaveLength(1));
+  expect(adapter.events[0]).toEqual([
+    "landing_viewed",
+    { language: "en", referrer_class: "direct", utm_source: "none", utm_medium: "none", utm_campaign: "none" },
+  ]);
+});
+
+it("captures demo_started with entry_point=landing_hero on an unmodified hero CTA click, without a full navigation", async () => {
+  const { adapter } = renderWelcome({ initialConsent: "accepted" });
+  await waitFor(() => expect(adapter.events).toHaveLength(1)); // landing_viewed
+  chooseCzech();
+
+  const heroCta = screen.getAllByRole("link", { name: COPY.cs.demoCta })[0];
+  fireEvent.click(heroCta, { button: 0 });
+
+  await waitFor(() =>
+    expect(adapter.events).toContainEqual(["demo_started", { language: "cs", entry_point: "landing_hero" }])
+  );
+  expect(window.location.pathname).toBe("/demo");
 });

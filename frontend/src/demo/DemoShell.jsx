@@ -3,6 +3,7 @@ import { useDemoData } from "./DemoDataContext";
 import { DEMO_COPY, getDemoLanguage } from "./demoCopy";
 import { useAnalytics } from "../analytics/AnalyticsProvider";
 import { ANALYTICS_COPY, getAnalyticsLanguage } from "../analytics/analyticsCopy";
+import { ANALYTICS_EVENTS } from "../analytics/eventContract";
 
 const REG_TARGET = `${import.meta.env.VITE_APP_ORIGIN || "https://app.portfyl.com"}/register?source=demo`;
 
@@ -30,7 +31,9 @@ function AnalyticsPreferencesLink() {
 
 export default function DemoShell({ children }) {
   const data = useDemoData();
-  const t = DEMO_COPY[getDemoLanguage()];
+  const { capture } = useAnalytics();
+  const language = getDemoLanguage();
+  const t = DEMO_COPY[language];
 
   return (
     <div className="min-h-screen bg-surface text-ink flex flex-col">
@@ -39,7 +42,13 @@ export default function DemoShell({ children }) {
         <span className="financial-meta">
           {t.disclosure} · {t.asOfLabel} {data.asOf}
         </span>
-        <a href={REG_TARGET} className="btn-primary text-sm">{t.createAccount}</a>
+        <a
+          href={REG_TARGET}
+          className="btn-primary text-sm"
+          onClick={() => capture(ANALYTICS_EVENTS.SIGNUP_CTA_CLICKED, { source_surface: "demo", language })}
+        >
+          {t.createAccount}
+        </a>
       </header>
 
       <nav aria-label={t.navigation} className="border-b border-hairline overflow-x-auto">

@@ -31,31 +31,53 @@ export default function AnalyticsProvider({ children, initialConsent, adapterFac
   const [consent, setConsent] = useState(() => initialConsent ?? getAnalyticsConsent());
   const [ready, setReady] = useState(false);
   const adapterRef = useRef(null);
+  const readyRef = useRef(false);
+  // A React child's first-mount effect runs *before* this provider's own
+  // effect (children commit bottom-up), and adapter.init() is genuinely
+  // async (a real SDK does a dynamic import). A capture attempted in that
+  // window queues here instead of being silently dropped, and is flushed
+  // once init() resolves -- this is not the same as replaying a "pending"
+  // capture: consent is already decided, only the adapter isn't ready yet.
+  const queueRef = useRef([]);
   const acceptedOnceRef = useRef(new Set());
   const rejectedOnceRef = useRef(new Set());
 
   useEffect(() => {
     let cancelled = false;
     setReady(false);
+    readyRef.current = false;
 
     if (consent === CONSENT_STATES.PENDING) {
       adapterRef.current = null;
+      queueRef.current = []; // pending genuinely drops queued captures, per spec
       return () => {
         cancelled = true;
       };
     }
+
+    // Note: queueRef.current is intentionally NOT cleared here. On the very
+    // first run, a child's mount effect may have already queued a capture
+    // (children's effects commit before this one); clearing here would
+    // discard it before the .then() below ever sees it. On a later run
+    // (consent changed), the previous run's cleanup already cleared it.
 
     const adapter = adapterFactory({ consent });
     adapterRef.current = adapter;
     adapter
       .init()
       .then(() => {
-        if (!cancelled) setReady(true);
+        if (cancelled) return;
+        readyRef.current = true;
+        setReady(true);
+        const queued = queueRef.current;
+        queueRef.current = [];
+        queued.forEach(([name, properties]) => adapter.capture(name, properties).catch(() => {}));
       })
       .catch(() => {});
 
     return () => {
       cancelled = true;
+      queueRef.current = [];
       adapter.reset().catch(() => {});
       adapter.shutdown().catch(() => {});
     };
@@ -63,11 +85,14 @@ export default function AnalyticsProvider({ children, initialConsent, adapterFac
 
   const capture = useCallback(
     (name, properties) => {
-      const adapter = adapterRef.current;
-      if (!adapter || consent === CONSENT_STATES.PENDING) return;
+      if (consent === CONSENT_STATES.PENDING) return;
       const sanitized = sanitizeEvent(name, properties, { strict: false });
       if (!sanitized) return;
-      adapter.capture(sanitized.name, sanitized.properties).catch(() => {});
+      if (readyRef.current && adapterRef.current) {
+        adapterRef.current.capture(sanitized.name, sanitized.properties).catch(() => {});
+      } else {
+        queueRef.current.push([sanitized.name, sanitized.properties]);
+      }
     },
     [consent]
   );
