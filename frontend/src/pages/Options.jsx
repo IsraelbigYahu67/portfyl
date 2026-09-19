@@ -27,7 +27,11 @@ const TABS = [
 
 function fmtMoney(v) {
   if (v == null) return "-";
-  const sign = v >= 0 ? "+" : "";
+  // A negative v previously fell through to "" here, so a loss rendered as
+  // a bare positive-looking amount (e.g. "$500.00") distinguished from a
+  // gain only by text-gain/text-loss color -- no sign for screen readers or
+  // colorblind users. Losses now get an explicit "-".
+  const sign = v >= 0 ? "+" : "-";
   return `${sign}$${Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
@@ -233,7 +237,7 @@ function BalancePanel({ data, loading }) {
 
       {showCurrencyChips && (
         <div className="px-5 py-3 border-t border-surface-border flex flex-wrap items-center gap-2">
-          <span className="text-[11px] uppercase tracking-wider text-muted font-medium mr-1">
+          <span className="data-label mr-1">
             Cash by currency
           </span>
           {cashEntries.map(([cur, v]) => (
@@ -253,7 +257,7 @@ function BalancePanel({ data, loading }) {
 function BalanceCell({ label, value, ccy, emphasis }) {
   return (
     <div className="px-5 py-4 flex flex-col gap-1">
-      <span className="text-[11px] text-muted uppercase tracking-wider font-medium">{label}</span>
+      <span className="data-label">{label}</span>
       <span
         className={`tabular-nums font-bold ${
           emphasis ? "text-xl text-ink" : "text-lg text-ink"
@@ -343,7 +347,7 @@ function ByUnderlyingTab({ data, loading }) {
                         (h) => (
                           <th
                             key={h}
-                            className="text-left px-4 py-2.5 text-[10px] font-semibold text-muted uppercase tracking-wider"
+                            className="data-label text-left px-4 py-2.5"
                           >
                             {h}
                           </th>
@@ -482,7 +486,7 @@ function AllTradesTab({ trades, loading }) {
                 <th
                   key={col.key}
                   onClick={() => handleSort(col.key)}
-                  className="text-left px-4 py-3 text-[10px] font-semibold text-muted uppercase tracking-wider cursor-pointer hover:text-ink transition-colors select-none"
+                  className="data-label text-left px-4 py-3 cursor-pointer hover:text-ink transition-colors select-none"
                 >
                   <span className="flex items-center gap-1">
                     {col.label}
@@ -560,7 +564,7 @@ function StatusBadge({ status }) {
   const className = styles[status?.toLowerCase()] || "bg-surface-hover text-muted";
 
   return (
-    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase ${className}`}>
+    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full uppercase ${className}`}>
       {status}
     </span>
   );

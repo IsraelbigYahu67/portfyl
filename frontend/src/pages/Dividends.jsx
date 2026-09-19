@@ -406,7 +406,7 @@ function GrowthSection({ rows, loading }) {
                   {r.cagr_pct != null ? (
                     <span className="flex items-baseline gap-1">
                       {fmtPct(r.cagr_pct)}
-                      <span className="text-[10px] text-muted">{r.cagr_years_used}yr</span>
+                      <span className="text-xs text-muted">{r.cagr_years_used}yr</span>
                     </span>
                   ) : <span className="text-muted">—</span>}
                 </td>
