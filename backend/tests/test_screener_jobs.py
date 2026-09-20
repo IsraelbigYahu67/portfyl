@@ -291,45 +291,51 @@ def test_cancel_job_hides_wrong_user_and_missing_ids():
 
 
 class _FakeUser:
-    def __init__(self, id):
-        self.id = id
+    def __init__(self, user_id):
+        self.id = user_id
 
 
 def _ctx(user_id: str) -> RequestContext:
-    # RequestContext only needs `.user.id` for this endpoint; the other fields
-    # are left None, matching how other fast-suite tests exercise router
-    # functions directly without a full authenticated HTTP request.
-    return RequestContext(user=_FakeUser(user_id), workspace=None, membership=None, session=None)
+    return RequestContext(
+        user=_FakeUser(user_id),
+        workspace=None,
+        membership=None,
+        session=None,
+    )
 
 
-def test_create_screener_job_endpoint_returns_202_shaped_payload():
+def test_create_screener_job_endpoint_returns_creation_payload():
+    """The authenticated create boundary returns an addressable async job."""
     _reset_registry()
-    with patch("services.screener_jobs._ticker_row", side_effect=lambda sym: _fake_row(sym)):
-        body = ScreenerJobRequest(universe="tech_large")
-        job = create_screener_job(body, ctx=_ctx("user-1"))
-        assert job["status"] in ("queued", "running")
-        assert job["job_id"]
-        assert job["result"] is None
-        _wait_for_status(job["job_id"], "user-1", {"completed", "failed", "cancelled"})
+    with patch("services.screener_jobs._ticker_row", side_effect=lambda symbol: _fake_row(symbol)):
+        payload = create_screener_job(ScreenerJobRequest(universe="tech_large"), ctx=_ctx("user-1"))
+        assert payload["status"] in ("queued", "running")
+        assert payload["job_id"]
+        assert payload["result"] is None
+        _wait_for_status(payload["job_id"], "user-1", {"completed", "failed", "cancelled"})
 
 
-def test_get_screener_job_endpoint_404s_for_wrong_user():
+def test_get_screener_job_endpoint_returns_404_for_wrong_user():
+    """The HTTP boundary must preserve owner-scoped non-disclosure."""
     _reset_registry()
-    with patch("services.screener_jobs._ticker_row", side_effect=lambda sym: _fake_row(sym)):
-        body = ScreenerJobRequest(universe="tech_large")
-        job = create_screener_job(body, ctx=_ctx("user-1"))
-        _wait_for_status(job["job_id"], "user-1", {"completed", "failed", "cancelled"})
-        with pytest.raises(HTTPException) as exc_info:
-            get_screener_job(job["job_id"], offset=0, limit=50, ctx=_ctx("user-2"))
-        assert exc_info.value.status_code == 404
+    with patch("services.screener_jobs._ticker_row", side_effect=lambda symbol: _fake_row(symbol)):
+        payload = create_screener_job(ScreenerJobRequest(universe="tech_large"), ctx=_ctx("user-1"))
+        _wait_for_status(payload["job_id"], "user-1", {"completed", "failed", "cancelled"})
+
+    with pytest.raises(HTTPException) as exc_info:
+        get_screener_job(payload["job_id"], offset=0, limit=50, ctx=_ctx("user-2"))
+
+    assert exc_info.value.status_code == 404
 
 
-def test_cancel_screener_job_endpoint_404s_when_not_cancellable():
+def test_cancel_screener_job_endpoint_returns_404_after_completion():
+    """A terminal job cannot misleadingly accept a cancellation request."""
     _reset_registry()
-    with patch("services.screener_jobs._ticker_row", side_effect=lambda sym: _fake_row(sym)):
-        body = ScreenerJobRequest(universe="tech_large")
-        job = create_screener_job(body, ctx=_ctx("user-1"))
-        _wait_for_status(job["job_id"], "user-1", {"completed", "failed", "cancelled"})
-        with pytest.raises(HTTPException) as exc_info:
-            cancel_screener_job(job["job_id"], ctx=_ctx("user-1"))
-        assert exc_info.value.status_code == 404
+    with patch("services.screener_jobs._ticker_row", side_effect=lambda symbol: _fake_row(symbol)):
+        payload = create_screener_job(ScreenerJobRequest(universe="tech_large"), ctx=_ctx("user-1"))
+        _wait_for_status(payload["job_id"], "user-1", {"completed", "failed", "cancelled"})
+
+    with pytest.raises(HTTPException) as exc_info:
+        cancel_screener_job(payload["job_id"], ctx=_ctx("user-1"))
+
+    assert exc_info.value.status_code == 404
