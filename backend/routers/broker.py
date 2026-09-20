@@ -4,6 +4,7 @@ from datetime import date, datetime, timezone
 from urllib.parse import urlparse, parse_qs
 import httpx
 import base64
+import json
 import os
 import yfinance as yf
 
@@ -12,7 +13,7 @@ from database import get_db
 from entitlements import require_broker_capacity, require_capability, require_writable_broker
 from rate_limit import rate_limit
 from fx import bulk_fetch_fx
-from models import BrokerConnection, Portfolio, Transaction
+from models import BrokerBalance, BrokerConnection, Portfolio, Transaction
 from tenancy import RequestContext, require_csrf, require_portfolio
 from cash_ledger import CASH_TYPES
 
@@ -211,6 +212,18 @@ def get_status(
     conn = _get_connection(db, portfolio)
     if not conn:
         return {"connected": False, "portfolio_id": str(portfolio.public_id)}
+    # Decrypting the stored key can fail on its own (missing/rotated secret
+    # cipher config, KMS unreachable) independent of the connection's own
+    # sync health. Without this guard that exception has no handler and 500s
+    # the whole request, which the frontend can only show as a generic
+    # "We couldn't load this data." -- with no connection info rendered at
+    # all, there's no Disconnect button left to click to recover.
+    try:
+        api_key_preview = conn.api_key[:6] + "..." + conn.api_key[-4:] if len(conn.api_key) > 10 else "***"
+        decrypt_error = None
+    except Exception:
+        api_key_preview = None
+        decrypt_error = "Stored Trading 212 credentials could not be read. Disconnect and reconnect with your API key."
     return {
         "connected": True,
         "id": str(conn.public_id),
@@ -219,9 +232,9 @@ def get_status(
         "environment": conn.environment or "live",
         "last_synced_at": conn.last_synced_at.isoformat() if conn.last_synced_at else None,
         "connected_at": conn.created_at.isoformat() if conn.created_at else None,
-        "api_key_preview": conn.api_key[:6] + "..." + conn.api_key[-4:] if len(conn.api_key) > 10 else "***",
-        "needs_attention": conn.needs_attention,
-        "last_error": conn.last_error if conn.needs_attention else None,
+        "api_key_preview": api_key_preview,
+        "needs_attention": conn.needs_attention or decrypt_error is not None,
+        "last_error": decrypt_error or (conn.last_error if conn.needs_attention else None),
     }
 
 
@@ -286,6 +299,11 @@ def connect(
     db.query(Transaction).filter(
         Transaction.workspace_id == portfolio.workspace_id,
         Transaction.portfolio_id == portfolio.id,
+    ).delete(synchronize_session=False)
+    db.query(BrokerBalance).filter(
+        BrokerBalance.workspace_id == portfolio.workspace_id,
+        BrokerBalance.portfolio_id == portfolio.id,
+        BrokerBalance.broker == "trading212",
     ).delete(synchronize_session=False)
 
     connection = _get_connection(db, portfolio)
@@ -364,6 +382,11 @@ def disconnect(
         raise HTTPException(status_code=404, detail="No Trading 212 connection found")
     target_id = str(conn.public_id)
     db.delete(conn)
+    db.query(BrokerBalance).filter(
+        BrokerBalance.workspace_id == portfolio.workspace_id,
+        BrokerBalance.portfolio_id == portfolio.id,
+        BrokerBalance.broker == "trading212",
+    ).delete(synchronize_session=False)
     if _context is not None:
         record_audit_event(
             db,
@@ -392,6 +415,8 @@ def sync_transactions(
     headers = _t212_headers(conn.api_key, conn.api_secret or "")
     imported = 0
     errors = []
+    cash_updated = False
+    cash_error = None
 
     try:
         orders = _fetch_all_orders(base, headers)
@@ -399,6 +424,15 @@ def sync_transactions(
         raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to fetch orders: {e}")
+
+    try:
+        account_summary = _fetch_account_summary(base, headers)
+        _upsert_t212_balance(db, portfolio, account_summary)
+        cash_updated = True
+    except Exception as e:
+        detail = e.detail if isinstance(e, HTTPException) else str(e)
+        cash_error = f"Cash summary fetch failed: {detail}"
+        errors.append(cash_error)
 
     existing_sources = set()
     new_orders_by_ticker: dict[str, list[Transaction]] = {}
@@ -637,6 +671,8 @@ def sync_transactions(
         "imported_dividends": dividends_imported,
         "total_imported": imported + dividends_imported,
         "errors": errors,
+        "cash_updated": cash_updated,
+        "cash_error": cash_error,
     }
 
 
@@ -647,6 +683,54 @@ def _extract_cursor(next_page_path: str) -> str | None:
     params = parse_qs(parsed.query)
     cursors = params.get("cursor")
     return cursors[0] if cursors else None
+
+
+def _fetch_account_summary(base: str, headers: dict) -> dict:
+    resp = httpx.get(f"{base}/equity/account/summary", headers=headers, timeout=15)
+    if resp.status_code == 401:
+        raise HTTPException(status_code=401, detail="API key is invalid or expired")
+    if resp.status_code == 403:
+        raise HTTPException(status_code=403, detail="API key cannot read the account summary")
+    if resp.status_code == 429:
+        raise HTTPException(status_code=429, detail="Trading 212 rate limit reached")
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _upsert_t212_balance(db: Session, portfolio: Portfolio, summary: dict) -> BrokerBalance:
+    cash_data = summary.get("cash") or {}
+    cash = sum(
+        float(cash_data.get(field) or 0)
+        for field in ("availableToTrade", "inPies", "reservedForOrders")
+    )
+    currency = str(summary.get("currency") or "").upper() or None
+    investments = summary.get("investments") or {}
+
+    balance = (
+        db.query(BrokerBalance)
+        .filter(
+            BrokerBalance.workspace_id == portfolio.workspace_id,
+            BrokerBalance.portfolio_id == portfolio.id,
+            BrokerBalance.broker == "trading212",
+        )
+        .first()
+    )
+    if balance is None:
+        balance = BrokerBalance(
+            workspace_id=portfolio.workspace_id,
+            portfolio_id=portfolio.id,
+            broker="trading212",
+        )
+        db.add(balance)
+
+    balance.base_currency = currency
+    balance.cash = cash
+    balance.stock = float(investments.get("currentValue") or 0)
+    balance.options_value = None
+    balance.net_liquidation = float(summary.get("totalValue") or 0)
+    balance.cash_by_currency = json.dumps({currency: cash}) if currency else None
+    balance.as_of = date.today()
+    return balance
 
 
 def _fetch_all_orders(base: str, headers: dict) -> list:
