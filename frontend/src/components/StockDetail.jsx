@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "react-router-dom";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Customized, Legend,
   Line, Pie, PieChart, ReferenceArea, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -38,22 +37,10 @@ const PERIOD_AXIS_RESERVED_WIDTH = 52;
 // Navigation helpers
 // ---------------------------------------------------------------------------
 
-function stockUrl(ticker) {
-  return `/stock/${encodeURIComponent(String(ticker).toUpperCase())}`;
-}
-
 // `useStockDetail().openStock(ticker)` was originally a modal-opener. It now
 // just navigates to the full-page overview — kept as a hook for backwards
 // compatibility with existing call sites in Allocation/Dividends/Heatmap.
-export function useStockDetail() {
-  const navigate = useNavigate();
-  return {
-    openStock: (t) => {
-      if (!t) return;
-      navigate(stockUrl(t));
-    },
-  };
-}
+export { useStockDetail } from "../hooks/useStockDetail";
 
 // Convenience: a link that navigates to the stock overview page. Drops in
 // anywhere a bare ticker is rendered. Using `<Link>` (not a button) so
@@ -891,6 +878,7 @@ export function StockOverview({
   sectionIds = null,
   showHeader = true,
   showCustomizer = true,
+  headerHeadingLevel = 2,
 }) {
   const [period, setPeriod] = useState("annual");
   const reportConfig = useStockReportConfig();
@@ -1190,6 +1178,7 @@ export function StockOverview({
   };
 
   const renderedSectionIds = sectionIds || reportConfig.config.order;
+  const HeaderHeading = `h${headerHeadingLevel}`;
 
   return (
     <>
@@ -1197,7 +1186,7 @@ export function StockOverview({
       {showHeader && <div className="flex flex-col gap-4 px-4 py-4 border-b border-surface-border sm:flex-row sm:items-start sm:justify-between sm:px-6">
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-3 flex-wrap">
-            <h2 className="text-3xl font-bold font-mono"><ShinyText text={data.ticker} /></h2>
+            <HeaderHeading className="text-3xl font-bold font-mono"><ShinyText text={data.ticker} /></HeaderHeading>
             <span className="text-muted text-lg truncate">{data.name}</span>
             {data.exchange && (
               <span className="text-[10px] text-muted uppercase tracking-wider">{data.exchange}</span>
