@@ -29,16 +29,36 @@ describe("allocationRows", () => {
 });
 
 describe("boundedAllocationRows", () => {
-  const rows = Array.from({ length: 8 }, (_, i) => ({ name: `R${i}`, value: 8 - i, weight: 20 - i }));
-
-  it("bounds eight rows to seven plus Other while the list retains all eight", () => {
+  it("keeps every row above 2% weight and groups the rest into Other", () => {
+    const rows = [
+      { name: "A", value: 60, weight: 60 },
+      { name: "B", value: 20, weight: 20 },
+      { name: "C", value: 3, weight: 3 },
+      { name: "D", value: 1.5, weight: 1.5 },
+      { name: "E", value: 1, weight: 1 },
+    ];
     const bounded = boundedAllocationRows(rows);
-    expect(bounded).toHaveLength(8);
-    expect(bounded[7].name).toBe("Other");
-    expect(bounded[7].items).toHaveLength(1);
+    expect(bounded.map((r) => r.name)).toEqual(["A", "B", "C", "Other"]);
+    expect(bounded[3].weight).toBe(2.5);
+    expect(bounded[3].value).toBe(2.5);
+    expect(bounded[3].items).toHaveLength(2);
   });
 
-  it("returns rows unchanged when there are seven or fewer", () => {
-    expect(boundedAllocationRows(rows.slice(0, 7))).toHaveLength(7);
+  it("returns rows unchanged when none fall at or below the threshold", () => {
+    const rows = [
+      { name: "A", value: 60, weight: 60 },
+      { name: "B", value: 40, weight: 40 },
+    ];
+    expect(boundedAllocationRows(rows)).toEqual(rows);
+  });
+
+  it("supports a custom minimum weight threshold", () => {
+    const rows = [
+      { name: "A", value: 90, weight: 90 },
+      { name: "B", value: 6, weight: 6 },
+      { name: "C", value: 4, weight: 4 },
+    ];
+    const bounded = boundedAllocationRows(rows, 5);
+    expect(bounded.map((r) => r.name)).toEqual(["A", "B", "Other"]);
   });
 });

@@ -1,0 +1,227 @@
+- generic [active] [ref=f19e1]:
+  - generic [ref=f19e4]:
+    - link "Skip to main content" [ref=f19e5] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f19e6]:
+      - banner [ref=f19e7]:
+        - generic [ref=f19e8]:
+          - img "Portfyl" [ref=f19e9]
+          - generic [ref=f19e10]: Portfyl
+        - button "Open navigation menu" [ref=f19e11] [cursor=pointer]
+      - main [ref=f19e13]:
+        - generic [ref=f19e14]:
+          - generic [ref=f19e15]:
+            - generic [ref=f19e16]:
+              - heading "Dashboard" [level=1] [ref=f19e17]
+              - paragraph [ref=f19e18]: Updated 20:29:56
+            - generic [ref=f19e19]:
+              - button "Customize" [ref=f19e20] [cursor=pointer]
+              - button "Refresh" [ref=f19e26] [cursor=pointer]
+          - generic [ref=f19e33]:
+            - generic [ref=f19e35]:
+              - paragraph [ref=f19e36]: Net Worth
+              - generic [ref=f19e37]:
+                - generic [ref=f19e38]: 212 773,81 Kč
+                - generic [ref=f19e39]:
+                  - generic [aria-hidden] [ref=f19e40]: ▼
+                  - generic [ref=f19e41]: 9,31 Kč
+                  - generic [ref=f19e42]: (-0.03%)
+              - generic [ref=f19e43]:
+                - generic [ref=f19e44]: Positions 51 189,31 Kč
+                - generic [aria-hidden] [ref=f19e45]: ·
+                - generic [ref=f19e46]: Cash 161 584,50 Kč
+            - generic [ref=f19e47]:
+              - generic [ref=f19e48]:
+                - generic [ref=f19e49]: Invested
+                - generic [ref=f19e50]: 39.1K Kč
+              - generic [ref=f19e51]:
+                - generic [ref=f19e52]: All-time P&L
+                - generic [ref=f19e53]: +12.8K Kč
+              - generic [ref=f19e54]:
+                - generic [ref=f19e55]: Dividends
+                - generic [ref=f19e56]: 34.5 Kč
+              - generic [ref=f19e57]:
+                - generic [ref=f19e58]: Holdings
+                - generic [ref=f19e59]: "3"
+          - generic [ref=f19e61]:
+            - generic [ref=f19e63]:
+              - generic [ref=f19e64]:
+                - generic [ref=f19e65]: Portfolio Performance
+                - generic [ref=f19e72]:
+                  - generic [ref=f19e73]:
+                    - button "Value" [ref=f19e74] [cursor=pointer]
+                    - button "Growth %" [ref=f19e75] [cursor=pointer]
+                  - generic [ref=f19e76]:
+                    - button "7D" [ref=f19e77] [cursor=pointer]
+                    - button "MTD" [ref=f19e78] [cursor=pointer]
+                    - button "1M" [ref=f19e79] [cursor=pointer]
+                    - button "3M" [ref=f19e80] [cursor=pointer]
+                    - button "YTD" [ref=f19e81] [cursor=pointer]
+                    - button "1Y" [ref=f19e82] [cursor=pointer]
+                    - button "All" [ref=f19e83] [cursor=pointer]
+              - generic [ref=f19e84]:
+                - button "S&P 500" [ref=f19e85] [cursor=pointer]
+                - button "NASDAQ 100" [ref=f19e86] [cursor=pointer]
+                - button "Dow Jones" [ref=f19e87] [cursor=pointer]
+                - button "STOXX 50" [ref=f19e88] [cursor=pointer]
+                - button "Bitcoin" [ref=f19e89] [cursor=pointer]
+              - generic [ref=f19e93]:
+                - img [ref=f19e94]:
+                  - generic [ref=f19e98]:
+                    - generic [ref=f19e99]: 2025-03
+                    - generic [ref=f19e101]: 2025-06
+                    - generic [ref=f19e103]: 2025-10
+                    - generic [ref=f19e105]: 2026-01
+                    - generic [ref=f19e107]: 2026-05
+                    - generic [ref=f19e109]: 2026-09
+                  - generic [ref=f19e112]:
+                    - generic [ref=f19e113]: "-1.3%"
+                    - generic [ref=f19e115]: +0.7%
+                    - generic [ref=f19e117]: +2.7%
+                    - generic [ref=f19e119]: +6.2%
+                - list [ref=f19e128]:
+                  - listitem [ref=f19e129]:
+                    - generic [ref=f19e132]: Portfolio Growth
+              - group "Performance chart data" [ref=f19e133]:
+                - generic "View data summary" [ref=f19e134] [cursor=pointer]
+            - generic [ref=f19e136]:
+              - heading "Concentration" [level=2] [ref=f19e137]
+              - generic [ref=f19e138]:
+                - generic [ref=f19e139]:
+                  - generic [ref=f19e140]: Heatmap
+                  - generic [ref=f19e149]:
+                    - generic [ref=f19e150]:
+                      - heading "Heatmap" [level=2] [ref=f19e151]
+                      - generic [ref=f19e152]:
+                        - button "1D" [ref=f19e153] [cursor=pointer]
+                        - button "1W" [ref=f19e154] [cursor=pointer]
+                        - button "MTD" [ref=f19e155] [cursor=pointer]
+                        - button "1M" [ref=f19e156] [cursor=pointer]
+                        - button "3M" [ref=f19e157] [cursor=pointer]
+                        - button "YTD" [ref=f19e158] [cursor=pointer]
+                        - button "1Y" [ref=f19e159] [cursor=pointer]
+                        - button "5Y" [ref=f19e160] [cursor=pointer]
+                    - generic [ref=f19e161]:
+                      - 'generic "MSFT | -0.69% | Weight: 59.61%" [ref=f19e162] [cursor=pointer]':
+                        - generic [ref=f19e163]: MSFT
+                        - generic [ref=f19e164]: "-0.69%"
+                        - generic [ref=f19e165]: 59.61%
+                      - 'generic "AAPL | +0.97% | Weight: 40.39%" [ref=f19e166] [cursor=pointer]':
+                        - generic [ref=f19e167]: AAPL
+                        - generic [ref=f19e168]: +0.97%
+                        - generic [ref=f19e169]: 40.39%
+                - generic [ref=f19e170]:
+                  - generic [ref=f19e171]: Top 10 Holdings
+                  - generic [ref=f19e178]:
+                    - generic [ref=f19e179]:
+                      - link "MSFT" [ref=f19e180] [cursor=pointer]:
+                        - /url: /stock/MSFT
+                      - generic [ref=f19e183]: 40.8%
+                      - generic [ref=f19e184]: 20 870,13 Kč
+                    - generic [ref=f19e185]:
+                      - link "VWCE.DE" [ref=f19e186] [cursor=pointer]:
+                        - /url: /stock/VWCE.DE
+                      - generic [ref=f19e189]: 31.6%
+                      - generic [ref=f19e190]: 16 177,07 Kč
+                    - generic [ref=f19e191]:
+                      - link "AAPL" [ref=f19e192] [cursor=pointer]:
+                        - /url: /stock/AAPL
+                      - generic [ref=f19e195]: 27.6%
+                      - generic [ref=f19e196]: 14 142,11 Kč
+            - generic [ref=f19e198]:
+              - heading "Needs attention" [level=2] [ref=f19e199]
+              - generic [ref=f19e200]:
+                - generic [ref=f19e201]:
+                  - generic [ref=f19e202]: Attention signals
+                  - list "Portfolio attention" [ref=f19e208]:
+                    - listitem [ref=f19e209]:
+                      - 'link "Concentration: AAPL AAPL is 27.63% of the portfolio — above the 25% concentration threshold. Warning" [ref=f19e210] [cursor=pointer]':
+                        - /url: /allocation
+                        - generic [ref=f19e213]:
+                          - generic [ref=f19e214]: "Concentration: AAPL"
+                          - generic [ref=f19e215]: AAPL is 27.63% of the portfolio — above the 25% concentration threshold.
+                        - generic [ref=f19e216]: Warning
+                    - listitem [ref=f19e217]:
+                      - 'link "Concentration: MSFT MSFT is 40.77% of the portfolio — above the 25% concentration threshold. Warning" [ref=f19e218] [cursor=pointer]':
+                        - /url: /allocation
+                        - generic [ref=f19e221]:
+                          - generic [ref=f19e222]: "Concentration: MSFT"
+                          - generic [ref=f19e223]: MSFT is 40.77% of the portfolio — above the 25% concentration threshold.
+                        - generic [ref=f19e224]: Warning
+                    - listitem [ref=f19e225]:
+                      - 'link "Concentration: VWCE.DE VWCE.DE is 31.6% of the portfolio — above the 25% concentration threshold. Warning" [ref=f19e226] [cursor=pointer]':
+                        - /url: /allocation
+                        - generic [ref=f19e229]:
+                          - generic [ref=f19e230]: "Concentration: VWCE.DE"
+                          - generic [ref=f19e231]: VWCE.DE is 31.6% of the portfolio — above the 25% concentration threshold.
+                        - generic [ref=f19e232]: Warning
+                - generic [ref=f19e233]:
+                  - generic [ref=f19e234]: Earnings Calendar
+                  - generic [ref=f19e240]:
+                    - generic [ref=f19e241]:
+                      - link "MSFT" [ref=f19e242] [cursor=pointer]:
+                        - /url: /stock/MSFT
+                      - generic [ref=f19e243]: Microsoft Corporation
+                      - generic [ref=f19e244]: 28.10.
+                      - generic [ref=f19e245]: 21:00
+                      - generic [ref=f19e246]: EPS 4.72
+                    - generic [ref=f19e247]:
+                      - link "AAPL" [ref=f19e248] [cursor=pointer]:
+                        - /url: /stock/AAPL
+                      - generic [ref=f19e249]: Apple Inc.
+                      - generic [ref=f19e250]: 29.10.
+                      - generic [ref=f19e251]: 21:00
+                      - generic [ref=f19e252]: EPS 1.98
+            - generic [ref=f19e254]:
+              - generic [ref=f19e255]:
+                - generic [ref=f19e256]: Top Movers
+                - generic [ref=f19e262]:
+                  - generic [ref=f19e263]:
+                    - button "%" [ref=f19e264] [cursor=pointer]
+                    - button "$" [ref=f19e265] [cursor=pointer]
+                  - generic [ref=f19e266]:
+                    - button "Today" [ref=f19e267] [cursor=pointer]
+                    - button "Week" [ref=f19e268] [cursor=pointer]
+                    - button "Month" [ref=f19e269] [cursor=pointer]
+              - generic [ref=f19e270]:
+                - generic [ref=f19e271]:
+                  - heading "Gainers" [level=3] [ref=f19e272]
+                  - generic [ref=f19e276]:
+                    - generic [ref=f19e277]:
+                      - link "AAPL" [ref=f19e278] [cursor=pointer]:
+                        - /url: /stock/AAPL
+                      - generic [ref=f19e279]: Apple Inc.
+                      - generic [ref=f19e280]: $6.42
+                      - generic [ref=f19e282]:
+                        - generic [aria-hidden] [ref=f19e283]: ▲
+                        - generic [ref=f19e284]: (+0.97%)
+                    - generic [ref=f19e285]:
+                      - link "MSFT" [ref=f19e286] [cursor=pointer]:
+                        - /url: /stock/MSFT
+                      - generic [ref=f19e287]: Microsoft Corporation
+                      - generic [ref=f19e288]: "-$6.86"
+                      - generic [ref=f19e290]:
+                        - generic [aria-hidden] [ref=f19e291]: ▼
+                        - generic [ref=f19e292]: (-0.69%)
+                - generic [ref=f19e293]:
+                  - heading "Losers" [level=3] [ref=f19e294]
+                  - generic [ref=f19e298]:
+                    - generic [ref=f19e299]:
+                      - link "MSFT" [ref=f19e300] [cursor=pointer]:
+                        - /url: /stock/MSFT
+                      - generic [ref=f19e301]: Microsoft Corporation
+                      - generic [ref=f19e302]: "-$6.86"
+                      - generic [ref=f19e304]:
+                        - generic [aria-hidden] [ref=f19e305]: ▼
+                        - generic [ref=f19e306]: (-0.69%)
+                    - generic [ref=f19e307]:
+                      - link "AAPL" [ref=f19e308] [cursor=pointer]:
+                        - /url: /stock/AAPL
+                      - generic [ref=f19e309]: Apple Inc.
+                      - generic [ref=f19e310]: $6.42
+                      - generic [ref=f19e312]:
+                        - generic [aria-hidden] [ref=f19e313]: ▲
+                        - generic [ref=f19e314]: (+0.97%)
+            - group [ref=f19e316]:
+              - generic "Insider activity (1Y)" [ref=f19e317] [cursor=pointer]
+  - generic [aria-hidden] [ref=f19e318]: "-1.3%"

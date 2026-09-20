@@ -34,9 +34,16 @@ Change subsequently authorized by the user's request to publish through Cloudfla
 retain the existing identity provider, policy, and session settings, but scope
 the protected application to `/api` and all tracker/auth routes:
 
-`/dashboard`, `/overview`, `/allocation`, `/transactions`, `/import`,
+`/dashboard`, `/overview`, `/allocation`, `/transactions`, `/cash`, `/import`,
 `/dividends`, `/analytics`, `/search`, `/stock`, `/watchlists`, `/assistant`,
 `/settings`, `/pricing`, `/login`, `/register`, `/verify-email`, `/forgot-password`.
+
+**Follow-up (2026-09-20):** `/cash` was re-added to the app's route table
+(Cash is a first-class page again, see the 2026-09-20 cash-reconciliation
+plan). The Cloudflare Access application's protected-path list is configured
+in the Cloudflare dashboard, not in this repo — it must be updated by hand to
+match this list, or `/cash` will load without being covered by Access — it
+just won't be gated the way the rest of this list is.
 
 Also retain protection on operational endpoints `/health`, `/docs`, `/redoc`,
 and `/openapi.json`. Public content would be the home and static assets. New

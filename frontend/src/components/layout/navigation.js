@@ -9,6 +9,7 @@ import {
   Settings as SettingsIcon,
   Star,
   Upload,
+  Wallet,
 } from "lucide-react";
 import { TRACKER_HOME } from "../../lib/routes";
 
@@ -20,6 +21,7 @@ export const NAV_GROUPS = Object.freeze([
       { to: TRACKER_HOME, label: "Dashboard", icon: LayoutDashboard },
       { to: "/allocation", label: "Allocation", icon: PieChart },
       { to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+      { to: "/cash", label: "Cash", icon: Wallet },
     ],
   },
   {

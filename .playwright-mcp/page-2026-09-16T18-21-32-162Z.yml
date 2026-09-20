@@ -1,0 +1,237 @@
+- generic [active] [ref=f7e1]:
+  - generic [ref=f7e4]:
+    - link "Skip to main content" [ref=f7e5] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f7e6]:
+      - banner [ref=f7e7]:
+        - generic [ref=f7e8]:
+          - img "Portfyl" [ref=f7e9]
+          - generic [ref=f7e10]: Portfyl
+        - button "Open navigation menu" [ref=f7e11] [cursor=pointer]
+      - main [ref=f7e13]:
+        - generic [ref=f7e14]:
+          - generic [ref=f7e15]:
+            - generic [ref=f7e16]:
+              - heading "Portfolio Analytics" [level=1] [ref=f7e17]
+              - paragraph [ref=f7e20]: Risk metrics, diversification, and correlations
+            - generic [ref=f7e21]:
+              - combobox "Benchmark for beta / alpha / tracking error" [ref=f7e22]:
+                - option "S&P 500" [selected]
+                - option "NASDAQ 100"
+                - option "Dow Jones"
+                - option "STOXX 50"
+                - option "MSCI World"
+                - option "MSCI ACWI"
+                - option "60/40 (World + Agg Bond)"
+              - generic [ref=f7e23]:
+                - button "3M" [ref=f7e24] [cursor=pointer]
+                - button "6M" [ref=f7e25] [cursor=pointer]
+                - button "1Y" [ref=f7e26] [cursor=pointer]
+                - button "2Y" [ref=f7e27] [cursor=pointer]
+              - button [ref=f7e28] [cursor=pointer]
+          - paragraph [ref=f7e34]: "Period: 1Y · Data loaded 20:21:30"
+          - generic [ref=f7e35]:
+            - heading "Lifetime — Money-Weighted (your actual cashflows)" [level=2] [ref=f7e36]
+            - generic [ref=f7e40]:
+              - generic [ref=f7e41]:
+                - generic [ref=f7e42]:
+                  - text: Simple ROI
+                  - button "What is Simple ROI (lifetime)?" [ref=f7e44]
+                - generic [ref=f7e47]: +40.02%
+                - generic [ref=f7e48]: Matches dashboard Total P&L %
+              - generic [ref=f7e49]:
+                - generic [ref=f7e50]:
+                  - text: Annualized IRR (XIRR)
+                  - button "What is Annualized IRR (XIRR)?" [ref=f7e52]
+                - generic [ref=f7e55]: +3.96%
+                - generic [ref=f7e56]: Per-year, weights cashflow timing
+              - generic [ref=f7e57]:
+                - generic [ref=f7e58]:
+                  - text: Net Profit
+                  - button "What is Net Profit (lifetime)?" [ref=f7e60]
+                - generic [ref=f7e63]: 16,192.04 Kč
+                - generic [ref=f7e64]: Realized 634.13 Kč · Div 31.71 Kč
+              - generic [ref=f7e65]:
+                - generic [ref=f7e66]:
+                  - text: Capital Invested
+                  - button "What is Capital Currently Invested?" [ref=f7e68]
+                - generic [ref=f7e71]: 36,653.02 Kč
+                - generic [ref=f7e72]: Value 52,179.22 Kč
+          - generic [ref=f7e73]:
+            - heading "1Y — Time-Weighted (investment performance only)" [level=2] [ref=f7e74]
+            - generic [ref=f7e77]:
+              - generic [ref=f7e78]:
+                - generic [ref=f7e79]:
+                  - text: Total Return
+                  - button "What is Total Return (TWR)?" [ref=f7e81]
+                - generic [ref=f7e84]: +1.58%
+                - generic [ref=f7e85]: CAGR +1.59%
+              - generic [ref=f7e86]:
+                - generic [ref=f7e87]:
+                  - text: Ann. Return
+                  - button "What is Annualized Return (Arithmetic)?" [ref=f7e89]
+                - generic [ref=f7e92]: +1.78%
+                - generic [ref=f7e93]: Arithmetic (mean × 252)
+              - generic [ref=f7e94]:
+                - generic [ref=f7e95]:
+                  - text: Ann. Volatility
+                  - button "What is Annualized Volatility?" [ref=f7e97]
+                - generic [ref=f7e100]: 7.02%
+                - generic [ref=f7e101]: Very Low
+              - generic [ref=f7e102]:
+                - generic [ref=f7e103]:
+                  - text: Win Rate
+                  - button "What is Win Rate?" [ref=f7e105]
+                - generic [ref=f7e108]: 50.4%
+                - generic [ref=f7e109]: 130 up / 128 down
+          - generic [ref=f7e110]:
+            - heading "vs S&P 500 — Active Performance" [level=2] [ref=f7e111]
+            - paragraph [ref=f7e115]: "Period: 1Y · Data loaded 20:21:28"
+            - generic [ref=f7e116]:
+              - generic [ref=f7e117]:
+                - generic [ref=f7e118]:
+                  - heading "Cumulative Return" [level=3] [ref=f7e119]
+                  - generic [ref=f7e120]:
+                    - generic [ref=f7e121]: Portfolio
+                    - generic [ref=f7e123]: S&P 500
+                - img [ref=f7e127]:
+                  - generic [ref=f7e132]:
+                    - generic [ref=f7e133]: 2025-12-01
+                    - generic [ref=f7e135]: 2026-04-14
+                    - generic [ref=f7e137]: 2026-09-16
+                  - generic [ref=f7e140]:
+                    - generic [ref=f7e141]: "-20%"
+                    - generic [ref=f7e143]: "-10%"
+                    - generic [ref=f7e145]: 0%
+                    - generic [ref=f7e147]: 10%
+                    - generic [ref=f7e149]: 20%
+                - group "Benchmark comparison chart data" [ref=f7e157]:
+                  - generic "View data summary" [ref=f7e158] [cursor=pointer]
+              - generic [ref=f7e159]:
+                - generic [ref=f7e160]:
+                  - generic [ref=f7e161]:
+                    - text: Active Return
+                    - button "What is Active Return?" [ref=f7e163]
+                  - generic [ref=f7e166]: "-13.62%"
+                  - generic [ref=f7e167]: P 1.58% · B 15.2%
+                - generic [ref=f7e168]:
+                  - generic [ref=f7e169]:
+                    - text: Tracking Error
+                    - button "What is Tracking Error?" [ref=f7e171]
+                  - generic [ref=f7e174]: 12.35%
+                  - generic [ref=f7e175]: Annualised
+                - generic [ref=f7e176]:
+                  - generic [ref=f7e177]:
+                    - text: Info Ratio
+                    - button "What is Information Ratio?" [ref=f7e179]
+                  - generic [ref=f7e182]: "-1.041"
+                - generic [ref=f7e183]:
+                  - generic [ref=f7e184]:
+                    - text: Correlation
+                    - button "What is Correlation (vs benchmark)?" [ref=f7e186]
+                  - generic [ref=f7e189]: "0.325"
+                - generic [ref=f7e190]:
+                  - generic [ref=f7e191]:
+                    - text: Up Capture
+                    - button "What is Up Capture?" [ref=f7e193]
+                  - generic [ref=f7e196]: "0.166"
+                - generic [ref=f7e197]:
+                  - generic [ref=f7e198]:
+                    - text: Down Capture
+                    - button "What is Down Capture?" [ref=f7e200]
+                  - generic [ref=f7e203]: "0.177"
+          - generic [ref=f7e204]:
+            - generic [ref=f7e205]:
+              - heading "Risk-Adjusted Returns" [level=2] [ref=f7e206]
+              - generic [ref=f7e209]:
+                - generic [ref=f7e210]:
+                  - generic [ref=f7e211]:
+                    - generic [ref=f7e212]:
+                      - text: Sharpe Ratio
+                      - button "What is Sharpe Ratio?" [ref=f7e214]
+                    - generic [ref=f7e217]: Poor
+                  - text: "-0.459"
+                  - paragraph [ref=f7e218]: Return per unit of total risk
+                - generic [ref=f7e219]:
+                  - generic [ref=f7e220]:
+                    - generic [ref=f7e221]:
+                      - text: Sortino Ratio
+                      - button "What is Sortino Ratio?" [ref=f7e223]
+                    - generic [ref=f7e226]: Poor
+                  - text: "-0.759"
+                  - paragraph [ref=f7e227]: Return per unit of downside risk
+                - generic [ref=f7e228]:
+                  - generic [ref=f7e229]:
+                    - generic [ref=f7e230]:
+                      - text: Beta (vs S&P 500)
+                      - button "What is Beta (vs benchmark)?" [ref=f7e232]
+                    - generic [ref=f7e235]: Active
+                  - text: "0.18"
+                  - paragraph [ref=f7e236]: Benchmark sensitivity
+                - generic [ref=f7e237]:
+                  - generic [ref=f7e239]:
+                    - text: Alpha (ann.)
+                    - button "What is Alpha (annualized)?" [ref=f7e241]
+                  - generic [ref=f7e244]: "-4.95%"
+                  - paragraph [ref=f7e245]: Excess return vs S&P 500
+            - generic [ref=f7e246]:
+              - heading "Drawdown Analysis" [level=2] [ref=f7e247]
+              - generic [ref=f7e251]:
+                - generic [ref=f7e252]:
+                  - generic [ref=f7e253]:
+                    - generic [ref=f7e254]:
+                      - text: Maximum Drawdown
+                      - button "What is Maximum Drawdown?" [ref=f7e256]
+                    - generic [ref=f7e259]: Low
+                  - generic [ref=f7e260]: "-7.4%"
+                  - paragraph [ref=f7e261]: 2026-01-28 → 2026-03-30 (recovered 2026-08-24)
+                - generic [ref=f7e262]:
+                  - generic [ref=f7e263]:
+                    - text: Current Drawdown
+                    - button "What is Current Drawdown?" [ref=f7e265]
+                  - generic [ref=f7e268]: "-1.41%"
+                - generic [ref=f7e269]:
+                  - generic [ref=f7e270]:
+                    - generic [ref=f7e271]:
+                      - text: Best Day
+                      - button "What is Best Day?" [ref=f7e273]
+                    - generic [ref=f7e276]: +1.75%
+                  - generic [ref=f7e277]:
+                    - generic [ref=f7e278]:
+                      - text: Worst Day
+                      - button "What is Worst Day?" [ref=f7e280]
+                    - generic [ref=f7e283]: "-1.42%"
+          - generic [ref=f7e284]:
+            - heading "Strongest Correlations" [level=2] [ref=f7e285]
+            - paragraph [ref=f7e286]: How your holdings move together. High correlation (red) means less diversification benefit.
+            - paragraph [ref=f7e287]: "Period: 1Y · Data loaded 20:21:26"
+            - list [ref=f7e288]:
+              - listitem [ref=f7e289]:
+                - generic [ref=f7e290]:
+                  - link "AAPL" [ref=f7e291] [cursor=pointer]:
+                    - /url: /stock/AAPL
+                  - text: /
+                  - link "VWCE.DE" [ref=f7e292] [cursor=pointer]:
+                    - /url: /stock/VWCE.DE
+                - generic [ref=f7e293]: "0.25"
+              - listitem [ref=f7e294]:
+                - generic [ref=f7e295]:
+                  - link "MSFT" [ref=f7e296] [cursor=pointer]:
+                    - /url: /stock/MSFT
+                  - text: /
+                  - link "VWCE.DE" [ref=f7e297] [cursor=pointer]:
+                    - /url: /stock/VWCE.DE
+                - generic [ref=f7e298]: "0.23"
+              - listitem [ref=f7e299]:
+                - generic [ref=f7e300]:
+                  - link "AAPL" [ref=f7e301] [cursor=pointer]:
+                    - /url: /stock/AAPL
+                  - text: /
+                  - link "MSFT" [ref=f7e302] [cursor=pointer]:
+                    - /url: /stock/MSFT
+                - generic [ref=f7e303]: "0.12"
+            - group "Strongest correlation pairs data" [ref=f7e304]:
+              - generic "View data summary" [ref=f7e305] [cursor=pointer]
+            - group [ref=f7e306]:
+              - 'generic "Advanced: full matrix" [ref=f7e307] [cursor=pointer]'
+  - generic [aria-hidden] [ref=f7e308]: "-20%"

@@ -1,0 +1,17 @@
+- generic [ref=f1e5]:
+  - generic [ref=f1e6]:
+    - heading "Log in to Portfyl" [level=1] [ref=f1e7]
+    - paragraph [ref=f1e8]: Track your portfolio, dividends, and taxes in one place.
+  - generic [ref=f1e9]:
+    - generic [ref=f1e10]:
+      - text: E-mail
+      - textbox "E-mail" [ref=f1e11]
+    - generic [ref=f1e12]:
+      - text: Password
+      - textbox "Password" [ref=f1e13]
+    - button "Log in" [ref=f1e14] [cursor=pointer]
+    - generic [ref=f1e18]:
+      - link "Forgot password?" [ref=f1e19] [cursor=pointer]:
+        - /url: /forgot-password
+      - link "Create an account" [ref=f1e20] [cursor=pointer]:
+        - /url: /register

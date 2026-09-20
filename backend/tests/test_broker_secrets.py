@@ -142,6 +142,12 @@ class TestSyncDecryptsStoredCredentials:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(broker_module, "_fetch_all_orders", _fake_fetch_orders)
+            mp.setattr(broker_module, "_fetch_account_summary", lambda base, headers: {
+                "cash": {"availableToTrade": 0},
+                "currency": "USD",
+                "investments": {},
+                "totalValue": 0,
+            })
             mp.setattr(broker_module, "_fetch_all_dividends", lambda base, headers: [])
             broker_module.sync_transactions(db=db_session, portfolio=default_portfolio, _context=None)
 

@@ -352,6 +352,8 @@ export const fetchCashBalance = (currency = "USD") =>
   api.get("/cash/balance", { params: { currency } }).then((r) => r.data);
 export const fetchCashHistory = (currency = "USD") =>
   api.get("/cash/history", { params: { currency } }).then((r) => r.data);
+export const fetchCashReconciliation = (currency = "USD") =>
+  api.get("/cash/reconciliation", { params: { currency } }).then((r) => r.data);
 export const fetchInterestRates = () => api.get("/cash/interest-rates").then((r) => r.data);
 export const saveInterestRates = (rates) =>
   api.put("/cash/interest-rates", { rates }).then((r) => r.data);

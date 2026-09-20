@@ -472,6 +472,16 @@ def test_t212_sync_stamps_the_authorized_workspace_and_portfolio(
         },
     }])
     monkeypatch.setattr(broker_router, "_fetch_all_dividends", lambda *_: [])
+    monkeypatch.setattr(broker_router, "_fetch_account_summary", lambda *_: {
+        "cash": {
+            "availableToTrade": 100.0,
+            "inPies": 25.0,
+            "reservedForOrders": 5.0,
+        },
+        "currency": "USD",
+        "investments": {"currentValue": 200.0},
+        "totalValue": 330.0,
+    })
     monkeypatch.setattr(broker_router, "_split_adjust", lambda *_: 0)
     monkeypatch.setattr(broker_router, "_drop_corporate_action_pairs", lambda *_: 0)
     monkeypatch.setattr(
@@ -491,6 +501,12 @@ def test_t212_sync_stamps_the_authorized_workspace_and_portfolio(
         row = db.query(Transaction).one()
         assert row.workspace_id == tenant_rows.alice_workspace.id
         assert row.portfolio_id == tenant_rows.alice_portfolio.id
+        balance = db.query(BrokerBalance).filter(
+            BrokerBalance.broker == "trading212"
+        ).one()
+        assert balance.workspace_id == tenant_rows.alice_workspace.id
+        assert balance.portfolio_id == tenant_rows.alice_portfolio.id
+        assert balance.cash == 130.0
 
 
 def test_ibkr_sync_stamps_workspace_without_matching_bob_rows(

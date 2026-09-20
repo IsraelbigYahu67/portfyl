@@ -1,0 +1,103 @@
+- generic [ref=f12e4]:
+  - link "Skip to main content" [ref=f12e5] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f12e6]:
+    - banner [ref=f12e7]:
+      - generic [ref=f12e8]:
+        - img "Portfyl" [ref=f12e9]
+        - generic [ref=f12e10]: Portfyl
+      - button "Open navigation menu" [ref=f12e11] [cursor=pointer]
+    - main [ref=f12e13]:
+      - generic [ref=f12e14]:
+        - generic [ref=f12e15]:
+          - generic [ref=f12e16]:
+            - heading "Tax Report" [level=1] [ref=f12e17]
+            - paragraph [ref=f12e21]: Capital gains, losses, and dividend income (FIFO method)
+          - generic [ref=f12e22]:
+            - combobox [ref=f12e23]:
+              - option "All Years" [selected]
+              - option "2025"
+            - button "Export CSV" [ref=f12e24] [cursor=pointer]
+        - generic [ref=f12e28]:
+          - generic [ref=f12e29]:
+            - generic [ref=f12e30]: Total Realized P&L
+            - generic [ref=f12e31]: 690,00 Kč
+          - generic [ref=f12e32]:
+            - generic [ref=f12e33]: Short-Term Gains
+            - generic [ref=f12e34]: 690,00 Kč
+            - generic [ref=f12e35]: 1 trades
+          - generic [ref=f12e36]:
+            - generic [ref=f12e37]: Long-Term Gains
+            - generic [ref=f12e38]: 0,00 Kč
+            - generic [ref=f12e39]: 0 trades
+          - generic [ref=f12e40]:
+            - generic [ref=f12e41]: Dividend Income
+            - generic [ref=f12e42]: 34,50 Kč
+            - generic [ref=f12e43]: 1 stocks
+        - generic [ref=f12e44]:
+          - heading "Czech §4 Exemption Analysis" [level=2] [ref=f12e45]
+          - generic [ref=f12e50]:
+            - generic [ref=f12e51]:
+              - heading "Czech Tax — 2025" [level=3] [ref=f12e52]
+              - generic [ref=f12e56]: §4 ZDP · 1 trade
+            - generic [ref=f12e57]:
+              - generic [ref=f12e58]: Gross sale proceeds
+              - generic [ref=f12e59]: 4 830 Kč
+              - generic [ref=f12e60]: Value test (≤ 100 000 Kč)
+              - generic [ref=f12e61]: ✓ Passed — fully exempt
+              - generic [ref=f12e62]: Time-test exempt (> 3 yrs)
+              - generic [ref=f12e63]: 0 Kč
+              - generic [ref=f12e64]: 40M cap status
+              - generic [ref=f12e65]: Within cap
+              - generic [ref=f12e66]: Pre-cap taxable gain (< 3 yrs)
+              - generic [ref=f12e67]: 690 Kč
+            - generic [ref=f12e68]:
+              - generic [ref=f12e69]: Exempt total
+              - generic [ref=f12e70]: 690 Kč
+              - generic [ref=f12e71]: Taxable in CZ
+              - generic [ref=f12e72]: 0 Kč
+        - generic [ref=f12e73]:
+          - generic [ref=f12e74]:
+            - button "Realized Gains1" [ref=f12e75] [cursor=pointer]
+            - button "Unrealized Gains3" [ref=f12e76] [cursor=pointer]
+            - button "Dividend Income1" [ref=f12e77] [cursor=pointer]
+          - table [ref=f12e79]:
+            - rowgroup [ref=f12e80]:
+              - row [ref=f12e81]:
+                - columnheader "Ticker" [ref=f12e82]
+                - columnheader "Buy Date" [ref=f12e83]
+                - columnheader "Sell Date" [ref=f12e84]
+                - columnheader "Shares" [ref=f12e85]
+                - columnheader "Cost Basis" [ref=f12e86]
+                - columnheader "Proceeds" [ref=f12e87]
+                - columnheader "Gain/Loss" [ref=f12e88]
+                - columnheader "Gain %" [ref=f12e89]
+                - columnheader "Days Held" [ref=f12e90]
+                - columnheader "Term" [ref=f12e91]
+                - columnheader "CZ Tax" [ref=f12e92]
+            - rowgroup [ref=f12e93]:
+              - row [ref=f12e94]:
+                - cell [ref=f12e95]:
+                  - link "AAPL" [ref=f12e96] [cursor=pointer]:
+                    - /url: /stock/AAPL
+                - cell "Jan 6" [ref=f12e97]
+                - cell "Apr 2" [ref=f12e98]
+                - cell "1" [ref=f12e99]
+                - cell "4 140,00 Kč" [ref=f12e100]
+                - cell "4 830,00 Kč" [ref=f12e101]
+                - cell "690,00 Kč" [ref=f12e102]
+                - cell "16.67%" [ref=f12e107]
+                - cell "86d" [ref=f12e108]
+                - cell "SHORT" [ref=f12e109]
+                - cell "TAXABLE" [ref=f12e110]
+            - rowgroup [ref=f12e111]:
+              - row [ref=f12e112]:
+                - cell "Short-Term Total" [ref=f12e113]
+                - cell "4 438,90 Kč" [ref=f12e114]
+                - cell "690,00 Kč" [ref=f12e115]
+                - cell [ref=f12e116]
+              - row [ref=f12e117]:
+                - cell "Long-Term Total" [ref=f12e118]
+                - cell "0,00 Kč" [ref=f12e119]
+                - cell "0,00 Kč" [ref=f12e120]
+                - cell [ref=f12e121]

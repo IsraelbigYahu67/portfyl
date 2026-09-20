@@ -1,0 +1,166 @@
+- generic [ref=f25e4]:
+  - link "Skip to main content" [ref=f25e5] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary [ref=f25e7]:
+    - generic [ref=f25e8]:
+      - img "Portfyl" [ref=f25e9]
+      - generic [ref=f25e10]:
+        - generic [ref=f25e11]: Portfyl
+        - generic [ref=f25e12]: Institutional Grade
+    - 'button "Switch portfolio (current: Portfyl demo)" [ref=f25e15] [cursor=pointer]':
+      - generic [ref=f25e19]:
+        - generic [ref=f25e20]: Portfolio
+        - generic [ref=f25e21]: Portfyl demo
+    - navigation "Primary" [ref=f25e24]:
+      - region [ref=f25e25]:
+        - heading "Portfolio" [level=2] [ref=f25e26]
+        - generic [ref=f25e27]:
+          - link "Dashboard" [ref=f25e28] [cursor=pointer]:
+            - /url: /
+          - link "Allocation" [ref=f25e34] [cursor=pointer]:
+            - /url: /allocation
+          - link "Transactions" [ref=f25e38] [cursor=pointer]:
+            - /url: /transactions
+      - region [ref=f25e42]:
+        - heading "Research" [level=2] [ref=f25e43]
+        - generic [ref=f25e44]:
+          - link "Search" [ref=f25e45] [cursor=pointer]:
+            - /url: /search
+          - link "Watchlists" [ref=f25e49] [cursor=pointer]:
+            - /url: /watchlists
+          - link "Screener" [ref=f25e52] [cursor=pointer]:
+            - /url: /screener
+      - region [ref=f25e55]:
+        - heading "Insights" [level=2] [ref=f25e56]
+        - generic [ref=f25e57]:
+          - link "Dividends" [ref=f25e58] [cursor=pointer]:
+            - /url: /dividends
+          - link "Analytics" [ref=f25e61] [cursor=pointer]:
+            - /url: /analytics
+          - link "Tax Report" [ref=f25e64] [cursor=pointer]:
+            - /url: /tax-report
+      - region [ref=f25e68]:
+        - heading "Assistant" [level=2] [ref=f25e69]
+        - link "AI Assistant" [ref=f25e71] [cursor=pointer]:
+          - /url: /assistant
+      - region [ref=f25e75]:
+        - heading "System" [level=2] [ref=f25e76]
+        - generic [ref=f25e77]:
+          - link "Import" [ref=f25e78] [cursor=pointer]:
+            - /url: /import
+          - link "Settings" [ref=f25e82] [cursor=pointer]:
+            - /url: /settings
+    - generic [ref=f25e86]:
+      - button "Account menu for tom.zoubek@gmail.com" [ref=f25e89] [cursor=pointer]:
+        - generic "tom.zoubek@gmail.com" [ref=f25e93]
+      - generic [ref=f25e96]: Live data via Yahoo Finance
+  - main [ref=f25e98]:
+    - generic [ref=f25e99]:
+      - generic [ref=f25e100]:
+        - heading "Transactions" [level=1] [ref=f25e101]
+        - generic [ref=f25e102]:
+          - textbox "Filter transactions by ticker" [ref=f25e103]:
+            - /placeholder: Filter by ticker…
+          - button "Add" [ref=f25e104] [cursor=pointer]
+      - generic [ref=f25e106]:
+        - table [ref=f25e108]:
+          - rowgroup [ref=f25e109]:
+            - row [ref=f25e110]:
+              - columnheader "Date" [ref=f25e111]
+              - columnheader "Ticker" [ref=f25e112]
+              - columnheader "Type" [ref=f25e113]
+              - columnheader "Shares" [ref=f25e114]
+              - columnheader "Price" [ref=f25e115]
+              - columnheader "Total" [ref=f25e116]
+              - columnheader "Currency" [ref=f25e117]
+              - columnheader "Notes" [ref=f25e118]
+              - columnheader "Note" [ref=f25e119]
+              - columnheader [ref=f25e120]
+          - rowgroup [ref=f25e121]:
+            - row [ref=f25e122]:
+              - cell "2025-04-02" [ref=f25e123]
+              - cell [ref=f25e124]:
+                - link "AAPL" [ref=f25e125] [cursor=pointer]:
+                  - /url: /stock/AAPL
+              - cell "sell" [ref=f25e126]
+              - cell "1" [ref=f25e127]
+              - cell "$210.00" [ref=f25e128]
+              - cell "$210.00" [ref=f25e129]
+              - cell "USD" [ref=f25e130]
+              - cell "Sample transaction" [ref=f25e131]
+              - cell [ref=f25e132]:
+                - button "Add note" [ref=f25e133] [cursor=pointer]
+              - cell [ref=f25e137]:
+                - button "Delete sell AAPL on 2025-04-02" [ref=f25e138] [cursor=pointer]
+            - row [ref=f25e142]:
+              - cell "2025-03-15" [ref=f25e143]
+              - cell [ref=f25e144]:
+                - link "MSFT" [ref=f25e145] [cursor=pointer]:
+                  - /url: /stock/MSFT
+              - cell "dividend" [ref=f25e146]
+              - cell "2" [ref=f25e147]
+              - cell "$0.75" [ref=f25e148]
+              - cell "$1.50" [ref=f25e149]
+              - cell "USD" [ref=f25e150]
+              - cell "Sample dividend" [ref=f25e151]
+              - cell [ref=f25e152]:
+                - button "Add note" [ref=f25e153] [cursor=pointer]
+              - cell [ref=f25e157]:
+                - button "Delete dividend MSFT on 2025-03-15" [ref=f25e158] [cursor=pointer]
+            - row [ref=f25e162]:
+              - cell "2025-01-10" [ref=f25e163]
+              - cell [ref=f25e164]:
+                - link "VWCE.DE" [ref=f25e165] [cursor=pointer]:
+                  - /url: /stock/VWCE.DE
+              - cell "buy" [ref=f25e166]
+              - cell "4" [ref=f25e167]
+              - cell "$120.00" [ref=f25e168]
+              - cell "$480.00" [ref=f25e169]
+              - cell "EUR" [ref=f25e170]
+              - cell "Sample transaction" [ref=f25e171]
+              - cell [ref=f25e172]:
+                - button "Add note" [ref=f25e173] [cursor=pointer]
+              - cell [ref=f25e177]:
+                - button "Delete buy VWCE.DE on 2025-01-10" [ref=f25e178] [cursor=pointer]
+            - row [ref=f25e182]:
+              - cell "2025-01-08" [ref=f25e183]
+              - cell [ref=f25e184]:
+                - link "MSFT" [ref=f25e185] [cursor=pointer]:
+                  - /url: /stock/MSFT
+              - cell "buy" [ref=f25e186]
+              - cell "2" [ref=f25e187]
+              - cell "$410.00" [ref=f25e188]
+              - cell "$820.00" [ref=f25e189]
+              - cell "USD" [ref=f25e190]
+              - cell "Sample transaction" [ref=f25e191]
+              - cell [ref=f25e192]:
+                - button "Add note" [ref=f25e193] [cursor=pointer]
+              - cell [ref=f25e197]:
+                - button "Delete buy MSFT on 2025-01-08" [ref=f25e198] [cursor=pointer]
+            - row [ref=f25e202]:
+              - cell "2025-01-06" [ref=f25e203]
+              - cell [ref=f25e204]:
+                - link "AAPL" [ref=f25e205] [cursor=pointer]:
+                  - /url: /stock/AAPL
+              - cell "buy" [ref=f25e206]
+              - cell "3" [ref=f25e207]
+              - cell "$180.00" [ref=f25e208]
+              - cell "$540.00" [ref=f25e209]
+              - cell "USD" [ref=f25e210]
+              - cell "Sample transaction" [ref=f25e211]
+              - cell [ref=f25e212]:
+                - button "Add note" [ref=f25e213] [cursor=pointer]
+              - cell [ref=f25e217]:
+                - button "Delete buy AAPL on 2025-01-06" [ref=f25e218] [cursor=pointer]
+        - navigation "Transactions pages" [ref=f25e223]:
+          - generic [ref=f25e224]: 1–5 of 5
+          - generic [ref=f25e225]:
+            - button "Previous" [disabled] [ref=f25e226]
+            - button "1" [ref=f25e228] [cursor=pointer]
+            - button "Next" [disabled] [ref=f25e229]
+          - generic [ref=f25e230]:
+            - text: Rows per page
+            - combobox "Rows per page" [ref=f25e231]:
+              - option "25"
+              - option "50" [selected]
+              - option "100"

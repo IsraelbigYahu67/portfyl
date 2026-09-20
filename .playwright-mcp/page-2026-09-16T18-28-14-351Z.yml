@@ -1,0 +1,104 @@
+- generic [ref=f15e39]:
+  - link "Skip to content" [ref=f15e40] [cursor=pointer]:
+    - /url: "#obsah"
+  - banner [ref=f15e41]:
+    - generic [ref=f15e42]:
+      - link "Portfyl — home" [ref=f15e43] [cursor=pointer]:
+        - /url: "#nahoru"
+        - text: Portfyl
+        - generic [ref=f15e44]: PREVIEW
+      - navigation "Main navigation" [ref=f15e45]:
+        - link "Why Portfyl" [ref=f15e46] [cursor=pointer]:
+          - /url: "#funkce"
+        - link "App previews" [ref=f15e47] [cursor=pointer]:
+          - /url: "#ukazky"
+        - link "Questions" [ref=f15e48] [cursor=pointer]:
+          - /url: "#otazky"
+      - group "Page language" [ref=f15e52]:
+        - button "Čeština" [ref=f15e53] [cursor=pointer]: CZ
+        - button "English" [pressed] [ref=f15e54] [cursor=pointer]: EN
+        - button "Deutsch" [ref=f15e55] [cursor=pointer]: DE
+  - main [ref=f15e56]:
+    - region [ref=f15e57]:
+      - generic [ref=f15e58]: A STEP BACK. A CLEARER VIEW.
+      - heading "Your investments. Finally clear." [active] [level=1] [ref=f15e60]: Your investments.Finally clear.
+      - paragraph [ref=f15e61]: Behind every number is a piece of your future. Give your portfolio a space where it all makes sense.
+      - link "Explore the previews" [ref=f15e62] [cursor=pointer]:
+        - /url: "#ukazky"
+      - paragraph [ref=f15e65]: Your portfolio, analytics and dividends in one place.
+      - generic [ref=f15e66]:
+        - generic [ref=f15e67]:
+          - generic [ref=f15e68]:
+            - generic [ref=f15e73]: PORTFYL / YOUR PORTFOLIO
+            - generic [ref=f15e74]: ● PRODUCT PREVIEW
+          - img "Portfyl screenshot showing demo portfolio performance" [ref=f15e75]
+        - generic [ref=f15e80]:
+          - text: It all comes together.
+          - generic [ref=f15e81]: Your portfolio at a glance.
+      - paragraph [ref=f15e82]: Real app screenshot with a demo portfolio.
+    - generic [ref=f15e84]:
+      - generic [ref=f15e85]: FOR YOUR EVERYDAY INVESTING
+      - generic [ref=f15e86]: Stocks & ETFs
+      - generic [ref=f15e88]: Trading 212
+      - generic [ref=f15e90]: More brokers coming soon
+      - generic [ref=f15e92]: CSV import
+    - region [ref=f15e93]:
+      - generic [ref=f15e94]:
+        - generic [ref=f15e95]:
+          - paragraph [ref=f15e96]: LESS SEARCHING. MORE CONTEXT.
+          - heading "Know what you own. And how it is doing." [level=2] [ref=f15e97]: Know what you own.And how it is doing.
+        - paragraph [ref=f15e98]: From your first purchase to a portfolio built over years. Portfyl brings the numbers together in a view you will enjoy coming back to.
+      - generic [ref=f15e99]:
+        - article [ref=f15e100]:
+          - generic [ref=f15e101]: "01"
+          - heading "Performance that makes sense" [level=3] [ref=f15e105]
+          - paragraph [ref=f15e106]: Track your portfolio value and performance over time. Compare your progress with market benchmarks.
+        - article [ref=f15e107]:
+          - generic [ref=f15e108]: "02"
+          - heading "Your portfolio’s full picture" [level=3] [ref=f15e113]
+          - paragraph [ref=f15e114]: Understand the weight of each holding, sector and currency. See where your investments are concentrated.
+        - article [ref=f15e115]:
+          - generic [ref=f15e116]: "03"
+          - heading "Stay on top of dividends" [level=3] [ref=f15e120]
+          - paragraph [ref=f15e121]: Keep track of your dividend income and its history. Explore another dimension of your portfolio.
+    - region [ref=f15e122]:
+      - generic [ref=f15e123]:
+        - generic [ref=f15e124]:
+          - paragraph [ref=f15e125]: A TASTE OF PORTFYL
+          - generic [ref=f15e126]: Designed for clarity. Down to the last detail.
+        - generic [ref=f15e127]:
+          - generic [ref=f15e128]:
+            - group "Choose an app preview" [ref=f15e129]:
+              - button "Portfolio allocation" [pressed] [ref=f15e130] [cursor=pointer]
+              - button "Stock details" [ref=f15e131] [cursor=pointer]
+              - button "Portfolio overview" [ref=f15e132] [cursor=pointer]
+              - button "Performance" [ref=f15e133] [cursor=pointer]
+            - heading "Every investment. In context." [level=2] [ref=f15e134]
+            - paragraph [ref=f15e135]: See the weight of each holding. A clear breakdown shows how much each investment contributes to your portfolio.
+            - generic [ref=f15e136]: One space. More context.
+          - figure "App screenshots · Demo portfolio and market data · Interface in English" [ref=f15e142]:
+            - img "Portfyl screenshot showing demo portfolio allocation" [ref=f15e144]
+    - region [ref=f15e146]:
+      - generic [ref=f15e147]:
+        - paragraph [ref=f15e148]: GOOD TO KNOW
+        - heading "Anything else on your mind?" [level=2] [ref=f15e149]: Anything elseon your mind?
+      - generic [ref=f15e150]:
+        - group [ref=f15e151]:
+          - generic "What is Portfyl?" [ref=f15e152] [cursor=pointer]
+        - group [ref=f15e154]:
+          - generic "Who is Portfyl for?" [ref=f15e155] [cursor=pointer]
+        - group [ref=f15e157]:
+          - generic "Which brokers does Portfyl support?" [ref=f15e158] [cursor=pointer]
+        - group [ref=f15e160]:
+          - generic "Can I try Portfyl yet?" [ref=f15e161] [cursor=pointer]
+    - generic [ref=f15e163]:
+      - generic [ref=f15e164]: ON THE WAY
+      - heading "More clarity. More peace of mind." [level=2] [ref=f15e166]: More clarity.More peace of mind.
+      - paragraph [ref=f15e167]: A fresh perspective on your investments. Coming soon.
+      - link "Back to top" [ref=f15e168] [cursor=pointer]:
+        - /url: "#nahoru"
+  - contentinfo [ref=f15e172]:
+    - link "Portfyl" [ref=f15e173] [cursor=pointer]:
+      - /url: "#nahoru"
+    - generic [ref=f15e174]: Your space for a clearer investment picture.
+    - generic [ref=f15e175]: © 2026 Portfyl

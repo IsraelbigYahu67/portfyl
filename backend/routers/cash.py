@@ -1,5 +1,5 @@
 from datetime import date as date_type
-from typing import Optional, List
+from typing import Literal, Optional, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Portfolio, Transaction, CashInterestRate
 from routers.portfolios import require_portfolio
-from fx import fetch_fx_to_czk, cash_amount_to_display
-from cash_ledger import CASH_TYPES, cash_balance_by_currency, accrued_interest, signed_cash
+from fx import fetch_fx_to_czk, cash_amount_to_display, cash_total_from_transactions
+from broker_cash import current_t212_cash
+from cash_ledger import CASH_TYPES, cash_balance_by_currency, accrued_interest, has_external_cashflows, signed_cash
 
 router = APIRouter(prefix="/cash", tags=["cash"])
 
@@ -197,3 +198,86 @@ def get_balance(currency: str = "USD", db: Session = Depends(get_db), portfolio:
         total_accrued += cash_amount_to_display(acc, ccy, disp)
     return {"by_currency": by_currency, "total": round(total, 2),
             "total_accrued": round(total_accrued, 2), "currency": disp}
+
+
+# ---------------------------------------------------------------------------
+# Broker vs. ledger reconciliation (P0) -- read-only, never merges or
+# overwrites either source. See docs/superpowers/specs/2026-09-20-portfyl-
+# snowball-gap-roadmap-design.md section 4.1.
+# ---------------------------------------------------------------------------
+
+
+class CashReconciliation(BaseModel):
+    currency: str
+    broker_amount: Optional[float] = None
+    broker_currency: Optional[str] = None
+    broker_as_of: Optional[date_type] = None
+    broker_updated_at: Optional[str] = None
+    ledger_amount: float
+    difference: Optional[float] = None
+    tolerance: float
+    status: Literal["matched", "different", "unavailable", "no_ledger_history"]
+
+
+# FX pivots through CZK on different dates (the broker snapshot is priced
+# today; each ledger row keeps its own historical rate) so a few cents to a
+# few currency units of drift is expected even when both sources agree.
+CASH_RECONCILIATION_TOLERANCE = 1.0
+
+
+@router.get("/reconciliation", response_model=CashReconciliation)
+def get_reconciliation(
+    currency: str = "USD",
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+):
+    disp = currency.upper()
+    txns = db.query(Transaction).filter(
+        Transaction.portfolio_id == portfolio.id,
+        Transaction.workspace_id == portfolio.workspace_id,
+    ).all()
+    # Balance only, matching /cash/balance's `total` (the figure the Cash
+    # page's "Recorded balance" MetricCard already shows) -- NOT folded with
+    # accrued interest, so this page never shows two disagreeing "recorded"
+    # numbers under near-identical labels.
+    ledger_amount = round(cash_total_from_transactions(txns, disp), 2)
+
+    broker = current_t212_cash(db, portfolio, disp)
+    if broker is None:
+        return CashReconciliation(
+            currency=disp,
+            ledger_amount=ledger_amount,
+            tolerance=CASH_RECONCILIATION_TOLERANCE,
+            status="unavailable",
+        )
+
+    broker_amount = round(broker.amount, 2)
+    if not has_external_cashflows(txns):
+        # A broker-only sync (orders/dividends, no deposit/withdrawal rows)
+        # produces a large negative ledger_amount from trade cash-outflows
+        # alone -- not a real disagreement, just nothing recorded yet to
+        # compare against. Report it as its own state rather than "different".
+        return CashReconciliation(
+            currency=disp,
+            broker_amount=broker_amount,
+            broker_currency=broker.currency,
+            broker_as_of=broker.as_of,
+            broker_updated_at=broker.updated_at.isoformat() if broker.updated_at else None,
+            ledger_amount=0.0,
+            tolerance=CASH_RECONCILIATION_TOLERANCE,
+            status="no_ledger_history",
+        )
+
+    difference = round(broker_amount - ledger_amount, 2)
+    status = "matched" if abs(difference) <= CASH_RECONCILIATION_TOLERANCE else "different"
+    return CashReconciliation(
+        currency=disp,
+        broker_amount=broker_amount,
+        broker_currency=broker.currency,
+        broker_as_of=broker.as_of,
+        broker_updated_at=broker.updated_at.isoformat() if broker.updated_at else None,
+        ledger_amount=ledger_amount,
+        difference=difference,
+        tolerance=CASH_RECONCILIATION_TOLERANCE,
+        status=status,
+    )

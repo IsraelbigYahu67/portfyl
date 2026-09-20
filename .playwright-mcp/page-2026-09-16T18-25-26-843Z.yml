@@ -1,0 +1,183 @@
+- generic [ref=f13e1]:
+  - generic [ref=f13e4]:
+    - link "Skip to main content" [ref=f13e5] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f13e6]:
+      - banner [ref=f13e7]:
+        - generic [ref=f13e8]:
+          - img "Portfyl" [ref=f13e9]
+          - generic [ref=f13e10]: Portfyl
+        - button "Open navigation menu" [ref=f13e11] [cursor=pointer]
+      - main [ref=f13e13]:
+        - generic [ref=f13e14]:
+          - button "Back" [ref=f13e16] [cursor=pointer]
+          - generic [ref=f13e19]:
+            - generic [ref=f13e20]:
+              - generic [ref=f13e21]:
+                - generic [ref=f13e22]:
+                  - heading "AAPL" [level=1] [ref=f13e23]
+                  - generic [ref=f13e24]: Apple Inc.
+                  - generic [ref=f13e25]: NMS
+                  - generic "Shibui doesn't cover this ticker, or is unavailable right now (e.g. rate-limited) -- financials and ratios below fell back to yfinance." [ref=f13e26]: yfinance fallback
+                - generic [ref=f13e29]:
+                  - generic [ref=f13e30]: Technology
+                  - generic [ref=f13e35]: · Consumer Electronics
+                  - generic [ref=f13e36]: · United States
+                  - link "· www.apple.com" [ref=f13e40] [cursor=pointer]:
+                    - /url: https://www.apple.com
+              - generic [ref=f13e45]:
+                - generic [ref=f13e46]:
+                  - generic [ref=f13e47]: $334.40
+                  - generic [ref=f13e48]: +3.05 (+0.92%)
+                - button "Add to watchlist" [ref=f13e53] [cursor=pointer]
+            - tablist "Stock sections" [ref=f13e58]:
+              - tab "Overview" [ref=f13e59] [cursor=pointer]
+              - tab "Financials" [ref=f13e60] [cursor=pointer]
+              - tab "Valuation" [ref=f13e61] [cursor=pointer]
+              - tab "Ownership" [ref=f13e62] [cursor=pointer]
+              - tab "Filings" [active] [selected] [ref=f13e63] [cursor=pointer]
+            - tabpanel "Filings" [ref=f13e3668]:
+              - region [ref=f13e3669]:
+                - heading "SEC filings" [level=3] [ref=f13e3670]
+                - list [ref=f13e3671]:
+                  - listitem [ref=f13e3672]:
+                    - time [ref=f13e3673]: 2025-10-31
+                    - generic [ref=f13e3674]: 10-K
+                    - link "View filing" [ref=f13e3675] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/0000320193-25-000079-index.htm
+                  - listitem [ref=f13e3676]:
+                    - time [ref=f13e3677]: 2024-11-01
+                    - generic [ref=f13e3678]: 10-K
+                    - link "View filing" [ref=f13e3679] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000032019324000123/0000320193-24-000123-index.htm
+                  - listitem [ref=f13e3680]:
+                    - time [ref=f13e3681]: 2026-07-31
+                    - generic [ref=f13e3682]: 10-Q
+                    - link "View filing" [ref=f13e3683] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000032019326000020/0000320193-26-000020-index.htm
+                  - listitem [ref=f13e3684]:
+                    - time [ref=f13e3685]: 2026-05-01
+                    - generic [ref=f13e3686]: 10-Q
+                    - link "View filing" [ref=f13e3687] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000032019326000013/0000320193-26-000013-index.htm
+                  - listitem [ref=f13e3688]:
+                    - time [ref=f13e3689]: 2026-01-30
+                    - generic [ref=f13e3690]: 10-Q
+                    - link "View filing" [ref=f13e3691] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000032019326000006/0000320193-26-000006-index.htm
+                  - listitem [ref=f13e3692]:
+                    - time [ref=f13e3693]: 2025-08-01
+                    - generic [ref=f13e3694]: 10-Q
+                    - link "View filing" [ref=f13e3695] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000032019325000073/0000320193-25-000073-index.htm
+                  - listitem [ref=f13e3696]:
+                    - time [ref=f13e3697]: 2025-05-02
+                    - generic [ref=f13e3698]: 10-Q
+                    - link "View filing" [ref=f13e3699] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000032019325000057/0000320193-25-000057-index.htm
+                  - listitem [ref=f13e3700]:
+                    - time [ref=f13e3701]: 2025-01-31
+                    - generic [ref=f13e3702]: 10-Q
+                    - link "View filing" [ref=f13e3703] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000032019325000008/0000320193-25-000008-index.htm
+                  - listitem [ref=f13e3704]:
+                    - time [ref=f13e3705]: 2026-09-01
+                    - generic [ref=f13e3706]: 8-K/A
+                    - link "View filing" [ref=f13e3707] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000114036126035325/0001140361-26-035325-index.htm
+                  - listitem [ref=f13e3708]:
+                    - time [ref=f13e3709]: 2026-07-30
+                    - generic [ref=f13e3710]: 8-K
+                    - link "View filing" [ref=f13e3711] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000032019326000018/0000320193-26-000018-index.htm
+                  - listitem [ref=f13e3712]:
+                    - time [ref=f13e3713]: 2026-04-30
+                    - generic [ref=f13e3714]: 8-K
+                    - link "View filing" [ref=f13e3715] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000032019326000011/0000320193-26-000011-index.htm
+                  - listitem [ref=f13e3716]:
+                    - time [ref=f13e3717]: 2026-04-20
+                    - generic [ref=f13e3718]: 8-K
+                    - link "View filing" [ref=f13e3719] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000114036126015711/0001140361-26-015711-index.htm
+                  - listitem [ref=f13e3720]:
+                    - time [ref=f13e3721]: 2026-02-24
+                    - generic [ref=f13e3722]: 8-K
+                    - link "View filing" [ref=f13e3723] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000114036126006577/0001140361-26-006577-index.htm
+                  - listitem [ref=f13e3724]:
+                    - time [ref=f13e3725]: 2026-01-29
+                    - generic [ref=f13e3726]: 8-K
+                    - link "View filing" [ref=f13e3727] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000032019326000005/0000320193-26-000005-index.htm
+                  - listitem [ref=f13e3728]:
+                    - time [ref=f13e3729]: 2026-01-02
+                    - generic [ref=f13e3730]: 8-K
+                    - link "View filing" [ref=f13e3731] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000114036126000199/0001140361-26-000199-index.htm
+                  - listitem [ref=f13e3732]:
+                    - time [ref=f13e3733]: 2025-12-05
+                    - generic [ref=f13e3734]: 8-K
+                    - link "View filing" [ref=f13e3735] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000114036125044561/0001140361-25-044561-index.htm
+                  - listitem [ref=f13e3736]:
+                    - time [ref=f13e3737]: 2025-10-30
+                    - generic [ref=f13e3738]: 8-K
+                    - link "View filing" [ref=f13e3739] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000032019325000077/0000320193-25-000077-index.htm
+                  - listitem [ref=f13e3740]:
+                    - time [ref=f13e3741]: 2025-07-31
+                    - generic [ref=f13e3742]: 8-K
+                    - link "View filing" [ref=f13e3743] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000032019325000071/0000320193-25-000071-index.htm
+                  - listitem [ref=f13e3744]:
+                    - time [ref=f13e3745]: 2025-07-25
+                    - generic [ref=f13e3746]: 8-K
+                    - link "View filing" [ref=f13e3747] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000114036125027340/0001140361-25-027340-index.htm
+                  - listitem [ref=f13e3748]:
+                    - time [ref=f13e3749]: 2025-07-09
+                    - generic [ref=f13e3750]: 8-K
+                    - link "View filing" [ref=f13e3751] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000114036125025275/0001140361-25-025275-index.htm
+                  - listitem [ref=f13e3752]:
+                    - time [ref=f13e3753]: 2025-05-12
+                    - generic [ref=f13e3754]: 8-K
+                    - link "View filing" [ref=f13e3755] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000114036125018400/0001140361-25-018400-index.htm
+                  - listitem [ref=f13e3756]:
+                    - time [ref=f13e3757]: 2025-05-01
+                    - generic [ref=f13e3758]: 8-K
+                    - link "View filing" [ref=f13e3759] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000032019325000055/0000320193-25-000055-index.htm
+                  - listitem [ref=f13e3760]:
+                    - time [ref=f13e3761]: 2025-02-25
+                    - generic [ref=f13e3762]: 8-K
+                    - link "View filing" [ref=f13e3763] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000114036125005876/0001140361-25-005876-index.htm
+                  - listitem [ref=f13e3764]:
+                    - time [ref=f13e3765]: 2025-01-30
+                    - generic [ref=f13e3766]: 8-K
+                    - link "View filing" [ref=f13e3767] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000032019325000007/0000320193-25-000007-index.htm
+                  - listitem [ref=f13e3768]:
+                    - time [ref=f13e3769]: 2025-01-03
+                    - generic [ref=f13e3770]: 8-K
+                    - link "View filing" [ref=f13e3771] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000114036125000228/0001140361-25-000228-index.htm
+                  - listitem [ref=f13e3772]:
+                    - time [ref=f13e3773]: 2024-10-31
+                    - generic [ref=f13e3774]: 8-K
+                    - link "View filing" [ref=f13e3775] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000032019324000120/0000320193-24-000120-index.htm
+                  - listitem [ref=f13e3776]:
+                    - time [ref=f13e3777]: 2026-01-08
+                    - generic [ref=f13e3778]: DEF 14A
+                    - link "View filing" [ref=f13e3779] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000130817926000008/0001308179-26-000008-index.htm
+                  - listitem [ref=f13e3780]:
+                    - time [ref=f13e3781]: 2025-01-10
+                    - generic [ref=f13e3782]: DEF 14A
+                    - link "View filing" [ref=f13e3783] [cursor=pointer]:
+                      - /url: https://www.sec.gov/Archives/edgar/data/320193/000130817925000008/0001308179-25-000008-index.htm
+  - generic [aria-hidden] [ref=f13e1151]: $236.65

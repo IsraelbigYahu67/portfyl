@@ -24,10 +24,13 @@ TRADING_DAYS = 252
 
 
 def _load_close_panel(yf_tickers: list[str], start: date) -> pd.DataFrame:
-    """Download actual close prices for the given Yahoo symbols. Returns a
+    """Download as-traded close prices for the given Yahoo symbols. Returns a
     DataFrame indexed by trading day, columns = yf_tickers (or fewer if Yahoo
     has no data for some). Dividends are represented by cash transactions, so
-    adjusted closes would double-count them. Empty DataFrame on failure."""
+    dividend-adjusted closes would double-count them. Yahoo's Close still
+    adjusts for splits with auto_adjust=False; undo that adjustment because
+    broker transactions hold the share count applicable on each historical day.
+    Empty DataFrame on failure."""
     if not yf_tickers:
         return pd.DataFrame()
     try:
@@ -35,6 +38,7 @@ def _load_close_panel(yf_tickers: list[str], start: date) -> pd.DataFrame:
             yf_tickers,
             start=start.isoformat(),
             auto_adjust=False,
+            actions=True,
             progress=False,
         )
     except Exception:
@@ -43,14 +47,26 @@ def _load_close_panel(yf_tickers: list[str], start: date) -> pd.DataFrame:
         return pd.DataFrame()
     if isinstance(raw.columns, pd.MultiIndex):
         closes = raw["Close"] if "Close" in raw.columns.get_level_values(0) else pd.DataFrame()
+        splits = raw["Stock Splits"] if "Stock Splits" in raw.columns.get_level_values(0) else pd.DataFrame()
         if isinstance(closes, pd.Series):
             closes = closes.to_frame(name=yf_tickers[0])
     elif len(yf_tickers) == 1:
         closes = raw[["Close"]].rename(columns={"Close": yf_tickers[0]}) if "Close" in raw.columns else pd.DataFrame()
+        splits = raw[["Stock Splits"]].rename(columns={"Stock Splits": yf_tickers[0]}) if "Stock Splits" in raw.columns else pd.DataFrame()
     else:
         closes = raw["Close"] if "Close" in raw.columns else raw
+        splits = pd.DataFrame()
     if closes is None or closes.empty:
         return pd.DataFrame()
+    closes = closes.copy()
+    for ticker in closes.columns:
+        if ticker not in splits:
+            continue
+        ratios = splits[ticker].reindex(closes.index).fillna(0.0).replace(0.0, 1.0)
+        # A split changes the units from its effective date onwards. Only
+        # later splits must be undone for a particular historical close.
+        future_factor = ratios.iloc[::-1].cumprod().iloc[::-1].shift(-1, fill_value=1.0)
+        closes[ticker] = closes[ticker] * future_factor
     return closes.ffill().dropna(how="all")
 
 
@@ -1259,7 +1275,14 @@ def _allocation_totals(db: Session, portfolio: Portfolio, display_ccy: str) -> d
     # ("currencies") dimension. Same external-cashflow gate as the folded Cash
     # bucket; the sum of these equals cash_total so the dimensions reconcile.
     cash_by_ccy_display: dict[str, float] = {}
-    if has_external_cashflows(txns):
+    from broker_cash import current_t212_cash
+    broker_cash = current_t212_cash(db, portfolio, display_ccy)
+    if broker_cash is not None:
+        cash_total = broker_cash.amount
+        has_cash = abs(cash_total) > 0.005
+        if has_cash:
+            cash_by_ccy_display[broker_cash.currency] = cash_total
+    elif has_external_cashflows(txns):
         from cash_ledger import cash_balance_by_currency, accrued_interest
         from fx import cash_amount_to_display
 

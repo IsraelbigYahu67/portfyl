@@ -1,0 +1,19 @@
+- generic [ref=f11e4]:
+  - link "Skip to main content" [ref=f11e5] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f11e6]:
+    - banner [ref=f11e7]:
+      - generic [ref=f11e8]:
+        - img "Portfyl" [ref=f11e9]
+        - generic [ref=f11e10]: Portfyl
+      - button "Open navigation menu" [ref=f11e11] [cursor=pointer]
+    - main [ref=f11e13]:
+      - generic [ref=f11e14]:
+        - generic [ref=f11e15]:
+          - generic [ref=f11e16]:
+            - heading "Stock Screener" [level=1] [ref=f11e17]
+            - paragraph [ref=f11e18]: Filter stocks by valuation and fundamental criteria
+          - generic [ref=f11e19]:
+            - button "Filters" [ref=f11e20] [cursor=pointer]
+            - button "Run Scan" [ref=f11e22] [cursor=pointer]
+        - generic [ref=f11e25]: Choose a universe and filters, then click “Run Scan”.

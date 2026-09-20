@@ -7,13 +7,32 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from models import BrokerConnection, Portfolio, Transaction
+from models import BrokerBalance, BrokerConnection, Portfolio, Transaction
 from routers.broker import (
     _normalize_t212_ticker,
     _CANONICAL_TICKER as _canonical_ticker,
+    _fetch_account_summary,
+    disconnect,
+    get_status,
     sync_transactions,
 )
 from tests.helpers import make_txn
+
+
+def test_fetch_account_summary_calls_expected_t212_endpoint():
+    response = MagicMock(status_code=200)
+    response.json.return_value = {"currency": "CZK", "cash": {"availableToTrade": 1}}
+
+    with patch("routers.broker.httpx.get", return_value=response) as get:
+        result = _fetch_account_summary("https://live.trading212.com/api/v0", {"Authorization": "x"})
+
+    get.assert_called_once_with(
+        "https://live.trading212.com/api/v0/equity/account/summary",
+        headers={"Authorization": "x"},
+        timeout=15,
+    )
+    response.raise_for_status.assert_called_once_with()
+    assert result["currency"] == "CZK"
 
 
 class TestTickerNormalization:
@@ -93,18 +112,145 @@ def _order(ticker, side, qty, price, day, currency="USD", order_id="1"):
     }
 
 
-def _run_sync(db_session, portfolio, orders, dividends=None, fx_map=None):
+def _run_sync(
+    db_session, portfolio, orders, dividends=None, fx_map=None, summary=None,
+    summary_error=None,
+):
     """Call sync_transactions with the network + yfinance bits patched out.
 
     `sync_transactions` is a route handler: `portfolio` is the authorized
     Portfolio the require_portfolio dependency would have resolved, and
     `_context` is only the CSRF gate, which does not apply to a direct call."""
-    with patch("routers.broker._fetch_all_orders", return_value=orders), \
+    account_summary = summary or {
+        "cash": {"availableToTrade": 0, "inPies": 0, "reservedForOrders": 0},
+        "currency": "CZK",
+        "id": 1,
+        "investments": {
+            "currentValue": 0,
+            "realizedProfitLoss": 0,
+            "totalCost": 0,
+            "unrealizedProfitLoss": 0,
+        },
+        "totalValue": 0,
+    }
+    summary_patch = patch(
+        "routers.broker._fetch_account_summary",
+        return_value=account_summary,
+        side_effect=summary_error,
+    )
+    with summary_patch, \
+         patch("routers.broker._fetch_all_orders", return_value=orders), \
          patch("routers.broker._fetch_all_dividends", return_value=dividends or []), \
          patch("routers.broker._split_adjust", return_value=0), \
          patch("routers.broker._drop_corporate_action_pairs", return_value=0), \
          patch("routers.broker.bulk_fetch_fx", return_value=fx_map or {}):
         return sync_transactions(db=db_session, portfolio=portfolio, _context=None)
+
+
+def test_sync_persists_current_cash_snapshot_without_cash_transactions(
+    db_session, default_portfolio
+):
+    conn = BrokerConnection(
+        workspace_id=default_portfolio.workspace_id,
+        portfolio_id=default_portfolio.id,
+        broker="trading212",
+        api_key="k" * 20,
+    )
+    db_session.add(conn)
+    db_session.commit()
+
+    result = _run_sync(
+        db_session,
+        default_portfolio,
+        [],
+        summary={
+            "cash": {
+                "availableToTrade": 1000.0,
+                "inPies": 300.0,
+                "reservedForOrders": 82.17,
+            },
+            "currency": "CZK",
+            "id": 123456,
+            "investments": {
+                "currentValue": 60000.0,
+                "realizedProfitLoss": 500.0,
+                "totalCost": 55000.0,
+                "unrealizedProfitLoss": 4500.0,
+            },
+            "totalValue": 61382.17,
+        },
+    )
+
+    balance = db_session.query(BrokerBalance).one()
+    assert balance.workspace_id == default_portfolio.workspace_id
+    assert balance.portfolio_id == default_portfolio.id
+    assert balance.broker == "trading212"
+    assert balance.base_currency == "CZK"
+    assert balance.cash == pytest.approx(1382.17)
+    assert balance.stock == pytest.approx(60000.0)
+    assert balance.net_liquidation == pytest.approx(61382.17)
+    assert result["cash_updated"] is True
+    assert db_session.query(Transaction).count() == 0
+
+
+def test_sync_keeps_last_cash_snapshot_when_summary_fetch_fails(
+    db_session, default_portfolio
+):
+    db_session.add_all([
+        BrokerConnection(
+            workspace_id=default_portfolio.workspace_id,
+            portfolio_id=default_portfolio.id,
+            broker="trading212",
+            api_key="k" * 20,
+        ),
+        BrokerBalance(
+            workspace_id=default_portfolio.workspace_id,
+            portfolio_id=default_portfolio.id,
+            broker="trading212",
+            base_currency="CZK",
+            cash=777.0,
+            cash_by_currency='{"CZK": 777.0}',
+            as_of=date(2026, 9, 19),
+        ),
+    ])
+    db_session.commit()
+
+    result = _run_sync(
+        db_session,
+        default_portfolio,
+        [],
+        summary_error=RuntimeError("temporary upstream error"),
+    )
+
+    balance = db_session.query(BrokerBalance).one()
+    assert balance.cash == pytest.approx(777.0)
+    assert balance.as_of == date(2026, 9, 19)
+    assert result["cash_updated"] is False
+    assert result["cash_error"] == "Cash summary fetch failed: temporary upstream error"
+
+
+def test_disconnect_removes_current_cash_snapshot(db_session, default_portfolio):
+    db_session.add_all([
+        BrokerConnection(
+            workspace_id=default_portfolio.workspace_id,
+            portfolio_id=default_portfolio.id,
+            broker="trading212",
+            api_key="k" * 20,
+        ),
+        BrokerBalance(
+            workspace_id=default_portfolio.workspace_id,
+            portfolio_id=default_portfolio.id,
+            broker="trading212",
+            base_currency="CZK",
+            cash=777.0,
+        ),
+    ])
+    db_session.commit()
+
+    disconnect(db=db_session, portfolio=default_portfolio, _context=None)
+
+    assert db_session.query(BrokerConnection).count() == 0
+    assert db_session.query(BrokerBalance).count() == 0
 
 
 class TestSyncDedupe:
@@ -270,3 +416,31 @@ class TestSyncDedupe:
         assert t.fx_to_czk == 25.0
         assert t.cash_amount == 5000.0
         assert t.cash_currency == "CZK"
+
+
+class TestStatusDecryptFailure:
+    """Regression: a stored connection whose secret can't be decrypted (e.g. a
+    misconfigured/missing PORTFYL_LOCAL_SECRET_KEY, or a wrong-key mismatch)
+    must degrade to a 'needs attention' status, not crash the whole
+    /trading212/status call -- a raised exception here has no exception
+    handler, so it 500s with no JSON `detail`, and the Settings > Connections
+    page renders nothing but a generic 'We couldn't load this data.' with no
+    way to reach the Disconnect button and recover."""
+
+    @pytest.fixture
+    def connection(self, db_session, default_portfolio):
+        conn = BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                                portfolio_id=default_portfolio.id,
+                                broker="trading212", api_key="k" * 20)
+        db_session.add(conn)
+        db_session.commit()
+        return conn
+
+    def test_status_degrades_instead_of_raising(self, db_session, default_portfolio, connection):
+        with patch("models.get_secret_cipher", side_effect=RuntimeError("PORTFYL_LOCAL_SECRET_KEY is required")):
+            result = get_status(db=db_session, portfolio=default_portfolio)
+
+        assert result["connected"] is True
+        assert result["needs_attention"] is True
+        assert result["api_key_preview"] is None
+        assert result["last_error"]

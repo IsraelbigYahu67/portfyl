@@ -1,0 +1,40 @@
+- generic [ref=f5e4]:
+  - link "Skip to main content" [ref=f5e5] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f5e6]:
+    - banner [ref=f5e7]:
+      - generic [ref=f5e8]:
+        - img "Portfyl" [ref=f5e9]
+        - generic [ref=f5e10]: Portfyl
+      - button "Open navigation menu" [ref=f5e11] [cursor=pointer]
+    - main [ref=f5e13]:
+      - generic [ref=f5e14]:
+        - generic [ref=f5e15]:
+          - generic [ref=f5e16]:
+            - heading "Import CSV" [level=1] [ref=f5e17]
+            - paragraph [ref=f5e18]: Preview every change before it reaches your portfolio.
+          - button "Download sample" [ref=f5e20] [cursor=pointer]
+        - list "Import progress" [ref=f5e24]:
+          - listitem [ref=f5e25]:
+            - generic [ref=f5e26]: "1."
+            - text: Select source
+          - listitem [ref=f5e27]:
+            - generic [ref=f5e28]: "2."
+            - text: Preview changes
+          - listitem [ref=f5e29]:
+            - generic [ref=f5e30]: "3."
+            - text: Confirm import
+          - listitem [ref=f5e31]:
+            - generic [ref=f5e32]: "4."
+            - text: Result / Undo
+        - generic [ref=f5e33]:
+          - generic [ref=f5e34]:
+            - generic [ref=f5e35]: Trading 212
+            - generic [ref=f5e36]: Native
+            - generic [ref=f5e37]: Auto-detected · maximum 5 MiB
+          - paragraph [ref=f5e41]: Trading 212 exports include the full account history and therefore replace this portfolio. Native CSV files can append new rows or replace the portfolio.
+        - generic [ref=f5e42] [cursor=pointer]:
+          - button "Choose File" [ref=f5e43]
+          - generic [ref=f5e47]:
+            - paragraph [ref=f5e48]: Drop your CSV here or click to browse
+            - paragraph [ref=f5e49]: Nothing is saved until you review and confirm.

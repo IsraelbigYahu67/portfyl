@@ -1,0 +1,90 @@
+- generic [ref=f3e1]:
+  - banner [ref=f3e2]:
+    - generic [ref=f3e4]:
+      - link [ref=f3e8] [cursor=pointer]:
+        - /url: /
+        - img "modal logo" [ref=f3e9]
+      - generic [ref=f3e11]:
+        - link "Home" [ref=f3e12] [cursor=pointer]:
+          - /url: https://www.mailinator.com/
+        - link "Email" [ref=f3e13] [cursor=pointer]:
+          - /url: /v4/public/inboxes.jsp
+        - link "Pricing" [ref=f3e14] [cursor=pointer]:
+          - /url: https://www.mailinator.com/site/pricing/
+        - link "Documentation" [ref=f3e15] [cursor=pointer]:
+          - /url: https://www.mailinator.com/documentation/docs/category/getting-started/index.html
+        - link "FAQ" [ref=f3e16] [cursor=pointer]:
+          - /url: https://www.mailinator.com/site/mailinator-faqs/
+        - link "Login" [ref=f3e17] [cursor=pointer]:
+          - /url: /v4/login.jsp
+  - generic [ref=f3e18]:
+    - complementary [ref=f3e19]:
+      - generic [ref=f3e20]:
+        - generic [ref=f3e21]: Recent Inboxes
+        - generic [ref=f3e24]: portfyl-debug...
+        - generic [ref=f3e26] [cursor=pointer]: Request Trial
+        - generic [ref=f3e30]:
+          - text: Mailinator + AI
+          - link "Give Your AI Assistant the Power of Mailinator" [ref=f3e31] [cursor=pointer]:
+            - /url: /v4/mailinatorai.jsp
+      - generic [ref=f3e33]:
+        - link "System Status" [ref=f3e34] [cursor=pointer]:
+          - /url: https://monitor.mailinator.com/status/mailinator
+        - link "Terms" [ref=f3e35] [cursor=pointer]:
+          - /url: https://www.mailinator.com/site/terms-of-use/
+        - link "Privacy" [ref=f3e36] [cursor=pointer]:
+          - /url: https://www.mailinator.com/site/privacy-policy/
+        - link "Accessibility" [ref=f3e37] [cursor=pointer]:
+          - /url: https://www.mailinator.com/site/accessibility/
+        - link "Security" [ref=f3e38] [cursor=pointer]:
+          - /url: https://www.mailinator.com/site/security-details/
+        - paragraph [ref=f3e39]: Copyright 2025 Manybrain, LLC, All Rights Reserved
+    - main [ref=f3e40]:
+      - generic [ref=f3e87]:
+        - generic [ref=f3e88]:
+          - generic [ref=f3e89]:
+            - generic [ref=f3e90]: Public Message
+            - generic [ref=f3e93]: Verify your email for portfyl-cloud-fstxby
+          - link "Back to Inbox" [ref=f3e95] [cursor=pointer]:
+            - /url: "#"
+        - generic [ref=f3e96]:
+          - generic [ref=f3e97]:
+            - generic [ref=f3e98]:
+              - generic [ref=f3e99]: To
+              - generic [ref=f3e100]: portfyl-debug-conn-test
+            - generic [ref=f3e101]:
+              - generic [ref=f3e102]: From
+              - generic [ref=f3e103]: noreply@portfyl-cloud-fstxby.firebaseapp.com
+            - generic [ref=f3e104]:
+              - generic [ref=f3e105]: Sending IP
+              - generic [ref=f3e106]: 209.85.161.71
+            - generic [ref=f3e107]:
+              - generic [ref=f3e108]: Received
+              - generic [ref=f3e109]: 2026-09-18 21:58:27
+          - generic [ref=f3e110]: Delete
+        - generic [ref=f3e115]:
+          - tablist [ref=f3e116]:
+            - listitem [ref=f3e117]:
+              - tab "HTML" [ref=f3e118] [cursor=pointer]
+            - listitem [ref=f3e119]:
+              - tab "TEXT" [ref=f3e120] [cursor=pointer]
+            - listitem [ref=f3e121]:
+              - tab "JSON" [ref=f3e122] [cursor=pointer]
+            - listitem [ref=f3e123]:
+              - tab "RAW" [ref=f3e124] [cursor=pointer]
+            - listitem [ref=f3e125]:
+              - tab "LINKS" [active] [selected] [ref=f3e126] [cursor=pointer]
+            - listitem [ref=f3e127]:
+              - tab "SMTP_LOG" [ref=f3e128] [cursor=pointer]
+            - listitem [ref=f3e129]:
+              - tab "ATTACHMENTS" [ref=f3e130] [cursor=pointer]
+          - tabpanel "LINKS" [ref=f3e134]:
+            - table [ref=f3e139]:
+              - rowgroup [ref=f3e140]:
+                - row [ref=f3e141]:
+                  - cell "https://portfyl-cloud-fstxby.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=Y5JIp7nVQLuH6-UwVKjGMfi37RiVMx_gY8fcXZEkmooAAAGgthlOfQ&apiKey=AIzaSyASbSNBTIVtPcFop2ZJXF4UUAzs_RuKlw8&lang=en" [ref=f3e142]
+                  - cell [ref=f3e143]:
+                    - link "https://portfyl-cloud-fstxby.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=Y5JIp7nVQLuH6-UwVKjGMfi37RiVMx_gY8fcXZEkmooAAAGgthlOfQ&apiKey=AIzaSyASbSNBTIVtPcFop2ZJXF4UUAzs_RuKlw8&lang=en" [ref=f3e144] [cursor=pointer]:
+                      - /url: https://portfyl-cloud-fstxby.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=Y5JIp7nVQLuH6-UwVKjGMfi37RiVMx_gY8fcXZEkmooAAAGgthlOfQ&apiKey=AIzaSyASbSNBTIVtPcFop2ZJXF4UUAzs_RuKlw8&lang=en
+    - link [ref=f3e84] [cursor=pointer]:
+      - /url: /comic/comic.jsp

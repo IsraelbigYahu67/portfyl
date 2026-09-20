@@ -1,0 +1,123 @@
+- generic [ref=f9e61]:
+  - link "Skip to main content" [ref=f9e62] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary [ref=f9e64]:
+    - generic [ref=f9e65]:
+      - img "Portfyl" [ref=f9e66]
+      - generic [ref=f9e67]:
+        - generic [ref=f9e68]: Portfyl
+        - generic [ref=f9e69]: Institutional Grade
+    - 'button "Switch portfolio (current: Portfyl demo)" [ref=f9e72] [cursor=pointer]':
+      - generic [ref=f9e76]:
+        - generic [ref=f9e77]: Portfolio
+        - generic [ref=f9e78]: Portfyl demo
+    - navigation "Primary" [ref=f9e81]:
+      - region [ref=f9e82]:
+        - heading "Portfolio" [level=2] [ref=f9e83]
+        - generic [ref=f9e84]:
+          - link "Dashboard" [ref=f9e85] [cursor=pointer]:
+            - /url: /
+          - link "Allocation" [ref=f9e91] [cursor=pointer]:
+            - /url: /allocation
+          - link "Transactions" [ref=f9e95] [cursor=pointer]:
+            - /url: /transactions
+      - region [ref=f9e99]:
+        - heading "Research" [level=2] [ref=f9e100]
+        - generic [ref=f9e101]:
+          - link "Search" [ref=f9e102] [cursor=pointer]:
+            - /url: /search
+          - link "Watchlists" [ref=f9e106] [cursor=pointer]:
+            - /url: /watchlists
+          - link "Screener" [ref=f9e109] [cursor=pointer]:
+            - /url: /screener
+      - region [ref=f9e112]:
+        - heading "Insights" [level=2] [ref=f9e113]
+        - generic [ref=f9e114]:
+          - link "Dividends" [ref=f9e115] [cursor=pointer]:
+            - /url: /dividends
+          - link "Analytics" [ref=f9e118] [cursor=pointer]:
+            - /url: /analytics
+          - link "Tax Report" [ref=f9e121] [cursor=pointer]:
+            - /url: /tax-report
+      - region [ref=f9e125]:
+        - heading "Assistant" [level=2] [ref=f9e126]
+        - link "AI Assistant" [ref=f9e128] [cursor=pointer]:
+          - /url: /assistant
+      - region [ref=f9e132]:
+        - heading "System" [level=2] [ref=f9e133]
+        - generic [ref=f9e134]:
+          - link "Import" [ref=f9e135] [cursor=pointer]:
+            - /url: /import
+          - link "Settings" [ref=f9e139] [cursor=pointer]:
+            - /url: /settings
+    - generic [ref=f9e143]:
+      - button "Account menu for portfyl-debug-conn-test@mailinator.com" [ref=f9e146] [cursor=pointer]:
+        - generic "portfyl-debug-conn-test@mailinator.com" [ref=f9e150]
+      - generic [ref=f9e153]: Live data via Yahoo Finance
+  - main [ref=f9e155]:
+    - generic [ref=f9e388]:
+      - generic [ref=f9e389]:
+        - heading "Settings" [active] [level=1] [ref=f9e390]
+        - paragraph [ref=f9e391]: Manage connections, device preferences, notifications, and your data.
+      - generic [ref=f9e392]:
+        - navigation "Settings sections" [ref=f9e393]:
+          - list [ref=f9e394]:
+            - listitem [ref=f9e395]:
+              - link "Connections" [ref=f9e396] [cursor=pointer]:
+                - /url: /settings?section=connections
+            - listitem [ref=f9e397]:
+              - link "Preferences" [ref=f9e398] [cursor=pointer]:
+                - /url: /settings?section=preferences
+            - listitem [ref=f9e399]:
+              - link "Notifications" [ref=f9e400] [cursor=pointer]:
+                - /url: /settings?section=notifications
+            - listitem [ref=f9e401]:
+              - link "Data & Privacy" [ref=f9e402] [cursor=pointer]:
+                - /url: /settings?section=data
+        - region [ref=f9e404]:
+          - generic [ref=f9e405]:
+            - heading "Connections" [level=2] [ref=f9e406]
+            - paragraph [ref=f9e407]: Connect providers and control how portfolio data is synchronized.
+          - generic [ref=f9e408]:
+            - generic [ref=f9e412]: Managing connection for portfolio
+            - generic [ref=f9e413]: Portfyl demo
+            - generic [ref=f9e414]: Each portfolio holds its own Trading 212 API key — data is never mixed.
+          - generic [ref=f9e415]:
+            - generic [ref=f9e416]:
+              - generic [ref=f9e417]:
+                - heading "Trading 212" [level=3] [ref=f9e418]
+                - paragraph [ref=f9e419]: Connect your account to import transactions into Portfyl demo.
+              - generic [ref=f9e420]: Not connected
+            - generic [ref=f9e421]:
+              - generic [ref=f9e422]:
+                - generic [ref=f9e423]: API Key
+                - generic [ref=f9e424]:
+                  - textbox "API Key" [ref=f9e425]:
+                    - /placeholder: Paste your Trading 212 API key
+                  - button "Show API key" [ref=f9e426] [cursor=pointer]
+                - paragraph [ref=f9e430]: Generate an API key in Trading 212 → Settings → API (beta)
+              - generic [ref=f9e431]:
+                - generic [ref=f9e432]: API Secret
+                - textbox "API Secret" [ref=f9e433]:
+                  - /placeholder: Paste your Trading 212 API secret
+              - button "Connect" [disabled] [ref=f9e434]
+          - generic [ref=f9e438]:
+            - generic [ref=f9e439]:
+              - heading "Auto-sync schedule" [level=2] [ref=f9e440]
+              - paragraph [ref=f9e441]: When connected brokers with auto-sync enabled check for new trades. Times are in Europe/Prague.
+            - generic [ref=f9e442]:
+              - generic [ref=f9e443]:
+                - generic [ref=f9e444]:
+                  - radio "Daily at 02:00" [checked] [ref=f9e445]
+                  - generic [ref=f9e446]: Daily at
+                  - textbox [ref=f9e447]: 02:00
+                - generic [ref=f9e448]:
+                  - radio "Every 6 hours" [ref=f9e449]
+                  - generic [ref=f9e450]: Every
+                  - spinbutton [disabled] [ref=f9e451]: "6"
+                  - generic [ref=f9e452]: hours
+              - generic [ref=f9e453]:
+                - button "Save schedule" [ref=f9e454] [cursor=pointer]
+                - generic [ref=f9e458]:
+                  - generic [ref=f9e459]: "Last sync: never"
+                  - generic [ref=f9e460]: "Next sync: at the next check (within a minute)"

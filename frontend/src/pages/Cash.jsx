@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Wallet, Plus, Trash2, Percent, TrendingUp } from "lucide-react";
-import { Card, SectionHeader, SkeletonRows, EmptyState } from "../components/ui";
+import { Link } from "react-router-dom";
+import { AlertTriangle, CheckCircle2, Percent, Plus, RefreshCw, TrendingUp, Trash2, Wallet } from "lucide-react";
+import { Card, SectionHeader, SkeletonRows, EmptyState, ErrorState } from "../components/ui";
 import MetricCard from "../components/MetricCard";
-import { formatMoney } from "../lib/format";
+import { formatDateTime, formatLongDate, formatMoney } from "../lib/format";
 import CashBalanceChart from "../components/CashBalanceChart";
 import {
   fetchCash,
@@ -11,8 +12,11 @@ import {
   deleteCash,
   fetchCashBalance,
   fetchCashHistory,
+  fetchCashReconciliation,
   fetchInterestRates,
+  fetchT212Status,
   saveInterestRates,
+  syncT212,
 } from "../api";
 import { useCurrency } from "../App";
 import { useConfirm } from "../components/ui/ConfirmDialog";
@@ -49,6 +53,136 @@ function TypeBadge({ type }) {
   );
 }
 
+// Broker snapshot vs. recorded ledger history are shown side by side, never
+// merged — a mismatch must stay visible instead of one source silently
+// winning. See docs/superpowers/specs/2026-09-20-portfyl-snowball-gap-
+// roadmap-design.md section 4.1.
+const STATUS_COPY = {
+  matched: {
+    icon: CheckCircle2,
+    tone: "text-gain",
+    badge: "bg-gain/10 text-gain",
+    label: "Matches your recorded history",
+  },
+  different: {
+    icon: AlertTriangle,
+    tone: "text-loss",
+    badge: "bg-loss/10 text-loss",
+    label: "Differs from your recorded history",
+  },
+};
+
+function CashReconciliationCard({ data, isLoading, isError, onRetry, connected, currency, onSync, syncing }) {
+  return (
+    <Card>
+      <SectionHeader icon={Wallet}>Current Trading 212 balance</SectionHeader>
+      {isLoading ? (
+        <SkeletonRows rows={2} cols={2} />
+      ) : isError ? (
+        <ErrorState message="Couldn't load your broker balance." onRetry={onRetry} />
+      ) : !data || data.status === "unavailable" ? (
+        <EmptyState
+          icon={Wallet}
+          title={connected ? "No Trading 212 balance synced yet" : "No Trading 212 connected"}
+          hint={
+            connected
+              ? "Sync your Trading 212 connection to see your current broker balance here."
+              : "Connect Trading 212 in Settings to see your current broker balance alongside your recorded cash history."
+          }
+          action={
+            connected ? (
+              <button type="button" className="btn-primary" onClick={onSync} disabled={syncing}>
+                {syncing ? "Syncing…" : "Sync now"}
+              </button>
+            ) : (
+              <Link className="btn-primary" to="/settings?section=connections">Connect Trading 212</Link>
+            )
+          }
+        />
+      ) : data.status === "no_ledger_history" ? (
+        <div className="space-y-3">
+          <div>
+            <p className="text-xs text-muted">Trading 212 (broker snapshot)</p>
+            <p className="text-2xl font-display font-bold tabular-nums text-ink">
+              {formatMoney(data.broker_amount, currency)}
+            </p>
+            {data.broker_as_of && (
+              <p className="text-xs text-muted mt-1">
+                As of {formatLongDate(data.broker_as_of)}
+                {data.broker_updated_at && ` · synced ${formatDateTime(data.broker_updated_at)}`}
+              </p>
+            )}
+          </div>
+          <p className="text-xs text-muted">
+            No recorded cash history yet. Add deposits and withdrawals, or import your
+            transaction history, so Portfyl can compare them against this broker balance.
+          </p>
+          <Link className="btn-ghost" to="/import">Import transactions</Link>
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="text-xs text-muted">Trading 212 (broker snapshot)</p>
+              <p className="text-2xl font-display font-bold tabular-nums text-ink">
+                {formatMoney(data.broker_amount, currency)}
+              </p>
+              {data.broker_as_of && (
+                <p className="text-xs text-muted mt-1">
+                  As of {formatLongDate(data.broker_as_of)}
+                  {data.broker_updated_at && ` · synced ${formatDateTime(data.broker_updated_at)}`}
+                </p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs text-muted">Recorded ledger history</p>
+              <p className="text-2xl font-display font-bold tabular-nums text-ink">
+                {formatMoney(data.ledger_amount, currency)}
+              </p>
+            </div>
+          </div>
+
+          <div className={`mt-4 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-sm ${(STATUS_COPY[data.status] ?? STATUS_COPY.different).badge}`}>
+            {(() => {
+              const StatusIcon = (STATUS_COPY[data.status] ?? STATUS_COPY.different).icon;
+              return <StatusIcon size={16} className={(STATUS_COPY[data.status] ?? STATUS_COPY.different).tone} />;
+            })()}
+            <span className="font-medium">{(STATUS_COPY[data.status] ?? STATUS_COPY.different).label}</span>
+            {data.status === "different" && (
+              <span className="text-xs opacity-90">({formatMoney(data.difference, currency)} difference)</span>
+            )}
+            {data.status === "matched" && (
+              <span className="text-xs opacity-90">(within {formatMoney(data.tolerance, currency)})</span>
+            )}
+          </div>
+
+          {data.status === "different" && (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-muted">
+                A difference usually means your recorded history is incomplete, not that either number is
+                wrong. Import missing transactions or sync your broker connection — Portfyl never adjusts
+                the ledger automatically to force a match.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn-primary flex items-center gap-1.5"
+                  onClick={onSync}
+                  disabled={syncing}
+                >
+                  <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
+                  {syncing ? "Syncing…" : "Sync now"}
+                </button>
+                <Link className="btn-ghost" to="/import">Import transactions</Link>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
 export default function Cash() {
   // useCurrency() reads CurrencyContext (provided by App's CurrencyProvider);
   // outside that provider (e.g. in tests) the context is null, so fall back to USD.
@@ -66,11 +200,17 @@ export default function Cash() {
     queryKey: ["cash-history", currency],
     queryFn: () => fetchCashHistory(currency),
   });
+  const reconciliation = useQuery({
+    queryKey: ["cash-reconciliation", currency],
+    queryFn: () => fetchCashReconciliation(currency),
+  });
+  const t212Status = useQuery({ queryKey: ["t212-status"], queryFn: fetchT212Status });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["cash"] });
     qc.invalidateQueries({ queryKey: ["cash-balance"] });
     qc.invalidateQueries({ queryKey: ["cash-history"] });
+    qc.invalidateQueries({ queryKey: ["cash-reconciliation"] });
     qc.invalidateQueries({ queryKey: ["summary"] });
   };
 
@@ -83,6 +223,15 @@ export default function Cash() {
     },
     onError: (err) =>
       toast.error(err?.response?.data?.detail || "Failed to delete cash entry"),
+  });
+  const sync = useMutation({
+    mutationFn: syncT212,
+    onSuccess: () => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["t212-status"] });
+      toast.success("Synced with Trading 212");
+    },
+    onError: (err) => toast.error(err?.response?.data?.detail || "Sync failed"),
   });
 
   const handleDelete = async (r) => {
@@ -107,9 +256,20 @@ export default function Cash() {
     <div className="space-y-6">
       <h1 className="text-xl font-bold">Cash</h1>
 
+      <CashReconciliationCard
+        data={reconciliation.data}
+        isLoading={reconciliation.isLoading}
+        isError={reconciliation.isError}
+        onRetry={reconciliation.refetch}
+        connected={t212Status.data?.connected === true}
+        currency={currency}
+        onSync={() => sync.mutate()}
+        syncing={sync.isPending}
+      />
+
       <MetricCard
         icon={Wallet}
-        label="Balance"
+        label="Recorded balance"
         value={formatMoney(balance.data?.total, currency)}
         sub={balance.data?.total_accrued > 0 ? `+${formatMoney(balance.data.total_accrued, currency)} interest` : null}
         positive={balance.data?.total_accrued > 0}
