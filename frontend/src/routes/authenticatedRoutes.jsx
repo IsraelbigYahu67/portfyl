@@ -4,6 +4,7 @@ import { TRACKER_HOME } from '../lib/routes';
 const loadDashboard = () => import('../pages/Dashboard');
 const loadAllocation = () => import('../pages/Allocation');
 const loadTransactions = () => import('../pages/Transactions');
+const loadCash = () => import('../pages/Cash');
 const loadImport = () => import('../pages/Import');
 const loadDividends = () => import('../pages/Dividends');
 const loadAnalytics = () => import('../pages/Analytics');
@@ -18,7 +19,7 @@ export const LazyImport = lazy(loadImport);
 
 export const SHARED_AUTHENTICATED_ROUTES = Object.freeze([
   [TRACKER_HOME, loadDashboard], ['/allocation', loadAllocation], ['/transactions', loadTransactions],
-  ['/import', loadImport], ['/dividends', loadDividends], ['/analytics', loadAnalytics],
+  ['/cash', loadCash], ['/import', loadImport], ['/dividends', loadDividends], ['/analytics', loadAnalytics],
   ['/search', loadSearch], ['/stock/:ticker', loadStock], ['/watchlists', loadWatchlists],
   ['/assistant', loadAssistant], ['/settings', loadSettings],
 ].map(([path, preload]) => ({ path, preload, Component: path === '/import' ? LazyImport : lazy(preload) })));

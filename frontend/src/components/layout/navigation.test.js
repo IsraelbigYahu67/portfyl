@@ -18,12 +18,13 @@ describe("NAV_GROUPS", () => {
     expect(allLabels).not.toContain("Overview");
   });
 
-  it("portfolio group has Dashboard, Allocation, Transactions", () => {
+  it("portfolio group has Dashboard, Allocation, Transactions, Cash", () => {
     const portfolio = NAV_GROUPS.find((group) => group.id === "portfolio");
     expect(portfolio.items.map((item) => item.to)).toEqual([
       TRACKER_HOME,
       "/allocation",
       "/transactions",
+      "/cash",
     ]);
   });
 });

@@ -181,13 +181,11 @@ describe("authenticated routing", () => {
     expect(removeItem.mock.calls.some(([key]) => key === "sb_platform")).toBe(false);
   });
 
-  it("does not expose Cash in navigation or at /cash", async () => {
+  it("routes to Cash and exposes it in navigation", async () => {
     renderApp("/cash");
 
-    await waitFor(() => {
-      expect(screen.getByTestId("location").textContent).toBe(TRACKER_HOME);
-    });
-    expect(screen.queryByRole("link", { name: "Cash" })).not.toBeInTheDocument();
+    expect(await screen.findByText("Cash page")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Cash" })).toBeInTheDocument();
   });
 
   it("keeps the switched portfolio ready while refreshing workspace metadata", async () => {
