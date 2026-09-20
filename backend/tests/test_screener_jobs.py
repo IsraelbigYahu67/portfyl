@@ -4,8 +4,18 @@ import time
 import threading
 from unittest.mock import patch
 
+import pytest
+from fastapi import HTTPException
+
 from routers.market import _in_range
+from routers.market import (
+    ScreenerJobRequest,
+    cancel_screener_job,
+    create_screener_job,
+    get_screener_job,
+)
 from services import screener_jobs as sj
+from tenancy import RequestContext
 
 
 def _reset_registry():
@@ -253,3 +263,54 @@ def test_cancel_job_hides_wrong_user_and_missing_ids():
         assert sj.cancel_job("user-1", "not-a-real-id") is False
         gate.set()
         _wait_for_status(job.job_id, "user-1", {"completed", "failed", "cancelled"})
+
+
+class _FakeUser:
+    def __init__(self, user_id):
+        self.id = user_id
+
+
+def _ctx(user_id: str) -> RequestContext:
+    return RequestContext(
+        user=_FakeUser(user_id),
+        workspace=None,
+        membership=None,
+        session=None,
+    )
+
+
+def test_create_screener_job_endpoint_returns_creation_payload():
+    """The authenticated create boundary returns an addressable async job."""
+    _reset_registry()
+    with patch("services.screener_jobs._ticker_row", side_effect=lambda symbol: _fake_row(symbol)):
+        payload = create_screener_job(ScreenerJobRequest(universe="tech_large"), ctx=_ctx("user-1"))
+        assert payload["status"] in ("queued", "running")
+        assert payload["job_id"]
+        assert payload["result"] is None
+        _wait_for_status(payload["job_id"], "user-1", {"completed", "failed", "cancelled"})
+
+
+def test_get_screener_job_endpoint_returns_404_for_wrong_user():
+    """The HTTP boundary must preserve owner-scoped non-disclosure."""
+    _reset_registry()
+    with patch("services.screener_jobs._ticker_row", side_effect=lambda symbol: _fake_row(symbol)):
+        payload = create_screener_job(ScreenerJobRequest(universe="tech_large"), ctx=_ctx("user-1"))
+        _wait_for_status(payload["job_id"], "user-1", {"completed", "failed", "cancelled"})
+
+    with pytest.raises(HTTPException) as exc_info:
+        get_screener_job(payload["job_id"], offset=0, limit=50, ctx=_ctx("user-2"))
+
+    assert exc_info.value.status_code == 404
+
+
+def test_cancel_screener_job_endpoint_returns_404_after_completion():
+    """A terminal job cannot misleadingly accept a cancellation request."""
+    _reset_registry()
+    with patch("services.screener_jobs._ticker_row", side_effect=lambda symbol: _fake_row(symbol)):
+        payload = create_screener_job(ScreenerJobRequest(universe="tech_large"), ctx=_ctx("user-1"))
+        _wait_for_status(payload["job_id"], "user-1", {"completed", "failed", "cancelled"})
+
+    with pytest.raises(HTTPException) as exc_info:
+        cancel_screener_job(payload["job_id"], ctx=_ctx("user-1"))
+
+    assert exc_info.value.status_code == 404
