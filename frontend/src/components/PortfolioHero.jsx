@@ -31,12 +31,12 @@ export default function PortfolioHero({ summary, loading, currency = "USD", seri
             ) : (
               <>
                 <div className="flex items-baseline gap-3 flex-wrap mt-1">
-                  <span className="font-display text-[clamp(2.25rem,5vw,3.25rem)] font-bold tracking-tight text-ink tnum leading-none">
+                  <span className="financial-headline font-display text-[clamp(2.25rem,5vw,3.25rem)] tracking-tight leading-none">
                     {formatMoney(animatedValue, currency)}
                   </span>
                   <DeltaPill value={summary.day_change} pct={summary.day_change_percent} currency={currency} size="lg" />
                 </div>
-                <div className="flex items-center gap-3 mt-1 text-xs font-sans tabular-nums text-muted">
+                <div className="flex items-center gap-3 mt-1 financial-data font-sans">
                   <span>Positions {formatMoney(summary.total_value, currency)}</span>
                   <span aria-hidden="true">·</span>
                   <span>Cash {formatMoney(summary.cash, currency)}</span>

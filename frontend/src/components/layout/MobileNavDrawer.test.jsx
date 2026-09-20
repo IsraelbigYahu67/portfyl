@@ -58,6 +58,11 @@ describe("MobileNavDrawer", () => {
     expect(screen.getByRole("link", { name: /ai assistant/i })).toBeInTheDocument();
   });
 
+  it("keeps group headings at least 12px", () => {
+    renderDrawer();
+    expect(screen.getByRole("heading", { name: NAV_GROUPS[0].label })).toHaveClass("data-label");
+  });
+
   it("closes after a navigation changes the route", () => {
     const onClose = vi.fn();
     renderDrawer(true, onClose);

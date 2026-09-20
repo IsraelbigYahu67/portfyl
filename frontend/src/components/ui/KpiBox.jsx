@@ -32,7 +32,7 @@ export default function KpiBox({
       className={`card !bg-surface-card-elevated flex flex-col gap-1 min-w-0 ${dense ? "!p-3" : ""} ${className}`}
     >
       <div className="flex items-start justify-between gap-2">
-        <span className={`eyebrow flex items-center gap-1.5 ${dense ? "text-[11px]" : ""}`}>
+        <span className="eyebrow flex items-center gap-1.5">
           {label}
           <InfoIcon info={info} />
         </span>
@@ -45,7 +45,7 @@ export default function KpiBox({
       {loading ? (
         <div className="h-7 w-24 bg-surface-hover rounded animate-pulse mt-1" />
       ) : (
-        <span className={`font-display font-bold tabular-nums tracking-tight text-ink ${dense ? "text-lg" : "text-3xl"}`}>
+        <span className={`financial-data font-display font-bold tracking-tight ${dense ? "text-lg" : "text-3xl"}`}>
           <KpiValue value={value} format={format} countUp={countUp} />
         </span>
       )}

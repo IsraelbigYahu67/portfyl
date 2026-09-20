@@ -8,6 +8,11 @@ describe("KpiBox", () => {
     expect(screen.getByText("24.1")).toBeInTheDocument();
   });
 
+  it("value uses the financial-data semantic class", () => {
+    render(<KpiBox label="P/E (TTM)" value="24.1" />);
+    expect(screen.getByText("24.1")).toHaveClass("financial-data");
+  });
+
   it("renders a numeric value through the count-up path under reduced motion", () => {
     window.matchMedia = (q) => ({
       matches: true, media: q, onchange: null,

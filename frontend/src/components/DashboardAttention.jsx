@@ -38,7 +38,7 @@ export default function DashboardAttention({ alerts = [], isLoading = false, err
                     <span className="block text-sm font-medium text-ink">{alert.title}</span>
                     <span className="block text-xs text-muted">{alert.detail}</span>
                   </span>
-                  <span className={`ml-auto text-[10px] font-bold uppercase tracking-wider ${tone} shrink-0`}>
+                  <span className={`ml-auto text-xs font-bold uppercase tracking-wider ${tone} shrink-0`}>
                     {label}
                   </span>
                 </Link>

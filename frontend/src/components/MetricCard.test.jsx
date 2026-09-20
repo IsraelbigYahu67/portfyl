@@ -41,12 +41,30 @@ describe("InfoIcon", () => {
 
     expect(screen.getByRole("tooltip")).toHaveStyle({ left: "20px", top: "112px" });
   });
+
+  it("keeps tooltip body, formula, and note text at least 12px", () => {
+    render(
+      <InfoIcon
+        info={{ title: "Beta", what: "Market sensitivity.", formula: "beta = cov / var", note: "Trailing 3y" }}
+      />
+    );
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "What is Beta?" }));
+
+    expect(screen.getByRole("tooltip")).not.toHaveClass("text-[11px]");
+    expect(screen.getByText("beta = cov / var")).not.toHaveClass("text-[10px]");
+    expect(screen.getByText("Trailing 3y")).not.toHaveClass("text-[10px]");
+  });
 });
 
 describe("MetricCard", () => {
   it("renders a pre-formatted string value unchanged (existing call sites)", () => {
     render(<MetricCard label="Balance" value="$1,234.50" />);
     expect(screen.getByText("$1,234.50")).toBeInTheDocument();
+  });
+
+  it("value uses the financial-headline semantic class", () => {
+    render(<MetricCard label="Balance" value="$1,234.50" />);
+    expect(screen.getByText("$1,234.50")).toHaveClass("financial-headline");
   });
 
   it("animates a numeric value under reduced motion and renders it grouped", () => {

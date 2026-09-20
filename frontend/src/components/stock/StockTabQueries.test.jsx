@@ -1,7 +1,41 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import Stock from "../../pages/Stock";
+
+// Vite rewrites `new URL(relative, import.meta.url)` for a path inside the
+// project root to a root-relative pathname rather than a file:// URL (see
+// primitives.test.jsx / chartTheme.test.js for the same pattern), so resolve
+// it against the Vitest process cwd (frontend/) instead of fileURLToPath.
+async function readSource(relativePath) {
+  const assetUrl = new URL(relativePath, import.meta.url);
+  const pathname = path.resolve(decodeURIComponent(assetUrl.pathname).replace(/^\//, ""));
+  return readFile(pathname, "utf-8");
+}
+
+const STOCK_AND_RESEARCH_FILES = [
+  "../StockDetail.jsx",
+  "./StockHeader.jsx",
+  "./StockDataTab.jsx",
+  "./StockFilingsTab.jsx",
+  "./StockFinancialsTab.jsx",
+  "./StockOverviewTab.jsx",
+  "./StockOwnershipTab.jsx",
+  "./StockValuationTab.jsx",
+  "../../pages/Stock.jsx",
+  "../../pages/Search.jsx",
+  "../../pages/Screener.jsx",
+  "../../pages/TaxReport.jsx",
+];
+
+describe("stock and research surfaces stay above the 12px readability floor", () => {
+  it.each(STOCK_AND_RESEARCH_FILES)("%s has no text-[8-11px] utility", async (relativePath) => {
+    const src = await readSource(relativePath);
+    expect(src).not.toMatch(/text-\[(8|9|10|11)px\]/);
+  });
+});
 
 const api = vi.hoisted(() => ({
   fetchStockView: vi.fn(),

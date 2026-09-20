@@ -7,7 +7,7 @@ export function SectionHeader({ icon: Icon, action, className = "", children }) 
             <Icon size={13} />
           </span>
         )}
-        <span className="eyebrow truncate">{children}</span>
+        <span className="eyebrow data-label truncate">{children}</span>
       </div>
       {action && <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">{action}</div>}
     </div>

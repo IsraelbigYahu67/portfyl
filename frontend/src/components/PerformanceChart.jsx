@@ -2,7 +2,9 @@ import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { formatMoney, formatPercent } from "../lib/format";
-import { AXIS_TICK, GRID_STROKE, NEUTRAL_COLOR } from "../lib/chartTheme";
+import { AXIS_TICK_STYLE, LEGEND_TEXT_STYLE, GRID_STROKE, NEUTRAL_COLOR, SERIES_STYLES } from "../lib/chartTheme";
+
+const benchmarkDash = (i) => SERIES_STYLES[(i % (SERIES_STYLES.length - 1)) + 1].strokeDasharray;
 
 function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }) {
   if (!active || !payload?.length) return null;
@@ -105,7 +107,7 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
           <CartesianGrid stroke={GRID_STROKE} vertical={false} />
           <XAxis
             dataKey="date"
-            tick={{ ...AXIS_TICK, fontFamily: "JetBrains Mono Variable" }}
+            tick={{ ...AXIS_TICK_STYLE, fontFamily: "JetBrains Mono Variable" }}
             tickFormatter={(v) => shortRange ? v.slice(5) : v.slice(0, 7)}
             minTickGap={60}
             axisLine={false}
@@ -115,7 +117,7 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
             <>
               <YAxis
                 yAxisId="pct"
-                tick={{ ...AXIS_TICK, fontFamily: "JetBrains Mono Variable" }}
+                tick={{ ...AXIS_TICK_STYLE, fontFamily: "JetBrains Mono Variable" }}
                 tickFormatter={fmtPctAxis}
                 width={55}
                 domain={['dataMin', 'dataMax']}
@@ -128,10 +130,10 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                 align="right"
                 wrapperStyle={{ paddingBottom: '20px' }}
                 formatter={(v) => {
-                  if (v === "pnl_pct") return <span className="text-xs text-muted">Portfolio Growth</span>;
+                  if (v === "pnl_pct") return <span style={LEGEND_TEXT_STYLE}>Portfolio Growth</span>;
                   const bm = benchmarkMeta.find((b) => `bench_${b.key}` === v);
-                  if (bm) return <span className="text-xs" style={{ color: bm.color }}>{bm.label}</span>;
-                  return <span className="text-xs text-muted">{v}</span>;
+                  if (bm) return <span style={{ ...LEGEND_TEXT_STYLE, color: bm.color }}>{bm.label}</span>;
+                  return <span style={LEGEND_TEXT_STYLE}>{v}</span>;
                 }}
               />
               <Area
@@ -143,13 +145,14 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                 strokeWidth={2.5}
                 dot={false}
               />
-              {benchmarkMeta.map((b) => (
+              {benchmarkMeta.map((b, i) => (
                 <Line
                   key={b.key}
                   yAxisId="pct"
                   type="monotone"
                   dataKey={`bench_${b.key}`}
                   stroke={b.color}
+                  strokeDasharray={benchmarkDash(i)}
                   strokeWidth={1.5}
                   dot={false}
                   connectNulls
@@ -160,7 +163,7 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
             <>
               <YAxis
                 yAxisId="value"
-                tick={{ ...AXIS_TICK, fontFamily: "JetBrains Mono Variable" }}
+                tick={{ ...AXIS_TICK_STYLE, fontFamily: "JetBrains Mono Variable" }}
                 tickFormatter={fmtAxis}
                 width={currency === "CZK" ? 72 : 52}
                 domain={['dataMin', 'dataMax']}
@@ -171,7 +174,7 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                 <YAxis
                   yAxisId="pct"
                   orientation="right"
-                  tick={{ ...AXIS_TICK, fontFamily: "JetBrains Mono Variable" }}
+                  tick={{ ...AXIS_TICK_STYLE, fontFamily: "JetBrains Mono Variable" }}
                   tickFormatter={fmtPctAxis}
                   width={50}
                   axisLine={false}
@@ -184,22 +187,23 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                 align="right"
                 wrapperStyle={{ paddingBottom: '20px' }}
                 formatter={(v) => {
-                  if (v === "value") return <span className="text-xs text-muted">Portfolio Value</span>;
-                  if (v === "invested") return <span className="text-xs text-muted">Invested</span>;
+                  if (v === "value") return <span style={LEGEND_TEXT_STYLE}>Portfolio Value</span>;
+                  if (v === "invested") return <span style={LEGEND_TEXT_STYLE}>Invested</span>;
                   const bm = benchmarkMeta.find((b) => `bench_${b.key}` === v);
-                  if (bm) return <span className="text-xs" style={{ color: bm.color }}>{bm.label}</span>;
-                  return <span className="text-xs text-muted">{v}</span>;
+                  if (bm) return <span style={{ ...LEGEND_TEXT_STYLE, color: bm.color }}>{bm.label}</span>;
+                  return <span style={LEGEND_TEXT_STYLE}>{v}</span>;
                 }}
               />
               <Area yAxisId="value" type="monotone" dataKey="invested" stroke={NEUTRAL_COLOR} fill="url(#colorInvested)" strokeWidth={1.5} dot={false} />
               <Area yAxisId="value" type="monotone" dataKey="value" stroke="var(--brand)" fill="url(#colorValue)" strokeWidth={2.5} dot={false} />
-              {benchmarkMeta.map((b) => (
+              {benchmarkMeta.map((b, i) => (
                 <Line
                   key={b.key}
                   yAxisId="pct"
                   type="monotone"
                   dataKey={`bench_${b.key}`}
                   stroke={b.color}
+                  strokeDasharray={benchmarkDash(i)}
                   strokeWidth={1.5}
                   dot={false}
                   connectNulls

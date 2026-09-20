@@ -1,21 +1,42 @@
-import { useId, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useId, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { UserPlus } from "lucide-react";
 import { mapFirebaseAuthError, registerWithEmailPassword, sendVerificationEmail } from "../auth/firebase";
+import { useAnalytics } from "../analytics/AnalyticsProvider";
+import { ANALYTICS_EVENTS } from "../analytics/eventContract";
+import { getAnalyticsLanguage } from "../analytics/analyticsCopy";
 
 const MIN_PASSWORD_LENGTH = 8;
+
+// Strict allowlist: only a literal ?source=demo maps to "demo". Any other
+// value (or none) is "direct" -- arbitrary query parameters are never
+// forwarded into analytics.
+function sourceSurfaceFrom(searchParams) {
+  return searchParams.get("source") === "demo" ? "demo" : "direct";
+}
 
 export default function Register() {
   const navigate = useNavigate();
   const emailId = useId();
   const passwordId = useId();
   const confirmId = useId();
+  const [searchParams] = useSearchParams();
+  const { capture } = useAnalytics();
+  const sourceSurface = sourceSurfaceFrom(searchParams);
+  const language = getAnalyticsLanguage();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    capture(ANALYTICS_EVENTS.SIGNUP_STARTED, { source_surface: sourceSurface, language });
+    // Fires once per mount of this route -- source_surface/language are
+    // fixed for the lifetime of this page view.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -34,6 +55,11 @@ export default function Register() {
     try {
       const user = await registerWithEmailPassword(email, password);
       await sendVerificationEmail(user);
+      // Capture before navigating away, and only once Firebase user
+      // creation has actually succeeded. No e-mail or Firebase UID leaves
+      // this call -- the schema for signup_completed allows source_surface
+      // only.
+      capture(ANALYTICS_EVENTS.SIGNUP_COMPLETED, { source_surface: sourceSurface });
       navigate("/verify-email", { state: { email } });
     } catch (err) {
       setError(mapFirebaseAuthError(err));

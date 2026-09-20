@@ -16,6 +16,13 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
   refetchPortfolios: vi.fn(),
   setCurrentId: vi.fn(),
+  recordPortfolioDataImported: vi.fn(() => true),
+}));
+
+vi.mock("../analytics/useRegisteredActivation", () => ({
+  useRegisteredActivation: () => ({
+    recordPortfolioDataImported: mocks.recordPortfolioDataImported,
+  }),
 }));
 
 vi.mock("../api", () => ({
@@ -119,10 +126,13 @@ describe("Import preview and undo", () => {
     await waitFor(() => expect(mocks.previewImportCSV).toHaveBeenCalledWith(file, false));
     expect(await screen.findByText(/1 transaction will be added/i)).toBeInTheDocument();
     expect(screen.getByText(/2 exact duplicates will be skipped/i)).toBeInTheDocument();
+    expect(mocks.recordPortfolioDataImported).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /continue to confirm/i }));
     fireEvent.click(screen.getByRole("button", { name: /^import 1 transaction$/i }));
     await waitFor(() => expect(mocks.commitImportCSV).toHaveBeenCalledWith(file, "preview-1", false));
     expect(await screen.findByRole("link", { name: /manage portfolio data/i })).toHaveAttribute("href", "/settings?section=data");
+    expect(mocks.recordPortfolioDataImported).toHaveBeenCalledWith("csv");
+    expect(mocks.recordPortfolioDataImported).toHaveBeenCalledTimes(1);
   });
 
   it("does not expose destructive portfolio clearing", async () => {
@@ -183,6 +193,7 @@ describe("Import preview and undo", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /replace existing portfolio/i }));
     expect(screen.queryByText(/1 transaction will be added/i)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /preview import/i })).toBeInTheDocument();
+    expect(mocks.recordPortfolioDataImported).not.toHaveBeenCalled();
   });
 
   it("recovers from commit drift by requiring a fresh preview", async () => {
@@ -195,6 +206,7 @@ describe("Import preview and undo", () => {
     fireEvent.click(screen.getByRole("button", { name: /^import 1 transaction$/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent("The portfolio changed. Preview the file again.");
     expect(screen.getByRole("button", { name: /preview import/i })).toBeInTheDocument();
+    expect(mocks.recordPortfolioDataImported).not.toHaveBeenCalled();
   });
 
   it("offers the persisted undo point and refreshes it after use", async () => {

@@ -14,6 +14,7 @@ import SyncScheduleSettings from "../components/SyncScheduleSettings";
 import { AsyncSection } from "../components/ui";
 import Toggle from "../components/ui/Toggle";
 import { getApiErrorMessage } from "../lib/apiError";
+import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
 
 const VALID_SECTIONS = new Set(SETTINGS_SECTIONS.map(({ value }) => value));
 
@@ -29,6 +30,7 @@ function SectionHeading({ id, headingRef, children, description }) {
 function ConnectionsSettings({ headingRef }) {
   const queryClient = useQueryClient();
   const { current: currentPortfolio } = usePortfolio();
+  const { recordPortfolioDataImported } = useRegisteredActivation();
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
   const [showKey, setShowKey] = useState(false);
@@ -79,6 +81,7 @@ function ConnectionsSettings({ headingRef }) {
       ["t212-status", "transactions", "holdings", "summary", "portfolios", "heatmap", "performance", "movers", "earnings", "dividends", "insider-buys"]
         .forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
       setTimeout(() => setSuccess(null), 6000);
+      if (data.total_imported > 0) recordPortfolioDataImported("broker");
     },
     onError: (error) => {
       setSuccess(null);

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "measure:bundle": "node scripts/measure-initial-bundle.mjs dist",
+    "audit:readability": "node scripts/audit-readability.mjs src",
     "dev": "vite --mode edition-local",
     "build": "vite build --mode edition-local",
     "build:cloud": "vite build --mode edition-cloud",
@@ -22,6 +23,7 @@
     "axios": "^1.20.0",
     "firebase": "^12.18.0",
     "lucide-react": "^0.468.0",
+    "posthog-js": "^1.434.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-dropzone": "^14.3.5",

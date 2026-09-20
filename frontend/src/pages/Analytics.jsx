@@ -15,7 +15,7 @@ import { Activity, RefreshCw, TrendingDown, TrendingUp, Shield, Wallet } from "l
 import { TickerLink } from "../components/StockDetail";
 import { AsyncSection, ChartSummary } from "../components/ui";
 import {
-  CATEGORICAL, GAIN_COLOR, NEUTRAL_COLOR, AXIS_TICK, GRID_STROKE, TOOLTIP_STYLE,
+  CATEGORICAL, GAIN_COLOR, NEUTRAL_COLOR, AXIS_TICK_STYLE, GRID_STROKE, TOOLTIP_STYLE,
 } from "../lib/chartTheme";
 import { topAbsoluteCorrelationPairs } from "../lib/correlationPairs";
 
@@ -160,7 +160,7 @@ function RatingBadge({ value, thresholds, labels }) {
   }
   const colors = ["text-loss bg-red-400/10", "text-yellow-400 bg-yellow-400/10", "text-gain bg-green-400/10", "text-emerald-400 bg-emerald-400/10"];
   return (
-    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${colors[Math.min(level, colors.length - 1)]}`}>
+    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${colors[Math.min(level, colors.length - 1)]}`}>
       {labels[Math.min(level, labels.length - 1)]}
     </span>
   );
@@ -198,7 +198,7 @@ function CorrelationMatrix({ tickers, matrix }) {
               </td>
               {matrix[i].map((val, j) => (
                 <td key={j} className="px-1 py-1">
-                  <div className={`w-12 h-8 flex items-center justify-center rounded text-[11px] font-sans tabular-nums ${i === j ? "bg-surface-hover text-muted" : getColor(val) + " text-ink"}`}>
+                  <div className={`financial-data w-12 h-8 flex items-center justify-center rounded font-sans ${i === j ? "bg-surface-hover text-muted" : getColor(val) + " text-ink"}`}>
                     {val.toFixed(2)}
                   </div>
                 </td>
@@ -240,7 +240,7 @@ function CorrelationMatrixSelector({ allTickers, matrix }) {
               disabled={disabled}
               onClick={() => toggle(t)}
               title={disabled ? `Up to ${MAX_SELECTED} holdings can be shown at once` : undefined}
-              className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+              className={`text-xs font-mono px-2 py-0.5 rounded border ${
                 isSelected ? "bg-brand text-white border-brand" : "border-surface-border text-muted"
               } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
             >
@@ -365,7 +365,7 @@ export default function Analytics() {
         )}
       >
         <>
-          <p className="text-[10px] text-muted mb-3">{dataContext(metricsUpdatedAt)}</p>
+          <p className="text-xs text-muted mb-3">{dataContext(metricsUpdatedAt)}</p>
           {metrics.lifetime && (
             <section>
               <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider flex items-center gap-2">
@@ -449,7 +449,7 @@ export default function Analytics() {
               <TrendingUp size={14} className="text-brand" />
               vs {benchName} — Active Performance
             </h2>
-            <p className="text-[10px] text-muted mb-3">{dataContext(comparisonUpdatedAt)}</p>
+            <p className="text-xs text-muted mb-3">{dataContext(comparisonUpdatedAt)}</p>
             <AsyncSection
               isLoading={bl}
               error={comparisonError}
@@ -470,7 +470,7 @@ export default function Analytics() {
                 <div className="card xl:col-span-2">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-xs uppercase tracking-wider text-muted">Cumulative Return</h3>
-                    <div className="flex items-center gap-3 text-[10px]">
+                    <div className="flex items-center gap-3 text-xs">
                       <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-brand inline-block" />Portfolio</span>
                       <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-500 inline-block" />{benchName}</span>
                     </div>
@@ -478,11 +478,11 @@ export default function Analytics() {
                   <ResponsiveContainer width="100%" height={220}>
                     <LineChart data={comparison.series} margin={{ top: 4, right: 12, bottom: 0, left: -8 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
-                      <XAxis dataKey="date" tick={{ ...AXIS_TICK, fontSize: 10 }} minTickGap={32} />
-                      <YAxis tick={{ ...AXIS_TICK, fontSize: 10 }} tickFormatter={(v) => `${v}%`} />
+                      <XAxis dataKey="date" tick={AXIS_TICK_STYLE} minTickGap={32} />
+                      <YAxis tick={AXIS_TICK_STYLE} tickFormatter={(v) => `${v}%`} />
                       <Tooltip
                         contentStyle={TOOLTIP_STYLE}
-                        labelStyle={{ color: "var(--muted, #8A93B3)", fontSize: 11 }}
+                        labelStyle={{ color: "var(--muted, #8A93B3)", fontSize: 12 }}
                         formatter={(v, k) => [`${v}%`, k === "portfolio_pct" ? "Portfolio" : k === "benchmark_pct" ? benchName : "Active"]}
                       />
                       <Line type="monotone" dataKey="portfolio_pct" stroke={GAIN_COLOR} strokeWidth={2} dot={false} />
@@ -573,7 +573,7 @@ export default function Analytics() {
                     <RatingBadge value={metrics.sharpe_ratio} thresholds={[0, 1, 2]} labels={["Poor", "Below Avg", "Good", "Excellent"]} />
                   </div>
                   <span className="text-2xl font-bold tabular-nums">{metrics.sharpe_ratio}</span>
-                  <p className="text-[10px] text-muted mt-1">Return per unit of total risk</p>
+                  <p className="text-xs text-muted mt-1">Return per unit of total risk</p>
                 </div>
                 <div className="bg-surface-hover rounded-lg p-4">
                   <div className="flex items-center justify-between mb-1">
@@ -583,7 +583,7 @@ export default function Analytics() {
                     <RatingBadge value={metrics.sortino_ratio} thresholds={[0, 1, 2]} labels={["Poor", "Below Avg", "Good", "Excellent"]} />
                   </div>
                   <span className="text-2xl font-bold tabular-nums">{metrics.sortino_ratio}</span>
-                  <p className="text-[10px] text-muted mt-1">Return per unit of downside risk</p>
+                  <p className="text-xs text-muted mt-1">Return per unit of downside risk</p>
                 </div>
                 {metrics.beta != null && (
                   <div className="bg-surface-hover rounded-lg p-4">
@@ -594,7 +594,7 @@ export default function Analytics() {
                       <RatingBadge value={-Math.abs(metrics.beta - 1)} thresholds={[-1, -0.3, -0.1]} labels={["Aggressive", "Active", "Moderate", "Benchmark"]} />
                     </div>
                     <span className="text-2xl font-bold tabular-nums">{metrics.beta}</span>
-                    <p className="text-[10px] text-muted mt-1">Benchmark sensitivity</p>
+                    <p className="text-xs text-muted mt-1">Benchmark sensitivity</p>
                   </div>
                 )}
                 {metrics.alpha != null && (
@@ -607,7 +607,7 @@ export default function Analytics() {
                     <span className={`text-2xl font-bold tabular-nums ${metrics.alpha >= 0 ? "text-gain" : "text-loss"}`}>
                       {metrics.alpha >= 0 ? "+" : ""}{metrics.alpha}%
                     </span>
-                    <p className="text-[10px] text-muted mt-1">Excess return vs {benchName}</p>
+                    <p className="text-xs text-muted mt-1">Excess return vs {benchName}</p>
                   </div>
                 )}
               </div>
@@ -628,7 +628,7 @@ export default function Analytics() {
                   </div>
                   <span className="text-3xl font-bold tabular-nums text-loss">{metrics.max_drawdown}%</span>
                   {metrics.max_drawdown_start && (
-                    <p className="text-[10px] text-muted mt-2">
+                    <p className="text-xs text-muted mt-2">
                       {metrics.max_drawdown_start} → {metrics.max_drawdown_end}
                       {metrics.max_drawdown_recovery && ` (recovered ${metrics.max_drawdown_recovery})`}
                     </p>
@@ -666,10 +666,10 @@ export default function Analytics() {
         <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider">
           Strongest Correlations
         </h2>
-        <p className="text-[10px] text-muted mb-3">
+        <p className="text-xs text-muted mb-3">
           How your holdings move together. High correlation (red) means less diversification benefit.
         </p>
-        <p className="text-[10px] text-muted mb-3">{dataContext(correlationUpdatedAt)}</p>
+        <p className="text-xs text-muted mb-3">{dataContext(correlationUpdatedAt)}</p>
         <AsyncSection
           isLoading={cl}
           error={correlationError}

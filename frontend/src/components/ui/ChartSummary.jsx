@@ -4,8 +4,8 @@
 export default function ChartSummary({ title, children }) {
   return (
     <details role="group" aria-label={title} className="mt-3">
-      <summary className="text-xs text-muted cursor-pointer select-none">View data summary</summary>
-      <div className="mt-2 text-xs overflow-x-auto">{children}</div>
+      <summary className="financial-meta cursor-pointer select-none">View data summary</summary>
+      <div className="financial-data mt-2 overflow-x-auto">{children}</div>
     </details>
   );
 }

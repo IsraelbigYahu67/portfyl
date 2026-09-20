@@ -126,7 +126,7 @@ export default function OptionsCalendar({ data = [] }) {
       {/* Day headers */}
       <div className="grid grid-cols-7 gap-1 mb-1">
         {DAY_HEADERS.map((d) => (
-          <div key={d} className="text-center text-[10px] font-semibold text-muted uppercase py-1">
+          <div key={d} className="text-center text-xs font-semibold text-muted uppercase py-1">
             {d}
           </div>
         ))}
@@ -153,13 +153,13 @@ export default function OptionsCalendar({ data = [] }) {
                 ${getPnlColor(cell.pnl)}
               `}
             >
-              <span className="text-[11px] font-medium text-muted">{cell.day}</span>
+              <span className="text-xs font-medium text-muted">{cell.day}</span>
               {hasTrades && (
                 <>
-                  <span className={`text-[10px] font-bold tabular-nums ${getPnlTextColor(cell.pnl)}`}>
+                  <span className={`financial-data font-bold ${getPnlTextColor(cell.pnl)}`}>
                     {formatPnl(cell.pnl)}
                   </span>
-                  <span className="text-[9px] text-muted">
+                  <span className="text-xs text-muted">
                     {cell.trades_count} {cell.trades_count === 1 ? "trade" : "trades"}
                   </span>
                 </>

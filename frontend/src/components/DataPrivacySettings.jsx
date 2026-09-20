@@ -11,6 +11,7 @@ import {
 import { useAuth } from "../auth/AuthProvider";
 import { mapFirebaseAuthError, reauthenticateWithPassword } from "../auth/firebase";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import AnalyticsPreferences from "../analytics/AnalyticsPreferences";
 
 
 function errorMessage(error, fallback) {
@@ -119,6 +120,8 @@ export default function DataPrivacySettings() {
           These controls are available on every plan.
         </p>
       </div>
+
+      <AnalyticsPreferences />
 
       {error && (
         <div className="flex items-start gap-2 text-sm text-loss bg-loss/10 border border-loss/30 rounded-lg px-4 py-3" role="alert">

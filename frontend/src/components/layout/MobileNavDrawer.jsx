@@ -67,7 +67,7 @@ export default function MobileNavDrawer({ groups, open, onClose }) {
             const headingId = `mobile-nav-${group.id}`;
             return (
               <section key={group.id} aria-labelledby={headingId}>
-                <h2 id={headingId} className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
+                <h2 id={headingId} className="data-label px-3 pb-1">
                   {group.label}
                 </h2>
                 <div className="space-y-0.5">

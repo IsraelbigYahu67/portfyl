@@ -276,6 +276,24 @@ optional overrides. The frontend side is separate: bake `VITE_SENTRY_DSN`
 into the build (`frontend/src/errorMonitoring.js`, lazy-loaded, same no-op
 default) since Vite env vars are compiled in, not read at Cloud Run runtime.
 
+**Activation analytics (PostHog Cloud EU) — currently withheld, do not set
+yet.** Like `VITE_SENTRY_DSN`, `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST`
+(must be exactly `https://eu.i.posthog.com`) are Vite build-time variables
+baked into the frontend bundle by `npm run build:cloud`
+(`frontend/src/analytics/AnalyticsProvider.jsx`'s `defaultAdapterFactory`) —
+setting or changing a Cloud Run *service's* runtime `--set-env-vars` has no
+effect on them at all, since Vite has already compiled them into static JS
+by the time the container starts; they can only be changed by rebuilding
+and redeploying the image. **Do not pass either variable as a build arg
+yet**: per `docs/compliance/data-processing-inventory.md`'s analytics
+baseline and `docs/operations/posthog-activation-analytics.md`'s production
+blocker, both must stay unset in every deployed environment until the
+public privacy notice/subprocessor disclosure for PostHog Cloud EU has
+received qualified Czech/EU legal review and is published. Leaving them
+unset is the current, correct state — `AnalyticsProvider.jsx` falls back to
+a no-op adapter whenever the key is absent, so the consent banner still
+renders but nothing is ever sent.
+
 The command prints a **Service URL** (`https://portfyl-….a.run.app`) when
 done.
 

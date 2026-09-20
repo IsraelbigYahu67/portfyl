@@ -313,13 +313,13 @@ export default function Screener() {
                 ))}
               </select>
               {isShibui ? (
-                <p className="text-[11px] text-muted mt-1">
+                <p className="text-xs text-muted mt-1">
                   Scans the whole market (~10,344 NYSE/NASDAQ symbols, Common Stock only) in one
                   query. Ignores Custom Tickers.
                 </p>
               ) : (
                 UNIVERSE_OPTIONS.find((o) => o.value === universe)?.slow && !customTickers.trim() && (
-                  <p className="text-[11px] text-muted mt-1">
+                  <p className="text-xs text-muted mt-1">
                     Runs in the background — you can cancel or navigate away and come back.
                   </p>
                 )

@@ -15,4 +15,17 @@ describe("ChartSummary", () => {
     );
     expect(screen.getByRole("group", { name: "Performance chart data" })).toHaveTextContent("Portfolio12%");
   });
+
+  it("wraps its data in the financial-data class so numeric cells inherit the 14px floor", () => {
+    render(
+      <ChartSummary title="Performance chart data">
+        <table>
+          <tbody>
+            <tr><td>Portfolio</td><td>12%</td></tr>
+          </tbody>
+        </table>
+      </ChartSummary>
+    );
+    expect(screen.getByText("Portfolio").closest("div")).toHaveClass("financial-data");
+  });
 });

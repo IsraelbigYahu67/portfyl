@@ -1,6 +1,6 @@
 # Portfyl Data Processing Inventory
 
-Last technical review: 2026-09-08
+Last technical review: 2026-09-19
 
 This document describes the implemented Portfyl runtime. It is an engineering
 record for privacy review, incident response, export/deletion maintenance, and
@@ -73,6 +73,7 @@ legal bases on behalf of the service operator.
 | Discord | Optional outbound notifications | Independent service selected by the user; role/terms require review | User-selected notification content sent to the configured webhook. |
 | Yahoo/yfinance, Shibui Finance, SEC EDGAR | Market/fundamental/research data retrieval | Commercial-rights and privacy role unresolved for cloud launch | Tickers, date ranges, and request metadata; no broker credential or full portfolio is intentionally sent. |
 | Hosted AI provider, when configured | Assistant responses | Processor/subprocessor and DPA/region review required before paid/public use | User prompt and the minimum context assembled for the request; exact provider/runtime configuration must be documented before enabling broadly. |
+| PostHog Cloud EU, implemented but not yet enabled in any deployed environment | Consent-gated product-analytics events measuring public-demo and registered-user activation funnels; see `docs/operations/posthog-activation-analytics.md` | Processor/subprocessor; consent basis (rejected traffic sends cookieless aggregate events by design) is subject to qualified Czech/EU legal review before the integration may be enabled | Only the frozen 12-event allow-list in `frontend/src/analytics/eventContract.js` with each event's own allow-listed properties (language/referrer/UTM-source class, demo page/symbol, source surface/type, creation path); for accepted consent only, an opaque Portfyl user id via `identify()`. Never e-mail, display name, workspace name/ID, portfolio ID, holdings, transactions, balances, free-text notes, or credentials. EU region (`eu.i.posthog.com`), one-year retention, session replay/surveys/feature-flags/exception-autocapture all disabled. |
 
 Public pricing or an accessible API is not evidence of commercial display or
 redistribution permission. The market-data workstream remains a launch blocker.
@@ -128,11 +129,31 @@ workspace records that are intentionally not present in the portability bundle.
 ## Analytics and telemetry baseline
 
 The 2026-09-07 dependency/source review found no product-analytics, advertising,
-session-replay, or tracking SDK in the active frontend/backend runtime. Portfyl
-uses operational logs, audit events, usage counters, and rate limits for service
-operation and security. Introducing analytics requires a separate reviewed
-event allow-list and must exclude raw holdings, transactions, free-text notes,
-credentials, request bodies, and stable cross-service identifiers by default.
+session-replay, or tracking SDK in the active frontend/backend runtime. That
+baseline has since changed: a consent-gated PostHog Cloud EU integration was
+implemented on 2026-09-19 to measure public-demo and registered-user
+activation funnels. The reviewed event allow-list and forbidden-data
+exclusions anticipated by the prior baseline are now the enforced-in-code
+contract at `frontend/src/analytics/eventContract.js`
+(`sanitizeEvent()` rejects any event name outside the frozen 12-event list
+and drops any property outside that event's own schema) — see the PostHog
+row in the external-services table above and
+`docs/operations/posthog-activation-analytics.md` for the full runbook,
+allow-list, and forbidden-data list. Portfyl otherwise continues to use
+operational logs, audit events, usage counters, and rate limits for service
+operation and security, unrelated to this product-analytics integration.
+
+**Production blocker:** `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST` must
+remain unset in every deployed environment until the public privacy notice
+and subprocessor disclosure covering PostHog Cloud EU has received
+qualified Czech/EU legal review and is published. This implementation does
+not draft or publish that legal text. Until the gate is lifted, the
+frontend's `AnalyticsProvider` falls back to a no-op adapter in every built
+(non-dev, non-test) bundle regardless of a visitor's consent choice, so no
+event reaches PostHog from any live deployment today. This mirrors the
+existing pattern above for the controller-identity and child-consent gates:
+implemented in code, deliberately withheld from the live environment
+pending an explicit legal sign-off.
 
 ## Change-review trigger
 

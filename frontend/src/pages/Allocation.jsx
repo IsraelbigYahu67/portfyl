@@ -267,7 +267,7 @@ export default function Allocation() {
                       >
                         <td className="px-4 py-3 font-mono font-bold text-sm">
                           <TickerLink ticker={h.ticker} className="text-left">{h.ticker}</TickerLink>
-                          {closed && <span className="ml-1.5 text-[10px] font-medium text-loss/80 uppercase">Sold</span>}
+                          {closed && <span className="ml-1.5 financial-meta font-medium text-loss uppercase">Sold</span>}
                         </td>
                         <td className={`px-4 py-3 text-sm max-w-xs truncate ${closed ? "text-muted" : "text-ink"}`}>{h.name}</td>
                         <td className={`px-4 py-3 tabular-nums text-sm text-right ${closed ? "text-muted" : ""}`}>
@@ -277,7 +277,7 @@ export default function Allocation() {
                         <td className={`px-4 py-3 tabular-nums text-sm text-right font-medium ${closed ? "text-muted" : ""}`}>
                           <div>{fmtNative(h.current_price, h.currency)}</div>
                           {closed && h.live_price != null && (
-                            <div className="text-[10px] text-muted leading-tight" title="Live market price today">
+                            <div className="financial-meta leading-tight" title="Live market price today">
                               now {fmtNative(h.live_price, h.currency)}
                             </div>
                           )}
@@ -292,7 +292,7 @@ export default function Allocation() {
                           </span>
                           {closed && h.pnl_if_held != null && (
                             <div
-                              className={`text-[10px] leading-tight mt-0.5 font-normal ${h.pnl_if_held >= 0 ? "text-gain" : "text-loss"}`}
+                              className={`financial-meta leading-tight mt-0.5 font-normal ${h.pnl_if_held >= 0 ? "text-gain" : "text-loss"}`}
                               title="P&L if you had held instead of sold (live price today)"
                             >
                               if held: {h.pnl_if_held >= 0 ? "+" : ""}{fmt(h.pnl_if_held)}
@@ -303,7 +303,7 @@ export default function Allocation() {
                           {fmtPct(h.pnl_percent)}
                           {closed && h.pnl_if_held_pct != null && (
                             <div
-                              className={`text-[10px] leading-tight mt-0.5 font-normal ${h.pnl_if_held_pct >= 0 ? "text-gain" : "text-loss"}`}
+                              className={`financial-meta leading-tight mt-0.5 font-normal ${h.pnl_if_held_pct >= 0 ? "text-gain" : "text-loss"}`}
                             >
                               if held: {fmtPct(h.pnl_if_held_pct)}
                             </div>

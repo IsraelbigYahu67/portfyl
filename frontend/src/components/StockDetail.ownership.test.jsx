@@ -37,7 +37,9 @@ describe("ShibuiOwnershipFilingsSection ownership detail", () => {
 
     // .toLocaleString()'s thousands separator is locale-dependent (comma,
     // space, dot, ...) -- match the digit groups, not a specific separator.
-    expect(await screen.findByText(/24.000.000 ks/)).toBeInTheDocument();
+    const ownershipText = await screen.findByText(/24.000.000 ks/);
+    expect(ownershipText).toBeInTheDocument();
+    expect(ownershipText).toHaveClass("financial-data");
     expect(screen.getByText(/6\.2 %/)).toBeInTheDocument();
     expect(fetchShibuiOwnershipDetail).not.toHaveBeenCalled();
   });

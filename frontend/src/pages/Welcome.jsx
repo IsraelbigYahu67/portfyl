@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUpRight, ChartNoAxesCombined, PieChart, CalendarDays, Layers3, Check, Plus } from "lucide-react";
 import { COPY, LANGUAGES, LANGUAGE_KEY } from "./welcomeCopy";
+import { useAnalytics } from "../analytics/AnalyticsProvider";
+import { ANALYTICS_COPY, getAnalyticsLanguage } from "../analytics/analyticsCopy";
+import { ANALYTICS_EVENTS } from "../analytics/eventContract";
+import { DEMO_SESSION_SCOPE } from "../analytics/useDemoAnalytics";
 import "./Welcome.css";
 import "../fonts.css";
 
@@ -16,6 +20,24 @@ function savedLanguage() {
   } catch { return null; }
 }
 
+const SEARCH_ENGINE_HOSTS = ["google.", "bing.", "seznam.", "duckduckgo.", "yahoo."];
+const SOCIAL_HOSTS = ["facebook.", "twitter.", "x.com", "linkedin.", "instagram.", "t.co"];
+
+// referrer_class is a coarse bucket, never the raw referrer URL -- see
+// eventContract.js's landing_viewed schema.
+function classifyReferrer(referrer) {
+  if (!referrer) return "direct";
+  try {
+    const host = new URL(referrer).hostname.toLowerCase();
+    if (host === window.location.hostname) return "internal";
+    if (SEARCH_ENGINE_HOSTS.some((s) => host.includes(s))) return "search";
+    if (SOCIAL_HOSTS.some((s) => host.includes(s))) return "social";
+    return "referral";
+  } catch {
+    return "unknown";
+  }
+}
+
 function Brand({ children }) {
   return <><img src="/portfyl-mark.png" alt="" width="38" height="38" />Portfyl{children}</>;
 }
@@ -24,12 +46,24 @@ function Heading({ lines }) {
   return <>{lines[0]}<br /><span>{lines[1]}</span></>;
 }
 
+function AnalyticsPreferencesLink() {
+  const { reopenAnalyticsPreferences } = useAnalytics();
+  const t = ANALYTICS_COPY[getAnalyticsLanguage()];
+  return (
+    <button type="button" onClick={reopenAnalyticsPreferences} className="welcome-preview-link" style={{ background: "none", border: "none", cursor: "pointer" }}>
+      {t.manage}
+    </button>
+  );
+}
+
 export default function Welcome() {
   const [language, setLanguage] = useState(savedLanguage);
   const [selected, setSelected] = useState(0);
   const headingRef = useRef(null);
   const focusHeading = useRef(false);
   const copy = language ? COPY[language] : null;
+  const { ready, capture, captureOnce } = useAnalytics();
+  const landingViewedRef = useRef(false);
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -38,6 +72,47 @@ export default function Welcome() {
     document.documentElement.lang = language || "en";
     return () => { document.title = previousTitle; document.documentElement.lang = previousLanguage; };
   }, [language, copy]);
+
+  // landing_viewed fires once per page load, only once analytics is ready
+  // (pending never sends). UTM params are read once at mount, sanitized
+  // through the event contract, then stripped from the URL -- the raw URL
+  // and its query string are never captured.
+  useEffect(() => {
+    if (!ready || landingViewedRef.current) return;
+    landingViewedRef.current = true;
+    const params = new URL(window.location.href).searchParams;
+    capture(ANALYTICS_EVENTS.LANDING_VIEWED, {
+      language: language || "en",
+      referrer_class: classifyReferrer(document.referrer),
+      // eventContract.js's stringField rejects empty strings (and the
+      // contract is off-limits to change here), so an absent UTM param is
+      // sent as the literal placeholder "none" rather than "".
+      utm_source: params.get("utm_source") || "none",
+      utm_medium: params.get("utm_medium") || "none",
+      utm_campaign: params.get("utm_campaign") || "none",
+    });
+    if (params.has("utm_source") || params.has("utm_medium") || params.has("utm_campaign")) {
+      const url = new URL(window.location.href);
+      ["utm_source", "utm_medium", "utm_campaign"].forEach((key) => url.searchParams.delete(key));
+      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    }
+  }, [ready, language, capture]);
+
+  // Same-tab, unmodified click: swap to the demo without a full reload.
+  // Modified clicks (new tab/window, download, etc.) fall through to the
+  // plain href="/demo" anchor and record entry_point="direct" once the demo
+  // mounts, via the same session-scoped captureOnce key.
+  function handleDemoCtaClick(entryPoint) {
+    return (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+      event.preventDefault();
+      captureOnce(DEMO_SESSION_SCOPE, ANALYTICS_EVENTS.DEMO_STARTED, { language: language || "en", entry_point: entryPoint });
+      window.history.pushState(null, "", "/demo");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    };
+  }
 
   useEffect(() => {
     if (language && focusHeading.current) {
@@ -88,7 +163,7 @@ export default function Welcome() {
           <div className="welcome-eyebrow"><span />{copy.eyebrow}</div>
           <h1 id="welcome-title" ref={headingRef} tabIndex={-1}><Heading lines={copy.heading} /></h1>
           <p className="welcome-lead">{copy.lead[0]}<br className="welcome-desktop-break" /> {copy.lead[1]}</p>
-          <a className="welcome-cta" href="#ukazky">{copy.cta} <ArrowDown size={17} /></a>
+          <div className="welcome-hero-actions"><a className="welcome-cta" href="/demo" onClick={handleDemoCtaClick("landing_hero")}>{copy.demoCta} <ArrowUpRight size={17} /></a><a className="welcome-preview-link" href="#ukazky">{copy.cta} <ArrowDown size={17} /></a></div>
           <p className="welcome-hero-note">{copy.heroNote}</p>
           <div className="welcome-hero-visual">
             <div className="welcome-orbit welcome-orbit-one" /><div className="welcome-orbit welcome-orbit-two" />
@@ -129,9 +204,9 @@ export default function Welcome() {
             {copy.questions.map(([question, answer], index) => <details key={index}><summary>{question}<Plus size={18} /></summary><p>{answer}</p></details>)}
           </div>
         </section>
-        <section className="welcome-closing welcome-container"><div className="welcome-eyebrow"><span />{copy.closingKicker}</div><h2><Heading lines={copy.closingHeading} /></h2><p>{copy.closingNote}</p><a href="#nahoru">{copy.back} <ArrowUpRight size={16} /></a></section>
+        <section className="welcome-closing welcome-container"><div className="welcome-eyebrow"><span />{copy.closingKicker}</div><h2><Heading lines={copy.closingHeading} /></h2><p>{copy.closingNote}</p><div className="welcome-closing-actions"><a className="welcome-cta" href="/demo" onClick={handleDemoCtaClick("landing_closing")}>{copy.demoCta} <ArrowUpRight size={17} /></a><a href="#nahoru">{copy.back} <ArrowUpRight size={16} /></a></div></section>
       </main>
-      <footer className="welcome-footer welcome-container"><a className="welcome-logo" href="#nahoru"><Brand /></a><span>{copy.footer}</span><small>© {new Date().getFullYear()} Portfyl</small></footer>
+      <footer className="welcome-footer welcome-container"><a className="welcome-logo" href="#nahoru"><Brand /></a><span>{copy.footer}</span><AnalyticsPreferencesLink /><small>© {new Date().getFullYear()} Portfyl</small></footer>
     </div>
   );
 }
