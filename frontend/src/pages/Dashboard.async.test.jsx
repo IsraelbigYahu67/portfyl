@@ -48,7 +48,7 @@ vi.mock("../components/PerformanceChart", () => ({
   default: () => <div>Healthy performance chart</div>,
 }));
 vi.mock("../components/Heatmap", () => ({ default: () => <div>Healthy heatmap</div> }));
-vi.mock("../components/StockDetail", () => ({
+vi.mock("../components/TickerLink", () => ({
   TickerLink: ({ ticker, children }) => <span>{children || ticker}</span>,
 }));
 

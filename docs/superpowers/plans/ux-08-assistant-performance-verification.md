@@ -1,5 +1,121 @@
 # UX-08 Assistant Privacy and Performance — Verification Record
 
+## Latest continuation — 2026-09-16 (OPEN)
+
+This section is the current continuation status; the earlier implementation-session
+record below is retained as historical evidence. Baseline HEAD is `88a2219` on
+`codex/ux-08-assistant-performance`, in
+`C:/Users/tomzo/claude/ptf/portfyl/.claude/worktrees/ux-08-closeout`. Main was not
+changed. A targeted correction wave is in progress; baseline results below do not
+automatically certify its working-tree changes.
+
+### Fresh baseline gates
+
+| Command (from the phase worktree) | Exit | Actual result |
+| --- | ---: | --- |
+| `cd frontend; npm.cmd ci` | 0 | Lockfile dependencies installed |
+| `cd frontend; node --test scripts/measure-initial-bundle.test.mjs` | 0 | 2 passed |
+| `cd backend; <main-checkout>/backend/.venv/Scripts/python.exe -m pytest tests/ -v --ignore=tests/postgres` | 0 | 666 passed; 111 warnings; 25.77 s |
+| `cd frontend; npm.cmd test -- --maxWorkers=1` | 0 | 81 files / 382 passed; 170.84 s |
+| `cd frontend; npm.cmd run test:cloud -- --maxWorkers=1` | 0 | 81 files / 382 passed; 120.46 s |
+| `cd frontend; npm.cmd run build -- --manifest` | 0 | Local production build |
+| `cd frontend; npm.cmd run build:cloud -- --manifest` | 0 | Cloud production build |
+| `docker compose -f deploy/docker-compose.postgres-test.yml up -d --wait` (main checkout compose project) | 0 | Disposable PostgreSQL healthy |
+| `cd backend; <main-checkout>/backend/.venv/Scripts/python.exe -m pytest tests/postgres/ -q` | 0 | 334 passed; 10 warnings; 78.43 s |
+
+Only the disposable `portfyl_test` database on `localhost:55441` was used. The
+integration fixture recreated and subsequently downgraded its disposable schema.
+`alembic upgrade head` then succeeded on that same test database for interactive QA.
+The existing `.env` points at remote Neon and was **not** used for QA. No production
+data, database, credentials, or model-provider calls were used. Background broker,
+alert, and dividend pollers were disabled on the QA server.
+
+Cloud build manifest exclusion passed: no TaxReport/Screener entry or asset; local
+contains both. Frontend negative-provider tests emitted their expected useAuth
+diagnostics; backend warnings remain existing deprecation/SQLAlchemy warnings.
+
+### Performance metric correction
+
+The static HTML-entry metric required by the implementation plan remains a useful
+secondary measurement, but does not supersede the original design specification
+section 4.3 requirement for the authenticated shell **plus its initial route**.
+Both metrics are retained; a static-entry PASS alone is not a program performance
+PASS.
+
+| Edition | Static entry JS/CSS gzip (B) | Static entry total | Recorded Plan-7 static baseline | Static reduction | Authenticated Dashboard union JS/CSS gzip | Union total |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| local | 47,470 / 9,475 | 56,945 | 87,246 | 34.730532% | 331,320 / 14,655 | 345,975 |
+| cloud | 47,604 / 9,475 | 57,079 | 95,917 | 40.490320% | 332,089 / 14,655 | 346,744 |
+
+Authenticated union method: deduplicate the asset sets from `collectInitialAssets`
+for `index.html`, the manifest's actual TrackerBootstrap root, and
+`src/pages/Dashboard.jsx`, including every recursive static JS/CSS dependency; gzip
+each unique file at level 9. Fonts/images/maps remain excluded. These baseline union
+totals exceed 70% of the historical approximately 372 KB under either KB or KiB
+interpretation. A freshly measured Plan-7 **union** baseline has not been established.
+No authenticated-startup 30% pass is claimed at this point. Eager Firebase SDK and
+StockDetail barrel edges are being corrected and will be remeasured.
+
+### Interactive QA completed so far
+
+Available browser runtime was initialized successfully in this continuation. The
+user signed in manually; no password was read or submitted by the agent. The built-in
+synthetic demo portfolio was activated through first-run onboarding. All checks used
+local backend `8001` and local frontend `5174`; cloud frontend `5175` used the same
+**local-edition** QA backend, so its results certify frontend behavior only, not a
+production/cloud-backend walkthrough.
+
+At exact CSS viewports **390×844, 768×1024, 1024×768, and 1440×900**:
+
+- Login/Register/Forgot Password: rendered, associated e-mail/password labels and
+  no viewport horizontal overflow. Registration keyboard e-mail → password checked.
+  No registration or reset e-mail was submitted.
+- First-run onboarding: four start options visible without viewport overflow;
+  synthetic sample activation completed.
+- Local route layout smoke: Dashboard, Allocation, Transactions, Watchlists, Import,
+  Dividends, Analytics, Search, Assistant, Settings, Screener, Tax Report.
+- Stock/AAPL: all five URL tabs selected correctly and sampled without viewport
+  overflow; tab back/forward and reload retained selection.
+- Settings: all four URL sections selected and sampled without viewport overflow;
+  section back/forward retained URL. Initial reload observation was still loading,
+  so it is not a complete section-reload stability pass.
+- Shared cloud-frontend routes: 40 layout samples, no viewport overflow or alert;
+  Screener/Tax Report links absent and direct routes redirected to Dashboard.
+
+Mobile drawer initial focus, Shift+Tab wrap, Escape close, and focus restoration
+were verified. SPA navigation to Dashboard focused its h1. Both browser tabs'
+captured warning/error console logs were empty before intentional outage testing.
+Some route samples remained loading: these are layout **smoke checks**, not full
+happy/loading/empty/error acceptance for every surface.
+
+A controlled outage stopped only this turn's QA backend. Transactions displayed
+the real error alert and Retry control at 1440×900. Hot reload during the outage
+temporarily cleared frontend account state; after backend restart and page reload,
+the existing cookie session and AAPL transaction data recovered at 390×844. Explicit
+Retry activation and the other error-state viewport cells remain unverified.
+
+Server-side request evidence for an authenticated Dashboard reload contained account,
+capabilities, FX, portfolios, summary/holdings/default performance and Dashboard's
+visible widgets/local tax signal. It contained no per-holding fundamentals/history
+sweep or Transactions/Watchlists/Settings queue. This is server request-log evidence,
+not DevTools timing or a cold/warm compressed-transfer measurement.
+
+### Findings and remaining gates
+
+The reviewed correction wave addresses orphaned intent requests after originating
+links unmount, native average-cost currency, the Stock route's missing h1, and unnamed
+Assistant connection/Transactions filter controls, alongside startup import edges.
+Tests, measurements, review and browser rechecks for those edits are pending.
+
+Assistant defaults visibly to No portfolio data. This QA workspace has no configured
+DeepSeek key, so chat/consent/provider-response/browser-wire scenarios were not run.
+No live model request or portfolio sharing occurred. Cloud Plans, cloud backend gates,
+full four-viewport async/error/keyboard/network matrix, exact 150 ms browser timing,
+cold/warm network captures, required remote PR CI and formal predecessor delivery
+remain open. Read-only GitHub CLI checks found no UX phase PR or UX-08 CI run; the
+workflow triggers branch CI through PRs (push trigger covers main only). No PR, push,
+merge, security bypass, or deployment was performed.
+
 Date: 2026-09-16
 Branch: `codex/ux-08-assistant-performance`
 Implementation/CI head: `0cc337c`

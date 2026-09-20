@@ -10,7 +10,7 @@ import { RefreshCw, TrendingUp, TrendingDown, Calendar, LayoutGrid, Lock, UserCh
 import { formatMoney, formatPercent } from "../lib/format";
 import { AsyncSection, Card, SectionHeader, SkeletonRows, SkeletonChart, EmptyState, DeltaPill, ChartSummary } from "../components/ui";
 import Heatmap from "../components/Heatmap";
-import { TickerLink } from "../components/StockDetail";
+import { TickerLink } from "../components/TickerLink";
 import DashboardGrid from "../components/DashboardGrid";
 import PortfolioHero from "../components/PortfolioHero";
 import DashboardAttention from "../components/DashboardAttention";
