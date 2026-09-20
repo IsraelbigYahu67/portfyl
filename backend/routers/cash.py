@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Portfolio, Transaction, CashInterestRate
 from routers.portfolios import require_portfolio
-from fx import fetch_fx_to_czk, cash_amount_to_display, folded_cash_display
+from fx import fetch_fx_to_czk, cash_amount_to_display, cash_total_from_transactions
 from broker_cash import current_t212_cash
-from cash_ledger import CASH_TYPES, cash_balance_by_currency, accrued_interest, signed_cash
+from cash_ledger import CASH_TYPES, cash_balance_by_currency, accrued_interest, has_external_cashflows, signed_cash
 
 router = APIRouter(prefix="/cash", tags=["cash"])
 
@@ -216,7 +216,7 @@ class CashReconciliation(BaseModel):
     ledger_amount: float
     difference: Optional[float] = None
     tolerance: float
-    status: Literal["matched", "different", "unavailable"]
+    status: Literal["matched", "different", "unavailable", "no_ledger_history"]
 
 
 # FX pivots through CZK on different dates (the broker snapshot is priced
@@ -236,12 +236,11 @@ def get_reconciliation(
         Transaction.portfolio_id == portfolio.id,
         Transaction.workspace_id == portfolio.workspace_id,
     ).all()
-    rates = {r.currency: {"annual_rate": r.annual_rate, "enabled": r.enabled, "start_date": r.start_date}
-             for r in db.query(CashInterestRate).filter(
-                 CashInterestRate.portfolio_id == portfolio.id,
-                 CashInterestRate.workspace_id == portfolio.workspace_id,
-             ).all()}
-    ledger_amount = round(folded_cash_display(txns, rates, disp), 2)
+    # Balance only, matching /cash/balance's `total` (the figure the Cash
+    # page's "Recorded balance" MetricCard already shows) -- NOT folded with
+    # accrued interest, so this page never shows two disagreeing "recorded"
+    # numbers under near-identical labels.
+    ledger_amount = round(cash_total_from_transactions(txns, disp), 2)
 
     broker = current_t212_cash(db, portfolio, disp)
     if broker is None:
@@ -252,11 +251,28 @@ def get_reconciliation(
             status="unavailable",
         )
 
-    difference = round(broker.amount - ledger_amount, 2)
+    broker_amount = round(broker.amount, 2)
+    if not has_external_cashflows(txns):
+        # A broker-only sync (orders/dividends, no deposit/withdrawal rows)
+        # produces a large negative ledger_amount from trade cash-outflows
+        # alone -- not a real disagreement, just nothing recorded yet to
+        # compare against. Report it as its own state rather than "different".
+        return CashReconciliation(
+            currency=disp,
+            broker_amount=broker_amount,
+            broker_currency=broker.currency,
+            broker_as_of=broker.as_of,
+            broker_updated_at=broker.updated_at.isoformat() if broker.updated_at else None,
+            ledger_amount=0.0,
+            tolerance=CASH_RECONCILIATION_TOLERANCE,
+            status="no_ledger_history",
+        )
+
+    difference = round(broker_amount - ledger_amount, 2)
     status = "matched" if abs(difference) <= CASH_RECONCILIATION_TOLERANCE else "different"
     return CashReconciliation(
         currency=disp,
-        broker_amount=round(broker.amount, 2),
+        broker_amount=broker_amount,
         broker_currency=broker.currency,
         broker_as_of=broker.as_of,
         broker_updated_at=broker.updated_at.isoformat() if broker.updated_at else None,

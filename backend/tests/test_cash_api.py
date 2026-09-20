@@ -379,10 +379,11 @@ def test_reconciliation_different_outside_tolerance(db_session, pid, default_por
     assert result.status == "different"
 
 
-def test_reconciliation_zero_ledger_still_reports_broker_amount(db_session, pid, default_portfolio):
+def test_reconciliation_no_ledger_history_when_broker_present_but_no_cashflows(db_session, pid, default_portfolio):
     """No cash rows at all is a legitimate ledger state (e.g. a brand-new
     broker-only portfolio) -- it must not be conflated with 'unavailable',
-    which means no BROKER snapshot exists."""
+    which means no BROKER snapshot exists, nor reported as 'different' (a
+    misleading verdict when there is nothing meaningful to compare yet)."""
     db_session.add(BrokerBalance(
         workspace_id=default_portfolio.workspace_id,
         portfolio_id=pid,
@@ -397,9 +398,34 @@ def test_reconciliation_zero_ledger_still_reports_broker_amount(db_session, pid,
 
     assert result.ledger_amount == 0.0
     assert result.broker_amount == pytest.approx(250.0)
-    assert result.difference == pytest.approx(250.0)
-    assert result.status == "different"
+    assert result.difference is None
+    assert result.status == "no_ledger_history"
 
+
+def test_reconciliation_no_ledger_history_ignores_trade_only_cash_outflow(db_session, pid, default_portfolio):
+    """A Trading 212 sync imports orders/dividends but never deposit/withdrawal
+    rows (see test_sync_persists_current_cash_snapshot_without_cash_transactions
+    in test_broker.py) -- a buy-only ledger must not report a large phantom
+    negative 'different' figure just because signed_cash treats buys as a
+    cash outflow. This is the exact scenario that motivated this status."""
+    trade = make_txn(type="buy", shares=10, price=100, currency="USD", portfolio_id=pid)
+    db_session.add(trade)
+    db_session.add(BrokerBalance(
+        workspace_id=default_portfolio.workspace_id,
+        portfolio_id=pid,
+        broker="trading212",
+        base_currency="USD",
+        cash=250.0,
+        as_of=date(2026, 9, 20),
+    ))
+    db_session.commit()
+
+    result = get_reconciliation(currency="USD", db=db_session, portfolio=default_portfolio)
+
+    assert result.status == "no_ledger_history"
+    assert result.broker_amount == pytest.approx(250.0)
+    assert result.ledger_amount == 0.0
+    assert result.difference is None
 
 
 # ---------------------------------------------------------------------------

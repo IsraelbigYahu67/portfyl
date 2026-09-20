@@ -44,7 +44,7 @@ const UNAVAILABLE_RECONCILIATION = {
 };
 
 function renderCash() {
-  const qc = new QueryClient();
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
@@ -67,7 +67,7 @@ describe("Cash", () => {
 
   it("prompts to connect Trading 212 when no broker is linked", async () => {
     renderCash();
-    expect(await screen.findByText(/No broker connected/i)).toBeInTheDocument();
+    expect(await screen.findByText(/No Trading 212 connected/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /connect trading 212/i })).toBeInTheDocument();
   });
 
@@ -117,5 +117,34 @@ describe("Cash", () => {
 
     expect(await screen.findByText(/Matches your recorded history/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /sync now/i })).not.toBeInTheDocument();
+  });
+
+  it("shows the broker balance with an import prompt when no cash history is recorded yet", async () => {
+    fetchCashReconciliation.mockResolvedValue({
+      currency: "USD",
+      broker_amount: 250,
+      broker_currency: "USD",
+      broker_as_of: "2026-09-20",
+      broker_updated_at: "2026-09-20T10:00:00",
+      ledger_amount: 0,
+      difference: null,
+      tolerance: 1,
+      status: "no_ledger_history",
+    });
+    fetchT212Status.mockResolvedValue({ connected: true });
+    renderCash();
+
+    expect(await screen.findByText(/No recorded cash history yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/250/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /import transactions/i })).toBeInTheDocument();
+  });
+
+  it("shows an error state with retry when the reconciliation call fails", async () => {
+    fetchCashReconciliation.mockRejectedValue(new Error("network error"));
+    fetchT212Status.mockResolvedValue({ connected: true });
+    renderCash();
+
+    expect(await screen.findByText(/Couldn't load your broker balance/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
   });
 });

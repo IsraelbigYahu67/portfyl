@@ -19,7 +19,7 @@ from routers.broker import (
 from tests.helpers import make_txn
 
 
-def test_fetch_account_summary_uses_official_t212_endpoint():
+def test_fetch_account_summary_calls_expected_t212_endpoint():
     response = MagicMock(status_code=200)
     response.json.return_value = {"currency": "CZK", "cash": {"availableToTrade": 1}}
 

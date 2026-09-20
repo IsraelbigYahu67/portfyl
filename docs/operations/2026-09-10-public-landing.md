@@ -42,7 +42,8 @@ the protected application to `/api` and all tracker/auth routes:
 (Cash is a first-class page again, see the 2026-09-20 cash-reconciliation
 plan). The Cloudflare Access application's protected-path list is configured
 in the Cloudflare dashboard, not in this repo — it must be updated by hand to
-match this list before `/cash` will load in production.
+match this list, or `/cash` will load without being covered by Access — it
+just won't be gated the way the rest of this list is.
 
 Also retain protection on operational endpoints `/health`, `/docs`, `/redoc`,
 and `/openapi.json`. Public content would be the home and static assets. New

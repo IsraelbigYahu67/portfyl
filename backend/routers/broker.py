@@ -685,6 +685,11 @@ def _extract_cursor(next_page_path: str) -> str | None:
     return cursors[0] if cursors else None
 
 
+# NOTE: this endpoint and its response field names (cash.availableToTrade,
+# cash.inPies, cash.reservedForOrders, investments.currentValue, totalValue,
+# currency) are verified only against a hand-written test fixture, never
+# against a live Trading 212 account. Confirm against the real API (or
+# Trading 212's official docs) before relying on this in production.
 def _fetch_account_summary(base: str, headers: dict) -> dict:
     resp = httpx.get(f"{base}/equity/account/summary", headers=headers, timeout=15)
     if resp.status_code == 401:

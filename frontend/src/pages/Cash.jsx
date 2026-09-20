@@ -75,7 +75,7 @@ const STATUS_COPY = {
 function CashReconciliationCard({ data, isLoading, isError, onRetry, connected, currency, onSync, syncing }) {
   return (
     <Card>
-      <SectionHeader icon={Wallet}>Current broker balance</SectionHeader>
+      <SectionHeader icon={Wallet}>Current Trading 212 balance</SectionHeader>
       {isLoading ? (
         <SkeletonRows rows={2} cols={2} />
       ) : isError ? (
@@ -83,7 +83,7 @@ function CashReconciliationCard({ data, isLoading, isError, onRetry, connected, 
       ) : !data || data.status === "unavailable" ? (
         <EmptyState
           icon={Wallet}
-          title={connected ? "No Trading 212 balance synced yet" : "No broker connected"}
+          title={connected ? "No Trading 212 balance synced yet" : "No Trading 212 connected"}
           hint={
             connected
               ? "Sync your Trading 212 connection to see your current broker balance here."
@@ -99,6 +99,26 @@ function CashReconciliationCard({ data, isLoading, isError, onRetry, connected, 
             )
           }
         />
+      ) : data.status === "no_ledger_history" ? (
+        <div className="space-y-3">
+          <div>
+            <p className="text-xs text-muted">Trading 212 (broker snapshot)</p>
+            <p className="text-2xl font-display font-bold tabular-nums text-ink">
+              {formatMoney(data.broker_amount, currency)}
+            </p>
+            {data.broker_as_of && (
+              <p className="text-xs text-muted mt-1">
+                As of {formatLongDate(data.broker_as_of)}
+                {data.broker_updated_at && ` · synced ${formatDateTime(data.broker_updated_at)}`}
+              </p>
+            )}
+          </div>
+          <p className="text-xs text-muted">
+            No recorded cash history yet. Add deposits and withdrawals, or import your
+            transaction history, so Portfyl can compare them against this broker balance.
+          </p>
+          <Link className="btn-ghost" to="/import">Import transactions</Link>
+        </div>
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -122,14 +142,17 @@ function CashReconciliationCard({ data, isLoading, isError, onRetry, connected, 
             </div>
           </div>
 
-          <div className={`mt-4 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-sm ${STATUS_COPY[data.status].badge}`}>
+          <div className={`mt-4 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-sm ${(STATUS_COPY[data.status] ?? STATUS_COPY.different).badge}`}>
             {(() => {
-              const StatusIcon = STATUS_COPY[data.status].icon;
-              return <StatusIcon size={16} className={STATUS_COPY[data.status].tone} />;
+              const StatusIcon = (STATUS_COPY[data.status] ?? STATUS_COPY.different).icon;
+              return <StatusIcon size={16} className={(STATUS_COPY[data.status] ?? STATUS_COPY.different).tone} />;
             })()}
-            <span className="font-medium">{STATUS_COPY[data.status].label}</span>
+            <span className="font-medium">{(STATUS_COPY[data.status] ?? STATUS_COPY.different).label}</span>
             {data.status === "different" && (
               <span className="text-xs opacity-90">({formatMoney(data.difference, currency)} difference)</span>
+            )}
+            {data.status === "matched" && (
+              <span className="text-xs opacity-90">(within {formatMoney(data.tolerance, currency)})</span>
             )}
           </div>
 
