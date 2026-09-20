@@ -1,7 +1,7 @@
 import os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from datetime import date
+from datetime import date, datetime
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -10,12 +10,12 @@ from fastapi import HTTPException
 
 import pandas as pd
 
-from models import Portfolio, Transaction
+from models import BrokerBalance, Portfolio, Transaction
 from schemas import TransactionResponse
 from routers.portfolio import _build_holdings
 from routers.cash import (
     create_cash, list_cash, update_cash, delete_cash, CashCreate,
-    get_rates, put_rates, get_balance, RatesPayload, RateItem,
+    get_rates, put_rates, get_balance, get_reconciliation, RatesPayload, RateItem,
 )
 from routers.portfolio import get_summary, get_transactions, get_performance
 from routers.analytics import (
@@ -299,6 +299,107 @@ def test_summary_no_cash_when_no_deposits(db_session, pid, default_portfolio):
 
     assert s["cash"] == 0.0
     assert s["net_worth"] == s["total_value"]
+
+
+# ---------------------------------------------------------------------------
+# Cash reconciliation: broker snapshot vs. recorded ledger (P0)
+# ---------------------------------------------------------------------------
+
+
+def test_reconciliation_unavailable_without_broker_balance(db_session, pid, default_portfolio):
+    with patch("routers.cash.fetch_fx_to_czk", return_value=1.0):
+        create_cash(
+            CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)),
+            db_session,
+            default_portfolio,
+        )
+
+    result = get_reconciliation(currency="USD", db=db_session, portfolio=default_portfolio)
+
+    assert result.broker_amount is None
+    assert result.broker_currency is None
+    assert result.broker_as_of is None
+    assert result.broker_updated_at is None
+    assert result.ledger_amount == pytest.approx(1000.0)
+    assert result.difference is None
+    assert result.tolerance == 1.0
+    assert result.status == "unavailable"
+
+
+def test_reconciliation_matched_within_tolerance(db_session, pid, default_portfolio):
+    with patch("routers.cash.fetch_fx_to_czk", return_value=1.0):
+        create_cash(
+            CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)),
+            db_session,
+            default_portfolio,
+        )
+    db_session.add(BrokerBalance(
+        workspace_id=default_portfolio.workspace_id,
+        portfolio_id=pid,
+        broker="trading212",
+        base_currency="USD",
+        cash=1000.5,
+        as_of=date(2026, 9, 20),
+        updated_at=datetime(2026, 9, 20, 10, 0, 0),
+    ))
+    db_session.commit()
+
+    result = get_reconciliation(currency="USD", db=db_session, portfolio=default_portfolio)
+
+    assert result.broker_amount == pytest.approx(1000.5)
+    assert result.broker_currency == "USD"
+    assert result.broker_as_of == date(2026, 9, 20)
+    assert result.broker_updated_at == "2026-09-20T10:00:00"
+    assert result.ledger_amount == pytest.approx(1000.0)
+    assert result.difference == pytest.approx(0.5)
+    assert result.tolerance == 1.0
+    assert result.status == "matched"
+
+
+def test_reconciliation_different_outside_tolerance(db_session, pid, default_portfolio):
+    with patch("routers.cash.fetch_fx_to_czk", return_value=1.0):
+        create_cash(
+            CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)),
+            db_session,
+            default_portfolio,
+        )
+    db_session.add(BrokerBalance(
+        workspace_id=default_portfolio.workspace_id,
+        portfolio_id=pid,
+        broker="trading212",
+        base_currency="USD",
+        cash=1500.0,
+        as_of=date(2026, 9, 20),
+    ))
+    db_session.commit()
+
+    result = get_reconciliation(currency="USD", db=db_session, portfolio=default_portfolio)
+
+    assert result.difference == pytest.approx(500.0)
+    assert result.status == "different"
+
+
+def test_reconciliation_zero_ledger_still_reports_broker_amount(db_session, pid, default_portfolio):
+    """No cash rows at all is a legitimate ledger state (e.g. a brand-new
+    broker-only portfolio) -- it must not be conflated with 'unavailable',
+    which means no BROKER snapshot exists."""
+    db_session.add(BrokerBalance(
+        workspace_id=default_portfolio.workspace_id,
+        portfolio_id=pid,
+        broker="trading212",
+        base_currency="USD",
+        cash=250.0,
+        as_of=date(2026, 9, 20),
+    ))
+    db_session.commit()
+
+    result = get_reconciliation(currency="USD", db=db_session, portfolio=default_portfolio)
+
+    assert result.ledger_amount == 0.0
+    assert result.broker_amount == pytest.approx(250.0)
+    assert result.difference == pytest.approx(250.0)
+    assert result.status == "different"
+
 
 
 # ---------------------------------------------------------------------------
