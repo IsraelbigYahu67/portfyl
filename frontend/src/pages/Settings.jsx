@@ -141,7 +141,7 @@ function ConnectionsSettings({ headingRef }) {
 
           {connected && (
             <div className="space-y-4">
-              {status.needs_attention && <div className="flex items-start gap-2 rounded-lg border border-loss/30 bg-loss/10 px-4 py-3 text-sm text-loss"><AlertCircle size={16} className="mt-0.5 shrink-0" /><div><div className="font-medium">Auto-sync paused after repeated failures</div>{status.last_error && <div className="mt-0.5 text-xs">{status.last_error}</div>}</div></div>}
+              {status.needs_attention && <div className="flex items-start gap-2 rounded-lg border border-loss/30 bg-loss/10 px-4 py-3 text-sm text-loss"><AlertCircle size={16} className="mt-0.5 shrink-0" /><div><div className="font-medium">Connection needs attention</div>{status.last_error && <div className="mt-0.5 text-xs">{status.last_error}</div>}</div></div>}
               <div className="space-y-2 rounded-lg bg-surface-hover p-4 text-sm">
                 <div className="flex justify-between"><span className="text-muted">API Key</span><span className="font-mono text-ink">{status.api_key_preview}</span></div>
                 {status.last_synced_at && <div className="flex justify-between"><span className="text-muted">Last synced</span><span>{new Date(status.last_synced_at).toLocaleString()}</span></div>}

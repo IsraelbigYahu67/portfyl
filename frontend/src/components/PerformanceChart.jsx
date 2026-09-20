@@ -1,8 +1,42 @@
 import {
-  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Customized,
 } from "recharts";
 import { formatMoney, formatPercent } from "../lib/format";
 import { AXIS_TICK, GRID_STROKE, NEUTRAL_COLOR } from "../lib/chartTheme";
+import { buildPercentAxis } from "../lib/chartPercentAxis";
+import { splitGrowthLineSegments } from "../lib/growthLineSegments";
+
+const GROWTH_GAIN_STROKE = "#5B8567";
+const GROWTH_LOSS_STROKE = "#A7655C";
+
+function GrowthLineLayer({ xAxisMap, yAxisMap, series }) {
+  const xScale = xAxisMap && Object.values(xAxisMap)[0]?.scale;
+  const yScale = yAxisMap && Object.values(yAxisMap)[0]?.scale;
+  if (!xScale || !yScale) return null;
+
+  const segments = splitGrowthLineSegments(series.map((point) => ({
+    x: xScale(point.date),
+    y: yScale(point.pnl_pct),
+    value: point.pnl_pct,
+  })), yScale(0));
+
+  return (
+    <g pointerEvents="none">
+      {segments.map((segment, index) => (
+        <line
+          key={index}
+          x1={segment.x1}
+          y1={segment.y1}
+          x2={segment.x2}
+          y2={segment.y2}
+          stroke={segment.isGain ? GROWTH_GAIN_STROKE : GROWTH_LOSS_STROKE}
+          strokeWidth={2.5}
+          strokeLinecap="round"
+        />
+      ))}
+    </g>
+  );
+}
 
 function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }) {
   if (!active || !payload?.length) return null;
@@ -73,6 +107,12 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
   const shortRange = data.length <= 60;
   const hasBenchmarks = benchmarkMeta.length > 0;
   const isGrowth = mode === "growth";
+  const growthValues = merged.flatMap((point) => [
+    point.pnl_pct,
+    ...benchmarkMeta.map((benchmark) => point[`bench_${benchmark.key}`]),
+  ]).filter(Number.isFinite);
+  const { domain: growthDomain, ticks: growthTicks } = buildPercentAxis(growthValues);
+  const growthZeroOffset = (growthDomain[1] / (growthDomain[1] - growthDomain[0])) * 100;
 
   const fmtAxis = (v) => {
     if (currency === "CZK") {
@@ -81,7 +121,7 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
     return v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${(v / 1_000).toFixed(0)}k`;
   };
 
-  const fmtPctAxis = (v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+  const fmtPctAxis = (v) => `${v > 0 ? "+" : ""}${v}%`;
 
   return (
     <div className="flex-1 min-h-[300px] mt-6 -mx-2 -mb-2 relative">
@@ -98,8 +138,10 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
               <stop offset="95%" stopColor={NEUTRAL_COLOR} stopOpacity={0} />
             </linearGradient>
             <linearGradient id="colorGrowth" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="var(--brand)" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="var(--brand)" stopOpacity={0} />
+              <stop offset="0%" stopColor="#638B70" stopOpacity={0.42} />
+              <stop offset={`${growthZeroOffset}%`} stopColor="#7C9A7F" stopOpacity={0.04} />
+              <stop offset={`${growthZeroOffset}%`} stopColor="#B17C74" stopOpacity={0.04} />
+              <stop offset="100%" stopColor="#B17C74" stopOpacity={0.42} />
             </linearGradient>
           </defs>
           <CartesianGrid stroke={GRID_STROKE} vertical={false} />
@@ -118,7 +160,8 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                 tick={{ ...AXIS_TICK, fontFamily: "JetBrains Mono Variable" }}
                 tickFormatter={fmtPctAxis}
                 width={55}
-                domain={['dataMin', 'dataMax']}
+                domain={growthDomain}
+                ticks={growthTicks}
                 axisLine={false}
                 tickLine={false}
               />
@@ -138,11 +181,13 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                 yAxisId="pct"
                 type="monotone"
                 dataKey="pnl_pct"
-                stroke="var(--brand)"
+                baseValue={0}
+                stroke="none"
                 fill="url(#colorGrowth)"
                 strokeWidth={2.5}
                 dot={false}
               />
+              <Customized component={(chartProps) => <GrowthLineLayer {...chartProps} series={sampled} />} />
               {benchmarkMeta.map((b) => (
                 <Line
                   key={b.key}

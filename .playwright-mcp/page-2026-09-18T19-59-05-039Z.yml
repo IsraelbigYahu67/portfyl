@@ -1,0 +1,66 @@
+- generic [active] [ref=f3e1]:
+  - banner [ref=f3e2]:
+    - generic [ref=f3e4]:
+      - link [ref=f3e8] [cursor=pointer]:
+        - /url: /
+        - img "modal logo" [ref=f3e9]
+      - generic [ref=f3e11]:
+        - link "Home" [ref=f3e12] [cursor=pointer]:
+          - /url: https://www.mailinator.com/
+        - link "Email" [ref=f3e13] [cursor=pointer]:
+          - /url: /v4/public/inboxes.jsp
+        - link "Pricing" [ref=f3e14] [cursor=pointer]:
+          - /url: https://www.mailinator.com/site/pricing/
+        - link "Documentation" [ref=f3e15] [cursor=pointer]:
+          - /url: https://www.mailinator.com/documentation/docs/category/getting-started/index.html
+        - link "FAQ" [ref=f3e16] [cursor=pointer]:
+          - /url: https://www.mailinator.com/site/mailinator-faqs/
+        - link "Login" [ref=f3e17] [cursor=pointer]:
+          - /url: /v4/login.jsp
+  - generic [ref=f3e18]:
+    - complementary [ref=f3e19]:
+      - generic [ref=f3e20]:
+        - generic [ref=f3e21]: Recent Inboxes
+        - generic [ref=f3e24]: portfyl-debug...
+        - generic [ref=f3e26] [cursor=pointer]: Request Trial
+        - generic [ref=f3e30]:
+          - text: Mailinator + AI
+          - link "Give Your AI Assistant the Power of Mailinator" [ref=f3e31] [cursor=pointer]:
+            - /url: /v4/mailinatorai.jsp
+      - generic [ref=f3e33]:
+        - link "System Status" [ref=f3e34] [cursor=pointer]:
+          - /url: https://monitor.mailinator.com/status/mailinator
+        - link "Terms" [ref=f3e35] [cursor=pointer]:
+          - /url: https://www.mailinator.com/site/terms-of-use/
+        - link "Privacy" [ref=f3e36] [cursor=pointer]:
+          - /url: https://www.mailinator.com/site/privacy-policy/
+        - link "Accessibility" [ref=f3e37] [cursor=pointer]:
+          - /url: https://www.mailinator.com/site/accessibility/
+        - link "Security" [ref=f3e38] [cursor=pointer]:
+          - /url: https://www.mailinator.com/site/security-details/
+        - paragraph [ref=f3e39]: Copyright 2025 Manybrain, LLC, All Rights Reserved
+    - main [ref=f3e40]:
+      - generic [ref=f3e41]:
+        - generic [ref=f3e42]:
+          - heading "Public Messages" [level=4] [ref=f3e44]
+          - button "Pause Button" [ref=f3e46] [cursor=pointer]
+          - button "Delete Button" [ref=f3e50] [cursor=pointer]
+          - button "RSS Button" [ref=f3e54] [cursor=pointer]
+          - generic [ref=f3e57]:
+            - textbox "inbox field" [ref=f3e58]: portfyl-debug-conn-test
+            - button "GO" [ref=f3e59] [cursor=pointer]
+        - table [ref=f3e62]:
+          - rowgroup [ref=f3e63]:
+            - row [ref=f3e64] [cursor=pointer]:
+              - cell "From" [ref=f3e65]
+              - cell "Subject" [ref=f3e66]
+              - cell "Received" [ref=f3e67]
+        - table [ref=f3e73]:
+          - rowgroup [ref=f3e74]:
+            - row [ref=f3e75] [cursor=pointer]:
+              - cell [ref=f3e76]
+              - cell "noreply@portfyl-cloud-fstxby.fire" [ref=f3e79]
+              - cell "Verify your email for portfyl-cloud-fstxby" [ref=f3e80]
+              - cell "just now" [ref=f3e81]
+    - link [ref=f3e84] [cursor=pointer]:
+      - /url: /comic/comic.jsp

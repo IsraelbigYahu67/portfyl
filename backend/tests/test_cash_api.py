@@ -301,6 +301,54 @@ def test_summary_no_cash_when_no_deposits(db_session, pid, default_portfolio):
     assert s["net_worth"] == s["total_value"]
 
 
+def test_summary_uses_current_broker_cash_without_csv_cash_rows(
+    db_session, pid, default_portfolio
+):
+    db_session.add(BrokerBalance(
+        workspace_id=default_portfolio.workspace_id,
+        portfolio_id=pid,
+        broker="trading212",
+        base_currency="USD",
+        cash=1382.17,
+        cash_by_currency='{"USD": 1382.17}',
+        as_of=date(2026, 9, 20),
+    ))
+    db_session.commit()
+
+    s = get_summary(currency="USD", db=db_session, portfolio=default_portfolio)
+
+    assert s["cash"] == pytest.approx(1382.17)
+    assert s["accrued_interest"] == 0.0
+    assert s["net_worth"] == pytest.approx(s["total_value"] + 1382.17)
+    assert s["cash_source"] == "broker"
+    assert s["cash_as_of"] == "2026-09-20"
+
+
+def test_summary_broker_cash_overrides_older_ledger_balance(
+    db_session, pid, default_portfolio
+):
+    with patch("routers.cash.fetch_fx_to_czk", return_value=23.0):
+        create_cash(
+            CashCreate(type="deposit", amount=1000, currency="USD", date=date(2024, 1, 1)),
+            db_session,
+            default_portfolio,
+        )
+    db_session.add(BrokerBalance(
+        workspace_id=default_portfolio.workspace_id,
+        portfolio_id=pid,
+        broker="trading212",
+        base_currency="USD",
+        cash=250.0,
+        as_of=date(2026, 9, 20),
+    ))
+    db_session.commit()
+
+    s = get_summary(currency="USD", db=db_session, portfolio=default_portfolio)
+
+    assert s["cash"] == 250.0
+    assert s["cash_source"] == "broker"
+
+
 # ---------------------------------------------------------------------------
 # Cash reconciliation: broker snapshot vs. recorded ledger (P0)
 # ---------------------------------------------------------------------------
@@ -453,6 +501,28 @@ def test_allocation_includes_cash_bucket(db_session, pid, default_portfolio):
         assert round(sum(b["weight"] for b in bucket_list), 2) == 100.0
     # Country dimension never carries Cash — cash has no country, so a
     # cash-only portfolio has an empty country breakdown.
+    assert result["countries"] == []
+
+
+def test_allocation_uses_current_broker_cash_without_csv_cash_rows(
+    db_session, pid, default_portfolio
+):
+    db_session.add(BrokerBalance(
+        workspace_id=default_portfolio.workspace_id,
+        portfolio_id=pid,
+        broker="trading212",
+        base_currency="USD",
+        cash=2000.0,
+        cash_by_currency='{"USD": 2000.0}',
+        as_of=date(2026, 9, 20),
+    ))
+    db_session.commit()
+
+    result = sector_breakdown(currency="USD", db=db_session, portfolio=default_portfolio)
+
+    for key in ("sectors", "asset_types", "currencies"):
+        assert result[key] == [{"name": "Cash" if key != "currencies" else "USD",
+                                "value": 2000.0, "weight": 100.0}]
     assert result["countries"] == []
 
 
@@ -667,6 +737,48 @@ def test_stock_split_preserves_value_and_cost_without_cashflow():
     assert V.tolist() == pytest.approx([1000, 1000])
     assert C.tolist() == pytest.approx([1000, 0])
     assert daily.tolist() == pytest.approx([0])
+
+
+@pytest.mark.parametrize(
+    "split_ratio,new_shares,adjusted_closes",
+    [
+        (1 / 22, 10 / 22, [52.8, 52.8, 52.8]),
+        (2, 20, [1.2, 1.2, 1.2]),
+    ],
+)
+@pytest.mark.parametrize("multi_index", [False, True])
+def test_yahoo_split_adjusted_closes_do_not_create_historical_profit(
+    split_ratio, new_shares, adjusted_closes, multi_index,
+):
+    """Yahoo Close is split-adjusted even with auto_adjust=False; broker shares aren't."""
+    txns = [
+        make_txn(ticker=None, type="deposit", shares=0, price=0, amount=1000,
+                 currency="USD", date=date(2024, 1, 1)),
+        make_txn("GNPX", "buy", 10, 2.4, currency="USD", cash_amount=24,
+                 cash_currency="USD", date=date(2024, 1, 2)),
+        make_txn("GNPX", "split_close", 10, 2.4,
+                 currency="USD", date=date(2024, 1, 3)),
+        make_txn("GNPX", "split_open", new_shares, 2.4 / split_ratio,
+                 currency="USD", date=date(2024, 1, 3)),
+    ]
+    idx = pd.date_range("2024-01-01", periods=3, freq="D")
+    panel = pd.DataFrame({
+        "Close": adjusted_closes,
+        "Stock Splits": [0, 0, split_ratio],
+        "Dividends": [0, 0, 0],
+    }, index=idx)
+    if multi_index:
+        panel.columns = pd.MultiIndex.from_tuples(
+            [(field, "GNPX") for field in panel.columns]
+        )
+    with patch("routers.analytics.yf.download", return_value=panel), \
+         patch("routers.analytics.market_data.get_infos", return_value={"GNPX": {"currency": "USD"}}):
+        V, C, _ = _build_value_cashflow_series(txns, date(2024, 1, 1))
+        daily = _modified_dietz_daily_returns(V, C, date(2024, 1, 1))
+
+    assert V.tolist() == pytest.approx([1000, 1000, 1000])
+    assert C.tolist() == pytest.approx([1000, 0, 0])
+    assert daily.tolist() == pytest.approx([0, 0])
 
 
 def test_modified_dietz_weights_external_flow_and_geometrically_links_days():

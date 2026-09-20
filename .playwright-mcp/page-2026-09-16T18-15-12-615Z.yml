@@ -1,0 +1,19 @@
+- generic [ref=e5]:
+  - generic [ref=e6]:
+    - heading "Join the private beta" [level=1] [ref=e7]
+    - paragraph [ref=e8]: Use the same e-mail address that received your Portfyl invitation.
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - text: E-mail
+      - textbox "E-mail" [ref=e11]
+    - generic [ref=e12]:
+      - text: Password
+      - textbox "Password" [ref=e13]
+    - generic [ref=e14]:
+      - text: Confirm password
+      - textbox "Confirm password" [ref=e15]
+    - button "Create beta account" [ref=e16] [cursor=pointer]
+    - paragraph [ref=e20]:
+      - text: Already have an account?
+      - link "Log in" [ref=e21] [cursor=pointer]:
+        - /url: /login

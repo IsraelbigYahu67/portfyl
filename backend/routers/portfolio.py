@@ -1403,13 +1403,29 @@ def get_summary(
                   CashInterestRate.portfolio_id == portfolio.id,
                   CashInterestRate.workspace_id == portfolio.workspace_id,
               ).all()}
-    if has_external_cashflows(transactions):
+    from broker_cash import current_t212_cash
+    broker_cash = current_t212_cash(db, portfolio, display_ccy)
+    if broker_cash is not None:
+        cash_total = broker_cash.amount
+        accrued_total = 0.0
+        cash_source = "broker"
+        cash_as_of = broker_cash.as_of.isoformat() if broker_cash.as_of else None
+        cash_updated_at = (
+            broker_cash.updated_at.isoformat() if broker_cash.updated_at else None
+        )
+    elif has_external_cashflows(transactions):
         cash_total = folded_cash_display(transactions, _rates, currency)  # balance + accrued, folded
         _accrued = accrued_interest(transactions, _rates)
         accrued_total = sum(cash_amount_to_display(v, ccy, currency) for ccy, v in _accrued.items())
+        cash_source = "ledger"
+        cash_as_of = None
+        cash_updated_at = None
     else:
         cash_total = 0.0
         accrued_total = 0.0
+        cash_source = "none"
+        cash_as_of = None
+        cash_updated_at = None
     # cash_total already includes accrued interest -- do NOT add accrued_total again.
     net_worth = total_value + cash_total
 
@@ -1426,6 +1442,9 @@ def get_summary(
         "cash": round(cash_total, 2),
         "accrued_interest": round(accrued_total, 2),
         "net_worth": round(net_worth, 2),
+        "cash_source": cash_source,
+        "cash_as_of": cash_as_of,
+        "cash_updated_at": cash_updated_at,
     }
 
 

@@ -1,0 +1,46 @@
+- generic [ref=f4e4]:
+  - link "Skip to main content" [ref=f4e5] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f4e6]:
+    - banner [ref=f4e7]:
+      - generic [ref=f4e8]:
+        - img "Portfyl" [ref=f4e9]
+        - generic [ref=f4e10]: Portfyl
+      - button "Open navigation menu" [ref=f4e11] [cursor=pointer]
+    - main [ref=f4e13]:
+      - generic [ref=f4e14]:
+        - generic [ref=f4e15]:
+          - generic [ref=f4e16]:
+            - heading "Watchlists" [level=1] [ref=f4e17]
+            - paragraph [ref=f4e18]: Track researched stocks without adding them to a portfolio.
+          - generic [ref=f4e19]:
+            - generic [ref=f4e20]: New watchlist name
+            - textbox "New watchlist name" [ref=f4e21]
+            - button "Create" [disabled] [ref=f4e22]
+        - generic [ref=f4e24]:
+          - generic [ref=f4e25]:
+            - heading "Price Alerts" [level=2] [ref=f4e29]
+            - generic [ref=f4e30]: Discord notification when a price is crossed
+            - button "Check now" [disabled] [ref=f4e31]
+          - status [ref=f4e37]:
+            - text: "Alerts are unavailable: Discord is not connected."
+            - link "Configure notifications" [ref=f4e38] [cursor=pointer]:
+              - /url: /settings?section=notifications
+          - generic [ref=f4e39]:
+            - generic [ref=f4e40]: Alert ticker
+            - textbox "Alert ticker" [ref=f4e41]:
+              - /placeholder: Ticker
+            - generic [ref=f4e42]: Alert direction
+            - combobox "Alert direction" [ref=f4e43]:
+              - option "rises to / above" [selected]
+              - option "falls to / below"
+            - generic [ref=f4e44]: Target price
+            - spinbutton "Target price" [ref=f4e45]
+            - button "Add alert" [disabled] [ref=f4e46]
+          - paragraph [ref=f4e48]: No alerts yet.
+        - generic [ref=f4e49]:
+          - heading "Track a stock you are researching" [level=2] [ref=f4e50]
+          - paragraph [ref=f4e51]: A watchlist follows researched symbols without adding them to your portfolio.
+          - generic [ref=f4e52]:
+            - generic [ref=f4e53]: Ticker to track
+            - combobox "Ticker to track" [active] [ref=f4e54]

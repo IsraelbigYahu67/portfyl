@@ -1,0 +1,15 @@
+- generic [ref=f8e4]:
+  - link "Skip to main content" [ref=f8e5] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f8e6]:
+    - banner [ref=f8e7]:
+      - generic [ref=f8e8]:
+        - img "Portfyl" [ref=f8e9]
+        - generic [ref=f8e10]: Portfyl
+      - button "Open navigation menu" [ref=f8e11] [cursor=pointer]
+    - main [ref=f8e13]:
+      - generic [ref=f8e14]:
+        - heading "Search Stocks" [level=1] [ref=f8e15]
+        - paragraph [ref=f8e16]: Look up any ticker or company name to see fundamentals, ratios, and analyst targets.
+        - textbox "Search by ticker (AAPL) or company name…" [active] [ref=f8e18]
+        - generic [ref=f8e19]: Start typing to see suggestions.

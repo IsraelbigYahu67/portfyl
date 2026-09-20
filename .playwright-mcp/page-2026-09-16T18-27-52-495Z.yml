@@ -1,0 +1,26 @@
+- main [ref=f15e4]:
+  - generic [ref=f15e5]: Portfyl
+  - generic [ref=f15e6]:
+    - paragraph [ref=f15e7]: CZ / EN / DE
+    - heading "Vítejte. Welcome. Willkommen." [level=1] [ref=f15e8]: Vítejte. Welcome.Willkommen.
+    - paragraph [ref=f15e9]: Vyberte si jazyk. Choose your language. Wähle deine Sprache.
+  - group "Vyberte jazyk / Choose your language / Sprache wählen" [ref=f15e10]:
+    - button "CZ Čeština Vítejte v Portfylu Pokračovat česky" [ref=f15e11] [cursor=pointer]:
+      - generic [ref=f15e12]: CZ
+      - strong [ref=f15e13]: Čeština
+      - generic [ref=f15e14]: Vítejte v Portfylu
+      - generic [ref=f15e15]: Pokračovat česky
+    - button "EN English Welcome to Portfyl Continue in English" [ref=f15e19] [cursor=pointer]:
+      - generic [ref=f15e20]: EN
+      - strong [ref=f15e21]: English
+      - generic [ref=f15e22]: Welcome to Portfyl
+      - generic [ref=f15e23]: Continue in English
+    - button "DE Deutsch Willkommen bei Portfyl Auf Deutsch fortfahren" [ref=f15e27] [cursor=pointer]:
+      - generic [ref=f15e28]: DE
+      - strong [ref=f15e29]: Deutsch
+      - generic [ref=f15e30]: Willkommen bei Portfyl
+      - generic [ref=f15e31]: Auf Deutsch fortfahren
+  - paragraph [ref=f15e35]:
+    - generic [ref=f15e36]: Jazyk můžete kdykoliv změnit.
+    - generic [ref=f15e37]: You can change it anytime.
+    - generic [ref=f15e38]: Du kannst die Sprache jederzeit ändern.

@@ -1,0 +1,21 @@
+- main [ref=f9e26]:
+  - generic [ref=f9e27]:
+    - generic [ref=f9e28]:
+      - paragraph [ref=f9e29]: Your workspace is ready
+      - heading "Add your first portfolio" [level=1] [ref=f9e30]
+      - paragraph [ref=f9e31]: Start with real data or look around safely. Import remains available on every plan.
+    - generic [ref=f9e32]:
+      - button "Import a CSV" [disabled] [ref=f9e33]:
+        - generic [ref=f9e38]:
+          - generic [ref=f9e39]: Import a CSV
+          - generic [ref=f9e40]: Preview a Trading 212 export or Portfyl CSV before anything is saved.
+      - button "Explore sample portfolio" [disabled] [ref=f9e41]:
+        - generic [ref=f9e45]:
+          - generic [ref=f9e46]: Explore sample portfolio
+          - generic [ref=f9e47]: Use clearly labelled sample data. You can replace or clear it at any time.
+      - button "Connect a broker" [disabled] [ref=f9e48]:
+        - generic [ref=f9e53]:
+          - generic [ref=f9e54]: Connect a broker
+          - generic [ref=f9e55]: Create an empty portfolio, then review available connection options.
+    - paragraph [ref=f9e56]: Sample data is marked as demo data and never mixed into a real import unless you choose to keep it.
+    - button "Start with a blank portfolio" [disabled] [ref=f9e58]

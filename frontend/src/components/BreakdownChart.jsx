@@ -10,7 +10,7 @@ const colorFor = (item, i) =>
 
 // legendColumns=2 flows the legend into two newspaper-style columns (read
 // down, then across) — used by the wide Positions card to halve its height.
-export default function BreakdownChart({ title, data, currencyLabel, legendColumns = 1 }) {
+export default function BreakdownChart({ title, data, currencyLabel, legendColumns = 1, nameWidth = 70 }) {
   const fmt = (n) => {
     if (n == null) return "—";
     const sign = n < 0 ? "-" : "";
@@ -73,27 +73,37 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <div
-          className={`flex-1 min-w-0 space-y-1.5 ${
-            legendColumns === 2 ? "sm:columns-2 sm:gap-x-10" : ""
-          }`}
-        >
-          {data.map((item, i) => (
-            <div key={item.name} className="flex items-center gap-2 text-sm break-inside-avoid">
+        {(() => {
+          const renderRow = (item, i) => (
+            <div key={item.name} className="flex items-center gap-2 text-sm">
               <div
                 className="w-2.5 h-2.5 rounded-full shrink-0"
                 style={{ backgroundColor: colorFor(item, i) }}
               />
-              <span className="text-ink truncate flex-1">{item.name}</span>
-              <span className="tabular-nums text-muted w-14 text-right shrink-0">
-                {item.weight}%
-              </span>
-              <span className="tabular-nums text-muted w-24 text-right shrink-0">
-                {fmt(item.value)}
+              <span className="text-ink truncate shrink-0" style={{ width: `${nameWidth}px` }}>{item.name}</span>
+              <span className="flex items-baseline shrink-0">
+                <span className="tabular-nums text-muted w-14 text-right">{item.weight}%</span>
+                <span className="tabular-nums text-muted text-xs ml-[10px]">({fmt(item.value)})</span>
               </span>
             </div>
-          ))}
-        </div>
+          );
+
+          if (legendColumns !== 2) {
+            return <div className="flex-1 min-w-0 flex flex-col gap-1.5">{data.map(renderRow)}</div>;
+          }
+
+          const half = Math.ceil(data.length / 2);
+          return (
+            <div className="flex-1 min-w-0 flex flex-wrap gap-x-[100px] gap-y-1.5">
+              <div className="flex flex-col gap-1.5">
+                {data.slice(0, half).map((item, i) => renderRow(item, i))}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {data.slice(half).map((item, i) => renderRow(item, i + half))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

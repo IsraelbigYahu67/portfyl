@@ -1,0 +1,53 @@
+- generic [ref=f22e4]:
+  - link "Skip to main content" [ref=f22e5] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f22e6]:
+    - banner [ref=f22e7]:
+      - generic [ref=f22e8]:
+        - img "Portfyl" [ref=f22e9]
+        - generic [ref=f22e10]: Portfyl
+      - button "Open navigation menu" [ref=f22e11] [cursor=pointer]
+    - main [ref=f22e13]:
+      - generic [ref=f22e14]:
+        - generic [ref=f22e15]:
+          - generic [ref=f22e16]:
+            - heading "AI Assistant" [level=1] [ref=f22e21]
+            - paragraph [ref=f22e22]: Powered by DeepSeek · choose whether to share a portfolio summary
+          - generic [ref=f22e23]:
+            - button "New conversation" [ref=f22e24] [cursor=pointer]
+            - button "Settings" [ref=f22e25] [cursor=pointer]
+        - generic [ref=f22e29]:
+          - generic [ref=f22e30]:
+            - heading "DeepSeek connection" [level=2] [ref=f22e31]
+            - paragraph [ref=f22e32]:
+              - text: Create a key at
+              - link "platform.deepseek.com" [ref=f22e33] [cursor=pointer]:
+                - /url: https://platform.deepseek.com/api_keys
+              - text: . It's encrypted on your backend and used for requests to DeepSeek.
+          - generic [ref=f22e34]:
+            - text: API key
+            - generic [ref=f22e35]:
+              - textbox "API key" [ref=f22e36]:
+                - /placeholder: sk-...
+              - button "Show API key" [ref=f22e37] [cursor=pointer]
+          - generic [ref=f22e41]:
+            - text: Model
+            - combobox "Model" [ref=f22e42]:
+              - option "DeepSeek Chat (V3) — fast" [selected]
+              - option "DeepSeek Reasoner (R1) — deeper, slower"
+          - button "Connect" [disabled] [ref=f22e44]
+        - generic [ref=f22e45]:
+          - generic [ref=f22e47]:
+            - paragraph [ref=f22e51]: Ask an investing question
+            - paragraph [ref=f22e52]: Portfolio data is shared only when you choose a summary and consent for this conversation.
+            - generic [ref=f22e53]:
+              - button "How concentrated is my portfolio?" [disabled] [ref=f22e54]
+              - button "Summarize my recent transactions" [disabled] [ref=f22e55]
+              - button "What are my largest positions?" [disabled] [ref=f22e56]
+          - generic [ref=f22e57]:
+            - generic [ref=f22e58]:
+              - text: Portfolio context
+              - combobox "Portfolio context" [ref=f22e59]:
+                - option "No portfolio data" [selected]
+                - option "Portfolio summary"
+            - paragraph [ref=f22e60]: Add a DeepSeek API key above to start chatting.

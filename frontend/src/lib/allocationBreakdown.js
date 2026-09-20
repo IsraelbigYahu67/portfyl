@@ -1,7 +1,7 @@
 // Composition rows for the Allocation page. One helper maps the selected
 // category to its source (active holdings or an API breakdown dimension), and
-// one bounds a chart to seven named segments plus Other while the full list
-// always keeps every row.
+// one bounds a chart to segments with a meaningful weight (> minWeightPct)
+// plus Other for the rest, while the full list always keeps every row.
 
 const DIMENSIONS = {
   sector: "sectors",
@@ -32,12 +32,13 @@ export function allocationRows({ category, holdings = [], breakdown = {} } = {})
     }));
 }
 
-export function boundedAllocationRows(rows, maxNamed = 7) {
+export function boundedAllocationRows(rows, minWeightPct = 2) {
   const sorted = [...(rows || [])].sort((a, b) => b.weight - a.weight);
-  if (sorted.length <= maxNamed) return sorted;
 
-  const major = sorted.slice(0, maxNamed);
-  const rest = sorted.slice(maxNamed);
+  const major = sorted.filter((r) => r.weight > minWeightPct);
+  const rest = sorted.filter((r) => r.weight <= minWeightPct);
+  if (rest.length === 0) return sorted;
+
   return [
     ...major,
     {

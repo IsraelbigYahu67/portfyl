@@ -1,0 +1,147 @@
+- generic [ref=f24e4]:
+  - link "Skip to main content" [ref=f24e5] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary [ref=f24e7]:
+    - generic [ref=f24e8]:
+      - img "Portfyl" [ref=f24e9]
+      - generic [ref=f24e10]:
+        - generic [ref=f24e11]: Portfyl
+        - generic [ref=f24e12]: Institutional Grade
+    - 'button "Switch portfolio (current: Portfyl demo)" [ref=f24e15] [cursor=pointer]':
+      - generic [ref=f24e19]:
+        - generic [ref=f24e20]: Portfolio
+        - generic [ref=f24e21]: Portfyl demo
+    - navigation "Primary" [ref=f24e24]:
+      - region [ref=f24e25]:
+        - heading "Portfolio" [level=2] [ref=f24e26]
+        - generic [ref=f24e27]:
+          - link "Dashboard" [ref=f24e28] [cursor=pointer]:
+            - /url: /
+          - link "Allocation" [ref=f24e34] [cursor=pointer]:
+            - /url: /allocation
+          - link "Transactions" [ref=f24e38] [cursor=pointer]:
+            - /url: /transactions
+      - region [ref=f24e42]:
+        - heading "Research" [level=2] [ref=f24e43]
+        - generic [ref=f24e44]:
+          - link "Search" [ref=f24e45] [cursor=pointer]:
+            - /url: /search
+          - link "Watchlists" [ref=f24e49] [cursor=pointer]:
+            - /url: /watchlists
+          - link "Screener" [ref=f24e52] [cursor=pointer]:
+            - /url: /screener
+      - region [ref=f24e55]:
+        - heading "Insights" [level=2] [ref=f24e56]
+        - generic [ref=f24e57]:
+          - link "Dividends" [ref=f24e58] [cursor=pointer]:
+            - /url: /dividends
+          - link "Analytics" [ref=f24e61] [cursor=pointer]:
+            - /url: /analytics
+          - link "Tax Report" [ref=f24e64] [cursor=pointer]:
+            - /url: /tax-report
+      - region [ref=f24e68]:
+        - heading "Assistant" [level=2] [ref=f24e69]
+        - link "AI Assistant" [ref=f24e71] [cursor=pointer]:
+          - /url: /assistant
+      - region [ref=f24e75]:
+        - heading "System" [level=2] [ref=f24e76]
+        - generic [ref=f24e77]:
+          - link "Import" [ref=f24e78] [cursor=pointer]:
+            - /url: /import
+          - link "Settings" [ref=f24e82] [cursor=pointer]:
+            - /url: /settings
+    - generic [ref=f24e86]:
+      - button "Account menu for tom.zoubek@gmail.com" [ref=f24e89] [cursor=pointer]:
+        - generic "tom.zoubek@gmail.com" [ref=f24e93]
+      - generic [ref=f24e96]: Live data via Yahoo Finance
+  - main [ref=f24e98]:
+    - generic [ref=f24e99]:
+      - button "Back" [ref=f24e101] [cursor=pointer]
+      - generic [ref=f24e104]:
+        - generic [ref=f24e105]:
+          - generic [ref=f24e106]:
+            - generic [ref=f24e107]:
+              - heading "AAPL" [level=1] [ref=f24e108]
+              - generic [ref=f24e109]: Apple Inc.
+              - generic [ref=f24e110]: NMS
+              - generic "Shibui doesn't cover this ticker, or is unavailable right now (e.g. rate-limited) -- financials and ratios below fell back to yfinance." [ref=f24e111]: yfinance fallback
+            - generic [ref=f24e114]:
+              - generic [ref=f24e115]: Technology
+              - generic [ref=f24e120]: · Consumer Electronics
+              - generic [ref=f24e121]: · United States
+              - link "· www.apple.com" [ref=f24e125] [cursor=pointer]:
+                - /url: https://www.apple.com
+          - generic [ref=f24e130]:
+            - generic [ref=f24e131]:
+              - generic [ref=f24e132]: $334.40
+              - generic [ref=f24e133]: +3.05 (+0.92%)
+            - button "Add to watchlist" [ref=f24e138] [cursor=pointer]
+        - tablist "Stock sections" [ref=f24e143]:
+          - tab "Overview" [selected] [ref=f24e144] [cursor=pointer]
+          - tab "Financials" [ref=f24e145] [cursor=pointer]
+          - tab "Valuation" [ref=f24e146] [cursor=pointer]
+          - tab "Ownership" [ref=f24e147] [cursor=pointer]
+          - tab "Filings" [ref=f24e148] [cursor=pointer]
+        - tabpanel "Overview" [ref=f24e149]:
+          - generic [ref=f24e150]:
+            - generic [ref=f24e151]:
+              - generic [ref=f24e153]:
+                - generic [ref=f24e154]:
+                  - generic [ref=f24e155]: Market Cap
+                  - generic [ref=f24e157]: $4.88T
+                - generic [ref=f24e158]:
+                  - generic [ref=f24e159]: P/E (TTM)
+                  - generic [ref=f24e161]: "38.39"
+                - generic [ref=f24e162]:
+                  - generic [ref=f24e163]: EPS (TTM)
+                  - generic [ref=f24e165]: $8.71
+                - generic [ref=f24e166]:
+                  - generic [ref=f24e167]: Div Yield
+                  - generic [ref=f24e169]: 0.33%
+                - generic [ref=f24e170]:
+                  - generic [ref=f24e171]: Beta
+                  - generic [ref=f24e173]: "1.08"
+                - generic [ref=f24e174]:
+                  - generic [ref=f24e175]: EV/EBITDA
+                  - generic [ref=f24e177]: "28.92"
+              - generic [ref=f24e179]:
+                - generic [ref=f24e180]:
+                  - generic [ref=f24e181]: 52-Week Range
+                  - generic [ref=f24e182]: 50D Avg $318.84 · 200D Avg $285.51
+                - generic [ref=f24e185]:
+                  - generic [ref=f24e186]: $236.65
+                  - generic [ref=f24e187]: Current $334.40
+                  - generic [ref=f24e188]: $344.57
+            - generic [ref=f24e189]:
+              - region [ref=f24e190]:
+                - heading "One-year price history" [level=3] [ref=f24e191]
+                - img "AAPL one-year closing-price chart" [ref=f24e192]
+                - paragraph [ref=f24e194]: "Range: 237.00 to 339.79 across 252 closes."
+              - region [ref=f24e195]:
+                - heading "Your position" [level=3] [ref=f24e196]
+                - generic [ref=f24e197]:
+                  - generic [ref=f24e198]:
+                    - term [ref=f24e199]: Shares
+                    - definition [ref=f24e200]: "2"
+                  - generic [ref=f24e201]:
+                    - term [ref=f24e202]: Average cost
+                    - definition [ref=f24e203]: $180.00
+                  - generic [ref=f24e204]:
+                    - term [ref=f24e205]: Market value
+                    - definition [ref=f24e206]: 14 142,11 Kč
+                  - generic [ref=f24e207]:
+                    - term [ref=f24e208]: Unrealized P&L
+                    - definition [ref=f24e209]: 5 862,11 Kč
+                  - generic [ref=f24e210]:
+                    - term [ref=f24e211]: Unrealized P&L percentage
+                    - definition [ref=f24e212]: +70.80%
+                  - generic [ref=f24e213]:
+                    - term [ref=f24e214]: Portfolio weight
+                    - definition [ref=f24e215]: 27.63%
+                - generic [ref=f24e216]:
+                  - heading "Latest transaction" [level=4] [ref=f24e217]
+                  - paragraph [ref=f24e218]: April 2, 2025 · sell · 1 shares at $210.00
+                  - paragraph [ref=f24e219]: "Note: Sample transaction"
+            - region [ref=f24e220]:
+              - heading "About" [level=3] [ref=f24e221]
+              - paragraph [ref=f24e222]: Apple Inc. designs, manufactures, and markets smartphones, personal computers, tablets, wearables, and accessories worldwide. The company offers iPhone, a line of smartphones; Mac, a line of personal computers; iPad, a line of multi-purpose tablets; and wearables, home, and accessories comprising AirPods, Apple Vision Pro, Apple TV, Apple Watch, Beats products, and HomePod, as well as Apple branded and third-party accessories. It also provides AppleCare support and cloud services; and operates various platforms, including the App Store that allows customers to discover and download applications and digital content, such as books, music, video, games, and podcasts, as well as advertising services include third-party licensing arrangements and its own advertising platforms. In addition, the company offers various subscription-based services, such as Apple Arcade, a game subscription service; Apple Fitness+, a personalized fitness service; Apple Music, which offers users a curated listening experience with on-demand radio stations; Apple News+, a subscription news and magazine service; Apple TV, which offers original content and live sports; Apple Card, a co-branded credit card; and Apple Pay, a cashless payment service, as well as licenses its intellectual property. The company serves consumers, and small and mid-sized businesses; and the education, enterprise, and government markets. It distributes third-party applications for its products through the App Store. The company also sells its products through its retail and online stores, and direct sales force; and third-party cellular network carriers and resellers. The company was formerly known as Apple Computer, Inc. and changed its name to Apple Inc. in January 2007. Apple Inc. was founded in 1976 and is headquartered in Cupertino, California.

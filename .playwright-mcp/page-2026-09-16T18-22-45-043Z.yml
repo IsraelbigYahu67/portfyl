@@ -1,0 +1,69 @@
+- generic [ref=f10e4]:
+  - link "Skip to main content" [ref=f10e5] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f10e6]:
+    - banner [ref=f10e7]:
+      - generic [ref=f10e8]:
+        - img "Portfyl" [ref=f10e9]
+        - generic [ref=f10e10]: Portfyl
+      - button "Open navigation menu" [ref=f10e11] [cursor=pointer]
+    - main [ref=f10e13]:
+      - generic [ref=f10e14]:
+        - generic [ref=f10e15]:
+          - heading "Settings" [level=1] [ref=f10e16]
+          - paragraph [ref=f10e17]: Manage connections, device preferences, notifications, and your data.
+        - generic [ref=f10e18]:
+          - generic [ref=f10e19]:
+            - generic [ref=f10e20]: Settings section
+            - combobox "Settings section" [ref=f10e21]:
+              - option "Connections" [selected]
+              - option "Preferences"
+              - option "Notifications"
+              - option "Data & Privacy"
+          - region [ref=f10e23]:
+            - generic [ref=f10e24]:
+              - heading "Connections" [level=2] [ref=f10e25]
+              - paragraph [ref=f10e26]: Connect providers and control how portfolio data is synchronized.
+            - generic [ref=f10e27]:
+              - generic [ref=f10e31]: Managing connection for portfolio
+              - generic [ref=f10e32]: Portfyl demo
+              - generic [ref=f10e33]: Each portfolio holds its own Trading 212 API key — data is never mixed.
+            - generic [ref=f10e34]:
+              - generic [ref=f10e35]:
+                - generic [ref=f10e36]:
+                  - heading "Trading 212" [level=3] [ref=f10e37]
+                  - paragraph [ref=f10e38]: Connect your account to import transactions into Portfyl demo.
+                - generic [ref=f10e39]: Not connected
+              - generic [ref=f10e40]:
+                - generic [ref=f10e41]:
+                  - generic [ref=f10e42]: API Key
+                  - generic [ref=f10e43]:
+                    - textbox "API Key" [ref=f10e44]:
+                      - /placeholder: Paste your Trading 212 API key
+                    - button "Show API key" [ref=f10e45] [cursor=pointer]
+                  - paragraph [ref=f10e49]: Generate an API key in Trading 212 → Settings → API (beta)
+                - generic [ref=f10e50]:
+                  - generic [ref=f10e51]: API Secret
+                  - textbox "API Secret" [ref=f10e52]:
+                    - /placeholder: Paste your Trading 212 API secret
+                - button "Connect" [disabled] [ref=f10e53]
+            - generic [ref=f10e57]:
+              - generic [ref=f10e58]:
+                - heading "Auto-sync schedule" [level=2] [ref=f10e59]
+                - paragraph [ref=f10e60]: When connected brokers with auto-sync enabled check for new trades. Times are in Europe/Prague.
+              - generic [ref=f10e61]:
+                - generic [ref=f10e62]:
+                  - generic [ref=f10e63]:
+                    - radio "Daily at 02:00" [checked] [ref=f10e64]
+                    - generic [ref=f10e65]: Daily at
+                    - textbox [ref=f10e66]: 02:00
+                  - generic [ref=f10e67]:
+                    - radio "Every 6 hours" [ref=f10e68]
+                    - generic [ref=f10e69]: Every
+                    - spinbutton [disabled] [ref=f10e70]: "6"
+                    - generic [ref=f10e71]: hours
+                - generic [ref=f10e72]:
+                  - button "Save schedule" [ref=f10e73] [cursor=pointer]
+                  - generic [ref=f10e77]:
+                    - generic [ref=f10e78]: "Last sync: 16. 9. 2026 20:18:40"
+                    - generic [ref=f10e79]: "Next sync: 17. 9. 2026 2:00:00"

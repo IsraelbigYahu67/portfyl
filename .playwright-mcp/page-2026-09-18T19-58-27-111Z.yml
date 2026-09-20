@@ -1,0 +1,19 @@
+- generic [ref=f2e5]:
+  - generic [ref=f2e6]:
+    - heading "Create your Portfyl account" [level=1] [ref=f2e7]
+    - paragraph [ref=f2e8]: Track your portfolio, dividends, and taxes in one place.
+  - generic [ref=f2e9]:
+    - generic [ref=f2e10]:
+      - text: E-mail
+      - textbox "E-mail" [ref=f2e11]: portfyl-debug-conn-test@mailinator.com
+    - generic [ref=f2e12]:
+      - text: Password
+      - textbox "Password" [ref=f2e13]: TestPass!2026xyz
+    - generic [ref=f2e14]:
+      - text: Confirm password
+      - textbox "Confirm password" [ref=f2e15]: TestPass!2026xyz
+    - button "Creating account…" [disabled] [ref=f2e22]
+    - paragraph [ref=f2e20]:
+      - text: Already have an account?
+      - link "Log in" [ref=f2e21] [cursor=pointer]:
+        - /url: /login

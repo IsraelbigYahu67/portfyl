@@ -1,0 +1,97 @@
+- generic [ref=f18e4]:
+  - link "Skip to main content" [ref=f18e5] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary [ref=f18e7]:
+    - generic [ref=f18e8]:
+      - img "Portfyl" [ref=f18e9]
+      - generic [ref=f18e10]:
+        - generic [ref=f18e11]: Portfyl
+        - generic [ref=f18e12]: Institutional Grade
+    - 'button "Switch portfolio (current: Portfyl demo)" [ref=f18e15] [cursor=pointer]':
+      - generic [ref=f18e19]:
+        - generic [ref=f18e20]: Portfolio
+        - generic [ref=f18e21]: Portfyl demo
+    - navigation "Primary" [ref=f18e24]:
+      - region [ref=f18e25]:
+        - heading "Portfolio" [level=2] [ref=f18e26]
+        - generic [ref=f18e27]:
+          - link "Dashboard" [ref=f18e28] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Allocation" [ref=f18e34] [cursor=pointer]:
+            - /url: /allocation
+          - link "Transactions" [ref=f18e38] [cursor=pointer]:
+            - /url: /transactions
+      - region [ref=f18e42]:
+        - heading "Research" [level=2] [ref=f18e43]
+        - generic [ref=f18e44]:
+          - link "Search" [ref=f18e45] [cursor=pointer]:
+            - /url: /search
+          - link "Watchlists" [ref=f18e49] [cursor=pointer]:
+            - /url: /watchlists
+      - region [ref=f18e52]:
+        - heading "Insights" [level=2] [ref=f18e53]
+        - generic [ref=f18e54]:
+          - link "Dividends" [ref=f18e55] [cursor=pointer]:
+            - /url: /dividends
+          - link "Analytics" [ref=f18e58] [cursor=pointer]:
+            - /url: /analytics
+      - region [ref=f18e61]:
+        - heading "Assistant" [level=2] [ref=f18e62]
+        - link "AI Assistant" [ref=f18e64] [cursor=pointer]:
+          - /url: /assistant
+      - region [ref=f18e68]:
+        - heading "System" [level=2] [ref=f18e69]
+        - generic [ref=f18e70]:
+          - link "Import" [ref=f18e71] [cursor=pointer]:
+            - /url: /import
+          - link "Settings" [ref=f18e75] [cursor=pointer]:
+            - /url: /settings
+          - link "Plans" [ref=f18e79] [cursor=pointer]:
+            - /url: /pricing
+    - generic [ref=f18e84]:
+      - button "Account menu for tom.zoubek@gmail.com" [ref=f18e87] [cursor=pointer]:
+        - generic "tom.zoubek@gmail.com" [ref=f18e91]
+      - generic [ref=f18e94]: Live data via Yahoo Finance
+  - main [ref=f18e96]:
+    - generic [ref=f18e97]:
+      - generic [ref=f18e98]:
+        - heading "Plans" [level=1] [ref=f18e99]
+        - paragraph [ref=f18e100]: Compare Portfyl tiers and choose which limits and features to test.
+      - generic [ref=f18e104]:
+        - paragraph [ref=f18e105]: Free plan switching during private testing
+        - paragraph [ref=f18e106]: Choose any plan below. No payment method, checkout, charge, or subscription will be created.
+      - alert [ref=f18e107]: Unable to load the current test plan.
+      - paragraph [ref=f18e108]
+      - generic [ref=f18e109]:
+        - generic [ref=f18e110]:
+          - heading "Free" [level=2] [ref=f18e112]
+          - generic [ref=f18e113]: €0
+          - list [ref=f18e114]:
+            - listitem [ref=f18e115]: 1 portfolio
+            - listitem [ref=f18e118]: 15 active positions
+            - listitem [ref=f18e121]: 250 transactions
+            - listitem [ref=f18e124]: 3 alerts
+          - button "Use Free for testing" [disabled] [ref=f18e127]
+        - generic [ref=f18e128]:
+          - heading "Investor" [level=2] [ref=f18e130]
+          - generic [ref=f18e131]: €4.99 / month
+          - paragraph [ref=f18e132]: "Planned price: €49.00 annually"
+          - list [ref=f18e133]:
+            - listitem [ref=f18e134]: 5 portfolios
+            - listitem [ref=f18e137]: 2 broker connections
+            - listitem [ref=f18e140]: Complete analytics
+            - listitem [ref=f18e143]: Daily sync
+            - listitem [ref=f18e146]: BYOK AI
+          - button "Use Investor for testing" [disabled] [ref=f18e149]
+        - generic [ref=f18e150]:
+          - heading "Pro" [level=2] [ref=f18e152]
+          - generic [ref=f18e153]: €7.99 / month
+          - paragraph [ref=f18e154]: "Planned price: €79.00 annually"
+          - list [ref=f18e155]:
+            - listitem [ref=f18e156]: 15 portfolios
+            - listitem [ref=f18e159]: 5 broker connections
+            - listitem [ref=f18e162]: Advanced options & Polymarket
+            - listitem [ref=f18e165]: 6-hour sync
+            - listitem [ref=f18e168]: 100 hosted AI messages/month
+          - button "Use Pro for testing" [disabled] [ref=f18e171]
+      - paragraph [ref=f18e172]: Displayed prices are previews only. Variable-cost services remain subject to the displayed fair-use quotas.

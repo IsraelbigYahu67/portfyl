@@ -1,0 +1,119 @@
+- generic [ref=f21e4]:
+  - link "Skip to main content" [ref=f21e5] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f21e6]:
+    - banner [ref=f21e7]:
+      - generic [ref=f21e8]:
+        - img "Portfyl" [ref=f21e9]
+        - generic [ref=f21e10]: Portfyl
+      - button "Open navigation menu" [ref=f21e11] [cursor=pointer]
+    - main [ref=f21e13]:
+      - generic [ref=f21e14]:
+        - generic [ref=f21e15]:
+          - heading "Transactions" [level=1] [ref=f21e16]
+          - generic [ref=f21e17]:
+            - textbox "Filter transactions by ticker" [ref=f21e18]:
+              - /placeholder: Filter by ticker…
+            - button "Add" [ref=f21e19] [cursor=pointer]
+        - generic [ref=f21e21]:
+          - table [ref=f21e23]:
+            - rowgroup [ref=f21e24]:
+              - row [ref=f21e25]:
+                - columnheader "Date" [ref=f21e26]
+                - columnheader "Ticker" [ref=f21e27]
+                - columnheader "Type" [ref=f21e28]
+                - columnheader "Shares" [ref=f21e29]
+                - columnheader "Price" [ref=f21e30]
+                - columnheader "Total" [ref=f21e31]
+                - columnheader "Currency" [ref=f21e32]
+                - columnheader "Notes" [ref=f21e33]
+                - columnheader "Note" [ref=f21e34]
+                - columnheader [ref=f21e35]
+            - rowgroup [ref=f21e36]:
+              - row [ref=f21e37]:
+                - cell "2025-04-02" [ref=f21e38]
+                - cell [ref=f21e39]:
+                  - link "AAPL" [ref=f21e40] [cursor=pointer]:
+                    - /url: /stock/AAPL
+                - cell "sell" [ref=f21e41]
+                - cell "1" [ref=f21e42]
+                - cell "$210.00" [ref=f21e43]
+                - cell "$210.00" [ref=f21e44]
+                - cell "USD" [ref=f21e45]
+                - cell "Sample transaction" [ref=f21e46]
+                - cell [ref=f21e47]:
+                  - button "Add note" [ref=f21e48] [cursor=pointer]
+                - cell [ref=f21e52]:
+                  - button "Delete sell AAPL on 2025-04-02" [ref=f21e53] [cursor=pointer]
+              - row [ref=f21e57]:
+                - cell "2025-03-15" [ref=f21e58]
+                - cell [ref=f21e59]:
+                  - link "MSFT" [ref=f21e60] [cursor=pointer]:
+                    - /url: /stock/MSFT
+                - cell "dividend" [ref=f21e61]
+                - cell "2" [ref=f21e62]
+                - cell "$0.75" [ref=f21e63]
+                - cell "$1.50" [ref=f21e64]
+                - cell "USD" [ref=f21e65]
+                - cell "Sample dividend" [ref=f21e66]
+                - cell [ref=f21e67]:
+                  - button "Add note" [ref=f21e68] [cursor=pointer]
+                - cell [ref=f21e72]:
+                  - button "Delete dividend MSFT on 2025-03-15" [ref=f21e73] [cursor=pointer]
+              - row [ref=f21e77]:
+                - cell "2025-01-10" [ref=f21e78]
+                - cell [ref=f21e79]:
+                  - link "VWCE.DE" [ref=f21e80] [cursor=pointer]:
+                    - /url: /stock/VWCE.DE
+                - cell "buy" [ref=f21e81]
+                - cell "4" [ref=f21e82]
+                - cell "$120.00" [ref=f21e83]
+                - cell "$480.00" [ref=f21e84]
+                - cell "EUR" [ref=f21e85]
+                - cell "Sample transaction" [ref=f21e86]
+                - cell [ref=f21e87]:
+                  - button "Add note" [ref=f21e88] [cursor=pointer]
+                - cell [ref=f21e92]:
+                  - button "Delete buy VWCE.DE on 2025-01-10" [ref=f21e93] [cursor=pointer]
+              - row [ref=f21e97]:
+                - cell "2025-01-08" [ref=f21e98]
+                - cell [ref=f21e99]:
+                  - link "MSFT" [ref=f21e100] [cursor=pointer]:
+                    - /url: /stock/MSFT
+                - cell "buy" [ref=f21e101]
+                - cell "2" [ref=f21e102]
+                - cell "$410.00" [ref=f21e103]
+                - cell "$820.00" [ref=f21e104]
+                - cell "USD" [ref=f21e105]
+                - cell "Sample transaction" [ref=f21e106]
+                - cell [ref=f21e107]:
+                  - button "Add note" [ref=f21e108] [cursor=pointer]
+                - cell [ref=f21e112]:
+                  - button "Delete buy MSFT on 2025-01-08" [ref=f21e113] [cursor=pointer]
+              - row [ref=f21e117]:
+                - cell "2025-01-06" [ref=f21e118]
+                - cell [ref=f21e119]:
+                  - link "AAPL" [ref=f21e120] [cursor=pointer]:
+                    - /url: /stock/AAPL
+                - cell "buy" [ref=f21e121]
+                - cell "3" [ref=f21e122]
+                - cell "$180.00" [ref=f21e123]
+                - cell "$540.00" [ref=f21e124]
+                - cell "USD" [ref=f21e125]
+                - cell "Sample transaction" [ref=f21e126]
+                - cell [ref=f21e127]:
+                  - button "Add note" [ref=f21e128] [cursor=pointer]
+                - cell [ref=f21e132]:
+                  - button "Delete buy AAPL on 2025-01-06" [ref=f21e133] [cursor=pointer]
+          - navigation "Transactions pages" [ref=f21e138]:
+            - generic [ref=f21e139]: 1–5 of 5
+            - generic [ref=f21e140]:
+              - button "Previous" [disabled] [ref=f21e141]
+              - button "1" [ref=f21e143] [cursor=pointer]
+              - button "Next" [disabled] [ref=f21e144]
+            - generic [ref=f21e145]:
+              - text: Rows per page
+              - combobox "Rows per page" [ref=f21e146]:
+                - option "25"
+                - option "50" [selected]
+                - option "100"

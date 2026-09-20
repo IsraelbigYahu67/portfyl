@@ -1,0 +1,388 @@
+- generic [ref=f13e1]:
+  - generic [ref=f13e4]:
+    - link "Skip to main content" [ref=f13e5] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f13e6]:
+      - banner [ref=f13e7]:
+        - generic [ref=f13e8]:
+          - img "Portfyl" [ref=f13e9]
+          - generic [ref=f13e10]: Portfyl
+        - button "Open navigation menu" [ref=f13e11] [cursor=pointer]
+      - main [ref=f13e13]:
+        - generic [ref=f13e14]:
+          - button "Back" [ref=f13e16] [cursor=pointer]
+          - generic [ref=f13e19]:
+            - generic [ref=f13e20]:
+              - generic [ref=f13e21]:
+                - generic [ref=f13e22]:
+                  - heading "AAPL" [level=1] [ref=f13e23]
+                  - generic [ref=f13e24]: Apple Inc.
+                  - generic [ref=f13e25]: NMS
+                  - generic "Shibui doesn't cover this ticker, or is unavailable right now (e.g. rate-limited) -- financials and ratios below fell back to yfinance." [ref=f13e26]: yfinance fallback
+                - generic [ref=f13e29]:
+                  - generic [ref=f13e30]: Technology
+                  - generic [ref=f13e35]: · Consumer Electronics
+                  - generic [ref=f13e36]: · United States
+                  - link "· www.apple.com" [ref=f13e40] [cursor=pointer]:
+                    - /url: https://www.apple.com
+              - generic [ref=f13e45]:
+                - generic [ref=f13e46]:
+                  - generic [ref=f13e47]: $334.40
+                  - generic [ref=f13e48]: +3.05 (+0.92%)
+                - button "Add to watchlist" [ref=f13e53] [cursor=pointer]
+            - tablist "Stock sections" [ref=f13e58]:
+              - tab "Overview" [ref=f13e59] [cursor=pointer]
+              - tab "Financials" [ref=f13e60] [cursor=pointer]
+              - tab "Valuation" [active] [selected] [ref=f13e61] [cursor=pointer]
+              - tab "Ownership" [ref=f13e62] [cursor=pointer]
+              - tab "Filings" [ref=f13e63] [cursor=pointer]
+            - tabpanel "Valuation" [ref=f13e1553]:
+              - generic [ref=f13e1554]:
+                - generic [ref=f13e1556]:
+                  - generic [ref=f13e1557]:
+                    - generic [ref=f13e1558]:
+                      - heading "Valuation & Quality" [level=3] [ref=f13e1559]
+                      - generic [ref=f13e1560]: Sector = median of 10 Technology
+                    - generic [ref=f13e1561]:
+                      - generic [ref=f13e1562]:
+                        - generic [ref=f13e1564]:
+                          - text: P/E (TTM)
+                          - button "What is P/E (TTM)?" [ref=f13e1566]
+                        - generic [ref=f13e1569]: "37.75"
+                        - generic [ref=f13e1570]: Sector 27.39 · Δ +10.36
+                      - generic [ref=f13e1571]:
+                        - generic [ref=f13e1573]:
+                          - text: Forward P/E (2026)
+                          - button "What is Forward P/E (2026)?" [ref=f13e1575]
+                        - generic [ref=f13e1578]: "37.94"
+                        - generic [ref=f13e1579]: Sector 16.65 · Δ +21.29
+                      - generic [ref=f13e1580]:
+                        - generic [ref=f13e1582]:
+                          - text: Forward P/E (2027)
+                          - button "What is Forward P/E (2027)?" [ref=f13e1584]
+                        - generic [ref=f13e1587]: "34.92"
+                      - generic [ref=f13e1588]:
+                        - generic [ref=f13e1590]:
+                          - text: P/S
+                          - button "What is P/S?" [ref=f13e1592]
+                        - generic [ref=f13e1595]: "10.42"
+                        - generic [ref=f13e1596]: Sector 8.65 · Δ +1.77
+                      - generic [ref=f13e1597]:
+                        - generic [ref=f13e1599]:
+                          - text: P/B
+                          - button "What is P/B?" [ref=f13e1601]
+                        - generic [ref=f13e1604]: "45.26"
+                        - generic [ref=f13e1605]: Sector 9.86 · Δ +35.40
+                      - generic [ref=f13e1606]:
+                        - generic [ref=f13e1608]:
+                          - text: P/FCF
+                          - button "What is P/FCF?" [ref=f13e1610]
+                        - generic [ref=f13e1613]: "35.60"
+                        - generic [ref=f13e1614]: Sector 42.06 · Δ -6.46
+                      - generic [ref=f13e1615]:
+                        - generic [ref=f13e1617]:
+                          - text: PEG
+                          - button "What is PEG?" [ref=f13e1619]
+                        - generic [ref=f13e1622]: "2.66"
+                        - generic [ref=f13e1623]: Sector 0.83 · Δ +1.83
+                      - generic [ref=f13e1624]:
+                        - generic [ref=f13e1626]:
+                          - text: EV/EBITDA
+                          - button "What is EV/EBITDA?" [ref=f13e1628]
+                        - generic [ref=f13e1631]: "28.92"
+                        - generic [ref=f13e1632]: Sector 21.68 · Δ +7.24
+                      - generic [ref=f13e1633]:
+                        - generic [ref=f13e1635]:
+                          - text: EV/Revenue
+                          - button "What is EV/Revenue?" [ref=f13e1637]
+                        - generic [ref=f13e1640]: "10.41"
+                        - generic [ref=f13e1641]: Sector 9.12 · Δ +1.29
+                      - generic [ref=f13e1642]:
+                        - generic [ref=f13e1644]:
+                          - text: D/E
+                          - button "What is D/E?" [ref=f13e1646]
+                        - generic [ref=f13e1649]: "0.78"
+                        - generic [ref=f13e1650]: Sector 0.61 · Δ +0.17
+                      - generic [ref=f13e1651]:
+                        - generic [ref=f13e1653]:
+                          - text: Current Ratio
+                          - button "What is Current Ratio?" [ref=f13e1655]
+                        - generic [ref=f13e1658]: "1.00"
+                        - generic [ref=f13e1659]: Sector 1.20 · Δ -0.20
+                      - generic [ref=f13e1660]:
+                        - generic [ref=f13e1662]:
+                          - text: Quick Ratio
+                          - button "What is Quick Ratio?" [ref=f13e1664]
+                        - generic [ref=f13e1667]: "0.93"
+                        - generic [ref=f13e1668]: Sector 1.06 · Δ -0.13
+                      - generic [ref=f13e1669]:
+                        - generic [ref=f13e1671]:
+                          - text: ROE
+                          - button "What is ROE?" [ref=f13e1673]
+                        - generic [ref=f13e1676]: 120.5%
+                        - generic [ref=f13e1677]: Sector 37.6% · Δ +82.88
+                      - generic [ref=f13e1678]:
+                        - generic [ref=f13e1680]:
+                          - text: ROA
+                          - button "What is ROA?" [ref=f13e1682]
+                        - generic [ref=f13e1685]: 7.8%
+                        - generic [ref=f13e1686]: Sector 12.5% · Δ -4.73
+                      - generic [ref=f13e1687]:
+                        - generic [ref=f13e1689]:
+                          - text: ROIC
+                          - button "What is ROIC?" [ref=f13e1691]
+                        - generic [ref=f13e1694]: 66.9%
+                        - generic [ref=f13e1695]: Sector 26.1% · Δ +40.75
+                      - generic [ref=f13e1696]:
+                        - generic [ref=f13e1698]:
+                          - text: Gross Margin
+                          - button "What is Gross Margin?" [ref=f13e1700]
+                        - generic [ref=f13e1703]: 50.1%
+                        - generic [ref=f13e1704]: Sector 66.2% · Δ -16.17
+                      - generic [ref=f13e1705]:
+                        - generic [ref=f13e1707]:
+                          - text: Operating Margin
+                          - button "What is Operating Margin?" [ref=f13e1709]
+                        - generic [ref=f13e1712]: 32.6%
+                        - generic [ref=f13e1713]: Sector 33.7% · Δ -1.10
+                      - generic [ref=f13e1714]:
+                        - generic [ref=f13e1716]:
+                          - text: Net Margin
+                          - button "What is Net Margin?" [ref=f13e1718]
+                        - generic [ref=f13e1721]: 27.6%
+                        - generic [ref=f13e1722]: Sector 27.0% · Δ +0.63
+                      - generic [ref=f13e1723]:
+                        - generic [ref=f13e1725]:
+                          - text: Div Yield
+                          - button "What is Div Yield?" [ref=f13e1727]
+                        - generic [ref=f13e1730]: 0.3%
+                        - generic [ref=f13e1731]: Sector 0.8% · Δ -0.43
+                      - generic [ref=f13e1732]:
+                        - generic [ref=f13e1734]:
+                          - text: Payout Ratio
+                          - button "What is Payout Ratio?" [ref=f13e1736]
+                        - generic [ref=f13e1739]: 12.1%
+                        - generic [ref=f13e1740]: Sector 17.8% · Δ -5.62
+                  - generic [ref=f13e1741]:
+                    - generic [ref=f13e1742]:
+                      - generic [ref=f13e1743]:
+                        - heading "Analyst Rating" [level=3] [ref=f13e1744]
+                        - generic [ref=f13e1745]: buy
+                      - generic [ref=f13e1746]:
+                        - generic [ref=f13e1747]: "2.20"
+                        - generic [ref=f13e1748]: consensus · 44 analysts
+                      - generic [ref=f13e1749]:
+                        - generic [ref=f13e1750]:
+                          - generic [ref=f13e1751]: Strong Buy
+                          - generic [ref=f13e1754]: "6"
+                        - generic [ref=f13e1755]:
+                          - generic [ref=f13e1756]: Buy
+                          - generic [ref=f13e1759]: "19"
+                        - generic [ref=f13e1760]:
+                          - generic [ref=f13e1761]: Hold
+                          - generic [ref=f13e1764]: "13"
+                        - generic [ref=f13e1765]:
+                          - generic [ref=f13e1766]: Sell
+                          - generic [ref=f13e1769]: "3"
+                        - generic [ref=f13e1770]:
+                          - generic [ref=f13e1771]: Strong Sell
+                          - generic [ref=f13e1774]: "3"
+                    - generic [ref=f13e1775]:
+                      - generic [ref=f13e1776]:
+                        - heading "Price Targets" [level=3] [ref=f13e1777]
+                        - generic [ref=f13e1778]: "-2.15% avg upside"
+                      - generic [ref=f13e1779]:
+                        - img [ref=f13e1783]:
+                          - generic [ref=f13e1786]: 1Y
+                          - generic [ref=f13e1791]:
+                            - generic [ref=f13e1792]: $200
+                            - generic [ref=f13e1794]: $260
+                            - generic [ref=f13e1796]: $320
+                            - generic [ref=f13e1798]: $420
+                        - generic:
+                          - generic:
+                            - generic: Max +21.11%
+                            - generic: $405.00
+                          - generic:
+                            - generic: Current
+                            - generic: $334.40
+                          - generic:
+                            - generic: Avg -2.15%
+                            - generic: $327.20
+                          - generic:
+                            - generic: Min -35.71%
+                            - generic: $215.00
+                        - generic [ref=f13e1812]: 1Y Forecast
+                    - generic [ref=f13e1813]:
+                      - heading "About" [level=3] [ref=f13e1814]
+                      - paragraph [ref=f13e1815]: Apple Inc. designs, manufactures, and markets smartphones, personal computers, tablets, wearables, and accessories worldwide. The company offers iPhone, a line of smartphones; Mac, a line of personal computers; iPad, a line of multi-purpose tablets; and wearables, home, and accessories comprising AirPods, Apple Vision Pro, Apple TV, Apple Watch, Beats products, and HomePod, as well as Apple branded and third-party accessories. It also provides AppleCare support and cloud services; and operates various platforms, including the App Store that allows customers to discover and download applications and digital content, such as books, music, video, games, and podcasts, as well as advertising services include third-party licensing arrangements and its own advertising platforms. In addition, the company offers various subscription-based services, such as Apple Arcade, a game subscription service; Apple Fitness+, a personalized fitness service; Apple Music, which offers users a curated listening experience with on-demand radio stations; Apple News+, a subscription news and magazine service; Apple TV, which offers original content and live sports; Apple Card, a co-branded credit card; and Apple Pay, a cashless payment service, as well as licenses its intellectual property. The company serves consumers, and small and mid-sized businesses; and the education, enterprise, and government markets. It distributes third-party applications for its products through the App Store. The company also sells its products through its retail and online stores, and direct sales force; and third-party cellular network carriers and resellers. The company was formerly known as Apple Computer, Inc. and changed its name to Apple Inc. in January 2007. Apple Inc. was founded in 1976 and is headquartered in Cupertino, California.
+                - generic [ref=f13e1817]:
+                  - generic [ref=f13e1818]:
+                    - heading "Valuation Models" [level=3] [ref=f13e1819]
+                    - generic [ref=f13e1820]: Heuristic models, not investment advice. Inputs from yfinance.
+                  - generic [ref=f13e1821]:
+                    - generic [ref=f13e1822]:
+                      - generic [ref=f13e1823]:
+                        - generic [ref=f13e1824]: Method
+                        - generic [ref=f13e1825]:
+                          - generic [ref=f13e1826]: Fair Value
+                          - generic [ref=f13e1827]: vs Price
+                      - generic [ref=f13e1828]:
+                        - generic [ref=f13e1829]:
+                          - generic [ref=f13e1830]: P/E 2026 (current multiple)
+                          - generic "EPS $8.81 (FY2026E) · × 37.75 (current)" [ref=f13e1831]
+                        - generic [ref=f13e1832]: $332.72
+                        - generic [ref=f13e1833]: "-0.5%"
+                      - generic [ref=f13e1834]:
+                        - generic [ref=f13e1835]:
+                          - generic [ref=f13e1836]: P/E 2027 (current multiple)
+                          - generic "EPS $9.58 (FY2027E) · × 37.75 (current)" [ref=f13e1837]
+                        - generic [ref=f13e1838]: $361.44
+                        - generic [ref=f13e1839]: +8.1%
+                      - generic [ref=f13e1840]:
+                        - generic [ref=f13e1841]:
+                          - generic [ref=f13e1842]: P/E 2026 (sector median)
+                          - generic "EPS $8.81 (FY2026E) · × 27.39 (sector median)" [ref=f13e1843]
+                        - generic [ref=f13e1844]: $241.44
+                        - generic [ref=f13e1845]: "-27.8%"
+                      - generic [ref=f13e1846]:
+                        - generic [ref=f13e1847]:
+                          - generic [ref=f13e1848]: P/E 2027 (sector median)
+                          - generic "EPS $9.58 (FY2027E) · × 27.39 (sector median)" [ref=f13e1849]
+                        - generic [ref=f13e1850]: $262.28
+                        - generic [ref=f13e1851]: "-21.6%"
+                      - generic [ref=f13e1852]:
+                        - generic [ref=f13e1853]:
+                          - generic [ref=f13e1854]: EV/EBITDA (current multiple)
+                          - generic "EBITDA $167.96B · × 28.92 (current)" [ref=f13e1855]
+                        - generic [ref=f13e1856]: $331.38
+                        - generic [ref=f13e1857]: "-0.9%"
+                      - generic [ref=f13e1858]:
+                        - generic [ref=f13e1859]:
+                          - generic [ref=f13e1860]: EV/EBITDA (sector median)
+                          - generic "EBITDA $167.96B · × 21.68 (sector median)" [ref=f13e1861]
+                        - generic [ref=f13e1862]: $248.00
+                        - generic [ref=f13e1863]: "-25.8%"
+                      - generic [ref=f13e1864]:
+                        - generic [ref=f13e1865]:
+                          - generic [ref=f13e1866]: 2-stage FCF DCF
+                          - generic "FCF₀ $98.77B · g₁ 7.0% (FCF CAGR) · g∞ 2.5% · WACC 9.0%" [ref=f13e1867]
+                        - generic [ref=f13e1868]: $128.07
+                        - generic [ref=f13e1869]: "-61.7%"
+                      - generic [ref=f13e1870]:
+                        - generic [ref=f13e1871]: Average · Range
+                        - generic [ref=f13e1872]:
+                          - generic [ref=f13e1873]: $128.07–$361.44
+                          - generic [ref=f13e1874]: $272.19
+                          - generic [ref=f13e1875]: "-18.6%"
+                    - generic [ref=f13e1876]:
+                      - generic [ref=f13e1877]:
+                        - generic [ref=f13e1878]:
+                          - heading "DCF Sensitivity" [level=3] [ref=f13e1879]
+                          - generic [ref=f13e1880]: Fair value per share · g₁ 7.0% · 5y stage 1
+                        - generic [ref=f13e1881]: Above price~FairBelow price
+                      - table [ref=f13e1886]:
+                        - rowgroup [ref=f13e1887]:
+                          - row [ref=f13e1888]:
+                            - columnheader "WACC ↓ / g∞ →" [ref=f13e1889]
+                            - columnheader "1.0%" [ref=f13e1890]
+                            - columnheader "2.0%" [ref=f13e1891]
+                            - columnheader "2.5%" [ref=f13e1892]
+                            - columnheader "3.0%" [ref=f13e1893]
+                            - columnheader "4.0%" [ref=f13e1894]
+                        - rowgroup [ref=f13e1895]:
+                          - row [ref=f13e1896]:
+                            - cell "6.0%" [ref=f13e1897]
+                            - cell "$177 -47%" [ref=f13e1898]:
+                              - generic [ref=f13e1899]: $177
+                              - generic [ref=f13e1900]: "-47%"
+                            - cell "$215 -36%" [ref=f13e1901]:
+                              - generic [ref=f13e1902]: $215
+                              - generic [ref=f13e1903]: "-36%"
+                            - cell "$242 -28%" [ref=f13e1904]:
+                              - generic [ref=f13e1905]: $242
+                              - generic [ref=f13e1906]: "-28%"
+                            - cell "$277 -17%" [ref=f13e1907]:
+                              - generic [ref=f13e1908]: $277
+                              - generic [ref=f13e1909]: "-17%"
+                            - cell "$403 +21%" [ref=f13e1910]:
+                              - generic [ref=f13e1911]: $403
+                              - generic [ref=f13e1912]: +21%
+                          - row [ref=f13e1913]:
+                            - cell "7.5%" [ref=f13e1914]
+                            - cell "$135 -60%" [ref=f13e1915]:
+                              - generic [ref=f13e1916]: $135
+                              - generic [ref=f13e1917]: "-60%"
+                            - cell "$155 -54%" [ref=f13e1918]:
+                              - generic [ref=f13e1919]: $155
+                              - generic [ref=f13e1920]: "-54%"
+                            - cell "$168 -50%" [ref=f13e1921]:
+                              - generic [ref=f13e1922]: $168
+                              - generic [ref=f13e1923]: "-50%"
+                            - cell "$184 -45%" [ref=f13e1924]:
+                              - generic [ref=f13e1925]: $184
+                              - generic [ref=f13e1926]: "-45%"
+                            - cell "$229 -32%" [ref=f13e1927]:
+                              - generic [ref=f13e1928]: $229
+                              - generic [ref=f13e1929]: "-32%"
+                          - row [ref=f13e1930]:
+                            - cell "9.0%" [ref=f13e1931]
+                            - cell "$109 -68%" [ref=f13e1932]:
+                              - generic [ref=f13e1933]: $109
+                              - generic [ref=f13e1934]: "-68%"
+                            - cell "$121 -64%" [ref=f13e1935]:
+                              - generic [ref=f13e1936]: $121
+                              - generic [ref=f13e1937]: "-64%"
+                            - cell "$128 -62%" [ref=f13e1938]:
+                              - generic [ref=f13e1939]: $128
+                              - generic [ref=f13e1940]: "-62%"
+                            - cell "$137 -59%" [ref=f13e1941]:
+                              - generic [ref=f13e1942]: $137
+                              - generic [ref=f13e1943]: "-59%"
+                            - cell "$159 -52%" [ref=f13e1944]:
+                              - generic [ref=f13e1945]: $159
+                              - generic [ref=f13e1946]: "-52%"
+                          - row [ref=f13e1947]:
+                            - cell "10.5%" [ref=f13e1948]
+                            - cell "$91 -73%" [ref=f13e1949]:
+                              - generic [ref=f13e1950]: $91
+                              - generic [ref=f13e1951]: "-73%"
+                            - cell "$99 -71%" [ref=f13e1952]:
+                              - generic [ref=f13e1953]: $99
+                              - generic [ref=f13e1954]: "-71%"
+                            - cell "$103 -69%" [ref=f13e1955]:
+                              - generic [ref=f13e1956]: $103
+                              - generic [ref=f13e1957]: "-69%"
+                            - cell "$109 -68%" [ref=f13e1958]:
+                              - generic [ref=f13e1959]: $109
+                              - generic [ref=f13e1960]: "-68%"
+                            - cell "$122 -64%" [ref=f13e1961]:
+                              - generic [ref=f13e1962]: $122
+                              - generic [ref=f13e1963]: "-64%"
+                          - row [ref=f13e1964]:
+                            - cell "12.0%" [ref=f13e1965]
+                            - cell "$78 -77%" [ref=f13e1966]:
+                              - generic [ref=f13e1967]: $78
+                              - generic [ref=f13e1968]: "-77%"
+                            - cell "$83 -75%" [ref=f13e1969]:
+                              - generic [ref=f13e1970]: $83
+                              - generic [ref=f13e1971]: "-75%"
+                            - cell "$86 -74%" [ref=f13e1972]:
+                              - generic [ref=f13e1973]: $86
+                              - generic [ref=f13e1974]: "-74%"
+                            - cell "$90 -73%" [ref=f13e1975]:
+                              - generic [ref=f13e1976]: $90
+                              - generic [ref=f13e1977]: "-73%"
+                            - cell "$98 -71%" [ref=f13e1978]:
+                              - generic [ref=f13e1979]: $98
+                              - generic [ref=f13e1980]: "-71%"
+                - generic [ref=f13e1982]:
+                  - generic [ref=f13e1983]:
+                    - heading "Valuation History" [level=3] [ref=f13e1984]
+                    - generic [ref=f13e1985]:
+                      - button "1Y" [ref=f13e1986] [cursor=pointer]
+                      - button "5Y" [ref=f13e1987] [cursor=pointer]
+                      - button "10Y" [ref=f13e1988] [cursor=pointer]
+                      - button "Max" [ref=f13e1989] [cursor=pointer]
+                  - paragraph [ref=f13e1990]: Loading…
+  - generic [aria-hidden] [ref=f13e1151]: $200
