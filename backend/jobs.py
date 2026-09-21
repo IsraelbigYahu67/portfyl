@@ -65,6 +65,7 @@ from sqlalchemy.orm import Session
 from app_settings import get_workspace_setting, set_workspace_setting
 from models import (
     BrokerConnection,
+    BrokerSyncRun,
     DiscordWebhook,
     DividendNotification,
     JobRun,
@@ -91,7 +92,14 @@ RECURRING_JOB_NAMES = (
     "dividends",
     "rate_limit_cleanup",
     "account_deletion_cleanup",
+    "broker_backfill",
 )
+
+# broker_backfill's per-tick budget: how many due BrokerSyncRuns one pass
+# claims across a workspace. Deliberately small -- each run's own
+# advance_run bound (t212_sync.DEFAULT_MAX_PAGES_PER_STREAM) already limits
+# the work per run, and a minutely job has the next tick to keep going.
+BROKER_BACKFILL_MAX_RUNS_PER_WORKSPACE = 5
 
 
 def mark_job_succeeded(
@@ -343,6 +351,138 @@ async def broker_autosync_pass(
                     color=SYNC_COLOR,
                 )
         results.append(summary)
+    return results
+
+
+# -------- Broker history backfill (T212 snapshot-first sync, Task 3) -------
+# Distinct from broker_autosync_pass above: this drains BrokerSyncRun rows
+# that already exist (created by routers.broker.sync_transactions via
+# t212_sync.claim_or_create_run), independent of auto_sync and the user's
+# sync schedule -- a manually-triggered initial backfill keeps progressing
+# even with auto_sync off and no schedule due (plan §5.4), and this job never
+# creates a run itself.
+
+async def broker_backfill_pass(
+    db: Session,
+    workspace_id: UUID,
+    *,
+    max_runs: int = BROKER_BACKFILL_MAX_RUNS_PER_WORKSPACE,
+) -> list[dict]:
+    """Claim and advance up to `max_runs` due BrokerSyncRuns in this
+    workspace. A run whose lease is currently held by another live worker
+    (t212_sync.claim_lease returns None) is skipped this tick, not retried
+    inline -- the next tick picks it up once the lease expires or the other
+    worker finishes."""
+    import t212_sync
+
+    # Callers (broker_backfill_all_workspaces below, or a test driving this
+    # pass directly) may hand this a session with no RLS context set yet --
+    # this query must never run context-less under forced RLS (see this
+    # module's docstring on why every per-workspace pass reasserts context
+    # at each site that could run after a prior commit dropped it).
+    _set_job_workspace_context(db, workspace_id)
+    now = datetime.now(timezone.utc)
+    due_run_ids = db.execute(
+        select(BrokerSyncRun.id)
+        .where(
+            BrokerSyncRun.workspace_id == workspace_id,
+            BrokerSyncRun.state.in_(("pending", "fetching", "waiting_rate_limit")),
+        )
+        .order_by(BrokerSyncRun.created_at)
+        .limit(max_runs)
+    ).scalars().all()
+
+    results: list[dict] = []
+    for run_id in due_run_ids:
+        # claim_lease's FOR UPDATE SKIP LOCKED (and every query below) needs
+        # this workspace's RLS context freshly set -- a prior iteration's
+        # advance_run call committed (possibly many times), each of which
+        # drops the transaction-local context.
+        _set_job_workspace_context(db, workspace_id)
+        run = t212_sync.claim_lease(db, run_id, workspace_id)
+        if run is None:
+            continue  # leased by another live worker, or the run is gone
+
+        if run.state == "waiting_rate_limit":
+            reset_candidates = [
+                r for r in (run.orders_rate_limit_reset_at, run.dividends_rate_limit_reset_at)
+                if r is not None
+            ]
+            reset_at = max(reset_candidates) if reset_candidates else None
+            if reset_at is not None:
+                if reset_at.tzinfo is None:
+                    reset_at = reset_at.replace(tzinfo=timezone.utc)
+                if reset_at > now:
+                    db.commit()  # release the row lock without advancing
+                    continue
+
+        connection = db.query(BrokerConnection).filter(
+            BrokerConnection.workspace_id == workspace_id,
+            BrokerConnection.id == run.connection_id,
+        ).first()
+        if connection is None or connection.credential_generation != run.credential_generation:
+            # The connection was disconnected, or credentials were rotated
+            # after this run started -- a stale-generation worker must never
+            # commit further progress under superseded credentials.
+            run.state = "cancelled"
+            db.commit()
+            results.append({"run_id": str(run.public_id), "state": "cancelled"})
+            continue
+
+        portfolio = db.query(Portfolio).filter(
+            Portfolio.workspace_id == workspace_id,
+            Portfolio.id == run.portfolio_id,
+        ).first()
+        if portfolio is None:
+            run.state = "cancelled"
+            db.commit()
+            results.append({"run_id": str(run.public_id), "state": "cancelled"})
+            continue
+
+        base = t212_sync._t212_base(connection.environment or "live")
+        api_headers = t212_sync._t212_headers(connection.api_key, connection.api_secret or "")
+        lease_token = run.lease_token
+        public_id = str(run.public_id)
+        try:
+            # advance_run is blocking (paginated httpx) -- run it in a worker
+            # thread to keep the event loop free, like broker_autosync_pass
+            # does for sync_transactions above.
+            result = await asyncio.to_thread(
+                t212_sync.advance_run,
+                db, run, base, api_headers,
+                lease_token=lease_token,
+                reassert_context=lambda: _set_job_workspace_context(db, workspace_id),
+            )
+            results.append({
+                "run_id": public_id,
+                "state": result.state,
+                "orders_staged": result.orders_staged,
+                "dividends_staged": result.dividends_staged,
+                "rate_limited_streams": list(result.rate_limited_streams),
+            })
+        except Exception as e:
+            db.rollback()
+            _set_job_workspace_context(db, workspace_id)
+            run = db.query(BrokerSyncRun).filter(
+                BrokerSyncRun.workspace_id == workspace_id, BrokerSyncRun.id == run_id,
+            ).first()
+            if run is not None:
+                run.retry_count = (run.retry_count or 0) + 1
+                run.last_error = str(e)[:500]
+                db.commit()
+            log.warning("broker_backfill failed for run %s: %s", public_id, e)
+            results.append({"run_id": public_id, "error": str(e)})
+    return results
+
+
+async def broker_backfill_all_workspaces(db: Session) -> list[dict]:
+    """Poller entry point for T212 history backfill: explicit per-workspace
+    pass across every active workspace (see this module's docstring on why
+    only functions in this section are allowed to iterate every tenant)."""
+    results: list[dict] = []
+    for workspace_id in _active_workspace_ids(db):
+        _set_job_workspace_context(db, workspace_id)
+        results.extend(await broker_backfill_pass(db, workspace_id))
     return results
 
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -19,6 +19,7 @@ from edition import Edition
 from models import (
     BrokerConnection,
     BrokerBalance,
+    BrokerPosition,
     DiscordWebhook,
     Membership,
     OptionsTrade,
@@ -28,6 +29,7 @@ from models import (
     User,
     Workspace,
 )
+import t212_sync
 from routers import broker as broker_router
 from routers import discord as discord_router
 from routers import ibkr as ibkr_router
@@ -44,6 +46,7 @@ class TenantRows:
     alice_t212: BrokerConnection
     alice_ibkr: BrokerConnection
     alice_balance: BrokerBalance
+    alice_position: BrokerPosition
     alice_option: OptionsTrade
     alice_poly_connection: BrokerConnection
     alice_poly_position: PolymarketPosition
@@ -56,6 +59,7 @@ class TenantRows:
     bob_t212: BrokerConnection
     bob_ibkr: BrokerConnection
     bob_balance: BrokerBalance
+    bob_position: BrokerPosition
     bob_option: OptionsTrade
     bob_poly_connection: BrokerConnection
     bob_poly_position: PolymarketPosition
@@ -162,7 +166,29 @@ def tenant_rows(postgres_engine) -> TenantRows:
             cash=9999.0,
             net_liquidation=99999.0,
         )
-        db.add_all([alice_ibkr, bob_ibkr, alice_balance, bob_balance])
+        alice_position = BrokerPosition(
+            workspace_id=alice_workspace.id,
+            portfolio_id=alice_portfolio.id,
+            broker="trading212",
+            provider_ticker="AAPL_US_EQ",
+            ticker="AAPL",
+            quantity=10.0,
+            avg_price=150.0,
+            current_price=175.0,
+            as_of=datetime.now(timezone.utc),
+        )
+        bob_position = BrokerPosition(
+            workspace_id=bob_workspace.id,
+            portfolio_id=bob_portfolio.id,
+            broker="trading212",
+            provider_ticker="MSFT_US_EQ",
+            ticker="MSFT",
+            quantity=5.0,
+            avg_price=300.0,
+            current_price=310.0,
+            as_of=datetime.now(timezone.utc),
+        )
+        db.add_all([alice_ibkr, bob_ibkr, alice_balance, bob_balance, alice_position, bob_position])
         db.flush()
 
         alice_option = OptionsTrade(
@@ -264,6 +290,7 @@ def tenant_rows(postgres_engine) -> TenantRows:
             alice_t212=alice_t212,
             alice_ibkr=alice_ibkr,
             alice_balance=alice_balance,
+            alice_position=alice_position,
             alice_option=alice_option,
             alice_poly_connection=alice_poly_connection,
             alice_poly_position=alice_poly_position,
@@ -276,6 +303,7 @@ def tenant_rows(postgres_engine) -> TenantRows:
             bob_t212=bob_t212,
             bob_ibkr=bob_ibkr,
             bob_balance=bob_balance,
+            bob_position=bob_position,
             bob_option=bob_option,
             bob_poly_connection=bob_poly_connection,
             bob_poly_position=bob_poly_position,
@@ -449,6 +477,24 @@ def test_ibkr_status_and_balance_are_workspace_scoped_and_use_public_ids(
     assert balance.json()["balance"]["cash"] == 100.0
 
 
+def test_t212_positions_endpoint_is_workspace_scoped_and_uses_public_ids(
+    alice_client: TestClient,
+    tenant_rows: TenantRows,
+):
+    response = alice_client.get(
+        "/api/broker/trading212/positions",
+        params={"portfolio_id": str(tenant_rows.alice_portfolio.public_id)},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["connected"] is True
+    assert [p["ticker"] for p in body["positions"]] == ["AAPL"]
+    assert body["positions"][0]["quantity"] == 10.0
+    # Never Bob's MSFT position.
+    assert "MSFT" not in [p["ticker"] for p in body["positions"]]
+
+
 def test_t212_sync_stamps_the_authorized_workspace_and_portfolio(
     alice_client: TestClient,
     tenant_rows: TenantRows,
@@ -489,6 +535,9 @@ def test_t212_sync_stamps_the_authorized_workspace_and_portfolio(
         "bulk_fetch_fx",
         lambda *_: {("USD", date(2026, 2, 1)): 20.0},
     )
+    monkeypatch.setattr(t212_sync, "_fetch_positions", lambda *_: [
+        {"ticker": "MSFT_US_EQ", "quantity": 3.0, "averagePrice": 250.0, "currentPrice": 260.0},
+    ])
 
     response = alice_client.post(
         "/api/broker/trading212/sync",
@@ -497,6 +546,7 @@ def test_t212_sync_stamps_the_authorized_workspace_and_portfolio(
 
     assert response.status_code == 200
     assert response.json()["imported_orders"] == 1
+    assert response.json()["positions_updated"] is True
     with Session(postgres_engine) as db:
         row = db.query(Transaction).one()
         assert row.workspace_id == tenant_rows.alice_workspace.id
@@ -507,6 +557,17 @@ def test_t212_sync_stamps_the_authorized_workspace_and_portfolio(
         assert balance.workspace_id == tenant_rows.alice_workspace.id
         assert balance.portfolio_id == tenant_rows.alice_portfolio.id
         assert balance.cash == 130.0
+        # The sync replaced Alice's seeded AAPL position with the synced
+        # MSFT one -- and must never touch Bob's separately-seeded row.
+        alice_positions = db.query(BrokerPosition).filter(
+            BrokerPosition.workspace_id == tenant_rows.alice_workspace.id
+        ).all()
+        assert [p.ticker for p in alice_positions] == ["MSFT"]
+        bob_position = db.query(BrokerPosition).filter(
+            BrokerPosition.workspace_id == tenant_rows.bob_workspace.id
+        ).one()
+        assert bob_position.ticker == "MSFT"
+        assert bob_position.id == tenant_rows.bob_position.id
 
 
 def test_ibkr_sync_stamps_workspace_without_matching_bob_rows(

@@ -149,6 +149,9 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
         Benchmark,
         BrokerBalance,
         BrokerConnection,
+        BrokerPosition,
+        BrokerSyncEvent,
+        BrokerSyncRun,
         CashInterestRate,
         DiscordWebhook,
         Membership,
@@ -207,6 +210,11 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
         name=f"{label.title()} basket", kind="ticker", ticker="^GSPC",
         is_default=True, is_preset=False,
     )
+    t212_connection = BrokerConnection(
+        workspace_id=workspace.id, portfolio_id=portfolio.id,
+        broker="trading212", api_key=f"{label}-t212-key",
+        api_secret=f"{label}-t212-secret", environment="live",
+    )
     db.add_all([
         TradeNote(
             workspace_id=workspace.id, transaction_id=trade.id,
@@ -221,11 +229,7 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
             ticker="AAPL", direction="above", target_price=1000.0,
             enabled=True, status="active",
         ),
-        BrokerConnection(
-            workspace_id=workspace.id, portfolio_id=portfolio.id,
-            broker="trading212", api_key=f"{label}-t212-key",
-            api_secret=f"{label}-t212-secret", environment="live",
-        ),
+        t212_connection,
         BrokerConnection(
             workspace_id=workspace.id, portfolio_id=portfolio.id,
             broker="ibkr", api_key=f"{label}-flex-token",
@@ -238,6 +242,12 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
         BrokerBalance(
             workspace_id=workspace.id, portfolio_id=portfolio.id,
             broker="ibkr", base_currency="USD", cash=100.0, net_liquidation=1000.0,
+        ),
+        BrokerPosition(
+            workspace_id=workspace.id, portfolio_id=portfolio.id,
+            broker="trading212", provider_ticker="AAPL_US_EQ", ticker="AAPL",
+            quantity=10.0, avg_price=150.0, current_price=175.0,
+            as_of=datetime(2026, 9, 4, tzinfo=timezone.utc),
         ),
         OptionsTrade(
             workspace_id=workspace.id, portfolio_id=portfolio.id,
@@ -267,6 +277,22 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
     ])
     db.flush()
     set_user_secret(db, user.id, "deepseek_api_key", f"{label}-secret-key")
+
+    sync_run = BrokerSyncRun(
+        workspace_id=workspace.id, portfolio_id=portfolio.id,
+        connection_id=t212_connection.id, broker="trading212",
+        credential_generation=t212_connection.credential_generation,
+        mode="incremental", state="fetching",
+        orders_loaded=1,
+    )
+    db.add(sync_run)
+    db.flush()
+    db.add(BrokerSyncEvent(
+        workspace_id=workspace.id, portfolio_id=portfolio.id,
+        run_id=sync_run.id, broker="trading212", stream="orders",
+        provider_event_id=f"fill:{label}-1",
+        raw_payload={"order": {"id": f"{label}-order-1"}},
+    ))
 
     now = datetime(2026, 9, 4, tzinfo=timezone.utc)
     usage = UsageCounter(

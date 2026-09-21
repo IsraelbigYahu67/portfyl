@@ -190,6 +190,14 @@ async def run_dividends_job(authorization: str | None = Header(default=None)) ->
     return await _run_job("dividends", dividend_notify_all_workspaces)
 
 
+@router.post("/broker_backfill")
+async def run_broker_backfill_job(authorization: str | None = Header(default=None)) -> dict:
+    verify_scheduler_token(authorization)
+    from jobs import broker_backfill_all_workspaces
+
+    return await _run_job("broker_backfill", broker_backfill_all_workspaces)
+
+
 @router.post("/rate_limit_cleanup")
 async def run_rate_limit_cleanup_job(authorization: str | None = Header(default=None)) -> dict:
     verify_scheduler_token(authorization)

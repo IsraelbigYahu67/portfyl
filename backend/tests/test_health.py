@@ -8,7 +8,7 @@ from main import health
 
 def test_health_is_ok_when_database_and_all_job_passes_are_fresh(db_session):
     now = datetime.now(timezone.utc)
-    for name in ("alerts", "autosync", "dividends"):
+    for name in ("alerts", "autosync", "dividends", "broker_backfill"):
         mark_job_succeeded(db_session, name, now)
     db_session.commit()
 

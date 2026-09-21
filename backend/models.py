@@ -398,6 +398,29 @@ class Transaction(Base):
     source = Column(String, nullable=True)
     fx_to_czk = Column(Float, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # Durable provider provenance (T212 snapshot-first sync plan, 2026-09-20,
+    # §4.4), populated only by t212_sync.finalize_run -- NULL for every
+    # legacy CSV/API/manual row. `source_event_id`/`source_event_stream`
+    # identify the staged BrokerSyncEvent this row was finalized from
+    # (migration 0016's partial unique index on
+    # (workspace_id, portfolio_id, source, source_event_stream,
+    # source_event_id) makes re-finalizing the same event a no-op rather than
+    # a duplicate row). `executed_at` is the shared chronological ordering
+    # key's input (see transaction_ordering.py) -- not yet consumed by any
+    # existing calculation, which still orders by `date` alone.
+    source_event_id = Column(String, nullable=True)
+    source_event_stream = Column(String, nullable=True)
+    source_credential_generation = Column(Integer, nullable=True)
+    source_instrument_id = Column(String, nullable=True)
+    # T212 fill.type ("TRADE", "STOCK_SPLIT", "STOCK_DISTRIBUTION", ...) when
+    # known -- lets a future corporate-action increment (plan §6.2) tell a
+    # provider-labelled corporate-action fill apart from real user trading
+    # without re-deriving it. finalize_run only ever imports "TRADE" fills as
+    # of this increment; any other value is left staged, not finalized.
+    source_fill_type = Column(String, nullable=True)
+    executed_at = Column(DateTime(timezone=True), nullable=True)
+    source_payload_hash = Column(String, nullable=True)
+    source_mapper_version = Column(String, nullable=True)
 
 
 class Watchlist(Base):
@@ -490,6 +513,11 @@ class BrokerConnection(Base):
     __tablename__ = "broker_connections"
     __table_args__ = (
         UniqueConstraint("workspace_id", "broker", "portfolio_id", name="uq_broker_workspace_portfolio"),
+        # Referenced by BrokerSyncRun's composite (workspace_id, connection_id)
+        # FK (T212 snapshot-first sync plan, Task 3) -- Postgres requires a
+        # real unique constraint on the exact target column tuple, `id` being
+        # already unique as the primary key is not enough.
+        UniqueConstraint("workspace_id", "id", name="uq_broker_connection_workspace_id"),
         ForeignKeyConstraint(
             ["workspace_id", "portfolio_id"],
             ["portfolios.workspace_id", "portfolios.id"],
@@ -520,6 +548,13 @@ class BrokerConnection(Base):
     consecutive_failures = Column(Integer, nullable=False, default=0, server_default="0")
     needs_attention = Column(Boolean, nullable=False, default=False, server_default="false")
     last_error = Column(String, nullable=True)
+    # T212 snapshot-first sync plan (2026-09-20), §4.1/§5.1: incremented on
+    # every credential rotation (including re-entering the same credentials),
+    # never on ordinary sync. A BrokerSyncRun copies the generation at
+    # creation time; a worker must not commit progress for a run whose
+    # generation is behind the connection's current one -- that run belongs
+    # to superseded credentials and is fenced out (see t212_sync.claim_lease).
+    credential_generation = Column(Integer, nullable=False, default=1, server_default="1")
 
     # `api_key`/`api_secret` are transparent encrypt-on-set/decrypt-on-get
     # properties over the ciphertext columns above -- every existing call
@@ -622,8 +657,184 @@ class BrokerBalance(Base):
     options_value = Column(Float, nullable=True)
     net_liquidation = Column(Float, nullable=True)
     cash_by_currency = Column(String, nullable=True)
+    # Snapshot-first sync plan (2026-09-20), §4.1: the three components behind
+    # `cash` and the two behind `stock`'s unrealized P/L, persisted explicitly
+    # so a future consumer doesn't have to re-derive them from the blended
+    # totals. `broker_realized_pnl` is reconciliation-only provenance -- it
+    # must never substitute for Portfyl's own FIFO realized P/L.
+    cash_available = Column(Float, nullable=True)
+    cash_in_pies = Column(Float, nullable=True)
+    cash_reserved = Column(Float, nullable=True)
+    stock_total_cost = Column(Float, nullable=True)
+    stock_unrealized_pnl = Column(Float, nullable=True)
+    broker_realized_pnl = Column(Float, nullable=True)
     as_of = Column(Date, nullable=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class BrokerPosition(Base):
+    """Current broker-reported open position snapshot (T212 snapshot-first
+    sync plan, 2026-09-20, §4.1). Replaced atomically on every successful
+    positions fetch -- a failed fetch leaves the previous snapshot in place,
+    and a successful empty response clears it. This is a current-value
+    surface only; it never substitutes for the transaction ledger in
+    historical performance, FIFO, or tax calculations (see broker_cash.py and
+    the plan's §2 data contract)."""
+
+    __tablename__ = "broker_positions"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "broker", "portfolio_id", "provider_ticker",
+            name="uq_broker_position_instrument",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "portfolio_id"],
+            ["portfolios.workspace_id", "portfolios.id"],
+            name="fk_broker_position_workspace_portfolio",
+            ondelete="CASCADE",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    public_id = _public_id()
+    workspace_id = _workspace_id()
+    portfolio_id = Column(Integer, nullable=False, index=True)
+    broker = Column(String, nullable=False)
+    # Raw provider instrument identity (e.g. T212's "AAPL_US_EQ") and the
+    # normalized Portfyl ticker derived from it (routers.broker's
+    # _normalize_t212_ticker). Provider identity is the dedup/replace key;
+    # the normalized ticker is what the rest of the app matches against.
+    provider_ticker = Column(String, nullable=False)
+    ticker = Column(String, nullable=False, index=True)
+    name = Column(String, nullable=True)
+    currency = Column(String, nullable=True)
+    quantity = Column(Float, nullable=False)
+    pie_quantity = Column(Float, nullable=True)
+    avg_price = Column(Float, nullable=False)
+    current_price = Column(Float, nullable=True)
+    # T212 `/equity/positions` account-currency profit/loss fields --
+    # provenance only, kept alongside the instrument-currency price fields
+    # above rather than folded into a converted total at write time.
+    ppl = Column(Float, nullable=True)
+    fx_ppl = Column(Float, nullable=True)
+    initial_fill_date = Column(DateTime(timezone=True), nullable=True)
+    as_of = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class BrokerSyncRun(Base):
+    """A resumable order/dividend history backfill (T212 snapshot-first sync
+    plan, 2026-09-20, Task 3). Progress is durable per stream
+    (`*_next_page_path`/`*_complete`/`*_loaded`) so a run survives a browser
+    close or a Cloud Run restart -- `jobs.broker_backfill_pass` is the only
+    thing that advances a run past its first foreground-created page (see
+    t212_sync.advance_run). Reaching `completed` here means every page is
+    staged in `BrokerSyncEvent`, NOT that ledger `Transaction` rows exist --
+    that finalization step is a later increment of this plan (Task 4)."""
+
+    __tablename__ = "broker_sync_runs"
+    __table_args__ = (
+        # Referenced by BrokerSyncEvent's composite (workspace_id, run_id) FK.
+        UniqueConstraint("workspace_id", "id", name="uq_broker_sync_run_workspace_id"),
+        ForeignKeyConstraint(
+            ["workspace_id", "portfolio_id"],
+            ["portfolios.workspace_id", "portfolios.id"],
+            name="fk_broker_sync_run_workspace_portfolio",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "connection_id"],
+            ["broker_connections.workspace_id", "broker_connections.id"],
+            name="fk_broker_sync_run_workspace_connection",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint("mode IN ('initial', 'incremental', 'audit')", name="ck_broker_sync_run_mode"),
+        CheckConstraint(
+            "state IN ('pending','fetching','waiting_rate_limit','finalizing',"
+            "'completed','needs_review','failed','cancelled')",
+            name="ck_broker_sync_run_state",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    public_id = _public_id()
+    workspace_id = _workspace_id()
+    portfolio_id = Column(Integer, nullable=False, index=True)
+    connection_id = Column(Integer, nullable=False, index=True)
+    broker = Column(String, nullable=False)
+    # Copied from BrokerConnection.credential_generation at creation and never
+    # updated -- a stale-generation run is fenced out by t212_sync.claim_lease
+    # rather than silently continuing under superseded credentials.
+    credential_generation = Column(Integer, nullable=False)
+    mode = Column(String, nullable=False, default="incremental", server_default="incremental")
+    state = Column(String, nullable=False, default="pending", server_default="pending")
+
+    orders_next_page_path = Column(String, nullable=True)
+    orders_complete = Column(Boolean, nullable=False, default=False, server_default="false")
+    orders_loaded = Column(Integer, nullable=False, default=0, server_default="0")
+    orders_rate_limit_reset_at = Column(DateTime(timezone=True), nullable=True)
+
+    dividends_next_page_path = Column(String, nullable=True)
+    dividends_complete = Column(Boolean, nullable=False, default=False, server_default="false")
+    dividends_loaded = Column(Integer, nullable=False, default=0, server_default="0")
+    dividends_rate_limit_reset_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Short-lived worker lease (plan §4.2): the foreground request and the
+    # minutely broker_backfill job share the same claim function
+    # (t212_sync.claim_lease) so at most one of them advances a run at a
+    # time; an expired lease is recoverable by the next claimer.
+    lease_token = Column(Uuid(as_uuid=True), nullable=True)
+    lease_expires_at = Column(DateTime(timezone=True), nullable=True)
+
+    started_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_progress_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    last_error = Column(String, nullable=True)
+    retry_count = Column(Integer, nullable=False, default=0, server_default="0")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class BrokerSyncEvent(Base):
+    """One staged raw provider event (order fill or dividend) belonging to a
+    BrokerSyncRun (T212 snapshot-first sync plan, Task 3, §4.3). Transient
+    operational data -- excluded from workspace export, cascades with its run
+    or portfolio, never logged. Re-reading and re-staging an already-known
+    page is harmless: the unique key dedups within one run."""
+
+    __tablename__ = "broker_sync_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "run_id", "stream", "provider_event_id",
+            name="uq_broker_sync_event_run_stream_identity",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "portfolio_id"],
+            ["portfolios.workspace_id", "portfolios.id"],
+            name="fk_broker_sync_event_workspace_portfolio",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "run_id"],
+            ["broker_sync_runs.workspace_id", "broker_sync_runs.id"],
+            name="fk_broker_sync_event_workspace_run",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint("stream IN ('orders', 'dividends')", name="ck_broker_sync_event_stream"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    public_id = _public_id()
+    workspace_id = _workspace_id()
+    portfolio_id = Column(Integer, nullable=False, index=True)
+    run_id = Column(Integer, nullable=False, index=True)
+    broker = Column(String, nullable=False)
+    stream = Column(String, nullable=False)
+    provider_event_id = Column(String, nullable=False)
+    provider_timestamp = Column(DateTime(timezone=True), nullable=True)
+    raw_payload = Column(JSON, nullable=False)
+    received_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class PolymarketPosition(Base):

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import models
 from database import Base, EXPECTED_ALEMBIC_HEAD
-from models import BetaInvite, NotificationOutbox, UsageCounter, UsageReservation
+from models import BetaInvite, NotificationOutbox, Transaction, UsageCounter, UsageReservation
 
 
 def _constraint_names(model) -> set[str]:
@@ -34,12 +34,10 @@ def test_payment_and_trial_models_are_not_mapped():
     )
 
 
-def test_expected_alembic_head_adds_private_beta_invites():
-    assert EXPECTED_ALEMBIC_HEAD == "0013_private_beta_invites"
-    assert {
-        "ck_beta_invites_email_normalized",
-        "ck_beta_invites_status",
-    } <= _constraint_names(BetaInvite)
+def test_expected_alembic_head_adds_transaction_provenance():
+    assert EXPECTED_ALEMBIC_HEAD == "0016_transaction_provenance"
+    assert hasattr(Transaction, "source_event_id")
+    assert hasattr(Transaction, "executed_at")
 
 
 def test_provider_neutral_usage_and_notification_constraints_remain():

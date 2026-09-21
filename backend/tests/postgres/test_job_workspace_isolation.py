@@ -74,7 +74,7 @@ from __future__ import annotations
 import asyncio
 from datetime import date, datetime, timezone
 from typing import Callable
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -87,10 +87,14 @@ from jobs import (
     _active_workspace_ids,
     alert_check_all_workspaces,
     autosync_all_workspaces,
+    broker_backfill_all_workspaces,
+    broker_backfill_pass,
     dividend_notify_all_workspaces,
 )
 from models import (
     BrokerConnection,
+    BrokerSyncEvent,
+    BrokerSyncRun,
     DiscordWebhook,
     DividendNotification,
     Portfolio,
@@ -314,6 +318,158 @@ def test_autosync_all_workspaces_notifies_every_connection_despite_internal_comm
     # no-op'ing). Confirm it actually persisted.
     with _owner_session(postgres_engine) as db:
         assert get_workspace_setting(db, ws.id, SYNC_LAST_RUN_KEY) == now.isoformat()
+
+
+# ---------------------------------------------------------------------------
+# Bug-2-shaped regression, new job: jobs.broker_backfill_pass /
+# t212_sync.advance_run commit a real transaction boundary after every page
+# (T212 snapshot-first sync plan, 2026-09-20, Task 3, §5.4) -- the same
+# failure class Bug 2 above was about, for a brand-new job/table pair added
+# after that fix already existed. Proves broker_backfill_pass's own
+# `_set_job_workspace_context` reassertion (passed into advance_run as
+# `reassert_context`) actually keeps every page's staging query and
+# checkpoint write inside the right tenant's RLS context, using the real
+# `advance_run` (network mocked, not the function itself) so its genuine
+# multi-commit sequence runs against the real forced-RLS `portfyl_runtime`
+# role.
+# ---------------------------------------------------------------------------
+
+
+def _t212_page_response(items, next_page_path=None):
+    response = MagicMock(status_code=200, headers={})
+    response.json.return_value = {"items": items, "nextPagePath": next_page_path}
+    return response
+
+
+def test_broker_backfill_pass_stages_every_page_despite_internal_commits(
+    postgres_engine: Engine, single_workspace, runtime_job_session: Session,
+):
+    ws, pf = single_workspace
+    with _owner_session(postgres_engine) as db:
+        conn = BrokerConnection(workspace_id=ws.id, portfolio_id=pf.id, broker="trading212",
+                                api_key="k" * 20, api_secret="", environment="live")
+        db.add(conn)
+        db.flush()
+        run = BrokerSyncRun(
+            workspace_id=ws.id, portfolio_id=pf.id, connection_id=conn.id, broker="trading212",
+            credential_generation=conn.credential_generation, mode="incremental", state="pending",
+        )
+        db.add(run)
+        db.commit()
+        conn_id, run_id = conn.id, run.id
+
+    # Two pages of orders (forces >=2 internal commits inside one advance_run
+    # call: page-1 checkpoint, page-2 completion), one empty page of
+    # dividends. If RLS context is lost after the first commit, the second
+    # page's stage_events INSERT is rejected by the forced WITH CHECK policy
+    # instead of silently landing in the wrong tenant.
+    page1 = _t212_page_response(
+        [{"order": {"id": "o1"}, "fill": {"id": "f1"}}],
+        "/equity/history/orders?cursor=next",
+    )
+    page2 = _t212_page_response([{"order": {"id": "o2"}, "fill": {"id": "f2"}}], None)
+    empty_dividends = _t212_page_response([], None)
+    calls = {"orders": 0}
+
+    def fake_get(url, headers=None, params=None, timeout=None):
+        if "dividends" in url:
+            return empty_dividends
+        calls["orders"] += 1
+        return page1 if calls["orders"] == 1 else page2
+
+    with patch("t212_sync.httpx.get", side_effect=fake_get):
+        results = asyncio.run(broker_backfill_pass(runtime_job_session, ws.id))
+
+    assert len(results) == 1
+    assert results[0]["state"] == "completed"
+    assert results[0]["orders_staged"] == 2
+
+    with _owner_session(postgres_engine) as db:
+        run_row = db.get(BrokerSyncRun, run_id)
+        assert run_row.state == "completed"
+        assert run_row.orders_loaded == 2
+        events = db.query(BrokerSyncEvent).filter(BrokerSyncEvent.run_id == run_id).all()
+        assert {e.provider_event_id for e in events} == {"fill:f1", "fill:f2"}
+        assert all(e.workspace_id == ws.id for e in events)
+
+
+def test_one_active_run_per_connection_is_enforced_at_the_database_level(
+    postgres_engine: Engine, single_workspace,
+):
+    """Migration 0015's partial unique index is the backstop behind
+    t212_sync.claim_or_create_run's idempotent read-then-insert -- a second,
+    non-terminal run for the same connection must be rejected by the
+    database itself even if application logic is bypassed entirely (e.g. a
+    genuine concurrent double-click both passing the initial SELECT)."""
+    from sqlalchemy.exc import IntegrityError
+
+    ws, pf = single_workspace
+    with _owner_session(postgres_engine) as db:
+        conn = BrokerConnection(workspace_id=ws.id, portfolio_id=pf.id, broker="trading212",
+                                api_key="k" * 20, api_secret="", environment="live")
+        db.add(conn)
+        db.flush()
+        conn_id, generation = conn.id, conn.credential_generation
+        db.add(BrokerSyncRun(
+            workspace_id=ws.id, portfolio_id=pf.id, connection_id=conn_id, broker="trading212",
+            credential_generation=generation, mode="incremental", state="fetching",
+        ))
+        db.commit()
+
+        db.add(BrokerSyncRun(
+            workspace_id=ws.id, portfolio_id=pf.id, connection_id=conn_id, broker="trading212",
+            credential_generation=generation, mode="incremental", state="pending",
+        ))
+        with pytest.raises(IntegrityError):
+            db.commit()
+        db.rollback()
+
+    # A terminal-state existing run does not block a new one (matches
+    # claim_or_create_run's own application-level check).
+    with _owner_session(postgres_engine) as db:
+        db.query(BrokerSyncRun).filter(BrokerSyncRun.workspace_id == ws.id).update(
+            {"state": "completed"}, synchronize_session=False,
+        )
+        db.commit()
+        db.add(BrokerSyncRun(
+            workspace_id=ws.id, portfolio_id=pf.id, connection_id=conn_id, broker="trading212",
+            credential_generation=generation, mode="incremental", state="pending",
+        ))
+        db.commit()  # does not raise
+
+
+def test_broker_backfill_all_workspaces_advances_both_tenants_without_leaking(
+    postgres_engine: Engine, workspace_pair, runtime_job_session: Session,
+):
+    (ws_a, pf_a), (ws_b, pf_b) = workspace_pair
+    run_ids = {}
+    with _owner_session(postgres_engine) as db:
+        for label, ws, pf in (("a", ws_a, pf_a), ("b", ws_b, pf_b)):
+            conn = BrokerConnection(workspace_id=ws.id, portfolio_id=pf.id, broker="trading212",
+                                    api_key=f"{label}-key" * 4, api_secret="", environment="live")
+            db.add(conn)
+            db.flush()
+            run = BrokerSyncRun(
+                workspace_id=ws.id, portfolio_id=pf.id, connection_id=conn.id, broker="trading212",
+                credential_generation=conn.credential_generation, mode="incremental", state="pending",
+            )
+            db.add(run)
+            db.flush()
+            run_ids[label] = run.id
+        db.commit()
+
+    empty = _t212_page_response([], None)
+    with patch("t212_sync.httpx.get", return_value=empty):
+        results = asyncio.run(broker_backfill_all_workspaces(runtime_job_session))
+
+    result_run_ids = {r["run_id"] for r in results}
+    with _owner_session(postgres_engine) as db:
+        run_a = db.get(BrokerSyncRun, run_ids["a"])
+        run_b = db.get(BrokerSyncRun, run_ids["b"])
+        assert str(run_a.public_id) in result_run_ids
+        assert str(run_b.public_id) in result_run_ids
+        assert run_a.state == "completed"
+        assert run_b.state == "completed"
 
 
 # ---------------------------------------------------------------------------

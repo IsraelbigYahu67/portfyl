@@ -14,6 +14,7 @@ from models import (
     BenchmarkComponent,
     BrokerBalance,
     BrokerConnection,
+    BrokerPosition,
     CashInterestRate,
     DiscordWebhook,
     DividendNotification,
@@ -167,6 +168,11 @@ def build_workspace_export(
         select(BrokerBalance)
         .where(BrokerBalance.workspace_id == workspace_id)
         .order_by(BrokerBalance.updated_at, BrokerBalance.id)
+    ).all()
+    broker_positions = db.scalars(
+        select(BrokerPosition)
+        .where(BrokerPosition.workspace_id == workspace_id)
+        .order_by(BrokerPosition.updated_at, BrokerPosition.id)
     ).all()
     polymarket_positions = db.scalars(
         select(PolymarketPosition)
@@ -364,6 +370,25 @@ def build_workspace_export(
             }
             for balance in broker_balances
             if balance.portfolio_id in portfolio_public_ids
+        ],
+        "broker_positions": [
+            {
+                "id": str(position.public_id),
+                "portfolio_id": portfolio_public_ids[position.portfolio_id],
+                "broker": position.broker,
+                "provider_ticker": position.provider_ticker,
+                "ticker": position.ticker,
+                "name": position.name,
+                "currency": position.currency,
+                "quantity": position.quantity,
+                "pie_quantity": position.pie_quantity,
+                "avg_price": position.avg_price,
+                "current_price": position.current_price,
+                "as_of": _iso(position.as_of),
+                "updated_at": _iso(position.updated_at),
+            }
+            for position in broker_positions
+            if position.portfolio_id in portfolio_public_ids
         ],
         "polymarket_positions": [
             {

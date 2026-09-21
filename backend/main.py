@@ -177,6 +177,7 @@ _JOB_MAX_AGES = {
     "alerts": timedelta(minutes=30),
     "autosync": timedelta(hours=2),
     "dividends": timedelta(hours=25),
+    "broker_backfill": timedelta(minutes=30),
 }
 if PORTFYL_EDITION is Edition.CLOUD:
     # Cleanup jobs only ever run in cloud (internal_jobs.router is cloud-only);
@@ -256,6 +257,10 @@ def health(db=Depends(get_db)):
 #                     opt-out DIVIDEND_NOTIFY_ENABLED=0; announces ex-dates due
 #                     within DIVIDEND_NOTIFY_LEAD_DAYS (default 3), each at most
 #                     once (dividend_notifications dedup table)
+#   * broker backfill — 60 s heartbeat; drains BrokerSyncRun rows created by a
+#                     T212 connect/sync (see t212_sync.claim_or_create_run),
+#                     independent of auto_sync/schedule. Opt-out
+#                     BROKER_BACKFILL_ENABLED=0.
 # Each tick uses its own DB session and swallows errors so a bad pass never
 # takes the app down. While the process is asleep between ticks nothing fires —
 # these are self-hosted convenience pollers, not low-latency feeds.
@@ -313,6 +318,7 @@ async def _start_background_pollers():
     from jobs import (
         alert_check_all_workspaces,
         autosync_all_workspaces,
+        broker_backfill_all_workspaces,
         dividend_notify_all_workspaces,
     )
 
@@ -334,6 +340,14 @@ async def _start_background_pollers():
         # missed boundary (the persisted last-run makes early ticks safe).
         _BG_TASKS.append(_asyncio.create_task(
             _periodic_loop("autosync", autosync_all_workspaces, interval=60, initial_delay=300)))
+
+    if os.environ.get("BROKER_BACKFILL_ENABLED", "1") == "1":
+        # Minutely, independent of auto_sync and the sync schedule (plan
+        # §5.4) -- this only drains BrokerSyncRun rows sync_transactions
+        # already created; it never starts one itself. Short initial delay
+        # so a run started just before a restart resumes promptly.
+        _BG_TASKS.append(_asyncio.create_task(
+            _periodic_loop("broker_backfill", broker_backfill_all_workspaces, interval=60, initial_delay=30)))
 
     if os.environ.get("DIVIDEND_NOTIFY_ENABLED", "1") == "1":
         interval = _env_int("DIVIDEND_NOTIFY_INTERVAL_SECONDS", 43200)

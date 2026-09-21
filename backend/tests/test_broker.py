@@ -2,20 +2,26 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from models import BrokerBalance, BrokerConnection, Portfolio, Transaction
+from models import (
+    BrokerBalance, BrokerConnection, BrokerPosition, BrokerSyncRun, Portfolio, Transaction,
+)
 from routers.broker import (
     _normalize_t212_ticker,
     _CANONICAL_TICKER as _canonical_ticker,
     _fetch_account_summary,
+    connect,
     disconnect,
+    get_history_status,
+    get_positions,
     get_status,
     sync_transactions,
 )
+from tests.fixtures.t212 import t212_position
 from tests.helpers import make_txn
 
 
@@ -114,7 +120,7 @@ def _order(ticker, side, qty, price, day, currency="USD", order_id="1"):
 
 def _run_sync(
     db_session, portfolio, orders, dividends=None, fx_map=None, summary=None,
-    summary_error=None,
+    summary_error=None, positions=None, positions_error=None,
 ):
     """Call sync_transactions with the network + yfinance bits patched out.
 
@@ -138,7 +144,12 @@ def _run_sync(
         return_value=account_summary,
         side_effect=summary_error,
     )
-    with summary_patch, \
+    positions_patch = patch(
+        "t212_sync._fetch_positions",
+        return_value=positions if positions is not None else [],
+        side_effect=positions_error,
+    )
+    with summary_patch, positions_patch, \
          patch("routers.broker._fetch_all_orders", return_value=orders), \
          patch("routers.broker._fetch_all_dividends", return_value=dividends or []), \
          patch("routers.broker._split_adjust", return_value=0), \
@@ -444,3 +455,363 @@ class TestStatusDecryptFailure:
         assert result["needs_attention"] is True
         assert result["api_key_preview"] is None
         assert result["last_error"]
+
+
+class TestSyncPersistsPositionsSnapshot:
+    """T212 snapshot-first sync plan (2026-09-20), Task 2: sync fetches
+    positions alongside the account summary, independently of order/dividend
+    history import."""
+
+    @pytest.fixture
+    def connection(self, db_session, default_portfolio):
+        conn = BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                                portfolio_id=default_portfolio.id,
+                                broker="trading212", api_key="k" * 20)
+        db_session.add(conn)
+        db_session.commit()
+        return conn
+
+    def test_sync_persists_positions_and_reports_updated(
+        self, db_session, default_portfolio, connection
+    ):
+        result = _run_sync(
+            db_session, default_portfolio, [],
+            positions=[t212_position(ticker="AAPL_US_EQ", quantity=10.0, averagePrice=150.0)],
+        )
+        assert result["positions_updated"] is True
+        assert result["positions_error"] is None
+        row = db_session.query(BrokerPosition).one()
+        assert row.ticker == "AAPL"
+        assert row.quantity == 10.0
+
+    def test_positions_failure_does_not_block_summary_or_orders(
+        self, db_session, default_portfolio, connection
+    ):
+        result = _run_sync(
+            db_session, default_portfolio,
+            [_order("MSFT", "BUY", 5, 300.0, "2024-06-02")],
+            positions_error=RuntimeError("positions endpoint down"),
+        )
+        assert result["positions_updated"] is False
+        assert result["positions_error"] == "Positions fetch failed: positions endpoint down"
+        assert result["cash_updated"] is True
+        assert result["imported_orders"] == 1
+        assert db_session.query(BrokerPosition).count() == 0
+
+    def test_summary_failure_does_not_block_positions(
+        self, db_session, default_portfolio, connection
+    ):
+        result = _run_sync(
+            db_session, default_portfolio, [],
+            positions=[t212_position(ticker="AAPL_US_EQ")],
+            summary_error=RuntimeError("summary down"),
+        )
+        assert result["cash_updated"] is False
+        assert result["positions_updated"] is True
+        assert db_session.query(BrokerPosition).count() == 1
+
+    def test_sync_replaces_stale_positions(self, db_session, default_portfolio, connection):
+        _run_sync(db_session, default_portfolio, [],
+                  positions=[t212_position(ticker="AAPL_US_EQ")])
+        _run_sync(db_session, default_portfolio, [],
+                  positions=[t212_position(ticker="MSFT_US_EQ")])
+        tickers = {r.ticker for r in db_session.query(BrokerPosition).all()}
+        assert tickers == {"MSFT"}
+
+    def test_sync_persists_expanded_balance_components(
+        self, db_session, default_portfolio, connection
+    ):
+        result = _run_sync(
+            db_session, default_portfolio, [],
+            summary={
+                "cash": {"availableToTrade": 1000.0, "inPies": 300.0, "reservedForOrders": 82.17},
+                "currency": "CZK",
+                "investments": {
+                    "currentValue": 60000.0,
+                    "totalCost": 55000.0,
+                    "unrealizedProfitLoss": 4500.0,
+                    "realizedProfitLoss": 500.0,
+                },
+                "totalValue": 61382.17,
+            },
+        )
+        assert result["cash_updated"] is True
+        balance = db_session.query(BrokerBalance).one()
+        assert balance.cash_available == 1000.0
+        assert balance.cash_in_pies == 300.0
+        assert balance.cash_reserved == pytest.approx(82.17)
+        assert balance.stock_total_cost == 55000.0
+        assert balance.stock_unrealized_pnl == 4500.0
+        assert balance.broker_realized_pnl == 500.0
+
+
+class TestDisconnectAndReconnectClearPositions:
+    def test_disconnect_removes_positions_snapshot(self, db_session, default_portfolio):
+        db_session.add_all([
+            BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                              portfolio_id=default_portfolio.id,
+                              broker="trading212", api_key="k" * 20),
+            BrokerPosition(
+                workspace_id=default_portfolio.workspace_id,
+                portfolio_id=default_portfolio.id,
+                broker="trading212",
+                provider_ticker="AAPL_US_EQ",
+                ticker="AAPL",
+                quantity=1.0,
+                avg_price=100.0,
+                as_of=datetime.now(timezone.utc),
+            ),
+        ])
+        db_session.commit()
+
+        disconnect(db=db_session, portfolio=default_portfolio, _context=None)
+
+        assert db_session.query(BrokerPosition).count() == 0
+
+    def test_reconnect_clears_previous_positions(self, db_session, default_portfolio):
+        db_session.add(BrokerPosition(
+            workspace_id=default_portfolio.workspace_id,
+            portfolio_id=default_portfolio.id,
+            broker="trading212",
+            provider_ticker="AAPL_US_EQ",
+            ticker="AAPL",
+            quantity=1.0,
+            avg_price=100.0,
+            as_of=datetime.now(timezone.utc),
+        ))
+        db_session.commit()
+
+        info_response = MagicMock(status_code=200)
+        with patch("routers.broker.httpx.get", return_value=info_response):
+            connect(
+                payload={"api_key": "new-key-value-1234567890"},
+                db=db_session,
+                portfolio=default_portfolio,
+                _context=None,
+            )
+
+        assert db_session.query(BrokerPosition).count() == 0
+
+
+class TestGetPositionsEndpoint:
+    @pytest.fixture
+    def connection(self, db_session, default_portfolio):
+        conn = BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                                portfolio_id=default_portfolio.id,
+                                broker="trading212", api_key="k" * 20)
+        db_session.add(conn)
+        db_session.commit()
+        return conn
+
+    def test_not_connected_is_unavailable(self, db_session, default_portfolio):
+        result = get_positions(db=db_session, portfolio=default_portfolio)
+        assert result == {"connected": False, "status": "unavailable", "as_of": None, "positions": []}
+
+    def test_connected_but_never_synced_is_unavailable(self, db_session, default_portfolio, connection):
+        result = get_positions(db=db_session, portfolio=default_portfolio)
+        assert result["connected"] is True
+        assert result["status"] == "unavailable"
+        assert result["positions"] == []
+
+    def test_fresh_snapshot_returns_positions_with_native_values(
+        self, db_session, default_portfolio, connection
+    ):
+        db_session.add(BrokerPosition(
+            workspace_id=default_portfolio.workspace_id,
+            portfolio_id=default_portfolio.id,
+            broker="trading212",
+            provider_ticker="AAPL_US_EQ",
+            ticker="AAPL",
+            quantity=10.0,
+            avg_price=150.0,
+            current_price=175.0,
+            ppl=250.0,
+            as_of=datetime.now(timezone.utc),
+        ))
+        db_session.commit()
+
+        result = get_positions(currency="USD", db=db_session, portfolio=default_portfolio)
+
+        assert result["connected"] is True
+        assert result["status"] == "fresh"
+        assert len(result["positions"]) == 1
+        pos = result["positions"][0]
+        assert pos["ticker"] == "AAPL"
+        # No ledger row for AAPL exists, so currency is unknown and values
+        # are reported unconverted (native face value).
+        assert pos["currency"] is None
+        assert pos["market_value"] == pytest.approx(1750.0)
+        assert pos["cost_basis"] == pytest.approx(1500.0)
+        assert pos["pnl"] == pytest.approx(250.0)
+
+    def test_stale_snapshot_reported_as_stale(self, db_session, default_portfolio, connection):
+        db_session.add(BrokerPosition(
+            workspace_id=default_portfolio.workspace_id,
+            portfolio_id=default_portfolio.id,
+            broker="trading212",
+            provider_ticker="AAPL_US_EQ",
+            ticker="AAPL",
+            quantity=10.0,
+            avg_price=150.0,
+            as_of=datetime.now(timezone.utc) - timedelta(hours=26),
+        ))
+        db_session.commit()
+
+        result = get_positions(db=db_session, portfolio=default_portfolio)
+        assert result["status"] == "stale"
+        assert len(result["positions"]) == 1
+
+    def test_derives_currency_from_latest_ledger_row(self, db_session, default_portfolio, pid, connection):
+        db_session.add(make_txn("AAPL", "buy", 5, 140.0, date=date(2024, 1, 1),
+                                currency="USD", portfolio_id=pid))
+        db_session.add(BrokerPosition(
+            workspace_id=default_portfolio.workspace_id,
+            portfolio_id=default_portfolio.id,
+            broker="trading212",
+            provider_ticker="AAPL_US_EQ",
+            ticker="AAPL",
+            quantity=10.0,
+            avg_price=150.0,
+            current_price=175.0,
+            as_of=datetime.now(timezone.utc),
+        ))
+        db_session.commit()
+
+        result = get_positions(currency="USD", db=db_session, portfolio=default_portfolio)
+        assert result["positions"][0]["currency"] == "USD"
+        # Same currency in and out: no FX distortion.
+        assert result["positions"][0]["market_value"] == pytest.approx(1750.0)
+
+
+class TestSyncStartsHistoryRun:
+    """T212 snapshot-first sync plan (2026-09-20), Task 3: sync_transactions
+    starts (or returns the already-active) resumable history run alongside
+    its existing full fetch-and-import behavior."""
+
+    @pytest.fixture
+    def connection(self, db_session, default_portfolio):
+        conn = BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                                portfolio_id=default_portfolio.id,
+                                broker="trading212", api_key="k" * 20)
+        db_session.add(conn)
+        db_session.commit()
+        return conn
+
+    def test_sync_creates_a_run_and_reports_it(self, db_session, default_portfolio, connection):
+        result = _run_sync(db_session, default_portfolio, [])
+        assert result["history_status"] == "pending"
+        run = db_session.query(BrokerSyncRun).one()
+        assert result["history_run_id"] == str(run.public_id)
+        assert run.connection_id == connection.id
+        assert run.credential_generation == connection.credential_generation
+
+    def test_repeated_sync_returns_the_same_run(self, db_session, default_portfolio, connection):
+        first = _run_sync(db_session, default_portfolio, [])
+        second = _run_sync(db_session, default_portfolio, [])
+        assert first["history_run_id"] == second["history_run_id"]
+        assert db_session.query(BrokerSyncRun).count() == 1
+
+
+class TestConnectFencesActiveRuns:
+    def test_rotating_credentials_increments_generation_and_cancels_active_run(
+        self, db_session, default_portfolio
+    ):
+        conn = BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                                portfolio_id=default_portfolio.id,
+                                broker="trading212", api_key="old-key" * 3)
+        db_session.add(conn)
+        db_session.commit()
+        db_session.refresh(conn)
+        original_generation = conn.credential_generation
+        run = BrokerSyncRun(
+            workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+            connection_id=conn.id, broker="trading212",
+            credential_generation=original_generation, mode="incremental", state="fetching",
+        )
+        db_session.add(run)
+        db_session.commit()
+
+        info_response = MagicMock(status_code=200)
+        with patch("routers.broker.httpx.get", return_value=info_response):
+            connect(
+                payload={"api_key": "new-key-value-1234567890"},
+                db=db_session, portfolio=default_portfolio, _context=None,
+            )
+
+        db_session.refresh(conn)
+        db_session.refresh(run)
+        assert conn.credential_generation == original_generation + 1
+        assert run.state == "cancelled"
+
+    def test_fresh_connect_starts_at_generation_one(self, db_session, default_portfolio):
+        info_response = MagicMock(status_code=200)
+        with patch("routers.broker.httpx.get", return_value=info_response):
+            connect(
+                payload={"api_key": "brand-new-key-1234567890"},
+                db=db_session, portfolio=default_portfolio, _context=None,
+            )
+        conn = db_session.query(BrokerConnection).one()
+        assert conn.credential_generation == 1
+
+    def test_completed_run_is_not_cancelled_by_rotation(self, db_session, default_portfolio):
+        conn = BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                                portfolio_id=default_portfolio.id,
+                                broker="trading212", api_key="old-key" * 3)
+        db_session.add(conn)
+        db_session.commit()
+        db_session.refresh(conn)
+        run = BrokerSyncRun(
+            workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+            connection_id=conn.id, broker="trading212",
+            credential_generation=conn.credential_generation, mode="incremental", state="completed",
+        )
+        db_session.add(run)
+        db_session.commit()
+
+        info_response = MagicMock(status_code=200)
+        with patch("routers.broker.httpx.get", return_value=info_response):
+            connect(
+                payload={"api_key": "new-key-value-1234567890"},
+                db=db_session, portfolio=default_portfolio, _context=None,
+            )
+
+        db_session.refresh(run)
+        assert run.state == "completed"
+
+
+class TestGetHistoryStatusEndpoint:
+    def test_not_connected(self, db_session, default_portfolio):
+        result = get_history_status(db=db_session, portfolio=default_portfolio)
+        assert result == {"connected": False, "run": None}
+
+    def test_connected_no_run_yet(self, db_session, default_portfolio):
+        db_session.add(BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                                        portfolio_id=default_portfolio.id,
+                                        broker="trading212", api_key="k" * 20))
+        db_session.commit()
+        result = get_history_status(db=db_session, portfolio=default_portfolio)
+        assert result == {"connected": True, "run": None}
+
+    def test_reports_the_most_recent_run(self, db_session, default_portfolio):
+        conn = BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                                portfolio_id=default_portfolio.id,
+                                broker="trading212", api_key="k" * 20)
+        db_session.add(conn)
+        db_session.commit()
+        db_session.refresh(conn)
+        run = BrokerSyncRun(
+            workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+            connection_id=conn.id, broker="trading212",
+            credential_generation=conn.credential_generation, mode="incremental",
+            state="fetching", orders_loaded=5, dividends_loaded=2, dividends_complete=True,
+        )
+        db_session.add(run)
+        db_session.commit()
+
+        result = get_history_status(db=db_session, portfolio=default_portfolio)
+        assert result["connected"] is True
+        assert result["run"]["id"] == str(run.public_id)
+        assert result["run"]["state"] == "fetching"
+        assert result["run"]["complete"] is False
+        assert result["run"]["orders_loaded"] == 5
+        assert result["run"]["dividends_complete"] is True

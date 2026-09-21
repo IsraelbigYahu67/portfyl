@@ -53,7 +53,7 @@ class Base(DeclarativeBase):
     pass
 
 
-EXPECTED_ALEMBIC_HEAD = "0013_private_beta_invites"
+EXPECTED_ALEMBIC_HEAD = "0016_transaction_provenance"
 
 
 def assert_alembic_head(

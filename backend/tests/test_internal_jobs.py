@@ -176,7 +176,7 @@ class TestEditionConditionalMounting:
             main = _reload_main(monkeypatch, "local")
             monkeypatch.setattr(main, "assert_alembic_head", lambda db: None)
             _run(main._start_background_pollers())
-            assert len(main._BG_TASKS) == 3
+            assert len(main._BG_TASKS) == 4
         finally:
             for task in main._BG_TASKS:
                 task.cancel()

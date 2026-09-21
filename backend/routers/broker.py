@@ -3,103 +3,29 @@ from sqlalchemy.orm import Session
 from datetime import date, datetime, timezone
 from urllib.parse import urlparse, parse_qs
 import httpx
-import base64
 import json
 import os
 import yfinance as yf
 
+import t212_sync
 from audit import record_audit_event
 from database import get_db
 from entitlements import require_broker_capacity, require_capability, require_writable_broker
 from rate_limit import rate_limit
-from fx import bulk_fetch_fx
-from models import BrokerBalance, BrokerConnection, Portfolio, Transaction
+from fx import bulk_fetch_fx, convert_amount
+from models import BrokerBalance, BrokerConnection, BrokerPosition, BrokerSyncRun, Portfolio, Transaction
 from tenancy import RequestContext, require_csrf, require_portfolio
 from cash_ledger import CASH_TYPES
+from t212_sync import (
+    T212_BASES,
+    _CANONICAL_TICKER,
+    _dedup_keys,
+    _normalize_t212_ticker,
+    _t212_base,
+    _t212_headers,
+)
 
 router = APIRouter(prefix="/broker", tags=["broker"])
-
-T212_BASES = {
-    "live": "https://live.trading212.com/api/v0",
-    "demo": "https://demo.trading212.com/api/v0",
-}
-
-
-def _t212_base(environment: str) -> str:
-    return T212_BASES.get(environment, T212_BASES["live"])
-
-
-def _t212_headers(api_key: str, api_secret: str = "") -> dict:
-    if api_secret:
-        credentials = base64.b64encode(f"{api_key}:{api_secret}".encode()).decode()
-        return {"Authorization": f"Basic {credentials}"}
-    return {"Authorization": api_key}
-
-
-_T212_TICKER_RENAMES = {
-    "AGC": "GRAB",
-    "IPOE": "SOFI",
-    "IVAN": "SES",
-    "IPXX": "USAR",
-    "RSTN": "GIFT",
-    "OAC": "HIMS",
-    "LION": "SMX",
-    # SPAC tickers that already de-SPAC'd into the named operating company
-    "SNII": "RGTI",
-    # Renamed US listings that T212 still reports under the old ticker
-    "FB": "META",
-    "PCLN": "BKNG",
-    # Class shares — Yahoo uses dash, T212 uses underscore
-    "BRK_B": "BRK-B",
-    "BRK_A": "BRK-A",
-    # LSE-listed UCITS ETFs whose base ticker doesn't carry a T212 exchange suffix
-    "CSPX": "CSPX.L",
-    "CNDX": "CNDX.L",
-    "IITU": "IITU.L",
-}
-
-# T212 appends a single lowercase letter to denote the listing exchange / currency
-# variant (e.g. NVDd = Nvidia on Xetra). Map each to its Yahoo Finance suffix.
-_T212_EXCHANGE_SUFFIX = {
-    "l": ".L",   # London (GBX)
-    "p": ".L",   # London (GBP)
-    "s": ".L",   # London (USD)
-    "d": ".DE",  # Xetra / Frankfurt
-    "a": ".AS",  # Euronext Amsterdam
-    "m": ".MI",  # Borsa Italiana / Milan
-}
-
-
-def _normalize_t212_ticker(t212_ticker: str) -> str:
-    ticker = t212_ticker.strip()
-    for suffix in ("_US_EQ", "_EQ"):
-        if ticker.endswith(suffix):
-            ticker = ticker[:-len(suffix)]
-            break
-    if ticker in _T212_TICKER_RENAMES:
-        return _T212_TICKER_RENAMES[ticker]
-    # Lowercase trailing letter on an otherwise upper-case ticker = T212 exchange tag.
-    if len(ticker) >= 2 and ticker[-1].islower() and ticker[:-1].isupper():
-        yahoo_suffix = _T212_EXCHANGE_SUFFIX.get(ticker[-1])
-        if yahoo_suffix:
-            return ticker[:-1] + yahoo_suffix
-    return ticker
-
-
-import re as _re
-_CANONICAL_TICKER = _re.compile(r"^[A-Z0-9]+([.\-][A-Z0-9]+)?$")
-
-
-def _dedup_keys(ticker: str, *parts) -> set[str]:
-    """Dedup keys under the row's ticker AND its exchange-suffix-stripped base
-    ('COPM.L' → 'COPM'), so API-normalized tickers match the raw tickers the
-    CSV import stores. Class-share dashes (BRK-B) are left alone."""
-    tail = "_".join(str(p) for p in parts)
-    keys = {f"{ticker}_{tail}"}
-    base = (ticker or "").split(".")[0]
-    if base != ticker:
-        keys.add(f"{base}_{tail}")
-    return keys
 
 
 def _split_adjust(txns_by_ticker: dict) -> int:
@@ -238,6 +164,147 @@ def get_status(
     }
 
 
+@router.get("/trading212/positions")
+def get_positions(
+    currency: str = "USD",
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+):
+    """Current T212 position snapshot (fast path, T212 snapshot-first sync
+    plan §2.1/§2.4) -- independent of and much faster than the full
+    order/dividend history sync. `status` follows the 25-hour freshness
+    rule: `fresh` inside the window, `stale` past it (still returned, since
+    while history is incomplete a stale snapshot is the only current-state
+    evidence), and `unavailable` when nothing has ever been fetched.
+
+    Values are a current-value surface only -- they never substitute for the
+    transaction ledger in historical performance, FIFO, or tax calculations.
+    """
+    conn = _get_connection(db, portfolio)
+    if not conn:
+        return {"connected": False, "status": "unavailable", "as_of": None, "positions": []}
+
+    rows = (
+        db.query(BrokerPosition)
+        .filter(
+            BrokerPosition.workspace_id == portfolio.workspace_id,
+            BrokerPosition.portfolio_id == portfolio.id,
+            BrokerPosition.broker == "trading212",
+        )
+        .order_by(BrokerPosition.ticker)
+        .all()
+    )
+    if not rows:
+        return {"connected": True, "status": "unavailable", "as_of": None, "positions": []}
+
+    as_of = max(r.as_of for r in rows)
+    status = "fresh" if t212_sync.is_snapshot_fresh(as_of) else "stale"
+
+    # /equity/positions carries no instrument currency; best-effort derive it
+    # from the most recent ledger row for the same normalized ticker (if the
+    # account has no ledger history yet, values are reported unconverted in
+    # their instrument-currency face value rather than guessed).
+    tickers = {r.ticker for r in rows}
+    currency_by_ticker: dict[str, str] = {}
+    if tickers:
+        latest_txns = (
+            db.query(Transaction.ticker, Transaction.currency)
+            .filter(
+                Transaction.workspace_id == portfolio.workspace_id,
+                Transaction.portfolio_id == portfolio.id,
+                Transaction.ticker.in_(tickers),
+            )
+            .order_by(Transaction.date.desc())
+            .all()
+        )
+        for t in latest_txns:
+            currency_by_ticker.setdefault(t.ticker, (t.currency or "USD").upper())
+
+    positions = []
+    for r in rows:
+        native_ccy = currency_by_ticker.get(r.ticker)
+        market_value = cost_basis = pnl = None
+        if r.current_price is not None:
+            native_market_value = r.quantity * r.current_price
+            market_value = convert_amount(native_market_value, native_ccy or "USD", currency) if native_ccy else native_market_value
+        native_cost_basis = r.quantity * r.avg_price
+        cost_basis = convert_amount(native_cost_basis, native_ccy or "USD", currency) if native_ccy else native_cost_basis
+        if market_value is not None:
+            pnl = market_value - cost_basis
+        positions.append({
+            "ticker": r.ticker,
+            "provider_ticker": r.provider_ticker,
+            "name": r.name or r.ticker,
+            "currency": native_ccy,
+            "quantity": r.quantity,
+            "pie_quantity": r.pie_quantity,
+            "avg_price": r.avg_price,
+            "current_price": r.current_price,
+            "market_value": market_value,
+            "cost_basis": cost_basis,
+            "pnl": pnl,
+            "pnl_percent": (pnl / cost_basis) if pnl is not None and cost_basis else None,
+            "broker_ppl": r.ppl,
+            "broker_fx_ppl": r.fx_ppl,
+        })
+
+    return {
+        "connected": True,
+        "status": status,
+        "as_of": as_of.isoformat(),
+        "currency": currency,
+        "positions": positions,
+    }
+
+
+@router.get("/trading212/history-status")
+def get_history_status(
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+):
+    """Progress of this connection's most recent resumable history backfill
+    (T212 snapshot-first sync plan, Task 3). `jobs.broker_backfill_pass`
+    advances an active run in the background; this is read-only and never
+    triggers or advances one itself. `complete` mirrors §2.1/§2.2's
+    'history complete' signal other current-value surfaces will eventually
+    gate on -- it means every order/dividend page is staged, not that ledger
+    Transaction rows reflect it yet (that finalization step doesn't exist in
+    this increment)."""
+    conn = _get_connection(db, portfolio)
+    if not conn:
+        return {"connected": False, "run": None}
+
+    run = (
+        db.query(BrokerSyncRun)
+        .filter(
+            BrokerSyncRun.workspace_id == portfolio.workspace_id,
+            BrokerSyncRun.connection_id == conn.id,
+        )
+        .order_by(BrokerSyncRun.created_at.desc())
+        .first()
+    )
+    if run is None:
+        return {"connected": True, "run": None}
+
+    return {
+        "connected": True,
+        "run": {
+            "id": str(run.public_id),
+            "mode": run.mode,
+            "state": run.state,
+            "complete": bool(run.orders_complete and run.dividends_complete),
+            "orders_loaded": run.orders_loaded,
+            "orders_complete": run.orders_complete,
+            "dividends_loaded": run.dividends_loaded,
+            "dividends_complete": run.dividends_complete,
+            "started_at": run.started_at.isoformat() if run.started_at else None,
+            "last_progress_at": run.last_progress_at.isoformat() if run.last_progress_at else None,
+            "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+            "last_error": run.last_error,
+        },
+    }
+
+
 @router.post(
     "/trading212/connect",
     dependencies=[Depends(require_capability("broker_sync")), Depends(require_broker_capacity("trading212"))],
@@ -305,10 +372,26 @@ def connect(
         BrokerBalance.portfolio_id == portfolio.id,
         BrokerBalance.broker == "trading212",
     ).delete(synchronize_session=False)
+    db.query(BrokerPosition).filter(
+        BrokerPosition.workspace_id == portfolio.workspace_id,
+        BrokerPosition.portfolio_id == portfolio.id,
+        BrokerPosition.broker == "trading212",
+    ).delete(synchronize_session=False)
 
     connection = _get_connection(db, portfolio)
     action = "broker.connection.rotated" if connection else "broker.connection.created"
     if connection:
+        # Fence every in-flight history run before mutating credentials
+        # (plan §5.1): an incomplete run must never be resumed under a new
+        # credential generation. Bumping credential_generation here, before
+        # any worker can re-read it, is what makes t212_sync.claim_lease's
+        # generation check in jobs.broker_backfill_pass reliable.
+        db.query(BrokerSyncRun).filter(
+            BrokerSyncRun.workspace_id == portfolio.workspace_id,
+            BrokerSyncRun.connection_id == connection.id,
+            BrokerSyncRun.state.notin_(t212_sync.TERMINAL_RUN_STATES),
+        ).update({"state": "cancelled"}, synchronize_session=False)
+        connection.credential_generation = (connection.credential_generation or 1) + 1
         connection.api_key = api_key
         connection.api_secret = api_secret
         connection.environment = environment
@@ -387,6 +470,11 @@ def disconnect(
         BrokerBalance.portfolio_id == portfolio.id,
         BrokerBalance.broker == "trading212",
     ).delete(synchronize_session=False)
+    db.query(BrokerPosition).filter(
+        BrokerPosition.workspace_id == portfolio.workspace_id,
+        BrokerPosition.portfolio_id == portfolio.id,
+        BrokerPosition.broker == "trading212",
+    ).delete(synchronize_session=False)
     if _context is not None:
         record_audit_event(
             db,
@@ -417,6 +505,16 @@ def sync_transactions(
     errors = []
     cash_updated = False
     cash_error = None
+    positions_updated = False
+    positions_error = None
+
+    # Start (or return the already-active) resumable history run. This is
+    # additive/parallel to the full fetch-and-import below, not a replacement
+    # for it yet -- t212_sync.advance_run only stages raw pages into
+    # BrokerSyncEvent; jobs.broker_backfill_pass, not this request, does the
+    # actual paging (plan §5.4), so creating the run here is a single flush,
+    # never an extra commit inside this request.
+    history_run = t212_sync.claim_or_create_run(db, conn, portfolio)
 
     try:
         orders = _fetch_all_orders(base, headers)
@@ -425,14 +523,24 @@ def sync_transactions(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to fetch orders: {e}")
 
-    try:
-        account_summary = _fetch_account_summary(base, headers)
-        _upsert_t212_balance(db, portfolio, account_summary)
+    # Summary and positions are the fast current-state snapshot (T212
+    # snapshot-first sync plan, 2026-09-20, §5.2): fetched concurrently and
+    # persisted independently, so one endpoint failing never blocks or
+    # discards the other's result.
+    snapshot = t212_sync.fetch_snapshot(base, headers, fetch_summary=_fetch_account_summary)
+    if snapshot.summary is not None:
+        _upsert_t212_balance(db, portfolio, snapshot.summary)
         cash_updated = True
-    except Exception as e:
-        detail = e.detail if isinstance(e, HTTPException) else str(e)
-        cash_error = f"Cash summary fetch failed: {detail}"
+    else:
+        cash_error = f"Cash summary fetch failed: {snapshot.summary_error}"
         errors.append(cash_error)
+
+    if snapshot.positions is not None:
+        t212_sync.replace_positions(db, portfolio, snapshot.positions)
+        positions_updated = True
+    else:
+        positions_error = f"Positions fetch failed: {snapshot.positions_error}"
+        errors.append(positions_error)
 
     existing_sources = set()
     new_orders_by_ticker: dict[str, list[Transaction]] = {}
@@ -673,6 +781,10 @@ def sync_transactions(
         "errors": errors,
         "cash_updated": cash_updated,
         "cash_error": cash_error,
+        "positions_updated": positions_updated,
+        "positions_error": positions_error,
+        "history_run_id": str(history_run.public_id),
+        "history_status": history_run.state,
     }
 
 
@@ -734,8 +846,22 @@ def _upsert_t212_balance(db: Session, portfolio: Portfolio, summary: dict) -> Br
     balance.options_value = None
     balance.net_liquidation = float(summary.get("totalValue") or 0)
     balance.cash_by_currency = json.dumps({currency: cash}) if currency else None
+    # Persist the provider components behind the blended totals above
+    # (T212 snapshot-first sync plan, 2026-09-20, §4.1) -- broker_realized_pnl
+    # is reconciliation-only provenance, never a substitute for Portfyl's own
+    # FIFO realized P/L.
+    balance.cash_available = _optional_float(cash_data.get("availableToTrade"))
+    balance.cash_in_pies = _optional_float(cash_data.get("inPies"))
+    balance.cash_reserved = _optional_float(cash_data.get("reservedForOrders"))
+    balance.stock_total_cost = _optional_float(investments.get("totalCost"))
+    balance.stock_unrealized_pnl = _optional_float(investments.get("unrealizedProfitLoss"))
+    balance.broker_realized_pnl = _optional_float(investments.get("realizedProfitLoss"))
     balance.as_of = date.today()
     return balance
+
+
+def _optional_float(value) -> float | None:
+    return None if value is None else float(value)
 
 
 def _fetch_all_orders(base: str, headers: dict) -> list:
