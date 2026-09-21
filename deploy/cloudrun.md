@@ -402,14 +402,19 @@ gcloud run services update $SERVICE --region=$REGION --update-env-vars="PORTFYL_
 Use `--update-env-vars` here: `--set-env-vars` replaces the whole environment
 map and would remove the KMS settings from step 6.
 
-Then create the five scheduler jobs. Cron expressions mirror today's
+Then create the six scheduler jobs. Cron expressions mirror today's
 poller intervals except autosync: the old 60-second in-process heartbeat
 only existed so `jobs.sync_due()` could catch a due schedule within a
 minute — Cloud Scheduler's minimum useful resolution is coarser than that
 and `sync_due()` already gates the real work, so an hourly trigger is
 enough to catch every configured per-workspace daily-time/interval
 schedule promptly without the wasted invocations a 1-minute cron would
-cost:
+cost. `portfyl-broker-backfill` is the exception -- it drains T212
+`BrokerSyncRun` history backfills (docs/superpowers/plans/2026-09-20-t212-snapshot-first-sync.md,
+Task 3), independent of auto_sync/schedule, and stays on a 1-minute cron
+(Cloud Scheduler's finest resolution) so a freshly connected account's
+history keeps progressing promptly instead of waiting on the next hourly
+tick:
 
 ```powershell
 gcloud scheduler jobs create http portfyl-alerts --location=$REGION --schedule="*/15 * * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/alerts" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
@@ -421,6 +426,8 @@ gcloud scheduler jobs create http portfyl-dividends --location=$REGION --schedul
 gcloud scheduler jobs create http portfyl-rate-limit-cleanup --location=$REGION --schedule="0 * * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/rate_limit_cleanup" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
 
 gcloud scheduler jobs create http portfyl-account-deletion-cleanup --location=$REGION --schedule="17 3 * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/account_deletion_cleanup" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
+
+gcloud scheduler jobs create http portfyl-broker-backfill --location=$REGION --schedule="* * * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/broker_backfill" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
 ```
 
 Verify: `gcloud scheduler jobs run portfyl-alerts --location=$REGION` should
@@ -442,6 +449,13 @@ Before enabling `portfyl-account-deletion-cleanup`, inspect production for due
 requests without mutating them and test the purge state machine on disposable
 fixtures. Its first forced run must report a healthy heartbeat in `/health`;
 never infer completion from Scheduler's run acknowledgement alone.
+For `portfyl-broker-backfill`, connect a disposable T212 demo account and
+confirm `gcloud scheduler jobs run portfyl-broker-backfill --location=$REGION`
+logs a `broker_backfill pass: N event(s)` line tagged with a
+`job-broker_backfill-…` correlation id once a `BrokerSyncRun` exists (created
+by a `POST /api/broker/trading212/sync` call, not by this job), and that
+`GET /api/broker/trading212/history-status` eventually reports
+`"state": "completed"` across several ticks without the browser staying open.
 
 ---
 
