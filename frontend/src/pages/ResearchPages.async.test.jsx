@@ -25,6 +25,7 @@ const api = vi.hoisted(() => ({
   fetchCapabilities: vi.fn(),
   fetchDiscordWebhook: vi.fn(),
   fetchT212Status: vi.fn(),
+  fetchT212HistoryStatus: vi.fn(),
   connectT212: vi.fn(),
   disconnectT212: vi.fn(),
   syncT212: vi.fn(),

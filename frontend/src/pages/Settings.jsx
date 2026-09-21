@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { AlertCircle, Briefcase, CheckCircle2, Eye, EyeOff, Link as LinkIcon, Loader2, RefreshCw, Unlink } from "lucide-react";
+import { AlertCircle, Briefcase, CheckCircle2, Eye, EyeOff, History, Link as LinkIcon, Loader2, RefreshCw, Unlink } from "lucide-react";
 
-import { connectT212, disconnectT212, fetchT212Status, setT212AutoSync, syncT212 } from "../api";
+import { connectT212, disconnectT212, fetchT212HistoryStatus, fetchT212Status, setT212AutoSync, syncT212 } from "../api";
 import { usePortfolio } from "../App";
 import DataPrivacySettings from "../components/DataPrivacySettings";
 import DiscordSettings from "../components/DiscordSettings";
@@ -23,6 +23,56 @@ function SectionHeading({ id, headingRef, children, description }) {
     <div>
       <h2 id={id} ref={headingRef} tabIndex={-1} className="text-xl font-semibold outline-none">{children}</h2>
       <p className="mt-1 text-sm text-muted">{description}</p>
+    </div>
+  );
+}
+
+// A T212 sync now returns a resumable history-backfill run (see
+// docs/superpowers/plans/2026-09-20-t212-snapshot-first-sync.md, Task 3) that
+// a background job keeps advancing after this request returns. This polls
+// its progress while active and stops once it reaches a terminal state.
+const HISTORY_ACTIVE_STATES = new Set(["pending", "fetching", "waiting_rate_limit"]);
+
+const HISTORY_STATE_LABEL = {
+  pending: "Queued",
+  fetching: "Importing history…",
+  waiting_rate_limit: "Waiting for Trading 212…",
+  completed: "History imported",
+  needs_review: "Needs review",
+  failed: "Import failed",
+  cancelled: "Cancelled",
+};
+
+function HistoryBackfillStatus({ enabled }) {
+  const { data } = useQuery({
+    queryKey: ["t212-history-status"],
+    queryFn: fetchT212HistoryStatus,
+    enabled,
+    refetchInterval: (query) => {
+      const state = query.state.data?.run?.state;
+      return state && HISTORY_ACTIVE_STATES.has(state) ? 5000 : false;
+    },
+  });
+
+  const run = data?.run;
+  if (!run) return null;
+
+  const active = HISTORY_ACTIVE_STATES.has(run.state);
+  const label = HISTORY_STATE_LABEL[run.state] ?? run.state;
+
+  return (
+    <div className="space-y-2 rounded-lg bg-surface-hover p-4 text-sm">
+      <div className="flex items-center gap-2">
+        {active ? <Loader2 size={14} className="animate-spin text-brand" aria-hidden="true" /> : <History size={14} className="text-muted" aria-hidden="true" />}
+        <span className="font-medium text-ink">{label}</span>
+      </div>
+      <p className="text-xs text-muted">
+        {run.orders_loaded} order{run.orders_loaded === 1 ? "" : "s"} and {run.dividends_loaded} dividend{run.dividends_loaded === 1 ? "" : "s"} loaded so far.
+        {active && " Continuing in the background — this page can be closed."}
+      </p>
+      {run.last_error && (
+        <p className="flex items-center gap-1.5 text-xs text-loss"><AlertCircle size={12} aria-hidden="true" />{run.last_error}</p>
+      )}
     </div>
   );
 }
@@ -50,7 +100,7 @@ function ConnectionsSettings({ headingRef }) {
       setApiSecret("");
       setActionError(null);
       setSuccess("Connected to Trading 212 successfully");
-      ["t212-status", "transactions", "holdings", "summary", "portfolios"].forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
+      ["t212-status", "t212-history-status", "transactions", "holdings", "summary", "portfolios"].forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
       setTimeout(() => setSuccess(null), 4000);
     },
     onError: (error) => {
@@ -78,7 +128,7 @@ function ConnectionsSettings({ headingRef }) {
     onSuccess: (data) => {
       setActionError(null);
       setSuccess(`Synced ${data.total_imported} transactions (${data.imported_orders} orders, ${data.imported_dividends} dividends)`);
-      ["t212-status", "transactions", "holdings", "summary", "portfolios", "heatmap", "performance", "movers", "earnings", "dividends", "insider-buys"]
+      ["t212-status", "t212-history-status", "transactions", "holdings", "summary", "portfolios", "heatmap", "performance", "movers", "earnings", "dividends", "insider-buys"]
         .forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
       setTimeout(() => setSuccess(null), 6000);
       if (data.total_imported > 0) recordPortfolioDataImported("broker");
@@ -151,6 +201,7 @@ function ConnectionsSettings({ headingRef }) {
                 <div className="flex justify-between"><span className="text-muted">Connected since</span><span>{status.connected_at ? new Date(status.connected_at).toLocaleDateString() : "—"}</span></div>
                 <div className="flex items-center justify-between pt-1"><span className="text-muted">Auto-sync <span className="ml-2 text-xs">checks on the schedule below</span></span><Toggle checked={status.auto_sync} onChange={(value) => autoSyncMutation.mutate(value)} disabled={autoSyncMutation.isPending} aria-label="T212 auto-sync" /></div>
               </div>
+              <HistoryBackfillStatus enabled={connected} />
               <div className="flex gap-3">
                 <button type="button" onClick={() => syncMutation.mutate()} disabled={busy} className="flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40">{syncMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}Sync now</button>
                 <button type="button" onClick={() => disconnectMutation.mutate()} disabled={busy} className="flex items-center gap-2 rounded-lg border border-red-200 px-5 py-2.5 text-sm font-semibold text-red-600 disabled:opacity-40">{disconnectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Unlink size={16} />}Disconnect</button>

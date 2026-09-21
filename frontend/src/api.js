@@ -297,6 +297,10 @@ export const disconnectT212 = () => api.delete("/broker/trading212/connect").the
 export const syncT212 = () => api.post("/broker/trading212/sync").then((r) => r.data);
 export const setT212AutoSync = (enabled) =>
   api.post("/broker/trading212/auto-sync", { enabled }).then((r) => r.data);
+export const fetchT212Positions = (currency = "USD") =>
+  api.get("/broker/trading212/positions", { params: { currency } }).then((r) => r.data);
+export const fetchT212HistoryStatus = () =>
+  api.get("/broker/trading212/history-status").then((r) => r.data);
 
 export const fetchCombinedSummary = (currency = "USD") =>
   api.get(`/portfolio/combined-summary`, { params: { currency } }).then((r) => r.data);

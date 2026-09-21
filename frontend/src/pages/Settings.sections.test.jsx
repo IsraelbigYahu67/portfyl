@@ -6,6 +6,7 @@ import Settings from "./Settings";
 
 const mocks = vi.hoisted(() => ({
   fetchT212Status: vi.fn(),
+  fetchT212HistoryStatus: vi.fn(),
   syncT212: vi.fn(),
   discordMount: vi.fn(),
   dataMount: vi.fn(),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../api", () => ({
   fetchT212Status: mocks.fetchT212Status,
+  fetchT212HistoryStatus: mocks.fetchT212HistoryStatus,
   connectT212: vi.fn(),
   disconnectT212: vi.fn(),
   syncT212: mocks.syncT212,
@@ -54,6 +56,7 @@ function mount(path) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.fetchT212Status.mockResolvedValue({ connected: false });
+  mocks.fetchT212HistoryStatus.mockResolvedValue({ connected: false, run: null });
 });
 
 it.each([
@@ -131,5 +134,67 @@ describe("Trading 212 sync activation measurement", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Sync failed");
     expect(mocks.recordPortfolioDataImported).not.toHaveBeenCalled();
+  });
+});
+
+describe("Trading 212 history backfill progress", () => {
+  beforeEach(() => {
+    mocks.fetchT212Status.mockResolvedValue({ connected: true, auto_sync: false, api_key_preview: "••••1234" });
+  });
+
+  it("shows nothing when no run has ever been created", async () => {
+    mocks.fetchT212HistoryStatus.mockResolvedValue({ connected: true, run: null });
+    mount("/settings?section=connections");
+
+    await screen.findByText("Connected");
+    expect(screen.queryByText(/Importing history/i)).not.toBeInTheDocument();
+  });
+
+  it("shows in-progress state and the loaded counts", async () => {
+    mocks.fetchT212HistoryStatus.mockResolvedValue({
+      connected: true,
+      run: {
+        id: "run-1", mode: "incremental", state: "fetching", complete: false,
+        orders_loaded: 12, orders_complete: false, dividends_loaded: 4, dividends_complete: false,
+        started_at: "2026-09-21T10:00:00Z", last_progress_at: "2026-09-21T10:05:00Z",
+        completed_at: null, last_error: null,
+      },
+    });
+    mount("/settings?section=connections");
+
+    expect(await screen.findByText("Importing history…")).toBeInTheDocument();
+    expect(screen.getByText(/12 orders and 4 dividends loaded so far/i)).toBeInTheDocument();
+    expect(screen.getByText(/this page can be closed/i)).toBeInTheDocument();
+  });
+
+  it("shows the completed state without the background-continuing hint", async () => {
+    mocks.fetchT212HistoryStatus.mockResolvedValue({
+      connected: true,
+      run: {
+        id: "run-1", mode: "incremental", state: "completed", complete: true,
+        orders_loaded: 40, orders_complete: true, dividends_loaded: 10, dividends_complete: true,
+        started_at: "2026-09-21T10:00:00Z", last_progress_at: "2026-09-21T10:05:00Z",
+        completed_at: "2026-09-21T10:06:00Z", last_error: null,
+      },
+    });
+    mount("/settings?section=connections");
+
+    expect(await screen.findByText("History imported")).toBeInTheDocument();
+    expect(screen.queryByText(/this page can be closed/i)).not.toBeInTheDocument();
+  });
+
+  it("surfaces a persisted error even while still retrying", async () => {
+    mocks.fetchT212HistoryStatus.mockResolvedValue({
+      connected: true,
+      run: {
+        id: "run-1", mode: "incremental", state: "fetching", complete: false,
+        orders_loaded: 5, orders_complete: false, dividends_loaded: 0, dividends_complete: false,
+        started_at: "2026-09-21T10:00:00Z", last_progress_at: "2026-09-21T10:01:00Z",
+        completed_at: null, last_error: "temporary upstream error",
+      },
+    });
+    mount("/settings?section=connections");
+
+    expect(await screen.findByText("temporary upstream error")).toBeInTheDocument();
   });
 });
