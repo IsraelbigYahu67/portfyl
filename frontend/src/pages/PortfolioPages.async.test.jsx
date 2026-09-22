@@ -32,6 +32,7 @@ vi.mock("../components/StockDetail", () => ({
 vi.mock("../components/BreakdownChart", () => ({
   default: ({ title }) => <div>{title}</div>,
 }));
+vi.mock("../components/T212SnapshotPositions", () => ({ default: () => null }));
 vi.mock("../components/TradeNoteModal", () => ({ default: () => null }));
 vi.mock("../components/ui/ConfirmDialog", () => ({ useConfirm: () => vi.fn() }));
 vi.mock("../components/ui/Toast", () => ({

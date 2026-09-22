@@ -10,6 +10,7 @@ import BreakdownChart from "../components/BreakdownChart";
 import AllocationBreakdownList from "../components/AllocationBreakdownList";
 import SegmentedControl from "../components/ui/SegmentedControl";
 import { AsyncSection } from "../components/ui";
+import T212SnapshotPositions from "../components/T212SnapshotPositions";
 
 const fmtPct = (n) => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
 
@@ -109,6 +110,8 @@ export default function Allocation() {
           Refresh prices
         </button>
       </div>
+
+      <T212SnapshotPositions currency={currency} />
 
       <AsyncSection
         isLoading={breakdownLoading || holdingsLoading}

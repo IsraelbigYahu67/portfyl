@@ -9,7 +9,10 @@ const api = vi.hoisted(() => ({
 }));
 
 vi.mock("../api", () => api);
-vi.mock("../App", () => ({ useCurrency: () => ({ currency: "USD", rate: 22 }) }));
+vi.mock("../App", () => ({
+  useCurrency: () => ({ currency: "USD", rate: 22 }),
+}));
+vi.mock("../components/T212SnapshotPositions", () => ({ default: () => null }));
 vi.mock("../components/StockDetail", () => ({
   TickerLink: ({ ticker, children }) => <span>{children || ticker}</span>,
   useStockDetail: () => ({ openStock: vi.fn() }),

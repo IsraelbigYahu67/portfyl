@@ -14,11 +14,10 @@ import {
   fetchCashHistory,
   fetchCashReconciliation,
   fetchInterestRates,
-  fetchT212Status,
   saveInterestRates,
-  syncT212,
 } from "../api";
 import { useCurrency } from "../App";
+import { useT212Sync } from "../hooks/useT212Sync";
 import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/Toast";
 
@@ -204,7 +203,7 @@ export default function Cash() {
     queryKey: ["cash-reconciliation", currency],
     queryFn: () => fetchCashReconciliation(currency),
   });
-  const t212Status = useQuery({ queryKey: ["t212-status"], queryFn: fetchT212Status });
+  const { status: t212Status, sync } = useT212Sync({ includeHistory: false });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["cash"] });
@@ -224,12 +223,10 @@ export default function Cash() {
     onError: (err) =>
       toast.error(err?.response?.data?.detail || "Failed to delete cash entry"),
   });
-  const sync = useMutation({
-    mutationFn: syncT212,
-    onSuccess: () => {
-      invalidate();
-      qc.invalidateQueries({ queryKey: ["t212-status"] });
-      toast.success("Synced with Trading 212");
+  const handleSync = () => sync.mutate(undefined, {
+    onSuccess: (result) => {
+      if (result.cash_error) toast.error("Trading 212 balance could not be refreshed.");
+      else toast.success("Synced with Trading 212");
     },
     onError: (err) => toast.error(err?.response?.data?.detail || "Sync failed"),
   });
@@ -263,7 +260,7 @@ export default function Cash() {
         onRetry={reconciliation.refetch}
         connected={t212Status.data?.connected === true}
         currency={currency}
-        onSync={() => sync.mutate()}
+        onSync={handleSync}
         syncing={sync.isPending}
       />
 

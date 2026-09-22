@@ -4,7 +4,8 @@
 (fast snapshot), a scoped Task 3 (resumable history runs), and a scoped Task 4
 slice (finalize into ledger rows) are done and tested (fast suite +
 PostgreSQL/RLS/cross-tenant suite, including a real Cloud Scheduler-shaped
-multi-commit RLS reassertion proof for the new job).
+multi-commit RLS reassertion proof for the new job). A separate Task 6
+frontend slice is also implemented and tested.
 
 - **Task 2**: `backend/t212_sync.py`, the `BrokerPosition` model and
   `0014_broker_positions` migration (forced RLS, grants, cascade, workspace
@@ -70,8 +71,22 @@ serialize `finalize_run` against CSV commit/undo themselves; import
 undo/workspace-export provenance preservation; and, as above, `finalize_run`
 is not wired into `broker_backfill` or any other automatic trigger.
 
-Task 5 (incremental sync + audits) and Task 6 (frontend workflow UX) are not
-started.
+- **Task 6 (frontend slice, 2026-09-22)**: `useT212Sync` now shares
+  portfolio-scoped connection, sync, snapshot, and history state across
+  Settings, Cash, and Allocation. Active history runs poll every 5 seconds
+  (30 seconds during a provider rate-limit wait). Allocation shows current
+  Trading 212 positions in a separate, source-labelled snapshot card, with
+  freshness, missing-price, and unknown-currency states; it does not feed
+  historical allocation or performance. The UI labels a completed history
+  run as fetched but awaiting ledger processing, matching the current backend
+  contract. Credentials stay out of the React Query mutation cache.
+
+Task 5 (incremental sync + audits) has not started. Task 6 still needs the
+remaining Dashboard/assistant/dividend-notification integration, full
+historical-data availability states, and browser verification with a verified
+Firebase test account. The initial `POST /trading212/sync` still fetches the
+legacy full order history before persisting the snapshot; the separate
+Allocation card therefore does not make the first sync fast yet.
 
 **Goal:** Make a newly connected Trading 212 portfolio useful within seconds.
 Load current positions and account value first, then backfill complete,

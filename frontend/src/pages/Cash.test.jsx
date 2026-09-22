@@ -1,19 +1,28 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import Cash from "./Cash";
-import { fetchCashReconciliation, fetchT212Status } from "../api";
+import { fetchCashReconciliation, fetchT212Status, syncT212 } from "../api";
+
+const toastError = vi.hoisted(() => vi.fn());
 
 // Mock the api module so no network is hit. Cash.jsx reads the active display
-// currency via useCurrency() from ../App, which returns null outside of
-// CurrencyProvider — Cash.jsx already falls back to "USD" in that case, so no
-// mock of ../App is needed here.
+// currency and active portfolio via ../App.
+vi.mock("../App", () => ({
+  useCurrency: () => ({ currency: "USD" }),
+  usePortfolio: () => ({ current: { id: "portfolio-1" } }),
+}));
 vi.mock("../api", () => ({
   fetchCash: () => Promise.resolve([]),
   fetchCashBalance: () => Promise.resolve({ total: 0, total_accrued: 0, by_currency: {} }),
   fetchCashHistory: () => Promise.resolve({ currency: "USD", series: [] }),
   fetchCashReconciliation: vi.fn(),
   fetchT212Status: vi.fn(),
+  fetchT212HistoryStatus: () => Promise.resolve({ connected: true, run: null }),
+  fetchT212Positions: vi.fn(),
+  connectT212: vi.fn(),
+  disconnectT212: vi.fn(),
+  setT212AutoSync: vi.fn(),
   syncT212: vi.fn(),
   createCash: vi.fn(),
   deleteCash: vi.fn(),
@@ -28,7 +37,7 @@ vi.mock("../components/ui/ConfirmDialog", () => ({
   useConfirm: () => () => Promise.resolve(true),
 }));
 vi.mock("../components/ui/Toast", () => ({
-  useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), dismiss: vi.fn() }),
+  useToast: () => ({ success: vi.fn(), error: toastError, info: vi.fn(), dismiss: vi.fn() }),
 }));
 
 const UNAVAILABLE_RECONCILIATION = {
@@ -56,6 +65,8 @@ function renderCash() {
 
 describe("Cash", () => {
   beforeEach(() => {
+    toastError.mockReset();
+    syncT212.mockReset();
     fetchCashReconciliation.mockReset().mockResolvedValue(UNAVAILABLE_RECONCILIATION);
     fetchT212Status.mockReset().mockResolvedValue({ connected: false });
   });
@@ -76,6 +87,15 @@ describe("Cash", () => {
     renderCash();
     expect(await screen.findByText(/No Trading 212 balance synced yet/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /sync now/i })).toBeInTheDocument();
+  });
+
+  it("reports a broker cash refresh error even when the sync request succeeds", async () => {
+    fetchT212Status.mockResolvedValue({ connected: true });
+    syncT212.mockResolvedValue({ total_imported: 0, cash_updated: false, cash_error: "Cash summary fetch failed" });
+    renderCash();
+
+    fireEvent.click(await screen.findByRole("button", { name: /sync now/i }));
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Trading 212 balance could not be refreshed."));
   });
 
   it("flags a reconciliation difference with sync and import actions, never auto-fixing", async () => {

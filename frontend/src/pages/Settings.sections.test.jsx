@@ -162,8 +162,8 @@ describe("Trading 212 history backfill progress", () => {
     });
     mount("/settings?section=connections");
 
-    expect(await screen.findByText("Importing history…")).toBeInTheDocument();
-    expect(screen.getByText(/12 orders and 4 dividends loaded so far/i)).toBeInTheDocument();
+    expect(await screen.findByText("Fetching history…")).toBeInTheDocument();
+    expect(screen.getByText(/12 orders and 4 dividends fetched so far/i)).toBeInTheDocument();
     expect(screen.getByText(/this page can be closed/i)).toBeInTheDocument();
   });
 
@@ -179,7 +179,7 @@ describe("Trading 212 history backfill progress", () => {
     });
     mount("/settings?section=connections");
 
-    expect(await screen.findByText("History imported")).toBeInTheDocument();
+    expect(await screen.findByText("History fetched; processing pending")).toBeInTheDocument();
     expect(screen.queryByText(/this page can be closed/i)).not.toBeInTheDocument();
   });
 
@@ -195,6 +195,6 @@ describe("Trading 212 history backfill progress", () => {
     });
     mount("/settings?section=connections");
 
-    expect(await screen.findByText("temporary upstream error")).toBeInTheDocument();
+    expect(await screen.findByText(/Trading 212 encountered an error while fetching history/i)).toBeInTheDocument();
   });
 });

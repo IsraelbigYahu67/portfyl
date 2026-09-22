@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { AlertCircle, Briefcase, CheckCircle2, Eye, EyeOff, History, Link as LinkIcon, Loader2, RefreshCw, Unlink } from "lucide-react";
 
-import { connectT212, disconnectT212, fetchT212HistoryStatus, fetchT212Status, setT212AutoSync, syncT212 } from "../api";
 import { usePortfolio } from "../App";
+import { useT212Sync } from "../hooks/useT212Sync";
 import DataPrivacySettings from "../components/DataPrivacySettings";
 import DiscordSettings from "../components/DiscordSettings";
 import PreferencesSettings from "../components/settings/PreferencesSettings";
@@ -27,34 +26,21 @@ function SectionHeading({ id, headingRef, children, description }) {
   );
 }
 
-// A T212 sync now returns a resumable history-backfill run (see
-// docs/superpowers/plans/2026-09-20-t212-snapshot-first-sync.md, Task 3) that
-// a background job keeps advancing after this request returns. This polls
-// its progress while active and stops once it reaches a terminal state.
 const HISTORY_ACTIVE_STATES = new Set(["pending", "fetching", "waiting_rate_limit"]);
 
 const HISTORY_STATE_LABEL = {
   pending: "Queued",
-  fetching: "Importing history…",
+  fetching: "Fetching history…",
   waiting_rate_limit: "Waiting for Trading 212…",
-  completed: "History imported",
+  completed: "History fetched; processing pending",
   needs_review: "Needs review",
-  failed: "Import failed",
+  failed: "History fetch failed",
   cancelled: "Cancelled",
 };
 
-function HistoryBackfillStatus({ enabled }) {
-  const { data } = useQuery({
-    queryKey: ["t212-history-status"],
-    queryFn: fetchT212HistoryStatus,
-    enabled,
-    refetchInterval: (query) => {
-      const state = query.state.data?.run?.state;
-      return state && HISTORY_ACTIVE_STATES.has(state) ? 5000 : false;
-    },
-  });
-
-  const run = data?.run;
+function HistoryBackfillStatus({ history }) {
+  if (history.isError) return <p role="alert" className="text-sm text-loss">Could not load history progress.</p>;
+  const run = history.data?.run;
   if (!run) return null;
 
   const active = HISTORY_ACTIVE_STATES.has(run.state);
@@ -67,18 +53,17 @@ function HistoryBackfillStatus({ enabled }) {
         <span className="font-medium text-ink">{label}</span>
       </div>
       <p className="text-xs text-muted">
-        {run.orders_loaded} order{run.orders_loaded === 1 ? "" : "s"} and {run.dividends_loaded} dividend{run.dividends_loaded === 1 ? "" : "s"} loaded so far.
+        {run.orders_loaded} order{run.orders_loaded === 1 ? "" : "s"} and {run.dividends_loaded} dividend{run.dividends_loaded === 1 ? "" : "s"} fetched so far.
         {active && " Continuing in the background — this page can be closed."}
       </p>
       {run.last_error && (
-        <p className="flex items-center gap-1.5 text-xs text-loss"><AlertCircle size={12} aria-hidden="true" />{run.last_error}</p>
+        <p className="flex items-center gap-1.5 text-xs text-loss"><AlertCircle size={12} aria-hidden="true" />Trading 212 encountered an error while fetching history.</p>
       )}
     </div>
   );
 }
 
 function ConnectionsSettings({ headingRef }) {
-  const queryClient = useQueryClient();
   const { current: currentPortfolio } = usePortfolio();
   const { recordPortfolioDataImported } = useRegisteredActivation();
   const [apiKey, setApiKey] = useState("");
@@ -87,20 +72,19 @@ function ConnectionsSettings({ headingRef }) {
   const [actionError, setActionError] = useState(null);
   const [success, setSuccess] = useState(null);
 
-  const { data: status, isLoading, error: statusError, refetch: refetchStatus } = useQuery({
-    queryKey: ["t212-status", currentPortfolio?.id],
-    queryFn: fetchT212Status,
-    enabled: currentPortfolio?.id != null,
-  });
+  const {
+    status: statusQuery, history, connected,
+    connect: connectMutation, disconnect: disconnectMutation,
+    sync: syncMutation, autoSync: autoSyncMutation,
+  } = useT212Sync();
+  const { data: status, isLoading, error: statusError, refetch: refetchStatus } = statusQuery;
 
-  const connectMutation = useMutation({
-    mutationFn: () => connectT212(apiKey, apiSecret),
+  const handleConnect = () => connectMutation.mutate({ apiKey, apiSecret }, {
     onSuccess: () => {
       setApiKey("");
       setApiSecret("");
       setActionError(null);
       setSuccess("Connected to Trading 212 successfully");
-      ["t212-status", "t212-history-status", "transactions", "holdings", "summary", "portfolios"].forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
       setTimeout(() => setSuccess(null), 4000);
     },
     onError: (error) => {
@@ -109,12 +93,10 @@ function ConnectionsSettings({ headingRef }) {
     },
   });
 
-  const disconnectMutation = useMutation({
-    mutationFn: disconnectT212,
+  const handleDisconnect = () => disconnectMutation.mutate(undefined, {
     onSuccess: () => {
       setActionError(null);
       setSuccess("Disconnected from Trading 212");
-      queryClient.invalidateQueries({ queryKey: ["t212-status"] });
       setTimeout(() => setSuccess(null), 4000);
     },
     onError: (error) => {
@@ -123,13 +105,10 @@ function ConnectionsSettings({ headingRef }) {
     },
   });
 
-  const syncMutation = useMutation({
-    mutationFn: syncT212,
+  const handleSync = () => syncMutation.mutate(undefined, {
     onSuccess: (data) => {
-      setActionError(null);
+      setActionError(data.positions_error || data.cash_error ? "Some current broker data could not be refreshed. Try syncing again." : null);
       setSuccess(`Synced ${data.total_imported} transactions (${data.imported_orders} orders, ${data.imported_dividends} dividends)`);
-      ["t212-status", "t212-history-status", "transactions", "holdings", "summary", "portfolios", "heatmap", "performance", "movers", "earnings", "dividends", "insider-buys"]
-        .forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
       setTimeout(() => setSuccess(null), 6000);
       if (data.total_imported > 0) recordPortfolioDataImported("broker");
     },
@@ -139,13 +118,10 @@ function ConnectionsSettings({ headingRef }) {
     },
   });
 
-  const autoSyncMutation = useMutation({
-    mutationFn: setT212AutoSync,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["t212-status"] }),
+  const handleAutoSync = (value) => autoSyncMutation.mutate(value, {
     onError: (error) => setActionError(getApiErrorMessage(error, "Failed to update auto-sync")),
   });
 
-  const connected = status?.connected === true;
   const busy = connectMutation.isPending || disconnectMutation.isPending || syncMutation.isPending;
 
   return (
@@ -188,7 +164,7 @@ function ConnectionsSettings({ headingRef }) {
                 <label htmlFor="t212-api-secret" className="mb-1.5 block text-sm text-muted">API Secret</label>
                 <input id="t212-api-secret" type="password" value={apiSecret} onChange={(event) => setApiSecret(event.target.value)} placeholder="Paste your Trading 212 API secret" className="w-full rounded-lg border border-surface-border bg-surface px-4 py-2.5 text-sm" />
               </div>
-              <button type="button" onClick={() => connectMutation.mutate()} disabled={!apiKey.trim() || !apiSecret.trim() || busy} className="flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40">{connectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} />}Connect</button>
+              <button type="button" onClick={handleConnect} disabled={!apiKey.trim() || !apiSecret.trim() || busy} className="flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40">{connectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} />}Connect</button>
             </div>
           )}
 
@@ -199,12 +175,12 @@ function ConnectionsSettings({ headingRef }) {
                 <div className="flex justify-between"><span className="text-muted">API Key</span><span className="font-mono text-ink">{status.api_key_preview}</span></div>
                 {status.last_synced_at && <div className="flex justify-between"><span className="text-muted">Last synced</span><span>{new Date(status.last_synced_at).toLocaleString()}</span></div>}
                 <div className="flex justify-between"><span className="text-muted">Connected since</span><span>{status.connected_at ? new Date(status.connected_at).toLocaleDateString() : "—"}</span></div>
-                <div className="flex items-center justify-between pt-1"><span className="text-muted">Auto-sync <span className="ml-2 text-xs">checks on the schedule below</span></span><Toggle checked={status.auto_sync} onChange={(value) => autoSyncMutation.mutate(value)} disabled={autoSyncMutation.isPending} aria-label="T212 auto-sync" /></div>
+                <div className="flex items-center justify-between pt-1"><span className="text-muted">Auto-sync <span className="ml-2 text-xs">checks on the schedule below</span></span><Toggle checked={status.auto_sync} onChange={handleAutoSync} disabled={autoSyncMutation.isPending} aria-label="T212 auto-sync" /></div>
               </div>
-              <HistoryBackfillStatus enabled={connected} />
+              <HistoryBackfillStatus history={history} />
               <div className="flex gap-3">
-                <button type="button" onClick={() => syncMutation.mutate()} disabled={busy} className="flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40">{syncMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}Sync now</button>
-                <button type="button" onClick={() => disconnectMutation.mutate()} disabled={busy} className="flex items-center gap-2 rounded-lg border border-red-200 px-5 py-2.5 text-sm font-semibold text-red-600 disabled:opacity-40">{disconnectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Unlink size={16} />}Disconnect</button>
+                <button type="button" onClick={handleSync} disabled={busy} className="flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40">{syncMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}Sync now</button>
+                <button type="button" onClick={handleDisconnect} disabled={busy} className="flex items-center gap-2 rounded-lg border border-red-200 px-5 py-2.5 text-sm font-semibold text-red-600 disabled:opacity-40">{disconnectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Unlink size={16} />}Disconnect</button>
               </div>
             </div>
           )}
