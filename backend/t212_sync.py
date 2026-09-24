@@ -294,6 +294,10 @@ def is_snapshot_fresh(as_of: datetime | None, *, now: datetime | None = None) ->
 
 STREAMS = ("orders", "dividends")
 TERMINAL_RUN_STATES = ("completed", "failed", "cancelled", "needs_review")
+REVIEW_DETAILS_LIMIT = 50
+# fill.type values finalize_run can transform. Empty until gate G1 (plan
+# 2026-09-24 Task A2) is signed off and Task B3 lands.
+SUPPORTED_CORPORATE_ACTION_TYPES: frozenset[str] = frozenset()
 HISTORY_RETRY_ERROR = "Trading 212 history sync will retry automatically."
 HISTORY_NEEDS_REVIEW_ERROR = (
     "Trading 212 history contains corporate actions (such as splits) that "
@@ -740,15 +744,40 @@ def _is_csv_covered(event: BrokerSyncEvent, csv_covered_through: datetime | None
     return event_time is not None and event_time <= csv_covered_through
 
 
+def _review_details(events: list[BrokerSyncEvent]) -> list[dict]:
+    """Payload-free, bounded summary of the events that blocked a run: fill
+    type, normalized ticker and calendar date only -- never the raw payload."""
+    seen: set[tuple] = set()
+    details: list[dict] = []
+    for event in events:
+        order = (event.raw_payload or {}).get("order") or {}
+        raw_ticker = (order.get("ticker") or "").strip()
+        when = _staged_event_time(event)
+        item = {
+            "fill_type": _corporate_action_type(event),
+            "ticker": _normalize_t212_ticker(raw_ticker) if raw_ticker else None,
+            "date": when.date().isoformat() if when else None,
+        }
+        key = (item["fill_type"], item["ticker"], item["date"])
+        if key not in seen:
+            seen.add(key)
+            details.append(item)
+    details.sort(key=lambda d: (d["date"] or "", d["fill_type"] or "", d["ticker"] or ""))
+    return details[:REVIEW_DETAILS_LIMIT]
+
+
 def _send_run_to_needs_review(
-    db: Session, run: BrokerSyncRun, action_types: list[str],
+    db: Session, run: BrokerSyncRun, events: list[BrokerSyncEvent],
 ) -> FinalizeResult:
     """Terminal state for a run whose staged history holds corporate actions
     no mapper supports yet (plan §6.2.8). Nothing is written to the ledger, no
     completion or sync marker is set, and the run is not retried: importing
-    only the ordinary trades would leave pre-action share counts unadjusted."""
+    only the ordinary trades would leave pre-action share counts unadjusted.
+    `events` are the blocking events; only a bounded summary is persisted."""
+    action_types = sorted({_corporate_action_type(e) for e in events} - {None})
     run.state = "needs_review"
     run.last_error = HISTORY_NEEDS_REVIEW_ERROR
+    run.review_details = _review_details(events)
     run.lease_token = None
     run.lease_expires_at = None
     try:
@@ -1009,13 +1038,14 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
     # A retry of an already-completed run keeps its idempotent behavior; only
     # a first finalization can be refused for unsupported corporate actions.
     if run.state == "finalizing":
-        unsupported = sorted({
-            action for event in events
+        unsupported_events = [
+            event for event in events
             if (action := _corporate_action_type(event)) is not None
+            and action not in SUPPORTED_CORPORATE_ACTION_TYPES
             and not _is_csv_covered(event, csv_covered_through)
-        })
-        if unsupported:
-            return _send_run_to_needs_review(db, run, unsupported)
+        ]
+        if unsupported_events:
+            return _send_run_to_needs_review(db, run, unsupported_events)
 
     existing_txns = (
         db.query(Transaction)

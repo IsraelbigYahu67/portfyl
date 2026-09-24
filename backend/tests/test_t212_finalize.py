@@ -213,6 +213,23 @@ class TestFinalizeOrders:
         assert connection.last_synced_at is None
         assert db_session.query(Transaction).count() == 0
 
+    def test_needs_review_records_bounded_review_details(
+        self, db_session, default_portfolio, completed_run
+    ):
+        _order_event(db_session, completed_run, event_id="fill:a",
+                     ticker="NVDA_US_EQ", day="2024-06-10", fill_type="STOCK_SPLIT")
+        _order_event(db_session, completed_run, event_id="fill:b",
+                     ticker="GE_US_EQ", day="2024-04-02", fill_type="SPIN_OFF")
+
+        t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        db_session.refresh(completed_run)
+        assert completed_run.review_details == [
+            {"fill_type": "SPIN_OFF", "ticker": "GE", "date": "2024-04-02"},
+            {"fill_type": "STOCK_SPLIT", "ticker": "NVDA", "date": "2024-06-10"},
+        ]
+        assert all(set(d) == {"fill_type", "ticker", "date"} for d in completed_run.review_details)
+
     @pytest.mark.parametrize("fill_type", [
         "STOCK_SPLIT", "STOCK_DISTRIBUTION", "FOP", "FOP_CORRECTION",
         "CUSTOM_STOCK_DISTRIBUTION", "EQUITY_RIGHTS", "SCRIP_STOCK_DIVIDENDS",

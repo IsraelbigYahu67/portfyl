@@ -53,7 +53,7 @@ class Base(DeclarativeBase):
     pass
 
 
-EXPECTED_ALEMBIC_HEAD = "0018_t212_account_binding"
+EXPECTED_ALEMBIC_HEAD = "0019_sync_run_review_details"
 
 
 def assert_alembic_head(

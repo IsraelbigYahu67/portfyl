@@ -800,6 +800,9 @@ class BrokerSyncRun(Base):
     last_progress_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     last_error = Column(String, nullable=True)
+    # Bounded, payload-free summary of why a run ended in needs_review
+    # (fill type, normalized ticker, date). Never the raw provider payload.
+    review_details = Column(JSON, nullable=True)
     retry_count = Column(Integer, nullable=False, default=0, server_default="0")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
