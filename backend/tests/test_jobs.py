@@ -627,6 +627,7 @@ class TestAccountDeletionCleanupPass:
                 "usage_reservations": 0,
                 "notification_outbox": 0,
                 "dividend_notifications": 0,
+                "broker_sync_events": 0,
             }),
         )
         identity_admin = object()
@@ -663,6 +664,7 @@ class TestAccountDeletionCleanupPass:
                 "usage_reservations": 0,
                 "notification_outbox": 0,
                 "dividend_notifications": 0,
+                "broker_sync_events": 0,
             }),
         )
 
