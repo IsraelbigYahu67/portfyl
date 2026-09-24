@@ -274,6 +274,36 @@ def _reconcile_history(
     )
 
 
+def _reconciliation_mismatch(db: Session, portfolio: Portfolio, conn: BrokerConnection) -> bool:
+    """True when the ledger, as of the latest completed history run, disagrees
+    with the positions snapshot this sync just refreshed -- the trigger for an
+    immediate audit (parent plan §7), since only a full re-read can reveal old
+    events the incremental stop rule skipped. Not asked again while a full
+    read is younger than t212_sync.RECONCILIATION_AUDIT_COOLDOWN: it already
+    saw everything the provider has, so a lingering mismatch has another cause."""
+    last_read = t212_sync.last_full_read_at(conn)
+    if (
+        last_read is not None
+        and datetime.now(timezone.utc) - last_read < t212_sync.RECONCILIATION_AUDIT_COOLDOWN
+    ):
+        return False
+    latest_completed = (
+        db.query(BrokerSyncRun)
+        .filter(
+            BrokerSyncRun.workspace_id == portfolio.workspace_id,
+            BrokerSyncRun.connection_id == conn.id,
+            BrokerSyncRun.state == "completed",
+        )
+        .order_by(BrokerSyncRun.created_at.desc(), BrokerSyncRun.id.desc())
+        .first()
+    )
+    if latest_completed is None:
+        return False
+    # Sessions run with autoflush off: make the just-replaced snapshot visible.
+    db.flush()
+    return _reconcile_history(db, portfolio, conn, latest_completed)["status"] == "different"
+
+
 @router.get("/trading212/history-status")
 def get_history_status(
     db: Session = Depends(get_db),
@@ -632,7 +662,10 @@ def sync_transactions(
     # Create the history run only after account identity has been verified,
     # and never while the latest run is an unresolved needs_review: that would
     # re-stage the whole history into the same dead end.
-    decision = t212_sync.history_run_decision(db, conn, portfolio)
+    decision = t212_sync.history_run_decision(
+        db, conn, portfolio,
+        reconciliation_mismatch=positions_updated and _reconciliation_mismatch(db, portfolio, conn),
+    )
     if decision.action == "blocked":
         history_run, blocked = decision.run, True
     else:

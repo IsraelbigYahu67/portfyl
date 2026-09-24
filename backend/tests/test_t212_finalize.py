@@ -678,3 +678,129 @@ class TestFinalizeCoverage:
         db_session.refresh(connection)
         assert connection.last_full_audit_at == first_audit
         assert connection.history_complete_at == first_complete
+
+
+def _next_run(db, template, mode):
+    run = BrokerSyncRun(
+        workspace_id=template.workspace_id, portfolio_id=template.portfolio_id,
+        connection_id=template.connection_id, broker="trading212",
+        account_fingerprint=template.account_fingerprint,
+        credential_generation=template.credential_generation,
+        mode=mode, state="finalizing", orders_complete=True, dividends_complete=True,
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+_FX_JUNE_1 = {("USD", date(2024, 6, 1)): 25.0}
+
+
+class TestFinalizeAudit:
+    """Plan 2026-09-24 Task C3: an audit run revises API rows whose provider
+    payload changed under an existing id, and imports late-inserted events."""
+
+    def _import_first(self, db, portfolio, run, **event):
+        _order_event(db, run, event_id="fill:f1", **event)
+        with patch("t212_sync.bulk_fetch_fx", return_value=_FX_JUNE_1):
+            t212_sync.finalize_run(db, run, portfolio)
+        return db.query(Transaction).one()
+
+    def test_audit_updates_row_whose_payload_changed(
+        self, db_session, default_portfolio, completed_run
+    ):
+        row = self._import_first(db_session, default_portfolio, completed_run, qty=10, price=150.0)
+        old_hash = row.source_payload_hash
+        audit = _next_run(db_session, completed_run, "audit")
+        _order_event(db_session, audit, event_id="fill:f1", qty=10, price=151.0)
+
+        with patch("t212_sync.bulk_fetch_fx", return_value=_FX_JUNE_1):
+            result = t212_sync.finalize_run(db_session, audit, default_portfolio)
+
+        db_session.refresh(row)
+        assert result.revised == 1
+        assert result.orders_imported == 0
+        assert row.price == 151.0
+        assert row.source_payload_hash != old_hash
+        assert db_session.query(Transaction).count() == 1
+
+    def test_audit_revision_recomputes_fx_when_the_date_moves(
+        self, db_session, default_portfolio, completed_run
+    ):
+        row = self._import_first(db_session, default_portfolio, completed_run)
+        audit = _next_run(db_session, completed_run, "audit")
+        _order_event(db_session, audit, event_id="fill:f1", day="2024-06-03")
+
+        with patch("t212_sync.bulk_fetch_fx", return_value={("USD", date(2024, 6, 3)): 26.0}):
+            t212_sync.finalize_run(db_session, audit, default_portfolio)
+
+        db_session.refresh(row)
+        assert row.date == date(2024, 6, 3)
+        assert row.fx_to_czk == pytest.approx(26.0)
+
+    def test_audit_leaves_an_unchanged_row_alone(
+        self, db_session, default_portfolio, completed_run
+    ):
+        row = self._import_first(db_session, default_portfolio, completed_run)
+        old_hash = row.source_payload_hash
+        audit = _next_run(db_session, completed_run, "audit")
+        _order_event(db_session, audit, event_id="fill:f1")
+
+        with patch("t212_sync.bulk_fetch_fx", return_value=_FX_JUNE_1):
+            result = t212_sync.finalize_run(db_session, audit, default_portfolio)
+
+        db_session.refresh(row)
+        assert result.revised == 0
+        assert result.orders_skipped_duplicate == 1
+        assert row.source_payload_hash == old_hash
+
+    def test_incremental_run_never_revises_existing_rows(
+        self, db_session, default_portfolio, completed_run
+    ):
+        row = self._import_first(db_session, default_portfolio, completed_run, price=150.0)
+        later = _next_run(db_session, completed_run, "incremental")
+        _order_event(db_session, later, event_id="fill:f1", price=151.0)
+
+        with patch("t212_sync.bulk_fetch_fx", return_value=_FX_JUNE_1):
+            result = t212_sync.finalize_run(db_session, later, default_portfolio)
+
+        db_session.refresh(row)
+        assert result.revised == 0
+        assert result.orders_skipped_duplicate == 1
+        assert row.price == 150.0
+
+    def test_audit_revision_updates_the_paid_dividend_amount(
+        self, db_session, default_portfolio, completed_run
+    ):
+        _dividend_event(db_session, completed_run, event_id="dividend:d1", amount=4.25)
+        with patch("t212_sync.bulk_fetch_fx", return_value={("USD", date(2024, 3, 15)): 25.0}):
+            t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+        row = db_session.query(Transaction).one()
+        audit = _next_run(db_session, completed_run, "audit")
+        _dividend_event(db_session, audit, event_id="dividend:d1", amount=4.5)
+
+        with patch("t212_sync.bulk_fetch_fx", return_value={("USD", date(2024, 3, 15)): 25.0}):
+            result = t212_sync.finalize_run(db_session, audit, default_portfolio)
+
+        db_session.refresh(row)
+        assert result.revised == 1
+        assert result.dividends_imported == 0
+        assert row.cash_amount == pytest.approx(4.5 * 25.0, rel=1e-6)
+        assert db_session.query(Transaction).count() == 1
+
+    def test_audit_imports_late_inserted_old_dividend(
+        self, db_session, default_portfolio, completed_run
+    ):
+        completed_run.mode = "audit"
+        _dividend_event(
+            db_session, completed_run, event_id="dividend:div-old", day="2023-02-01",
+            amount=2.0,
+        )
+
+        with patch("t212_sync.bulk_fetch_fx", return_value={("USD", date(2023, 2, 1)): 22.0}):
+            result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        assert result.dividends_imported == 1
+        assert result.revised == 0
+        assert db_session.query(Transaction).one().source_event_id == "dividend:div-old"

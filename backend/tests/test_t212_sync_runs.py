@@ -911,3 +911,61 @@ class TestIncrementalStopRule:
         db_session.refresh(run)
         assert run.orders_complete is True
         assert second.state == "finalizing"
+
+
+class TestHistoryRunAuditMode:
+    """Plan 2026-09-24 Task C3: 30-day and mismatch-triggered audits."""
+
+    def test_mode_is_audit_after_30_days(self, db_session, default_portfolio, connection):
+        connection.history_complete_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        connection.last_full_audit_at = datetime.now(timezone.utc) - timedelta(days=31)
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).mode == "audit"
+
+    def test_mode_is_incremental_within_30_days(self, db_session, default_portfolio, connection):
+        connection.history_complete_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        connection.last_full_audit_at = datetime.now(timezone.utc) - timedelta(days=5)
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).mode == "incremental"
+
+    def test_reconciliation_mismatch_forces_audit(self, db_session, default_portfolio, connection):
+        connection.history_complete_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        connection.last_full_audit_at = datetime.now(timezone.utc)
+        db_session.commit()
+        decision = t212_sync.history_run_decision(
+            db_session, connection, default_portfolio, reconciliation_mismatch=True,
+        )
+        assert decision.mode == "audit"
+
+    def test_recent_initial_run_counts_as_a_full_read(
+        self, db_session, default_portfolio, connection
+    ):
+        # An initial run read the whole history; the next sync must not audit
+        # it again just because no audit has ever been recorded.
+        connection.history_complete_at = datetime.now(timezone.utc) - timedelta(days=2)
+        db_session.commit()
+        assert connection.last_full_audit_at is None
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).mode == "incremental"
+
+    def test_old_initial_run_without_an_audit_becomes_an_audit(
+        self, db_session, default_portfolio, connection
+    ):
+        connection.history_complete_at = datetime.now(timezone.utc) - timedelta(days=31)
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).mode == "audit"
+
+    def test_mismatch_before_history_completes_still_starts_an_initial_run(
+        self, db_session, default_portfolio, connection
+    ):
+        decision = t212_sync.history_run_decision(
+            db_session, connection, default_portfolio, reconciliation_mismatch=True,
+        )
+        assert decision.mode == "initial"

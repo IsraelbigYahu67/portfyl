@@ -288,9 +288,12 @@ def is_snapshot_fresh(as_of: datetime | None, *, now: datetime | None = None) ->
 # Scope deliberately excludes, for this increment:
 #   - the `/equity/history/transactions` cash-movement stream (deposits,
 #     withdrawals, fees, interest) -- a new provider surface the app doesn't
-#     fetch today, not "making an existing fetch resumable";
-#   - audit runs (mode="audit") -- the column accepts the value, nothing
-#     creates one yet.
+#     fetch today, not "making an existing fetch resumable".
+#
+# Run modes (plan 2026-09-24, Tasks C1-C3): `initial` walks the whole history;
+# `incremental` may stop early past the connection's history frontier
+# (t212_incremental); `audit` re-reads everything and revises rows whose
+# provider payload changed. history_run_decision picks the mode.
 # =============================================================================
 
 STREAMS = ("orders", "dividends")
@@ -573,13 +576,36 @@ def review_resolution(run: BrokerSyncRun, connection: BrokerConnection, portfoli
             "mapper_supports_all": mapper_supports_all}
 
 
+AUDIT_INTERVAL = timedelta(days=30)
+# A reconciliation mismatch only asks for an audit when the last full read is
+# older than this: a full read that just finished has already seen everything
+# the provider has, and a permanent mismatch (an unsupported corporate action,
+# a transfer the API does not expose) must not re-download the history on
+# every sync.
+RECONCILIATION_AUDIT_COOLDOWN = timedelta(days=1)
+
+
+def last_full_read_at(connection: BrokerConnection) -> datetime | None:
+    """When the connection's whole history was last read end to end: its latest
+    audit, else the initial backfill (which also read everything)."""
+    value = connection.last_full_audit_at or connection.history_complete_at
+    return _as_utc(value) if value is not None else None
+
+
 def history_run_decision(
-    db: Session, connection: BrokerConnection, portfolio: Portfolio, *, force: bool = False,
+    db: Session, connection: BrokerConnection, portfolio: Portfolio, *,
+    force: bool = False, reconciliation_mismatch: bool = False,
 ) -> HistoryDecision:
-    """Whether a sync may start a new history run. Only the connection's latest
-    run matters: an unresolved `needs_review` would re-stage the full history
-    into the same dead end, so it blocks until the reason changes (CSV
-    coverage, a new mapper) or the user forces a retry."""
+    """Whether a sync may start a new history run, and in which mode. Only the
+    connection's latest run matters: an unresolved `needs_review` would
+    re-stage the full history into the same dead end, so it blocks until the
+    reason changes (CSV coverage, a new mapper) or the user forces a retry.
+
+    A new run is `initial` until a run has completed, then `audit` when the
+    last full read is older than AUDIT_INTERVAL or `reconciliation_mismatch`
+    says the ledger disagrees with the broker snapshot, else `incremental`
+    (parent plan §7). Only the sync entry points call this, so a connection
+    with auto-sync off never triggers unrequested broker access."""
     latest = _latest_run(db, connection)
     if latest is not None and latest.state not in TERMINAL_RUN_STATES:
         return HistoryDecision("reuse", latest, latest.mode)
@@ -587,8 +613,12 @@ def history_run_decision(
         res = review_resolution(latest, connection, portfolio)
         if not (res["csv_covers_all"] or res["mapper_supports_all"]):
             return HistoryDecision("blocked", latest, latest.mode)
+    if connection.history_complete_at is None:
+        return HistoryDecision("create", None, "initial")
+    last_read = last_full_read_at(connection)
+    audit_due = last_read is None or datetime.now(timezone.utc) - last_read > AUDIT_INTERVAL
     return HistoryDecision(
-        "create", None, "initial" if connection.history_complete_at is None else "incremental",
+        "create", None, "audit" if (reconciliation_mismatch or audit_due) else "incremental",
     )
 
 
@@ -853,6 +883,7 @@ class FinalizeResult:
     dividends_skipped_invalid: int
     needs_review: bool = False
     unsupported_action_types: tuple[str, ...] = ()
+    revised: int = 0
 
 
 def _corporate_action_type(event: BrokerSyncEvent) -> str | None:
@@ -1224,9 +1255,12 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
     # with distinct provider IDs are two trades, even on the same day.
     unmatched_legacy_keys: list[set[str]] = []
     existing_source_ids: set[tuple[str, str]] = set()
+    api_rows: dict[tuple[str, str], Transaction] = {}
     for t in existing_txns:
         if t.source_event_id and t.source_event_stream:
             existing_source_ids.add((t.source_event_stream, t.source_event_id))
+            if t.source == "t212_api":
+                api_rows[(t.source_event_stream, t.source_event_id)] = t
             continue
         keys = _dedup_keys(t.ticker, t.date, t.type, t.shares, t.price)
         if t.type == "dividend":
@@ -1236,6 +1270,9 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
     orders_imported = orders_dup = orders_non_trade = orders_invalid = 0
     dividends_imported = dividends_dup = dividends_invalid = 0
     new_txns: list[Transaction] = []
+    # Audit runs only: (existing API row, freshly mapped copy) whose provider
+    # payload changed under the same event id.
+    revisions: list[tuple[Transaction, Transaction]] = []
 
     for event in events:
         if _is_csv_covered(event, csv_covered_through):
@@ -1259,6 +1296,17 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
                 continue
 
         source_key = (event.stream, event.provider_event_id)
+        if run.mode == "audit" and source_key in api_rows:
+            # ID equality is not proof the provider data is unchanged (parent
+            # §7): compare the canonical payload hash and revise on a change.
+            existing_row = api_rows[source_key]
+            if existing_row.source_payload_hash != txn.source_payload_hash:
+                revisions.append((existing_row, txn))
+            elif event.stream == "orders":
+                orders_dup += 1
+            else:
+                dividends_dup += 1
+            continue
         dedup_keys = (
             _dedup_keys(txn.ticker, txn.date, txn.type, txn.shares, txn.price)
             if txn.type != "dividend"
@@ -1285,13 +1333,14 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
     # Price/instrument FX and settled-cash FX can differ. Dividends expose
     # gross per-share value in the instrument currency but paid `amount` in
     # the account's primary currency.
+    revised_copies = [mapped for _, mapped in revisions]
     fx_needed = {
-        (ccy, t.date) for t in new_txns
+        (ccy, t.date) for t in (*new_txns, *revised_copies)
         for ccy in ((t.currency or "USD").upper(), t._native_cash_currency)
         if ccy != "CZK"
     }
     fx_map = bulk_fetch_fx(fx_needed)
-    for t in new_txns:
+    for t in (*new_txns, *revised_copies):
         ccy = t._native_cash_currency
         price_ccy = (t.currency or "USD").upper()
         price_fx = 1.0 if price_ccy == "CZK" else fx_map.get((price_ccy, t.date))
@@ -1306,7 +1355,28 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
             # currency. Keep it usable without inventing a historical FX rate.
             t.cash_amount = t._native_cash_amount
             t.cash_currency = ccy
+    for t in new_txns:
         db.add(t)
+    # Revise in place under the ledger lock taken above. Identity and user
+    # fields (ticker, type, name, notes) are left alone. Once Track B's
+    # corporate-action applications exist, the recorded ratios must be
+    # re-applied to `shares`/`price` here (plan 2026-09-24, Task C3).
+    for existing_row, mapped in revisions:
+        date_moved = mapped.date != existing_row.date
+        existing_row.shares = mapped.shares
+        existing_row.price = mapped.price
+        existing_row.date = mapped.date
+        existing_row.executed_at = mapped.executed_at
+        existing_row.cash_amount = mapped.cash_amount
+        existing_row.cash_currency = mapped.cash_currency
+        existing_row.source_payload_hash = mapped.source_payload_hash
+        existing_row.source_mapper_version = mapped.source_mapper_version
+        if mapped.fx_to_czk is not None:
+            existing_row.fx_to_czk = mapped.fx_to_czk
+        elif date_moved:
+            # No rate for the new date yet; the startup backfill fills it in
+            # rather than leaving the old date's rate on the row.
+            existing_row.fx_to_czk = None
     if run.state != "completed":
         finalized_at = datetime.now(timezone.utc)
         run.state = "completed"
@@ -1330,4 +1400,5 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
         dividends_imported=dividends_imported,
         dividends_skipped_duplicate=dividends_dup,
         dividends_skipped_invalid=dividends_invalid,
+        revised=len(revisions),
     )

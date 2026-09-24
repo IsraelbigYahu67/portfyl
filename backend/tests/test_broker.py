@@ -1195,3 +1195,101 @@ class TestSyncRunMode:
     ):
         retry_history(db=db_session, portfolio=default_portfolio, _context=None)
         assert db_session.query(BrokerSyncRun).one().mode == "initial"
+
+
+class TestSyncAuditMode:
+    """Plan 2026-09-24 Task C3: sync_transactions turns the next run into an
+    audit when the last full read is 30 days old or reconciliation disagrees."""
+
+    @pytest.fixture
+    def connection(self, db_session, default_portfolio):
+        conn = BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                                portfolio_id=default_portfolio.id,
+                                broker="trading212", api_key="k" * 20)
+        db_session.add(conn)
+        db_session.commit()
+        return conn
+
+    @staticmethod
+    def _completed_history(db, portfolio, conn, *, last_read_age, ledger_shares=10.0):
+        read_at = datetime.now(timezone.utc) - last_read_age
+        conn.history_complete_at = read_at
+        conn.last_full_audit_at = read_at
+        db.add(BrokerSyncRun(
+            workspace_id=portfolio.workspace_id, portfolio_id=portfolio.id,
+            connection_id=conn.id, broker="trading212",
+            credential_generation=conn.credential_generation, mode="initial",
+            state="completed", completed_at=read_at,
+        ))
+        db.add(make_txn(
+            "AAPL", "buy", ledger_shares, 100.0, date=date(2024, 1, 2),
+            portfolio_id=portfolio.id, workspace_id=portfolio.workspace_id,
+        ))
+        db.commit()
+
+    @staticmethod
+    def _new_run(db):
+        return db.query(BrokerSyncRun).filter(BrokerSyncRun.state == "pending").one()
+
+    def test_manual_sync_after_30_days_creates_an_audit_run(
+        self, db_session, default_portfolio, connection
+    ):
+        self._completed_history(
+            db_session, default_portfolio, connection, last_read_age=timedelta(days=31),
+        )
+
+        _run_sync(db_session, default_portfolio, [], positions=[t212_position(quantity=10.0)])
+
+        assert self._new_run(db_session).mode == "audit"
+
+    def test_reconciliation_mismatch_creates_an_audit_run(
+        self, db_session, default_portfolio, connection
+    ):
+        self._completed_history(
+            db_session, default_portfolio, connection, last_read_age=timedelta(days=2),
+        )
+
+        _run_sync(db_session, default_portfolio, [], positions=[t212_position(quantity=12.0)])
+
+        assert self._new_run(db_session).mode == "audit"
+
+    def test_matching_positions_keep_the_sync_incremental(
+        self, db_session, default_portfolio, connection
+    ):
+        self._completed_history(
+            db_session, default_portfolio, connection, last_read_age=timedelta(days=2),
+        )
+
+        _run_sync(db_session, default_portfolio, [], positions=[t212_position(quantity=10.0)])
+
+        assert self._new_run(db_session).mode == "incremental"
+
+    def test_mismatch_right_after_a_full_read_does_not_repeat_the_audit(
+        self, db_session, default_portfolio, connection
+    ):
+        # A full read within the last day already saw everything the provider
+        # has; auditing again on every sync would only re-download it.
+        self._completed_history(
+            db_session, default_portfolio, connection, last_read_age=timedelta(hours=1),
+        )
+
+        _run_sync(db_session, default_portfolio, [], positions=[t212_position(quantity=12.0)])
+
+        assert self._new_run(db_session).mode == "incremental"
+
+    def test_failed_positions_refresh_never_triggers_a_mismatch_audit(
+        self, db_session, default_portfolio, connection
+    ):
+        self._completed_history(
+            db_session, default_portfolio, connection, last_read_age=timedelta(days=2),
+        )
+        db_session.add(BrokerPosition(
+            workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+            broker="trading212", provider_ticker="AAPL_US_EQ", ticker="AAPL",
+            quantity=99.0, avg_price=100.0, as_of=datetime.now(timezone.utc),
+        ))
+        db_session.commit()
+
+        _run_sync(db_session, default_portfolio, [], positions_error=RuntimeError("boom"))
+
+        assert self._new_run(db_session).mode == "incremental"
