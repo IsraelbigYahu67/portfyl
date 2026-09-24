@@ -527,3 +527,114 @@ class TestAdvanceRun:
         assert db_session.query(BrokerSyncEvent).filter(
             BrokerSyncEvent.stream == "orders"
         ).count() == 1
+
+
+# ---------------------------------------------------------------------------
+# history_run_decision (plan 2026-09-24, Task A4)
+# ---------------------------------------------------------------------------
+
+SPLIT = [{"fill_type": "STOCK_SPLIT", "ticker": "NVDA", "date": "2024-06-10"}]
+
+
+@pytest.fixture
+def connection(db_session, default_portfolio):
+    conn = BrokerConnection(
+        workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+        broker="trading212", api_key="k" * 20, account_fingerprint="f" * 64,
+    )
+    db_session.add(conn)
+    db_session.commit()
+    db_session.refresh(conn)
+    return conn
+
+
+def _review_run(db, conn, portfolio, details):
+    run = BrokerSyncRun(
+        workspace_id=conn.workspace_id, portfolio_id=portfolio.id, connection_id=conn.id,
+        broker="trading212", account_fingerprint=conn.account_fingerprint,
+        credential_generation=conn.credential_generation, mode="incremental",
+        state="needs_review", review_details=details,
+    )
+    db.add(run)
+    db.commit()
+    return run
+
+
+class TestHistoryRunDecision:
+    def test_blocked_when_needs_review_is_unresolved(self, db_session, default_portfolio, connection):
+        run = _review_run(db_session, connection, default_portfolio, SPLIT)
+        decision = t212_sync.history_run_decision(db_session, connection, default_portfolio)
+        assert decision.action == "blocked"
+        assert decision.run.id == run.id
+
+    def test_force_creates_a_new_run(self, db_session, default_portfolio, connection):
+        _review_run(db_session, connection, default_portfolio, SPLIT)
+        decision = t212_sync.history_run_decision(
+            db_session, connection, default_portfolio, force=True,
+        )
+        assert decision.action == "create"
+
+    def test_csv_coverage_past_last_action_unblocks(self, db_session, default_portfolio, connection):
+        _review_run(db_session, connection, default_portfolio, SPLIT)
+        connection.t212_csv_covered_through = datetime(2024, 6, 11, tzinfo=timezone.utc)
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).action == "create"
+
+    def test_csv_coverage_inside_action_day_stays_blocked(
+        self, db_session, default_portfolio, connection
+    ):
+        _review_run(db_session, connection, default_portfolio, SPLIT)
+        connection.t212_csv_covered_through = datetime(2024, 6, 10, 12, tzinfo=timezone.utc)
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).action == "blocked"
+
+    def test_newly_supported_type_unblocks(
+        self, db_session, default_portfolio, connection, monkeypatch
+    ):
+        _review_run(db_session, connection, default_portfolio, SPLIT)
+        monkeypatch.setattr(
+            t212_sync, "SUPPORTED_CORPORATE_ACTION_TYPES", frozenset({"STOCK_SPLIT"}),
+        )
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).action == "create"
+
+    def test_legacy_needs_review_without_details_is_blocked(
+        self, db_session, default_portfolio, connection
+    ):
+        _review_run(db_session, connection, default_portfolio, None)
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).action == "blocked"
+
+    def test_failed_latest_run_creates(self, db_session, default_portfolio, connection):
+        run = _review_run(db_session, connection, default_portfolio, SPLIT)
+        run.state = "failed"
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).action == "create"
+
+    def test_active_run_is_reused(self, db_session, default_portfolio, connection):
+        run = _review_run(db_session, connection, default_portfolio, SPLIT)
+        run.state = "fetching"
+        db_session.commit()
+        decision = t212_sync.history_run_decision(db_session, connection, default_portfolio)
+        assert decision.action == "reuse"
+        assert decision.run.id == run.id
+
+    def test_only_the_latest_run_matters(self, db_session, default_portfolio, connection):
+        old = _review_run(db_session, connection, default_portfolio, SPLIT)
+        old.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        db_session.commit()
+        newer = _review_run(db_session, connection, default_portfolio, SPLIT)
+        newer.state = "completed"
+        newer.created_at = datetime(2024, 2, 1, tzinfo=timezone.utc)
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).action == "create"

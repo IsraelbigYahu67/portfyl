@@ -535,6 +535,60 @@ def claim_or_create_run(
     return run
 
 
+@dataclass(frozen=True)
+class HistoryDecision:
+    action: str  # "reuse" | "create" | "blocked"
+    run: BrokerSyncRun | None
+    mode: str = "incremental"
+
+
+def _latest_run(db: Session, connection: BrokerConnection) -> BrokerSyncRun | None:
+    return (
+        db.query(BrokerSyncRun)
+        .filter(BrokerSyncRun.workspace_id == connection.workspace_id,
+                BrokerSyncRun.connection_id == connection.id)
+        .order_by(BrokerSyncRun.created_at.desc(), BrokerSyncRun.id.desc())
+        .first()
+    )
+
+
+def review_resolution(run: BrokerSyncRun, connection: BrokerConnection, portfolio: Portfolio) -> dict:
+    """What would unblock a needs_review run: an authoritative CSV export that
+    covers the last blocking action, or a mapper for every blocking type."""
+    details = run.review_details or []
+    dates = [d["date"] for d in details if d.get("date")]
+    needed = max(dates) if dates else None
+    coverage = _latest_csv_coverage(portfolio.t212_csv_covered_through,
+                                    connection.t212_csv_covered_through)
+    # _is_csv_covered compares exact event timestamps, so coverage must pass
+    # the end of the action's calendar day to guarantee every leg is covered.
+    csv_covers_all = bool(
+        needed and coverage is not None
+        and coverage >= datetime.fromisoformat(needed).replace(tzinfo=timezone.utc) + timedelta(days=1)
+    )
+    types = {d.get("fill_type") for d in details}
+    mapper_supports_all = bool(details) and types <= SUPPORTED_CORPORATE_ACTION_TYPES
+    return {"csv_covers_all": csv_covers_all, "csv_needed_through": needed,
+            "mapper_supports_all": mapper_supports_all}
+
+
+def history_run_decision(
+    db: Session, connection: BrokerConnection, portfolio: Portfolio, *, force: bool = False,
+) -> HistoryDecision:
+    """Whether a sync may start a new history run. Only the connection's latest
+    run matters: an unresolved `needs_review` would re-stage the full history
+    into the same dead end, so it blocks until the reason changes (CSV
+    coverage, a new mapper) or the user forces a retry."""
+    latest = _latest_run(db, connection)
+    if latest is not None and latest.state not in TERMINAL_RUN_STATES:
+        return HistoryDecision("reuse", latest, latest.mode)
+    if latest is not None and latest.state == "needs_review" and not force:
+        res = review_resolution(latest, connection, portfolio)
+        if not (res["csv_covers_all"] or res["mapper_supports_all"]):
+            return HistoryDecision("blocked", latest, latest.mode)
+    return HistoryDecision("create", None)
+
+
 def claim_lease(
     db: Session,
     run_id: int,

@@ -19,6 +19,7 @@ from routers.broker import (
     get_history_status,
     get_positions,
     get_status,
+    retry_history,
     sync_transactions,
 )
 from tests.fixtures.t212 import t212_position
@@ -1061,3 +1062,102 @@ class TestHistoryStatusReconciliation:
         result = get_history_status(db=db_session, portfolio=default_portfolio)
 
         assert result == {"connected": True, "run": None}
+
+
+# ---------------------------------------------------------------------------
+# needs_review re-download loop breaker (plan 2026-09-24, Task A4)
+# ---------------------------------------------------------------------------
+
+_SPLIT_REVIEW = [{"fill_type": "STOCK_SPLIT", "ticker": "NVDA", "date": "2024-06-10"}]
+
+
+class TestNeedsReviewLoopBreaker:
+    @pytest.fixture
+    def connection(self, db_session, default_portfolio):
+        conn = BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                                portfolio_id=default_portfolio.id,
+                                broker="trading212", api_key="k" * 20)
+        db_session.add(conn)
+        db_session.commit()
+        return conn
+
+    @pytest.fixture
+    def review_run(self, db_session, default_portfolio, connection):
+        run = BrokerSyncRun(
+            workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+            connection_id=connection.id, broker="trading212",
+            credential_generation=connection.credential_generation, mode="incremental",
+            state="needs_review", orders_complete=True, dividends_complete=True,
+            last_error=t212_sync.HISTORY_NEEDS_REVIEW_ERROR, review_details=_SPLIT_REVIEW,
+        )
+        db_session.add(run)
+        db_session.commit()
+        return run
+
+    def test_sync_refreshes_snapshot_but_creates_no_run_when_blocked(
+        self, db_session, default_portfolio, connection, review_run
+    ):
+        result = _run_sync(db_session, default_portfolio, [])
+
+        assert result["snapshot"]["status"] == "ready"
+        assert result["history"]["status"] == "needs_review"
+        assert result["history"]["run_id"] == str(review_run.public_id)
+        assert result["history"]["blocked"] is True
+        assert result["history"]["complete"] is False
+        assert db_session.query(BrokerSyncRun).count() == 1
+
+    def test_sync_without_a_review_run_is_not_blocked(
+        self, db_session, default_portfolio, connection
+    ):
+        result = _run_sync(db_session, default_portfolio, [])
+        assert result["history"]["blocked"] is False
+        assert result["history"]["status"] == "pending"
+
+    def test_retry_route_creates_new_run(
+        self, db_session, default_portfolio, connection, review_run
+    ):
+        result = retry_history(db=db_session, portfolio=default_portfolio, _context=None)
+
+        assert result["status"] == "pending"
+        assert result["blocked"] is False
+        assert result["complete"] is False
+        assert result["run_id"] != str(review_run.public_id)
+        assert db_session.query(BrokerSyncRun).count() == 2
+
+    def test_retry_route_reuses_an_already_active_run(
+        self, db_session, default_portfolio, connection, review_run
+    ):
+        first = retry_history(db=db_session, portfolio=default_portfolio, _context=None)
+        second = retry_history(db=db_session, portfolio=default_portfolio, _context=None)
+
+        assert first["run_id"] == second["run_id"]
+        assert db_session.query(BrokerSyncRun).count() == 2
+
+    def test_retry_route_requires_a_connection(self, db_session, default_portfolio):
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc:
+            retry_history(db=db_session, portfolio=default_portfolio, _context=None)
+        assert exc.value.status_code == 404
+
+    def test_history_status_exposes_review_block_without_payloads(
+        self, db_session, default_portfolio, connection, review_run
+    ):
+        result = get_history_status(db=db_session, portfolio=default_portfolio)
+
+        assert result["run"]["review"] == {
+            "items": _SPLIT_REVIEW,
+            "csv_covers_all": False,
+            "csv_needed_through": "2024-06-10",
+            "mapper_supports_all": False,
+        }
+
+    def test_history_status_review_is_none_for_other_states(
+        self, db_session, default_portfolio, connection, review_run
+    ):
+        review_run.state = "completed"
+        db_session.commit()
+
+        result = get_history_status(db=db_session, portfolio=default_portfolio)
+
+        assert result["run"]["review"] is None
