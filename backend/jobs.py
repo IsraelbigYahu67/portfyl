@@ -65,6 +65,7 @@ from sqlalchemy.orm import Session
 from app_settings import get_workspace_setting, set_workspace_setting
 from models import (
     BrokerConnection,
+    BrokerPosition,
     BrokerSyncRun,
     DiscordWebhook,
     DividendNotification,
@@ -295,14 +296,21 @@ async def broker_autosync_pass(
                 ).first()
                 if portfolio is None:
                     continue  # dangling connection — nothing to sync
-                # sync_transactions is blocking (paginated httpx + yfinance
-                # split lookups) — run it in a worker thread to keep the event
-                # loop free, like alerts.run_check does for get_infos.
+                # The foreground sync fetches only the current account
+                # snapshot and creates/resumes a history run. It still uses
+                # blocking httpx, so keep it off the event loop; the dedicated
+                # broker_backfill pass advances the returned run later.
                 r = await asyncio.to_thread(
                     sync_transactions, db, portfolio, None)
-                summary["imported"] = r.get("total_imported", 0)
-                detail = (f"{r.get('imported_orders', 0)} order(s), "
-                          f"{r.get('imported_dividends', 0)} dividend(s)")
+                snapshot = r.get("snapshot") or {}
+                history = r.get("history") or {}
+                summary.update(
+                    imported=0,
+                    snapshot_status=snapshot.get("status"),
+                    history_status=history.get("status"),
+                    history_run_id=history.get("run_id"),
+                )
+                detail = "current snapshot"
             elif conn.broker == "ibkr":
                 r = await _run_ibkr_sync(db, workspace_id, conn.portfolio_id)
                 summary["imported"] = r.get("imported", 0)
@@ -386,7 +394,7 @@ async def broker_backfill_pass(
         select(BrokerSyncRun.id)
         .where(
             BrokerSyncRun.workspace_id == workspace_id,
-            BrokerSyncRun.state.in_(("pending", "fetching", "waiting_rate_limit")),
+            BrokerSyncRun.state.in_(("pending", "fetching", "waiting_rate_limit", "finalizing")),
         )
         .order_by(BrokerSyncRun.created_at)
         .limit(max_runs)
@@ -413,6 +421,8 @@ async def broker_backfill_pass(
                 if reset_at.tzinfo is None:
                     reset_at = reset_at.replace(tzinfo=timezone.utc)
                 if reset_at > now:
+                    run.lease_token = None
+                    run.lease_expires_at = None
                     db.commit()  # release the row lock without advancing
                     continue
 
@@ -420,7 +430,12 @@ async def broker_backfill_pass(
             BrokerConnection.workspace_id == workspace_id,
             BrokerConnection.id == run.connection_id,
         ).first()
-        if connection is None or connection.credential_generation != run.credential_generation:
+        if (
+            connection is None
+            or not run.account_fingerprint
+            or run.account_fingerprint != connection.account_fingerprint
+            or connection.credential_generation != run.credential_generation
+        ):
             # The connection was disconnected, or credentials were rotated
             # after this run started -- a stale-generation worker must never
             # commit further progress under superseded credentials.
@@ -433,7 +448,10 @@ async def broker_backfill_pass(
             Portfolio.workspace_id == workspace_id,
             Portfolio.id == run.portfolio_id,
         ).first()
-        if portfolio is None:
+        if (
+            portfolio is None
+            or portfolio.t212_account_fingerprint != run.account_fingerprint
+        ):
             run.state = "cancelled"
             db.commit()
             results.append({"run_id": str(run.public_id), "state": "cancelled"})
@@ -444,18 +462,32 @@ async def broker_backfill_pass(
         lease_token = run.lease_token
         public_id = str(run.public_id)
         try:
-            # advance_run is blocking (paginated httpx) -- run it in a worker
-            # thread to keep the event loop free, like broker_autosync_pass
-            # does for sync_transactions above.
-            result = await asyncio.to_thread(
-                t212_sync.advance_run,
-                db, run, base, api_headers,
-                lease_token=lease_token,
-                reassert_context=lambda: _set_job_workspace_context(db, workspace_id),
-            )
+            if run.state == "finalizing":
+                result = t212_sync.RunAdvanceResult(
+                    state="finalizing",
+                    orders_staged=0,
+                    dividends_staged=0,
+                    rate_limited_streams=(),
+                )
+            else:
+                # advance_run is blocking (paginated httpx) -- run it in a worker
+                # thread to keep the event loop free, like broker_autosync_pass
+                # does for sync_transactions above.
+                result = await asyncio.to_thread(
+                    t212_sync.advance_run,
+                    db, run, base, api_headers,
+                    lease_token=lease_token,
+                    reassert_context=lambda: _set_job_workspace_context(db, workspace_id),
+                )
+            state = result.state
+            if state == "finalizing":
+                finalized = await asyncio.to_thread(
+                    t212_sync.finalize_run, db, run, portfolio,
+                )
+                state = "needs_review" if finalized.needs_review else "completed"
             results.append({
                 "run_id": public_id,
-                "state": result.state,
+                "state": state,
                 "orders_staged": result.orders_staged,
                 "dividends_staged": result.dividends_staged,
                 "rate_limited_streams": list(result.rate_limited_streams),
@@ -468,10 +500,17 @@ async def broker_backfill_pass(
             ).first()
             if run is not None:
                 run.retry_count = (run.retry_count or 0) + 1
-                run.last_error = str(e)[:500]
+                run.last_error = t212_sync.HISTORY_RETRY_ERROR
                 db.commit()
-            log.warning("broker_backfill failed for run %s: %s", public_id, e)
-            results.append({"run_id": public_id, "error": str(e)})
+            log.warning(
+                "broker_backfill failed for run %s (%s)",
+                public_id,
+                type(e).__name__,
+            )
+            results.append({
+                "run_id": public_id,
+                "error": t212_sync.HISTORY_RETRY_ERROR,
+            })
     return results
 
 
@@ -642,19 +681,43 @@ def _upcoming_dividends(db: Session, workspace_id: UUID, pid: int, today: date, 
     """Open holdings of `pid` whose next ex-date falls within [today, today+lead]."""
     # Lazy import for the same reason as above (portfolio pulls market_data).
     from routers.portfolio import _build_holdings
+    from t212_sync import is_snapshot_fresh
 
-    txns = (db.query(Transaction)
-              .filter(Transaction.workspace_id == workspace_id,
-                      Transaction.portfolio_id == pid)
-              .order_by(Transaction.date)
-              .all())
-    if not txns:
-        return []
-    holdings = _build_holdings(txns)
+    connection = db.query(BrokerConnection).filter(
+        BrokerConnection.workspace_id == workspace_id,
+        BrokerConnection.portfolio_id == pid,
+        BrokerConnection.broker == "trading212",
+    ).first()
+    shares_by_ticker: dict[str, float] = {}
+    if connection and is_snapshot_fresh(connection.positions_snapshot_at):
+        # A successful empty snapshot means no current shares; never resurrect
+        # old ledger holdings for notifications in that case.
+        positions = db.query(BrokerPosition).filter(
+            BrokerPosition.workspace_id == workspace_id,
+            BrokerPosition.portfolio_id == pid,
+            BrokerPosition.broker == "trading212",
+        ).all()
+        for position in positions:
+            shares_by_ticker[position.ticker] = shares_by_ticker.get(position.ticker, 0) + position.quantity
+    else:
+        txns = (db.query(Transaction)
+                  .filter(Transaction.workspace_id == workspace_id,
+                          Transaction.portfolio_id == pid)
+                  .order_by(Transaction.date)
+                  .all())
+        if not txns:
+            return []
+        shares_by_ticker = {
+            ticker: holding.get("shares") or 0
+            for ticker, holding in _build_holdings(txns).items()
+        }
 
     horizon = today + timedelta(days=lead_days)
     upcoming: list[dict] = []
-    for ticker in sorted(holdings.keys()):
+    for ticker in sorted(shares_by_ticker):
+        shares = shares_by_ticker[ticker]
+        if shares <= 0:
+            continue
         info = _next_dividend_info(ticker)
         ex_raw = info.get("ex_date")
         if not ex_raw:
@@ -665,7 +728,6 @@ def _upcoming_dividends(db: Session, workspace_id: UUID, pid: int, today: date, 
             continue
         if not (today <= ex <= horizon):
             continue
-        shares = holdings[ticker].get("shares") or 0
         amount = info.get("amount_per_share")
         upcoming.append({
             "ticker": ticker,

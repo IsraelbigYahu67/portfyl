@@ -7,26 +7,22 @@ import Settings from "./Settings";
 const mocks = vi.hoisted(() => ({
   fetchT212Status: vi.fn(),
   fetchT212HistoryStatus: vi.fn(),
+  fetchT212Positions: vi.fn(),
   syncT212: vi.fn(),
   discordMount: vi.fn(),
   dataMount: vi.fn(),
-  recordPortfolioDataImported: vi.fn(() => true),
 }));
 
 vi.mock("../api", () => ({
   fetchT212Status: mocks.fetchT212Status,
   fetchT212HistoryStatus: mocks.fetchT212HistoryStatus,
+  fetchT212Positions: mocks.fetchT212Positions,
   connectT212: vi.fn(),
   disconnectT212: vi.fn(),
   syncT212: mocks.syncT212,
   setT212AutoSync: vi.fn(),
 }));
 
-vi.mock("../analytics/useRegisteredActivation", () => ({
-  useRegisteredActivation: () => ({
-    recordPortfolioDataImported: mocks.recordPortfolioDataImported,
-  }),
-}));
 vi.mock("../App", () => ({
   usePortfolio: () => ({ current: { id: "portfolio-1", name: "Imported portfolio" } }),
   useCurrency: () => ({ currency: "USD", setCurrency: vi.fn(), rate: 22, rateLoading: false }),
@@ -57,6 +53,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.fetchT212Status.mockResolvedValue({ connected: false });
   mocks.fetchT212HistoryStatus.mockResolvedValue({ connected: false, run: null });
+  mocks.fetchT212Positions.mockResolvedValue({ connected: false, status: "unavailable", as_of: null, currency: "USD", positions: [] });
 });
 
 it.each([
@@ -101,39 +98,30 @@ it("navigates with real links, preserves parameters, and focuses the new heading
   expect(mocks.discordMount).toHaveBeenCalled();
 });
 
-describe("Trading 212 sync activation measurement", () => {
+describe("Trading 212 snapshot-first manual sync", () => {
   beforeEach(() => {
     mocks.fetchT212Status.mockResolvedValue({ connected: true, auto_sync: false, api_key_preview: "••••1234" });
   });
 
-  it("emits a broker import when a sync actually imports transactions", async () => {
-    mocks.syncT212.mockResolvedValueOnce({ total_imported: 5, imported_orders: 3, imported_dividends: 2 });
+  it("reports the snapshot and background history run without claiming transactions were imported", async () => {
+    mocks.syncT212.mockResolvedValueOnce({
+      snapshot: { status: "ready", cash_updated: true, positions_updated: true, positions: 3 },
+      history: { run_id: "run-1", status: "pending", complete: false },
+    });
     mount("/settings?section=connections");
 
     fireEvent.click(await screen.findByRole("button", { name: /sync now/i }));
 
-    await waitFor(() => expect(mocks.recordPortfolioDataImported).toHaveBeenCalledWith("broker"));
-    expect(mocks.recordPortfolioDataImported).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText(/Snapshot refreshed\. History continues in the background\./i)).toBeInTheDocument();
   });
 
-  it("does not emit a broker import when a sync finds nothing new", async () => {
-    mocks.syncT212.mockResolvedValueOnce({ total_imported: 0, imported_orders: 0, imported_dividends: 0 });
-    mount("/settings?section=connections");
-
-    fireEvent.click(await screen.findByRole("button", { name: /sync now/i }));
-
-    await waitFor(() => expect(screen.getByText(/Synced 0 transactions/i)).toBeInTheDocument());
-    expect(mocks.recordPortfolioDataImported).not.toHaveBeenCalled();
-  });
-
-  it("does not emit a broker import when a sync fails", async () => {
+  it("shows a safe error when the snapshot request fails", async () => {
     mocks.syncT212.mockRejectedValueOnce({ response: { data: { detail: "Sync failed" } } });
     mount("/settings?section=connections");
 
     fireEvent.click(await screen.findByRole("button", { name: /sync now/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Sync failed");
-    expect(mocks.recordPortfolioDataImported).not.toHaveBeenCalled();
   });
 });
 
@@ -162,7 +150,7 @@ describe("Trading 212 history backfill progress", () => {
     });
     mount("/settings?section=connections");
 
-    expect(await screen.findByText("Importing history…")).toBeInTheDocument();
+    expect(await screen.findByText("Downloading history…")).toBeInTheDocument();
     expect(screen.getByText(/12 orders and 4 dividends loaded so far/i)).toBeInTheDocument();
     expect(screen.getByText(/this page can be closed/i)).toBeInTheDocument();
   });
@@ -180,6 +168,7 @@ describe("Trading 212 history backfill progress", () => {
     mount("/settings?section=connections");
 
     expect(await screen.findByText("History imported")).toBeInTheDocument();
+    expect(screen.getByText(/historical analytics are up to date/i)).toBeInTheDocument();
     expect(screen.queryByText(/this page can be closed/i)).not.toBeInTheDocument();
   });
 
@@ -196,5 +185,63 @@ describe("Trading 212 history backfill progress", () => {
     mount("/settings?section=connections");
 
     expect(await screen.findByText("temporary upstream error")).toBeInTheDocument();
+  });
+
+  it("keeps finalization visible as active background work", async () => {
+    mocks.fetchT212HistoryStatus.mockResolvedValue({
+      connected: true,
+      run: {
+        id: "run-1", mode: "incremental", state: "finalizing", complete: false, download_complete: true,
+        orders_loaded: 40, orders_complete: true, dividends_loaded: 10, dividends_complete: true,
+        started_at: "2026-09-21T10:00:00Z", last_progress_at: "2026-09-21T10:05:00Z",
+        completed_at: null, last_error: null,
+      },
+    });
+    mount("/settings?section=connections");
+
+    expect(await screen.findByText("Finalizing history…")).toBeInTheDocument();
+    expect(screen.getByText(/this page can be closed/i)).toBeInTheDocument();
+  });
+
+  it("explains a needs-review run without implying a retry or an imported history", async () => {
+    mocks.fetchT212HistoryStatus.mockResolvedValue({
+      connected: true,
+      run: {
+        id: "run-1", mode: "incremental", state: "needs_review", complete: false, download_complete: true,
+        orders_loaded: 40, orders_complete: true, dividends_loaded: 10, dividends_complete: true,
+        started_at: "2026-09-21T10:00:00Z", last_progress_at: "2026-09-21T10:05:00Z",
+        completed_at: null,
+        last_error: "Trading 212 history contains corporate actions (such as splits) that Portfyl cannot import automatically yet. No history was imported.",
+      },
+    });
+    mount("/settings?section=connections");
+
+    expect(await screen.findByText("Needs review")).toBeInTheDocument();
+    expect(screen.getByText(/corporate actions.*cannot import automatically yet/i)).toBeInTheDocument();
+    expect(screen.queryByText(/this page can be closed/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("History imported")).not.toBeInTheDocument();
+  });
+});
+
+describe("Trading 212 fast position snapshot", () => {
+  it("shows the current position count, value, and freshness", async () => {
+    mocks.fetchT212Status.mockResolvedValue({ connected: true, auto_sync: false, api_key_preview: "••••1234" });
+    mocks.fetchT212Positions.mockResolvedValue({
+      connected: true,
+      status: "fresh",
+      as_of: "2026-09-21T10:05:00Z",
+      currency: "USD",
+      positions: [
+        { ticker: "AAPL", market_value: 100 },
+        { ticker: "MSFT", market_value: 50 },
+      ],
+    });
+
+    mount("/settings?section=connections");
+
+    expect(await screen.findByText("Current positions")).toBeInTheDocument();
+    expect(screen.getByText("2 positions")).toBeInTheDocument();
+    expect(screen.getByText("$150.00")).toBeInTheDocument();
+    expect(screen.getByText("Snapshot fresh")).toBeInTheDocument();
   });
 });

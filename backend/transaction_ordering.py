@@ -2,28 +2,17 @@
 
 T212 snapshot-first sync plan (docs/superpowers/plans/2026-09-20-t212-snapshot-first-sync.md),
 §4.5: adding `Transaction.executed_at` alone is insufficient because
-existing consumers order by `date` plus a fixed type-order fallback
-(routers.portfolio._TXN_TYPE_ORDER) for same-day rows. This module is that
-one shared key, reused verbatim here so a future increment can migrate
-holdings/FIFO, realized P/L, cash timelines, performance, analytics,
-assistant context, and split processing onto it without three copies of the
-same tie-breaking rule drifting apart.
-
-NOT YET WIRED into those existing consumers (deliberately, out of scope for
-this increment -- see the plan's Task 4 status note) -- today only
-t212_sync.finalize_run populates `executed_at`, so migrating consumers to
-this key now would have no observable effect anyway. It's included here,
-tested standalone, so that migration is a mechanical follow-up rather than a
-new design.
+legacy consumers ordered by `date` plus a fixed type-order fallback for
+same-day rows. This module is the single shared key used by holdings/FIFO,
+realized P/L, performance, analytics, and assistant context so those
+accounting paths cannot drift apart.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
-# Mirrors routers.portfolio._TXN_TYPE_ORDER exactly -- the two must never
-# drift apart; a future change to one belongs in both until consumers are
-# migrated onto chronological_key.
+# Date-only CSV/manual rows keep the legacy deterministic fallback.
 TXN_TYPE_ORDER = {"buy": 0, "split_close": 1, "split_open": 2, "dividend": 3, "sell": 4}
 
 

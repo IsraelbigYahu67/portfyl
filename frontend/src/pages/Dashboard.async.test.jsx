@@ -17,6 +17,7 @@ const api = vi.hoisted(() => ({
 const activationMocks = vi.hoisted(() => ({
   recordPopulatedDashboard: vi.fn(() => true),
 }));
+const t212Mocks = vi.hoisted(() => ({ useT212Sync: vi.fn() }));
 
 vi.mock("../api", () => api);
 vi.mock("../analytics/useRegisteredActivation", () => ({
@@ -27,7 +28,9 @@ vi.mock("@edition-manifest", () => ({
 }));
 vi.mock("../App", () => ({
   useCurrency: () => ({ currency: "USD", rate: 22 }),
+  usePortfolio: () => ({ current: { id: "portfolio-1" } }),
 }));
+vi.mock("../hooks/useT212Sync", () => t212Mocks);
 vi.mock("../components/DashboardGrid", () => ({
   default: ({ children }) => {
     // Mirror the real grid's fixed widget order.
@@ -65,6 +68,7 @@ function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  t212Mocks.useT212Sync.mockReturnValue({ connected: false, positionsQuery: {} });
   api.fetchSummary.mockResolvedValue({ total_value: 1000, total_pnl: 100 });
   api.fetchHoldings.mockResolvedValue([{ ticker: "MSFT", weight: 100, market_value: 1000 }]);
   api.fetchPerformance.mockResolvedValue([{ date: "2026-09-01", value: 1000 }]);
@@ -75,6 +79,21 @@ beforeEach(() => {
   api.fetchEarnings.mockResolvedValue([]);
   api.fetchInsiderBuys.mockResolvedValue([]);
   api.fetchDividends.mockResolvedValue([]);
+});
+
+it("shows current T212 quantities from the snapshot while historical dashboard widgets stay separate", async () => {
+  t212Mocks.useT212Sync.mockReturnValue({
+    connected: true,
+    positionsQuery: {
+      data: { status: "fresh", currency: "USD", positions: [{ ticker: "AAPL", quantity: 3, market_value: null }] },
+      isLoading: false, isError: false,
+    },
+  });
+  renderPage();
+
+  expect(await screen.findByRole("region", { name: "Trading 212 current positions" })).toHaveTextContent("3 shares");
+  expect(screen.getByText(/historical performance uses imported transactions/i)).toBeInTheDocument();
+  expect(screen.getByText("Healthy portfolio hero")).toBeInTheDocument();
 });
 
 it("keeps healthy dashboard widgets visible when Movers fails and retries only Movers", async () => {

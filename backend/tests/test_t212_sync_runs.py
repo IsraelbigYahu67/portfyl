@@ -385,7 +385,7 @@ def _page_response(items, next_page_path=None, *, headers=None):
 
 
 class TestAdvanceRun:
-    def test_completes_both_streams_in_one_pass(self, db_session, sync_run):
+    def test_completed_streams_wait_for_atomic_finalization(self, db_session, sync_run):
         order_item = {"order": {"id": "o1"}, "fill": {"id": "f1"}}
         div_item = {"reference": "d1"}
         responses = {
@@ -399,12 +399,12 @@ class TestAdvanceRun:
         with patch("t212_sync.httpx.get", side_effect=fake_get):
             result = t212_sync.advance_run(db_session, sync_run, "https://x", {})
 
-        assert result.state == "completed"
+        assert result.state == "finalizing"
         assert result.orders_staged == 1
         assert result.dividends_staged == 1
         assert sync_run.orders_complete is True
         assert sync_run.dividends_complete is True
-        assert sync_run.completed_at is not None
+        assert sync_run.completed_at is None
         assert db_session.query(BrokerSyncEvent).count() == 2
 
     def test_stays_fetching_when_budget_exhausted_before_completion(self, db_session, sync_run):
@@ -446,11 +446,30 @@ class TestAdvanceRun:
         assert sync_run.dividends_complete is True
         assert sync_run.orders_rate_limit_reset_at is not None
 
+    def test_rate_limit_preserves_the_committed_next_page_checkpoint(
+        self, db_session, sync_run
+    ):
+        checkpoint = "/equity/history/orders?cursor=resume-me&limit=50"
+        sync_run.orders_next_page_path = checkpoint
+        sync_run.dividends_complete = True
+        db_session.commit()
+        response = MagicMock(
+            status_code=429,
+            headers={"x-ratelimit-remaining": "0", "x-ratelimit-reset": "60"},
+        )
+
+        with patch("t212_sync.httpx.get", return_value=response):
+            result = t212_sync.advance_run(db_session, sync_run, "https://x", {})
+
+        assert result.state == "waiting_rate_limit"
+        assert sync_run.orders_next_page_path == checkpoint
+        assert sync_run.orders_rate_limit_reset_at is not None
+
     def test_empty_first_page_marks_stream_complete_immediately(self, db_session, sync_run):
         empty = _page_response([], None)
         with patch("t212_sync.httpx.get", return_value=empty):
             result = t212_sync.advance_run(db_session, sync_run, "https://x", {})
-        assert result.state == "completed"
+        assert result.state == "finalizing"
         assert result.orders_staged == 0
 
     def test_reassert_context_called_after_every_commit(self, db_session, sync_run):

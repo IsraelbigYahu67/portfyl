@@ -34,10 +34,14 @@ def test_payment_and_trial_models_are_not_mapped():
     )
 
 
-def test_expected_alembic_head_adds_transaction_provenance():
-    assert EXPECTED_ALEMBIC_HEAD == "0016_transaction_provenance"
+def test_expected_alembic_head_adds_t212_account_binding():
+    assert EXPECTED_ALEMBIC_HEAD == "0018_t212_account_binding"
     assert hasattr(Transaction, "source_event_id")
     assert hasattr(Transaction, "executed_at")
+    assert hasattr(Transaction, "source_account_fingerprint")
+    assert hasattr(models.BrokerConnection, "positions_snapshot_at")
+    assert hasattr(models.BrokerConnection, "account_fingerprint")
+    assert hasattr(models.Portfolio, "t212_account_fingerprint")
 
 
 def test_provider_neutral_usage_and_notification_constraints_remain():

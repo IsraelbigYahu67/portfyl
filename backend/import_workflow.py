@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 import hashlib
 import json
@@ -17,6 +17,10 @@ from typing import Any
 
 
 IDENTITY_FIELDS = (
+    "source",
+    "source_event_stream",
+    "source_event_id",
+    "executed_at",
     "date",
     "type",
     "ticker",
@@ -42,6 +46,10 @@ _IMPORTED_FIELDS = (
     "cash_currency",
     "notes",
     "source",
+    "source_event_id",
+    "source_event_stream",
+    "source_instrument_id",
+    "executed_at",
     "fx_to_czk",
 )
 
@@ -94,10 +102,39 @@ def _date(value: Any) -> str | None:
         return rendered
 
 
+def _timestamp(value: Any) -> str | None:
+    if value is None or value == "":
+        return None
+    parsed = value if isinstance(value, datetime) else None
+    if parsed is None:
+        rendered = str(value).strip()
+        try:
+            parsed = datetime.fromisoformat(rendered.replace("Z", "+00:00"))
+        except ValueError:
+            return rendered
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc)
+    return parsed.isoformat()
+
+
 def canonical_transaction(row: Any) -> tuple[str | None, ...]:
-    """Return the source/id/name/FX-independent identity of one ledger row."""
+    """Return one ledger row's durable identity.
+
+    Provider identity wins when available. Rows without it retain the legacy
+    business-field identity, now including full execution time so separate
+    same-day fills are not collapsed merely because their dates match.
+    """
+    source_event_id = _text(_get(row, "source_event_id"))
+    if source_event_id is not None:
+        return (
+            "source_event",
+            _text(_get(row, "source"), lower=True),
+            _text(_get(row, "source_event_stream"), lower=True),
+            source_event_id,
+        )
     return (
-        _date(_get(row, "date")),
+        "business_event",
+        _timestamp(_get(row, "executed_at")) or _date(_get(row, "date")),
         _text(_get(row, "type"), lower=True),
         _text(_get(row, "ticker"), upper=True),
         _number(_get(row, "shares")),
@@ -149,6 +186,10 @@ def _imported_row(row: Any) -> dict[str, str | None]:
         "cash_currency": _text(_get(row, "cash_currency"), upper=True),
         "notes": _text(_get(row, "notes")),
         "source": _text(_get(row, "source"), lower=True),
+        "source_event_id": _text(_get(row, "source_event_id")),
+        "source_event_stream": _text(_get(row, "source_event_stream"), lower=True),
+        "source_instrument_id": _text(_get(row, "source_instrument_id")),
+        "executed_at": _timestamp(_get(row, "executed_at")),
         "fx_to_czk": _number(_get(row, "fx_to_czk")),
     }
 

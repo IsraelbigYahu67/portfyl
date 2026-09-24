@@ -123,6 +123,9 @@ class TestReenablingClearsDeadLetterState:
             def raise_for_status(self):
                 return None
 
+            def json(self):
+                return {"id": 1}
+
         monkeypatch.setattr(broker_module.httpx, "get", lambda *a, **k: _FakeResponse())
 
         t212_connect(

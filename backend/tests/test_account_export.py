@@ -44,6 +44,7 @@ def _seed_export_rows(db, context):
         name="Retirement",
         color="#22c55e",
         is_default=True,
+        t212_account_fingerprint="f" * 64,
     )
     watchlist = Watchlist(
         public_id=UUID("20000000-0000-4000-8000-000000000001"),
@@ -66,7 +67,16 @@ def _seed_export_rows(db, context):
         currency="USD",
         date=date(2026, 1, 2),
         notes="portable note",
-        source="manual",
+        source="t212_api",
+        source_event_id="fill-123",
+        source_event_stream="orders",
+        source_account_fingerprint="f" * 64,
+        source_credential_generation=2,
+        source_instrument_id="MSFT_US_EQ",
+        source_fill_type="TRADE",
+        executed_at=datetime(2026, 1, 2, 15, 30, tzinfo=timezone.utc),
+        source_payload_hash="a" * 64,
+        source_mapper_version="t212_finalize_v1",
         fx_to_czk=23.1,
     )
     item = WatchlistItem(
@@ -94,6 +104,7 @@ def _seed_export_rows(db, context):
         api_secret="TOP-SECRET-VALUE",
         environment="live",
         auto_sync=True,
+        account_fingerprint="f" * 64,
         needs_attention=True,
         last_error="Authorization: Bearer TOP-SECRET-ERROR",
     )
@@ -136,7 +147,7 @@ def test_export_contains_portable_workspace_data_without_cross_tenant_rows(
         exported_at=EXPORTED_AT,
     )
 
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["exported_at"] == "2026-09-07T12:30:00+00:00"
     assert payload["workspace"]["id"] == str(request_context.workspace.public_id)
     assert payload["membership"] == {
@@ -147,6 +158,9 @@ def test_export_contains_portable_workspace_data_without_cross_tenant_rows(
     assert [row["name"] for row in payload["portfolios"]] == ["Retirement"]
     assert payload["transactions"][0]["portfolio_id"] == payload["portfolios"][0]["id"]
     assert payload["transactions"][0]["notes"] == "portable note"
+    assert payload["transactions"][0]["source_event_id"] == "fill-123"
+    assert payload["transactions"][0]["source_account_fingerprint"] == "f" * 64
+    assert payload["portfolios"][0]["t212_account_fingerprint"] == "f" * 64
     assert payload["watchlists"][0]["items"][0]["ticker"] == "NVDA"
     assert payload["alerts"][0]["portfolio_id"] == payload["portfolios"][0]["id"]
     assert payload["broker_connections"][0]["portfolio_id"] == payload["portfolios"][0]["id"]
@@ -175,6 +189,8 @@ def test_export_is_allow_listed_and_never_serializes_broker_secrets(
         "environment",
         "auto_sync",
         "last_synced_at",
+        "positions_snapshot_at",
+        "account_fingerprint",
         "csv_covered_through",
         "needs_attention",
         "consecutive_failures",

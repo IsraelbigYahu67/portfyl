@@ -259,17 +259,17 @@ def test_alert_check_all_workspaces_processes_both_workspaces_without_leaking(
 # ---------------------------------------------------------------------------
 
 
-def test_autosync_all_workspaces_notifies_every_connection_despite_internal_commits(
+def test_autosync_all_workspaces_processes_every_connection_despite_internal_commits(
     postgres_engine: Engine, single_workspace, runtime_job_session: Session,
 ):
     """Two auto-sync connections (trading212 + ibkr) on one workspace, one
     Discord webhook with notify_trades on. sync_transactions/_run_ibkr_sync
     commit internally in production -- simulated here with a real
     `db.commit()` inside the fakes, so the RLS context genuinely resets
-    between connections just like it does for real. Pre-fix, the second
-    connection's post-commit Discord-webhook lookup (jobs.py's
-    `DiscordWebhook.workspace_id == workspace_id` query) silently returns
-    nothing -- one notification instead of two."""
+    between connections just like it does for real. The T212 foreground pass
+    now queues history instead of importing ledger rows, while IBKR still
+    notifies immediately. The important regression is that both connections
+    remain visible after either internal commit."""
     ws, pf = single_workspace
     with _owner_session(postgres_engine) as db:
         db.add(BrokerConnection(workspace_id=ws.id, portfolio_id=pf.id, broker="trading212",
@@ -288,7 +288,10 @@ def test_autosync_all_workspaces_notifies_every_connection_despite_internal_comm
         # sync_transactions commits internally in production -- reproduce
         # that real transaction boundary here, on the session under test.
         db.commit()
-        return {"imported_orders": 1, "imported_dividends": 0, "total_imported": 1, "errors": []}
+        return {
+            "snapshot": {"status": "ready"},
+            "history": {"run_id": "run-1", "status": "pending", "complete": False},
+        }
 
     def fake_run_ibkr_sync(db, workspace_id, portfolio_id):
         sync_calls.append("ibkr")
@@ -308,9 +311,9 @@ def test_autosync_all_workspaces_notifies_every_connection_despite_internal_comm
         asyncio.run(autosync_all_workspaces(runtime_job_session, now=now))
 
     assert sorted(sync_calls) == ["ibkr", "trading212"]
-    # The regression: pre-fix this is length 1 (only the first connection's
-    # Discord lookup ran with valid RLS context).
-    assert len(notified) == 2
+    # T212 has no finalized ledger delta to announce in the foreground pass;
+    # the IBKR import still proves the post-commit webhook lookup is scoped.
+    assert len(notified) == 1
 
     # mark_sync_ran's WorkspaceSetting upsert runs after broker_autosync_pass
     # returns -- pre-fix it would run RLS-context-less too (and, being a
@@ -346,12 +349,15 @@ def test_broker_backfill_pass_stages_every_page_despite_internal_commits(
 ):
     ws, pf = single_workspace
     with _owner_session(postgres_engine) as db:
+        pf.t212_account_fingerprint = "single-account-fingerprint"
         conn = BrokerConnection(workspace_id=ws.id, portfolio_id=pf.id, broker="trading212",
-                                api_key="k" * 20, api_secret="", environment="live")
+                                api_key="k" * 20, api_secret="", environment="live",
+                                account_fingerprint=pf.t212_account_fingerprint)
         db.add(conn)
         db.flush()
         run = BrokerSyncRun(
             workspace_id=ws.id, portfolio_id=pf.id, connection_id=conn.id, broker="trading212",
+            account_fingerprint=conn.account_fingerprint,
             credential_generation=conn.credential_generation, mode="incremental", state="pending",
         )
         db.add(run)
@@ -445,12 +451,15 @@ def test_broker_backfill_all_workspaces_advances_both_tenants_without_leaking(
     run_ids = {}
     with _owner_session(postgres_engine) as db:
         for label, ws, pf in (("a", ws_a, pf_a), ("b", ws_b, pf_b)):
+            pf.t212_account_fingerprint = f"{label}-account-fingerprint"
             conn = BrokerConnection(workspace_id=ws.id, portfolio_id=pf.id, broker="trading212",
-                                    api_key=f"{label}-key" * 4, api_secret="", environment="live")
+                                    api_key=f"{label}-key" * 4, api_secret="", environment="live",
+                                    account_fingerprint=pf.t212_account_fingerprint)
             db.add(conn)
             db.flush()
             run = BrokerSyncRun(
                 workspace_id=ws.id, portfolio_id=pf.id, connection_id=conn.id, broker="trading212",
+                account_fingerprint=conn.account_fingerprint,
                 credential_generation=conn.credential_generation, mode="incremental", state="pending",
             )
             db.add(run)

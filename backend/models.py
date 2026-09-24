@@ -365,6 +365,9 @@ class Portfolio(Base):
     color = Column(String, nullable=True)
     is_default = Column(Boolean, default=False)
     t212_csv_covered_through = Column(DateTime(timezone=True), nullable=True)
+    # HMAC identity of the upstream T212 account. It survives disconnect so a
+    # different account can never be attached to an existing ledger.
+    t212_account_fingerprint = Column(String(64), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -406,17 +409,18 @@ class Transaction(Base):
     # (workspace_id, portfolio_id, source, source_event_stream,
     # source_event_id) makes re-finalizing the same event a no-op rather than
     # a duplicate row). `executed_at` is the shared chronological ordering
-    # key's input (see transaction_ordering.py) -- not yet consumed by any
-    # existing calculation, which still orders by `date` alone.
+    # key's input (see transaction_ordering.py) for ledger calculations and
+    # recent-activity presentation.
     source_event_id = Column(String, nullable=True)
     source_event_stream = Column(String, nullable=True)
+    source_account_fingerprint = Column(String(64), nullable=True)
     source_credential_generation = Column(Integer, nullable=True)
     source_instrument_id = Column(String, nullable=True)
     # T212 fill.type ("TRADE", "STOCK_SPLIT", "STOCK_DISTRIBUTION", ...) when
     # known -- lets a future corporate-action increment (plan §6.2) tell a
     # provider-labelled corporate-action fill apart from real user trading
     # without re-deriving it. finalize_run only ever imports "TRADE" fills as
-    # of this increment; any other value is left staged, not finalized.
+    # of this increment; any other value sends the run to `needs_review`.
     source_fill_type = Column(String, nullable=True)
     executed_at = Column(DateTime(timezone=True), nullable=True)
     source_payload_hash = Column(String, nullable=True)
@@ -538,6 +542,10 @@ class BrokerConnection(Base):
     environment = Column(String, default="live")
     auto_sync = Column(Boolean, default=False)
     last_synced_at = Column(DateTime(timezone=True), nullable=True)
+    # Records a successful positions fetch even when it returns no open
+    # positions, so an empty snapshot remains distinct from never fetched.
+    positions_snapshot_at = Column(DateTime(timezone=True), nullable=True)
+    account_fingerprint = Column(String(64), nullable=True)
     t212_csv_covered_through = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     # Dead-letter state: jobs.broker_autosync_pass increments consecutive_failures
@@ -728,10 +736,10 @@ class BrokerSyncRun(Base):
     plan, 2026-09-20, Task 3). Progress is durable per stream
     (`*_next_page_path`/`*_complete`/`*_loaded`) so a run survives a browser
     close or a Cloud Run restart -- `jobs.broker_backfill_pass` is the only
-    thing that advances a run past its first foreground-created page (see
-    t212_sync.advance_run). Reaching `completed` here means every page is
-    staged in `BrokerSyncEvent`, NOT that ledger `Transaction` rows exist --
-    that finalization step is a later increment of this plan (Task 4)."""
+    thing that advances a foreground-created run (see t212_sync.advance_run).
+    `finalizing` means every required page is staged in BrokerSyncEvent;
+    `completed` is written atomically with the finalized ledger rows and the
+    connection's last_synced_at timestamp."""
 
     __tablename__ = "broker_sync_runs"
     __table_args__ = (
@@ -763,6 +771,7 @@ class BrokerSyncRun(Base):
     portfolio_id = Column(Integer, nullable=False, index=True)
     connection_id = Column(Integer, nullable=False, index=True)
     broker = Column(String, nullable=False)
+    account_fingerprint = Column(String(64), nullable=True)
     # Copied from BrokerConnection.credential_generation at creation and never
     # updated -- a stale-generation run is fenced out by t212_sync.claim_lease
     # rather than silently continuing under superseded credentials.
@@ -830,6 +839,7 @@ class BrokerSyncEvent(Base):
     portfolio_id = Column(Integer, nullable=False, index=True)
     run_id = Column(Integer, nullable=False, index=True)
     broker = Column(String, nullable=False)
+    account_fingerprint = Column(String(64), nullable=True)
     stream = Column(String, nullable=False)
     provider_event_id = Column(String, nullable=False)
     provider_timestamp = Column(DateTime(timezone=True), nullable=True)

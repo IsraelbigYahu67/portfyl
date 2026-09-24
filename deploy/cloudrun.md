@@ -163,7 +163,14 @@ python -c "import secrets; print(secrets.token_urlsafe(32))" | gcloud secrets ve
 
 gcloud secrets create portfyl-rate-limit-key-secret --replication-policy=automatic
 python -c "import secrets; print(secrets.token_urlsafe(32))" | gcloud secrets versions add portfyl-rate-limit-key-secret --data-file=-
+
+gcloud secrets create portfyl-account-fingerprint-key --replication-policy=automatic
+python -c "import secrets; print(secrets.token_urlsafe(32))" | gcloud secrets versions add portfyl-account-fingerprint-key --data-file=-
 ```
+
+Keep `portfyl-account-fingerprint-key` stable. Portfyl uses it to bind each
+portfolio to one upstream Trading 212 account without storing that provider's
+raw account ID; rotating it would make existing bindings unverifiable.
 
 **Cloudflare must inject the edge token.** `PORTFYL_EDGE_TOKEN` (above) is
 only half the contract — in the Cloudflare dashboard for portfyl.com,
@@ -188,6 +195,7 @@ gcloud secrets add-iam-policy-binding portfyl-database-url --member="serviceAcco
 gcloud secrets add-iam-policy-binding portfyl-job-database-url --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
 gcloud secrets add-iam-policy-binding portfyl-edge-token --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
 gcloud secrets add-iam-policy-binding portfyl-rate-limit-key-secret --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+gcloud secrets add-iam-policy-binding portfyl-account-fingerprint-key --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
 gcloud secrets add-iam-policy-binding portfyl-migration-database-url --member="serviceAccount:portfyl-migrator@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
 
 gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/firebaseauth.admin"
@@ -244,7 +252,7 @@ the image in the cloud and pushes it to Artifact Registry; accept the offer
 to create the `cloud-run-source-deploy` repo on the first run.
 
 ```powershell
-gcloud run deploy $SERVICE --source . --region $REGION --allow-unauthenticated --service-account "portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --set-secrets="DATABASE_URL=portfyl-database-url:latest,JOB_DATABASE_URL=portfyl-job-database-url:latest,PORTFYL_EDGE_TOKEN=portfyl-edge-token:latest,RATE_LIMIT_KEY_SECRET=portfyl-rate-limit-key-secret:latest" --set-env-vars="PORTFYL_EDITION=cloud,PORTFYL_KMS_KEY_NAME=$KMS_KEY,RATE_LIMIT_GLOBAL_LIMIT=120,RATE_LIMIT_GLOBAL_WINDOW_SECONDS=60,RATE_LIMIT_AUTH_SESSION_LIMIT=10,RATE_LIMIT_AUTH_SESSION_WINDOW_SECONDS=60,RATE_LIMIT_BROKER_SYNC_LIMIT=5,RATE_LIMIT_BROKER_SYNC_WINDOW_SECONDS=60,RATE_LIMIT_ASSISTANT_CHAT_LIMIT=20,RATE_LIMIT_ASSISTANT_CHAT_WINDOW_SECONDS=60" --min-instances=0 --max-instances=5 --cpu=1 --memory=1Gi
+gcloud run deploy $SERVICE --source . --region $REGION --allow-unauthenticated --service-account "portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --set-secrets="DATABASE_URL=portfyl-database-url:latest,JOB_DATABASE_URL=portfyl-job-database-url:latest,PORTFYL_EDGE_TOKEN=portfyl-edge-token:latest,RATE_LIMIT_KEY_SECRET=portfyl-rate-limit-key-secret:latest,PORTFYL_ACCOUNT_FINGERPRINT_KEY=portfyl-account-fingerprint-key:latest" --set-env-vars="PORTFYL_EDITION=cloud,PORTFYL_KMS_KEY_NAME=$KMS_KEY,RATE_LIMIT_GLOBAL_LIMIT=120,RATE_LIMIT_GLOBAL_WINDOW_SECONDS=60,RATE_LIMIT_AUTH_SESSION_LIMIT=10,RATE_LIMIT_AUTH_SESSION_WINDOW_SECONDS=60,RATE_LIMIT_BROKER_SYNC_LIMIT=5,RATE_LIMIT_BROKER_SYNC_WINDOW_SECONDS=60,RATE_LIMIT_ASSISTANT_CHAT_LIMIT=20,RATE_LIMIT_ASSISTANT_CHAT_WINDOW_SECONDS=60" --min-instances=0 --max-instances=5 --cpu=1 --memory=1Gi
 ```
 
 Why these flags:

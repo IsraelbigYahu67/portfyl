@@ -32,7 +32,7 @@ from models import (
 from tenancy import RequestContext
 
 
-EXPORT_SCHEMA_VERSION = 2
+EXPORT_SCHEMA_VERSION = 3
 
 _WORKSPACE_PREFERENCE_KEYS = (
     "broker_sync_daily_time",
@@ -245,6 +245,7 @@ def build_workspace_export(
                 "color": portfolio.color,
                 "is_default": bool(portfolio.is_default),
                 "csv_covered_through": _iso(portfolio.t212_csv_covered_through),
+                "t212_account_fingerprint": portfolio.t212_account_fingerprint,
                 "created_at": _iso(portfolio.created_at),
             }
             for portfolio in portfolios
@@ -265,6 +266,15 @@ def build_workspace_export(
                 "date": _iso(transaction.date),
                 "notes": transaction.notes,
                 "source": transaction.source,
+                "source_event_id": transaction.source_event_id,
+                "source_event_stream": transaction.source_event_stream,
+                "source_account_fingerprint": transaction.source_account_fingerprint,
+                "source_credential_generation": transaction.source_credential_generation,
+                "source_instrument_id": transaction.source_instrument_id,
+                "source_fill_type": transaction.source_fill_type,
+                "executed_at": _iso(transaction.executed_at),
+                "source_payload_hash": transaction.source_payload_hash,
+                "source_mapper_version": transaction.source_mapper_version,
                 "fx_to_czk": transaction.fx_to_czk,
                 "created_at": _iso(transaction.created_at),
             }
@@ -306,6 +316,8 @@ def build_workspace_export(
                 "environment": connection.environment,
                 "auto_sync": bool(connection.auto_sync),
                 "last_synced_at": _iso(connection.last_synced_at),
+                "positions_snapshot_at": _iso(connection.positions_snapshot_at),
+                "account_fingerprint": connection.account_fingerprint,
                 "csv_covered_through": _iso(connection.t212_csv_covered_through),
                 "needs_attention": bool(connection.needs_attention),
                 "consecutive_failures": connection.consecutive_failures,

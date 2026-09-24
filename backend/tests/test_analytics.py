@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from unittest.mock import patch
 
 import pytest
@@ -28,6 +28,20 @@ class TestCapitalGains:
         db_session.commit()
         gains = _compute_capital_gains(txns)
         assert gains == []
+
+    def test_same_day_sell_cannot_match_a_later_timestamped_buy(self, pid):
+        sell = make_txn(
+            "AAPL", "sell", 1, 110.0,
+            date=date(2024, 1, 15), portfolio_id=pid,
+        )
+        sell.executed_at = datetime(2024, 1, 15, 9, 0, tzinfo=timezone.utc)
+        buy = make_txn(
+            "AAPL", "buy", 1, 100.0,
+            date=date(2024, 1, 15), portfolio_id=pid,
+        )
+        buy.executed_at = datetime(2024, 1, 15, 15, 0, tzinfo=timezone.utc)
+
+        assert _compute_capital_gains([buy, sell]) == []
 
     def test_simple_gain(self, db_session, pid):
         """Buy 10 @ $150, sell all @ $200 → gain $500."""
@@ -187,6 +201,22 @@ def test_missing_trade_fx_remains_explicitly_incomplete(
     assert report["gains"][0]["cost_basis_czk"] is None
     assert report["gains"][0]["gain_czk"] is None
     assert report["summary"]["fx_complete"] is False
+
+
+def test_tax_dividend_income_uses_paid_cash_and_historical_fx(db_session, pid, default_portfolio):
+    dividend = make_txn("AAPL", "dividend", 10, 1.0, date=date(2024, 6, 1),
+                        fx_to_czk=20, portfolio_id=pid)
+    dividend.cash_amount = 170.0
+    dividend.cash_currency = "CZK"
+    db_session.add(dividend)
+    db_session.commit()
+
+    report = tax_report(year=2024, db=db_session, portfolio=default_portfolio)
+
+    assert report["dividend_income"][0]["amount"] == pytest.approx(8.5)
+    assert report["dividend_income"][0]["amount_czk"] == pytest.approx(170.0)
+    assert report["summary"]["total_dividends"] == pytest.approx(8.5)
+    assert report["summary"]["total_dividends_czk"] == pytest.approx(170.0)
 
 
 class TestCzechTax:

@@ -22,8 +22,12 @@ const localApi = vi.hoisted(() => ({ fetchTaxReport: vi.fn() }));
 
 vi.mock("../api", () => api);
 vi.mock("../editions/localApi", () => localApi);
+vi.mock("../hooks/useT212Sync", () => ({
+  useT212Sync: () => ({ connected: false, positionsQuery: {} }),
+}));
 vi.mock("../App", () => ({
   useCurrency: () => ({ currency: "USD", rate: 22 }),
+  usePortfolio: () => ({ current: null }),
 }));
 vi.mock("../components/StockDetail", () => ({
   TickerLink: ({ ticker, children }) => <span>{children || ticker}</span>,

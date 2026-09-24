@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from fastapi import HTTPException
+import t212_sync
 
 from models import BrokerConnection
 from routers.broker import connect as t212_connect
@@ -115,6 +116,9 @@ class TestClashDetectionWithoutSqlFilterOnCiphertext:
             def raise_for_status(self):
                 return None
 
+            def json(self):
+                return {"id": 2}
+
         monkeypatch.setattr(broker_module.httpx, "get", lambda *a, **k: _FakeResponse())
 
         result = t212_connect(
@@ -136,19 +140,19 @@ class TestSyncDecryptsStoredCredentials:
         )
         seen_headers = {}
 
-        def _fake_fetch_orders(base, headers):
+        def _fake_fetch_summary(base, headers):
             seen_headers.update(headers)
-            return []
-
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(broker_module, "_fetch_all_orders", _fake_fetch_orders)
-            mp.setattr(broker_module, "_fetch_account_summary", lambda base, headers: {
+            return {
+                "id": 1,
                 "cash": {"availableToTrade": 0},
                 "currency": "USD",
                 "investments": {},
                 "totalValue": 0,
-            })
-            mp.setattr(broker_module, "_fetch_all_dividends", lambda base, headers: [])
+            }
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(broker_module, "_fetch_account_summary", _fake_fetch_summary)
+            mp.setattr(t212_sync, "_fetch_positions", lambda base, headers: [])
             broker_module.sync_transactions(db=db_session, portfolio=default_portfolio, _context=None)
 
         assert seen_headers.get("Authorization") == "real-t212-key"

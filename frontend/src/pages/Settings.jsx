@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { AlertCircle, Briefcase, CheckCircle2, Eye, EyeOff, History, Link as LinkIcon, Loader2, RefreshCw, Unlink } from "lucide-react";
 
-import { connectT212, disconnectT212, fetchT212HistoryStatus, fetchT212Status, setT212AutoSync, syncT212 } from "../api";
-import { usePortfolio } from "../App";
+import { connectT212, disconnectT212, setT212AutoSync } from "../api";
+import { useCurrency, usePortfolio } from "../App";
+import BrokerPositionSnapshot from "../components/BrokerPositionSnapshot";
 import DataPrivacySettings from "../components/DataPrivacySettings";
 import DiscordSettings from "../components/DiscordSettings";
 import PreferencesSettings from "../components/settings/PreferencesSettings";
@@ -14,7 +15,7 @@ import SyncScheduleSettings from "../components/SyncScheduleSettings";
 import { AsyncSection } from "../components/ui";
 import Toggle from "../components/ui/Toggle";
 import { getApiErrorMessage } from "../lib/apiError";
-import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
+import { T212_HISTORY_ACTIVE_STATES, useT212Sync } from "../hooks/useT212Sync";
 
 const VALID_SECTIONS = new Set(SETTINGS_SECTIONS.map(({ value }) => value));
 
@@ -31,33 +32,21 @@ function SectionHeading({ id, headingRef, children, description }) {
 // docs/superpowers/plans/2026-09-20-t212-snapshot-first-sync.md, Task 3) that
 // a background job keeps advancing after this request returns. This polls
 // its progress while active and stops once it reaches a terminal state.
-const HISTORY_ACTIVE_STATES = new Set(["pending", "fetching", "waiting_rate_limit"]);
-
 const HISTORY_STATE_LABEL = {
   pending: "Queued",
-  fetching: "Importing history…",
+  fetching: "Downloading history…",
   waiting_rate_limit: "Waiting for Trading 212…",
+  finalizing: "Finalizing history…",
   completed: "History imported",
   needs_review: "Needs review",
   failed: "Import failed",
   cancelled: "Cancelled",
 };
 
-function HistoryBackfillStatus({ enabled }) {
-  const { data } = useQuery({
-    queryKey: ["t212-history-status"],
-    queryFn: fetchT212HistoryStatus,
-    enabled,
-    refetchInterval: (query) => {
-      const state = query.state.data?.run?.state;
-      return state && HISTORY_ACTIVE_STATES.has(state) ? 5000 : false;
-    },
-  });
-
-  const run = data?.run;
+function HistoryBackfillStatus({ run }) {
   if (!run) return null;
 
-  const active = HISTORY_ACTIVE_STATES.has(run.state);
+  const active = T212_HISTORY_ACTIVE_STATES.has(run.state);
   const label = HISTORY_STATE_LABEL[run.state] ?? run.state;
 
   return (
@@ -70,6 +59,12 @@ function HistoryBackfillStatus({ enabled }) {
         {run.orders_loaded} order{run.orders_loaded === 1 ? "" : "s"} and {run.dividends_loaded} dividend{run.dividends_loaded === 1 ? "" : "s"} loaded so far.
         {active && " Continuing in the background — this page can be closed."}
       </p>
+      {run.state === "completed" && (
+        <p className="text-xs text-muted">The history import is complete and historical analytics are up to date.</p>
+      )}
+      {run.state === "waiting_rate_limit" && run.resume_at && (
+        <p className="text-xs text-muted">Continuing automatically after <time dateTime={run.resume_at}>{new Date(run.resume_at).toLocaleString()}</time>.</p>
+      )}
       {run.last_error && (
         <p className="flex items-center gap-1.5 text-xs text-loss"><AlertCircle size={12} aria-hidden="true" />{run.last_error}</p>
       )}
@@ -80,18 +75,15 @@ function HistoryBackfillStatus({ enabled }) {
 function ConnectionsSettings({ headingRef }) {
   const queryClient = useQueryClient();
   const { current: currentPortfolio } = usePortfolio();
-  const { recordPortfolioDataImported } = useRegisteredActivation();
+  const currency = useCurrency()?.currency ?? "USD";
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [success, setSuccess] = useState(null);
 
-  const { data: status, isLoading, error: statusError, refetch: refetchStatus } = useQuery({
-    queryKey: ["t212-status", currentPortfolio?.id],
-    queryFn: fetchT212Status,
-    enabled: currentPortfolio?.id != null,
-  });
+  const t212 = useT212Sync({ portfolioId: currentPortfolio?.id, currency });
+  const { data: status, isLoading, error: statusError, refetch: refetchStatus } = t212.statusQuery;
 
   const connectMutation = useMutation({
     mutationFn: () => connectT212(apiKey, apiSecret),
@@ -123,21 +115,23 @@ function ConnectionsSettings({ headingRef }) {
     },
   });
 
-  const syncMutation = useMutation({
-    mutationFn: syncT212,
-    onSuccess: (data) => {
-      setActionError(null);
-      setSuccess(`Synced ${data.total_imported} transactions (${data.imported_orders} orders, ${data.imported_dividends} dividends)`);
-      ["t212-status", "t212-history-status", "transactions", "holdings", "summary", "portfolios", "heatmap", "performance", "movers", "earnings", "dividends", "insider-buys"]
-        .forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
-      setTimeout(() => setSuccess(null), 6000);
-      if (data.total_imported > 0) recordPortfolioDataImported("broker");
-    },
-    onError: (error) => {
-      setSuccess(null);
-      setActionError(getApiErrorMessage(error, "Sync failed"));
-    },
-  });
+  const syncMutation = t212.syncMutation;
+  const handleSync = () => {
+    t212.sync(undefined, {
+      onSuccess: (data) => {
+        setActionError(null);
+        const snapshotMessage = data.snapshot?.status === "ready"
+          ? "Snapshot refreshed."
+          : "Snapshot partially refreshed.";
+        setSuccess(`${snapshotMessage} History continues in the background.`);
+        setTimeout(() => setSuccess(null), 6000);
+      },
+      onError: (error) => {
+        setSuccess(null);
+        setActionError(getApiErrorMessage(error, "Sync failed"));
+      },
+    });
+  };
 
   const autoSyncMutation = useMutation({
     mutationFn: setT212AutoSync,
@@ -201,9 +195,10 @@ function ConnectionsSettings({ headingRef }) {
                 <div className="flex justify-between"><span className="text-muted">Connected since</span><span>{status.connected_at ? new Date(status.connected_at).toLocaleDateString() : "—"}</span></div>
                 <div className="flex items-center justify-between pt-1"><span className="text-muted">Auto-sync <span className="ml-2 text-xs">checks on the schedule below</span></span><Toggle checked={status.auto_sync} onChange={(value) => autoSyncMutation.mutate(value)} disabled={autoSyncMutation.isPending} aria-label="T212 auto-sync" /></div>
               </div>
-              <HistoryBackfillStatus enabled={connected} />
+              <BrokerPositionSnapshot query={t212.positionsQuery} />
+              <HistoryBackfillStatus run={t212.historyRun} />
               <div className="flex gap-3">
-                <button type="button" onClick={() => syncMutation.mutate()} disabled={busy} className="flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40">{syncMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}Sync now</button>
+                <button type="button" onClick={handleSync} disabled={busy} className="flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40">{syncMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}Sync now</button>
                 <button type="button" onClick={() => disconnectMutation.mutate()} disabled={busy} className="flex items-center gap-2 rounded-lg border border-red-200 px-5 py-2.5 text-sm font-semibold text-red-600 disabled:opacity-40">{disconnectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Unlink size={16} />}Disconnect</button>
               </div>
             </div>

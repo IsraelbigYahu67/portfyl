@@ -14,9 +14,13 @@ from import_workflow import (
     deduplicate_rows,
 )
 from import_undo import (
+    _as_v1_snapshot,
+    _encode,
     capture_portfolio_state,
     save_undo_snapshot,
+    snapshot_fingerprint,
     undo_status,
+    undo_setting_key,
 )
 from models import AuditLog, TradeNote, Transaction, WorkspaceSetting
 from portfolio_activation import PENDING_PORTFOLIO_SETTING_KEY, set_pending_portfolio
@@ -84,6 +88,28 @@ def test_origin_metadata_does_not_turn_the_same_business_event_into_a_new_row():
     assert canonical_transaction(row(source="manual")) == canonical_transaction(
         row(source="t212_csv")
     )
+
+
+def test_provider_identity_precedes_matching_business_fields():
+    first = row(
+        source="t212_csv",
+        source_event_stream="csv_export",
+        source_event_id="fill-1",
+        executed_at=datetime(2026, 1, 2, 10, 30, tzinfo=timezone.utc),
+    )
+    second = {
+        **first,
+        "source_event_id": "fill-2",
+    }
+
+    assert canonical_transaction(first) != canonical_transaction(second)
+
+
+def test_full_timestamp_distinguishes_rows_without_provider_identity():
+    first = row(executed_at=datetime(2026, 1, 2, 10, 30, tzinfo=timezone.utc))
+    second = row(executed_at=datetime(2026, 1, 2, 10, 31, tzinfo=timezone.utc))
+
+    assert canonical_transaction(first) != canonical_transaction(second)
 
 
 def test_deduplicate_rows_keeps_first_occurrence_and_reports_repeat_count():
@@ -457,8 +483,18 @@ def test_replace_undo_restores_public_ids_and_trade_notes(
     original = make_txn(
         "AAPL", "buy", 2, 150,
         date=date(2026, 1, 2),
+        source="t212_api",
         portfolio_id=default_portfolio.id,
     )
+    original.source_event_id = "fill-123"
+    original.source_event_stream = "orders"
+    original.source_account_fingerprint = "f" * 64
+    original.source_credential_generation = 3
+    original.source_instrument_id = "AAPL_US_EQ"
+    original.source_fill_type = "TRADE"
+    original.executed_at = datetime(2026, 1, 2, 14, 30, 45)
+    original.source_payload_hash = "a" * 64
+    original.source_mapper_version = "t212_finalize_v1"
     db_session.add(original)
     db_session.flush()
     db_session.add(TradeNote(
@@ -502,6 +538,15 @@ def test_replace_undo_restores_public_ids_and_trade_notes(
     assert result["restored"] == 1
     assert restored.ticker == "AAPL"
     assert restored.public_id == original_public_id
+    assert restored.source_event_id == "fill-123"
+    assert restored.source_event_stream == "orders"
+    assert restored.source_account_fingerprint == "f" * 64
+    assert restored.source_credential_generation == 3
+    assert restored.source_instrument_id == "AAPL_US_EQ"
+    assert restored.source_fill_type == "TRADE"
+    assert restored.executed_at == datetime(2026, 1, 2, 14, 30, 45)
+    assert restored.source_payload_hash == "a" * 64
+    assert restored.source_mapper_version == "t212_finalize_v1"
     assert note.transaction_id == restored.id
     assert note.content == "Keep this thesis"
     assert get_import_undo_status(db=db_session, portfolio=default_portfolio)["available"] is False
@@ -574,6 +619,32 @@ def test_undo_snapshot_expires_after_twenty_four_hours(
     )
     assert expired["available"] is False
     assert expired["reason"] == "expired"
+
+
+def test_active_v1_undo_snapshot_remains_compatible(db_session, default_portfolio):
+    db_session.add(make_txn("AAPL", portfolio_id=default_portfolio.id))
+    db_session.commit()
+    current = _as_v1_snapshot(capture_portfolio_state(db_session, default_portfolio))
+    created_at = datetime.now(timezone.utc)
+    payload = {
+        "schema_version": 1,
+        "portfolio_id": str(default_portfolio.public_id),
+        "created_at": created_at.isoformat(),
+        "expires_at": (created_at + timedelta(hours=24)).isoformat(),
+        "mode": "append",
+        "format": "Native",
+        "imported": 1,
+        "before": current,
+        "after_fingerprint": snapshot_fingerprint(current),
+    }
+    db_session.add(WorkspaceSetting(
+        workspace_id=default_portfolio.workspace_id,
+        key=undo_setting_key(default_portfolio),
+        value=_encode(payload),
+    ))
+    db_session.commit()
+
+    assert undo_status(db_session, default_portfolio)["available"] is True
 
 
 def test_mutating_import_routes_use_csrf_dependency_and_legacy_route_is_absent():

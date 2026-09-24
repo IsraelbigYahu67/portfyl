@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAllHoldings, fetchSectorBreakdown } from "../api";
-import { useCurrency } from "../App";
+import { useCurrency, usePortfolio } from "../App";
 import { formatMoney } from "../lib/format";
 import { allocationRows, boundedAllocationRows } from "../lib/allocationBreakdown";
 import { TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
@@ -10,11 +10,15 @@ import BreakdownChart from "../components/BreakdownChart";
 import AllocationBreakdownList from "../components/AllocationBreakdownList";
 import SegmentedControl from "../components/ui/SegmentedControl";
 import { AsyncSection } from "../components/ui";
+import BrokerPositionSnapshot from "../components/BrokerPositionSnapshot";
+import { useT212Sync } from "../hooks/useT212Sync";
 
 const fmtPct = (n) => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
 
 export default function Allocation() {
   const { currency } = useCurrency();
+  const currentPortfolio = usePortfolio()?.current;
+  const t212 = useT212Sync({ portfolioId: currentPortfolio?.id, currency });
   const { openStock } = useStockDetail();
 
   // Portfolio-level money (value, P&L, dividends) is shown in the display
@@ -109,6 +113,13 @@ export default function Allocation() {
           Refresh prices
         </button>
       </div>
+
+      {t212.connected && (
+        <div className="space-y-2">
+          <BrokerPositionSnapshot query={t212.positionsQuery} limit={20} />
+          <p className="text-xs text-muted">Allocation charts use imported transactions and may lag behind this current snapshot.</p>
+        </div>
+      )}
 
       <AsyncSection
         isLoading={breakdownLoading || holdingsLoading}

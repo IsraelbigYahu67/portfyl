@@ -214,7 +214,9 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
         workspace_id=workspace.id, portfolio_id=portfolio.id,
         broker="trading212", api_key=f"{label}-t212-key",
         api_secret=f"{label}-t212-secret", environment="live",
+        account_fingerprint=f"{label}-account-fingerprint",
     )
+    portfolio.t212_account_fingerprint = t212_connection.account_fingerprint
     db.add_all([
         TradeNote(
             workspace_id=workspace.id, transaction_id=trade.id,
@@ -281,6 +283,7 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
     sync_run = BrokerSyncRun(
         workspace_id=workspace.id, portfolio_id=portfolio.id,
         connection_id=t212_connection.id, broker="trading212",
+        account_fingerprint=t212_connection.account_fingerprint,
         credential_generation=t212_connection.credential_generation,
         mode="incremental", state="fetching",
         orders_loaded=1,
@@ -289,7 +292,8 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
     db.flush()
     db.add(BrokerSyncEvent(
         workspace_id=workspace.id, portfolio_id=portfolio.id,
-        run_id=sync_run.id, broker="trading212", stream="orders",
+        run_id=sync_run.id, broker="trading212",
+        account_fingerprint=sync_run.account_fingerprint, stream="orders",
         provider_event_id=f"fill:{label}-1",
         raw_payload={"order": {"id": f"{label}-order-1"}},
     ))

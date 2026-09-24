@@ -21,6 +21,7 @@ from entitlements import (
     require_writable_resource,
     resolve_entitlements,
 )
+from ledger_mutation import acquire_workspace_ledger_lock
 from models import BrokerConnection, Portfolio, Transaction, Workspace
 from portfolio_activation import clear_pending_portfolio, pending_portfolio, set_pending_portfolio
 from audit import record_audit_event
@@ -295,12 +296,7 @@ def create_demo_portfolio(
     db: Session = Depends(get_db),
 ):
     """Create one deterministic, removable sample portfolio for onboarding."""
-    if db.get_bind().dialect.name == "postgresql":
-        db.execute(
-            select(Workspace.id)
-            .where(Workspace.id == context.workspace.id)
-            .with_for_update()
-        ).one()
+    acquire_workspace_ledger_lock(db, context.workspace.id)
     existing_portfolios = db.scalar(
         select(func.count()).select_from(Portfolio).where(
             Portfolio.workspace_id == context.workspace.id
@@ -409,6 +405,7 @@ def delete_portfolio(
     context: RequestContext = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
+    acquire_workspace_ledger_lock(db, context.workspace.id)
     portfolio = _workspace_portfolio(db, context, portfolio_id)
     total = db.scalar(
         select(func.count())

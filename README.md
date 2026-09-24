@@ -31,6 +31,11 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
+Set a stable `PORTFYL_ACCOUNT_FINGERPRINT_KEY` of at least 32 characters in the
+root `.env` before connecting Trading 212. Do not rotate it while account
+bindings exist; Portfyl deliberately fails closed when it cannot verify the
+upstream account identity.
+
 ### Frontend
 
 ```bash

@@ -20,6 +20,7 @@ from models import (
     BrokerConnection,
     BrokerBalance,
     BrokerPosition,
+    BrokerSyncRun,
     DiscordWebhook,
     Membership,
     OptionsTrade,
@@ -501,24 +502,8 @@ def test_t212_sync_stamps_the_authorized_workspace_and_portfolio(
     postgres_engine,
     monkeypatch,
 ):
-    monkeypatch.setattr(broker_router, "_fetch_all_orders", lambda *_: [{
-        "order": {
-            "id": "alice-order",
-            "status": "FILLED",
-            "ticker": "AAPL",
-            "side": "BUY",
-            "filledQuantity": 2,
-            "createdAt": "2026-02-01T10:00:00Z",
-            "instrument": {"currency": "USD", "name": "Apple Inc."},
-        },
-        "fill": {
-            "quantity": 2,
-            "price": 100,
-            "filledAt": "2026-02-01T10:00:00Z",
-        },
-    }])
-    monkeypatch.setattr(broker_router, "_fetch_all_dividends", lambda *_: [])
     monkeypatch.setattr(broker_router, "_fetch_account_summary", lambda *_: {
+        "id": "alice-account",
         "cash": {
             "availableToTrade": 100.0,
             "inPies": 25.0,
@@ -528,13 +513,6 @@ def test_t212_sync_stamps_the_authorized_workspace_and_portfolio(
         "investments": {"currentValue": 200.0},
         "totalValue": 330.0,
     })
-    monkeypatch.setattr(broker_router, "_split_adjust", lambda *_: 0)
-    monkeypatch.setattr(broker_router, "_drop_corporate_action_pairs", lambda *_: 0)
-    monkeypatch.setattr(
-        broker_router,
-        "bulk_fetch_fx",
-        lambda *_: {("USD", date(2026, 2, 1)): 20.0},
-    )
     monkeypatch.setattr(t212_sync, "_fetch_positions", lambda *_: [
         {"ticker": "MSFT_US_EQ", "quantity": 3.0, "averagePrice": 250.0, "currentPrice": 260.0},
     ])
@@ -544,13 +522,16 @@ def test_t212_sync_stamps_the_authorized_workspace_and_portfolio(
         params={"portfolio_id": str(tenant_rows.alice_portfolio.public_id)},
     )
 
-    assert response.status_code == 200
-    assert response.json()["imported_orders"] == 1
-    assert response.json()["positions_updated"] is True
+    assert response.status_code == 202
+    assert response.json()["snapshot"]["positions_updated"] is True
+    assert response.json()["history"]["status"] == "pending"
     with Session(postgres_engine) as db:
-        row = db.query(Transaction).one()
-        assert row.workspace_id == tenant_rows.alice_workspace.id
-        assert row.portfolio_id == tenant_rows.alice_portfolio.id
+        assert db.query(Transaction).count() == 0
+        run = db.query(BrokerSyncRun).one()
+        assert run.workspace_id == tenant_rows.alice_workspace.id
+        assert run.portfolio_id == tenant_rows.alice_portfolio.id
+        assert run.connection_id == tenant_rows.alice_t212.id
+        assert response.json()["history"]["run_id"] == str(run.public_id)
         balance = db.query(BrokerBalance).filter(
             BrokerBalance.broker == "trading212"
         ).one()

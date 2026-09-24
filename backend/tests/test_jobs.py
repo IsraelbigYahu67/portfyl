@@ -10,8 +10,8 @@ import pytest
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import patch, AsyncMock, Mock
 
-from models import BrokerConnection, DiscordWebhook, DividendNotification
-from jobs import broker_autosync_pass, dividend_exdate_pass
+from models import BrokerConnection, BrokerPosition, DiscordWebhook, DividendNotification
+from jobs import _upcoming_dividends, broker_autosync_pass, dividend_exdate_pass
 from tests.helpers import TEST_WORKSPACE_ID, make_txn
 
 
@@ -55,28 +55,38 @@ def test_autosync_skips_connections_without_flag(db_session, pid):
     sync.assert_not_called()
 
 
-def test_autosync_syncs_t212_and_notifies(db_session, pid):
+def test_autosync_refreshes_t212_snapshot_and_queues_history(db_session, pid):
     _connect(db_session, pid, auto_sync=True)
     _webhook(db_session, pid, notify_trades=True)
     sent = AsyncMock()
-    fake = {"imported_orders": 2, "imported_dividends": 1, "total_imported": 3, "errors": []}
+    fake = {
+        "snapshot": {"status": "ready"},
+        "history": {"run_id": "run-1", "status": "pending", "complete": False},
+    }
     with patch("routers.broker.sync_transactions", return_value=fake) as sync, \
          patch("jobs.send_discord_notification", sent):
         results = _run(broker_autosync_pass(db_session, TEST_WORKSPACE_ID))
     sync.assert_called_once()
-    assert results == [{"portfolio_id": pid, "broker": "trading212", "ok": True, "imported": 3}]
-    sent.assert_awaited_once()
-    # send_discord_notification(db, workspace_id, portfolio_id, title, description)
-    assert sent.await_args.args[1] == TEST_WORKSPACE_ID
-    assert sent.await_args.args[2] == pid
-    assert "3" in sent.await_args.args[3]  # title mentions the import count
+    assert results == [{
+        "portfolio_id": pid,
+        "broker": "trading212",
+        "ok": True,
+        "imported": 0,
+        "snapshot_status": "ready",
+        "history_status": "pending",
+        "history_run_id": "run-1",
+    }]
+    sent.assert_not_awaited()
 
 
 def test_autosync_no_notification_when_nothing_imported(db_session, pid):
     _connect(db_session, pid, auto_sync=True)
     _webhook(db_session, pid, notify_trades=True)
     sent = AsyncMock()
-    fake = {"imported_orders": 0, "imported_dividends": 0, "total_imported": 0, "errors": []}
+    fake = {
+        "snapshot": {"status": "ready"},
+        "history": {"run_id": "run-1", "status": "pending", "complete": False},
+    }
     with patch("routers.broker.sync_transactions", return_value=fake), \
          patch("jobs.send_discord_notification", sent):
         results = _run(broker_autosync_pass(db_session, TEST_WORKSPACE_ID))
@@ -88,7 +98,10 @@ def test_autosync_respects_notify_trades_flag(db_session, pid):
     _connect(db_session, pid, auto_sync=True)
     _webhook(db_session, pid, notify_trades=False)
     sent = AsyncMock()
-    fake = {"imported_orders": 5, "imported_dividends": 0, "total_imported": 5, "errors": []}
+    fake = {
+        "snapshot": {"status": "ready"},
+        "history": {"run_id": "run-1", "status": "pending", "complete": False},
+    }
     with patch("routers.broker.sync_transactions", return_value=fake), \
          patch("jobs.send_discord_notification", sent):
         _run(broker_autosync_pass(db_session, TEST_WORKSPACE_ID))
@@ -111,7 +124,10 @@ def test_autosync_one_failure_does_not_block_others(db_session, default_portfoli
         calls.append(portfolio.id)
         if portfolio.id == default_portfolio.id:
             raise RuntimeError("T212 down")
-        return {"imported_orders": 1, "imported_dividends": 0, "total_imported": 1, "errors": []}
+        return {
+            "snapshot": {"status": "ready"},
+            "history": {"run_id": "run-2", "status": "pending", "complete": False},
+        }
 
     with patch("routers.broker.sync_transactions", side_effect=flaky), \
          patch("jobs.send_discord_notification", AsyncMock()):
@@ -145,7 +161,10 @@ def test_autosync_t212_sync_runs_off_event_loop(db_session, pid):
             seen["on_loop"] = True
         except RuntimeError:
             seen["on_loop"] = False
-        return {"imported_orders": 0, "imported_dividends": 0, "total_imported": 0, "errors": []}
+        return {
+            "snapshot": {"status": "ready"},
+            "history": {"run_id": "run-1", "status": "pending", "complete": False},
+        }
 
     with patch("routers.broker.sync_transactions", side_effect=probing_sync):
         _run(broker_autosync_pass(db_session, TEST_WORKSPACE_ID))
@@ -190,6 +209,53 @@ def _div_info(ex_date, amount=0.25):
 def _seed_holding(db, pid, ticker="AAPL", shares=10):
     db.add(make_txn(ticker, "buy", shares, 100.0, date=date(2024, 1, 15), portfolio_id=pid))
     db.commit()
+
+
+def test_dividend_lookup_prefers_fresh_broker_positions_over_incomplete_ledger(db_session, pid):
+    conn = _connect(db_session, pid)
+    _seed_holding(db_session, pid, ticker="AAPL", shares=10)
+    conn.positions_snapshot_at = datetime.now(timezone.utc)
+    db_session.add(BrokerPosition(
+        workspace_id=TEST_WORKSPACE_ID, portfolio_id=pid, broker="trading212",
+        provider_ticker="MSFT_US_EQ", ticker="MSFT", quantity=7,
+        avg_price=100, as_of=conn.positions_snapshot_at,
+    ))
+    db_session.commit()
+
+    with patch("jobs._next_dividend_info", _div_info(date(2026, 7, 14))):
+        upcoming = _upcoming_dividends(db_session, TEST_WORKSPACE_ID, pid, date(2026, 7, 12), 3)
+
+    assert [(item["ticker"], item["shares"]) for item in upcoming] == [("MSFT", 7)]
+
+
+def test_dividend_lookup_falls_back_to_ledger_when_snapshot_stale(db_session, pid):
+    conn = _connect(db_session, pid)
+    _seed_holding(db_session, pid, ticker="AAPL", shares=10)
+    conn.positions_snapshot_at = datetime.now(timezone.utc) - timedelta(hours=26)
+    db_session.add(BrokerPosition(
+        workspace_id=TEST_WORKSPACE_ID, portfolio_id=pid, broker="trading212",
+        provider_ticker="MSFT_US_EQ", ticker="MSFT", quantity=7,
+        avg_price=100, as_of=conn.positions_snapshot_at,
+    ))
+    db_session.commit()
+
+    with patch("jobs._next_dividend_info", _div_info(date(2026, 7, 14))):
+        upcoming = _upcoming_dividends(db_session, TEST_WORKSPACE_ID, pid, date(2026, 7, 12), 3)
+
+    assert [(item["ticker"], item["shares"]) for item in upcoming] == [("AAPL", 10)]
+
+
+def test_dividend_lookup_respects_fresh_empty_broker_snapshot(db_session, pid):
+    conn = _connect(db_session, pid)
+    _seed_holding(db_session, pid, ticker="AAPL", shares=10)
+    conn.positions_snapshot_at = datetime.now(timezone.utc)
+    db_session.commit()
+
+    with patch("jobs._next_dividend_info", side_effect=_div_info(date(2026, 7, 14))) as lookup:
+        upcoming = _upcoming_dividends(db_session, TEST_WORKSPACE_ID, pid, date(2026, 7, 12), 3)
+
+    assert upcoming == []
+    lookup.assert_not_called()
 
 
 def test_dividend_pass_announces_upcoming_exdate(db_session, pid):

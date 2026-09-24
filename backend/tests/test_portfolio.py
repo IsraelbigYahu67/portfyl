@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from unittest.mock import patch
 
 import pytest
 
-from models import Transaction
+from models import BrokerConnection, BrokerSyncRun, Transaction
 from schemas import TransactionCreate
-from routers.portfolio import _build_holdings, create_transaction, get_summary, get_holdings
+from routers.portfolio import (
+    _build_holdings,
+    clear_all_transactions,
+    create_transaction,
+    delete_transaction,
+    get_dividend_forecast,
+    get_holdings,
+    get_summary,
+)
+from tests.conftest import make_txn
 
 
 class TestBuildHoldings:
@@ -18,6 +27,36 @@ class TestBuildHoldings:
     def test_empty(self, db_session, pid):
         """No transactions → empty dict."""
         assert _build_holdings([]) == {}
+
+    def test_same_day_events_use_execution_time_before_type_fallback(self, pid):
+        """A morning sell cannot consume shares bought later that afternoon."""
+        sell = make_txn(
+            "AAPL", "sell", 1, 110.0,
+            date=date(2024, 1, 15), portfolio_id=pid,
+        )
+        sell.executed_at = datetime(2024, 1, 15, 9, 0, tzinfo=timezone.utc)
+        buy = make_txn(
+            "AAPL", "buy", 1, 100.0,
+            date=date(2024, 1, 15), portfolio_id=pid,
+        )
+        buy.executed_at = datetime(2024, 1, 15, 15, 0, tzinfo=timezone.utc)
+
+        holding = _build_holdings([buy, sell])["AAPL"]
+
+        assert holding["shares"] == pytest.approx(1.0)
+        assert holding["cost"] == pytest.approx(100.0)
+        assert holding["realized_pnl"] == pytest.approx(0.0)
+
+    def test_holding_received_dividends_use_paid_cash(self, pid):
+        dividend = make_txn("AAPL", "dividend", 10, 1.0, currency="USD",
+                            date=date(2024, 6, 1), portfolio_id=pid)
+        dividend.cash_amount = 8.5
+        dividend.cash_currency = "USD"
+
+        with patch("routers.portfolio._live_fx_to_czk", return_value=1.0):
+            holding = _build_holdings([dividend], include_closed=True, display_ccy="USD")["AAPL"]
+
+        assert holding["dividends"] == pytest.approx(8.5)
 
     def test_single_buy(self, txns_demo, pid):
         """Single ticker with one buy lot."""
@@ -194,6 +233,22 @@ class TestSummary:
         assert s["total_invested"] == pytest.approx(21900.0)
         assert s["total_dividends"] == pytest.approx(50.0)
 
+    def test_summary_uses_received_dividend_cash_instead_of_gross(
+        self, db_session, default_portfolio, pid
+    ):
+        dividend = make_txn("AAPL", "dividend", 10, 1.0, currency="USD",
+                            date=date(2024, 6, 1), portfolio_id=pid)
+        dividend.cash_amount = 8.5
+        dividend.cash_currency = "USD"
+        db_session.add(dividend)
+        db_session.commit()
+
+        with patch("routers.portfolio.get_holdings", return_value=[]), \
+             patch("routers.portfolio._live_fx_to_czk", return_value=1.0):
+            summary = get_summary(currency="USD", db=db_session, portfolio=default_portfolio)
+
+        assert summary["total_dividends"] == pytest.approx(8.5)
+
     def test_empty_portfolio(self, db_session, pid, default_portfolio):
         """No transactions → zeroed summary."""
         s = get_summary(currency="USD", db=db_session, portfolio=default_portfolio)
@@ -201,41 +256,135 @@ class TestSummary:
         assert s["holdings_count"] == 0
 
 
-class TestCreateTransaction:
-    """Tests for POST /portfolio/transactions (create_transaction)."""
+def test_dividend_forecast_paid_total_uses_received_cash(db_session, default_portfolio, pid):
+    today = datetime.now().date()
+    dividend = make_txn("AAPL", "dividend", 10, 1.0, currency="USD",
+                        date=today, portfolio_id=pid)
+    dividend.cash_amount = 8.5
+    dividend.cash_currency = "USD"
+    db_session.add(dividend)
+    db_session.commit()
 
-    def test_creates_transaction_with_resolved_fields(self, db_session, pid, default_portfolio):
-        """Valid input creates a row: ticker upper-cased, name/fx resolved, portfolio_id set.
+    with patch("routers.portfolio._live_to_usd", return_value=1.0):
+        forecast = get_dividend_forecast(db=db_session, portfolio=default_portfolio)
 
-        Regression test: create_transaction used to crash with
-        `TypeError: models.Transaction() got multiple values for keyword
-        argument 'ticker'` because txn.model_dump() already carries 'ticker'
-        and the constructor call passed ticker= again.
-        """
-        txn_in = TransactionCreate(
-            ticker="aapl",
-            type="buy",
-            shares=10,
-            price=150.0,
-            currency="USD",
-            date=date(2024, 1, 15),
+    assert forecast["total_paid"] == pytest.approx(8.5)
+
+
+def test_delete_transaction_rejects_broker_managed_rows(
+    db_session, default_portfolio, pid
+):
+    transaction = make_txn(
+        "AAPL", "buy", 1, 100.0, date=date(2024, 1, 1),
+        portfolio_id=pid, source="t212_api",
+    )
+    db_session.add(transaction)
+    db_session.commit()
+
+    with pytest.raises(Exception) as exc_info:
+        delete_transaction(
+            transaction.public_id, db=db_session, portfolio=default_portfolio,
         )
 
-        with (
-            patch("routers.portfolio.market_data.get_info", return_value={"shortName": "Apple Inc."}),
-            patch("routers.portfolio.fetch_fx_to_czk", return_value=22.5),
-        ):
-            result = create_transaction(txn_in, db=db_session, portfolio=default_portfolio)
+    assert exc_info.value.status_code == 409
+    assert db_session.query(Transaction).filter_by(id=transaction.id).one()
 
-        assert result.id is not None
-        assert result.ticker == "AAPL"
-        assert result.name == "Apple Inc."
-        assert result.fx_to_czk == 22.5
-        assert result.portfolio_id == pid
 
-        stored = db_session.query(Transaction).filter(Transaction.id == result.id).first()
-        assert stored.ticker == "AAPL"
-        assert stored.shares == 10
+def test_clear_all_transactions_invalidates_t212_history_state(
+    db_session, default_portfolio, pid
+):
+    fingerprint = "f" * 64
+    covered_at = datetime(2024, 1, 2, 12, 0, tzinfo=timezone.utc)
+    default_portfolio.t212_account_fingerprint = fingerprint
+    default_portfolio.t212_csv_covered_through = covered_at
+    connection = BrokerConnection(
+        workspace_id=default_portfolio.workspace_id,
+        portfolio_id=pid,
+        broker="trading212",
+        api_key="test-key-value-1234567890",
+        account_fingerprint=fingerprint,
+        last_synced_at=covered_at,
+        t212_csv_covered_through=covered_at,
+    )
+    db_session.add(connection)
+    db_session.flush()
+    run = BrokerSyncRun(
+        workspace_id=default_portfolio.workspace_id,
+        portfolio_id=pid,
+        connection_id=connection.id,
+        broker="trading212",
+        account_fingerprint=fingerprint,
+        credential_generation=connection.credential_generation,
+        mode="incremental",
+        state="fetching",
+    )
+    completed_run = BrokerSyncRun(
+        workspace_id=default_portfolio.workspace_id,
+        portfolio_id=pid,
+        connection_id=connection.id,
+        broker="trading212",
+        account_fingerprint=fingerprint,
+        credential_generation=connection.credential_generation,
+        mode="incremental",
+        state="completed",
+        completed_at=covered_at,
+    )
+    db_session.add_all([
+        run,
+        completed_run,
+        make_txn(
+            "AAPL", "buy", 1, 100.0, date=date(2024, 1, 1),
+            portfolio_id=pid, source="t212_api",
+        ),
+    ])
+    db_session.commit()
+
+    result = clear_all_transactions(db=db_session, portfolio=default_portfolio)
+
+    assert result == {"deleted": 1}
+    assert db_session.query(Transaction).count() == 0
+    db_session.refresh(run)
+    db_session.refresh(completed_run)
+    db_session.refresh(connection)
+    db_session.refresh(default_portfolio)
+    assert run.state == "cancelled"
+    assert completed_run.state == "cancelled"
+    assert connection.last_synced_at is None
+    assert connection.t212_csv_covered_through is None
+    assert default_portfolio.t212_csv_covered_through is None
+
+def test_creates_transaction_with_resolved_fields(db_session, pid, default_portfolio):
+    """Valid input creates a row: ticker upper-cased, name/fx resolved, portfolio_id set.
+
+    Regression test: create_transaction used to crash with
+    `TypeError: models.Transaction() got multiple values for keyword
+    argument 'ticker'` because txn.model_dump() already carries 'ticker'
+    and the constructor call passed ticker= again.
+    """
+    txn_in = TransactionCreate(
+        ticker="aapl",
+        type="buy",
+        shares=10,
+        price=150.0,
+        currency="USD",
+        date=date(2024, 1, 15),
+    )
+
+    with (
+        patch("routers.portfolio.market_data.get_info", return_value={"shortName": "Apple Inc."}),
+        patch("routers.portfolio.fetch_fx_to_czk", return_value=22.5),
+    ):
+        result = create_transaction(txn_in, db=db_session, portfolio=default_portfolio)
+
+    assert result.id is not None
+    assert result.ticker == "AAPL"
+    assert result.name == "Apple Inc."
+    assert result.fx_to_czk == 22.5
+    assert result.portfolio_id == pid
+
+    stored = db_session.query(Transaction).filter(Transaction.id == result.id).first()
+    assert stored.ticker == "AAPL"
+    assert stored.shares == 10
 
 
 from tests.helpers import TEST_WORKSPACE_ID, make_txn

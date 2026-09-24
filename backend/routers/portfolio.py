@@ -23,12 +23,14 @@ from entitlements import (
     require_capability,
     resolve_entitlements,
 )
-from models import BrokerConnection, Portfolio, TradeNote, Transaction, Workspace
-from cash_ledger import TRADE_TYPES, POSITION_TYPES
+from models import BrokerConnection, BrokerSyncRun, Portfolio, TradeNote, Transaction
+from cash_ledger import TRADE_TYPES, POSITION_TYPES, signed_cash
 from schemas import TransactionCreate, TransactionResponse
 from fx import fetch_fx_to_czk, bulk_fetch_fx
 from routers.portfolios import require_portfolio
 from ticker_map import yf_symbol
+from transaction_ordering import chronological_key
+from ledger_mutation import acquire_workspace_ledger_lock, is_broker_managed
 from cache import tenant_cache_key
 from tenancy import RequestContext, get_request_context, require_csrf
 import market_data
@@ -106,6 +108,17 @@ def _t212_str(row, col, default="") -> str:
     return s if s and s.upper() != "NAN" else default
 
 
+def _t212_csv_provenance(row, txn_time, *, leg: str | None = None) -> dict:
+    export_id = _t212_str(row, "id")
+    source_event_id = f"{export_id}:{leg}" if export_id and leg else export_id or None
+    return {
+        "executed_at": txn_time.to_pydatetime(),
+        "source_event_id": source_event_id,
+        "source_event_stream": "csv_export",
+        "source_instrument_id": _t212_str(row, "isin") or _t212_str(row, "ticker") or None,
+    }
+
+
 def _normalize_t212_detailed(df: pd.DataFrame) -> tuple[list[dict], int, list[str]]:
     """Convert a T212 DataFrame into a list of normalised row dicts.
 
@@ -122,8 +135,6 @@ def _normalize_t212_detailed(df: pd.DataFrame) -> tuple[list[dict], int, list[st
     """
     rows, skipped, errors = [], 0, []
     split_events: dict[tuple[str, str], dict] = {}
-    split_dates: set[tuple[str, object]] = set()
-    trade_dates: set[tuple[str, object]] = set()
     for i, row in df.iterrows():
         row_num = i + 2  # CSV header occupies row 1
         raw_action = str(row.get("action", "")).strip()
@@ -138,6 +149,7 @@ def _normalize_t212_detailed(df: pd.DataFrame) -> tuple[list[dict], int, list[st
             skipped += 1
             errors.append(f"Row {row_num} ({action_label}): invalid or missing timestamp")
             continue
+        provenance = _t212_csv_provenance(row, txn_time)
 
         total = _t212_num(row, "total")
         total_ccy = _t212_str(row, "currency (total)", "CZK").upper()
@@ -157,7 +169,8 @@ def _normalize_t212_detailed(df: pd.DataFrame) -> tuple[list[dict], int, list[st
             rows.append({"ticker": None, "name": None, "type": "fee",
                          "shares": 0.0, "price": 0.0, "amount": amount,
                          "currency": currency, "date": txn_date,
-                         "notes": f"T212: ADR fee{f' ({ticker})' if ticker else ''}"})
+                         "notes": f"T212: ADR fee{f' ({ticker})' if ticker else ''}",
+                         **provenance})
             continue
 
         if action_lc in {"stock split open", "stock split close"}:
@@ -177,7 +190,6 @@ def _normalize_t212_detailed(df: pd.DataFrame) -> tuple[list[dict], int, list[st
             leg = "open" if action_lc.endswith("open") else "close"
             event[leg] += 1
             event["rows"].append(row_num)
-            split_dates.add((ticker, txn_date))
             currency = _t212_str(row, "currency (price / share)", "USD").upper()
             rate = _t212_num(row, "exchange rate")
             fx_to_czk = 1.0 if currency == "CZK" else (1.0 / rate if rate else None)
@@ -193,6 +205,7 @@ def _normalize_t212_detailed(df: pd.DataFrame) -> tuple[list[dict], int, list[st
                 "fx_to_czk": fx_to_czk,
                 "cash_amount": None,
                 "cash_currency": None,
+                **_t212_csv_provenance(row, txn_time, leg=leg),
             })
             continue
 
@@ -211,16 +224,19 @@ def _normalize_t212_detailed(df: pd.DataFrame) -> tuple[list[dict], int, list[st
             if from_amt and from_ccy:
                 rows.append({"ticker": None, "name": None, "type": "fx_out",
                              "shares": 0.0, "price": 0.0, "amount": abs(from_amt),
-                             "currency": from_ccy, "date": txn_date, "notes": f"T212: {note}"})
+                             "currency": from_ccy, "date": txn_date, "notes": f"T212: {note}",
+                             **_t212_csv_provenance(row, txn_time, leg="fx_out")})
             if to_amt and to_ccy:
                 rows.append({"ticker": None, "name": None, "type": "fx_in",
                              "shares": 0.0, "price": 0.0, "amount": abs(to_amt),
-                             "currency": to_ccy, "date": txn_date, "notes": f"T212: {note}"})
+                             "currency": to_ccy, "date": txn_date, "notes": f"T212: {note}",
+                             **_t212_csv_provenance(row, txn_time, leg="fx_in")})
             if total:
                 rows.append({"ticker": None, "name": None, "type": "fee",
                              "shares": 0.0, "price": 0.0, "amount": abs(total),
                              "currency": total_ccy, "date": txn_date,
-                             "notes": "T212: Currency conversion fee"})
+                             "notes": "T212: Currency conversion fee",
+                             **_t212_csv_provenance(row, txn_time, leg="fee")})
             continue
 
         txn_type = _t212_action_to_type(raw_action)
@@ -243,7 +259,8 @@ def _normalize_t212_detailed(df: pd.DataFrame) -> tuple[list[dict], int, list[st
                 note = f"T212: {_t212_str(row, 'notes', raw_action)}"
             rows.append({"ticker": None, "name": None, "type": txn_type,
                          "shares": 0.0, "price": 0.0, "amount": abs(total),
-                         "currency": total_ccy, "date": txn_date, "notes": note})
+                         "currency": total_ccy, "date": txn_date, "notes": note,
+                         **provenance})
             continue
 
         # Trade / dividend rows
@@ -260,9 +277,6 @@ def _normalize_t212_detailed(df: pd.DataFrame) -> tuple[list[dict], int, list[st
             skipped += 1
             errors.append(f"Row {row_num} ({action_label}): non-zero Total is required")
             continue
-        if txn_type in {"buy", "sell"}:
-            trade_dates.add((ticker, txn_date))
-
         currency = _t212_str(row, "currency (price / share)", "USD").upper()
         rate = _t212_num(row, "exchange rate")
 
@@ -293,6 +307,7 @@ def _normalize_t212_detailed(df: pd.DataFrame) -> tuple[list[dict], int, list[st
             "fx_to_czk": fx_to_czk,
             "cash_amount": abs(total) if total else None,
             "cash_currency": total_ccy if total else None,
+            **provenance,
         })
 
     for (ticker, timestamp), event in split_events.items():
@@ -302,12 +317,6 @@ def _normalize_t212_detailed(df: pd.DataFrame) -> tuple[list[dict], int, list[st
                 f"Row {row_labels} ({ticker} at {timestamp}): stock split requires "
                 "exactly one open and one close leg"
             )
-
-    for ticker, txn_date in sorted(split_dates & trade_dates):
-        errors.append(
-            f"{ticker} on {txn_date}: same-day trade and stock split cannot be "
-            "imported safely because transactions persist date-only ordering"
-        )
 
     return rows, skipped, errors
 
@@ -431,14 +440,16 @@ def _preview_sample(rows: list[dict]) -> list[dict]:
         "date", "ticker", "type", "shares", "price", "amount", "currency",
         "cash_amount", "cash_currency", "notes",
     )
+    optional_fields = ("executed_at", "source_event_id")
     return [
         {
             key: (
                 value.isoformat() if isinstance(value, (date, datetime))
                 else value
             )
-            for key in fields
+            for key in (*fields, *optional_fields)
             for value in [row.get(key)]
+            if key in fields or value is not None
         }
         for row in rows[:IMPORT_SAMPLE_LIMIT]
     ]
@@ -461,14 +472,31 @@ def _pence_to_pounds(price: float, ccy: str) -> tuple[float, str]:
     return price, ccy
 
 
-_TXN_TYPE_ORDER = {"buy": 0, "split_close": 1, "split_open": 2, "dividend": 3, "sell": 4}
-
-
 def _portfolio_txns(db: Session, portfolio: Portfolio):
     return db.query(Transaction).filter(
         Transaction.portfolio_id == portfolio.id,
         Transaction.workspace_id == portfolio.workspace_id,
     )
+
+
+def _received_dividend_in_currency(
+    txn: Transaction, display_ccy: str | None, fx_cache: dict[str, float],
+    display_rate_to_czk: float | None = None,
+) -> float:
+    cash_ccy, paid_amount = signed_cash(txn)
+    target_ccy = (display_ccy or txn.currency or cash_ccy).upper()
+    if cash_ccy == target_ccy:
+        return paid_amount
+    trade_ccy = (txn.currency or "USD").upper()
+    cash_rate = (txn.fx_to_czk if cash_ccy == trade_ccy and txn.fx_to_czk
+                 else _live_fx_to_czk(cash_ccy, fx_cache))
+    if display_rate_to_czk is not None:
+        target_rate = display_rate_to_czk
+    elif target_ccy == trade_ccy and txn.fx_to_czk:
+        target_rate = txn.fx_to_czk
+    else:
+        target_rate = _live_fx_to_czk(target_ccy, fx_cache)
+    return paid_amount * cash_rate / target_rate
 
 
 def _build_holdings(transactions: list, include_closed: bool = False,
@@ -481,7 +509,7 @@ def _build_holdings(transactions: list, include_closed: bool = False,
     fx_fallback: dict[str, float] = {}
     disp_rate = _live_fx_to_czk(display_ccy, fx_fallback) if display_ccy else None
     holdings: dict[str, dict] = {}
-    for txn in sorted(transactions, key=lambda t: (t.date, _TXN_TYPE_ORDER.get(t.type, 1))):
+    for txn in sorted(transactions, key=chronological_key):
         if txn.type not in POSITION_TYPES or not txn.ticker:
             continue  # cash rows (deposit/withdrawal/fee/interest/...) never affect holdings
         t = txn.ticker
@@ -517,7 +545,9 @@ def _build_holdings(transactions: list, include_closed: bool = False,
         elif txn.type == "split_open":
             holdings[t]["shares"] += txn.shares
         elif txn.type == "dividend":
-            holdings[t]["dividends"] += txn.shares * txn.price * fx
+            holdings[t]["dividends"] += _received_dividend_in_currency(
+                txn, display_ccy, fx_fallback, disp_rate,
+            )
     if include_closed:
         return holdings
     return {k: v for k, v in holdings.items() if v["shares"] > 0.0001}
@@ -665,8 +695,7 @@ def create_transaction(
         workspace_id=portfolio.workspace_id,
         portfolio_id=portfolio.id,
     )
-    if db.get_bind().dialect.name == "postgresql":
-        db.query(Workspace.id).filter(Workspace.id == portfolio.workspace_id).with_for_update().one()
+    acquire_workspace_ledger_lock(db, portfolio.workspace_id)
     entitlements = resolve_entitlements(
         db,
         edition=edition_from_env(os.environ),
@@ -694,9 +723,15 @@ def delete_transaction(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
 ):
+    acquire_workspace_ledger_lock(db, portfolio.workspace_id)
     txn = _portfolio_txns(db, portfolio).filter(Transaction.public_id == txn_id).first()
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
+    if is_broker_managed(txn):
+        raise HTTPException(
+            status_code=409,
+            detail="Broker-managed transactions cannot be deleted individually",
+        )
     db.delete(txn)
     db.commit()
     return {"ok": True}
@@ -707,7 +742,25 @@ def clear_all_transactions(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
 ):
+    acquire_workspace_ledger_lock(db, portfolio.workspace_id)
     deleted = _portfolio_txns(db, portfolio).delete(synchronize_session=False)
+    history_runs = db.query(BrokerSyncRun).filter(
+        BrokerSyncRun.workspace_id == portfolio.workspace_id,
+        BrokerSyncRun.portfolio_id == portfolio.id,
+    ).all()
+    for run in history_runs:
+        run.state = "cancelled"
+        run.lease_token = None
+        run.lease_expires_at = None
+    connections = db.query(BrokerConnection).filter(
+        BrokerConnection.workspace_id == portfolio.workspace_id,
+        BrokerConnection.portfolio_id == portfolio.id,
+        BrokerConnection.broker == "trading212",
+    ).all()
+    for connection in connections:
+        connection.last_synced_at = None
+        connection.t212_csv_covered_through = None
+    portfolio.t212_csv_covered_through = None
     db.commit()
     return {"deleted": deleted}
 
@@ -784,10 +837,6 @@ def _check_import_capacity(
     *,
     replace: bool,
 ) -> None:
-    if db.get_bind().dialect.name == "postgresql":
-        db.query(Workspace.id).filter(
-            Workspace.id == portfolio.workspace_id
-        ).with_for_update().one()
     entitlements = resolve_entitlements(
         db,
         edition=edition_from_env(os.environ),
@@ -845,10 +894,7 @@ async def commit_import_csv(
     context: RequestContext = Depends(require_csrf),
 ):
     parsed = _parse_import_content(await _read_import_upload(file))
-    if db.get_bind().dialect.name == "postgresql":
-        db.query(Workspace.id).filter(
-            Workspace.id == portfolio.workspace_id
-        ).with_for_update().one()
+    acquire_workspace_ledger_lock(db, portfolio.workspace_id)
     current_rows = _portfolio_txns(db, portfolio).all()
     before = capture_portfolio_state(db, portfolio)
     preview = build_preview(
@@ -978,6 +1024,7 @@ def undo_import_csv(
     portfolio: Portfolio = Depends(require_portfolio),
     context: RequestContext = Depends(require_csrf),
 ):
+    acquire_workspace_ledger_lock(db, portfolio.workspace_id)
     status = undo_status(db, portfolio)
     if not status["available"]:
         if status.get("reason") == "expired":
@@ -1118,8 +1165,7 @@ async def import_csv(
         db.rollback()
         raise HTTPException(status_code=400, detail={"message": "CSV validation failed", "errors": errors})
 
-    if db.get_bind().dialect.name == "postgresql":
-        db.query(Workspace.id).filter(Workspace.id == portfolio.workspace_id).with_for_update().one()
+    acquire_workspace_ledger_lock(db, portfolio.workspace_id)
     entitlements = resolve_entitlements(
         db,
         edition=edition_from_env(os.environ),
@@ -1328,7 +1374,8 @@ def get_summary(
         return (t.fx_to_czk or _live_fx_to_czk(t.currency, fx_fallback)) / disp_rate
 
     total_dividends = sum(
-        t.shares * t.price * _txn_fx(t) for t in transactions if t.type == "dividend"
+        _received_dividend_in_currency(t, display_ccy, fx_fallback, disp_rate)
+        for t in transactions if t.type == "dividend"
     )
     total_interest = sum(
         (t.amount or 0.0) * _txn_fx(t) for t in transactions if t.type == "interest"
@@ -1343,7 +1390,7 @@ def get_summary(
     cost_open: dict[str, float] = {}
     realized_pnl = 0.0
     cum_buys_cost = 0.0
-    for txn in sorted(transactions, key=lambda t: (t.date, _TXN_TYPE_ORDER.get(t.type, 1))):
+    for txn in sorted(transactions, key=chronological_key):
         fx = _txn_fx(txn)
         if txn.type == "buy":
             shares_open[txn.ticker] = shares_open.get(txn.ticker, 0.0) + txn.shares
@@ -1690,7 +1737,8 @@ def get_dividend_forecast(
     for txn in transactions:
         if txn.type != "dividend" or not txn.date or txn.date.year != year:
             continue
-        amt_usd = txn.shares * txn.price * _live_to_usd(txn.currency or "USD")
+        paid_ccy, paid_amount = signed_cash(txn)
+        amt_usd = paid_amount * _live_to_usd(paid_ccy)
         m_idx = txn.date.month - 1
         paid_by_month[m_idx] += amt_usd
         key = (txn.ticker, txn.date.month)

@@ -7,9 +7,14 @@ const api = vi.hoisted(() => ({
   fetchAllHoldings: vi.fn(),
   fetchSectorBreakdown: vi.fn(),
 }));
+const t212Mocks = vi.hoisted(() => ({ useT212Sync: vi.fn() }));
 
 vi.mock("../api", () => api);
-vi.mock("../App", () => ({ useCurrency: () => ({ currency: "USD", rate: 22 }) }));
+vi.mock("../App", () => ({
+  useCurrency: () => ({ currency: "USD", rate: 22 }),
+  usePortfolio: () => ({ current: { id: "portfolio-1" } }),
+}));
+vi.mock("../hooks/useT212Sync", () => t212Mocks);
 vi.mock("../components/StockDetail", () => ({
   TickerLink: ({ ticker, children }) => <span>{children || ticker}</span>,
   useStockDetail: () => ({ openStock: vi.fn() }),
@@ -30,6 +35,7 @@ function renderPage() {
 describe("Allocation composition decisions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    t212Mocks.useT212Sync.mockReturnValue({ connected: false, positionsQuery: {} });
     api.fetchAllHoldings.mockResolvedValue([
       { ticker: "AAPL", name: "Apple", shares: 10, avg_cost: 100, current_price: 100, currency: "USD", market_value: 1000, weight: 70, closed: false, pnl: 10, pnl_percent: 1, dividends: 0 },
       { ticker: "OLD", name: "Old Co", shares: 0, avg_cost: 100, current_price: 100, currency: "USD", market_value: 0, weight: 0, closed: true, pnl: 0, pnl_percent: 0, dividends: 0, pnl_if_held: 5, pnl_if_held_pct: 2 },
@@ -40,6 +46,21 @@ describe("Allocation composition decisions", () => {
       currencies: [],
       countries: [],
     });
+  });
+
+  it("shows a broker snapshot separately from ledger-derived allocation", async () => {
+    t212Mocks.useT212Sync.mockReturnValue({
+      connected: true,
+      positionsQuery: {
+        data: { status: "fresh", currency: "USD", positions: [{ ticker: "TSLA", quantity: 4, market_value: null }] },
+        isLoading: false, isError: false,
+      },
+    });
+    renderPage();
+
+    expect(await screen.findByRole("region", { name: "Trading 212 current positions" })).toHaveTextContent("TSLA");
+    expect(screen.getByText(/allocation charts use imported transactions/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Largest position/i)).toBeInTheDocument();
   });
 
   it("offers composition categories and switches the chart and list", async () => {

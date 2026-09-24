@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import io
-from datetime import date
+from datetime import date, datetime, timezone
 
 import pandas as pd
 import pytest
@@ -24,6 +24,7 @@ from cash_ledger import (
     signed_cash,
 )
 from models import Portfolio, Transaction
+from import_workflow import deduplicate_rows
 from routers.portfolio import (
     _is_t212,
     _normalize_t212,
@@ -90,6 +91,11 @@ class TestNormalizeT212:
         rows, skipped = _normalize_t212(df)
         assert skipped == 0
         assert rows[0]["date"] == date(2026, 1, 19)
+        assert rows[0]["executed_at"] == datetime(
+            2026, 1, 19, 19, 21, 23, tzinfo=timezone.utc,
+        )
+        assert rows[0]["source_event_id"] == "019bd7b4-6854-737b-b684-d370d418a7b7"
+        assert rows[0]["source_event_stream"] == "csv_export"
 
     def test_all_recognized_events_are_normalized(self):
         rows, skipped = _normalized_rows()
@@ -161,6 +167,37 @@ class TestNormalizeT212:
         assert types["fx_in"][0]["currency"] == "CZK"
         assert types["fee"][0]["amount"] == pytest.approx(0.16)
         assert types["fee"][0]["currency"] == "CZK"
+        assert {
+            types["fx_out"][0]["source_event_id"],
+            types["fx_in"][0]["source_event_id"],
+            types["fee"][0]["source_event_id"],
+        } == {
+            "TZZIPQ4HBW4VFBP5:fx_out",
+            "TZZIPQ4HBW4VFBP5:fx_in",
+            "TZZIPQ4HBW4VFBP5:fee",
+        }
+
+    def test_distinct_export_ids_preserve_identical_same_second_fills(self):
+        row = {
+            "Action": "Market buy",
+            "Time (UTC)": "2026-01-20 10:28:43",
+            "Ticker": "AAPL",
+            "No. of shares": 1,
+            "Price / share": 100,
+            "Currency (Price / share)": "USD",
+            "Total": 2100,
+            "Currency (Total)": "CZK",
+        }
+        df = pd.DataFrame([{**row, "ID": "fill-1"}, {**row, "ID": "fill-2"}])
+        df.columns = df.columns.str.lower().str.strip()
+
+        rows, skipped, errors = _normalize_t212_detailed(df)
+        unique, repeated = deduplicate_rows(rows)
+
+        assert skipped == 0
+        assert errors == []
+        assert repeated == 0
+        assert [item["source_event_id"] for item in unique] == ["fill-1", "fill-2"]
 
 
 @pytest.mark.parametrize(
@@ -225,7 +262,7 @@ def test_failed_t212_normalization_cannot_replace_existing_rows(db_session, defa
     assert remaining[0].source == "t212_api"
 
 
-def test_t212_rejects_same_day_trade_and_split_when_order_cannot_be_persisted():
+def test_t212_accepts_same_day_trade_and_split_when_timestamp_can_be_persisted():
     df = pd.DataFrame([
         {
             "Action": "Stock split close",
@@ -258,9 +295,10 @@ def test_t212_rejects_same_day_trade_and_split_when_order_cannot_be_persisted():
     ])
     df.columns = df.columns.str.lower().str.strip()
 
-    _, _, errors = _normalize_t212_detailed(df)
+    rows, _, errors = _normalize_t212_detailed(df)
 
-    assert any("same-day trade and stock split" in error for error in errors)
+    assert errors == []
+    assert all(item["executed_at"] is not None for item in rows)
 
 
 def test_valid_t212_replace_is_atomic_and_marks_csv_source(db_session, default_portfolio):
@@ -274,6 +312,7 @@ def test_valid_t212_replace_is_atomic_and_marks_csv_source(db_session, default_p
         "Ticker": "",
         "No. of shares": "",
         "Price / share": "",
+        "ID": "deposit-1",
         "Total": 68050,
         "Currency (Total)": "CZK",
     }]).to_csv(index=False).encode()
@@ -289,6 +328,9 @@ def test_valid_t212_replace_is_atomic_and_marks_csv_source(db_session, default_p
     assert len(rows) == 1
     assert rows[0].type == "deposit"
     assert rows[0].source == "t212_csv"
+    assert rows[0].source_event_id == "deposit-1"
+    assert rows[0].source_event_stream == "csv_export"
+    assert rows[0].executed_at == datetime(2026, 1, 19, 19, 21, 23)
     portfolio = db_session.query(Portfolio).filter(Portfolio.id == pid).one()
     assert portfolio.t212_csv_covered_through.isoformat() == "2026-01-19T19:21:23"
 

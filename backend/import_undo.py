@@ -16,7 +16,8 @@ from models import BrokerConnection, Portfolio, TradeNote, Transaction, Workspac
 
 UNDO_WINDOW = timedelta(hours=24)
 UNDO_KEY_PREFIX = "import_undo:"
-UNDO_SCHEMA_VERSION = 1
+UNDO_SCHEMA_VERSION = 2
+_SUPPORTED_UNDO_SCHEMA_VERSIONS = {1, UNDO_SCHEMA_VERSION}
 
 _TRANSACTION_FIELDS = (
     "ticker",
@@ -31,8 +32,33 @@ _TRANSACTION_FIELDS = (
     "date",
     "notes",
     "source",
+    "source_event_id",
+    "source_event_stream",
+    "source_account_fingerprint",
+    "source_credential_generation",
+    "source_instrument_id",
+    "source_fill_type",
+    "executed_at",
+    "source_payload_hash",
+    "source_mapper_version",
     "fx_to_czk",
     "created_at",
+)
+
+_V1_TRANSACTION_FIELDS = tuple(
+    field
+    for field in _TRANSACTION_FIELDS
+    if field not in {
+        "source_event_id",
+        "source_event_stream",
+        "source_account_fingerprint",
+        "source_credential_generation",
+        "source_instrument_id",
+        "source_fill_type",
+        "executed_at",
+        "source_payload_hash",
+        "source_mapper_version",
+    }
 )
 
 
@@ -115,6 +141,20 @@ def snapshot_fingerprint(snapshot: dict[str, Any]) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+def _as_v1_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Project current state to the shape used by still-live v1 undo points."""
+    return {
+        **snapshot,
+        "transactions": [
+            {
+                "public_id": item["public_id"],
+                **{field: item.get(field) for field in _V1_TRANSACTION_FIELDS},
+            }
+            for item in snapshot.get("transactions", [])
+        ],
+    }
+
+
 def _encode(payload: dict) -> str:
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     return base64.urlsafe_b64encode(zlib.compress(raw, level=9)).decode("ascii")
@@ -126,7 +166,7 @@ def _decode(raw: str) -> dict:
         payload = json.loads(decoded)
     except (ValueError, TypeError, json.JSONDecodeError, zlib.error) as exc:
         raise ValueError("Invalid import undo snapshot") from exc
-    if payload.get("schema_version") != UNDO_SCHEMA_VERSION:
+    if payload.get("schema_version") not in _SUPPORTED_UNDO_SCHEMA_VERSIONS:
         raise ValueError("Unsupported import undo snapshot")
     return payload
 
@@ -220,6 +260,8 @@ def undo_status(
         return {"available": False, "reason": "expired", **base}
 
     current = capture_portfolio_state(db, portfolio)
+    if payload["schema_version"] == 1:
+        current = _as_v1_snapshot(current)
     if snapshot_fingerprint(current) != payload["after_fingerprint"]:
         return {"available": False, "reason": "portfolio_changed", **base}
     return {"available": True, "reason": None, **base}
@@ -251,6 +293,8 @@ def restore_snapshot(
     for item in snapshot.get("transactions", []):
         values = {field: item.get(field) for field in _TRANSACTION_FIELDS}
         values["date"] = date.fromisoformat(values["date"])
+        if values.get("executed_at"):
+            values["executed_at"] = datetime.fromisoformat(values["executed_at"])
         if values.get("created_at"):
             values["created_at"] = datetime.fromisoformat(values["created_at"])
         transaction = Transaction(

@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -8,7 +8,7 @@ from routers import assistant
 from app_settings import set_user_secret
 from entitlements import EffectiveEntitlements
 from plans import PlanTier, plan_limits
-from models import UsageReservation, UsageCounter, Portfolio, Workspace
+from models import BrokerConnection, UsageReservation, UsageCounter, Portfolio, Workspace
 from tests.conftest import make_txn
 from uuid import uuid4
 
@@ -70,6 +70,74 @@ def test_summary_caps_and_workspace_portfolio_filters(db_session, default_portfo
     assert len([line for line in holdings.splitlines() if line.startswith('- SYM')]) == 25
     assert len([line for line in recent.splitlines() if line.startswith('- ')]) == 15
     assert 'OTHER' not in snapshot and 'FOREIGN' not in snapshot
+
+
+def test_recent_transactions_use_execution_time_within_same_day(
+    db_session, default_portfolio
+):
+    afternoon_buy = make_txn(
+        ticker='AAPL', type='buy', shares=1, price=100,
+        date=date(2026, 9, 1), portfolio_id=default_portfolio.id,
+    )
+    afternoon_buy.executed_at = datetime(2026, 9, 1, 15, 0, tzinfo=timezone.utc)
+    morning_sell = make_txn(
+        ticker='AAPL', type='sell', shares=1, price=110,
+        date=date(2026, 9, 1), portfolio_id=default_portfolio.id,
+    )
+    morning_sell.executed_at = datetime(2026, 9, 1, 9, 0, tzinfo=timezone.utc)
+    db_session.add_all([afternoon_buy, morning_sell])
+    db_session.commit()
+
+    recent = assistant._build_portfolio_context(
+        db_session, default_portfolio,
+    ).split('Recent transactions (newest first):', 1)[1]
+
+    assert recent.index(' BUY ') < recent.index(' SELL ')
+
+
+def test_t212_context_marks_broker_history_incomplete_even_after_pages_are_downloaded(
+    db_session, default_portfolio
+):
+    db_session.add(BrokerConnection(
+        workspace_id=default_portfolio.workspace_id,
+        portfolio_id=default_portfolio.id,
+        broker='trading212', api_key='test-key', api_secret='',
+    ))
+    db_session.add(make_txn(ticker='AAPL', date=date(2026, 9, 1), portfolio_id=default_portfolio.id))
+    db_session.commit()
+
+    context = assistant._build_portfolio_context(db_session, default_portfolio)
+    prompt = assistant._system_prompt(context)
+
+    assert 'history_complete=false' in context
+    assert 'broker history may be missing from the transaction ledger' in context.lower()
+    assert 'qualify historical claims' in prompt.lower()
+
+
+def test_t212_context_keeps_history_warning_after_disconnect(db_session, default_portfolio):
+    default_portfolio.t212_account_fingerprint = 'a' * 64
+    db_session.add(make_txn(ticker='AAPL', date=date(2026, 9, 1), portfolio_id=default_portfolio.id))
+    db_session.commit()
+
+    context = assistant._build_portfolio_context(db_session, default_portfolio)
+
+    assert 'history_complete=false' in context
+
+
+def test_assistant_uses_paid_dividend_cash_amount_when_available(db_session, default_portfolio):
+    dividend = make_txn(
+        ticker='AAPL', type='dividend', shares=10, price=1.0,
+        date=date(2026, 9, 1), portfolio_id=default_portfolio.id,
+    )
+    dividend.cash_amount = 8.5
+    dividend.cash_currency = 'USD'
+    db_session.add(dividend)
+    db_session.commit()
+
+    context = assistant._build_portfolio_context(db_session, default_portfolio)
+
+    assert 'Recorded dividend income (approx): 8.50 USD' in context
+    assert '10.00 USD' not in context.split('Recorded dividend income (approx):')[1].splitlines()[0]
 
 
 @pytest.mark.parametrize('mode', ['none', 'portfolio_summary'])

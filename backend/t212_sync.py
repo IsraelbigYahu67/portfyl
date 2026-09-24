@@ -24,6 +24,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import math
 import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -45,6 +46,7 @@ from models import (
     Portfolio,
     Transaction,
 )
+from ledger_mutation import acquire_workspace_ledger_lock
 
 T212_BASES = {
     "live": "https://live.trading212.com/api/v0",
@@ -229,6 +231,13 @@ def replace_positions(db: Session, portfolio: Portfolio, raw_positions: list[dic
     ).delete(synchronize_session=False)
 
     now = datetime.now(timezone.utc)
+    connection = db.query(BrokerConnection).filter(
+        BrokerConnection.workspace_id == portfolio.workspace_id,
+        BrokerConnection.portfolio_id == portfolio.id,
+        BrokerConnection.broker == "trading212",
+    ).first()
+    if connection is not None:
+        connection.positions_snapshot_at = now
     inserted = 0
     for raw in raw_positions:
         provider_ticker = str(raw.get("ticker") or "").strip()
@@ -271,27 +280,25 @@ def is_snapshot_fresh(as_of: datetime | None, *, now: datetime | None = None) ->
 # Task 3: resumable history runs
 #
 # A BrokerSyncRun stages raw order/dividend pages into BrokerSyncEvent rows.
-# Reaching state "completed" here means every page is staged -- NOT that
-# ledger Transaction rows exist yet. Turning staged events into Transactions
-# (exact settlement, split handling, dedup against CSV/manual rows) is a
-# later increment of this plan (Task 4); nothing in this section touches
-# `Transaction`.
+# Reaching state "finalizing" here means every page is staged. The background
+# worker then turns staged events into Transactions and changes the run to
+# "completed" in the same commit that updates the connection's sync marker.
 #
 # Scope deliberately excludes, for this increment:
 #   - the `/equity/history/transactions` cash-movement stream (deposits,
 #     withdrawals, fees, interest) -- a new provider surface the app doesn't
 #     fetch today, not "making an existing fetch resumable";
-#   - the full HMAC account-fingerprint system (plan §4.1/§5.1) -- run
-#     fencing here uses BrokerConnection.credential_generation alone, which
-#     is sufficient to stop a stale worker from committing progress under
-#     rotated credentials but does not yet detect "a different T212 account
-#     was connected into this portfolio".
 #   - audit runs (mode="audit") -- the column accepts the value, nothing
 #     creates one yet.
 # =============================================================================
 
 STREAMS = ("orders", "dividends")
 TERMINAL_RUN_STATES = ("completed", "failed", "cancelled", "needs_review")
+HISTORY_RETRY_ERROR = "Trading 212 history sync will retry automatically."
+HISTORY_NEEDS_REVIEW_ERROR = (
+    "Trading 212 history contains corporate actions (such as splits) that "
+    "Portfyl cannot import automatically yet. No history was imported."
+)
 
 DEFAULT_LEASE_SECONDS = 90
 DEFAULT_MAX_PAGES_PER_STREAM = 3
@@ -459,6 +466,7 @@ def stage_events(
             portfolio_id=run.portfolio_id,
             run_id=run.id,
             broker=run.broker,
+            account_fingerprint=run.account_fingerprint,
             stream=stream,
             provider_event_id=event_id,
             provider_timestamp=_extract_provider_timestamp(stream, item),
@@ -486,13 +494,19 @@ def claim_or_create_run(
         .first()
     )
     if existing is not None:
-        return existing
+        if existing.account_fingerprint == connection.account_fingerprint:
+            return existing
+        existing.state = "cancelled"
+        existing.lease_token = None
+        existing.lease_expires_at = None
+        db.flush()
 
     run = BrokerSyncRun(
         workspace_id=connection.workspace_id,
         portfolio_id=portfolio.id,
         connection_id=connection.id,
         broker=connection.broker,
+        account_fingerprint=connection.account_fingerprint,
         credential_generation=connection.credential_generation,
         mode=mode,
         state="pending",
@@ -590,6 +604,7 @@ def advance_run(
     this run, advancing stops immediately (LeaseLost) without losing any
     already-committed page progress."""
     run.state = "fetching"
+    run.last_error = None
     db.commit()
     if reassert_context:
         reassert_context()
@@ -649,10 +664,11 @@ def advance_run(
     if rate_limited:
         run.state = "waiting_rate_limit"
     elif run.orders_complete and run.dividends_complete:
-        run.state = "completed"
-        run.completed_at = datetime.now(timezone.utc)
+        run.state = "finalizing"
     else:
         run.state = "fetching"
+    run.lease_token = None
+    run.lease_expires_at = None
     db.commit()
     if reassert_context:
         reassert_context()
@@ -668,26 +684,23 @@ def advance_run(
 # =============================================================================
 # Task 4 (scoped slice): finalize staged events into ledger Transaction rows
 #
-# finalize_run turns a "completed" run's staged BrokerSyncEvent rows into
+# finalize_run turns a "finalizing" run's staged BrokerSyncEvent rows into
 # Transaction rows, with exact settlement (when the provider gives it) and
 # the actual paid dividend amount instead of a fixed withholding guess (plan
-# §5.5, §5.6). It is a plain, idempotent, repeatable function -- nothing in
-# this codebase calls it automatically yet. The existing full fetch-and-import
-# path in routers.broker.sync_transactions remains the only thing that writes
-# to the ledger in production; wiring finalize_run in is a deliberate,
-# separately reviewed follow-up, not bundled into this slice.
+# §5.5, §5.6). It is idempotent and is invoked by the resumable background
+# worker after all required streams have been staged.
 #
 # Explicitly NOT covered by this function (left for a later increment):
 #   - split/corporate-action detection and mechanical share/price adjustment
-#     (plan §6) -- a fill whose provider `fill.type` is anything other than
-#     "TRADE" is left staged, never finalized, rather than risking either a
-#     mis-imported corporate-action-as-trade or an unadjusted pre-split row;
-#   - the t212_csv_covered_through / per-ticker-latest-date history cutoff
-#     routers.broker.sync_transactions' legacy path uses to stop a
-#     replace-imported CSV export's history from being resurrected;
-#   - the shared workspace ledger lock (plan §5.5) -- callers must serialize
-#     finalize_run against CSV commit/undo and other ledger mutations for the
-#     same portfolio themselves;
+#     (plan §6). A fill whose provider `fill.type` is anything other than
+#     "TRADE" (and is not already covered by an authoritative CSV export)
+#     sends the run to terminal `needs_review` (plan §6.2.8): nothing is
+#     imported, no completion or sync marker is set, and the user is told why.
+#     This refuses both a mis-imported corporate-action-as-trade and an
+#     unadjusted pre-split row. The provider does not document how a split
+#     pair encodes quantity/price, so the mapper waits for real payloads;
+#   - per-ticker latest-date heuristics. Only the account-wide authoritative
+#     `t212_csv_covered_through` cutoff suppresses older provider events;
 #   - the `/equity/history/transactions` cash-movement stream (deposits,
 #     withdrawals, fees, interest) -- BrokerSyncEvent only ever stages
 #     "orders"/"dividends" as of this increment (see advance_run's STREAMS).
@@ -706,6 +719,54 @@ class FinalizeResult:
     dividends_imported: int
     dividends_skipped_duplicate: int
     dividends_skipped_invalid: int
+    needs_review: bool = False
+    unsupported_action_types: tuple[str, ...] = ()
+
+
+def _corporate_action_type(event: BrokerSyncEvent) -> str | None:
+    """Provider-labelled non-TRADE fill type (split, spin-off, acquisition,
+    ...), upper-cased, or None for an ordinary trade or a non-order event."""
+    if event.stream != "orders":
+        return None
+    fill = (event.raw_payload or {}).get("fill") or {}
+    fill_type = (fill.get("type") or "").upper()
+    return fill_type if fill_type and fill_type != "TRADE" else None
+
+
+def _is_csv_covered(event: BrokerSyncEvent, csv_covered_through: datetime | None) -> bool:
+    if csv_covered_through is None:
+        return False
+    event_time = _staged_event_time(event)
+    return event_time is not None and event_time <= csv_covered_through
+
+
+def _send_run_to_needs_review(
+    db: Session, run: BrokerSyncRun, action_types: list[str],
+) -> FinalizeResult:
+    """Terminal state for a run whose staged history holds corporate actions
+    no mapper supports yet (plan §6.2.8). Nothing is written to the ledger, no
+    completion or sync marker is set, and the run is not retried: importing
+    only the ordinary trades would leave pre-action share counts unadjusted."""
+    run.state = "needs_review"
+    run.last_error = HISTORY_NEEDS_REVIEW_ERROR
+    run.lease_token = None
+    run.lease_expires_at = None
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return FinalizeResult(
+        orders_imported=0,
+        orders_skipped_duplicate=0,
+        orders_skipped_non_trade=0,
+        orders_skipped_invalid=0,
+        dividends_imported=0,
+        dividends_skipped_duplicate=0,
+        dividends_skipped_invalid=0,
+        needs_review=True,
+        unsupported_action_types=tuple(action_types),
+    )
 
 
 def _parse_event_timestamp(raw) -> tuple[date | None, datetime | None]:
@@ -719,6 +780,32 @@ def _parse_event_timestamp(raw) -> tuple[date | None, datetime | None]:
     return parsed.date(), parsed
 
 
+def _staged_event_time(event: BrokerSyncEvent) -> datetime | None:
+    payload = event.raw_payload or {}
+    if event.stream == "orders":
+        fill = payload.get("fill") or {}
+        order = payload.get("order") or {}
+        raw = fill.get("filledAt") or order.get("createdAt")
+    elif event.stream == "dividends":
+        raw = payload.get("paidOn") or payload.get("reference")
+    else:
+        return None
+    return _parse_t212_datetime(raw) if raw else None
+
+
+def _latest_csv_coverage(*values: datetime | None) -> datetime | None:
+    normalized = []
+    for value in values:
+        if value is None:
+            continue
+        normalized.append(
+            value.replace(tzinfo=timezone.utc)
+            if value.tzinfo is None
+            else value.astimezone(timezone.utc)
+        )
+    return max(normalized) if normalized else None
+
+
 def _finalize_order_event(event: BrokerSyncEvent, run: BrokerSyncRun):
     """Map one staged order/fill event to a Transaction, or explain why not.
     Returns (outcome, transaction_or_none); outcome is one of "imported",
@@ -728,11 +815,13 @@ def _finalize_order_event(event: BrokerSyncEvent, run: BrokerSyncRun):
     fill_data = item.get("fill") or {}
 
     fill_type = (fill_data.get("type") or "").upper()
-    if fill_type and fill_type != "TRADE":
+    if _corporate_action_type(event) is not None:
         return "non_trade", None
 
-    status = (order_data.get("status") or "").upper()
-    if status != "FILLED":
+    # A cancelled or partially filled parent order can still contain a real
+    # execution. Conversely, the parent's aggregate filledQuantity is not a
+    # substitute for an individual fill.
+    if not fill_data:
         return "invalid", None
 
     raw_ticker = (order_data.get("ticker") or "").strip()
@@ -749,11 +838,12 @@ def _finalize_order_event(event: BrokerSyncEvent, run: BrokerSyncRun):
         return "invalid", None
 
     try:
-        filled_qty = float(abs(fill_data.get("quantity") or order_data.get("filledQuantity") or 0))
+        filled_qty = float(abs(fill_data.get("quantity") or 0))
         filled_price = float(fill_data.get("price") or 0)
     except (TypeError, ValueError):
         return "invalid", None
-    if not filled_qty or not filled_price:
+    if not (math.isfinite(filled_qty) and filled_qty > 0
+            and math.isfinite(filled_price) and filled_price > 0):
         return "invalid", None
 
     instrument = order_data.get("instrument") or {}
@@ -792,6 +882,7 @@ def _finalize_order_event(event: BrokerSyncEvent, run: BrokerSyncRun):
         source="t212_api",
         source_event_id=event.provider_event_id,
         source_event_stream="orders",
+        source_account_fingerprint=run.account_fingerprint,
         source_credential_generation=run.credential_generation,
         source_instrument_id=raw_ticker,
         source_fill_type=fill_type or None,
@@ -818,30 +909,31 @@ def _finalize_dividend_event(event: BrokerSyncEvent, run: BrokerSyncRun):
         quantity = float(item.get("quantity") or 0)
     except (TypeError, ValueError):
         gross_per_share = quantity = 0.0
-    if not gross_per_share or not quantity:
+    if not (math.isfinite(gross_per_share) and gross_per_share > 0
+            and math.isfinite(quantity) and quantity > 0):
         return "invalid", None
 
     instrument = item.get("instrument") or {}
     currency = (instrument.get("currency") or "USD").upper()
+    account_currency = (item.get("currency") or "").upper()
+    if not account_currency:
+        raise ValueError("Trading 212 dividend paid amount currency is unavailable")
 
     raw_date = item.get("paidOn") or item.get("reference")
     txn_date, executed_at = _parse_event_timestamp(raw_date)
     if txn_date is None:
         return "invalid", None
 
-    # Actual paid amount when the provider gives it (plan §5.5 point 5 /
-    # §5.6) -- never the fixed 15% withholding guess the legacy path still
-    # uses as its only option.
+    # A missing or malformed paid amount cannot be reconstructed from a fixed
+    # withholding percentage. Stop the whole finalization rather than writing
+    # a fabricated receipt or silently marking this event as handled.
     raw_amount = item.get("amount")
-    if raw_amount is not None:
-        try:
-            net_amount = round(abs(float(raw_amount)), 6)
-        except (TypeError, ValueError):
-            net_amount = round(gross_per_share * quantity * 0.85, 6)
-    else:
-        net_amount = round(gross_per_share * quantity * 0.85, 6)
-    if not net_amount:
-        return "invalid", None
+    try:
+        net_amount = round(abs(float(raw_amount)), 6)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Trading 212 dividend paid amount is unavailable") from exc
+    if not math.isfinite(net_amount) or net_amount <= 0:
+        raise ValueError("Trading 212 dividend paid amount is invalid")
 
     txn = Transaction(
         workspace_id=run.workspace_id,
@@ -849,14 +941,15 @@ def _finalize_dividend_event(event: BrokerSyncEvent, run: BrokerSyncRun):
         ticker=ticker,
         name=ticker,
         type="dividend",
-        shares=1.0,
-        price=net_amount,
+        shares=quantity,
+        price=gross_per_share,
         currency=currency,
         date=txn_date,
         notes="T212 Dividend",
         source="t212_api",
         source_event_id=event.provider_event_id,
         source_event_stream="dividends",
+        source_account_fingerprint=run.account_fingerprint,
         source_credential_generation=run.credential_generation,
         source_instrument_id=raw_ticker,
         executed_at=executed_at,
@@ -864,20 +957,43 @@ def _finalize_dividend_event(event: BrokerSyncEvent, run: BrokerSyncRun):
         source_mapper_version=_FINALIZE_MAPPER_VERSION,
     )
     txn._native_cash_amount = net_amount
-    txn._native_cash_currency = currency
+    txn._native_cash_currency = account_currency
     return "imported", txn
 
 
 def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> FinalizeResult:
-    """Turn `run`'s staged events into Transaction rows. Only a "completed"
-    run (every page staged) may be finalized. Idempotent: calling this again
+    """Turn `run`'s staged events into Transaction rows. Only a "finalizing"
+    run (every page staged), or an already-completed run being retried, may be
+    finalized. Idempotent: calling this again
     for the same run re-derives the same dedup decisions and imports
     nothing new (each event's `source_event_id` is checked against already-
-    finalized rows first). See this module's Task 4 section docstring for
-    what is deliberately out of scope."""
-    if run.state != "completed":
-        raise ValueError(f"cannot finalize run in state {run.state!r}, expected 'completed'")
+    finalized rows first). The shared workspace ledger lock serializes its
+    duplicate/coverage read and write set with CSV and manual mutations. See
+    this module's Task 4 section docstring for what remains out of scope."""
+    if run.state not in {"finalizing", "completed"}:
+        raise ValueError(
+            f"cannot finalize run in state {run.state!r}, expected 'finalizing' or 'completed'"
+        )
+    if run.workspace_id != portfolio.workspace_id or run.portfolio_id != portfolio.id:
+        raise ValueError("run does not belong to the supplied portfolio")
+    connection = db.query(BrokerConnection).filter(
+        BrokerConnection.workspace_id == run.workspace_id,
+        BrokerConnection.id == run.connection_id,
+    ).first()
+    if (
+        connection is None
+        or not run.account_fingerprint
+        or run.account_fingerprint != connection.account_fingerprint
+        or run.account_fingerprint != portfolio.t212_account_fingerprint
+        or run.credential_generation != connection.credential_generation
+    ):
+        raise ValueError("run account identity or credential generation is stale")
 
+    acquire_workspace_ledger_lock(db, portfolio.workspace_id)
+    csv_covered_through = _latest_csv_coverage(
+        portfolio.t212_csv_covered_through,
+        connection.t212_csv_covered_through,
+    )
     events = (
         db.query(BrokerSyncEvent)
         .filter(
@@ -887,6 +1003,19 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
         .order_by(BrokerSyncEvent.id)
         .all()
     )
+    if any(event.account_fingerprint != run.account_fingerprint for event in events):
+        raise ValueError("staged event account identity does not match its run")
+
+    # A retry of an already-completed run keeps its idempotent behavior; only
+    # a first finalization can be refused for unsupported corporate actions.
+    if run.state == "finalizing":
+        unsupported = sorted({
+            action for event in events
+            if (action := _corporate_action_type(event)) is not None
+            and not _is_csv_covered(event, csv_covered_through)
+        })
+        if unsupported:
+            return _send_run_to_needs_review(db, run, unsupported)
 
     existing_txns = (
         db.query(Transaction)
@@ -897,20 +1026,31 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
         )
         .all()
     )
-    existing_keys: set[str] = set()
+    # Fuzzy matching is only for rows without provider event identity (legacy
+    # sync and CSV). Consume each such row at most once: two identical fills
+    # with distinct provider IDs are two trades, even on the same day.
+    unmatched_legacy_keys: list[set[str]] = []
     existing_source_ids: set[tuple[str, str]] = set()
     for t in existing_txns:
-        existing_keys |= _dedup_keys(t.ticker, t.date, t.type, t.shares, t.price)
-        if t.type == "dividend":
-            existing_keys |= _dedup_keys(t.ticker, t.date, "dividend", round(t.shares * t.price, 6))
         if t.source_event_id and t.source_event_stream:
             existing_source_ids.add((t.source_event_stream, t.source_event_id))
+            continue
+        keys = _dedup_keys(t.ticker, t.date, t.type, t.shares, t.price)
+        if t.type == "dividend":
+            keys |= _dedup_keys(t.ticker, t.date, "dividend", round(t.shares * t.price, 6))
+        unmatched_legacy_keys.append(keys)
 
     orders_imported = orders_dup = orders_non_trade = orders_invalid = 0
     dividends_imported = dividends_dup = dividends_invalid = 0
     new_txns: list[Transaction] = []
 
     for event in events:
+        if _is_csv_covered(event, csv_covered_through):
+            if event.stream == "orders":
+                orders_dup += 1
+            else:
+                dividends_dup += 1
+            continue
         if event.stream == "orders":
             outcome, txn = _finalize_order_event(event, run)
             if outcome == "non_trade":
@@ -929,9 +1069,13 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
         dedup_keys = (
             _dedup_keys(txn.ticker, txn.date, txn.type, txn.shares, txn.price)
             if txn.type != "dividend"
-            else _dedup_keys(txn.ticker, txn.date, "dividend", round(txn.price, 6))
+            else _dedup_keys(txn.ticker, txn.date, "dividend", round(txn._native_cash_amount, 6))
         )
-        if source_key in existing_source_ids or dedup_keys & existing_keys:
+        legacy_match = next((i for i, keys in enumerate(unmatched_legacy_keys)
+                             if dedup_keys & keys), None)
+        if source_key in existing_source_ids or legacy_match is not None:
+            if legacy_match is not None and source_key not in existing_source_ids:
+                unmatched_legacy_keys.pop(legacy_match)
             if event.stream == "orders":
                 orders_dup += 1
             else:
@@ -939,27 +1083,50 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
             continue
 
         new_txns.append(txn)
-        existing_keys |= dedup_keys
         existing_source_ids.add(source_key)
         if event.stream == "orders":
             orders_imported += 1
         else:
             dividends_imported += 1
 
-    # Native -> CZK, same pivot fx.py/the legacy sync path use everywhere else.
+    # Price/instrument FX and settled-cash FX can differ. Dividends expose
+    # gross per-share value in the instrument currency but paid `amount` in
+    # the account's primary currency.
     fx_needed = {
-        (t._native_cash_currency, t.date) for t in new_txns if t._native_cash_currency != "CZK"
+        (ccy, t.date) for t in new_txns
+        for ccy in ((t.currency or "USD").upper(), t._native_cash_currency)
+        if ccy != "CZK"
     }
     fx_map = bulk_fetch_fx(fx_needed)
     for t in new_txns:
         ccy = t._native_cash_currency
-        fx = 1.0 if ccy == "CZK" else fx_map.get((ccy, t.date))
-        if fx:
-            t.fx_to_czk = fx
-            t.cash_amount = round(t._native_cash_amount * fx, 2)
+        price_ccy = (t.currency or "USD").upper()
+        price_fx = 1.0 if price_ccy == "CZK" else fx_map.get((price_ccy, t.date))
+        cash_fx = 1.0 if ccy == "CZK" else fx_map.get((ccy, t.date))
+        if price_fx:
+            t.fx_to_czk = price_fx
+        if cash_fx:
+            t.cash_amount = round(t._native_cash_amount * cash_fx, 2)
             t.cash_currency = "CZK"
+        else:
+            # The provider's paid/settled amount is still exact in its native
+            # currency. Keep it usable without inventing a historical FX rate.
+            t.cash_amount = t._native_cash_amount
+            t.cash_currency = ccy
         db.add(t)
-    db.commit()
+    if run.state != "completed":
+        finalized_at = datetime.now(timezone.utc)
+        run.state = "completed"
+        run.completed_at = finalized_at
+        run.last_error = None
+        connection.last_synced_at = finalized_at
+    run.lease_token = None
+    run.lease_expires_at = None
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     return FinalizeResult(
         orders_imported=orders_imported,

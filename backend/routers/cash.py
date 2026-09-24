@@ -12,6 +12,7 @@ from routers.portfolios import require_portfolio
 from fx import fetch_fx_to_czk, cash_amount_to_display, cash_total_from_transactions
 from broker_cash import current_t212_cash
 from cash_ledger import CASH_TYPES, cash_balance_by_currency, accrued_interest, has_external_cashflows, signed_cash
+from ledger_mutation import acquire_workspace_ledger_lock, is_broker_managed
 
 router = APIRouter(prefix="/cash", tags=["cash"])
 
@@ -74,15 +75,19 @@ def create_cash(body: CashCreate, db: Session = Depends(get_db), portfolio: Port
         date=body.date, notes=body.note, source="manual",
         fx_to_czk=fetch_fx_to_czk(ccy, body.date),
     )
+    acquire_workspace_ledger_lock(db, portfolio.workspace_id)
     db.add(row); db.commit(); db.refresh(row)
     return _to_row(row)
 
 
 @router.put("/{cash_id:uuid}", response_model=CashRow)
 def update_cash(cash_id: UUID, body: CashCreate, db: Session = Depends(get_db), portfolio: Portfolio = Depends(require_portfolio)):
+    acquire_workspace_ledger_lock(db, portfolio.workspace_id)
     row = _portfolio_cash_rows(db, portfolio).filter(Transaction.public_id == cash_id).first()
     if not row:
         raise HTTPException(404, "Cash entry not found")
+    if is_broker_managed(row):
+        raise HTTPException(409, "Broker-managed cash entries cannot be edited individually")
     ccy = body.currency.upper()
     row.type, row.amount, row.currency, row.date, row.notes = body.type, body.amount, ccy, body.date, body.note
     row.fx_to_czk = fetch_fx_to_czk(ccy, body.date)
@@ -92,9 +97,12 @@ def update_cash(cash_id: UUID, body: CashCreate, db: Session = Depends(get_db), 
 
 @router.delete("/{cash_id:uuid}")
 def delete_cash(cash_id: UUID, db: Session = Depends(get_db), portfolio: Portfolio = Depends(require_portfolio)):
+    acquire_workspace_ledger_lock(db, portfolio.workspace_id)
     row = _portfolio_cash_rows(db, portfolio).filter(Transaction.public_id == cash_id).first()
     if not row:
         raise HTTPException(404, "Cash entry not found")
+    if is_broker_managed(row):
+        raise HTTPException(409, "Broker-managed cash entries cannot be deleted individually")
     db.delete(row); db.commit()
     return {"ok": True}
 

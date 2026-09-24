@@ -1,7 +1,7 @@
 import os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -110,6 +110,35 @@ def test_delete_cash(db_session, pid, default_portfolio):
     result = delete_cash(created.id, db_session, default_portfolio)
     assert result == {"ok": True}
     assert list_cash(db_session, default_portfolio) == []
+
+
+def test_cash_crud_rejects_broker_managed_rows(db_session, pid, default_portfolio):
+    row = make_txn(
+        ticker=None, type="deposit", shares=0, price=0, amount=1000,
+        currency="USD", date=date(2024, 1, 1), portfolio_id=pid,
+        source="t212_api",
+    )
+    db_session.add(row)
+    db_session.commit()
+
+    with pytest.raises(HTTPException) as update_error:
+        update_cash(
+            row.public_id,
+            CashCreate(
+                type="withdrawal", amount=250, currency="USD",
+                date=date(2024, 2, 1),
+            ),
+            db_session,
+            default_portfolio,
+        )
+    with pytest.raises(HTTPException) as delete_error:
+        delete_cash(row.public_id, db_session, default_portfolio)
+
+    assert update_error.value.status_code == 409
+    assert delete_error.value.status_code == 409
+    persisted = db_session.query(Transaction).filter_by(id=row.id).one()
+    assert persisted.type == "deposit"
+    assert persisted.amount == 1000
 
 
 def test_update_missing_cash_raises_404(db_session, pid, default_portfolio):
@@ -601,8 +630,68 @@ class _FrozenDate(date):
         return date(2024, 2, 1)
 
 
+@pytest.mark.parametrize("with_deposit", [False, True])
+def test_lifetime_dividends_use_paid_cash(with_deposit, pid):
+    dividend = make_txn("AAPL", "dividend", 10, 1.0, currency="USD",
+                        date=date(2024, 1, 2), portfolio_id=pid)
+    dividend.cash_amount = 8.5
+    dividend.cash_currency = "USD"
+    txns = [dividend]
+    if with_deposit:
+        txns.insert(0, make_txn(ticker=None, type="deposit", shares=0, price=0,
+                                amount=100, currency="USD", date=date(2024, 1, 1),
+                                portfolio_id=pid))
+
+    with patch("routers.analytics.date", _FrozenDate):
+        lifetime = _lifetime_money_weighted(txns, pd.Series([100.0]))
+
+    assert lifetime["dividends"] == pytest.approx(8.5)
+
+
 def _mock_price_panel(index, closes):
     return pd.DataFrame({"Close": closes}, index=index)
+
+
+def test_value_series_orders_same_day_position_events_by_execution_time(pid):
+    sell = make_txn(
+        "AAPL", "sell", 1, 110.0, currency="USD",
+        date=date(2024, 1, 1), portfolio_id=pid,
+    )
+    sell.executed_at = datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc)
+    buy = make_txn(
+        "AAPL", "buy", 1, 100.0, currency="USD",
+        date=date(2024, 1, 1), portfolio_id=pid,
+    )
+    buy.executed_at = datetime(2024, 1, 1, 15, 0, tzinfo=timezone.utc)
+    idx = pd.date_range("2024-01-01", periods=2, freq="D")
+
+    with patch("routers.analytics.yf.download", return_value=_mock_price_panel(idx, [100, 105])), \
+         patch("routers.analytics.market_data.get_infos", return_value={"AAPL": {"currency": "USD"}}):
+        value, cashflow, _ = _build_value_cashflow_series([buy, sell], date(2024, 1, 1))
+
+    assert value.tolist() == pytest.approx([100, 105])
+    assert cashflow.tolist() == pytest.approx([100, 0])
+
+
+def test_lifetime_metrics_order_same_day_trades_by_execution_time(pid):
+    sell = make_txn(
+        "AAPL", "sell", 1, 110.0, currency="USD",
+        date=date(2024, 1, 1), portfolio_id=pid,
+    )
+    sell.executed_at = datetime(2024, 1, 1, 9, 0, tzinfo=timezone.utc)
+    buy = make_txn(
+        "AAPL", "buy", 1, 100.0, currency="USD",
+        date=date(2024, 1, 1), portfolio_id=pid,
+    )
+    buy.executed_at = datetime(2024, 1, 1, 15, 0, tzinfo=timezone.utc)
+
+    with patch("routers.analytics.date", _FrozenDate):
+        lifetime = _lifetime_money_weighted([buy, sell], pd.Series([105.0]))
+
+    assert lifetime["total_invested"] == pytest.approx(100.0)
+    assert lifetime["realized_pnl"] == pytest.approx(0.0)
+    assert lifetime["unrealized_pnl"] == pytest.approx(5.0)
+    assert lifetime["net_profit"] == pytest.approx(5.0)
 
 
 def test_returns_unchanged_without_cash(db_session, pid):

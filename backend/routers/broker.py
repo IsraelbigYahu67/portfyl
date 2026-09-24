@@ -1,121 +1,26 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import date, datetime, timezone
-from urllib.parse import urlparse, parse_qs
 import httpx
 import json
-import os
-import yfinance as yf
 
 import t212_sync
+from account_identity import account_fingerprint
 from audit import record_audit_event
+from broker_reconciliation import reconcile_positions
 from database import get_db
 from entitlements import require_broker_capacity, require_capability, require_writable_broker
 from rate_limit import rate_limit
-from fx import bulk_fetch_fx, convert_amount
+from fx import convert_amount
 from models import BrokerBalance, BrokerConnection, BrokerPosition, BrokerSyncRun, Portfolio, Transaction
 from tenancy import RequestContext, require_csrf, require_portfolio
-from cash_ledger import CASH_TYPES
 from t212_sync import (
     T212_BASES,
-    _CANONICAL_TICKER,
-    _dedup_keys,
-    _normalize_t212_ticker,
     _t212_base,
     _t212_headers,
 )
 
 router = APIRouter(prefix="/broker", tags=["broker"])
-
-
-def _split_adjust(txns_by_ticker: dict) -> int:
-    """Rewrite buy/sell rows that were booked at pre-split prices.
-
-    T212 reports historical orders at the price/quantity at the time of the trade and
-    does NOT split-adjust them. For each yfinance-known split (ex-date D, ratio R) we
-    rewrite shares*=R, price/=R for any txn where BOTH hold:
-      - txn.date <= D (so it's not already a post-split trade)
-      - txn.price / current_price ≈ R (price is on the pre-split scale)
-
-    The price-ratio check protects against fuzzy yfinance matches: e.g. T212's "NVDd"
-    (German Nvidia) gets matched by yfinance to the unrelated "NVDD" inverse ETF, and
-    without this guard we'd apply that ETF's splits to Nvidia trades. We also skip
-    any ticker that doesn't look canonical (upper-case + optional .X or -X suffix).
-    """
-    adjusted = 0
-    for ticker, txns in txns_by_ticker.items():
-        if not txns or not _CANONICAL_TICKER.match(ticker):
-            continue
-        try:
-            yft = yf.Ticker(ticker)
-            splits = yft.splits
-            if splits is None or len(splits) == 0:
-                continue
-            try:
-                ref_price = float(yft.fast_info["last_price"] or 0)
-            except Exception:
-                ref_price = 0.0
-            if ref_price <= 0:
-                continue
-            for split_dt, ratio in splits.items():
-                ex_date = split_dt.date()
-                ratio = float(ratio)
-                if ratio <= 0:
-                    continue
-                lo, hi = 0.5 * ratio, 2.0 * ratio
-                for t in txns:
-                    if t.date > ex_date:
-                        continue
-                    rel = t.price / ref_price
-                    if lo <= rel <= hi:
-                        t.shares *= ratio
-                        t.price /= ratio
-                        adjusted += 1
-        except Exception:
-            continue
-    return adjusted
-
-
-def _drop_corporate_action_pairs(db: Session, txns_by_ticker: dict) -> int:
-    """Delete buy+sell pairs created by broker share give-backs on stock-split days.
-
-    After a split, T212 records a sell of the pre-split position and a buy of the
-    post-split equivalent on the ex-date — purely a broker adjustment, not user
-    trading. We only remove a pair when (a) shares & price are identical, AND
-    (b) the date matches a known yfinance split ex-date for that ticker. Without
-    the split-date guard we'd also delete legitimate same-day round-trips at the
-    same price (rare but they happen with zero-spread small caps).
-    """
-    removed = 0
-    for ticker, txns in txns_by_ticker.items():
-        if not txns or not _CANONICAL_TICKER.match(ticker):
-            continue
-        try:
-            splits = yf.Ticker(ticker).splits
-        except Exception:
-            continue
-        if splits is None or len(splits) == 0:
-            continue
-        split_dates = {dt.date() for dt in splits.index}
-        by_date: dict = {}
-        for t in txns:
-            if t.date in split_dates:
-                by_date.setdefault(t.date, []).append(t)
-        for group in by_date.values():
-            buys = [t for t in group if t.type == "buy"]
-            sells = [t for t in group if t.type == "sell"]
-            for b in buys:
-                match = None
-                for s in sells:
-                    if abs(b.shares - s.shares) < 1e-9 and abs(b.price - s.price) < 1e-6:
-                        match = s
-                        break
-                if match is not None:
-                    sells.remove(match)
-                    db.delete(b)
-                    db.delete(match)
-                    removed += 2
-    return removed
 
 
 def _get_connection(db: Session, portfolio: Portfolio) -> BrokerConnection | None:
@@ -128,6 +33,68 @@ def _get_connection(db: Session, portfolio: Portfolio) -> BrokerConnection | Non
         )
         .first()
     )
+
+
+def _summary_account_fingerprint(summary: dict, environment: str) -> str:
+    try:
+        return account_fingerprint(
+            broker="trading212",
+            environment=environment,
+            provider_account_id=summary.get("id"),
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Trading 212 did not return a usable account identity",
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Trading 212 account identity verification is not configured",
+        ) from exc
+
+
+def _reject_account_replacement() -> None:
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            "This portfolio is already bound to a different Trading 212 account. "
+            "Create a new portfolio for the other account."
+        ),
+    )
+
+
+def _ensure_unique_account_binding(
+    db: Session,
+    portfolio: Portfolio,
+    fingerprint: str,
+) -> None:
+    clash = db.query(Portfolio.id).filter(
+        Portfolio.workspace_id == portfolio.workspace_id,
+        Portfolio.id != portfolio.id,
+        Portfolio.t212_account_fingerprint == fingerprint,
+    ).first()
+    if clash is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="This Trading 212 account is already bound to another portfolio.",
+        )
+
+
+def _bind_verified_account(
+    db: Session,
+    portfolio: Portfolio,
+    connection: BrokerConnection | None,
+    fingerprint: str,
+) -> None:
+    if portfolio.t212_account_fingerprint not in (None, fingerprint):
+        _reject_account_replacement()
+    if connection is not None and connection.account_fingerprint not in (None, fingerprint):
+        _reject_account_replacement()
+    _ensure_unique_account_binding(db, portfolio, fingerprint)
+    portfolio.t212_account_fingerprint = fingerprint
+    if connection is not None:
+        connection.account_fingerprint = fingerprint
 
 
 @router.get("/trading212/status")
@@ -161,6 +128,10 @@ def get_status(
         "api_key_preview": api_key_preview,
         "needs_attention": conn.needs_attention or decrypt_error is not None,
         "last_error": decrypt_error or (conn.last_error if conn.needs_attention else None),
+        "account_bound": bool(
+            conn.account_fingerprint
+            and conn.account_fingerprint == portfolio.t212_account_fingerprint
+        ),
     }
 
 
@@ -195,15 +166,22 @@ def get_positions(
         .all()
     )
     if not rows:
-        return {"connected": True, "status": "unavailable", "as_of": None, "positions": []}
+        as_of = conn.positions_snapshot_at
+        return {
+            "connected": True,
+            "status": ("fresh" if t212_sync.is_snapshot_fresh(as_of) else "stale") if as_of else "unavailable",
+            "as_of": as_of.isoformat() if as_of else None,
+            "currency": currency,
+            "positions": [],
+        }
 
     as_of = max(r.as_of for r in rows)
     status = "fresh" if t212_sync.is_snapshot_fresh(as_of) else "stale"
 
     # /equity/positions carries no instrument currency; best-effort derive it
-    # from the most recent ledger row for the same normalized ticker (if the
-    # account has no ledger history yet, values are reported unconverted in
-    # their instrument-currency face value rather than guessed).
+    # from the most recent ledger row for the same normalized ticker. Until
+    # that currency is known, monetary values cannot be labeled with the
+    # requested display currency.
     tickers = {r.ticker for r in rows}
     currency_by_ticker: dict[str, str] = {}
     if tickers:
@@ -218,18 +196,20 @@ def get_positions(
             .all()
         )
         for t in latest_txns:
-            currency_by_ticker.setdefault(t.ticker, (t.currency or "USD").upper())
+            if t.currency:
+                currency_by_ticker.setdefault(t.ticker, t.currency.upper())
 
     positions = []
     for r in rows:
-        native_ccy = currency_by_ticker.get(r.ticker)
+        native_ccy = r.currency or currency_by_ticker.get(r.ticker)
         market_value = cost_basis = pnl = None
-        if r.current_price is not None:
+        if native_ccy and r.current_price is not None:
             native_market_value = r.quantity * r.current_price
-            market_value = convert_amount(native_market_value, native_ccy or "USD", currency) if native_ccy else native_market_value
-        native_cost_basis = r.quantity * r.avg_price
-        cost_basis = convert_amount(native_cost_basis, native_ccy or "USD", currency) if native_ccy else native_cost_basis
-        if market_value is not None:
+            market_value = convert_amount(native_market_value, native_ccy, currency)
+        if native_ccy:
+            native_cost_basis = r.quantity * r.avg_price
+            cost_basis = convert_amount(native_cost_basis, native_ccy, currency)
+        if market_value is not None and cost_basis is not None:
             pnl = market_value - cost_basis
         positions.append({
             "ticker": r.ticker,
@@ -257,19 +237,54 @@ def get_positions(
     }
 
 
+def _reconcile_history(
+    db: Session, portfolio: Portfolio, conn: BrokerConnection, run: BrokerSyncRun,
+) -> dict:
+    """Ledger-vs-snapshot reconciliation (plan §6.3). The ledger is only
+    authoritative once the latest run completed, so the transaction load is
+    skipped until then and whenever no positions snapshot exists."""
+    if run.state != "completed":
+        return reconcile_positions(
+            ledger_shares={}, positions=[], snapshot_available=False, history_complete=False,
+        )
+    positions = (
+        db.query(BrokerPosition)
+        .filter(
+            BrokerPosition.workspace_id == portfolio.workspace_id,
+            BrokerPosition.portfolio_id == portfolio.id,
+            BrokerPosition.broker == "trading212",
+        )
+        .all()
+    )
+    as_of = max((p.as_of for p in positions), default=None) or conn.positions_snapshot_at
+    ledger_shares: dict[str, float] = {}
+    if as_of is not None:
+        # Local import: the portfolio router pulls in market-data modules that
+        # the rest of this router does not need (same pattern as jobs.py).
+        from routers.portfolio import _build_holdings, _portfolio_txns
+
+        holdings = _build_holdings(_portfolio_txns(db, portfolio).all())
+        ledger_shares = {ticker: data["shares"] for ticker, data in holdings.items()}
+    return reconcile_positions(
+        ledger_shares=ledger_shares,
+        positions=positions,
+        snapshot_available=as_of is not None,
+        history_complete=True,
+        snapshot_stale=as_of is not None and not t212_sync.is_snapshot_fresh(as_of),
+    )
+
+
 @router.get("/trading212/history-status")
 def get_history_status(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
 ):
-    """Progress of this connection's most recent resumable history backfill
-    (T212 snapshot-first sync plan, Task 3). `jobs.broker_backfill_pass`
-    advances an active run in the background; this is read-only and never
-    triggers or advances one itself. `complete` mirrors §2.1/§2.2's
-    'history complete' signal other current-value surfaces will eventually
-    gate on -- it means every order/dividend page is staged, not that ledger
-    Transaction rows reflect it yet (that finalization step doesn't exist in
-    this increment)."""
+    """Progress of this connection's resumable history backfill.
+
+    Cursors and raw exception strings are operational secrets and never cross
+    this API boundary. ``download_complete`` reports staged provider pages;
+    ``complete`` becomes true only after atomic ledger finalization.
+    """
     conn = _get_connection(db, portfolio)
     if not conn:
         return {"connected": False, "run": None}
@@ -286,13 +301,35 @@ def get_history_status(
     if run is None:
         return {"connected": True, "run": None}
 
+    reset_candidates = [
+        value for value in (
+            run.orders_rate_limit_reset_at,
+            run.dividends_rate_limit_reset_at,
+        )
+        if value is not None
+    ]
+    resume_at = max(reset_candidates) if reset_candidates else None
+    if resume_at is not None and resume_at.tzinfo is None:
+        resume_at = resume_at.replace(tzinfo=timezone.utc)
+    if run.state == "needs_review":
+        public_error = t212_sync.HISTORY_NEEDS_REVIEW_ERROR
+    elif run.last_error:
+        public_error = (
+            "Trading 212 history sync failed. Start a new sync to retry."
+            if run.state == "failed"
+            else t212_sync.HISTORY_RETRY_ERROR
+        )
+    else:
+        public_error = None
+
     return {
         "connected": True,
         "run": {
             "id": str(run.public_id),
             "mode": run.mode,
             "state": run.state,
-            "complete": bool(run.orders_complete and run.dividends_complete),
+            "complete": run.state == "completed",
+            "download_complete": bool(run.orders_complete and run.dividends_complete),
             "orders_loaded": run.orders_loaded,
             "orders_complete": run.orders_complete,
             "dividends_loaded": run.dividends_loaded,
@@ -300,8 +337,10 @@ def get_history_status(
             "started_at": run.started_at.isoformat() if run.started_at else None,
             "last_progress_at": run.last_progress_at.isoformat() if run.last_progress_at else None,
             "completed_at": run.completed_at.isoformat() if run.completed_at else None,
-            "last_error": run.last_error,
+            "resume_at": resume_at.isoformat() if resume_at else None,
+            "last_error": public_error,
         },
+        "reconciliation": _reconcile_history(db, portfolio, conn, run),
     }
 
 
@@ -363,22 +402,58 @@ def connect(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Could not reach Trading 212: {e}")
 
-    db.query(Transaction).filter(
-        Transaction.workspace_id == portfolio.workspace_id,
-        Transaction.portfolio_id == portfolio.id,
-    ).delete(synchronize_session=False)
-    db.query(BrokerBalance).filter(
-        BrokerBalance.workspace_id == portfolio.workspace_id,
-        BrokerBalance.portfolio_id == portfolio.id,
-        BrokerBalance.broker == "trading212",
-    ).delete(synchronize_session=False)
-    db.query(BrokerPosition).filter(
-        BrokerPosition.workspace_id == portfolio.workspace_id,
-        BrokerPosition.portfolio_id == portfolio.id,
-        BrokerPosition.broker == "trading212",
-    ).delete(synchronize_session=False)
-
     connection = _get_connection(db, portfolio)
+    try:
+        candidate_summary = _fetch_account_summary(
+            base, _t212_headers(api_key, api_secret),
+        )
+    except HTTPException:
+        raise
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Trading 212 returned an error: {exc.response.status_code}",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not verify the Trading 212 account: {exc}",
+        ) from exc
+    candidate_fingerprint = _summary_account_fingerprint(candidate_summary, environment)
+
+    if connection and connection.account_fingerprint is None:
+        # A legacy connection can be bound only after independently validating
+        # its stored credentials. New credentials are not proof that the old
+        # ledger belongs to the same upstream account.
+        try:
+            same_credentials = (
+                (connection.environment or "live") == environment
+                and connection.api_key == api_key
+                and (connection.api_secret or "") == api_secret
+            )
+            if same_credentials:
+                existing_fingerprint = candidate_fingerprint
+            else:
+                old_environment = connection.environment or "live"
+                old_summary = _fetch_account_summary(
+                    _t212_base(old_environment),
+                    _t212_headers(connection.api_key, connection.api_secret or ""),
+                )
+                existing_fingerprint = _summary_account_fingerprint(
+                    old_summary, old_environment,
+                )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "The existing Trading 212 account identity could not be verified. "
+                    "This portfolio was left unchanged; connect the new account to a new portfolio."
+                ),
+            ) from exc
+        if existing_fingerprint != candidate_fingerprint:
+            _reject_account_replacement()
+
+    _bind_verified_account(db, portfolio, connection, candidate_fingerprint)
     action = "broker.connection.rotated" if connection else "broker.connection.created"
     if connection:
         # Fence every in-flight history run before mutating credentials
@@ -390,11 +465,15 @@ def connect(
             BrokerSyncRun.workspace_id == portfolio.workspace_id,
             BrokerSyncRun.connection_id == connection.id,
             BrokerSyncRun.state.notin_(t212_sync.TERMINAL_RUN_STATES),
-        ).update({"state": "cancelled"}, synchronize_session=False)
+        ).update(
+            {"state": "cancelled", "lease_token": None, "lease_expires_at": None},
+            synchronize_session=False,
+        )
         connection.credential_generation = (connection.credential_generation or 1) + 1
         connection.api_key = api_key
         connection.api_secret = api_secret
         connection.environment = environment
+        connection.account_fingerprint = candidate_fingerprint
         connection.created_at = datetime.utcnow()
         connection.last_synced_at = None
         # Fresh credentials deserve a fresh start on the dead-letter state.
@@ -409,6 +488,7 @@ def connect(
             api_key=api_key,
             api_secret=api_secret,
             environment=environment,
+            account_fingerprint=candidate_fingerprint,
         )
         db.add(connection)
     db.flush()
@@ -489,7 +569,15 @@ def disconnect(
     return {"ok": True, "message": "Disconnected from Trading 212"}
 
 
-@router.post("/trading212/sync", dependencies=[Depends(require_capability("broker_sync")), Depends(require_writable_broker("trading212")), Depends(rate_limit("broker_sync", by="workspace"))])
+@router.post(
+    "/trading212/sync",
+    status_code=202,
+    dependencies=[
+        Depends(require_capability("broker_sync")),
+        Depends(require_writable_broker("trading212")),
+        Depends(rate_limit("broker_sync", by="workspace")),
+    ],
+)
 def sync_transactions(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
@@ -501,27 +589,10 @@ def sync_transactions(
 
     base = _t212_base(conn.environment or "live")
     headers = _t212_headers(conn.api_key, conn.api_secret or "")
-    imported = 0
-    errors = []
     cash_updated = False
     cash_error = None
     positions_updated = False
     positions_error = None
-
-    # Start (or return the already-active) resumable history run. This is
-    # additive/parallel to the full fetch-and-import below, not a replacement
-    # for it yet -- t212_sync.advance_run only stages raw pages into
-    # BrokerSyncEvent; jobs.broker_backfill_pass, not this request, does the
-    # actual paging (plan §5.4), so creating the run here is a single flush,
-    # never an extra commit inside this request.
-    history_run = t212_sync.claim_or_create_run(db, conn, portfolio)
-
-    try:
-        orders = _fetch_all_orders(base, headers)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Failed to fetch orders: {e}")
 
     # Summary and positions are the fast current-state snapshot (T212
     # snapshot-first sync plan, 2026-09-20, §5.2): fetched concurrently and
@@ -529,279 +600,60 @@ def sync_transactions(
     # discards the other's result.
     snapshot = t212_sync.fetch_snapshot(base, headers, fetch_summary=_fetch_account_summary)
     if snapshot.summary is not None:
+        fingerprint = _summary_account_fingerprint(
+            snapshot.summary, conn.environment or "live",
+        )
+        _bind_verified_account(db, portfolio, conn, fingerprint)
         _upsert_t212_balance(db, portfolio, snapshot.summary)
         cash_updated = True
     else:
-        cash_error = f"Cash summary fetch failed: {snapshot.summary_error}"
-        errors.append(cash_error)
+        if (
+            not conn.account_fingerprint
+            or not portfolio.t212_account_fingerprint
+            or conn.account_fingerprint != portfolio.t212_account_fingerprint
+        ):
+            raise HTTPException(
+                status_code=502,
+                detail="Trading 212 account identity could not be verified",
+            )
+        cash_error = "Trading 212 account summary could not be refreshed."
 
     if snapshot.positions is not None:
         t212_sync.replace_positions(db, portfolio, snapshot.positions)
         positions_updated = True
     else:
-        positions_error = f"Positions fetch failed: {snapshot.positions_error}"
-        errors.append(positions_error)
+        positions_error = "Trading 212 positions could not be refreshed."
 
-    existing_sources = set()
-    new_orders_by_ticker: dict[str, list[Transaction]] = {}
-    new_txns: list[Transaction] = []
-    # Dedup only within THIS portfolio — another portfolio holding the same ticker
-    # at the same date/price is not a duplicate, it's separate data. But within the
-    # portfolio, dedupe against EVERY trade row regardless of origin: CSV-imported
-    # rows carry source=NULL, and matching only source='t212_api' once re-imported
-    # the entire order history on top of a CSV import, doubling every position.
-    existing_txns = (
-        db.query(Transaction)
-        .filter(
-            Transaction.workspace_id == portfolio.workspace_id,
-            Transaction.portfolio_id == portfolio.id,
-            Transaction.ticker.isnot(None),
-        )
-        .all()
-    )
-    # A replace-imported T212 export is an account-wide history snapshot. Its
-    # newest date therefore covers even instruments absent from the export;
-    # without this global cutoff, a later API sync resurrects old API-only rows
-    # for unseen tickers and breaks the replacement guarantee. Orders after the
-    # snapshot date remain eligible for normal incremental sync.
-    snapshot_rows = db.query(
-        Transaction.date, Transaction.type, Transaction.source, Transaction.notes
-    ).filter(
-        Transaction.workspace_id == portfolio.workspace_id,
-        Transaction.portfolio_id == portfolio.id,
-        Transaction.source.in_(("csv", "t212_csv")),
-    ).all()
-    t212_csv_dates = [row.date for row in snapshot_rows if row.source == "t212_csv"]
-    legacy_csv_rows = [row for row in snapshot_rows if row.source == "csv"]
-    legacy_is_t212 = any(
-        row.type in CASH_TYPES or (row.notes or "").startswith("T212:")
-        for row in legacy_csv_rows
-    )
-    fallback_dates = t212_csv_dates + (
-        [row.date for row in legacy_csv_rows] if legacy_is_t212 else []
-    )
-    portfolio_history_cutoff = portfolio.t212_csv_covered_through
-    precise_history_cutoff = portfolio_history_cutoff or conn.t212_csv_covered_through
-    if precise_history_cutoff is not None:
-        if precise_history_cutoff.tzinfo is None:
-            precise_history_cutoff = precise_history_cutoff.replace(tzinfo=timezone.utc)
-        else:
-            precise_history_cutoff = precise_history_cutoff.astimezone(timezone.utc)
-    t212_history_date_cutoff = (
-        max(fallback_dates) if fallback_dates and precise_history_cutoff is None else None
-    )
-    for t in existing_txns:
-        existing_sources |= _dedup_keys(t.ticker, t.date, t.type, t.shares, t.price)
-        if t.type == "dividend":
-            existing_sources |= _dedup_keys(
-                t.ticker, t.date, "dividend", round(t.shares * t.price, 6))
-    # History cutoff, per instrument: orders older than a ticker's own newest
-    # known transaction are history the portfolio already has for that ticker
-    # (CSV exports and older syncs cover it); representations drift across
-    # sources (split-adjusted prices, per-share vs total dividends), so key
-    # matching alone can't be trusted for the past. A ticker with no history at
-    # all has nothing covering it — its full history must import. Keyed by the
-    # suffix-stripped base (like _dedup_keys) so COPM and COPM.L are one
-    # instrument. Same-day overlap still goes through the key dedupe above.
-    latest_by_base: dict[str, date] = {}
-    for t in existing_txns:
-        base_ticker = (t.ticker or "").split(".")[0]
-        if base_ticker and (base_ticker not in latest_by_base
-                            or t.date > latest_by_base[base_ticker]):
-            latest_by_base[base_ticker] = t.date
+    # Create the history run only after account identity has been verified.
+    history_run = t212_sync.claim_or_create_run(db, conn, portfolio)
 
-    for item in orders:
-        try:
-            order_data = item.get("order", {})
-            fill_data = item.get("fill", {})
-
-            status = order_data.get("status", "").upper()
-            if status != "FILLED":
-                continue
-
-            raw_ticker = order_data.get("ticker", "").strip()
-            if not raw_ticker:
-                continue
-            ticker = _normalize_t212_ticker(raw_ticker)
-
-            side = order_data.get("side", "").upper()
-            if side == "BUY":
-                txn_type = "buy"
-            elif side == "SELL":
-                txn_type = "sell"
-            else:
-                continue
-
-            filled_qty = float(abs(fill_data.get("quantity") or order_data.get("filledQuantity", 0)))
-            filled_price = float(fill_data.get("price", 0) or 0)
-            if not filled_qty or not filled_price:
-                continue
-
-            instrument = order_data.get("instrument", {})
-            currency = instrument.get("currency", "USD").upper()
-
-            date_str = fill_data.get("filledAt") or order_data.get("createdAt", "")
-            try:
-                event_time = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-                if event_time.tzinfo is None:
-                    event_time = event_time.replace(tzinfo=timezone.utc)
-                else:
-                    event_time = event_time.astimezone(timezone.utc)
-                txn_date = event_time.date()
-            except Exception:
-                continue
-
-            if precise_history_cutoff and event_time <= precise_history_cutoff:
-                continue
-            if t212_history_date_cutoff and txn_date <= t212_history_date_cutoff:
-                continue
-
-            cutoff = latest_by_base.get(ticker.split(".")[0])
-            if cutoff and txn_date < cutoff:
-                continue
-
-            name = instrument.get("name", ticker)
-
-            keys = _dedup_keys(ticker, txn_date, txn_type, filled_qty, filled_price)
-            if keys & existing_sources:
-                continue
-
-            new_txn = Transaction(
-                workspace_id=portfolio.workspace_id,
-                portfolio_id=portfolio.id,
-                ticker=ticker,
-                name=name,
-                type=txn_type,
-                shares=filled_qty,
-                price=filled_price,
-                currency=currency,
-                date=txn_date,
-                notes=f"T212 Order #{order_data.get('id', '')}",
-                source="t212_api",
-            )
-            db.add(new_txn)
-            new_orders_by_ticker.setdefault(ticker, []).append(new_txn)
-            new_txns.append(new_txn)
-            existing_sources |= keys
-            imported += 1
-        except Exception as e:
-            errors.append(str(e))
-
-    dividends_imported = 0
-    try:
-        dividends = _fetch_all_dividends(base, headers)
-        for div in dividends:
-            try:
-                raw_ticker = div.get("ticker", "").strip()
-                if not raw_ticker:
-                    continue
-                ticker = _normalize_t212_ticker(raw_ticker)
-                gross_per_share = div.get("grossAmountPerShare", 0)
-                quantity = div.get("quantity", 0)
-                if not gross_per_share or not quantity:
-                    continue
-                total_amount = round(float(gross_per_share) * float(quantity) * 0.85, 6)
-                instrument = div.get("instrument", {})
-                div_currency = instrument.get("currency", "USD").upper()
-
-                date_str = div.get("paidOn") or div.get("reference", "")
-                try:
-                    event_time = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-                    if event_time.tzinfo is None:
-                        event_time = event_time.replace(tzinfo=timezone.utc)
-                    else:
-                        event_time = event_time.astimezone(timezone.utc)
-                    txn_date = event_time.date()
-                except Exception:
-                    continue
-
-                if precise_history_cutoff and event_time <= precise_history_cutoff:
-                    continue
-                if t212_history_date_cutoff and txn_date <= t212_history_date_cutoff:
-                    continue
-
-                cutoff = latest_by_base.get(ticker.split(".")[0])
-                if cutoff and txn_date < cutoff:
-                    continue
-
-                keys = _dedup_keys(ticker, txn_date, "dividend", total_amount)
-                if keys & existing_sources:
-                    continue
-
-                new_div = Transaction(
-                    workspace_id=portfolio.workspace_id,
-                    portfolio_id=portfolio.id,
-                    ticker=ticker,
-                    name=ticker,
-                    type="dividend",
-                    shares=1.0,
-                    price=total_amount,
-                    currency=div_currency,
-                    date=txn_date,
-                    notes="T212 Dividend",
-                    source="t212_api",
-                )
-                db.add(new_div)
-                new_txns.append(new_div)
-                existing_sources |= keys
-                dividends_imported += 1
-            except Exception as e:
-                errors.append(str(e))
-    except Exception as e:
-        errors.append(f"Dividend fetch failed: {e}")
-
-    # Everything in a T212 account settles in the account currency (CZK here):
-    # snapshot the trade-date fx and store the CZK cash impact, like the CSV
-    # import does. Without it, cash model v2 falls back to shares*price in the
-    # trade currency and a synced buy drains a USD pile that doesn't exist.
-    # (Approximation — no FX-fee detail; the next CSV replace-import corrects it.)
-    fx_needed = {((t.currency or "USD").upper(), t.date) for t in new_txns
-                 if (t.currency or "USD").upper() != "CZK"}
-    fx_map = bulk_fetch_fx(fx_needed)
-    for t in new_txns:
-        ccy = (t.currency or "USD").upper()
-        fx = 1.0 if ccy == "CZK" else fx_map.get((ccy, t.date))
-        if fx:
-            t.fx_to_czk = fx
-            t.cash_amount = round(float(t.shares) * float(t.price) * fx, 2)
-            t.cash_currency = "CZK"
-
-    # Split-adjust rewrites shares*=R, price/=R — the product (and therefore the
-    # CZK settlement above) is unchanged.
-    _split_adjust(new_orders_by_ticker)
-    _drop_corporate_action_pairs(db, new_orders_by_ticker)
-
-    conn.last_synced_at = datetime.utcnow()
+    # Manual sync is snapshot-first: persist the independently successful
+    # current-state components and hand history work to broker_backfill.  A
+    # foreground request must never walk the provider's full history or mark
+    # the ledger as synchronized.
     db.commit()
-
+    snapshot_status = (
+        "ready" if cash_updated and positions_updated
+        else "partial" if cash_updated or positions_updated
+        else "unavailable"
+    )
     return {
-        "imported_orders": imported,
-        "imported_dividends": dividends_imported,
-        "total_imported": imported + dividends_imported,
-        "errors": errors,
-        "cash_updated": cash_updated,
-        "cash_error": cash_error,
-        "positions_updated": positions_updated,
-        "positions_error": positions_error,
-        "history_run_id": str(history_run.public_id),
-        "history_status": history_run.state,
+        "snapshot": {
+            "status": snapshot_status,
+            "cash_updated": cash_updated,
+            "cash_error": cash_error,
+            "positions_updated": positions_updated,
+            "positions_error": positions_error,
+            "positions": len(snapshot.positions) if snapshot.positions is not None else None,
+        },
+        "history": {
+            "run_id": str(history_run.public_id),
+            "status": history_run.state,
+            "complete": False,
+        },
     }
 
 
-def _extract_cursor(next_page_path: str) -> str | None:
-    if not next_page_path:
-        return None
-    parsed = urlparse(next_page_path)
-    params = parse_qs(parsed.query)
-    cursors = params.get("cursor")
-    return cursors[0] if cursors else None
-
-
-# NOTE: this endpoint and its response field names (cash.availableToTrade,
-# cash.inPies, cash.reservedForOrders, investments.currentValue, totalValue,
-# currency) are verified only against a hand-written test fixture, never
-# against a live Trading 212 account. Confirm against the real API (or
-# Trading 212's official docs) before relying on this in production.
 def _fetch_account_summary(base: str, headers: dict) -> dict:
     resp = httpx.get(f"{base}/equity/account/summary", headers=headers, timeout=15)
     if resp.status_code == 401:
@@ -864,47 +716,3 @@ def _optional_float(value) -> float | None:
     return None if value is None else float(value)
 
 
-def _fetch_all_orders(base: str, headers: dict) -> list:
-    all_orders = []
-    cursor = None
-    while True:
-        params = {"limit": 50}
-        if cursor:
-            params["cursor"] = cursor
-        resp = httpx.get(f"{base}/equity/history/orders", headers=headers, params=params, timeout=15)
-        if resp.status_code == 401:
-            raise HTTPException(status_code=401, detail="API key is invalid or expired")
-        resp.raise_for_status()
-        data = resp.json()
-        items = data.get("items", [])
-        all_orders.extend(items)
-        next_path = data.get("nextPagePath")
-        if not next_path or not items:
-            break
-        cursor = _extract_cursor(next_path)
-        if not cursor:
-            break
-    return all_orders
-
-
-def _fetch_all_dividends(base: str, headers: dict) -> list:
-    all_divs = []
-    cursor = None
-    while True:
-        params = {"limit": 50}
-        if cursor:
-            params["cursor"] = cursor
-        resp = httpx.get(f"{base}/equity/history/dividends", headers=headers, params=params, timeout=15)
-        if resp.status_code == 401:
-            raise HTTPException(status_code=401, detail="API key is invalid or expired")
-        resp.raise_for_status()
-        data = resp.json()
-        items = data.get("items", [])
-        all_divs.extend(items)
-        next_path = data.get("nextPagePath")
-        if not next_path or not items:
-            break
-        cursor = _extract_cursor(next_path)
-        if not cursor:
-            break
-    return all_divs

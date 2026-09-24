@@ -14,7 +14,8 @@ from cash_ledger import (TRADE_TYPES, POSITION_TYPES, EXTERNAL_FLOW_TYPES,
                          has_external_cashflows, cash_balance_by_currency, signed_cash)
 from routers.portfolios import require_portfolio
 from ticker_map import yf_symbol
-from routers.portfolio import _xirr, _live_to_usd
+from transaction_ordering import chronological_key
+from routers.portfolio import _xirr, _live_to_usd, _received_dividend_in_currency
 import market_data
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -180,25 +181,12 @@ CZ_TIME_TEST_CAP_FROM_YEAR = 2024
 LOT_EPSILON = 1e-8
 
 
-_POSITION_EVENT_ORDER = {
-    "buy": 0,
-    "split_close": 1,
-    "split_open": 2,
-    "dividend": 3,
-    "sell": 4,
-}
-
-
 def _position_events(transactions: list) -> list:
     """Stable accounting order, including paired split legs on the same date."""
     return [
         txn for _, txn in sorted(
             enumerate(transactions),
-            key=lambda pair: (
-                pair[1].date,
-                _POSITION_EVENT_ORDER.get(pair[1].type, 99),
-                pair[0],
-            ),
+            key=lambda pair: (*chronological_key(pair[1]), pair[0]),
         )
     ]
 
@@ -484,9 +472,12 @@ def tax_report(
     div_czk_by_ticker: dict[str, float] = defaultdict(float)
     div_fx_complete = True
     for t in dividend_txns:
-        div_by_ticker[t.ticker] += t.shares * t.price
-        if t.fx_to_czk is not None:
-            div_czk_by_ticker[t.ticker] += t.shares * t.price * t.fx_to_czk
+        paid_ccy, paid_amount = signed_cash(t)
+        div_by_ticker[t.ticker] += _received_dividend_in_currency(t, None, {})
+        if paid_ccy == "CZK":
+            div_czk_by_ticker[t.ticker] += paid_amount
+        elif paid_ccy == (t.currency or "USD").upper() and t.fx_to_czk is not None:
+            div_czk_by_ticker[t.ticker] += paid_amount * t.fx_to_czk
         else:
             div_fx_complete = False
 
@@ -629,6 +620,7 @@ def _build_value_cashflow_series(
     than holdings-only -- buys/sells become internal reallocation between
     cash and positions instead of external cashflow. Portfolios with zero
     deposit/withdrawal rows take the untouched original path (else branch)."""
+    transactions = sorted(transactions, key=chronological_key)
     held_tickers = sorted({t.ticker for t in transactions if t.type in POSITION_TYPES and t.ticker})
     if not held_tickers:
         return None, None, None
@@ -1083,7 +1075,7 @@ def _lifetime_money_weighted(transactions, V_usd: pd.Series) -> dict:
     xirr_flows: list[tuple] = []
 
     if has_external_cashflows(transactions):
-        for txn in sorted(transactions, key=lambda t: t.date):
+        for txn in sorted(transactions, key=chronological_key):
             if txn.type in EXTERNAL_FLOW_TYPES:
                 ccy = (txn.currency or "USD").upper()
                 rate = _live_to_usd("GBP" if ccy == "GBp" else ccy)
@@ -1119,12 +1111,13 @@ def _lifetime_money_weighted(transactions, V_usd: pd.Series) -> dict:
                     # NOTE: sells no longer feed xirr_flows here either --
                     # internal reallocation (position -> cash).
             elif txn.type == "dividend":
-                dividends_usd += amt_usd
+                paid_ccy, paid_amount = signed_cash(txn)
+                dividends_usd += paid_amount * _live_to_usd("GBP" if paid_ccy == "GBp" else paid_ccy)
                 # NOTE: excluded from xirr_flows -- auto_adjust already prices
                 # the dividend into V_usd, so adding the cash again here would
                 # double-count it (same reasoning as _build_value_cashflow_series).
     else:
-        for txn in sorted(transactions, key=lambda t: t.date):
+        for txn in sorted(transactions, key=chronological_key):
             ccy = (txn.currency or "USD").upper()
             rate = _live_to_usd("GBP" if ccy in ("GBP", "GBP") or ccy == "GBp" else ccy)
             if txn.shares <= 0:
@@ -1151,8 +1144,10 @@ def _lifetime_money_weighted(transactions, V_usd: pd.Series) -> dict:
                     cost_open[txn.ticker] = max(0.0, cost_open[txn.ticker] - sold * avg)
                     xirr_flows.append((txn.date, +proceeds_matched))
             elif txn.type == "dividend":
-                dividends_usd += amt_usd
-                xirr_flows.append((txn.date, +amt_usd))
+                paid_ccy, paid_amount = signed_cash(txn)
+                received_usd = paid_amount * _live_to_usd("GBP" if paid_ccy == "GBp" else paid_ccy)
+                dividends_usd += received_usd
+                xirr_flows.append((txn.date, +received_usd))
 
     net_worth_usd = float(V_usd.iloc[-1]) if len(V_usd) else 0.0
     if has_external_cashflows(transactions):

@@ -11,11 +11,12 @@ from typing import Annotated
 from audit import record_audit_event
 from plans import PlanTier
 from database import get_db
-from models import Transaction, Portfolio
+from models import BrokerConnection, Transaction, Portfolio
 from routers.portfolios import require_portfolio
 from app_settings import get_user_secret, get_user_setting, set_user_secret, set_user_setting
 from tenancy import RequestContext, get_request_context, require_csrf
 from rate_limit import rate_limit
+from transaction_ordering import chronological_key
 from entitlements import (
     EffectiveEntitlements,
     EntitlementDenied,
@@ -64,16 +65,27 @@ def _build_portfolio_context(db: Session, portfolio: Portfolio) -> str:
     rather than converted.
     """
     name = portfolio.name
+    has_t212_connection = db.query(BrokerConnection.id).filter(
+        BrokerConnection.workspace_id == portfolio.workspace_id,
+        BrokerConnection.portfolio_id == portfolio.id,
+        BrokerConnection.broker == "trading212",
+    ).first() is not None
+    history_note = (
+        "history_complete=false: Trading 212 broker history may be missing from the transaction ledger; "
+        "do not treat downloaded provider pages as finalized records."
+        if has_t212_connection or portfolio.t212_account_fingerprint else None
+    )
 
     txns = (
         db.query(Transaction)
         .filter(Transaction.workspace_id == portfolio.workspace_id,
                 Transaction.portfolio_id == portfolio.id)
-        .order_by(Transaction.date.asc())
         .all()
     )
+    txns.sort(key=chronological_key)
     if not txns:
-        return f"Active portfolio: {name}. It currently has no recorded transactions."
+        context = f"Active portfolio: {name}. It currently has no recorded transactions."
+        return f"{context}\n{history_note}" if history_note else context
 
     positions: dict[str, dict] = {}
     dividend_income: dict[str, float] = defaultdict(float)
@@ -97,7 +109,9 @@ def _build_portfolio_context(db: Session, portfolio: Portfolio) -> str:
         elif typ == "sell":
             p["net_shares"] -= t.shares
         elif typ == "dividend":
-            dividend_income[t.currency or "USD"] += t.shares * t.price
+            paid_amount = t.cash_amount if t.cash_amount is not None else t.shares * t.price
+            paid_currency = t.cash_currency if t.cash_amount is not None else t.currency
+            dividend_income[paid_currency or "USD"] += paid_amount
 
     open_positions = []
     for ticker, p in positions.items():
@@ -116,6 +130,8 @@ def _build_portfolio_context(db: Session, portfolio: Portfolio) -> str:
         f"{total_invested:,.0f} {base_ccy} (currencies may be mixed).",
         "Holdings (largest cost basis first):",
     ]
+    if history_note:
+        lines.insert(1, history_note)
     for invested, ticker, p, avg in open_positions[:25]:
         lines.append(
             f"- {ticker} ({p['name']}): {p['net_shares']:g} shares, "
@@ -125,7 +141,7 @@ def _build_portfolio_context(db: Session, portfolio: Portfolio) -> str:
         lines.append(f"- (+{len(open_positions) - 25} more smaller positions)")
 
     if dividend_income:
-        divs = ", ".join(f"{v:,.0f} {c}" for c, v in dividend_income.items())
+        divs = ", ".join(f"{v:,.2f} {c}" for c, v in dividend_income.items())
         lines.append(f"Recorded dividend income (approx): {divs}.")
 
     lines.append("Recent transactions (newest first):")
@@ -157,7 +173,9 @@ def _system_prompt(context: str | None) -> str:
         "accurate, and practical. Use the portfolio snapshot below to answer questions "
         "about holdings, allocation, cost basis, and trading activity. If the snapshot "
         "lacks data needed to answer (e.g. live prices or current P&L), say so rather "
-        "than guessing or inventing numbers. You may explain general investing concepts, "
+        "than guessing or inventing numbers. When history_complete=false, qualify historical claims "
+        "and refuse history-wide totals that the available ledger cannot support. "
+        "You may explain general investing concepts, "
         "but make clear you are not a licensed financial advisor and avoid definitive "
         "buy/sell directives.\n\n"
         "=== PORTFOLIO SNAPSHOT ===\n"

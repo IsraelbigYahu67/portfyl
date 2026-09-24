@@ -14,13 +14,12 @@ import {
   fetchCashHistory,
   fetchCashReconciliation,
   fetchInterestRates,
-  fetchT212Status,
   saveInterestRates,
-  syncT212,
 } from "../api";
-import { useCurrency } from "../App";
+import { useCurrency, usePortfolio } from "../App";
 import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/Toast";
+import { useT212Sync } from "../hooks/useT212Sync";
 
 // Types offered for manual entry; the ledger can additionally contain imported
 // rows (card debits, cashback, FX conversion legs) from a Trading 212 CSV.
@@ -187,6 +186,7 @@ export default function Cash() {
   // useCurrency() reads CurrencyContext (provided by App's CurrencyProvider);
   // outside that provider (e.g. in tests) the context is null, so fall back to USD.
   const currency = useCurrency()?.currency || "USD";
+  const currentPortfolio = usePortfolio()?.current;
   const qc = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
@@ -204,7 +204,11 @@ export default function Cash() {
     queryKey: ["cash-reconciliation", currency],
     queryFn: () => fetchCashReconciliation(currency),
   });
-  const t212Status = useQuery({ queryKey: ["t212-status"], queryFn: fetchT212Status });
+  const t212 = useT212Sync({
+    portfolioId: currentPortfolio?.id,
+    currency,
+    includePositions: false,
+  });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["cash"] });
@@ -224,13 +228,9 @@ export default function Cash() {
     onError: (err) =>
       toast.error(err?.response?.data?.detail || "Failed to delete cash entry"),
   });
-  const sync = useMutation({
-    mutationFn: syncT212,
-    onSuccess: () => {
-      invalidate();
-      qc.invalidateQueries({ queryKey: ["t212-status"] });
-      toast.success("Synced with Trading 212");
-    },
+  const sync = t212.syncMutation;
+  const handleSync = () => t212.sync(undefined, {
+    onSuccess: () => toast.success("Synced with Trading 212"),
     onError: (err) => toast.error(err?.response?.data?.detail || "Sync failed"),
   });
 
@@ -261,9 +261,9 @@ export default function Cash() {
         isLoading={reconciliation.isLoading}
         isError={reconciliation.isError}
         onRetry={reconciliation.refetch}
-        connected={t212Status.data?.connected === true}
+        connected={t212.connected}
         currency={currency}
-        onSync={() => sync.mutate()}
+        onSync={handleSync}
         syncing={sync.isPending}
       />
 

@@ -2,23 +2,28 @@ import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import Cash from "./Cash";
-import { fetchCashReconciliation, fetchT212Status } from "../api";
+import { fetchCashReconciliation, fetchT212HistoryStatus, fetchT212Status } from "../api";
 
-// Mock the api module so no network is hit. Cash.jsx reads the active display
-// currency via useCurrency() from ../App, which returns null outside of
-// CurrencyProvider — Cash.jsx already falls back to "USD" in that case, so no
-// mock of ../App is needed here.
+// Mock the API module so no network is hit. The App hooks below provide one
+// active portfolio and a stable display currency, matching Cash's normal shell.
 vi.mock("../api", () => ({
   fetchCash: () => Promise.resolve([]),
   fetchCashBalance: () => Promise.resolve({ total: 0, total_accrued: 0, by_currency: {} }),
   fetchCashHistory: () => Promise.resolve({ currency: "USD", series: [] }),
   fetchCashReconciliation: vi.fn(),
   fetchT212Status: vi.fn(),
+  fetchT212HistoryStatus: vi.fn(),
+  fetchT212Positions: vi.fn(),
   syncT212: vi.fn(),
   createCash: vi.fn(),
   deleteCash: vi.fn(),
   fetchInterestRates: () => Promise.resolve([]),
   saveInterestRates: vi.fn(),
+}));
+
+vi.mock("../App", () => ({
+  useCurrency: () => ({ currency: "USD" }),
+  usePortfolio: () => ({ current: { id: "portfolio-1", name: "Portfolio" } }),
 }));
 
 // Cash.jsx also calls useConfirm()/useToast(), which throw outside their
@@ -58,6 +63,7 @@ describe("Cash", () => {
   beforeEach(() => {
     fetchCashReconciliation.mockReset().mockResolvedValue(UNAVAILABLE_RECONCILIATION);
     fetchT212Status.mockReset().mockResolvedValue({ connected: false });
+    fetchT212HistoryStatus.mockReset().mockResolvedValue({ connected: false, run: null });
   });
 
   it("mounts and shows the ledger empty state", async () => {

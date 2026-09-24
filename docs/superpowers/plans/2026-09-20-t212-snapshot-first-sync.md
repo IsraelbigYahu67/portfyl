@@ -1,16 +1,33 @@
 # Trading 212 Snapshot-First Synchronization Plan
 
 **Status:** In progress. §10 Task 1 (contract-locking fixtures/tests), Task 2
-(fast snapshot), a scoped Task 3 (resumable history runs), and a scoped Task 4
-slice (finalize into ledger rows) are done and tested (fast suite +
-PostgreSQL/RLS/cross-tenant suite, including a real Cloud Scheduler-shaped
-multi-commit RLS reassertion proof for the new job).
+(fast snapshot plus durable T212 account binding), a scoped Task 3 (resumable
+history runs), scoped Task 4 slices (finalize into ledger rows, account-identity
+guards, CSV event identity/timestamps, serialized ledger mutations, and
+provenance preservation through undo/export), and scoped Task 6 frontend slices
+are implemented. The earlier backend slice passed the fast and PostgreSQL/RLS
+suites; the 2026-09-24 additions pass the 899-test fast suite and the existing
+frontend local/cloud gates, but PostgreSQL could not be rerun because Docker was
+unavailable.
 
 - **Task 2**: `backend/t212_sync.py`, the `BrokerPosition` model and
   `0014_broker_positions` migration (forced RLS, grants, cascade, workspace
   export), concurrent summary+positions fetch wired into
   `POST /trading212/sync`, the new `GET /trading212/positions` read endpoint,
-  and the 25-hour freshness rule.
+  and the 25-hour freshness rule. The `0017_position_snapshot_time` migration
+  records successful empty position snapshots separately from never fetched;
+  unknown instrument currency now leaves converted monetary values null.
+  `backend/account_identity.py` and the `0018_t212_account_binding` migration
+  add a keyed, non-reversible upstream account identity (HMAC over
+  `PORTFYL_ACCOUNT_FINGERPRINT_KEY`, no raw provider account ID stored) across
+  portfolio, connection, run, staged-event, and finalized-transaction rows.
+  Connect and sync verify the chain end-to-end and reject a different account
+  with HTTP 409; disconnect retains the portfolio binding while removing
+  credentials/snapshots; same-account credential rotation preserves ledger,
+  snapshots, and the snapshot-freshness marker; and background backfill
+  cancels any run whose identity drifts from its connection or portfolio.
+  Cloud deploy now provisions `portfyl-account-fingerprint-key` (see
+  `deploy/cloudrun.md`).
 - **Task 3**: `BrokerSyncRun`/`BrokerSyncEvent` + `0015_broker_sync_runs`
   migration (forced RLS, grants, cascade, and the partial-unique-index
   one-active-run-per-connection DB backstop); `BrokerConnection.credential_generation`
@@ -21,7 +38,7 @@ multi-commit RLS reassertion proof for the new job).
   minutely `broker_backfill` job (`jobs.py`, registered in
   `RECURRING_JOB_NAMES`, the local poller, `/internal/jobs/broker_backfill`,
   `/health`, and `deploy/cloudrun.md`); `sync_transactions` starts/returns the
-  active run (`history_run_id`/`history_status`); the new
+  active run (structured `snapshot`/`history` response); the new
   `GET /trading212/history-status` read endpoint.
 - **Task 4 (scoped slice)**: `Transaction` provenance columns
   (`source_event_id`/`source_event_stream`/`source_credential_generation`/
@@ -29,18 +46,64 @@ multi-commit RLS reassertion proof for the new job).
   `source_mapper_version`) + `0016_transaction_provenance` migration
   (including a partial-unique-index idempotency backstop on
   `(workspace_id, portfolio_id, source, source_event_stream, source_event_id)`);
-  `backend/transaction_ordering.py`'s shared chronological sort key (built and
-  tested standalone, not yet wired into any existing consumer); and
-  `t212_sync.finalize_run`, which turns a "completed" run's staged
+  `backend/transaction_ordering.py`'s shared chronological sort key, now wired
+  into holdings, summary realized P/L, capital-gains/FIFO, performance value
+  series, lifetime returns, and assistant recent activity; and
+  `t212_sync.finalize_run`, which turns a "finalizing" run's staged
   `BrokerSyncEvent` rows into `Transaction` rows with exact settlement
   (`fill.walletImpact.netValue` when the provider gives it) and the actual
-  paid dividend amount (provider `amount`) instead of the fixed 15%
-  withholding guess the legacy path still uses when that's unavailable.
-  **`finalize_run` is a standalone, directly-tested function — nothing in
-  this codebase calls it automatically.** The existing full fetch-and-import
-  path in `routers.broker.sync_transactions` remains the only thing that
-  writes to the ledger in production; wiring `finalize_run` in (and retiring
-  the legacy path) is a deliberate, separately reviewed follow-up.
+  paid dividend amount (provider `amount`) instead of guessing withholding.
+  A staged dividend without a usable paid amount now fails finalization;
+  gross quantity and per-share value remain separate from received cash.
+  Valid fills survive partial/cancelled parent-order statuses, distinct
+  same-day fills retain their provider IDs, and one legacy/CSV row can match
+  only one fill. Exact native settlement survives a missing CZK FX rate.
+  Provider `amount` uses `items.currency` (account currency), while gross
+  per-share price uses `items.instrument.currency`; price and settlement FX
+  are resolved separately, including when those currencies differ.
+  Received-dividend totals in holdings, summary, forecast, tax report, and
+  lifetime returns now prefer actual `cash_amount` over gross `shares*price`.
+  `finalize_run` fail-closes unless portfolio, connection, run, and every
+  staged event share one account fingerprint and the credential generation
+  still matches; imported rows record `source_account_fingerprint`.
+  Transaction provenance (event IDs, timestamps, account fingerprint,
+  mapper/hash fields) now survives CSV import undo via undo schema v2 — still
+  accepting still-live v1 recovery points — and is included in the workspace
+  export (export schema bumped to 3). T212 CSV normalization now preserves the
+  full UTC execution timestamp and export ID; multi-leg currency conversions
+  and split rows receive deterministic per-leg event IDs. Preview/import
+  canonicalization prefers durable source identity and otherwise includes the
+  full timestamp, so distinct same-day fills no longer collapse. Finalization
+  treats the latest portfolio/connection T212 CSV coverage timestamp as an
+  account-wide authoritative cutoff and does not resurrect older API events.
+  A shared
+  PostgreSQL workspace ledger lock now serializes CSV commit/undo, manual and
+  cash CRUD, clear-all, demo/portfolio deletion, and staged finalization.
+  Broker-managed rows are immutable through single-row
+  CRUD, while clear-all cancels recorded history runs and invalidates T212
+  coverage before committing.
+  `jobs.broker_backfill_pass` invokes `finalize_run` after every required
+  stream is staged, and resumes a run already in `finalizing` without fetching
+  history again. The run's `completed` transition, finalized ledger rows, and
+  connection `last_synced_at` update share the same atomic commit. The legacy
+  unbounded full-history writer has been removed from the production route.
+  `backend/broker_reconciliation.py` adds the §6.3 read-only comparison of
+  ledger open quantities with the position snapshot (matched / different /
+  unavailable per normalized ticker, direction and likely-cause hints, never an
+  adjustment row). It is exposed as `reconciliation` on
+  `GET /trading212/history-status`, is `unavailable` until the latest run
+  completed and a positions snapshot exists, and has no UI consumer yet.
+- **Task 6 (scoped slices)**: Settings and Cash share
+  `frontend/src/hooks/useT212Sync.js` for portfolio-scoped
+  connection/history/position queries, adaptive polling, manual-sync
+  invalidation, and a derived workflow phase. Settings, Dashboard, and
+  Allocation show current T212 positions in a distinct snapshot panel with
+  freshness, quantity, value availability, empty, and retry states. Historical
+  charts remain ledger-derived. Dividend notifications prefer fresh snapshot
+  quantities and fall back to the ledger; assistant context explicitly warns
+  that bound T212 history may be incomplete, including after disconnect. The
+  run's `completed` label now means staged history was atomically imported;
+  final completion invalidates ledger analytics exactly once per run.
 
 Deliberately deferred within Task 2: the §2.3 stable
 `/portfolio/holdings` / `/portfolio/summary` response envelope and "migrate
@@ -51,27 +114,36 @@ Deliberately deferred/simplified within Task 3 (see `backend/t212_sync.py`'s
 own "Task 3: resumable history runs" section docstring for the authoritative
 list): the `/equity/history/transactions` cash-movement stream is not
 fetched (a new provider surface, not resumability of an existing fetch); run
-fencing uses `credential_generation` alone, not the full HMAC
-account-fingerprint system in §4.1/§5.1, so "a different T212 account
-connected into this portfolio" is not yet detected; `mode="audit"` runs are
-never created; and reaching a run's `completed` state means every page is
-**staged** (`BrokerSyncEvent`), not that ledger `Transaction` rows exist —
-turning staged events into transactions (exact settlement, split handling,
-CSV/manual dedup) is Task 4.
+  fencing uses `credential_generation` plus the HMAC account fingerprint
+  (§4.1/§5.1) — a different T212 account is detected and rejected; and
+  `mode="audit"` runs are never created. Reaching `finalizing` means every
+  required page is staged; `completed` now means ledger finalization committed.
 
 Deliberately deferred/simplified within Task 4 (see `t212_sync.py`'s "Task 4
 (scoped slice)" section docstring for the authoritative list): split and
 corporate-action detection/adjustment (§6) — a fill whose `fill.type` isn't
-"TRADE" is left staged, never finalized, rather than risking a mis-import;
-the `t212_csv_covered_through`/per-ticker-latest-date history cutoff the
-legacy path uses to stop a replace-imported CSV export's history from being
-resurrected; the shared workspace ledger lock (§5.5) — callers must
-serialize `finalize_run` against CSV commit/undo themselves; import
-undo/workspace-export provenance preservation; and, as above, `finalize_run`
-is not wired into `broker_backfill` or any other automatic trigger.
+"TRADE" (and isn't already covered by an authoritative CSV export) sends the
+run to terminal `needs_review` (§6.2.8): nothing is imported, no completion or
+`last_synced_at` is set, and `history-status` reports a dedicated non-retry
+message. The provider docs list the `fill.type` values (`STOCK_SPLIT`,
+`STOCK_DISTRIBUTION`, `FOP`, `SPIN_OFF`, `STOCK_ACQUISITION`, ...) but do not
+document how a split pair encodes quantity, sign, or price, so the mechanical
+same-instrument `STOCK_SPLIT` mapper, `BrokerCorporateAction` records, and
+their application identities wait for real provider payloads (Task 1's
+corporate-action fixtures). Until then a portfolio whose history contains any
+such action gets the snapshot but no imported history; every new sync re-stages
+the history and lands in `needs_review` again. Per-ticker heuristics are
+deliberately not treated as authoritative history coverage. The finalizer is
+wired into `broker_backfill`; full split/corporate-action processing and
+cash-movement history remain deferred.
 
-Task 5 (incremental sync + audits) and Task 6 (frontend workflow UX) are not
-started.
+Task 5 (incremental sync + audits) is not started. Task 6 still needs a real
+authenticated browser check, blocked by the missing local backend and verified
+Firebase test login. Migrations `0017`/`0018` still need the real
+PostgreSQL/RLS suite; Docker Desktop did not respond under this account. The
+current `POST /trading212/sync` now returns after the summary/positions snapshot
+and active-run creation; bounded backfill and atomic finalization continue in
+the independent minutely worker.
 
 **Goal:** Make a newly connected Trading 212 portfolio useful within seconds.
 Load current positions and account value first, then backfill complete,
@@ -846,7 +918,7 @@ run discovery, polling, retry, and final invalidation.
 - [ ] Specify exact wallet FX orientation and dividend field mapping.
 - [ ] Specify every `/history/transactions` type; unresolved `TRANSFER` or
       unknown types must enter `needs_review`, never silent classification.
-- [ ] Specify deterministic keyed account fingerprinting and the fail-closed
+- [x] Specify deterministic keyed account fingerprinting and the fail-closed
       legacy-connection migration.
 - [ ] Document provider-labelled automatic transformations versus inferred
       actions requiring review.
@@ -855,7 +927,7 @@ run discovery, polling, retry, and final invalidation.
 
 - [ ] Add `BrokerPosition`, expanded `BrokerBalance`, connection snapshot state,
       migration, grants, RLS, cascade, export, and tenant tests.
-- [ ] Persist portfolio-level account fingerprint binding and define disconnect
+- [x] Persist portfolio-level account fingerprint binding and define disconnect
       cleanup without erasing ledger identity.
 - [ ] Fetch summary and positions concurrently and replace snapshots atomically.
 - [ ] Migrate holdings to the stable envelope and summary to explicit nullable
@@ -864,34 +936,34 @@ run discovery, polling, retry, and final invalidation.
 
 ### Task 3: Add resumable history runs
 
-- [ ] Add run/staging models, one-active-run constraint, provider identity, and
+- [x] Add run/staging models, one-active-run constraint, provider identity, and
       per-run lease.
-- [ ] Follow full next paths and commit each page with its progress.
-- [ ] Validate next paths as relative expected-origin endpoint paths before
+- [x] Follow full next paths and commit each page with its progress.
+- [x] Validate next paths as relative expected-origin endpoint paths before
       attaching authorization.
-- [ ] Parse rate-limit headers and convert `429` to waiting state.
-- [ ] Add minutely local/cloud `broker_backfill`, independent of auto-sync.
-- [ ] Reassert RLS context after every page commit/rollback.
-- [ ] Enumerate workspaces before background run claims; do not perform a global
+- [x] Parse rate-limit headers and convert `429` to waiting state.
+- [x] Add minutely local/cloud `broker_backfill`, independent of auto-sync.
+- [x] Reassert RLS context after every page commit/rollback.
+- [x] Enumerate workspaces before background run claims; do not perform a global
       tenant-run scan under RLS.
 
 ### Task 4: Finalize exact split-aware history
 
 - [ ] Add provider identity/time fields and migrate all chronological consumers.
-- [ ] Preserve T212 CSV timestamp/ID in normalization, preview canonicalization,
+- [x] Preserve T212 CSV timestamp/ID in normalization, preview canonicalization,
       deduplication, undo, and export.
-- [ ] Add deterministic per-leg identity for one-to-many CSV events.
+- [x] Add deterministic per-leg identity for one-to-many CSV events.
 - [ ] Import fills by `fill.id`, exact settlement, actual dividend amount, and
       cash transactions.
 - [ ] Process splits once per ticker over the complete staged run.
 - [ ] Add durable corporate-action and per-transaction application identities;
       use normalized API trades as the sole canonical split representation.
 - [ ] Handle corporate-action pairs across pages and rate windows.
-- [ ] Share the workspace ledger lock with CSV commit/undo.
-- [ ] Preserve provenance through import undo and workspace export.
+- [x] Share the workspace ledger lock with CSV commit/undo.
+- [x] Preserve provenance through import undo and workspace export.
 - [ ] Snapshot/restore corporate-action applications and broker coverage in
       import undo.
-- [ ] Finalize atomically and reconcile against current positions.
+- [x] Finalize atomically and reconcile against current positions.
 
 ### Task 5: Make subsequent syncs incremental
 
@@ -902,7 +974,7 @@ run discovery, polling, retry, and final invalidation.
       or ordering/checkpoint invariant failure.
 - [ ] Create due audit runs from manual/auto-sync entry points and detect changed
       payload hashes under existing provider IDs.
-- [ ] Remove old full-history and duplicate yfinance request paths.
+- [x] Remove old full-history and duplicate yfinance request paths.
 
 ### Task 6: Complete workflow UX and operations
 

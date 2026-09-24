@@ -131,10 +131,16 @@ before starting any auth, tenancy, database, or billing work.
   `backend/main.py`'s startup hook only *asserts* the DB's `alembic_version`
   matches the code's expected head (`database.py`'s `assert_alembic_head`) and
   fails closed on a mismatch; it performs no `CREATE TABLE`/`ALTER TABLE`
-  itself. Run `cd backend && alembic upgrade head` (see `backend/alembic.ini`)
-  after adding a migration in `backend/alembic/versions/`, and run the Cloud
+  itself. **Every change under `backend/alembic/versions/` must update
+  `backend/database.py`'s `EXPECTED_ALEMBIC_HEAD` to the exact current
+  `alembic heads` revision in the same change.** A migration is not complete
+  until Alembic has exactly one head, that head equals the constant, and backend
+  startup passes `assert_alembic_head()`. Run `cd backend && alembic upgrade
+  head` (see `backend/alembic.ini`) with the migration-owner credential, never
+  the restricted runtime credential, after adding a migration. Run the Cloud
   Run migration Job (`deploy/run-migrations.ps1`) before every service deploy
-  — see `deploy/cloudrun.md`.
+  — see `deploy/cloudrun.md`. Never commit, deploy, or report migration work
+  complete while the two revisions differ.
 - **Money / FX**: transactions carry `fx_to_czk`; values are normalized to **CZK**.
   Missing rates are backfilled at startup via `fx.bulk_fetch_fx`. Preserve this
   when touching valuation/performance code.

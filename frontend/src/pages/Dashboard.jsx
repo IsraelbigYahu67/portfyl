@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient, useIsFetching } from "@tanstack/react-query";
 import { fetchSummary, fetchHoldings, fetchPerformance, fetchBenchmarks, fetchMovers, fetchEarnings, fetchInsiderBuys, fetchDividends } from "../api";
-import { useCurrency } from "../App";
+import { useCurrency, usePortfolio } from "../App";
 import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
 import { fetchEditionDashboardSignals } from "@edition-manifest";
 import MetricCard from "../components/MetricCard";
@@ -14,6 +14,8 @@ import { TickerLink } from "../components/TickerLink";
 import DashboardGrid from "../components/DashboardGrid";
 import PortfolioHero from "../components/PortfolioHero";
 import DashboardAttention from "../components/DashboardAttention";
+import BrokerPositionSnapshot from "../components/BrokerPositionSnapshot";
+import { useT212Sync } from "../hooks/useT212Sync";
 import { derivePortfolioAlerts } from "../lib/portfolioAlerts";
 import { CATEGORICAL } from "../lib/chartTheme";
 
@@ -36,6 +38,8 @@ const BENCHMARKS = [
 
 export default function Dashboard() {
   const { currency, rate } = useCurrency();
+  const currentPortfolio = usePortfolio()?.current;
+  const t212 = useT212Sync({ portfolioId: currentPortfolio?.id, currency });
   const queryClient = useQueryClient();
   const { recordPopulatedDashboard } = useRegisteredActivation();
   const refreshing = useIsFetching() > 0;
@@ -167,6 +171,13 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {t212.connected && (
+        <div className="space-y-2">
+          <BrokerPositionSnapshot query={t212.positionsQuery} />
+          <p className="text-xs text-muted">Historical performance uses imported transactions and may lag behind this current snapshot.</p>
+        </div>
+      )}
 
       <AsyncSection
         isLoading={sl}
