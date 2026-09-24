@@ -297,7 +297,10 @@ def _reconciliation_mismatch(db: Session, portfolio: Portfolio, conn: BrokerConn
         .order_by(BrokerSyncRun.created_at.desc(), BrokerSyncRun.id.desc())
         .first()
     )
-    if latest_completed is None:
+    # Only an incremental run can have skipped provider events. When the latest
+    # completed run already read the whole history (initial/audit), another
+    # full read cannot explain a mismatch that survived it.
+    if latest_completed is None or latest_completed.mode != "incremental":
         return False
     # Sessions run with autoflush off: make the just-replaced snapshot visible.
     db.flush()

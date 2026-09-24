@@ -968,7 +968,7 @@ This task is encoding-agnostic. It may start once G1 is signed off, before B2.
 **Files:**
 - Create: `backend/alembic/versions/0020_broker_corporate_actions.py`
 - Modify: `backend/models.py` (two classes after `BrokerSyncEvent`)
-- Modify: `backend/database.py` (`EXPECTED_ALEMBIC_HEAD = "0020_broker_corporate_actions"`)
+- Modify: `backend/database.py` (`EXPECTED_ALEMBIC_HEAD = "0020_broker_corporate_actions"`) — 0020 revises 0021, see Step 4
 - Modify: `backend/workspace_export.py` (export both tables; bump export schema 3 → 4)
 - Test: `backend/tests/test_account_export.py`, `backend/tests/postgres/test_integration_tenancy.py`
 
@@ -1087,7 +1087,9 @@ class BrokerCorporateActionApplication(Base):
 Match the exact `public_id` declaration and imports `BrokerSyncRun` uses in
 `models.py`. Add `Numeric`/`CheckConstraint` to the imports if missing.
 
-- [ ] **Step 4: Migration** `0020_broker_corporate_actions.py` (`down_revision = "0019_sync_run_review_details"`)
+- [ ] **Step 4: Migration** `0020_broker_corporate_actions.py` (`down_revision = "0021_t212_history_coverage"`;
+  Track C shipped first and left the number 0020 free, so 0020 revises 0021 and
+  `EXPECTED_ALEMBIC_HEAD` becomes `"0020_broker_corporate_actions"`)
 
 Create both tables with columns matching the models and these composite FKs:
 - actions: `["workspace_id", "portfolio_id"] → ["portfolios.workspace_id", "portfolios.id"]`, `ondelete="CASCADE"`;

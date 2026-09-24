@@ -867,6 +867,91 @@ class TestIncrementalStopRule:
 
         assert calls["orders"] == 5
 
+    def test_csv_covered_events_count_as_known(self, db_session, default_portfolio):
+        # Finalization skips everything at or before the authoritative CSV
+        # cutoff, so those events never become t212_api rows. Treating them as
+        # unknown would turn every incremental sync of a CSV-seeded portfolio
+        # into a full walk.
+        conn, run = _incremental_run(db_session, default_portfolio)
+        conn.t212_csv_covered_through = FRONTIER - timedelta(days=8)
+        db_session.commit()
+        pages = {"orders": [
+            [_order_item("c1", 8)], [_order_item("c2", 9)], [_order_item("c3", 10)],
+            [_order_item("c4", 11)], [_order_item("c5", 12)],
+        ]}
+
+        _, calls = _advance(db_session, run, pages, connection=conn)
+
+        assert calls["orders"] == OVERLAP_PAGES
+
+    def test_events_after_the_csv_cutoff_are_not_known_by_time(
+        self, db_session, default_portfolio
+    ):
+        conn, run = _incremental_run(db_session, default_portfolio)
+        default_portfolio.t212_csv_covered_through = FRONTIER - timedelta(days=30)
+        db_session.commit()
+        pages = {"orders": [
+            [_order_item("c1", 8)], [_order_item("c2", 9)], [_order_item("c3", 10)],
+        ]}
+
+        _, calls = _advance(db_session, run, pages, connection=conn)
+
+        assert calls["orders"] == 3
+
+    def test_events_a_completed_run_already_finalized_count_as_known(
+        self, db_session, default_portfolio
+    ):
+        # Legacy-duplicate, non-trade, and invalid events are decided by
+        # finalization without ever becoming t212_api rows.
+        conn, run = _incremental_run(db_session, default_portfolio)
+        previous = BrokerSyncRun(
+            workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+            connection_id=conn.id, broker="trading212", account_fingerprint="f" * 64,
+            credential_generation=conn.credential_generation, mode="initial",
+            state="completed",
+        )
+        db_session.add(previous)
+        db_session.flush()
+        for event_id in ("d1", "d2", "d3"):
+            db_session.add(BrokerSyncEvent(
+                workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+                run_id=previous.id, broker="trading212", account_fingerprint="f" * 64,
+                stream="orders", provider_event_id=f"fill:{event_id}", raw_payload={},
+            ))
+        db_session.commit()
+        pages = {"orders": [
+            [_order_item("d1", 8)], [_order_item("d2", 9)], [_order_item("d3", 10)],
+        ]}
+
+        _, calls = _advance(db_session, run, pages, connection=conn)
+
+        assert calls["orders"] == OVERLAP_PAGES
+
+    def test_events_of_a_needs_review_run_are_not_known(self, db_session, default_portfolio):
+        conn, run = _incremental_run(db_session, default_portfolio)
+        blocked = BrokerSyncRun(
+            workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+            connection_id=conn.id, broker="trading212", account_fingerprint="f" * 64,
+            credential_generation=conn.credential_generation, mode="initial",
+            state="needs_review",
+        )
+        db_session.add(blocked)
+        db_session.flush()
+        for event_id in ("r1", "r2", "r3"):
+            db_session.add(BrokerSyncEvent(
+                workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+                run_id=blocked.id, broker="trading212", account_fingerprint="f" * 64,
+                stream="orders", provider_event_id=f"fill:{event_id}", raw_payload={},
+            ))
+        db_session.commit()
+        pages = {"orders": [
+            [_order_item("r1", 8)], [_order_item("r2", 9)], [_order_item("r3", 10)],
+        ]}
+
+        _, calls = _advance(db_session, run, pages, connection=conn)
+
+        assert calls["orders"] == 3
+
     def test_audit_fallback_restarts_a_stream_that_already_stopped_early(
         self, db_session, default_portfolio
     ):

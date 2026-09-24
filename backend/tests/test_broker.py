@@ -1211,14 +1211,15 @@ class TestSyncAuditMode:
         return conn
 
     @staticmethod
-    def _completed_history(db, portfolio, conn, *, last_read_age, ledger_shares=10.0):
+    def _completed_history(db, portfolio, conn, *, last_read_age, ledger_shares=10.0,
+                           latest_mode="incremental"):
         read_at = datetime.now(timezone.utc) - last_read_age
         conn.history_complete_at = read_at
         conn.last_full_audit_at = read_at
         db.add(BrokerSyncRun(
             workspace_id=portfolio.workspace_id, portfolio_id=portfolio.id,
             connection_id=conn.id, broker="trading212",
-            credential_generation=conn.credential_generation, mode="initial",
+            credential_generation=conn.credential_generation, mode=latest_mode,
             state="completed", completed_at=read_at,
         ))
         db.add(make_txn(
@@ -1246,12 +1247,40 @@ class TestSyncAuditMode:
         self, db_session, default_portfolio, connection
     ):
         self._completed_history(
-            db_session, default_portfolio, connection, last_read_age=timedelta(days=2),
+            db_session, default_portfolio, connection, last_read_age=timedelta(days=8),
         )
 
         _run_sync(db_session, default_portfolio, [], positions=[t212_position(quantity=12.0)])
 
         assert self._new_run(db_session).mode == "audit"
+
+    @pytest.mark.parametrize("latest_mode", ["initial", "audit"])
+    def test_mismatch_after_a_full_read_run_does_not_audit_again(
+        self, db_session, default_portfolio, connection, latest_mode
+    ):
+        # The latest completed run already read the whole history, so another
+        # full read cannot explain a mismatch that is still there.
+        self._completed_history(
+            db_session, default_portfolio, connection, last_read_age=timedelta(days=8),
+            latest_mode=latest_mode,
+        )
+
+        _run_sync(db_session, default_portfolio, [], positions=[t212_position(quantity=12.0)])
+
+        assert self._new_run(db_session).mode == "incremental"
+
+    def test_persistent_mismatch_audits_at_most_once_per_cooldown(
+        self, db_session, default_portfolio, connection
+    ):
+        # A permanent cause (ticker mapping, unsupported action) must not turn
+        # every daily incremental sync into a full re-download.
+        self._completed_history(
+            db_session, default_portfolio, connection, last_read_age=timedelta(days=3),
+        )
+
+        _run_sync(db_session, default_portfolio, [], positions=[t212_position(quantity=12.0)])
+
+        assert self._new_run(db_session).mode == "incremental"
 
     def test_matching_positions_keep_the_sync_incremental(
         self, db_session, default_portfolio, connection

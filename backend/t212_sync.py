@@ -580,9 +580,9 @@ AUDIT_INTERVAL = timedelta(days=30)
 # A reconciliation mismatch only asks for an audit when the last full read is
 # older than this: a full read that just finished has already seen everything
 # the provider has, and a permanent mismatch (an unsupported corporate action,
-# a transfer the API does not expose) must not re-download the history on
-# every sync.
-RECONCILIATION_AUDIT_COOLDOWN = timedelta(days=1)
+# a ticker-mapping gap, a transfer the API does not expose) must not turn
+# daily incremental syncs into repeated full re-downloads.
+RECONCILIATION_AUDIT_COOLDOWN = timedelta(days=7)
 
 
 def last_full_read_at(connection: BrokerConnection) -> datetime | None:
@@ -674,8 +674,14 @@ def _lease_still_held(db: Session, run: BrokerSyncRun, lease_token) -> bool:
 
 
 def _known_provider_event_ids(db: Session, run: BrokerSyncRun, stream: str) -> set[str]:
-    """Provider event ids this portfolio already holds as finalized API rows."""
-    return {
+    """Provider event ids a finalization has already decided on: the portfolio's
+    API ledger rows, plus every event a completed run of this connection
+    staged. The latter covers events finalization settles without writing a
+    t212_api row (legacy/CSV duplicates, non-trade and invalid fills), which
+    would otherwise stay unknown forever and defeat the stop rule. Once
+    retention purges a run's staging, those events fall back to unknown, which
+    only costs a longer walk."""
+    known = {
         row[0] for row in db.query(Transaction.source_event_id).filter(
             Transaction.workspace_id == run.workspace_id,
             Transaction.portfolio_id == run.portfolio_id,
@@ -684,6 +690,36 @@ def _known_provider_event_ids(db: Session, run: BrokerSyncRun, stream: str) -> s
             Transaction.source_event_id.isnot(None),
         )
     }
+    completed_runs = db.query(BrokerSyncRun.id).filter(
+        BrokerSyncRun.workspace_id == run.workspace_id,
+        BrokerSyncRun.connection_id == run.connection_id,
+        BrokerSyncRun.state == "completed",
+        BrokerSyncRun.id != run.id,
+    )
+    known.update(
+        row[0] for row in db.query(BrokerSyncEvent.provider_event_id).filter(
+            BrokerSyncEvent.workspace_id == run.workspace_id,
+            BrokerSyncEvent.stream == stream,
+            BrokerSyncEvent.account_fingerprint == run.account_fingerprint,
+            BrokerSyncEvent.run_id.in_(completed_runs.scalar_subquery()),
+        )
+    )
+    return known
+
+
+def _csv_cutoff_for_run(
+    db: Session, run: BrokerSyncRun, connection: BrokerConnection | None,
+) -> datetime | None:
+    """The authoritative T212 CSV coverage cutoff finalize_run applies to this
+    run's portfolio: events at or before it are settled by the CSV export."""
+    portfolio_cutoff = db.query(Portfolio.t212_csv_covered_through).filter(
+        Portfolio.workspace_id == run.workspace_id,
+        Portfolio.id == run.portfolio_id,
+    ).scalar()
+    return _latest_csv_coverage(
+        portfolio_cutoff,
+        connection.t212_csv_covered_through if connection is not None else None,
+    )
 
 
 def _restart_early_stopped_streams(run: BrokerSyncRun) -> None:
@@ -750,6 +786,7 @@ def advance_run(
             streak_attr = f"{stream}_known_streak"
             oldest_attr = f"{stream}_last_page_oldest_at"
             known_ids: set[str] | None = None
+            csv_cutoff: datetime | None = None
             if getattr(run, complete_attr):
                 continue
             for _ in range(max_pages_per_stream):
@@ -776,14 +813,23 @@ def advance_run(
                 if run.mode == "incremental" and frontier is not None:
                     if known_ids is None:
                         known_ids = _known_provider_event_ids(db, run, stream)
+                        csv_cutoff = _csv_cutoff_for_run(db, run, connection)
                     page_events = [
                         (_event_id(stream, item), _extract_provider_timestamp(stream, item))
                         for item in items
                     ]
+                    # Events at or before the CSV cutoff are settled by the
+                    # export and never become API rows; they are known too.
+                    page_known = known_ids
+                    if csv_cutoff is not None:
+                        page_known = known_ids | {
+                            event_id for event_id, at in page_events
+                            if at is not None and _as_utc(at) <= csv_cutoff
+                        }
                     previous_oldest = getattr(run, oldest_attr)
                     verdict = evaluate_page(
                         page_events=page_events,
-                        known_ids=known_ids,
+                        known_ids=page_known,
                         frontier_at=_as_utc(frontier),
                         prior_streak=getattr(run, streak_attr),
                         previous_page_oldest=_as_utc(previous_oldest) if previous_oldest else None,
