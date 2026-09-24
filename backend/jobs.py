@@ -1026,11 +1026,13 @@ async def account_deletion_cleanup_pass(
         summary["errors"],
     )
     log.info(
-        "data_retention_cleanup auth_sessions=%d usage_reservations=%d notification_outbox=%d dividend_notifications=%d",
+        "data_retention_cleanup auth_sessions=%d usage_reservations=%d "
+        "notification_outbox=%d dividend_notifications=%d broker_sync_events=%d",
         retention["auth_sessions"],
         retention["usage_reservations"],
         retention["notification_outbox"],
         retention["dividend_notifications"],
+        retention["broker_sync_events"],
     )
     if summary["errors"]:
         raise RuntimeError(
