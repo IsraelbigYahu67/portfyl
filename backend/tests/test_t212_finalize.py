@@ -70,6 +70,8 @@ def _order_event(db, run, *, event_id="fill:f1", ticker="AAPL_US_EQ", side="BUY"
         workspace_id=run.workspace_id, portfolio_id=run.portfolio_id, run_id=run.id,
         broker="trading212", account_fingerprint=run.account_fingerprint,
         stream="orders", provider_event_id=event_id,
+        # stage_events always records the parsed provider timestamp.
+        provider_timestamp=datetime.fromisoformat(f"{day}T10:00:00+00:00"),
         raw_payload=payload,
     )
     db.add(event)
@@ -95,6 +97,7 @@ def _dividend_event(db, run, *, event_id="dividend:d1", ticker="KO", gross=0.485
         workspace_id=run.workspace_id, portfolio_id=run.portfolio_id, run_id=run.id,
         broker="trading212", account_fingerprint=run.account_fingerprint,
         stream="dividends", provider_event_id=event_id,
+        provider_timestamp=datetime.fromisoformat(f"{day}T00:00:00+00:00"),
         raw_payload=payload,
     )
     db.add(event)
@@ -566,3 +569,112 @@ class TestFinalizeMixed:
         txn = db_session.query(Transaction).one()
         assert txn.source_payload_hash
         assert txn.source_mapper_version == "t212_finalize_v1"
+
+
+class TestFinalizeCoverage:
+    """Plan 2026-09-24 Task C1: a completed run records per-stream history
+    frontiers on the connection; runs that do not complete never do."""
+
+    def test_completed_initial_run_sets_frontiers(
+        self, db_session, default_portfolio, connection, completed_run
+    ):
+        completed_run.mode = "initial"
+        _order_event(db_session, completed_run, event_id="fill:old", day="2024-01-01")
+        _order_event(db_session, completed_run, event_id="fill:new", day="2024-06-01")
+        _dividend_event(
+            db_session, completed_run, event_id="dividend:d9", day="2024-03-15", amount=4.25,
+        )
+
+        t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        db_session.refresh(connection)
+        assert connection.orders_frontier_event_id == "fill:new"
+        assert connection.orders_frontier_at.date() == date(2024, 6, 1)
+        assert connection.dividends_frontier_event_id == "dividend:d9"
+        assert connection.dividends_frontier_at.date() == date(2024, 3, 15)
+        assert connection.history_complete_at is not None
+        assert connection.last_full_audit_at is None
+
+    def test_frontier_tie_breaks_on_the_greater_event_id(
+        self, db_session, default_portfolio, connection, completed_run
+    ):
+        completed_run.mode = "initial"
+        _order_event(db_session, completed_run, event_id="fill:a", day="2024-06-01")
+        _order_event(db_session, completed_run, event_id="fill:b", day="2024-06-01")
+
+        t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        db_session.refresh(connection)
+        assert connection.orders_frontier_event_id == "fill:b"
+
+    def test_needs_review_run_sets_no_frontier(
+        self, db_session, default_portfolio, connection, completed_run
+    ):
+        completed_run.mode = "initial"
+        _order_event(db_session, completed_run, event_id="fill:x", fill_type="SPIN_OFF")
+
+        t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        db_session.refresh(connection)
+        assert connection.history_complete_at is None
+        assert connection.orders_frontier_event_id is None
+        assert connection.orders_frontier_at is None
+
+    def test_audit_run_also_records_the_audit_time(
+        self, db_session, default_portfolio, connection, completed_run
+    ):
+        completed_run.mode = "audit"
+        _order_event(db_session, completed_run, event_id="fill:a", day="2024-06-01")
+
+        t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        db_session.refresh(connection)
+        assert connection.history_complete_at is not None
+        assert connection.last_full_audit_at is not None
+
+    def test_incremental_run_only_advances_a_frontier(
+        self, db_session, default_portfolio, connection, completed_run
+    ):
+        connection.history_complete_at = datetime(2024, 7, 1, tzinfo=timezone.utc)
+        connection.orders_frontier_at = datetime(2024, 8, 1, tzinfo=timezone.utc)
+        connection.orders_frontier_event_id = "fill:keep"
+        db_session.commit()
+        completed_run.mode = "incremental"
+        _order_event(db_session, completed_run, event_id="fill:older", day="2024-06-01")
+
+        t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        db_session.refresh(connection)
+        assert connection.orders_frontier_event_id == "fill:keep"
+        assert connection.orders_frontier_at.date() == date(2024, 8, 1)
+        assert connection.history_complete_at.date() == date(2024, 7, 1)
+
+    def test_incremental_run_advances_to_a_newer_event(
+        self, db_session, default_portfolio, connection, completed_run
+    ):
+        connection.orders_frontier_at = datetime(2024, 5, 1, tzinfo=timezone.utc)
+        connection.orders_frontier_event_id = "fill:old"
+        db_session.commit()
+        completed_run.mode = "incremental"
+        _order_event(db_session, completed_run, event_id="fill:newer", day="2024-06-01")
+
+        t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        db_session.refresh(connection)
+        assert connection.orders_frontier_event_id == "fill:newer"
+
+    def test_retrying_a_completed_run_does_not_refresh_coverage(
+        self, db_session, default_portfolio, connection, completed_run
+    ):
+        completed_run.mode = "audit"
+        _order_event(db_session, completed_run, event_id="fill:a", day="2024-06-01")
+        t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+        db_session.refresh(connection)
+        first_audit = connection.last_full_audit_at
+        first_complete = connection.history_complete_at
+
+        t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        db_session.refresh(connection)
+        assert connection.last_full_audit_at == first_audit
+        assert connection.history_complete_at == first_complete

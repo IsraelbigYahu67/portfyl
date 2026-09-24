@@ -636,7 +636,9 @@ def sync_transactions(
     if decision.action == "blocked":
         history_run, blocked = decision.run, True
     else:
-        history_run, blocked = t212_sync.claim_or_create_run(db, conn, portfolio), False
+        history_run, blocked = t212_sync.claim_or_create_run(
+            db, conn, portfolio, mode=decision.mode,
+        ), False
 
     # Manual sync is snapshot-first: persist the independently successful
     # current-state components and hand history work to broker_backfill.  A
@@ -685,7 +687,10 @@ def retry_history(
     if not conn:
         raise HTTPException(status_code=404, detail="Trading 212 is not connected")
     decision = t212_sync.history_run_decision(db, conn, portfolio, force=True)
-    run = decision.run if decision.action == "reuse" else t212_sync.claim_or_create_run(db, conn, portfolio)
+    run = (
+        decision.run if decision.action == "reuse"
+        else t212_sync.claim_or_create_run(db, conn, portfolio, mode=decision.mode)
+    )
     db.commit()
     return {"run_id": str(run.public_id), "status": run.state, "complete": False, "blocked": False}
 

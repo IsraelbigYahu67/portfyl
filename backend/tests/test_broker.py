@@ -1161,3 +1161,37 @@ class TestNeedsReviewLoopBreaker:
         result = get_history_status(db=db_session, portfolio=default_portfolio)
 
         assert result["run"]["review"] is None
+
+
+class TestSyncRunMode:
+    """Plan 2026-09-24 Task C1: the routes create runs in the decided mode."""
+
+    @pytest.fixture
+    def connection(self, db_session, default_portfolio):
+        conn = BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                                portfolio_id=default_portfolio.id,
+                                broker="trading212", api_key="k" * 20)
+        db_session.add(conn)
+        db_session.commit()
+        return conn
+
+    def test_first_sync_creates_an_initial_run(self, db_session, default_portfolio, connection):
+        _run_sync(db_session, default_portfolio, [])
+        assert db_session.query(BrokerSyncRun).one().mode == "initial"
+
+    def test_sync_after_history_completed_creates_an_incremental_run(
+        self, db_session, default_portfolio, connection
+    ):
+        connection.history_complete_at = datetime(2026, 9, 1, tzinfo=timezone.utc)
+        connection.last_full_audit_at = datetime.now(timezone.utc)
+        db_session.commit()
+
+        _run_sync(db_session, default_portfolio, [])
+
+        assert db_session.query(BrokerSyncRun).one().mode == "incremental"
+
+    def test_retry_creates_a_run_in_the_decided_mode(
+        self, db_session, default_portfolio, connection
+    ):
+        retry_history(db=db_session, portfolio=default_portfolio, _context=None)
+        assert db_session.query(BrokerSyncRun).one().mode == "initial"

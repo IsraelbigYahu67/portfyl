@@ -760,6 +760,7 @@ def clear_all_transactions(
     for connection in connections:
         connection.last_synced_at = None
         connection.t212_csv_covered_through = None
+        connection.clear_history_coverage()
     portfolio.t212_csv_covered_through = None
     db.commit()
     return {"deleted": deleted}
@@ -868,6 +869,18 @@ def _check_import_capacity(
     )
 
 
+def _clear_t212_history_coverage(db: Session, portfolio: Portfolio) -> None:
+    """A replace deletes every ledger row of the portfolio, including the
+    provider-imported ones the connection's history frontiers vouch for. Forget
+    the coverage so the next sync re-walks the whole history."""
+    for connection in db.query(BrokerConnection).filter(
+        BrokerConnection.workspace_id == portfolio.workspace_id,
+        BrokerConnection.portfolio_id == portfolio.id,
+        BrokerConnection.broker == "trading212",
+    ):
+        connection.clear_history_coverage()
+
+
 def _delete_portfolio_transaction_rows(db: Session, portfolio: Portfolio) -> None:
     transaction_ids = [
         row_id for (row_id,) in db.query(Transaction.id).filter(
@@ -933,6 +946,7 @@ async def commit_import_csv(
     try:
         if replace_effective:
             _delete_portfolio_transaction_rows(db, portfolio)
+            _clear_t212_history_coverage(db, portfolio)
         db.add_all(prepared)
         if parsed.t212_covered_through is not None:
             portfolio.t212_csv_covered_through = parsed.t212_covered_through
@@ -1200,6 +1214,7 @@ async def import_csv(
     try:
         if replace:
             _portfolio_txns(db, portfolio).delete(synchronize_session=False)
+            _clear_t212_history_coverage(db, portfolio)
         db.add_all(prepared)
         if t212_covered_through is not None:
             portfolio.t212_csv_covered_through = t212_covered_through

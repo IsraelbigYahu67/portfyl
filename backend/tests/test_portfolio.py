@@ -387,7 +387,9 @@ def test_creates_transaction_with_resolved_fields(db_session, pid, default_portf
     assert stored.shares == 10
 
 
-from tests.helpers import TEST_WORKSPACE_ID, make_txn
+from tests.helpers import (
+    T212_COVERAGE_FIELDS, TEST_WORKSPACE_ID, make_t212_connection_with_coverage, make_txn,
+)
 
 
 class TestLiveFxFallback:
@@ -557,3 +559,15 @@ def test_portfolios_overview_empty_db(db_session, request_context):
     assert ov["total_net_worth"] == 0.0
     assert ov["sectors"] == []
     assert ov["total_day_change_percent"] is None
+
+
+def test_clear_all_transactions_clears_every_t212_history_coverage_field(
+    db_session, default_portfolio
+):
+    connection = make_t212_connection_with_coverage(db_session, default_portfolio)
+    assert all(getattr(connection, field) is not None for field in T212_COVERAGE_FIELDS)
+
+    clear_all_transactions(db=db_session, portfolio=default_portfolio)
+
+    db_session.refresh(connection)
+    assert [getattr(connection, field) for field in T212_COVERAGE_FIELDS] == [None] * 6

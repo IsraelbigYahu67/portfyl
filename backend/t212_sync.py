@@ -586,7 +586,9 @@ def history_run_decision(
         res = review_resolution(latest, connection, portfolio)
         if not (res["csv_covers_all"] or res["mapper_supports_all"]):
             return HistoryDecision("blocked", latest, latest.mode)
-    return HistoryDecision("create", None)
+    return HistoryDecision(
+        "create", None, "initial" if connection.history_complete_at is None else "incremental",
+    )
 
 
 def claim_lease(
@@ -1044,6 +1046,41 @@ def _finalize_dividend_event(event: BrokerSyncEvent, run: BrokerSyncRun):
     return "imported", txn
 
 
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+
+def _record_history_coverage(
+    connection: BrokerConnection, run: BrokerSyncRun, events: list[BrokerSyncEvent],
+    now: datetime,
+) -> None:
+    """Advance the connection's per-stream history frontiers for a run that is
+    completing now (plan 2026-09-24, Task C1). An initial/audit run walked the
+    whole history, so it sets each frontier outright; an incremental run only
+    moves a frontier forward. Callers invoke this only on the run's first
+    completion, inside its completion commit."""
+    for stream in STREAMS:
+        staged = [e for e in events if e.stream == stream and e.provider_timestamp is not None]
+        newest = max(
+            staged, key=lambda e: (_as_utc(e.provider_timestamp), e.provider_event_id),
+            default=None,
+        )
+        if newest is None:
+            continue
+        current = getattr(connection, f"{stream}_frontier_at")
+        if (
+            run.mode in {"initial", "audit"}
+            or current is None
+            or _as_utc(newest.provider_timestamp) > _as_utc(current)
+        ):
+            setattr(connection, f"{stream}_frontier_at", newest.provider_timestamp)
+            setattr(connection, f"{stream}_frontier_event_id", newest.provider_event_id)
+    if run.mode in {"initial", "audit"}:
+        connection.history_complete_at = now
+    if run.mode == "audit":
+        connection.last_full_audit_at = now
+
+
 def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> FinalizeResult:
     """Turn `run`'s staged events into Transaction rows. Only a "finalizing"
     run (every page staged), or an already-completed run being retried, may be
@@ -1204,6 +1241,7 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
         run.completed_at = finalized_at
         run.last_error = None
         connection.last_synced_at = finalized_at
+        _record_history_coverage(connection, run, events, finalized_at)
     run.lease_token = None
     run.lease_expires_at = None
     try:

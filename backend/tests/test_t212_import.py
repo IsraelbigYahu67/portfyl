@@ -31,7 +31,7 @@ from routers.portfolio import (
     _normalize_t212_detailed,
     import_csv,
 )
-from tests.helpers import make_txn
+from tests.helpers import T212_COVERAGE_FIELDS, make_t212_connection_with_coverage, make_txn
 
 _T212_HEADER = (
     "Action,Time,ISIN,Ticker,Name,Notes,ID,No. of shares,Price / share,"
@@ -458,3 +458,27 @@ class TestAccrualStartsAfterLastInterestRow:
         rates = {"CZK": {"annual_rate": 0.0365, "enabled": True, "start_date": None}}
         out = accrued_interest([deposit], rates, as_of=date(2026, 1, 11))
         assert out["CZK"] == pytest.approx(10000 * 0.0365 * 10 / 365, abs=0.01)
+
+
+def test_t212_full_export_replace_clears_history_coverage(db_session, default_portfolio):
+    pid = default_portfolio.id
+    db_session.add(make_txn("MSFT", "buy", 2, 300, source="t212_api", portfolio_id=pid))
+    connection = make_t212_connection_with_coverage(db_session, default_portfolio)
+    payload = pd.DataFrame([{
+        "Action": "Deposit",
+        "Time (UTC)": "2026-01-19 19:21:23",
+        "Ticker": "",
+        "No. of shares": "",
+        "Price / share": "",
+        "ID": "deposit-1",
+        "Total": 68050,
+        "Currency (Total)": "CZK",
+    }]).to_csv(index=False).encode()
+    upload = UploadFile(filename="full-t212.csv", file=io.BytesIO(payload))
+
+    result = asyncio.run(import_csv(file=upload, replace=False, db=db_session,
+                                    portfolio=default_portfolio))
+
+    assert result["replaced"] is True
+    db_session.refresh(connection)
+    assert [getattr(connection, field) for field in T212_COVERAGE_FIELDS] == [None] * 6

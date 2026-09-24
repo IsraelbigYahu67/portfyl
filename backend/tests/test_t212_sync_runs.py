@@ -638,3 +638,33 @@ class TestHistoryRunDecision:
         assert t212_sync.history_run_decision(
             db_session, connection, default_portfolio,
         ).action == "create"
+
+
+class TestHistoryRunMode:
+    """Plan 2026-09-24 Task C1: the create branch picks the run mode."""
+
+    def test_create_mode_is_initial_without_coverage(
+        self, db_session, default_portfolio, connection
+    ):
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).mode == "initial"
+
+    def test_create_mode_is_incremental_with_coverage(
+        self, db_session, default_portfolio, connection
+    ):
+        connection.history_complete_at = datetime(2026, 9, 1, tzinfo=timezone.utc)
+        connection.last_full_audit_at = datetime.now(timezone.utc)
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).mode == "incremental"
+
+    def test_forced_retry_without_coverage_is_initial(
+        self, db_session, default_portfolio, connection
+    ):
+        _review_run(db_session, connection, default_portfolio, SPLIT)
+        decision = t212_sync.history_run_decision(
+            db_session, connection, default_portfolio, force=True,
+        )
+        assert (decision.action, decision.mode) == ("create", "initial")
