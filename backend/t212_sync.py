@@ -47,6 +47,7 @@ from models import (
     Transaction,
 )
 from ledger_mutation import acquire_workspace_ledger_lock
+from t212_incremental import OVERLAP_PAGES, evaluate_page
 
 T212_BASES = {
     "live": "https://live.trading212.com/api/v0",
@@ -642,6 +643,32 @@ def _lease_still_held(db: Session, run: BrokerSyncRun, lease_token) -> bool:
     return current == lease_token
 
 
+def _known_provider_event_ids(db: Session, run: BrokerSyncRun, stream: str) -> set[str]:
+    """Provider event ids this portfolio already holds as finalized API rows."""
+    return {
+        row[0] for row in db.query(Transaction.source_event_id).filter(
+            Transaction.workspace_id == run.workspace_id,
+            Transaction.portfolio_id == run.portfolio_id,
+            Transaction.source == "t212_api",
+            Transaction.source_event_stream == stream,
+            Transaction.source_event_id.isnot(None),
+        )
+    }
+
+
+def _restart_early_stopped_streams(run: BrokerSyncRun) -> None:
+    """A run that turns into an audit mid-way must have read every stream in
+    full, or its audit stamp would vouch for history that was never read. A
+    stream that already stopped early (its known streak reached the stop
+    threshold) is rewound to its first page; re-staging is idempotent."""
+    for stream in STREAMS:
+        if getattr(run, f"{stream}_complete") and getattr(run, f"{stream}_known_streak") >= OVERLAP_PAGES:
+            setattr(run, f"{stream}_complete", False)
+            setattr(run, f"{stream}_next_page_path", None)
+            setattr(run, f"{stream}_known_streak", 0)
+            setattr(run, f"{stream}_last_page_oldest_at", None)
+
+
 def advance_run(
     db: Session,
     run: BrokerSyncRun,
@@ -651,6 +678,7 @@ def advance_run(
     max_pages_per_stream: int = DEFAULT_MAX_PAGES_PER_STREAM,
     lease_token=None,
     reassert_context: Callable[[], None] | None = None,
+    connection: BrokerConnection | None = None,
 ) -> RunAdvanceResult:
     """Fetch a bounded number of pages per incomplete stream, staging events
     and committing a checkpoint after every page (plan §5.3/§5.4). Never
@@ -662,12 +690,24 @@ def advance_run(
     next tenant query context-less. `lease_token`, when given, is
     re-verified after every commit -- if another worker has since reclaimed
     this run, advancing stops immediately (LeaseLost) without losing any
-    already-committed page progress."""
+    already-committed page progress.
+
+    An `incremental` run stops a stream early once the stop rule in
+    `t212_incremental` is satisfied against the connection's history frontier
+    (plan 2026-09-24, Task C2, parent §7); any ordering doubt turns the run
+    into a full `audit` instead. `connection` is looked up from the run when
+    the caller does not have it at hand."""
     run.state = "fetching"
     run.last_error = None
     db.commit()
     if reassert_context:
         reassert_context()
+
+    if connection is None:
+        connection = db.query(BrokerConnection).filter(
+            BrokerConnection.workspace_id == run.workspace_id,
+            BrokerConnection.id == run.connection_id,
+        ).first()
 
     staged_counts = {"orders": 0, "dividends": 0}
     rate_limited: list[str] = []
@@ -677,6 +717,9 @@ def advance_run(
             complete_attr = f"{stream}_complete"
             next_path_attr = f"{stream}_next_page_path"
             loaded_attr = f"{stream}_loaded"
+            streak_attr = f"{stream}_known_streak"
+            oldest_attr = f"{stream}_last_page_oldest_at"
+            known_ids: set[str] | None = None
             if getattr(run, complete_attr):
                 continue
             for _ in range(max_pages_per_stream):
@@ -698,7 +741,36 @@ def advance_run(
                 staged_counts[stream] += staged
                 setattr(run, loaded_attr, getattr(run, loaded_attr) + staged)
                 run.last_progress_at = datetime.now(timezone.utc)
-                if not items or not next_path:
+                stop_early = False
+                frontier = getattr(connection, f"{stream}_frontier_at") if connection else None
+                if run.mode == "incremental" and frontier is not None:
+                    if known_ids is None:
+                        known_ids = _known_provider_event_ids(db, run, stream)
+                    page_events = [
+                        (_event_id(stream, item), _extract_provider_timestamp(stream, item))
+                        for item in items
+                    ]
+                    previous_oldest = getattr(run, oldest_attr)
+                    verdict = evaluate_page(
+                        page_events=page_events,
+                        known_ids=known_ids,
+                        frontier_at=_as_utc(frontier),
+                        prior_streak=getattr(run, streak_attr),
+                        previous_page_oldest=_as_utc(previous_oldest) if previous_oldest else None,
+                    )
+                    oldest = min((t for _, t in page_events if t is not None), default=None)
+                    if oldest is not None:
+                        setattr(run, oldest_attr, oldest)
+                    if verdict.ordering_violation:
+                        # Ordering doubt: never stop early. Walk on to the end
+                        # of every stream so the run finalizes as a full audit.
+                        setattr(run, streak_attr, 0)
+                        run.mode = "audit"
+                        _restart_early_stopped_streams(run)
+                    else:
+                        setattr(run, streak_attr, verdict.known_streak)
+                        stop_early = verdict.stop
+                if stop_early or not items or not next_path:
                     setattr(run, complete_attr, True)
                     setattr(run, next_path_attr, None)
                     db.commit()
