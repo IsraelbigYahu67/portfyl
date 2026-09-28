@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { AlertCircle, Briefcase, CheckCircle2, Eye, EyeOff, History, Link as LinkIcon, Loader2, RefreshCw, Unlink } from "lucide-react";
 
 import { connectT212, disconnectT212, setT212AutoSync } from "../api";
@@ -43,7 +43,16 @@ const HISTORY_STATE_LABEL = {
   cancelled: "Cancelled",
 };
 
-function HistoryBackfillStatus({ run }) {
+const FILL_TYPE_LABEL = {
+  STOCK_SPLIT: "Stock split",
+  STOCK_DISTRIBUTION: "Stock distribution",
+  SPIN_OFF: "Spin-off",
+  STOCK_ACQUISITION: "Acquisition",
+  FOP: "Free-of-payment transfer",
+  FOP_CORRECTION: "Transfer correction",
+};
+
+export function HistoryBackfillStatus({ run, onRetry, retryPending = false }) {
   if (!run) return null;
 
   const active = T212_HISTORY_ACTIVE_STATES.has(run.state);
@@ -67,6 +76,34 @@ function HistoryBackfillStatus({ run }) {
       )}
       {run.last_error && (
         <p className="flex items-center gap-1.5 text-xs text-loss"><AlertCircle size={12} aria-hidden="true" />{run.last_error}</p>
+      )}
+      {run.state === "needs_review" && run.review && (
+        <div className="space-y-2 text-xs text-muted">
+          <ul className="space-y-0.5 text-ink">
+            {run.review.items.map((item) => (
+              <li key={`${item.fill_type}-${item.ticker}-${item.date}`}>
+                {FILL_TYPE_LABEL[item.fill_type] ?? item.fill_type} · {item.ticker ?? "unknown"} · {item.date ?? "unknown date"}
+              </li>
+            ))}
+          </ul>
+          {run.review.csv_covers_all ? (
+            <p>Your imported Trading 212 CSV already covers this history, so a retry can import it.</p>
+          ) : run.review.csv_needed_through && (
+            <p>
+              To import this history now, import a <Link to="/import" className="text-brand underline">Trading 212 CSV export</Link> that
+              covers at least through {run.review.csv_needed_through}, then retry.
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={onRetry}
+            disabled={retryPending}
+            className="flex items-center gap-2 rounded-lg border border-surface-border px-3 py-1.5 text-xs font-semibold text-ink disabled:opacity-40"
+          >
+            {retryPending ? <Loader2 size={12} className="animate-spin" aria-hidden="true" /> : <RefreshCw size={12} aria-hidden="true" />}
+            Retry history import
+          </button>
+        </div>
       )}
     </div>
   );
@@ -129,6 +166,16 @@ function ConnectionsSettings({ headingRef }) {
       onError: (error) => {
         setSuccess(null);
         setActionError(getApiErrorMessage(error, "Sync failed"));
+      },
+    });
+  };
+
+  const handleRetry = () => {
+    t212.retryHistory(undefined, {
+      onSuccess: () => setActionError(null),
+      onError: (error) => {
+        setSuccess(null);
+        setActionError(getApiErrorMessage(error, "Retry failed"));
       },
     });
   };
@@ -196,7 +243,7 @@ function ConnectionsSettings({ headingRef }) {
                 <div className="flex items-center justify-between pt-1"><span className="text-muted">Auto-sync <span className="ml-2 text-xs">checks on the schedule below</span></span><Toggle checked={status.auto_sync} onChange={(value) => autoSyncMutation.mutate(value)} disabled={autoSyncMutation.isPending} aria-label="T212 auto-sync" /></div>
               </div>
               <BrokerPositionSnapshot query={t212.positionsQuery} />
-              <HistoryBackfillStatus run={t212.historyRun} />
+              <HistoryBackfillStatus run={t212.historyRun} onRetry={handleRetry} retryPending={t212.retryPending} />
               <div className="flex gap-3">
                 <button type="button" onClick={handleSync} disabled={busy} className="flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40">{syncMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}Sync now</button>
                 <button type="button" onClick={() => disconnectMutation.mutate()} disabled={busy} className="flex items-center gap-2 rounded-lg border border-red-200 px-5 py-2.5 text-sm font-semibold text-red-600 disabled:opacity-40">{disconnectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Unlink size={16} />}Disconnect</button>

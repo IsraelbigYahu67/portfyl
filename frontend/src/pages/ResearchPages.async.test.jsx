@@ -29,6 +29,7 @@ const api = vi.hoisted(() => ({
   connectT212: vi.fn(),
   disconnectT212: vi.fn(),
   syncT212: vi.fn(),
+  retryT212History: vi.fn(),
   setT212AutoSync: vi.fn(),
   fetchAssistantConfig: vi.fn(),
   saveAssistantConfig: vi.fn(),

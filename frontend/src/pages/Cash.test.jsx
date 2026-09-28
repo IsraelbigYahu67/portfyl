@@ -15,6 +15,7 @@ vi.mock("../api", () => ({
   fetchT212HistoryStatus: vi.fn(),
   fetchT212Positions: vi.fn(),
   syncT212: vi.fn(),
+  retryT212History: vi.fn(),
   createCash: vi.fn(),
   deleteCash: vi.fn(),
   fetchInterestRates: () => Promise.resolve([]),

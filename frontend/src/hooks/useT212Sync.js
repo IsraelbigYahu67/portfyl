@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { fetchT212HistoryStatus, fetchT212Positions, fetchT212Status, syncT212 } from "../api";
+import { fetchT212HistoryStatus, fetchT212Positions, fetchT212Status, retryT212History, syncT212 } from "../api";
 
 export const T212_HISTORY_ACTIVE_STATES = new Set(["pending", "fetching", "waiting_rate_limit", "finalizing"]);
 
@@ -78,6 +78,11 @@ export function useT212Sync({ portfolioId, currency = "USD", enabled = true, inc
     ]),
   });
 
+  const retryMutation = useMutation({
+    mutationFn: retryT212History,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["t212-history-status", portfolioId] }),
+  });
+
   const historyRun = historyQuery.data?.run ?? null;
   useEffect(() => {
     const runId = historyRun?.id;
@@ -109,6 +114,8 @@ export function useT212Sync({ portfolioId, currency = "USD", enabled = true, inc
     sync: syncMutation.mutate,
     syncAsync: syncMutation.mutateAsync,
     syncMutation,
+    retryHistory: retryMutation.mutate,
+    retryPending: retryMutation.isPending,
     phase,
     historyActive: Boolean(historyRun && T212_HISTORY_ACTIVE_STATES.has(historyRun.state)),
   };
