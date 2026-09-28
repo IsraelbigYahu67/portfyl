@@ -5,10 +5,14 @@
 history runs), scoped Task 4 slices (finalize into ledger rows, account-identity
 guards, CSV event identity/timestamps, serialized ledger mutations, and
 provenance preservation through undo/export), and scoped Task 6 frontend slices
-are implemented. The earlier backend slice passed the fast and PostgreSQL/RLS
-suites; the 2026-09-24 additions pass the 899-test fast suite and the existing
-frontend local/cloud gates, but PostgreSQL could not be rerun because Docker was
-unavailable.
+are implemented. §10 Task 5 (incremental sync, 30-day audits, payload
+revisions) is implemented too, and Task 4's split handling is still blocked on
+the gate in `2026-09-24-t212-corporate-actions-incremental-sync.md` (real
+`STOCK_SPLIT` payload capture, then a signed-off encoding record). The earlier
+backend slice passed the fast and PostgreSQL/RLS suites; the 2026-09-24
+additions pass the 983-test fast suite and the frontend local/cloud gates
+(checked 2026-09-28), but the PostgreSQL/RLS suite has **not** been rerun
+against migrations `0017`–`0021`, so they are not verified there.
 
 - **Task 2**: `backend/t212_sync.py`, the `BrokerPosition` model and
   `0014_broker_positions` migration (forced RLS, grants, cascade, workspace
@@ -967,12 +971,15 @@ run discovery, polling, retry, and final invalidation.
 
 ### Task 5: Make subsequent syncs incremental
 
-- [ ] Persist per-stream completed coverage and overlap checkpoints.
-- [ ] Stop on provider identity plus known complete coverage, not global date.
-- [ ] Keep a safe deeper-walk fallback.
-- [ ] Add a 30-day complete audit walk and immediate audit after reconciliation
-      or ordering/checkpoint invariant failure.
-- [ ] Create due audit runs from manual/auto-sync entry points and detect changed
+- [x] Persist per-stream completed coverage and overlap checkpoints.
+- [x] Stop on provider identity plus known complete coverage, not global date.
+- [x] Keep a safe deeper-walk fallback.
+- [x] Add a 30-day complete audit walk and immediate audit after reconciliation
+      or ordering/checkpoint invariant failure. (A reconciliation mismatch asks
+      for an audit only when the last full read is older than
+      `RECONCILIATION_AUDIT_COOLDOWN`, 7 days, so a permanent mismatch cannot
+      turn daily syncs into full re-downloads.)
+- [x] Create due audit runs from manual/auto-sync entry points and detect changed
       payload hashes under existing provider IDs.
 - [x] Remove old full-history and duplicate yfinance request paths.
 

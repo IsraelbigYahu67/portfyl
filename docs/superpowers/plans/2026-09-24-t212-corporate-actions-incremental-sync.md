@@ -2,6 +2,27 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status (2026-09-28):** Track A is done except the user-run capture (A1 step 6)
+and the gate that depends on it (A2/G1). Track C is done (C1–C4). Track B is
+**not started and must not start** until `docs/research/t212-corporate-action-encoding.md`
+has a sign-off.
+
+| Task | State | Commit |
+|------|-------|--------|
+| A1 capture CLI | code done; **capture not yet run by the user** | `c82f6a2` |
+| A2 / G1 encoding record | **blocked on A1 capture** | — |
+| A3 persist review details | done | `819f18a` |
+| A4 break the re-download loop | done | `7eec1fd` |
+| A5 review panel, CSV guidance, retry (+ retry-error banner) | done | `91d098e` |
+| B1–B4 split mapper | **gated on G1** | — |
+| C1 coverage checkpoints | done | `97479cc` |
+| C2 incremental stop rule | done (the pure evaluator was written on two parallel lanes: `dc712cd` and `1628c01` both add `t212_incremental.py`) | `dc712cd`, `1628c01`, `6f321cb`, `a46412a` |
+| C3 30-day audits, payload revisions | done | `e05de2b` |
+| C4 staging retention | done | `9654588` |
+| V1 gates | fast backend suite (983), `alembic heads` (one head, `0021`), frontend local/cloud tests (690/691) and both builds pass; PostgreSQL/RLS, real browser and T212 demo checks are open | — |
+
+The checkbox steps below were not ticked one by one; this table is the record.
+
 **Goal:** Close the four items left open after commit `6ff6c15`: get real
 split payloads, stop the `needs_review` re-download loop now, build the
 `STOCK_SPLIT` mapper and corporate-action records once real payloads exist, and
