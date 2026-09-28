@@ -98,9 +98,9 @@ export function HistoryBackfillStatus({ run, onRetry, retryPending = false }) {
             type="button"
             onClick={onRetry}
             disabled={retryPending}
-            className="flex items-center gap-2 rounded-lg border border-surface-border px-3 py-1.5 text-xs font-semibold text-ink disabled:opacity-40"
+            className="flex items-center gap-2 rounded-lg border border-surface-border px-5 py-2.5 text-sm font-semibold text-ink disabled:opacity-40"
           >
-            {retryPending ? <Loader2 size={12} className="animate-spin" aria-hidden="true" /> : <RefreshCw size={12} aria-hidden="true" />}
+            {retryPending ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <RefreshCw size={16} aria-hidden="true" />}
             Retry history import
           </button>
         </div>
