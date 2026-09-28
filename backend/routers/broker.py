@@ -274,6 +274,39 @@ def _reconcile_history(
     )
 
 
+def _reconciliation_mismatch(db: Session, portfolio: Portfolio, conn: BrokerConnection) -> bool:
+    """True when the ledger, as of the latest completed history run, disagrees
+    with the positions snapshot this sync just refreshed -- the trigger for an
+    immediate audit (parent plan §7), since only a full re-read can reveal old
+    events the incremental stop rule skipped. Not asked again while a full
+    read is younger than t212_sync.RECONCILIATION_AUDIT_COOLDOWN: it already
+    saw everything the provider has, so a lingering mismatch has another cause."""
+    last_read = t212_sync.last_full_read_at(conn)
+    if (
+        last_read is not None
+        and datetime.now(timezone.utc) - last_read < t212_sync.RECONCILIATION_AUDIT_COOLDOWN
+    ):
+        return False
+    latest_completed = (
+        db.query(BrokerSyncRun)
+        .filter(
+            BrokerSyncRun.workspace_id == portfolio.workspace_id,
+            BrokerSyncRun.connection_id == conn.id,
+            BrokerSyncRun.state == "completed",
+        )
+        .order_by(BrokerSyncRun.created_at.desc(), BrokerSyncRun.id.desc())
+        .first()
+    )
+    # Only an incremental run can have skipped provider events. When the latest
+    # completed run already read the whole history (initial/audit), another
+    # full read cannot explain a mismatch that survived it.
+    if latest_completed is None or latest_completed.mode != "incremental":
+        return False
+    # Sessions run with autoflush off: make the just-replaced snapshot visible.
+    db.flush()
+    return _reconcile_history(db, portfolio, conn, latest_completed)["status"] == "different"
+
+
 @router.get("/trading212/history-status")
 def get_history_status(
     db: Session = Depends(get_db),
@@ -339,6 +372,11 @@ def get_history_status(
             "completed_at": run.completed_at.isoformat() if run.completed_at else None,
             "resume_at": resume_at.isoformat() if resume_at else None,
             "last_error": public_error,
+            "review": (
+                {"items": run.review_details or [],
+                 **t212_sync.review_resolution(run, conn, portfolio)}
+                if run.state == "needs_review" else None
+            ),
         },
         "reconciliation": _reconcile_history(db, portfolio, conn, run),
     }
@@ -624,8 +662,19 @@ def sync_transactions(
     else:
         positions_error = "Trading 212 positions could not be refreshed."
 
-    # Create the history run only after account identity has been verified.
-    history_run = t212_sync.claim_or_create_run(db, conn, portfolio)
+    # Create the history run only after account identity has been verified,
+    # and never while the latest run is an unresolved needs_review: that would
+    # re-stage the whole history into the same dead end.
+    decision = t212_sync.history_run_decision(
+        db, conn, portfolio,
+        reconciliation_mismatch=positions_updated and _reconciliation_mismatch(db, portfolio, conn),
+    )
+    if decision.action == "blocked":
+        history_run, blocked = decision.run, True
+    else:
+        history_run, blocked = t212_sync.claim_or_create_run(
+            db, conn, portfolio, mode=decision.mode,
+        ), False
 
     # Manual sync is snapshot-first: persist the independently successful
     # current-state components and hand history work to broker_backfill.  A
@@ -650,8 +699,36 @@ def sync_transactions(
             "run_id": str(history_run.public_id),
             "status": history_run.state,
             "complete": False,
+            "blocked": blocked,
         },
     }
+
+
+@router.post(
+    "/trading212/history/retry",
+    dependencies=[
+        Depends(require_capability("broker_sync")),
+        Depends(require_writable_broker("trading212")),
+        Depends(rate_limit("broker_sync", by="workspace")),
+    ],
+)
+def retry_history(
+    db: Session = Depends(get_db),
+    portfolio: Portfolio = Depends(require_portfolio),
+    _context: RequestContext = Depends(require_csrf),
+):
+    """Explicit user retry of the history import after a needs_review run:
+    always starts a fresh run (or returns the one already active)."""
+    conn = _get_connection(db, portfolio)
+    if not conn:
+        raise HTTPException(status_code=404, detail="Trading 212 is not connected")
+    decision = t212_sync.history_run_decision(db, conn, portfolio, force=True)
+    run = (
+        decision.run if decision.action == "reuse"
+        else t212_sync.claim_or_create_run(db, conn, portfolio, mode=decision.mode)
+    )
+    db.commit()
+    return {"run_id": str(run.public_id), "status": run.state, "complete": False, "blocked": False}
 
 
 def _fetch_account_summary(base: str, headers: dict) -> dict:

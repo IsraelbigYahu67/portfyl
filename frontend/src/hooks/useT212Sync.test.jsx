@@ -2,13 +2,14 @@ import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-quer
 import { act, renderHook, waitFor } from "@testing-library/react";
 
 import { useT212Sync } from "./useT212Sync";
-import { fetchT212HistoryStatus, fetchT212Positions, fetchT212Status, syncT212 } from "../api";
+import { fetchT212HistoryStatus, fetchT212Positions, fetchT212Status, retryT212History, syncT212 } from "../api";
 
 vi.mock("../api", () => ({
   fetchT212Status: vi.fn(),
   fetchT212HistoryStatus: vi.fn(),
   fetchT212Positions: vi.fn(),
   syncT212: vi.fn(),
+  retryT212History: vi.fn(),
 }));
 
 function wrapperFor(client) {
@@ -163,5 +164,24 @@ describe("useT212Sync", () => {
       await vi.advanceTimersByTimeAsync(15000);
     });
     expect(transactionsQuery).toHaveBeenCalledTimes(2);
+  });
+  it("retryHistory posts the retry and refetches the history status", async () => {
+    retryT212History.mockResolvedValue({ run_id: "run-2", status: "pending", complete: false, blocked: false });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(
+      () => useT212Sync({ portfolioId: "portfolio-1", currency: "USD" }),
+      { wrapper: wrapperFor(client) },
+    );
+
+    await waitFor(() => expect(fetchT212HistoryStatus).toHaveBeenCalledTimes(1));
+    expect(result.current.retryPending).toBe(false);
+
+    await act(async () => {
+      result.current.retryHistory();
+    });
+
+    expect(retryT212History).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(fetchT212HistoryStatus.mock.calls.length).toBeGreaterThan(1));
+    await waitFor(() => expect(result.current.retryPending).toBe(false));
   });
 });

@@ -19,6 +19,7 @@ from routers.broker import (
     get_history_status,
     get_positions,
     get_status,
+    retry_history,
     sync_transactions,
 )
 from tests.fixtures.t212 import t212_position
@@ -1061,3 +1062,263 @@ class TestHistoryStatusReconciliation:
         result = get_history_status(db=db_session, portfolio=default_portfolio)
 
         assert result == {"connected": True, "run": None}
+
+
+# ---------------------------------------------------------------------------
+# needs_review re-download loop breaker (plan 2026-09-24, Task A4)
+# ---------------------------------------------------------------------------
+
+_SPLIT_REVIEW = [{"fill_type": "STOCK_SPLIT", "ticker": "NVDA", "date": "2024-06-10"}]
+
+
+class TestNeedsReviewLoopBreaker:
+    @pytest.fixture
+    def connection(self, db_session, default_portfolio):
+        conn = BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                                portfolio_id=default_portfolio.id,
+                                broker="trading212", api_key="k" * 20)
+        db_session.add(conn)
+        db_session.commit()
+        return conn
+
+    @pytest.fixture
+    def review_run(self, db_session, default_portfolio, connection):
+        run = BrokerSyncRun(
+            workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+            connection_id=connection.id, broker="trading212",
+            credential_generation=connection.credential_generation, mode="incremental",
+            state="needs_review", orders_complete=True, dividends_complete=True,
+            last_error=t212_sync.HISTORY_NEEDS_REVIEW_ERROR, review_details=_SPLIT_REVIEW,
+        )
+        db_session.add(run)
+        db_session.commit()
+        return run
+
+    def test_sync_refreshes_snapshot_but_creates_no_run_when_blocked(
+        self, db_session, default_portfolio, connection, review_run
+    ):
+        result = _run_sync(db_session, default_portfolio, [])
+
+        assert result["snapshot"]["status"] == "ready"
+        assert result["history"]["status"] == "needs_review"
+        assert result["history"]["run_id"] == str(review_run.public_id)
+        assert result["history"]["blocked"] is True
+        assert result["history"]["complete"] is False
+        assert db_session.query(BrokerSyncRun).count() == 1
+
+    def test_sync_without_a_review_run_is_not_blocked(
+        self, db_session, default_portfolio, connection
+    ):
+        result = _run_sync(db_session, default_portfolio, [])
+        assert result["history"]["blocked"] is False
+        assert result["history"]["status"] == "pending"
+
+    def test_retry_route_creates_new_run(
+        self, db_session, default_portfolio, connection, review_run
+    ):
+        result = retry_history(db=db_session, portfolio=default_portfolio, _context=None)
+
+        assert result["status"] == "pending"
+        assert result["blocked"] is False
+        assert result["complete"] is False
+        assert result["run_id"] != str(review_run.public_id)
+        assert db_session.query(BrokerSyncRun).count() == 2
+
+    def test_retry_route_reuses_an_already_active_run(
+        self, db_session, default_portfolio, connection, review_run
+    ):
+        first = retry_history(db=db_session, portfolio=default_portfolio, _context=None)
+        second = retry_history(db=db_session, portfolio=default_portfolio, _context=None)
+
+        assert first["run_id"] == second["run_id"]
+        assert db_session.query(BrokerSyncRun).count() == 2
+
+    def test_retry_route_requires_a_connection(self, db_session, default_portfolio):
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc:
+            retry_history(db=db_session, portfolio=default_portfolio, _context=None)
+        assert exc.value.status_code == 404
+
+    def test_history_status_exposes_review_block_without_payloads(
+        self, db_session, default_portfolio, connection, review_run
+    ):
+        result = get_history_status(db=db_session, portfolio=default_portfolio)
+
+        assert result["run"]["review"] == {
+            "items": _SPLIT_REVIEW,
+            "csv_covers_all": False,
+            "csv_needed_through": "2024-06-10",
+            "mapper_supports_all": False,
+        }
+
+    def test_history_status_review_is_none_for_other_states(
+        self, db_session, default_portfolio, connection, review_run
+    ):
+        review_run.state = "completed"
+        db_session.commit()
+
+        result = get_history_status(db=db_session, portfolio=default_portfolio)
+
+        assert result["run"]["review"] is None
+
+
+class TestSyncRunMode:
+    """Plan 2026-09-24 Task C1: the routes create runs in the decided mode."""
+
+    @pytest.fixture
+    def connection(self, db_session, default_portfolio):
+        conn = BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                                portfolio_id=default_portfolio.id,
+                                broker="trading212", api_key="k" * 20)
+        db_session.add(conn)
+        db_session.commit()
+        return conn
+
+    def test_first_sync_creates_an_initial_run(self, db_session, default_portfolio, connection):
+        _run_sync(db_session, default_portfolio, [])
+        assert db_session.query(BrokerSyncRun).one().mode == "initial"
+
+    def test_sync_after_history_completed_creates_an_incremental_run(
+        self, db_session, default_portfolio, connection
+    ):
+        connection.history_complete_at = datetime(2026, 9, 1, tzinfo=timezone.utc)
+        connection.last_full_audit_at = datetime.now(timezone.utc)
+        db_session.commit()
+
+        _run_sync(db_session, default_portfolio, [])
+
+        assert db_session.query(BrokerSyncRun).one().mode == "incremental"
+
+    def test_retry_creates_a_run_in_the_decided_mode(
+        self, db_session, default_portfolio, connection
+    ):
+        retry_history(db=db_session, portfolio=default_portfolio, _context=None)
+        assert db_session.query(BrokerSyncRun).one().mode == "initial"
+
+
+class TestSyncAuditMode:
+    """Plan 2026-09-24 Task C3: sync_transactions turns the next run into an
+    audit when the last full read is 30 days old or reconciliation disagrees."""
+
+    @pytest.fixture
+    def connection(self, db_session, default_portfolio):
+        conn = BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                                portfolio_id=default_portfolio.id,
+                                broker="trading212", api_key="k" * 20)
+        db_session.add(conn)
+        db_session.commit()
+        return conn
+
+    @staticmethod
+    def _completed_history(db, portfolio, conn, *, last_read_age, ledger_shares=10.0,
+                           latest_mode="incremental"):
+        read_at = datetime.now(timezone.utc) - last_read_age
+        conn.history_complete_at = read_at
+        conn.last_full_audit_at = read_at
+        db.add(BrokerSyncRun(
+            workspace_id=portfolio.workspace_id, portfolio_id=portfolio.id,
+            connection_id=conn.id, broker="trading212",
+            credential_generation=conn.credential_generation, mode=latest_mode,
+            state="completed", completed_at=read_at,
+        ))
+        db.add(make_txn(
+            "AAPL", "buy", ledger_shares, 100.0, date=date(2024, 1, 2),
+            portfolio_id=portfolio.id, workspace_id=portfolio.workspace_id,
+        ))
+        db.commit()
+
+    @staticmethod
+    def _new_run(db):
+        return db.query(BrokerSyncRun).filter(BrokerSyncRun.state == "pending").one()
+
+    def test_manual_sync_after_30_days_creates_an_audit_run(
+        self, db_session, default_portfolio, connection
+    ):
+        self._completed_history(
+            db_session, default_portfolio, connection, last_read_age=timedelta(days=31),
+        )
+
+        _run_sync(db_session, default_portfolio, [], positions=[t212_position(quantity=10.0)])
+
+        assert self._new_run(db_session).mode == "audit"
+
+    def test_reconciliation_mismatch_creates_an_audit_run(
+        self, db_session, default_portfolio, connection
+    ):
+        self._completed_history(
+            db_session, default_portfolio, connection, last_read_age=timedelta(days=8),
+        )
+
+        _run_sync(db_session, default_portfolio, [], positions=[t212_position(quantity=12.0)])
+
+        assert self._new_run(db_session).mode == "audit"
+
+    @pytest.mark.parametrize("latest_mode", ["initial", "audit"])
+    def test_mismatch_after_a_full_read_run_does_not_audit_again(
+        self, db_session, default_portfolio, connection, latest_mode
+    ):
+        # The latest completed run already read the whole history, so another
+        # full read cannot explain a mismatch that is still there.
+        self._completed_history(
+            db_session, default_portfolio, connection, last_read_age=timedelta(days=8),
+            latest_mode=latest_mode,
+        )
+
+        _run_sync(db_session, default_portfolio, [], positions=[t212_position(quantity=12.0)])
+
+        assert self._new_run(db_session).mode == "incremental"
+
+    def test_persistent_mismatch_audits_at_most_once_per_cooldown(
+        self, db_session, default_portfolio, connection
+    ):
+        # A permanent cause (ticker mapping, unsupported action) must not turn
+        # every daily incremental sync into a full re-download.
+        self._completed_history(
+            db_session, default_portfolio, connection, last_read_age=timedelta(days=3),
+        )
+
+        _run_sync(db_session, default_portfolio, [], positions=[t212_position(quantity=12.0)])
+
+        assert self._new_run(db_session).mode == "incremental"
+
+    def test_matching_positions_keep_the_sync_incremental(
+        self, db_session, default_portfolio, connection
+    ):
+        self._completed_history(
+            db_session, default_portfolio, connection, last_read_age=timedelta(days=2),
+        )
+
+        _run_sync(db_session, default_portfolio, [], positions=[t212_position(quantity=10.0)])
+
+        assert self._new_run(db_session).mode == "incremental"
+
+    def test_mismatch_right_after_a_full_read_does_not_repeat_the_audit(
+        self, db_session, default_portfolio, connection
+    ):
+        # A full read within the last day already saw everything the provider
+        # has; auditing again on every sync would only re-download it.
+        self._completed_history(
+            db_session, default_portfolio, connection, last_read_age=timedelta(hours=1),
+        )
+
+        _run_sync(db_session, default_portfolio, [], positions=[t212_position(quantity=12.0)])
+
+        assert self._new_run(db_session).mode == "incremental"
+
+    def test_failed_positions_refresh_never_triggers_a_mismatch_audit(
+        self, db_session, default_portfolio, connection
+    ):
+        self._completed_history(
+            db_session, default_portfolio, connection, last_read_age=timedelta(days=2),
+        )
+        db_session.add(BrokerPosition(
+            workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+            broker="trading212", provider_ticker="AAPL_US_EQ", ticker="AAPL",
+            quantity=99.0, avg_price=100.0, as_of=datetime.now(timezone.utc),
+        ))
+        db_session.commit()
+
+        _run_sync(db_session, default_portfolio, [], positions_error=RuntimeError("boom"))
+
+        assert self._new_run(db_session).mode == "incremental"

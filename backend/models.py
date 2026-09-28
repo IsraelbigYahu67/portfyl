@@ -564,6 +564,29 @@ class BrokerConnection(Base):
     # to superseded credentials and is fenced out (see t212_sync.claim_lease).
     credential_generation = Column(Integer, nullable=False, default=1, server_default="1")
 
+    # T212 corporate-actions/incremental-sync plan (2026-09-24), Task C1:
+    # per-stream history coverage. `history_complete_at` is set by a completed
+    # initial/audit run; each frontier is that stream's newest finalized
+    # provider event (timestamp, then id as tie-break) and only ever moves
+    # forward. `last_full_audit_at` drives the 30-day audit (Task C3).
+    history_complete_at = Column(DateTime(timezone=True), nullable=True)
+    orders_frontier_at = Column(DateTime(timezone=True), nullable=True)
+    orders_frontier_event_id = Column(String, nullable=True)
+    dividends_frontier_at = Column(DateTime(timezone=True), nullable=True)
+    dividends_frontier_event_id = Column(String, nullable=True)
+    last_full_audit_at = Column(DateTime(timezone=True), nullable=True)
+
+    def clear_history_coverage(self) -> None:
+        """Forget all history coverage. Called whenever the ledger rows the
+        frontiers vouch for are deleted (clear-all, CSV replace), so the next
+        sync walks the whole history again instead of stopping early."""
+        self.history_complete_at = None
+        self.orders_frontier_at = None
+        self.orders_frontier_event_id = None
+        self.dividends_frontier_at = None
+        self.dividends_frontier_event_id = None
+        self.last_full_audit_at = None
+
     # `api_key`/`api_secret` are transparent encrypt-on-set/decrypt-on-get
     # properties over the ciphertext columns above -- every existing call
     # site (constructor kwargs, `conn.api_key`, `connection.api_key = ...`)
@@ -789,6 +812,14 @@ class BrokerSyncRun(Base):
     dividends_loaded = Column(Integer, nullable=False, default=0, server_default="0")
     dividends_rate_limit_reset_at = Column(DateTime(timezone=True), nullable=True)
 
+    # Incremental stop-rule state (plan 2026-09-24, Task C2): consecutive
+    # fully-known pages past the connection's frontier, and the oldest event
+    # timestamp of the last page seen (for the newest-first ordering check).
+    orders_known_streak = Column(Integer, nullable=False, default=0, server_default="0")
+    orders_last_page_oldest_at = Column(DateTime(timezone=True), nullable=True)
+    dividends_known_streak = Column(Integer, nullable=False, default=0, server_default="0")
+    dividends_last_page_oldest_at = Column(DateTime(timezone=True), nullable=True)
+
     # Short-lived worker lease (plan §4.2): the foreground request and the
     # minutely broker_backfill job share the same claim function
     # (t212_sync.claim_lease) so at most one of them advances a run at a
@@ -800,6 +831,9 @@ class BrokerSyncRun(Base):
     last_progress_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     last_error = Column(String, nullable=True)
+    # Bounded, payload-free summary of why a run ended in needs_review
+    # (fill type, normalized ticker, date). Never the raw provider payload.
+    review_details = Column(JSON, nullable=True)
     retry_count = Column(Integer, nullable=False, default=0, server_default="0")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

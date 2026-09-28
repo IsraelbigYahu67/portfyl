@@ -349,10 +349,14 @@ def test_broker_backfill_pass_stages_every_page_despite_internal_commits(
 ):
     ws, pf = single_workspace
     with _owner_session(postgres_engine) as db:
-        pf.t212_account_fingerprint = "single-account-fingerprint"
+        # `pf` is detached (its seeding session is closed), so assigning to it
+        # would never reach the database; persist the binding explicitly.
+        db.query(Portfolio).filter(Portfolio.id == pf.id).update(
+            {"t212_account_fingerprint": "single-account-fingerprint"}, synchronize_session=False,
+        )
         conn = BrokerConnection(workspace_id=ws.id, portfolio_id=pf.id, broker="trading212",
                                 api_key="k" * 20, api_secret="", environment="live",
-                                account_fingerprint=pf.t212_account_fingerprint)
+                                account_fingerprint="single-account-fingerprint")
         db.add(conn)
         db.flush()
         run = BrokerSyncRun(
@@ -397,6 +401,42 @@ def test_broker_backfill_pass_stages_every_page_despite_internal_commits(
         events = db.query(BrokerSyncEvent).filter(BrokerSyncEvent.run_id == run_id).all()
         assert {e.provider_event_id for e in events} == {"fill:f1", "fill:f2"}
         assert all(e.workspace_id == ws.id for e in events)
+
+
+def test_broker_backfill_reports_a_cancelled_run_after_its_credentials_rotated(
+    postgres_engine: Engine, single_workspace, runtime_job_session: Session,
+):
+    """A run whose connection rotated credentials mid-flight is cancelled by
+    the job. Reporting it must not re-read the row after the commit: the
+    commit drops the transaction-local RLS context, so a lazy reload under
+    forced RLS finds no row and raises ObjectDeletedError."""
+    ws, pf = single_workspace
+    with _owner_session(postgres_engine) as db:
+        db.query(Portfolio).filter(Portfolio.id == pf.id).update(
+            {"t212_account_fingerprint": "rotated-account-fingerprint"}, synchronize_session=False,
+        )
+        conn = BrokerConnection(workspace_id=ws.id, portfolio_id=pf.id, broker="trading212",
+                                api_key="k" * 20, api_secret="", environment="live",
+                                account_fingerprint="rotated-account-fingerprint")
+        db.add(conn)
+        db.flush()
+        run = BrokerSyncRun(
+            workspace_id=ws.id, portfolio_id=pf.id, connection_id=conn.id, broker="trading212",
+            account_fingerprint=conn.account_fingerprint,
+            credential_generation=conn.credential_generation, mode="incremental", state="pending",
+        )
+        db.add(run)
+        db.flush()
+        conn.credential_generation = conn.credential_generation + 1  # rotated after the run began
+        db.commit()
+        run_id, run_public_id = run.id, str(run.public_id)
+
+    with patch("t212_sync.httpx.get", side_effect=AssertionError("a cancelled run must not call T212")):
+        results = asyncio.run(broker_backfill_pass(runtime_job_session, ws.id))
+
+    assert results == [{"run_id": run_public_id, "state": "cancelled"}]
+    with _owner_session(postgres_engine) as db:
+        assert db.get(BrokerSyncRun, run_id).state == "cancelled"
 
 
 def test_one_active_run_per_connection_is_enforced_at_the_database_level(
@@ -451,10 +491,13 @@ def test_broker_backfill_all_workspaces_advances_both_tenants_without_leaking(
     run_ids = {}
     with _owner_session(postgres_engine) as db:
         for label, ws, pf in (("a", ws_a, pf_a), ("b", ws_b, pf_b)):
-            pf.t212_account_fingerprint = f"{label}-account-fingerprint"
+            fingerprint = f"{label}-account-fingerprint"
+            db.query(Portfolio).filter(Portfolio.id == pf.id).update(
+                {"t212_account_fingerprint": fingerprint}, synchronize_session=False,
+            )
             conn = BrokerConnection(workspace_id=ws.id, portfolio_id=pf.id, broker="trading212",
                                     api_key=f"{label}-key" * 4, api_secret="", environment="live",
-                                    account_fingerprint=pf.t212_account_fingerprint)
+                                    account_fingerprint=fingerprint)
             db.add(conn)
             db.flush()
             run = BrokerSyncRun(

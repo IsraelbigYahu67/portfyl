@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import and_, delete, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy.orm import Session, aliased
 
 from account_deletion import _active_workspace_ids, _set_cleanup_context
 from models import (
     AuthSession,
+    BrokerSyncEvent,
+    BrokerSyncRun,
     DividendNotification,
     NotificationOutbox,
     UsageReservation,
@@ -20,6 +22,8 @@ SESSION_INVALID_RETENTION = timedelta(days=30)
 USAGE_RESERVATION_RETENTION = timedelta(days=90)
 NOTIFICATION_OUTBOX_RETENTION = timedelta(days=90)
 DIVIDEND_NOTIFICATION_RETENTION = timedelta(days=400)
+STAGING_RETENTION = timedelta(days=14)
+STAGING_REVIEW_RETENTION = timedelta(days=90)
 DEFAULT_MAX_ROWS_PER_CATEGORY = 10_000
 
 
@@ -39,9 +43,10 @@ def cleanup_retained_operational_data(
     """Delete expired operational data in bounded, retry-safe batches.
 
     Active sessions, open usage reservations, pending/retryable notifications,
-    financial records, and audit evidence are deliberately outside this
-    cleanup. Tenant tables are processed under one explicit workspace context
-    at a time so PostgreSQL RLS remains enforced.
+    financial records, durable audit evidence, and the latest unresolved broker
+    review evidence are deliberately outside this cleanup. Tenant tables are
+    processed under one explicit workspace context at a time so PostgreSQL RLS
+    remains enforced.
     """
     if max_rows_per_category <= 0:
         raise ValueError("max_rows_per_category must be positive")
@@ -50,11 +55,14 @@ def cleanup_retained_operational_data(
     usage_cutoff = now - USAGE_RESERVATION_RETENTION
     outbox_cutoff = now - NOTIFICATION_OUTBOX_RETENTION
     dividend_cutoff = now - DIVIDEND_NOTIFICATION_RETENTION
+    staging_cutoff = now - STAGING_RETENTION
+    staging_review_cutoff = now - STAGING_REVIEW_RETENTION
     summary = {
         "auth_sessions": 0,
         "usage_reservations": 0,
         "notification_outbox": 0,
         "dividend_notifications": 0,
+        "broker_sync_events": 0,
     }
 
     session_ids = list(db.scalars(
@@ -78,6 +86,7 @@ def cleanup_retained_operational_data(
             "usage_reservations",
             "notification_outbox",
             "dividend_notifications",
+            "broker_sync_events",
         )
     }
     for workspace_id in _active_workspace_ids(db):
@@ -137,6 +146,55 @@ def cleanup_retained_operational_data(
             deleted_count = _delete_ids(db, DividendNotification, ids)
             summary["dividend_notifications"] += deleted_count
             remaining["dividend_notifications"] -= deleted_count
+
+        if remaining["broker_sync_events"]:
+            latest_run = aliased(BrokerSyncRun)
+            latest_run_id = (
+                select(latest_run.id)
+                .where(
+                    latest_run.workspace_id == BrokerSyncRun.workspace_id,
+                    latest_run.connection_id == BrokerSyncRun.connection_id,
+                )
+                .order_by(latest_run.created_at.desc(), latest_run.id.desc())
+                .limit(1)
+                .correlate(BrokerSyncRun)
+                .scalar_subquery()
+            )
+            run_age = func.coalesce(
+                BrokerSyncRun.completed_at,
+                BrokerSyncRun.updated_at,
+            )
+            ids = list(db.scalars(
+                select(BrokerSyncEvent.id)
+                .join(
+                    BrokerSyncRun,
+                    and_(
+                        BrokerSyncRun.workspace_id == BrokerSyncEvent.workspace_id,
+                        BrokerSyncRun.id == BrokerSyncEvent.run_id,
+                    ),
+                )
+                .where(
+                    BrokerSyncEvent.workspace_id == workspace_id,
+                    or_(
+                        and_(
+                            BrokerSyncRun.state.in_(
+                                ("completed", "failed", "cancelled")
+                            ),
+                            run_age <= staging_cutoff,
+                        ),
+                        and_(
+                            BrokerSyncRun.state == "needs_review",
+                            run_age <= staging_review_cutoff,
+                            BrokerSyncRun.id != latest_run_id,
+                        ),
+                    ),
+                )
+                .order_by(run_age, BrokerSyncEvent.id)
+                .limit(remaining["broker_sync_events"])
+            ).all())
+            deleted_count = _delete_ids(db, BrokerSyncEvent, ids)
+            summary["broker_sync_events"] += deleted_count
+            remaining["broker_sync_events"] -= deleted_count
 
         db.commit()
 

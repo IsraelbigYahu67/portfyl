@@ -47,6 +47,7 @@ from models import (
     Transaction,
 )
 from ledger_mutation import acquire_workspace_ledger_lock
+from t212_incremental import OVERLAP_PAGES, evaluate_page
 
 T212_BASES = {
     "live": "https://live.trading212.com/api/v0",
@@ -287,13 +288,20 @@ def is_snapshot_fresh(as_of: datetime | None, *, now: datetime | None = None) ->
 # Scope deliberately excludes, for this increment:
 #   - the `/equity/history/transactions` cash-movement stream (deposits,
 #     withdrawals, fees, interest) -- a new provider surface the app doesn't
-#     fetch today, not "making an existing fetch resumable";
-#   - audit runs (mode="audit") -- the column accepts the value, nothing
-#     creates one yet.
+#     fetch today, not "making an existing fetch resumable".
+#
+# Run modes (plan 2026-09-24, Tasks C1-C3): `initial` walks the whole history;
+# `incremental` may stop early past the connection's history frontier
+# (t212_incremental); `audit` re-reads everything and revises rows whose
+# provider payload changed. history_run_decision picks the mode.
 # =============================================================================
 
 STREAMS = ("orders", "dividends")
 TERMINAL_RUN_STATES = ("completed", "failed", "cancelled", "needs_review")
+REVIEW_DETAILS_LIMIT = 50
+# fill.type values finalize_run can transform. Empty until gate G1 (plan
+# 2026-09-24 Task A2) is signed off and Task B3 lands.
+SUPPORTED_CORPORATE_ACTION_TYPES: frozenset[str] = frozenset()
 HISTORY_RETRY_ERROR = "Trading 212 history sync will retry automatically."
 HISTORY_NEEDS_REVIEW_ERROR = (
     "Trading 212 history contains corporate actions (such as splits) that "
@@ -531,6 +539,89 @@ def claim_or_create_run(
     return run
 
 
+@dataclass(frozen=True)
+class HistoryDecision:
+    action: str  # "reuse" | "create" | "blocked"
+    run: BrokerSyncRun | None
+    mode: str = "incremental"
+
+
+def _latest_run(db: Session, connection: BrokerConnection) -> BrokerSyncRun | None:
+    return (
+        db.query(BrokerSyncRun)
+        .filter(BrokerSyncRun.workspace_id == connection.workspace_id,
+                BrokerSyncRun.connection_id == connection.id)
+        .order_by(BrokerSyncRun.created_at.desc(), BrokerSyncRun.id.desc())
+        .first()
+    )
+
+
+def review_resolution(run: BrokerSyncRun, connection: BrokerConnection, portfolio: Portfolio) -> dict:
+    """What would unblock a needs_review run: an authoritative CSV export that
+    covers the last blocking action, or a mapper for every blocking type."""
+    details = run.review_details or []
+    dates = [d["date"] for d in details if d.get("date")]
+    needed = max(dates) if dates else None
+    coverage = _latest_csv_coverage(portfolio.t212_csv_covered_through,
+                                    connection.t212_csv_covered_through)
+    # _is_csv_covered compares exact event timestamps, so coverage must pass
+    # the end of the action's calendar day to guarantee every leg is covered.
+    csv_covers_all = bool(
+        needed and coverage is not None
+        and coverage >= datetime.fromisoformat(needed).replace(tzinfo=timezone.utc) + timedelta(days=1)
+    )
+    types = {d.get("fill_type") for d in details}
+    mapper_supports_all = bool(details) and types <= SUPPORTED_CORPORATE_ACTION_TYPES
+    return {"csv_covers_all": csv_covers_all, "csv_needed_through": needed,
+            "mapper_supports_all": mapper_supports_all}
+
+
+AUDIT_INTERVAL = timedelta(days=30)
+# A reconciliation mismatch only asks for an audit when the last full read is
+# older than this: a full read that just finished has already seen everything
+# the provider has, and a permanent mismatch (an unsupported corporate action,
+# a ticker-mapping gap, a transfer the API does not expose) must not turn
+# daily incremental syncs into repeated full re-downloads.
+RECONCILIATION_AUDIT_COOLDOWN = timedelta(days=7)
+
+
+def last_full_read_at(connection: BrokerConnection) -> datetime | None:
+    """When the connection's whole history was last read end to end: its latest
+    audit, else the initial backfill (which also read everything)."""
+    value = connection.last_full_audit_at or connection.history_complete_at
+    return _as_utc(value) if value is not None else None
+
+
+def history_run_decision(
+    db: Session, connection: BrokerConnection, portfolio: Portfolio, *,
+    force: bool = False, reconciliation_mismatch: bool = False,
+) -> HistoryDecision:
+    """Whether a sync may start a new history run, and in which mode. Only the
+    connection's latest run matters: an unresolved `needs_review` would
+    re-stage the full history into the same dead end, so it blocks until the
+    reason changes (CSV coverage, a new mapper) or the user forces a retry.
+
+    A new run is `initial` until a run has completed, then `audit` when the
+    last full read is older than AUDIT_INTERVAL or `reconciliation_mismatch`
+    says the ledger disagrees with the broker snapshot, else `incremental`
+    (parent plan §7). Only the sync entry points call this, so a connection
+    with auto-sync off never triggers unrequested broker access."""
+    latest = _latest_run(db, connection)
+    if latest is not None and latest.state not in TERMINAL_RUN_STATES:
+        return HistoryDecision("reuse", latest, latest.mode)
+    if latest is not None and latest.state == "needs_review" and not force:
+        res = review_resolution(latest, connection, portfolio)
+        if not (res["csv_covers_all"] or res["mapper_supports_all"]):
+            return HistoryDecision("blocked", latest, latest.mode)
+    if connection.history_complete_at is None:
+        return HistoryDecision("create", None, "initial")
+    last_read = last_full_read_at(connection)
+    audit_due = last_read is None or datetime.now(timezone.utc) - last_read > AUDIT_INTERVAL
+    return HistoryDecision(
+        "create", None, "audit" if (reconciliation_mismatch or audit_due) else "incremental",
+    )
+
+
 def claim_lease(
     db: Session,
     run_id: int,
@@ -582,6 +673,68 @@ def _lease_still_held(db: Session, run: BrokerSyncRun, lease_token) -> bool:
     return current == lease_token
 
 
+def _known_provider_event_ids(db: Session, run: BrokerSyncRun, stream: str) -> set[str]:
+    """Provider event ids a finalization has already decided on: the portfolio's
+    API ledger rows, plus every event a completed run of this connection
+    staged. The latter covers events finalization settles without writing a
+    t212_api row (legacy/CSV duplicates, non-trade and invalid fills), which
+    would otherwise stay unknown forever and defeat the stop rule. Once
+    retention purges a run's staging, those events fall back to unknown, which
+    only costs a longer walk."""
+    known = {
+        row[0] for row in db.query(Transaction.source_event_id).filter(
+            Transaction.workspace_id == run.workspace_id,
+            Transaction.portfolio_id == run.portfolio_id,
+            Transaction.source == "t212_api",
+            Transaction.source_event_stream == stream,
+            Transaction.source_event_id.isnot(None),
+        )
+    }
+    completed_runs = db.query(BrokerSyncRun.id).filter(
+        BrokerSyncRun.workspace_id == run.workspace_id,
+        BrokerSyncRun.connection_id == run.connection_id,
+        BrokerSyncRun.state == "completed",
+        BrokerSyncRun.id != run.id,
+    )
+    known.update(
+        row[0] for row in db.query(BrokerSyncEvent.provider_event_id).filter(
+            BrokerSyncEvent.workspace_id == run.workspace_id,
+            BrokerSyncEvent.stream == stream,
+            BrokerSyncEvent.account_fingerprint == run.account_fingerprint,
+            BrokerSyncEvent.run_id.in_(completed_runs.scalar_subquery()),
+        )
+    )
+    return known
+
+
+def _csv_cutoff_for_run(
+    db: Session, run: BrokerSyncRun, connection: BrokerConnection | None,
+) -> datetime | None:
+    """The authoritative T212 CSV coverage cutoff finalize_run applies to this
+    run's portfolio: events at or before it are settled by the CSV export."""
+    portfolio_cutoff = db.query(Portfolio.t212_csv_covered_through).filter(
+        Portfolio.workspace_id == run.workspace_id,
+        Portfolio.id == run.portfolio_id,
+    ).scalar()
+    return _latest_csv_coverage(
+        portfolio_cutoff,
+        connection.t212_csv_covered_through if connection is not None else None,
+    )
+
+
+def _restart_early_stopped_streams(run: BrokerSyncRun) -> None:
+    """A run that turns into an audit mid-way must have read every stream in
+    full, or its audit stamp would vouch for history that was never read. A
+    stream that already stopped early (its known streak reached the stop
+    threshold) is rewound to its first page; re-staging is idempotent."""
+    for stream in STREAMS:
+        if getattr(run, f"{stream}_complete") and getattr(run, f"{stream}_known_streak") >= OVERLAP_PAGES:
+            setattr(run, f"{stream}_complete", False)
+            setattr(run, f"{stream}_next_page_path", None)
+            setattr(run, f"{stream}_known_streak", 0)
+            setattr(run, f"{stream}_last_page_oldest_at", None)
+
+
 def advance_run(
     db: Session,
     run: BrokerSyncRun,
@@ -591,6 +744,7 @@ def advance_run(
     max_pages_per_stream: int = DEFAULT_MAX_PAGES_PER_STREAM,
     lease_token=None,
     reassert_context: Callable[[], None] | None = None,
+    connection: BrokerConnection | None = None,
 ) -> RunAdvanceResult:
     """Fetch a bounded number of pages per incomplete stream, staging events
     and committing a checkpoint after every page (plan §5.3/§5.4). Never
@@ -602,12 +756,24 @@ def advance_run(
     next tenant query context-less. `lease_token`, when given, is
     re-verified after every commit -- if another worker has since reclaimed
     this run, advancing stops immediately (LeaseLost) without losing any
-    already-committed page progress."""
+    already-committed page progress.
+
+    An `incremental` run stops a stream early once the stop rule in
+    `t212_incremental` is satisfied against the connection's history frontier
+    (plan 2026-09-24, Task C2, parent §7); any ordering doubt turns the run
+    into a full `audit` instead. `connection` is looked up from the run when
+    the caller does not have it at hand."""
     run.state = "fetching"
     run.last_error = None
     db.commit()
     if reassert_context:
         reassert_context()
+
+    if connection is None:
+        connection = db.query(BrokerConnection).filter(
+            BrokerConnection.workspace_id == run.workspace_id,
+            BrokerConnection.id == run.connection_id,
+        ).first()
 
     staged_counts = {"orders": 0, "dividends": 0}
     rate_limited: list[str] = []
@@ -617,6 +783,10 @@ def advance_run(
             complete_attr = f"{stream}_complete"
             next_path_attr = f"{stream}_next_page_path"
             loaded_attr = f"{stream}_loaded"
+            streak_attr = f"{stream}_known_streak"
+            oldest_attr = f"{stream}_last_page_oldest_at"
+            known_ids: set[str] | None = None
+            csv_cutoff: datetime | None = None
             if getattr(run, complete_attr):
                 continue
             for _ in range(max_pages_per_stream):
@@ -638,7 +808,45 @@ def advance_run(
                 staged_counts[stream] += staged
                 setattr(run, loaded_attr, getattr(run, loaded_attr) + staged)
                 run.last_progress_at = datetime.now(timezone.utc)
-                if not items or not next_path:
+                stop_early = False
+                frontier = getattr(connection, f"{stream}_frontier_at") if connection else None
+                if run.mode == "incremental" and frontier is not None:
+                    if known_ids is None:
+                        known_ids = _known_provider_event_ids(db, run, stream)
+                        csv_cutoff = _csv_cutoff_for_run(db, run, connection)
+                    page_events = [
+                        (_event_id(stream, item), _extract_provider_timestamp(stream, item))
+                        for item in items
+                    ]
+                    # Events at or before the CSV cutoff are settled by the
+                    # export and never become API rows; they are known too.
+                    page_known = known_ids
+                    if csv_cutoff is not None:
+                        page_known = known_ids | {
+                            event_id for event_id, at in page_events
+                            if at is not None and _as_utc(at) <= csv_cutoff
+                        }
+                    previous_oldest = getattr(run, oldest_attr)
+                    verdict = evaluate_page(
+                        page_events=page_events,
+                        known_ids=page_known,
+                        frontier_at=_as_utc(frontier),
+                        prior_streak=getattr(run, streak_attr),
+                        previous_page_oldest=_as_utc(previous_oldest) if previous_oldest else None,
+                    )
+                    oldest = min((t for _, t in page_events if t is not None), default=None)
+                    if oldest is not None:
+                        setattr(run, oldest_attr, oldest)
+                    if verdict.ordering_violation:
+                        # Ordering doubt: never stop early. Walk on to the end
+                        # of every stream so the run finalizes as a full audit.
+                        setattr(run, streak_attr, 0)
+                        run.mode = "audit"
+                        _restart_early_stopped_streams(run)
+                    else:
+                        setattr(run, streak_attr, verdict.known_streak)
+                        stop_early = verdict.stop
+                if stop_early or not items or not next_path:
                     setattr(run, complete_attr, True)
                     setattr(run, next_path_attr, None)
                     db.commit()
@@ -721,6 +929,7 @@ class FinalizeResult:
     dividends_skipped_invalid: int
     needs_review: bool = False
     unsupported_action_types: tuple[str, ...] = ()
+    revised: int = 0
 
 
 def _corporate_action_type(event: BrokerSyncEvent) -> str | None:
@@ -740,15 +949,40 @@ def _is_csv_covered(event: BrokerSyncEvent, csv_covered_through: datetime | None
     return event_time is not None and event_time <= csv_covered_through
 
 
+def _review_details(events: list[BrokerSyncEvent]) -> list[dict]:
+    """Payload-free, bounded summary of the events that blocked a run: fill
+    type, normalized ticker and calendar date only -- never the raw payload."""
+    seen: set[tuple] = set()
+    details: list[dict] = []
+    for event in events:
+        order = (event.raw_payload or {}).get("order") or {}
+        raw_ticker = (order.get("ticker") or "").strip()
+        when = _staged_event_time(event)
+        item = {
+            "fill_type": _corporate_action_type(event),
+            "ticker": _normalize_t212_ticker(raw_ticker) if raw_ticker else None,
+            "date": when.date().isoformat() if when else None,
+        }
+        key = (item["fill_type"], item["ticker"], item["date"])
+        if key not in seen:
+            seen.add(key)
+            details.append(item)
+    details.sort(key=lambda d: (d["date"] or "", d["fill_type"] or "", d["ticker"] or ""))
+    return details[:REVIEW_DETAILS_LIMIT]
+
+
 def _send_run_to_needs_review(
-    db: Session, run: BrokerSyncRun, action_types: list[str],
+    db: Session, run: BrokerSyncRun, events: list[BrokerSyncEvent],
 ) -> FinalizeResult:
     """Terminal state for a run whose staged history holds corporate actions
     no mapper supports yet (plan §6.2.8). Nothing is written to the ledger, no
     completion or sync marker is set, and the run is not retried: importing
-    only the ordinary trades would leave pre-action share counts unadjusted."""
+    only the ordinary trades would leave pre-action share counts unadjusted.
+    `events` are the blocking events; only a bounded summary is persisted."""
+    action_types = sorted({_corporate_action_type(e) for e in events} - {None})
     run.state = "needs_review"
     run.last_error = HISTORY_NEEDS_REVIEW_ERROR
+    run.review_details = _review_details(events)
     run.lease_token = None
     run.lease_expires_at = None
     try:
@@ -961,6 +1195,41 @@ def _finalize_dividend_event(event: BrokerSyncEvent, run: BrokerSyncRun):
     return "imported", txn
 
 
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+
+def _record_history_coverage(
+    connection: BrokerConnection, run: BrokerSyncRun, events: list[BrokerSyncEvent],
+    now: datetime,
+) -> None:
+    """Advance the connection's per-stream history frontiers for a run that is
+    completing now (plan 2026-09-24, Task C1). An initial/audit run walked the
+    whole history, so it sets each frontier outright; an incremental run only
+    moves a frontier forward. Callers invoke this only on the run's first
+    completion, inside its completion commit."""
+    for stream in STREAMS:
+        staged = [e for e in events if e.stream == stream and e.provider_timestamp is not None]
+        newest = max(
+            staged, key=lambda e: (_as_utc(e.provider_timestamp), e.provider_event_id),
+            default=None,
+        )
+        if newest is None:
+            continue
+        current = getattr(connection, f"{stream}_frontier_at")
+        if (
+            run.mode in {"initial", "audit"}
+            or current is None
+            or _as_utc(newest.provider_timestamp) > _as_utc(current)
+        ):
+            setattr(connection, f"{stream}_frontier_at", newest.provider_timestamp)
+            setattr(connection, f"{stream}_frontier_event_id", newest.provider_event_id)
+    if run.mode in {"initial", "audit"}:
+        connection.history_complete_at = now
+    if run.mode == "audit":
+        connection.last_full_audit_at = now
+
+
 def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> FinalizeResult:
     """Turn `run`'s staged events into Transaction rows. Only a "finalizing"
     run (every page staged), or an already-completed run being retried, may be
@@ -1009,13 +1278,14 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
     # A retry of an already-completed run keeps its idempotent behavior; only
     # a first finalization can be refused for unsupported corporate actions.
     if run.state == "finalizing":
-        unsupported = sorted({
-            action for event in events
+        unsupported_events = [
+            event for event in events
             if (action := _corporate_action_type(event)) is not None
+            and action not in SUPPORTED_CORPORATE_ACTION_TYPES
             and not _is_csv_covered(event, csv_covered_through)
-        })
-        if unsupported:
-            return _send_run_to_needs_review(db, run, unsupported)
+        ]
+        if unsupported_events:
+            return _send_run_to_needs_review(db, run, unsupported_events)
 
     existing_txns = (
         db.query(Transaction)
@@ -1031,9 +1301,12 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
     # with distinct provider IDs are two trades, even on the same day.
     unmatched_legacy_keys: list[set[str]] = []
     existing_source_ids: set[tuple[str, str]] = set()
+    api_rows: dict[tuple[str, str], Transaction] = {}
     for t in existing_txns:
         if t.source_event_id and t.source_event_stream:
             existing_source_ids.add((t.source_event_stream, t.source_event_id))
+            if t.source == "t212_api":
+                api_rows[(t.source_event_stream, t.source_event_id)] = t
             continue
         keys = _dedup_keys(t.ticker, t.date, t.type, t.shares, t.price)
         if t.type == "dividend":
@@ -1043,6 +1316,9 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
     orders_imported = orders_dup = orders_non_trade = orders_invalid = 0
     dividends_imported = dividends_dup = dividends_invalid = 0
     new_txns: list[Transaction] = []
+    # Audit runs only: (existing API row, freshly mapped copy) whose provider
+    # payload changed under the same event id.
+    revisions: list[tuple[Transaction, Transaction]] = []
 
     for event in events:
         if _is_csv_covered(event, csv_covered_through):
@@ -1066,6 +1342,17 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
                 continue
 
         source_key = (event.stream, event.provider_event_id)
+        if run.mode == "audit" and source_key in api_rows:
+            # ID equality is not proof the provider data is unchanged (parent
+            # §7): compare the canonical payload hash and revise on a change.
+            existing_row = api_rows[source_key]
+            if existing_row.source_payload_hash != txn.source_payload_hash:
+                revisions.append((existing_row, txn))
+            elif event.stream == "orders":
+                orders_dup += 1
+            else:
+                dividends_dup += 1
+            continue
         dedup_keys = (
             _dedup_keys(txn.ticker, txn.date, txn.type, txn.shares, txn.price)
             if txn.type != "dividend"
@@ -1092,13 +1379,14 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
     # Price/instrument FX and settled-cash FX can differ. Dividends expose
     # gross per-share value in the instrument currency but paid `amount` in
     # the account's primary currency.
+    revised_copies = [mapped for _, mapped in revisions]
     fx_needed = {
-        (ccy, t.date) for t in new_txns
+        (ccy, t.date) for t in (*new_txns, *revised_copies)
         for ccy in ((t.currency or "USD").upper(), t._native_cash_currency)
         if ccy != "CZK"
     }
     fx_map = bulk_fetch_fx(fx_needed)
-    for t in new_txns:
+    for t in (*new_txns, *revised_copies):
         ccy = t._native_cash_currency
         price_ccy = (t.currency or "USD").upper()
         price_fx = 1.0 if price_ccy == "CZK" else fx_map.get((price_ccy, t.date))
@@ -1113,13 +1401,35 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
             # currency. Keep it usable without inventing a historical FX rate.
             t.cash_amount = t._native_cash_amount
             t.cash_currency = ccy
+    for t in new_txns:
         db.add(t)
+    # Revise in place under the ledger lock taken above. Identity and user
+    # fields (ticker, type, name, notes) are left alone. Once Track B's
+    # corporate-action applications exist, the recorded ratios must be
+    # re-applied to `shares`/`price` here (plan 2026-09-24, Task C3).
+    for existing_row, mapped in revisions:
+        date_moved = mapped.date != existing_row.date
+        existing_row.shares = mapped.shares
+        existing_row.price = mapped.price
+        existing_row.date = mapped.date
+        existing_row.executed_at = mapped.executed_at
+        existing_row.cash_amount = mapped.cash_amount
+        existing_row.cash_currency = mapped.cash_currency
+        existing_row.source_payload_hash = mapped.source_payload_hash
+        existing_row.source_mapper_version = mapped.source_mapper_version
+        if mapped.fx_to_czk is not None:
+            existing_row.fx_to_czk = mapped.fx_to_czk
+        elif date_moved:
+            # No rate for the new date yet; the startup backfill fills it in
+            # rather than leaving the old date's rate on the row.
+            existing_row.fx_to_czk = None
     if run.state != "completed":
         finalized_at = datetime.now(timezone.utc)
         run.state = "completed"
         run.completed_at = finalized_at
         run.last_error = None
         connection.last_synced_at = finalized_at
+        _record_history_coverage(connection, run, events, finalized_at)
     run.lease_token = None
     run.lease_expires_at = None
     try:
@@ -1136,4 +1446,5 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
         dividends_imported=dividends_imported,
         dividends_skipped_duplicate=dividends_dup,
         dividends_skipped_invalid=dividends_invalid,
+        revised=len(revisions),
     )

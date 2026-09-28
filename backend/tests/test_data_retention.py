@@ -5,6 +5,9 @@ from datetime import date, datetime, timedelta, timezone
 from data_retention import cleanup_retained_operational_data
 from models import (
     AuthSession,
+    BrokerConnection,
+    BrokerSyncEvent,
+    BrokerSyncRun,
     DividendNotification,
     NotificationOutbox,
     UsageCounter,
@@ -23,6 +26,60 @@ def _session(user_id, suffix: str, *, expires_at, revoked_at=None):
         expires_at=expires_at,
         revoked_at=revoked_at,
     )
+
+
+def _connection(db, portfolio):
+    connection = BrokerConnection(
+        workspace_id=portfolio.workspace_id,
+        portfolio_id=portfolio.id,
+        broker="trading212",
+        api_key_ciphertext=b"test-key",
+        api_key_key_version="test",
+        account_fingerprint="f" * 64,
+    )
+    db.add(connection)
+    db.commit()
+    db.refresh(connection)
+    return connection
+
+
+def _sync_run(db, connection, portfolio, *, state, age_days):
+    timestamp = NOW - timedelta(days=age_days)
+    run = BrokerSyncRun(
+        workspace_id=portfolio.workspace_id,
+        portfolio_id=portfolio.id,
+        connection_id=connection.id,
+        broker="trading212",
+        account_fingerprint=connection.account_fingerprint,
+        credential_generation=connection.credential_generation,
+        mode="incremental",
+        state=state,
+        completed_at=(
+            timestamp if state in {"completed", "failed", "cancelled"} else None
+        ),
+        created_at=timestamp,
+        updated_at=timestamp,
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+def _staged_event(db, run, event_id):
+    event = BrokerSyncEvent(
+        workspace_id=run.workspace_id,
+        portfolio_id=run.portfolio_id,
+        run_id=run.id,
+        broker="trading212",
+        account_fingerprint=run.account_fingerprint,
+        stream="orders",
+        provider_event_id=event_id,
+        raw_payload={"fill": {"id": event_id, "type": "TRADE"}},
+    )
+    db.add(event)
+    db.commit()
+    return event
 
 
 def test_cleanup_removes_only_expired_operational_records(
@@ -122,6 +179,7 @@ def test_cleanup_removes_only_expired_operational_records(
         "usage_reservations": 1,
         "notification_outbox": 1,
         "dividend_notifications": 1,
+        "broker_sync_events": 0,
     }
     assert db_session.query(AuthSession).count() == 2
     assert db_session.query(UsageReservation).count() == 1
@@ -140,3 +198,99 @@ def test_cleanup_rejects_unbounded_or_empty_batch(db_session):
         assert str(exc) == "max_rows_per_category must be positive"
     else:
         raise AssertionError("expected ValueError")
+
+
+def test_old_completed_run_events_are_purged(db_session, default_portfolio):
+    connection = _connection(db_session, default_portfolio)
+    run = _sync_run(
+        db_session,
+        connection,
+        default_portfolio,
+        state="completed",
+        age_days=15,
+    )
+    _staged_event(db_session, run, "fill:old-completed")
+
+    summary = cleanup_retained_operational_data(db_session, now=NOW)
+
+    assert db_session.query(BrokerSyncEvent).count() == 0
+    assert summary["broker_sync_events"] == 1
+
+
+def test_recent_completed_run_events_are_kept(db_session, default_portfolio):
+    connection = _connection(db_session, default_portfolio)
+    run = _sync_run(
+        db_session,
+        connection,
+        default_portfolio,
+        state="completed",
+        age_days=3,
+    )
+    _staged_event(db_session, run, "fill:recent-completed")
+
+    summary = cleanup_retained_operational_data(db_session, now=NOW)
+
+    assert db_session.query(BrokerSyncEvent).count() == 1
+    assert summary["broker_sync_events"] == 0
+
+
+def test_latest_needs_review_run_events_are_never_purged(
+    db_session, default_portfolio
+):
+    connection = _connection(db_session, default_portfolio)
+    run = _sync_run(
+        db_session,
+        connection,
+        default_portfolio,
+        state="needs_review",
+        age_days=200,
+    )
+    _staged_event(db_session, run, "fill:latest-review")
+
+    summary = cleanup_retained_operational_data(db_session, now=NOW)
+
+    assert db_session.query(BrokerSyncEvent).count() == 1
+    assert summary["broker_sync_events"] == 0
+
+
+def test_superseded_old_needs_review_events_are_purged(
+    db_session, default_portfolio
+):
+    connection = _connection(db_session, default_portfolio)
+    old_run = _sync_run(
+        db_session,
+        connection,
+        default_portfolio,
+        state="needs_review",
+        age_days=100,
+    )
+    _staged_event(db_session, old_run, "fill:superseded-review")
+    _sync_run(
+        db_session,
+        connection,
+        default_portfolio,
+        state="completed",
+        age_days=1,
+    )
+
+    summary = cleanup_retained_operational_data(db_session, now=NOW)
+
+    assert db_session.query(BrokerSyncEvent).count() == 0
+    assert summary["broker_sync_events"] == 1
+
+
+def test_active_run_events_are_never_purged(db_session, default_portfolio):
+    connection = _connection(db_session, default_portfolio)
+    run = _sync_run(
+        db_session,
+        connection,
+        default_portfolio,
+        state="fetching",
+        age_days=30,
+    )
+    _staged_event(db_session, run, "fill:active")
+
+    summary = cleanup_retained_operational_data(db_session, now=NOW)
+
+    assert db_session.query(BrokerSyncEvent).count() == 1
+    assert summary["broker_sync_events"] == 0

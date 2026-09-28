@@ -1,6 +1,6 @@
 # Portfyl Data Processing Inventory
 
-Last technical review: 2026-09-19
+Last technical review: 2026-09-24
 
 This document describes the implemented Portfyl runtime. It is an engineering
 record for privacy review, incident response, export/deletion maintenance, and
@@ -54,6 +54,7 @@ legal bases on behalf of the service operator.
 | Portfolio financial data | Portfolio metadata, transactions, tickers, quantities, prices, cash, currencies, dates, notes, FX rates, current broker-reported open positions | `portfolios`, `transactions`, `broker_balances`, `broker_positions`, `cash_interest_rates`, `options_trades`, `polymarket_positions`, `trade_notes` | Neon; selected tickers/date ranges are sent to market-data sources as needed | Core portfolio and transaction data is exported, including the current `broker_positions` snapshot; current export schema intentionally does not yet include every derived/specialist table. `broker_positions` is replaced atomically on each sync and never substitutes for ledger data in historical/tax calculations. Tenant rows cascade with workspace deletion. |
 | Research and organization | Watchlists/items, benchmarks/components, price alerts | Corresponding workspace tables | Market-data providers when data is requested for a ticker | Watchlists/items and alerts are exported; benchmarks are currently outside export schema v1. Tenant rows cascade with workspace deletion. |
 | Broker connections | Broker, environment, sync state/coverage, keyed non-reversible upstream-account fingerprint, encrypted API credentials and key version, bounded operational state | `broker_connections`, `portfolios` | Trading 212 or IBKR when the user connects/syncs | Export contains allow-listed connection metadata and the opaque account fingerprint only. Raw provider account IDs, credentials, ciphertext, key versions, and raw error text are excluded. Rows cascade with workspace deletion. |
+| Broker sync staging | Raw Trading 212 order-fill and dividend payloads staged for resumable history finalization and corporate-action review | `broker_sync_events`, linked to `broker_sync_runs` | Neon and Cloud Run; payloads originate from Trading 212 | Never logged or exported. Events for completed, failed, or cancelled runs are deleted after 14 days. Superseded `needs_review` evidence is deleted after 90 days, while the latest `needs_review` run per connection is retained as the local redacted-capture source. Non-terminal runs are never age-purged. Rows cascade with workspace deletion. |
 | Notification integrations | Encrypted Discord webhook, notification preferences, delivery/dedup state and bounded errors | `discord_webhooks`, `dividend_notifications`, `notification_outbox` | Discord only when configured and triggered by the user | Secret URLs are never exported or logged. Workspace deletion cascades integration and queued delivery state. |
 | User/workspace settings | Theme/display preferences, workspace configuration, deletion-request state | `user_settings`, `workspace_settings` | Normally none | Deletion state is not part of export v1. Workspace settings cascade with workspace; personal settings cascade with final user deletion. |
 | Usage and abuse prevention | Capability metric/period/count, idempotency reservations, HMAC rate-limit identity/count/expiry | `usage_counters`, `usage_reservations`, `rate_limit_buckets` | Cloud Run/Neon; Cloudflare supplies edge/client-IP context | Not exported. Workspace usage rows cascade with workspace. Finalized/released reservations are deleted after 90 days; expired HMAC rate-limit buckets are deleted hourly. |
@@ -92,6 +93,9 @@ redistribution permission. The market-data workstream remains a launch blocker.
   usage reservations and completed/terminal notification-outbox rows are
   removed after 90 days; dividend-notification deduplication rows are removed
   after 400 days. Each category is bounded to 10,000 deletions per daily run.
+- Staged broker events are removed 14 days after terminal completion, or after
+  90 days for superseded `needs_review` runs. The latest `needs_review` run per
+  connection and every non-terminal run remain available.
 - In-process caches are TTL-bound or disappear with the instance.
 
 ### Approved current private-test baseline

@@ -301,6 +301,8 @@ export const fetchT212Positions = (currency = "USD") =>
   api.get("/broker/trading212/positions", { params: { currency } }).then((r) => r.data);
 export const fetchT212HistoryStatus = () =>
   api.get("/broker/trading212/history-status").then((r) => r.data);
+export const retryT212History = () =>
+  api.post("/broker/trading212/history/retry").then((r) => r.data);
 
 export const fetchCombinedSummary = (currency = "USD") =>
   api.get(`/portfolio/combined-summary`, { params: { currency } }).then((r) => r.data);

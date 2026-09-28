@@ -13,6 +13,8 @@ import pytest
 
 import t212_sync
 from models import BrokerConnection, BrokerSyncEvent, BrokerSyncRun, Portfolio
+from t212_incremental import OVERLAP_PAGES
+from tests.helpers import make_txn
 
 
 # ---------------------------------------------------------------------------
@@ -527,3 +529,528 @@ class TestAdvanceRun:
         assert db_session.query(BrokerSyncEvent).filter(
             BrokerSyncEvent.stream == "orders"
         ).count() == 1
+
+
+# ---------------------------------------------------------------------------
+# history_run_decision (plan 2026-09-24, Task A4)
+# ---------------------------------------------------------------------------
+
+SPLIT = [{"fill_type": "STOCK_SPLIT", "ticker": "NVDA", "date": "2024-06-10"}]
+
+
+@pytest.fixture
+def connection(db_session, default_portfolio):
+    conn = BrokerConnection(
+        workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+        broker="trading212", api_key="k" * 20, account_fingerprint="f" * 64,
+    )
+    db_session.add(conn)
+    db_session.commit()
+    db_session.refresh(conn)
+    return conn
+
+
+def _review_run(db, conn, portfolio, details):
+    run = BrokerSyncRun(
+        workspace_id=conn.workspace_id, portfolio_id=portfolio.id, connection_id=conn.id,
+        broker="trading212", account_fingerprint=conn.account_fingerprint,
+        credential_generation=conn.credential_generation, mode="incremental",
+        state="needs_review", review_details=details,
+    )
+    db.add(run)
+    db.commit()
+    return run
+
+
+class TestHistoryRunDecision:
+    def test_blocked_when_needs_review_is_unresolved(self, db_session, default_portfolio, connection):
+        run = _review_run(db_session, connection, default_portfolio, SPLIT)
+        decision = t212_sync.history_run_decision(db_session, connection, default_portfolio)
+        assert decision.action == "blocked"
+        assert decision.run.id == run.id
+
+    def test_force_creates_a_new_run(self, db_session, default_portfolio, connection):
+        _review_run(db_session, connection, default_portfolio, SPLIT)
+        decision = t212_sync.history_run_decision(
+            db_session, connection, default_portfolio, force=True,
+        )
+        assert decision.action == "create"
+
+    def test_csv_coverage_past_last_action_unblocks(self, db_session, default_portfolio, connection):
+        _review_run(db_session, connection, default_portfolio, SPLIT)
+        connection.t212_csv_covered_through = datetime(2024, 6, 11, tzinfo=timezone.utc)
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).action == "create"
+
+    def test_csv_coverage_inside_action_day_stays_blocked(
+        self, db_session, default_portfolio, connection
+    ):
+        _review_run(db_session, connection, default_portfolio, SPLIT)
+        connection.t212_csv_covered_through = datetime(2024, 6, 10, 12, tzinfo=timezone.utc)
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).action == "blocked"
+
+    def test_newly_supported_type_unblocks(
+        self, db_session, default_portfolio, connection, monkeypatch
+    ):
+        _review_run(db_session, connection, default_portfolio, SPLIT)
+        monkeypatch.setattr(
+            t212_sync, "SUPPORTED_CORPORATE_ACTION_TYPES", frozenset({"STOCK_SPLIT"}),
+        )
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).action == "create"
+
+    def test_legacy_needs_review_without_details_is_blocked(
+        self, db_session, default_portfolio, connection
+    ):
+        _review_run(db_session, connection, default_portfolio, None)
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).action == "blocked"
+
+    def test_failed_latest_run_creates(self, db_session, default_portfolio, connection):
+        run = _review_run(db_session, connection, default_portfolio, SPLIT)
+        run.state = "failed"
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).action == "create"
+
+    def test_active_run_is_reused(self, db_session, default_portfolio, connection):
+        run = _review_run(db_session, connection, default_portfolio, SPLIT)
+        run.state = "fetching"
+        db_session.commit()
+        decision = t212_sync.history_run_decision(db_session, connection, default_portfolio)
+        assert decision.action == "reuse"
+        assert decision.run.id == run.id
+
+    def test_only_the_latest_run_matters(self, db_session, default_portfolio, connection):
+        old = _review_run(db_session, connection, default_portfolio, SPLIT)
+        old.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        db_session.commit()
+        newer = _review_run(db_session, connection, default_portfolio, SPLIT)
+        newer.state = "completed"
+        newer.created_at = datetime(2024, 2, 1, tzinfo=timezone.utc)
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).action == "create"
+
+
+class TestHistoryRunMode:
+    """Plan 2026-09-24 Task C1: the create branch picks the run mode."""
+
+    def test_create_mode_is_initial_without_coverage(
+        self, db_session, default_portfolio, connection
+    ):
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).mode == "initial"
+
+    def test_create_mode_is_incremental_with_coverage(
+        self, db_session, default_portfolio, connection
+    ):
+        connection.history_complete_at = datetime(2026, 9, 1, tzinfo=timezone.utc)
+        connection.last_full_audit_at = datetime.now(timezone.utc)
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).mode == "incremental"
+
+    def test_forced_retry_without_coverage_is_initial(
+        self, db_session, default_portfolio, connection
+    ):
+        _review_run(db_session, connection, default_portfolio, SPLIT)
+        decision = t212_sync.history_run_decision(
+            db_session, connection, default_portfolio, force=True,
+        )
+        assert (decision.action, decision.mode) == ("create", "initial")
+
+
+# ---------------------------------------------------------------------------
+# Incremental stop rule wired into advance_run (plan 2026-09-24, Task C2)
+# ---------------------------------------------------------------------------
+
+FRONTIER = datetime(2024, 6, 1, tzinfo=timezone.utc)
+
+
+def _iso(days_before):
+    return (FRONTIER - timedelta(days=days_before)).isoformat().replace("+00:00", "Z")
+
+
+def _order_item(event_id, days_before):
+    return {"order": {"id": f"o-{event_id}", "ticker": "AAPL_US_EQ"},
+            "fill": {"id": event_id, "filledAt": _iso(days_before)}}
+
+
+def _dividend_item(reference, days_before):
+    return {"reference": reference, "ticker": "KO", "paidOn": _iso(days_before)}
+
+
+def _incremental_run(db, portfolio, *, mode="incremental", frontier=FRONTIER):
+    conn = BrokerConnection(
+        workspace_id=portfolio.workspace_id, portfolio_id=portfolio.id,
+        broker="trading212", api_key="k" * 20, account_fingerprint="f" * 64,
+        history_complete_at=frontier, orders_frontier_at=frontier,
+        dividends_frontier_at=frontier,
+    )
+    db.add(conn)
+    db.flush()
+    run = BrokerSyncRun(
+        workspace_id=portfolio.workspace_id, portfolio_id=portfolio.id,
+        connection_id=conn.id, broker="trading212", account_fingerprint="f" * 64,
+        credential_generation=conn.credential_generation, mode=mode, state="pending",
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    return conn, run
+
+
+def _known(db, portfolio, event_ids, *, stream="orders", source="t212_api", prefix="fill"):
+    for event_id in event_ids:
+        txn = make_txn(
+            "AAPL", "buy", 1, 100, portfolio_id=portfolio.id, source=source,
+            workspace_id=portfolio.workspace_id,
+        )
+        txn.source_event_id = f"{prefix}:{event_id}"
+        txn.source_event_stream = stream
+        db.add(txn)
+    db.commit()
+
+
+def _scripted_fetch(pages_by_stream):
+    """A stand-in for t212_sync._fetch_stream_page serving scripted pages
+    (newest first) and counting the pages fetched per stream."""
+    calls = {"orders": 0, "dividends": 0}
+
+    def fake(base, headers, stream, next_path):
+        index = 0 if next_path is None else int(next_path.removeprefix("page"))
+        calls[stream] += 1
+        pages = pages_by_stream.get(stream, [[]])
+        following = f"page{index + 1}" if index + 1 < len(pages) else None
+        return pages[index], following
+
+    return fake, calls
+
+
+def _advance(db, run, pages_by_stream, **kwargs):
+    fake, calls = _scripted_fetch(pages_by_stream)
+    with patch("t212_sync._fetch_stream_page", side_effect=fake):
+        result = t212_sync.advance_run(
+            db, run, "https://x", {}, max_pages_per_stream=10, **kwargs,
+        )
+    return result, calls
+
+
+class TestIncrementalStopRule:
+    def test_stops_after_overlap_pages_past_the_frontier(self, db_session, default_portfolio):
+        conn, run = _incremental_run(db_session, default_portfolio)
+        _known(db_session, default_portfolio, ["k1", "k2", "k3", "k4", "k5", "k6"])
+        pages = {"orders": [
+            [_order_item("new", -1), _order_item("k1", 0)],
+            [_order_item("k2", 8), _order_item("k3", 9)],
+            [_order_item("k4", 10), _order_item("k5", 11)],
+            [_order_item("k6", 12)],
+        ]}
+
+        result, calls = _advance(db_session, run, pages, connection=conn)
+
+        assert calls["orders"] == 1 + OVERLAP_PAGES
+        db_session.refresh(run)
+        assert run.orders_complete is True
+        assert run.orders_next_page_path is None
+        assert run.orders_known_streak == OVERLAP_PAGES
+        assert run.mode == "incremental"
+        assert result.state == "finalizing"
+        staged = {e.provider_event_id for e in db_session.query(BrokerSyncEvent).filter(
+            BrokerSyncEvent.stream == "orders")}
+        assert staged == {"fill:new", "fill:k1", "fill:k2", "fill:k3", "fill:k4", "fill:k5"}
+
+    def test_connection_is_looked_up_when_not_passed(self, db_session, default_portfolio):
+        conn, run = _incremental_run(db_session, default_portfolio)
+        _known(db_session, default_portfolio, ["k1", "k2", "k3", "k4", "k5"])
+        pages = {"orders": [
+            [_order_item("k1", 8)], [_order_item("k2", 9)], [_order_item("k3", 10)],
+            [_order_item("k4", 11)], [_order_item("k5", 12)],
+        ]}
+
+        _, calls = _advance(db_session, run, pages)
+
+        # Pages 1 and 2 are fully known and past the overlap window: streak 2.
+        assert calls["orders"] == OVERLAP_PAGES
+        db_session.refresh(run)
+        assert run.orders_known_streak == OVERLAP_PAGES
+
+    def test_unknown_old_event_keeps_the_walk_going(self, db_session, default_portfolio):
+        conn, run = _incremental_run(db_session, default_portfolio)
+        _known(db_session, default_portfolio, ["k1", "k2", "k3", "k4", "k5"])
+        pages = {"orders": [
+            [_order_item("k1", 1)],
+            [_order_item("k2", 8)],
+            [_order_item("k3", 9), _order_item("u1", 10)],
+            [_order_item("k4", 11)],
+            [_order_item("u2", 12)],
+            [_order_item("k5", 13)],
+        ]}
+
+        _, calls = _advance(db_session, run, pages, connection=conn)
+
+        assert calls["orders"] == 6
+        db_session.refresh(run)
+        assert run.orders_complete is True
+        assert run.orders_known_streak == 1
+
+    def test_page_newer_than_the_previous_one_falls_back_to_an_audit(
+        self, db_session, default_portfolio
+    ):
+        conn, run = _incremental_run(db_session, default_portfolio)
+        _known(db_session, default_portfolio, ["k1", "k2", "k3", "k4", "k5", "k6"])
+        pages = {"orders": [
+            [_order_item("k1", 8), _order_item("k2", 9)],
+            [_order_item("k3", 5)],  # newer than page 1's oldest event
+            [_order_item("k4", 12)],
+            [_order_item("k5", 13)],
+            [_order_item("k6", 14)],
+        ]}
+
+        _, calls = _advance(db_session, run, pages, connection=conn)
+
+        assert calls["orders"] == 5
+        db_session.refresh(run)
+        assert run.mode == "audit"
+        assert run.orders_complete is True
+
+    def test_initial_run_never_stops_early(self, db_session, default_portfolio):
+        conn, run = _incremental_run(db_session, default_portfolio, mode="initial")
+        _known(db_session, default_portfolio, ["k1", "k2", "k3", "k4", "k5", "k6"])
+        pages = {"orders": [
+            [_order_item("k1", 8)], [_order_item("k2", 9)], [_order_item("k3", 10)],
+            [_order_item("k4", 11)], [_order_item("k5", 12)], [_order_item("k6", 13)],
+        ]}
+
+        _, calls = _advance(db_session, run, pages, connection=conn)
+
+        assert calls["orders"] == 6
+        db_session.refresh(run)
+        assert run.mode == "initial"
+        assert run.orders_known_streak == 0
+
+    def test_incremental_run_without_a_frontier_never_stops_early(
+        self, db_session, default_portfolio
+    ):
+        conn, run = _incremental_run(db_session, default_portfolio, frontier=None)
+        _known(db_session, default_portfolio, ["k1", "k2", "k3", "k4", "k5"])
+        pages = {"orders": [
+            [_order_item("k1", 8)], [_order_item("k2", 9)], [_order_item("k3", 10)],
+            [_order_item("k4", 11)], [_order_item("k5", 12)],
+        ]}
+
+        _, calls = _advance(db_session, run, pages, connection=conn)
+
+        assert calls["orders"] == 5
+
+    def test_only_provider_api_rows_count_as_known(self, db_session, default_portfolio):
+        conn, run = _incremental_run(db_session, default_portfolio)
+        _known(db_session, default_portfolio, ["k1", "k2", "k3", "k4", "k5"], source="t212_csv")
+        pages = {"orders": [
+            [_order_item("k1", 8)], [_order_item("k2", 9)], [_order_item("k3", 10)],
+            [_order_item("k4", 11)], [_order_item("k5", 12)],
+        ]}
+
+        _, calls = _advance(db_session, run, pages, connection=conn)
+
+        assert calls["orders"] == 5
+
+    def test_csv_covered_events_count_as_known(self, db_session, default_portfolio):
+        # Finalization skips everything at or before the authoritative CSV
+        # cutoff, so those events never become t212_api rows. Treating them as
+        # unknown would turn every incremental sync of a CSV-seeded portfolio
+        # into a full walk.
+        conn, run = _incremental_run(db_session, default_portfolio)
+        conn.t212_csv_covered_through = FRONTIER - timedelta(days=8)
+        db_session.commit()
+        pages = {"orders": [
+            [_order_item("c1", 8)], [_order_item("c2", 9)], [_order_item("c3", 10)],
+            [_order_item("c4", 11)], [_order_item("c5", 12)],
+        ]}
+
+        _, calls = _advance(db_session, run, pages, connection=conn)
+
+        assert calls["orders"] == OVERLAP_PAGES
+
+    def test_events_after_the_csv_cutoff_are_not_known_by_time(
+        self, db_session, default_portfolio
+    ):
+        conn, run = _incremental_run(db_session, default_portfolio)
+        default_portfolio.t212_csv_covered_through = FRONTIER - timedelta(days=30)
+        db_session.commit()
+        pages = {"orders": [
+            [_order_item("c1", 8)], [_order_item("c2", 9)], [_order_item("c3", 10)],
+        ]}
+
+        _, calls = _advance(db_session, run, pages, connection=conn)
+
+        assert calls["orders"] == 3
+
+    def test_events_a_completed_run_already_finalized_count_as_known(
+        self, db_session, default_portfolio
+    ):
+        # Legacy-duplicate, non-trade, and invalid events are decided by
+        # finalization without ever becoming t212_api rows.
+        conn, run = _incremental_run(db_session, default_portfolio)
+        previous = BrokerSyncRun(
+            workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+            connection_id=conn.id, broker="trading212", account_fingerprint="f" * 64,
+            credential_generation=conn.credential_generation, mode="initial",
+            state="completed",
+        )
+        db_session.add(previous)
+        db_session.flush()
+        for event_id in ("d1", "d2", "d3"):
+            db_session.add(BrokerSyncEvent(
+                workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+                run_id=previous.id, broker="trading212", account_fingerprint="f" * 64,
+                stream="orders", provider_event_id=f"fill:{event_id}", raw_payload={},
+            ))
+        db_session.commit()
+        pages = {"orders": [
+            [_order_item("d1", 8)], [_order_item("d2", 9)], [_order_item("d3", 10)],
+        ]}
+
+        _, calls = _advance(db_session, run, pages, connection=conn)
+
+        assert calls["orders"] == OVERLAP_PAGES
+
+    def test_events_of_a_needs_review_run_are_not_known(self, db_session, default_portfolio):
+        conn, run = _incremental_run(db_session, default_portfolio)
+        blocked = BrokerSyncRun(
+            workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+            connection_id=conn.id, broker="trading212", account_fingerprint="f" * 64,
+            credential_generation=conn.credential_generation, mode="initial",
+            state="needs_review",
+        )
+        db_session.add(blocked)
+        db_session.flush()
+        for event_id in ("r1", "r2", "r3"):
+            db_session.add(BrokerSyncEvent(
+                workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+                run_id=blocked.id, broker="trading212", account_fingerprint="f" * 64,
+                stream="orders", provider_event_id=f"fill:{event_id}", raw_payload={},
+            ))
+        db_session.commit()
+        pages = {"orders": [
+            [_order_item("r1", 8)], [_order_item("r2", 9)], [_order_item("r3", 10)],
+        ]}
+
+        _, calls = _advance(db_session, run, pages, connection=conn)
+
+        assert calls["orders"] == 3
+
+    def test_audit_fallback_restarts_a_stream_that_already_stopped_early(
+        self, db_session, default_portfolio
+    ):
+        conn, run = _incremental_run(db_session, default_portfolio)
+        _known(db_session, default_portfolio, ["k1", "k2", "k3", "k4", "k5", "k6"])
+        _known(db_session, default_portfolio, ["dk1", "dk2", "dk3", "dk4"],
+               stream="dividends", prefix="dividend")
+        orders = [
+            [_order_item("new", -1), _order_item("k1", 0)],
+            [_order_item("k2", 8), _order_item("k3", 9)],
+            [_order_item("k4", 10), _order_item("k5", 11)],
+            [_order_item("k6", 12)],
+        ]
+        dividends = [
+            [_dividend_item("dk1", 8), _dividend_item("dk2", 9)],
+            [_dividend_item("dk3", 5)],  # newer than the previous page: ordering doubt
+            [_dividend_item("dk4", 12)],
+        ]
+
+        first, first_calls = _advance(
+            db_session, run, {"orders": orders, "dividends": dividends}, connection=conn,
+        )
+
+        # Orders stopped early (3 of 4 pages), then dividends flipped the run to
+        # an audit: orders must be walked again in full, or the audit stamp
+        # would vouch for history that was never read.
+        assert first_calls["orders"] == 3
+        db_session.refresh(run)
+        assert run.mode == "audit"
+        assert run.orders_complete is False
+        assert run.orders_next_page_path is None
+        assert run.orders_known_streak == 0
+        assert run.dividends_complete is True
+        assert first.state == "fetching"
+
+        second, second_calls = _advance(
+            db_session, run, {"orders": orders, "dividends": dividends}, connection=conn,
+        )
+
+        assert second_calls["orders"] == 4
+        assert second_calls["dividends"] == 0
+        db_session.refresh(run)
+        assert run.orders_complete is True
+        assert second.state == "finalizing"
+
+
+class TestHistoryRunAuditMode:
+    """Plan 2026-09-24 Task C3: 30-day and mismatch-triggered audits."""
+
+    def test_mode_is_audit_after_30_days(self, db_session, default_portfolio, connection):
+        connection.history_complete_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        connection.last_full_audit_at = datetime.now(timezone.utc) - timedelta(days=31)
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).mode == "audit"
+
+    def test_mode_is_incremental_within_30_days(self, db_session, default_portfolio, connection):
+        connection.history_complete_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        connection.last_full_audit_at = datetime.now(timezone.utc) - timedelta(days=5)
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).mode == "incremental"
+
+    def test_reconciliation_mismatch_forces_audit(self, db_session, default_portfolio, connection):
+        connection.history_complete_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        connection.last_full_audit_at = datetime.now(timezone.utc)
+        db_session.commit()
+        decision = t212_sync.history_run_decision(
+            db_session, connection, default_portfolio, reconciliation_mismatch=True,
+        )
+        assert decision.mode == "audit"
+
+    def test_recent_initial_run_counts_as_a_full_read(
+        self, db_session, default_portfolio, connection
+    ):
+        # An initial run read the whole history; the next sync must not audit
+        # it again just because no audit has ever been recorded.
+        connection.history_complete_at = datetime.now(timezone.utc) - timedelta(days=2)
+        db_session.commit()
+        assert connection.last_full_audit_at is None
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).mode == "incremental"
+
+    def test_old_initial_run_without_an_audit_becomes_an_audit(
+        self, db_session, default_portfolio, connection
+    ):
+        connection.history_complete_at = datetime.now(timezone.utc) - timedelta(days=31)
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).mode == "audit"
+
+    def test_mismatch_before_history_completes_still_starts_an_initial_run(
+        self, db_session, default_portfolio, connection
+    ):
+        decision = t212_sync.history_run_decision(
+            db_session, connection, default_portfolio, reconciliation_mismatch=True,
+        )
+        assert decision.mode == "initial"

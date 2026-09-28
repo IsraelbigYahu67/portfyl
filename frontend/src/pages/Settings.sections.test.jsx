@@ -2,13 +2,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
-import Settings from "./Settings";
+import Settings, { HistoryBackfillStatus } from "./Settings";
 
 const mocks = vi.hoisted(() => ({
   fetchT212Status: vi.fn(),
   fetchT212HistoryStatus: vi.fn(),
   fetchT212Positions: vi.fn(),
   syncT212: vi.fn(),
+  retryT212History: vi.fn(),
   discordMount: vi.fn(),
   dataMount: vi.fn(),
 }));
@@ -20,6 +21,7 @@ vi.mock("../api", () => ({
   connectT212: vi.fn(),
   disconnectT212: vi.fn(),
   syncT212: mocks.syncT212,
+  retryT212History: mocks.retryT212History,
   setT212AutoSync: vi.fn(),
 }));
 
@@ -220,6 +222,109 @@ describe("Trading 212 history backfill progress", () => {
     expect(screen.getByText(/corporate actions.*cannot import automatically yet/i)).toBeInTheDocument();
     expect(screen.queryByText(/this page can be closed/i)).not.toBeInTheDocument();
     expect(screen.queryByText("History imported")).not.toBeInTheDocument();
+  });
+});
+
+describe("Trading 212 needs-review panel", () => {
+  const baseRun = {
+    state: "needs_review", orders_loaded: 40, dividends_loaded: 10,
+    last_error: "Trading 212 history contains corporate actions (such as splits) that Portfyl cannot import automatically yet. No history was imported.",
+  };
+  const review = (overrides = {}) => ({
+    items: [{ fill_type: "STOCK_SPLIT", ticker: "NVDA", date: "2024-06-10" }],
+    csv_needed_through: "2024-06-10", csv_covers_all: false, mapper_supports_all: false, ...overrides,
+  });
+
+  it("lists the blocking items, links to the CSV import and offers a retry", () => {
+    const onRetry = vi.fn();
+    render(
+      <MemoryRouter>
+        <HistoryBackfillStatus run={{ ...baseRun, review: review() }} onRetry={onRetry} retryPending={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/Stock split · NVDA · 2024-06-10/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Trading 212 CSV export/i })).toHaveAttribute("href", "/import");
+    expect(screen.getByText(/covers at least through 2024-06-10/i)).toBeInTheDocument();
+    const retry = screen.getByRole("button", { name: /Retry history import/i });
+    expect(retry).toBeEnabled();
+    fireEvent.click(retry);
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the raw type and an unknown date for unlabelled items", () => {
+    render(
+      <MemoryRouter>
+        <HistoryBackfillStatus
+          run={{ ...baseRun, review: review({ items: [{ fill_type: "MERGER", ticker: null, date: null }], csv_needed_through: null }) }}
+          onRetry={() => {}} retryPending={false}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/MERGER · unknown · unknown date/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Trading 212 CSV export/i })).not.toBeInTheDocument();
+  });
+
+  it("tells the user a retry can succeed once the CSV already covers the actions", () => {
+    render(
+      <MemoryRouter>
+        <HistoryBackfillStatus run={{ ...baseRun, review: review({ csv_covers_all: true }) }} onRetry={() => {}} retryPending={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/already covers this history/i)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Trading 212 CSV export/i })).not.toBeInTheDocument();
+  });
+
+  it("disables the retry while one is pending", () => {
+    render(
+      <MemoryRouter>
+        <HistoryBackfillStatus run={{ ...baseRun, review: review() }} onRetry={() => {}} retryPending />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("button", { name: /Retry history import/i })).toBeDisabled();
+  });
+
+  it("shows no panel for other states or when the run has no review data", () => {
+    const { rerender } = render(
+      <MemoryRouter>
+        <HistoryBackfillStatus run={{ ...baseRun, review: null }} onRetry={() => {}} retryPending={false} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole("button", { name: /Retry history import/i })).not.toBeInTheDocument();
+
+    rerender(
+      <MemoryRouter>
+        <HistoryBackfillStatus run={{ ...baseRun, state: "completed", review: review() }} onRetry={() => {}} retryPending={false} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole("button", { name: /Retry history import/i })).not.toBeInTheDocument();
+  });
+
+  it("retries from Settings and refetches the run", async () => {
+    mocks.fetchT212Status.mockResolvedValue({ connected: true, auto_sync: false, api_key_preview: "••••1234" });
+    mocks.fetchT212HistoryStatus.mockResolvedValue({ connected: true, run: { id: "run-1", ...baseRun, review: review() } });
+    mocks.retryT212History.mockResolvedValue({ run_id: "run-2", status: "pending", complete: false, blocked: false });
+    mount("/settings?section=connections");
+
+    fireEvent.click(await screen.findByRole("button", { name: /Retry history import/i }));
+
+    await waitFor(() => expect(mocks.retryT212History).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.fetchT212HistoryStatus.mock.calls.length).toBeGreaterThan(1));
+  });
+
+  it("surfaces a failed retry instead of failing silently", async () => {
+    mocks.fetchT212Status.mockResolvedValue({ connected: true, auto_sync: false, api_key_preview: "••••1234" });
+    mocks.fetchT212HistoryStatus.mockResolvedValue({ connected: true, run: { id: "run-1", ...baseRun, review: review() } });
+    mocks.retryT212History.mockRejectedValue({ response: { status: 429, data: { detail: "Trading 212 rate limit reached" } } });
+    mount("/settings?section=connections");
+
+    fireEvent.click(await screen.findByRole("button", { name: /Retry history import/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/rate limit reached/i);
+    expect(screen.getByRole("button", { name: /Retry history import/i })).toBeEnabled();
   });
 });
 

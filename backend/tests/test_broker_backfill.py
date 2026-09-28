@@ -347,3 +347,17 @@ class TestBrokerBackfillPass:
             results = _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID, max_runs=1))
 
         assert len(results) == 1
+
+
+class TestBackfillNeverCreatesRuns:
+    """Plan 2026-09-24 Task C3: only a sync (manual, or autosync for auto_sync
+    connections) or an explicit retry creates runs, so a connection with
+    auto-sync disabled never triggers unrequested broker access."""
+
+    def test_backfill_never_creates_runs(self, db_session, default_portfolio, connection):
+        assert connection.auto_sync in (None, False)
+
+        results = _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+
+        assert results == []
+        assert db_session.query(BrokerSyncRun).count() == 0

@@ -10,7 +10,9 @@ import pytest
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import patch, AsyncMock, Mock
 
-from models import BrokerConnection, BrokerPosition, DiscordWebhook, DividendNotification
+from models import (
+    BrokerConnection, BrokerPosition, BrokerSyncRun, DiscordWebhook, DividendNotification,
+)
 from jobs import _upcoming_dividends, broker_autosync_pass, dividend_exdate_pass
 from tests.helpers import TEST_WORKSPACE_ID, make_txn
 
@@ -627,6 +629,7 @@ class TestAccountDeletionCleanupPass:
                 "usage_reservations": 0,
                 "notification_outbox": 0,
                 "dividend_notifications": 0,
+                "broker_sync_events": 0,
             }),
         )
         identity_admin = object()
@@ -663,6 +666,7 @@ class TestAccountDeletionCleanupPass:
                 "usage_reservations": 0,
                 "notification_outbox": 0,
                 "dividend_notifications": 0,
+                "broker_sync_events": 0,
             }),
         )
 
@@ -723,3 +727,30 @@ class TestRateLimitCleanupPass:
             _run(rate_limit_cleanup_pass(db_session, now=self.NOW))
 
         assert any("deleted=0 remaining_backlog=0" in message for message in caplog.messages)
+
+
+# -------- needs_review re-download loop (plan 2026-09-24, Task A4) -----------
+
+def test_autosync_creates_no_history_run_while_needs_review_is_unresolved(db_session, pid):
+    conn = _connect(db_session, pid, auto_sync=True)
+    db_session.add(BrokerSyncRun(
+        workspace_id=TEST_WORKSPACE_ID, portfolio_id=pid, connection_id=conn.id,
+        broker="trading212", credential_generation=conn.credential_generation,
+        mode="incremental", state="needs_review", orders_complete=True,
+        dividends_complete=True,
+        review_details=[{"fill_type": "STOCK_SPLIT", "ticker": "NVDA", "date": "2024-06-10"}],
+    ))
+    db_session.commit()
+    summary = {
+        "id": 1, "currency": "CZK", "totalValue": 0, "investments": {},
+        "cash": {"availableToTrade": 0, "inPies": 0, "reservedForOrders": 0},
+    }
+
+    with patch("routers.broker._fetch_account_summary", return_value=summary), \
+         patch("t212_sync._fetch_positions", return_value=[]):
+        results = _run(broker_autosync_pass(db_session, TEST_WORKSPACE_ID))
+
+    assert [r["ok"] for r in results] == [True]
+    assert results[0]["snapshot_status"] == "ready"
+    assert results[0]["history_status"] == "needs_review"
+    assert db_session.query(BrokerSyncRun).count() == 1

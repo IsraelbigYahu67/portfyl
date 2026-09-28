@@ -30,7 +30,7 @@ from routers.portfolio import (
     preview_import_csv,
     undo_import_csv,
 )
-from tests.helpers import make_txn
+from tests.helpers import T212_COVERAGE_FIELDS, make_t212_connection_with_coverage, make_txn
 
 
 def row(**overrides):
@@ -663,3 +663,62 @@ def test_mutating_import_routes_use_csrf_dependency_and_legacy_route_is_absent()
     ):
         calls = {dependency.call for dependency in routes[key].dependant.dependencies}
         assert require_csrf in calls
+
+
+def _import_csv_via_preview(csv, *, replace, db_session, default_portfolio, request_context):
+    preview = _preview(
+        csv,
+        replace=replace,
+        db_session=db_session,
+        default_portfolio=default_portfolio,
+        request_context=request_context,
+    )
+    with patch("routers.portfolio.bulk_fetch_fx", return_value={
+        ("USD", date(2026, 2, 1)): 23.0,
+    }):
+        return _commit(
+            csv,
+            preview["preview_id"],
+            replace=replace,
+            db_session=db_session,
+            default_portfolio=default_portfolio,
+            request_context=request_context,
+        )
+
+
+def test_replace_import_clears_t212_history_coverage(
+    db_session, default_portfolio, request_context
+):
+    db_session.add(make_txn(
+        "AAPL", "buy", 2, 150, date=date(2026, 1, 2),
+        source="t212_api", portfolio_id=default_portfolio.id,
+    ))
+    connection = make_t212_connection_with_coverage(db_session, default_portfolio)
+    csv = "date,ticker,type,shares,price,currency\n2026-02-01,MSFT,buy,1,400,USD\n"
+
+    _import_csv_via_preview(
+        csv, replace=True, db_session=db_session,
+        default_portfolio=default_portfolio, request_context=request_context,
+    )
+
+    db_session.refresh(connection)
+    assert [getattr(connection, field) for field in T212_COVERAGE_FIELDS] == [None] * 6
+
+
+def test_append_import_keeps_t212_history_coverage(
+    db_session, default_portfolio, request_context
+):
+    db_session.add(make_txn(
+        "AAPL", "buy", 2, 150, date=date(2026, 1, 2),
+        source="t212_api", portfolio_id=default_portfolio.id,
+    ))
+    connection = make_t212_connection_with_coverage(db_session, default_portfolio)
+    csv = "date,ticker,type,shares,price,currency\n2026-02-01,MSFT,buy,1,400,USD\n"
+
+    _import_csv_via_preview(
+        csv, replace=False, db_session=db_session,
+        default_portfolio=default_portfolio, request_context=request_context,
+    )
+
+    db_session.refresh(connection)
+    assert all(getattr(connection, field) is not None for field in T212_COVERAGE_FIELDS)

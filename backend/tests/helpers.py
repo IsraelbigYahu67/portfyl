@@ -2,13 +2,39 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from uuid import UUID
 
-from models import Transaction
+from models import BrokerConnection, Transaction
 
 
 TEST_WORKSPACE_ID = UUID("11111111-1111-4111-8111-111111111111")
+
+# The per-connection history-coverage checkpoints (plan 2026-09-24, Task C1).
+T212_COVERAGE_FIELDS = (
+    "history_complete_at",
+    "orders_frontier_at",
+    "orders_frontier_event_id",
+    "dividends_frontier_at",
+    "dividends_frontier_event_id",
+    "last_full_audit_at",
+)
+
+
+def make_t212_connection_with_coverage(db, portfolio) -> BrokerConnection:
+    """A Trading 212 connection with every history-coverage field set."""
+    when = datetime(2024, 6, 1, tzinfo=timezone.utc)
+    conn = BrokerConnection(
+        workspace_id=portfolio.workspace_id, portfolio_id=portfolio.id,
+        broker="trading212", api_key="k" * 20,
+        history_complete_at=when,
+        orders_frontier_at=when, orders_frontier_event_id="fill:9",
+        dividends_frontier_at=when, dividends_frontier_event_id="dividend:9",
+        last_full_audit_at=when,
+    )
+    db.add(conn)
+    db.commit()
+    return conn
 
 
 def make_txn(
