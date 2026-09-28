@@ -10,9 +10,12 @@ revisions) is implemented too, and Task 4's split handling is still blocked on
 the gate in `2026-09-24-t212-corporate-actions-incremental-sync.md` (real
 `STOCK_SPLIT` payload capture, then a signed-off encoding record). The earlier
 backend slice passed the fast and PostgreSQL/RLS suites; the 2026-09-24
-additions pass the 983-test fast suite and the frontend local/cloud gates
-(checked 2026-09-28), but the PostgreSQL/RLS suite has **not** been rerun
-against migrations `0017`–`0021`, so they are not verified there.
+additions pass the 983-test fast suite, the frontend local/cloud gates and the
+346-test PostgreSQL/RLS suite against migrations `0001`–`0021` (all checked
+2026-09-28). That run found and fixed a real bug: `jobs.broker_backfill_pass`
+read `run.public_id` after the commit on both cancel branches, so a run whose
+credentials rotated or whose connection was removed raised `ObjectDeletedError`
+under forced RLS instead of being reported as cancelled.
 
 - **Task 2**: `backend/t212_sync.py`, the `BrokerPosition` model and
   `0014_broker_positions` migration (forced RLS, grants, cascade, workspace

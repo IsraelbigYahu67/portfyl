@@ -439,9 +439,13 @@ async def broker_backfill_pass(
             # The connection was disconnected, or credentials were rotated
             # after this run started -- a stale-generation worker must never
             # commit further progress under superseded credentials.
+            # Read the public id before committing: the commit drops the
+            # transaction-local RLS context, so a lazy reload of the expired
+            # row would find nothing under forced RLS.
+            cancelled_id = str(run.public_id)
             run.state = "cancelled"
             db.commit()
-            results.append({"run_id": str(run.public_id), "state": "cancelled"})
+            results.append({"run_id": cancelled_id, "state": "cancelled"})
             continue
 
         portfolio = db.query(Portfolio).filter(
@@ -452,9 +456,10 @@ async def broker_backfill_pass(
             portfolio is None
             or portfolio.t212_account_fingerprint != run.account_fingerprint
         ):
+            cancelled_id = str(run.public_id)  # before the commit; see above
             run.state = "cancelled"
             db.commit()
-            results.append({"run_id": str(run.public_id), "state": "cancelled"})
+            results.append({"run_id": cancelled_id, "state": "cancelled"})
             continue
 
         base = t212_sync._t212_base(connection.environment or "live")

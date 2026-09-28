@@ -19,7 +19,7 @@ has a sign-off.
 | C2 incremental stop rule | done (the pure evaluator was written on two parallel lanes: `dc712cd` and `1628c01` both add `t212_incremental.py`) | `dc712cd`, `1628c01`, `6f321cb`, `a46412a` |
 | C3 30-day audits, payload revisions | done | `e05de2b` |
 | C4 staging retention | done | `9654588` |
-| V1 gates | fast backend suite (983), `alembic heads` (one head, `0021`), frontend local/cloud tests (690/691) and both builds pass; PostgreSQL/RLS, real browser and T212 demo checks are open | — |
+| V1 gates | fast backend suite (983), `alembic heads` (one head, `0021`), frontend local/cloud tests (690/691), both builds and the PostgreSQL/RLS suite (346, migrations `0001`–`0021`) pass; the real-browser and T212 demo checks are open | — |
 
 The checkbox steps below were not ticked one by one; this table is the record.
 
