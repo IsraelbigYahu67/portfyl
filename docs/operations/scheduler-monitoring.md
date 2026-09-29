@@ -10,7 +10,9 @@ resource name for `__NOTIFICATION_CHANNEL__` before submitting each policy
 to the Monitoring API. The health-check template additionally needs an
 `uptime_url` monitored resource with the actual project ID and origin host.
 
-- Alerts: every 15 minutes.
+- Alerts: every 2 hours (`0 */2 * * *`). The `/health` heartbeat limit for
+  `alerts` in the cloud edition is 4 hours (`_JOB_MAX_AGES` in `backend/main.py`);
+  change both together.
 - Autosync: hourly; existing plan gates and per-connection opt-in still apply.
 - Dividends: every 12 hours; existing plan/notification preferences still apply.
 - Expired rate-limit buckets: hourly, using the existing bounded cleanup.

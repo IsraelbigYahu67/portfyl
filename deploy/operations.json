@@ -1,6 +1,6 @@
 {
   "scheduler": [
-    {"name": "alerts", "schedule": "*/15 * * * *"},
+    {"name": "alerts", "schedule": "0 */2 * * *"},
     {"name": "autosync", "schedule": "0 * * * *"},
     {"name": "dividends", "schedule": "0 */12 * * *"},
     {"name": "rate_limit_cleanup", "schedule": "0 * * * *"},

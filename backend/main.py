@@ -183,6 +183,9 @@ if PORTFYL_EDITION is Edition.CLOUD:
     # Cleanup jobs only ever run in cloud (internal_jobs.router is cloud-only);
     # local must never expect heartbeats for jobs it never schedules, or
     # /health would report permanently degraded there.
+    # Cloud Scheduler runs alerts every 2 hours (deploy/operations.json), so the
+    # local 15-minute poller's limit would report permanent degradation here.
+    _JOB_MAX_AGES["alerts"] = timedelta(hours=4)
     _JOB_MAX_AGES["rate_limit_cleanup"] = timedelta(hours=2)
     _JOB_MAX_AGES["account_deletion_cleanup"] = timedelta(hours=26)
 

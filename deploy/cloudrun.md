@@ -425,7 +425,7 @@ history keeps progressing promptly instead of waiting on the next hourly
 tick:
 
 ```powershell
-gcloud scheduler jobs create http portfyl-alerts --location=$REGION --schedule="*/15 * * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/alerts" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
+gcloud scheduler jobs create http portfyl-alerts --location=$REGION --schedule="0 */2 * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/alerts" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
 
 gcloud scheduler jobs create http portfyl-autosync --location=$REGION --schedule="0 * * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/autosync" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
 
