@@ -22,7 +22,12 @@ from import_undo import (
     undo_status,
     undo_setting_key,
 )
-from models import AuditLog, TradeNote, Transaction, WorkspaceSetting
+from decimal import Decimal
+from types import SimpleNamespace
+
+from models import (AuditLog, BrokerCorporateAction, BrokerCorporateActionApplication, TradeNote,
+                    Transaction, WorkspaceSetting)
+from t212_corporate_actions import SplitEvidence, apply_splits
 from portfolio_activation import PENDING_PORTFOLIO_SETTING_KEY, set_pending_portfolio
 from routers.portfolio import (
     commit_import_csv,
@@ -722,3 +727,90 @@ def test_append_import_keeps_t212_history_coverage(
 
     db_session.refresh(connection)
     assert all(getattr(connection, field) is not None for field in T212_COVERAGE_FIELDS)
+
+
+def _seed_adjusted_split(db, portfolio):
+    """One T212 API buy stored post-split (90 @ 120), the api_normalized action
+    that adjusted it (10:1, 2024-06-10) and its application marker."""
+    buy = make_txn("NVDA", "buy", 90, 120, date=date(2024, 5, 1), source="t212_api",
+                   portfolio_id=portfolio.id)
+    buy.source_event_id = "fill:t1"
+    buy.source_event_stream = "orders"
+    db.add(buy)
+    db.flush()
+    action = BrokerCorporateAction(
+        workspace_id=portfolio.workspace_id, portfolio_id=portfolio.id, broker="trading212",
+        account_fingerprint="f" * 64, provider_instrument_id="NVDA_US_EQ", ticker="NVDA",
+        action_type="STOCK_SPLIT", effective_at=datetime(2024, 6, 10, 10, tzinfo=timezone.utc),
+        provider_event_key="fill:a|fill:b", ratio_numerator=10, ratio_denominator=1,
+        representation="api_normalized", run_id=7,
+    )
+    db.add(action)
+    db.flush()
+    db.add(BrokerCorporateActionApplication(
+        workspace_id=portfolio.workspace_id, action_id=action.id, transaction_id=buy.id,
+        shares_before=9, price_before=1200, shares_after=90, price_after=120, applied_by_run_id=7,
+    ))
+    db.commit()
+    return buy
+
+
+def test_undo_restores_adjusted_rows_with_their_application_markers(
+    db_session,
+    default_portfolio,
+    request_context,
+):
+    _seed_adjusted_split(db_session, default_portfolio)
+    csv = "date,ticker,type,shares,price,currency\n2026-02-01,MSFT,buy,1,400,USD\n"
+    preview = _preview(
+        csv, replace=True, db_session=db_session, default_portfolio=default_portfolio,
+        request_context=request_context,
+    )
+    with patch("routers.portfolio.bulk_fetch_fx", return_value={("USD", date(2026, 2, 1)): 23.0}):
+        _commit(
+            csv, preview["preview_id"], replace=True, db_session=db_session,
+            default_portfolio=default_portfolio, request_context=request_context,
+        )
+    assert db_session.query(Transaction).filter_by(ticker="NVDA").count() == 0
+
+    undo_import_csv(db=db_session, portfolio=default_portfolio, context=request_context)
+
+    [buy] = db_session.query(Transaction).filter_by(ticker="NVDA", type="buy").all()
+    assert buy.source_event_id == "fill:t1"
+    assert (buy.shares, buy.price) == (90, 120)
+    [action] = db_session.query(BrokerCorporateAction).all()
+    assert (action.representation, float(action.ratio_numerator), float(action.ratio_denominator)) == (
+        "api_normalized", 10.0, 1.0)
+    assert action.run_id == 7
+    [application] = db_session.query(BrokerCorporateActionApplication).all()
+    assert application.transaction_id == buy.id
+    assert application.action_id == action.id
+    assert (application.shares_before, application.shares_after) == (9, 90)
+
+    # The restored marker is what stops a later sync from adjusting the row again.
+    evidence = SplitEvidence(
+        provider_instrument_id="NVDA_US_EQ",
+        effective_at=datetime(2024, 6, 10, 10, tzinfo=timezone.utc),
+        provider_event_key="fill:a|fill:b", old_shares=Decimal("9"), new_shares=Decimal("90"),
+        event_ids=("fill:a", "fill:b"),
+    )
+    run = SimpleNamespace(account_fingerprint="f" * 64, id=8)
+    summary = apply_splits(db_session, run=run, portfolio=default_portfolio, evidence=[evidence], pending=[])
+    assert (summary.actions_created, summary.applications_created) == (0, 0)
+    db_session.refresh(buy)
+    assert (buy.shares, buy.price) == (90, 120)
+
+
+def test_undo_point_taken_before_corporate_actions_existed_is_still_usable(
+    db_session, default_portfolio, request_context,
+):
+    """A live v2 undo point predates the action tables: its fingerprint has no
+    action keys, so the current state must be compared without them."""
+    from import_undo import _as_v2_snapshot
+
+    _seed_adjusted_split(db_session, default_portfolio)
+    current = capture_portfolio_state(db_session, default_portfolio)
+    assert current["corporate_actions"] and current["corporate_action_applications"]
+    projected = _as_v2_snapshot(current)
+    assert "corporate_actions" not in projected and "corporate_action_applications" not in projected
+    assert projected["transactions"] == current["transactions"]

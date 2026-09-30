@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 import hashlib
 import json
 import zlib
@@ -11,13 +12,21 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from models import BrokerConnection, Portfolio, TradeNote, Transaction, WorkspaceSetting
+from models import (
+    BrokerConnection,
+    BrokerCorporateAction,
+    BrokerCorporateActionApplication,
+    Portfolio,
+    TradeNote,
+    Transaction,
+    WorkspaceSetting,
+)
 
 
 UNDO_WINDOW = timedelta(hours=24)
 UNDO_KEY_PREFIX = "import_undo:"
-UNDO_SCHEMA_VERSION = 2
-_SUPPORTED_UNDO_SCHEMA_VERSIONS = {1, UNDO_SCHEMA_VERSION}
+UNDO_SCHEMA_VERSION = 3
+_SUPPORTED_UNDO_SCHEMA_VERSIONS = {1, 2, UNDO_SCHEMA_VERSION}
 
 _TRANSACTION_FIELDS = (
     "ticker",
@@ -44,6 +53,41 @@ _TRANSACTION_FIELDS = (
     "fx_to_czk",
     "created_at",
 )
+
+_ACTION_FIELDS = (
+    "public_id",
+    "broker",
+    "account_fingerprint",
+    "provider_instrument_id",
+    "ticker",
+    "action_type",
+    "effective_at",
+    "provider_event_key",
+    "ratio_numerator",
+    "ratio_denominator",
+    "representation",
+    "run_id",
+    "created_at",
+)
+# Identifies an action inside one portfolio; used instead of the integer id,
+# which changes on restore.
+_ACTION_IDENTITY_FIELDS = (
+    "account_fingerprint",
+    "provider_instrument_id",
+    "action_type",
+    "effective_at",
+    "provider_event_key",
+)
+_APPLICATION_FIELDS = (
+    "shares_before",
+    "price_before",
+    "shares_after",
+    "price_after",
+    "applied_by_run_id",
+    "applied_at",
+)
+# Snapshot keys that only exist from schema v3 on.
+_V3_ONLY_KEYS = ("corporate_actions", "corporate_action_applications")
 
 _V1_TRANSACTION_FIELDS = tuple(
     field
@@ -81,6 +125,8 @@ def _json_value(value: Any) -> Any:
         return value.isoformat()
     if isinstance(value, UUID):
         return str(value)
+    if isinstance(value, Decimal):
+        return str(value)
     return value
 
 
@@ -111,6 +157,18 @@ def capture_portfolio_state(db: Session, portfolio: Portfolio) -> dict[str, Any]
         BrokerConnection.workspace_id == portfolio.workspace_id,
         BrokerConnection.portfolio_id == portfolio.id,
     ).order_by(BrokerConnection.public_id).all()
+    actions = db.query(BrokerCorporateAction).filter(
+        BrokerCorporateAction.workspace_id == portfolio.workspace_id,
+        BrokerCorporateAction.portfolio_id == portfolio.id,
+    ).order_by(BrokerCorporateAction.public_id).all()
+    action_by_id = {action.id: action for action in actions}
+    transaction_index = {row.id: index for index, row in enumerate(transactions)}
+    applications = []
+    if action_by_id and transaction_index:
+        applications = db.query(BrokerCorporateActionApplication).filter(
+            BrokerCorporateActionApplication.workspace_id == portfolio.workspace_id,
+            BrokerCorporateActionApplication.action_id.in_(list(action_by_id)),
+        ).order_by(BrokerCorporateActionApplication.id).all()
     return {
         "portfolio": {
             "t212_csv_covered_through": _json_value(portfolio.t212_csv_covered_through),
@@ -133,6 +191,22 @@ def capture_portfolio_state(db: Session, portfolio: Portfolio) -> dict[str, Any]
             for transaction in transactions
         ],
         "notes": notes,
+        "corporate_actions": [
+            {field: _json_value(getattr(action, field)) for field in _ACTION_FIELDS}
+            for action in actions
+        ],
+        "corporate_action_applications": [
+            {
+                "transaction_index": transaction_index[application.transaction_id],
+                "action": {
+                    field: _json_value(getattr(action_by_id[application.action_id], field))
+                    for field in _ACTION_IDENTITY_FIELDS
+                },
+                **{field: _json_value(getattr(application, field)) for field in _APPLICATION_FIELDS},
+            }
+            for application in applications
+            if application.transaction_id in transaction_index
+        ],
     }
 
 
@@ -141,10 +215,16 @@ def snapshot_fingerprint(snapshot: dict[str, Any]) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+def _as_v2_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Project current state to the shape used by still-live v2 undo points,
+    which were taken before corporate-action records existed."""
+    return {key: value for key, value in snapshot.items() if key not in _V3_ONLY_KEYS}
+
+
 def _as_v1_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     """Project current state to the shape used by still-live v1 undo points."""
     return {
-        **snapshot,
+        **_as_v2_snapshot(snapshot),
         "transactions": [
             {
                 "public_id": item["public_id"],
@@ -262,9 +342,15 @@ def undo_status(
     current = capture_portfolio_state(db, portfolio)
     if payload["schema_version"] == 1:
         current = _as_v1_snapshot(current)
+    elif payload["schema_version"] == 2:
+        current = _as_v2_snapshot(current)
     if snapshot_fingerprint(current) != payload["after_fingerprint"]:
         return {"available": False, "reason": "portfolio_changed", **base}
     return {"available": True, "reason": None, **base}
+
+
+def _action_key(item: dict[str, Any]) -> tuple:
+    return tuple(str(item.get(field)) for field in _ACTION_IDENTITY_FIELDS)
 
 
 def restore_snapshot(
@@ -278,6 +364,23 @@ def restore_snapshot(
             Transaction.portfolio_id == portfolio.id,
         ).all()
     ]
+    # Corporate-action records describe this ledger, so they are replaced with
+    # it. Applications go first: they reference both actions and transactions.
+    action_ids = [
+        action_id for (action_id,) in db.query(BrokerCorporateAction.id).filter(
+            BrokerCorporateAction.workspace_id == portfolio.workspace_id,
+            BrokerCorporateAction.portfolio_id == portfolio.id,
+        ).all()
+    ]
+    if action_ids:
+        db.query(BrokerCorporateActionApplication).filter(
+            BrokerCorporateActionApplication.workspace_id == portfolio.workspace_id,
+            BrokerCorporateActionApplication.action_id.in_(action_ids),
+        ).delete(synchronize_session="fetch")
+        db.query(BrokerCorporateAction).filter(
+            BrokerCorporateAction.workspace_id == portfolio.workspace_id,
+            BrokerCorporateAction.id.in_(action_ids),
+        ).delete(synchronize_session="fetch")
     if current_ids:
         db.query(TradeNote).filter(
             TradeNote.workspace_id == portfolio.workspace_id,
@@ -290,6 +393,7 @@ def restore_snapshot(
     db.flush()
 
     restored_by_public_id: dict[str, Transaction] = {}
+    restored_in_order: list[Transaction] = []
     for item in snapshot.get("transactions", []):
         values = {field: item.get(field) for field in _TRANSACTION_FIELDS}
         values["date"] = date.fromisoformat(values["date"])
@@ -305,6 +409,7 @@ def restore_snapshot(
         )
         db.add(transaction)
         restored_by_public_id[item["public_id"]] = transaction
+        restored_in_order.append(transaction)
     db.flush()
 
     for item in snapshot.get("notes", []):
@@ -323,6 +428,34 @@ def restore_snapshot(
                 if item.get("updated_at") else None
             ),
         ))
+
+    # v1/v2 points carry no action data, which is correct: they predate any action.
+    restored_actions: dict[tuple, BrokerCorporateAction] = {}
+    for item in snapshot.get("corporate_actions", []):
+        values = {field: item.get(field) for field in _ACTION_FIELDS}
+        values["public_id"] = UUID(values["public_id"])
+        values["effective_at"] = datetime.fromisoformat(values["effective_at"])
+        if values.get("created_at"):
+            values["created_at"] = datetime.fromisoformat(values["created_at"])
+        action = BrokerCorporateAction(
+            workspace_id=portfolio.workspace_id, portfolio_id=portfolio.id, **values,
+        )
+        db.add(action)
+        restored_actions[_action_key(item)] = action
+    db.flush()
+    for item in snapshot.get("corporate_action_applications", []):
+        action = restored_actions.get(_action_key(item["action"]))
+        index = item["transaction_index"]
+        if action is None or not 0 <= index < len(restored_in_order):
+            raise ValueError("Undo application refers to a missing action or transaction")
+        values = {field: item.get(field) for field in _APPLICATION_FIELDS}
+        if values.get("applied_at"):
+            values["applied_at"] = datetime.fromisoformat(values["applied_at"])
+        db.add(BrokerCorporateActionApplication(
+            workspace_id=portfolio.workspace_id, action_id=action.id,
+            transaction_id=restored_in_order[index].id, **values,
+        ))
+    db.flush()
 
     portfolio_coverage = snapshot.get("portfolio", {}).get("t212_csv_covered_through")
     portfolio.t212_csv_covered_through = (
