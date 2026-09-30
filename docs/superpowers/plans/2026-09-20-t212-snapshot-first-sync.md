@@ -144,10 +144,11 @@ deliberately not treated as authoritative history coverage. The finalizer is
 wired into `broker_backfill`; full split/corporate-action processing and
 cash-movement history remain deferred.
 
-Task 5 (incremental sync + audits) is not started. Task 6 still needs a real
-authenticated browser check, blocked by the missing local backend and verified
-Firebase test login. Migrations `0017`/`0018` still need the real
-PostgreSQL/RLS suite; Docker Desktop did not respond under this account. The
+Task 5 (incremental sync + audits) is implemented (see the status header).
+Task 6 still needs a real authenticated browser check and a T212 demo-account
+run, which need a verified Firebase test login and the user's T212 key.
+Migrations `0017`–`0021` passed the real PostgreSQL/RLS suite on 2026-09-28;
+re-run it before release (Docker Desktop was not running on 2026-09-30). The
 current `POST /trading212/sync` now returns after the summary/positions snapshot
 and active-run creation; bounded backfill and atomic finalization continue in
 the independent minutely worker.
