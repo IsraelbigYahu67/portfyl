@@ -1,0 +1,86 @@
+{
+  "events": [
+    {
+      "fill_type": "STOCK_SPLIT",
+      "payload": {
+        "fill": {
+          "filledAt": "2026-07-16T07:32:21.000Z",
+          "id": "id-0002",
+          "price": 2.08133333,
+          "quantity": -15.0,
+          "tradingMethod": null,
+          "type": "STOCK_SPLIT",
+          "walletImpact": {
+            "currency": "CZK",
+            "fxRate": 0.04829826,
+            "netValue": 646.4,
+            "realisedProfitLoss": 0,
+            "taxes": []
+          }
+        },
+        "order": {
+          "createdAt": "2026-07-16T07:32:21.000Z",
+          "currency": "CZK",
+          "extendedHours": false,
+          "filledQuantity": -15.0,
+          "id": "id-0001",
+          "instrument": {
+            "currency": "USD",
+            "isin": "US3724464017",
+            "name": "Genprex",
+            "ticker": "GNPX_US_EQ"
+          },
+          "quantity": -15.0,
+          "side": "SELL",
+          "status": "FILLED",
+          "strategy": "QUANTITY",
+          "ticker": "GNPX_US_EQ",
+          "type": "MARKET"
+        }
+      },
+      "provider_timestamp": "2026-07-16T07:32:21+00:00",
+      "stream": "orders"
+    },
+    {
+      "fill_type": "STOCK_SPLIT",
+      "payload": {
+        "fill": {
+          "filledAt": "2026-07-16T07:32:21.000Z",
+          "id": "id-0004",
+          "price": 45.78933346,
+          "quantity": 0.68181818,
+          "tradingMethod": null,
+          "type": "STOCK_SPLIT",
+          "walletImpact": {
+            "currency": "CZK",
+            "fxRate": 0.04829826,
+            "netValue": 646.4,
+            "taxes": []
+          }
+        },
+        "order": {
+          "createdAt": "2026-07-16T07:32:21.000Z",
+          "currency": "CZK",
+          "extendedHours": false,
+          "filledQuantity": 0.68181818,
+          "id": "id-0003",
+          "instrument": {
+            "currency": "USD",
+            "isin": "US3724464017",
+            "name": "Genprex",
+            "ticker": "GNPX_US_EQ"
+          },
+          "quantity": 0.68181818,
+          "side": "BUY",
+          "status": "FILLED",
+          "strategy": "QUANTITY",
+          "ticker": "GNPX_US_EQ",
+          "type": "MARKET"
+        }
+      },
+      "provider_timestamp": "2026-07-16T07:32:21+00:00",
+      "stream": "orders"
+    }
+  ],
+  "source": "t212 staged broker_sync_events (redacted)"
+}
