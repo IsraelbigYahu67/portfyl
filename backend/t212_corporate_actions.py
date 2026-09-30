@@ -35,6 +35,8 @@ _PRICE_RATIO_TOLERANCE = Fraction(1, 100)
 # Provider quantities are rounded to 8 decimals, so the exact share ratio is only
 # close to the real fraction; anything further off than this is a distortion.
 _RATIO_ROUNDING_TOLERANCE = Fraction(1, 10000)
+# SplitEvidence.ratio is stored as the nearest fraction with a denominator up to this.
+_RATIO_MAX_DENOMINATOR = 1000
 
 
 class UnpairedSplitLeg(Exception):
@@ -57,7 +59,7 @@ class SplitEvidence:
 
     @property
     def ratio(self) -> Fraction:
-        return Fraction(self.new_shares / self.old_shares).limit_denominator(1000)
+        return Fraction(self.new_shares / self.old_shares).limit_denominator(_RATIO_MAX_DENOMINATOR)
 
 
 def _leg_of(event: BrokerSyncEvent) -> str:
@@ -101,7 +103,7 @@ def _validate_pair(label: str, close: BrokerSyncEvent, open_: BrokerSyncEvent,
     if abs(by_shares - by_price) > _PRICE_RATIO_TOLERANCE * by_shares:
         raise InvalidSplitPair(f"{label}: price ratio disagrees with the share ratio")
     # SplitEvidence.ratio is a small fraction; refuse a split it would have to round.
-    nominal = by_shares.limit_denominator(1000)
+    nominal = by_shares.limit_denominator(_RATIO_MAX_DENOMINATOR)
     if abs(nominal - by_shares) > _RATIO_ROUNDING_TOLERANCE * by_shares:
         raise InvalidSplitPair(f"{label}: split ratio is not a small exact fraction")
 
@@ -232,6 +234,31 @@ def apply_splits(db: Session, *, run: BrokerSyncRun, portfolio: Portfolio,
     return ApplySummary(created, applied, csv_rep)
 
 
+def drop_recorded_orphan_legs(db: Session, *, run: BrokerSyncRun, portfolio: Portfolio,
+                              events: list[BrokerSyncEvent]) -> list[BrokerSyncEvent]:
+    """Drop a staged split leg whose counterpart is not staged but whose pair an
+    earlier run already recorded. An incremental overlap window can cut a pair in
+    two; that is not an unverifiable split, and the recorded action already holds
+    the outcome. A leg of a split nobody has recorded is kept so it still goes to
+    review."""
+    if not events:
+        return events
+    staged = {e.provider_event_id for e in events}
+    recorded = db.query(BrokerCorporateAction.provider_event_key).filter_by(
+        workspace_id=portfolio.workspace_id, portfolio_id=portfolio.id,
+        account_fingerprint=run.account_fingerprint, action_type="STOCK_SPLIT",
+    ).all()
+    partners: dict[str, set[str]] = {}
+    for (key,) in recorded:
+        ids = set(key.split("|"))
+        for leg_id in ids:
+            partners.setdefault(leg_id, set()).update(ids - {leg_id})
+    return [
+        e for e in events
+        if e.provider_event_id not in partners or (partners[e.provider_event_id] & staged)
+    ]
+
+
 def reapply_recorded_splits(db: Session, *, workspace_id, rows: list[Transaction]) -> None:
     """After an audit run overwrote rows with the provider's raw values, put
     back every recorded split adjustment, oldest first, and refresh the
@@ -254,6 +281,13 @@ def reapply_recorded_splits(db: Session, *, workspace_id, rows: list[Transaction
     )
     for application, action in applications:
         t = by_id[application.transaction_id]
+        effective_at = (action.effective_at if action.effective_at.tzinfo
+                        else action.effective_at.replace(tzinfo=timezone.utc))
+        if _row_time(t) >= effective_at:
+            # The provider moved this fill to after the split: it is not a
+            # pre-split row any more, so the recorded adjustment no longer applies.
+            db.delete(application)
+            continue
         application.shares_before, application.price_before = t.shares, t.price
         ratio = _action_ratio(action)
         t.shares = float(Fraction(str(t.shares)) * ratio)

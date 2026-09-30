@@ -974,3 +974,51 @@ class TestSplitFinalization:
         assert buy.price == pytest.approx(121)  # 1210 / 10, not the raw 1210
         [application] = db_session.query(BrokerCorporateActionApplication).all()
         assert (application.shares_after, application.price_after) == (pytest.approx(90), pytest.approx(121))
+
+
+    def test_orphan_leg_of_an_already_recorded_split_is_ignored(
+        self, db_session, default_portfolio, completed_run
+    ):
+        # An incremental overlap window can re-stage only one leg of a split that
+        # an earlier run already recorded. That must not block the connection.
+        _order_event(db_session, completed_run, event_id="fill:t1", ticker="NVDA_US_EQ",
+                     qty=9, price=1200, day="2024-05-01")
+        _stage_split(db_session, completed_run)
+        t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        later = _next_run(db_session, completed_run, "incremental")
+        _order_event(db_session, later, event_id="fill:so-2024-06-10", ticker="NVDA_US_EQ", side="BUY",
+                     qty=90, price=120, day="2024-06-10", fill_type="STOCK_SPLIT")
+        result = t212_sync.finalize_run(db_session, later, default_portfolio)
+
+        db_session.refresh(later)
+        assert result.needs_review is False
+        assert later.state == "completed"
+        assert db_session.query(BrokerCorporateActionApplication).count() == 1
+
+    def test_orphan_leg_of_an_unknown_split_still_needs_review(
+        self, db_session, default_portfolio, completed_run
+    ):
+        _order_event(db_session, completed_run, event_id="fill:so-2024-06-10", ticker="NVDA_US_EQ", side="BUY",
+                     qty=90, price=120, day="2024-06-10", fill_type="STOCK_SPLIT")
+        assert t212_sync.finalize_run(db_session, completed_run, default_portfolio).needs_review is True
+
+    def test_audit_revision_that_moves_a_row_past_the_split_drops_the_adjustment(
+        self, db_session, default_portfolio, completed_run
+    ):
+        _order_event(db_session, completed_run, event_id="fill:t1", ticker="NVDA_US_EQ",
+                     qty=9, price=1200, day="2024-05-01")
+        _stage_split(db_session, completed_run)
+        t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+        [buy] = db_session.query(Transaction).filter_by(ticker="NVDA").all()
+        assert (buy.shares, buy.price) == (90, 120)
+
+        audit = _next_run(db_session, completed_run, "audit")
+        _order_event(db_session, audit, event_id="fill:t1", ticker="NVDA_US_EQ",
+                     qty=9, price=125, day="2024-06-12")  # provider moved the fill after the split
+        _stage_split(db_session, audit)
+        t212_sync.finalize_run(db_session, audit, default_portfolio)
+
+        db_session.refresh(buy)
+        assert (buy.shares, buy.price) == (9, 125)
+        assert db_session.query(BrokerCorporateActionApplication).count() == 0

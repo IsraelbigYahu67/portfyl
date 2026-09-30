@@ -13,7 +13,8 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
-from models import BrokerCorporateAction, BrokerCorporateActionApplication, Portfolio
+from import_undo import capture_portfolio_state, restore_snapshot
+from models import BrokerCorporateAction, BrokerCorporateActionApplication, Portfolio, Transaction
 from database import set_rls_context
 
 
@@ -84,3 +85,27 @@ def test_deleting_a_portfolio_cascades_its_actions_and_applications(matrix_tenan
             BrokerCorporateActionApplication.workspace_id == alice_ws)).all() == []
         assert len(db.scalars(select(BrokerCorporateAction).where(
             BrokerCorporateAction.workspace_id == bob_ws)).all()) == 1
+
+
+def test_undo_snapshot_round_trips_actions_and_applications_on_postgres(matrix_tenants, postgres_engine):
+    """restore_snapshot re-inserts actions before applications under the real
+    composite foreign keys and binds the ratio back into a numeric column."""
+    alice_ws = matrix_tenants.alice.workspace_id
+    with Session(postgres_engine) as db:
+        portfolio = db.scalars(select(Portfolio).where(Portfolio.workspace_id == alice_ws)).first()
+        snapshot = capture_portfolio_state(db, portfolio)
+        assert len(snapshot["corporate_actions"]) == 1
+        assert len(snapshot["corporate_action_applications"]) == 1
+
+        restore_snapshot(db, portfolio, snapshot)
+        db.commit()
+
+        [action] = db.scalars(select(BrokerCorporateAction).where(
+            BrokerCorporateAction.workspace_id == alice_ws)).all()
+        [application] = db.scalars(select(BrokerCorporateActionApplication).where(
+            BrokerCorporateActionApplication.workspace_id == alice_ws)).all()
+        trade = db.scalars(select(Transaction).where(
+            Transaction.workspace_id == alice_ws, Transaction.ticker == "AAPL")).one()
+        assert (float(action.ratio_numerator), float(action.ratio_denominator)) == (10.0, 1.0)
+        assert application.action_id == action.id
+        assert application.transaction_id == trade.id

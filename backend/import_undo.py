@@ -434,6 +434,8 @@ def restore_snapshot(
     for item in snapshot.get("corporate_actions", []):
         values = {field: item.get(field) for field in _ACTION_FIELDS}
         values["public_id"] = UUID(values["public_id"])
+        values["ratio_numerator"] = Decimal(values["ratio_numerator"])
+        values["ratio_denominator"] = Decimal(values["ratio_denominator"])
         values["effective_at"] = datetime.fromisoformat(values["effective_at"])
         if values.get("created_at"):
             values["created_at"] = datetime.fromisoformat(values["created_at"])

@@ -115,7 +115,7 @@ def _build_portfolio_context(db: Session, portfolio: Portfolio) -> str:
 
     open_positions = []
     for ticker, p in positions.items():
-        if p["net_shares"] > 1e-9:
+        if p["net_shares"] > 1e-8:  # same dust threshold as analytics.LOT_EPSILON (fractional reverse splits leave ~1e-9)
             avg = p["buy_cost"] / p["buy_shares"] if p["buy_shares"] else 0.0
             invested = p["net_shares"] * avg
             open_positions.append((invested, ticker, p, avg))

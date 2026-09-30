@@ -1303,13 +1303,15 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
 
     # Imported here: t212_corporate_actions imports this module at load time.
     from t212_corporate_actions import (
-        UnpairedSplitLeg, apply_splits, collapse_split_pairs, reapply_recorded_splits,
+        UnpairedSplitLeg, apply_splits, collapse_split_pairs, drop_recorded_orphan_legs,
+        reapply_recorded_splits,
     )
 
     split_events = [
         e for e in events
         if _corporate_action_type(e) == "STOCK_SPLIT" and not _is_csv_covered(e, csv_covered_through)
     ]
+    split_events = drop_recorded_orphan_legs(db, run=run, portfolio=portfolio, events=split_events)
     try:
         split_evidence = collapse_split_pairs(split_events)
     except UnpairedSplitLeg:

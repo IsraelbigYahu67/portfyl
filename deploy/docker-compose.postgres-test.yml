@@ -1,3 +1,8 @@
+# Own project name: without it both this file and docker-compose.postgres-dev.yml
+# resolve to the project "deploy" with a service "postgres", and starting one
+# silently replaces the other's container (the test config over the dev volume).
+name: portfyl-test
+
 services:
   postgres:
     image: postgres:16
