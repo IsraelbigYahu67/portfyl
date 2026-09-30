@@ -149,6 +149,8 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
         Benchmark,
         BrokerBalance,
         BrokerConnection,
+        BrokerCorporateAction,
+        BrokerCorporateActionApplication,
         BrokerPosition,
         BrokerSyncEvent,
         BrokerSyncRun,
@@ -296,6 +298,22 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
         account_fingerprint=sync_run.account_fingerprint, stream="orders",
         provider_event_id=f"fill:{label}-1",
         raw_payload={"order": {"id": f"{label}-order-1"}},
+    ))
+    action = BrokerCorporateAction(
+        workspace_id=workspace.id, portfolio_id=portfolio.id, broker="trading212",
+        account_fingerprint=sync_run.account_fingerprint or "f" * 64,
+        provider_instrument_id="AAPL_US_EQ", ticker="AAPL", action_type="STOCK_SPLIT",
+        effective_at=datetime(2024, 6, 10, tzinfo=timezone.utc),
+        provider_event_key=f"fill:{label}-a|fill:{label}-b",
+        ratio_numerator=10, ratio_denominator=1, representation="api_normalized",
+        run_id=sync_run.id,
+    )
+    db.add(action)
+    db.flush()
+    db.add(BrokerCorporateActionApplication(
+        workspace_id=workspace.id, action_id=action.id, transaction_id=trade.id,
+        shares_before=1.0, price_before=1500.0, shares_after=10.0, price_after=150.0,
+        applied_by_run_id=sync_run.id,
     ))
 
     now = datetime(2026, 9, 4, tzinfo=timezone.utc)

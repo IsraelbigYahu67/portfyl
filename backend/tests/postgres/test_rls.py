@@ -39,6 +39,8 @@ RLS_TABLES = {
     "broker_positions",
     "broker_sync_runs",
     "broker_sync_events",
+    "broker_corporate_actions",
+    "broker_corporate_action_applications",
     "options_trades",
     "polymarket_positions",
     "discord_webhooks",

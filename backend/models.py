@@ -15,6 +15,7 @@ from sqlalchemy import (
     Integer,
     LargeBinary,
     Index,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -879,6 +880,93 @@ class BrokerSyncEvent(Base):
     provider_timestamp = Column(DateTime(timezone=True), nullable=True)
     raw_payload = Column(JSON, nullable=False)
     received_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class BrokerCorporateAction(Base):
+    """One provider-labelled corporate action (today only Trading 212
+    STOCK_SPLIT) that Portfyl has recorded for a portfolio (plan 2026-09-24,
+    Track B). `representation` says which single form changes quantities:
+    normalized API trades ("api_normalized", applications below) or CSV
+    split_open/split_close rows ("csv_rows", nothing applied). `run_id` is an
+    audit integer only -- runs are purgeable operational data, so no FK."""
+
+    __tablename__ = "broker_corporate_actions"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "portfolio_id", "account_fingerprint", "provider_instrument_id",
+            "action_type", "effective_at", "provider_event_key",
+            name="uq_broker_corporate_action_identity",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_broker_corporate_action_workspace_id"),
+        ForeignKeyConstraint(
+            ["workspace_id", "portfolio_id"],
+            ["portfolios.workspace_id", "portfolios.id"],
+            name="fk_broker_corporate_action_workspace_portfolio",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint(
+            "representation IN ('api_normalized', 'csv_rows')",
+            name="ck_broker_corporate_action_representation",
+        ),
+        CheckConstraint(
+            "ratio_numerator > 0 AND ratio_denominator > 0",
+            name="ck_broker_corporate_action_ratio_positive",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    public_id = _public_id()
+    workspace_id = _workspace_id()
+    portfolio_id = Column(Integer, nullable=False, index=True)
+    broker = Column(String, nullable=False)
+    account_fingerprint = Column(String(64), nullable=False)
+    provider_instrument_id = Column(String, nullable=False)
+    ticker = Column(String, nullable=False)
+    action_type = Column(String, nullable=False)
+    effective_at = Column(DateTime(timezone=True), nullable=False)
+    provider_event_key = Column(String, nullable=False)
+    ratio_numerator = Column(Numeric(20, 10), nullable=False)
+    ratio_denominator = Column(Numeric(20, 10), nullable=False)
+    representation = Column(String, nullable=False)
+    run_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class BrokerCorporateActionApplication(Base):
+    """Records that one ledger Transaction was already adjusted for one
+    BrokerCorporateAction, so a re-run never adjusts it twice. Keyed on the
+    integer transaction id because CSV/legacy rows have no provider event id."""
+
+    __tablename__ = "broker_corporate_action_applications"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "action_id", "transaction_id",
+            name="uq_broker_corporate_action_application",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "action_id"],
+            ["broker_corporate_actions.workspace_id", "broker_corporate_actions.id"],
+            name="fk_broker_ca_application_workspace_action",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "transaction_id"],
+            ["transactions.workspace_id", "transactions.id"],
+            name="fk_broker_ca_application_workspace_transaction",
+            ondelete="CASCADE",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    workspace_id = _workspace_id()
+    action_id = Column(Integer, nullable=False, index=True)
+    transaction_id = Column(Integer, nullable=False, index=True)
+    shares_before = Column(Float, nullable=False)
+    price_before = Column(Float, nullable=False)
+    shares_after = Column(Float, nullable=False)
+    price_after = Column(Float, nullable=False)
+    applied_by_run_id = Column(Integer, nullable=True)
+    applied_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class PolymarketPosition(Base):

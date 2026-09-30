@@ -13,6 +13,8 @@ from models import (
     BenchmarkComponent,
     BrokerBalance,
     BrokerConnection,
+    BrokerCorporateAction,
+    BrokerCorporateActionApplication,
     CashInterestRate,
     DiscordWebhook,
     DividendNotification,
@@ -31,6 +33,7 @@ from models import (
 )
 from routers.account import export_workspace_data
 from routers.settings import router as settings_router
+from tests.helpers import make_txn
 from workspace_export import build_workspace_export
 
 
@@ -147,7 +150,7 @@ def test_export_contains_portable_workspace_data_without_cross_tenant_rows(
         exported_at=EXPORTED_AT,
     )
 
-    assert payload["schema_version"] == 3
+    assert payload["schema_version"] == 4
     assert payload["exported_at"] == "2026-09-07T12:30:00+00:00"
     assert payload["workspace"]["id"] == str(request_context.workspace.public_id)
     assert payload["membership"] == {
@@ -427,3 +430,39 @@ def test_account_export_router_is_mounted_below_settings():
     app.include_router(settings_router, prefix="/api")
     paths = set(app.openapi()["paths"])
     assert "/api/settings/account/export" in paths
+
+
+def test_export_includes_corporate_actions_and_applications(db_session, request_context):
+    portfolio, _ = _seed_export_rows(db_session, request_context)
+    txn = make_txn(
+        "NVDA", "buy", 90, 120, portfolio_id=portfolio.id, source="t212_api",
+        workspace_id=request_context.workspace.id,
+    )
+    db_session.add(txn)
+    db_session.flush()
+    action = BrokerCorporateAction(
+        workspace_id=request_context.workspace.id, portfolio_id=portfolio.id,
+        broker="trading212", account_fingerprint="f" * 64, provider_instrument_id="NVDA_US_EQ",
+        ticker="NVDA", action_type="STOCK_SPLIT",
+        effective_at=datetime(2024, 6, 10, tzinfo=timezone.utc), provider_event_key="fill:a|fill:b",
+        ratio_numerator=10, ratio_denominator=1, representation="api_normalized",
+    )
+    db_session.add(action)
+    db_session.flush()
+    db_session.add(BrokerCorporateActionApplication(
+        workspace_id=request_context.workspace.id, action_id=action.id, transaction_id=txn.id,
+        shares_before=9, price_before=1200, shares_after=90, price_after=120,
+    ))
+    db_session.commit()
+
+    payload = build_workspace_export(db_session, request_context, exported_at=EXPORTED_AT)
+
+    assert payload["schema_version"] == 4
+    [a] = payload["broker_corporate_actions"]
+    assert a["action_type"] == "STOCK_SPLIT"
+    assert float(a["ratio_numerator"]) == 10.0
+    assert a["portfolio_id"] == payload["portfolios"][0]["id"]
+    assert a["account_fingerprint"] == "f" * 64
+    [ap] = payload["broker_corporate_action_applications"]
+    assert ap["shares_after"] == 90
+    assert ap["action_id"] == a["id"]

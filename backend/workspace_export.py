@@ -14,6 +14,8 @@ from models import (
     BenchmarkComponent,
     BrokerBalance,
     BrokerConnection,
+    BrokerCorporateAction,
+    BrokerCorporateActionApplication,
     BrokerPosition,
     CashInterestRate,
     DiscordWebhook,
@@ -32,7 +34,7 @@ from models import (
 from tenancy import RequestContext
 
 
-EXPORT_SCHEMA_VERSION = 3
+EXPORT_SCHEMA_VERSION = 4
 
 _WORKSPACE_PREFERENCE_KEYS = (
     "broker_sync_daily_time",
@@ -173,6 +175,17 @@ def build_workspace_export(
         select(BrokerPosition)
         .where(BrokerPosition.workspace_id == workspace_id)
         .order_by(BrokerPosition.updated_at, BrokerPosition.id)
+    ).all()
+    corporate_actions = db.scalars(
+        select(BrokerCorporateAction)
+        .where(BrokerCorporateAction.workspace_id == workspace_id)
+        .order_by(BrokerCorporateAction.effective_at, BrokerCorporateAction.id)
+    ).all()
+    corporate_action_public_ids = {a.id: str(a.public_id) for a in corporate_actions}
+    corporate_action_applications = db.scalars(
+        select(BrokerCorporateActionApplication)
+        .where(BrokerCorporateActionApplication.workspace_id == workspace_id)
+        .order_by(BrokerCorporateActionApplication.id)
     ).all()
     polymarket_positions = db.scalars(
         select(PolymarketPosition)
@@ -401,6 +414,39 @@ def build_workspace_export(
             }
             for position in broker_positions
             if position.portfolio_id in portfolio_public_ids
+        ],
+        "broker_corporate_actions": [
+            {
+                "id": str(action.public_id),
+                "portfolio_id": portfolio_public_ids[action.portfolio_id],
+                "broker": action.broker,
+                "account_fingerprint": action.account_fingerprint,
+                "provider_instrument_id": action.provider_instrument_id,
+                "ticker": action.ticker,
+                "action_type": action.action_type,
+                "effective_at": _iso(action.effective_at),
+                "provider_event_key": action.provider_event_key,
+                "ratio_numerator": float(action.ratio_numerator),
+                "ratio_denominator": float(action.ratio_denominator),
+                "representation": action.representation,
+                "created_at": _iso(action.created_at),
+            }
+            for action in corporate_actions
+            if action.portfolio_id in portfolio_public_ids
+        ],
+        "broker_corporate_action_applications": [
+            {
+                "action_id": corporate_action_public_ids[application.action_id],
+                "transaction_id": str(transactions_by_id[application.transaction_id].public_id),
+                "shares_before": application.shares_before,
+                "price_before": application.price_before,
+                "shares_after": application.shares_after,
+                "price_after": application.price_after,
+                "applied_at": _iso(application.applied_at),
+            }
+            for application in corporate_action_applications
+            if application.action_id in corporate_action_public_ids
+            and application.transaction_id in transactions_by_id
         ],
         "polymarket_positions": [
             {

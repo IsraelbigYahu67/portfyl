@@ -35,7 +35,7 @@ def test_payment_and_trial_models_are_not_mapped():
 
 
 def test_expected_alembic_head_adds_t212_account_binding():
-    assert EXPECTED_ALEMBIC_HEAD == "0021_t212_history_coverage"
+    assert EXPECTED_ALEMBIC_HEAD == "0020_broker_corporate_actions"
     assert hasattr(models.BrokerSyncRun, "review_details")
     assert hasattr(models.BrokerConnection, "history_complete_at")
     assert hasattr(models.BrokerSyncRun, "orders_known_streak")
