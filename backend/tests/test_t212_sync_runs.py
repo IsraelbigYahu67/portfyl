@@ -102,6 +102,30 @@ class TestValidateNextPagePath:
             "/equity/history/orders", "orders"
         ) == "/equity/history/orders"
 
+    def test_provider_path_with_api_version_prefix_is_accepted_and_made_base_relative(self):
+        # Trading 212 documents nextPagePath as "/api/v0/equity/history/orders?limit=2&cursor=...",
+        # while the request base already ends in /api/v0. Rejecting it silently stopped
+        # pagination after the first page of 50 orders.
+        result = t212_sync.validate_next_page_path(
+            "/api/v0/equity/history/orders?limit=50&cursor=1760346100000", "orders"
+        )
+        assert result == "/equity/history/orders?limit=50&cursor=1760346100000"
+
+    def test_prefixed_path_for_the_wrong_endpoint_is_rejected(self):
+        assert t212_sync.validate_next_page_path(
+            "/api/v0/equity/history/dividends?cursor=x", "orders"
+        ) is None
+
+    def test_doubled_version_prefix_is_rejected(self):
+        assert t212_sync.validate_next_page_path(
+            "/api/v0/api/v0/equity/history/orders?cursor=x", "orders"
+        ) is None
+
+    def test_other_api_version_is_rejected(self):
+        assert t212_sync.validate_next_page_path(
+            "/api/v1/equity/history/orders?cursor=x", "orders"
+        ) is None
+
 
 # ---------------------------------------------------------------------------
 # Single-page fetch

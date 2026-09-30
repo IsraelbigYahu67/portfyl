@@ -325,6 +325,7 @@ _STREAM_ENDPOINT_PATH = {
     "dividends": "/equity/history/dividends",
 }
 _ALLOWED_NEXT_PAGE_QUERY_KEYS = {"cursor", "limit"}
+_API_VERSION_PREFIX = "/api/v0"  # the path suffix of every T212_BASES entry
 
 
 @dataclass(frozen=True)
@@ -370,12 +371,20 @@ def validate_next_page_path(path: str | None, stream: str) -> str | None:
     parsed = urlsplit(path)
     if parsed.scheme or parsed.netloc or parsed.fragment:
         return None
-    if parsed.path != expected_path:
+    # Trading 212 documents nextPagePath with the API version prefix
+    # ("/api/v0/equity/history/orders?limit=50&cursor=..."), but requests are
+    # built as base + path where the base already ends in that prefix. Strip it
+    # once so the result stays relative to the base; a doubled or different
+    # version prefix still fails the endpoint comparison below.
+    relative_path = parsed.path
+    if relative_path.startswith(_API_VERSION_PREFIX + "/"):
+        relative_path = relative_path[len(_API_VERSION_PREFIX):]
+    if relative_path != expected_path:
         return None
     query_keys = set(parse_qs(parsed.query).keys())
     if not query_keys <= _ALLOWED_NEXT_PAGE_QUERY_KEYS:
         return None
-    return parsed.path + (f"?{parsed.query}" if parsed.query else "")
+    return relative_path + (f"?{parsed.query}" if parsed.query else "")
 
 
 class RateLimitedError(Exception):
