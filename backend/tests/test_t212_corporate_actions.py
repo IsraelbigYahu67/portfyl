@@ -103,6 +103,13 @@ def test_price_ratio_that_disagrees_with_share_ratio_is_rejected():
         collapse_split_pairs([_leg("fill:a", "SELL", 9, 1200), _leg("fill:b", "BUY", 90, 200)])
 
 
+def test_ratio_that_cannot_be_represented_exactly_is_rejected_not_rounded():
+    # 1-for-1500 would round to 1/1000 under limit_denominator(1000) and silently
+    # mis-adjust every prior share count by a third.
+    with pytest.raises(InvalidSplitPair):
+        collapse_split_pairs([_leg("fill:a", "SELL", 1500, 1.0), _leg("fill:b", "BUY", 1, 1500.0)])
+
+
 def test_missing_price_is_rejected_because_the_ratio_cannot_be_checked():
     with pytest.raises(InvalidSplitPair):
         collapse_split_pairs([_leg("fill:a", "SELL", 9, None), _leg("fill:b", "BUY", 90, 120)])

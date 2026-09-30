@@ -32,6 +32,9 @@ _WALLET_TOLERANCE = Decimal("0.01")
 # Rounded share quantities and prices can disagree slightly; a real mismatch
 # (value not conserved) is far larger than 1%.
 _PRICE_RATIO_TOLERANCE = Fraction(1, 100)
+# Provider quantities are rounded to 8 decimals, so the exact share ratio is only
+# close to the real fraction; anything further off than this is a distortion.
+_RATIO_ROUNDING_TOLERANCE = Fraction(1, 10000)
 
 
 class UnpairedSplitLeg(Exception):
@@ -97,6 +100,10 @@ def _validate_pair(label: str, close: BrokerSyncEvent, open_: BrokerSyncEvent,
     by_price = Fraction(close_price / open_price)
     if abs(by_shares - by_price) > _PRICE_RATIO_TOLERANCE * by_shares:
         raise InvalidSplitPair(f"{label}: price ratio disagrees with the share ratio")
+    # SplitEvidence.ratio is a small fraction; refuse a split it would have to round.
+    nominal = by_shares.limit_denominator(1000)
+    if abs(nominal - by_shares) > _RATIO_ROUNDING_TOLERANCE * by_shares:
+        raise InvalidSplitPair(f"{label}: split ratio is not a small exact fraction")
 
 
 def collapse_split_pairs(events: list[BrokerSyncEvent]) -> list[SplitEvidence]:

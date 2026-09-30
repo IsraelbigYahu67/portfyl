@@ -2,24 +2,28 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status (2026-09-28):** Track A is done except the user-run capture (A1 step 6)
-and the gate that depends on it (A2/G1). Track C is done (C1–C4). Track B is
-**not started and must not start** until `docs/research/t212-corporate-action-encoding.md`
-has a sign-off.
+**Status (2026-09-30):** Tracks A, B and C are done in code. The G1 record
+(`docs/research/t212-corporate-action-encoding.md`) was signed off on
+2026-09-30 from one real reverse split (GNPX 1-for-22, 2026-07-16); only the
+reverse encoding is verified, so a forward split or any unverifiable pair stays
+`needs_review`. Remaining: V1's real-environment checks (see the table).
 
 | Task | State | Commit |
 |------|-------|--------|
-| A1 capture CLI | code done; **capture not yet run by the user** | `c82f6a2` |
-| A2 / G1 encoding record | **blocked on A1 capture** | — |
+| A1 capture CLI | done; capture run 2026-09-30 | `c82f6a2` |
+| A2 / G1 encoding record | done, signed off 2026-09-30 | `c8a5860` |
 | A3 persist review details | done | `819f18a` |
 | A4 break the re-download loop | done | `7eec1fd` |
 | A5 review panel, CSV guidance, retry (+ retry-error banner) | done | `91d098e` |
-| B1–B4 split mapper | **gated on G1** | — |
+| B1 corporate-action tables (`0020`, revises `0021`, RLS, export v4) | done | `77cf57e` |
+| B2 split-pair collapse (+ G1 checks: equal `walletImpact`, price-ratio cross-check) | done | `c84eda6` |
+| B3 apply splits in finalization (+ audit re-apply, `HISTORY_SPLIT_UNVERIFIED_ERROR` loop guard) | done | `9bd0fa1` |
+| B4 import undo schema v3 | done | `526bfe2` |
 | C1 coverage checkpoints | done | `97479cc` |
 | C2 incremental stop rule | done (the pure evaluator was written on two parallel lanes: `dc712cd` and `1628c01` both add `t212_incremental.py`) | `dc712cd`, `1628c01`, `6f321cb`, `a46412a` |
 | C3 30-day audits, payload revisions | done | `e05de2b` |
 | C4 staging retention | done | `9654588` |
-| V1 gates | fast backend suite (983), `alembic heads` (one head, `0021`), frontend local/cloud tests (690/691), both builds and the PostgreSQL/RLS suite (346, migrations `0001`–`0021`) pass; the real-browser and T212 demo checks are open | — |
+| V1 gates | 2026-09-30, after Track B: fast backend suite (1014), `alembic heads` (one head, `0020_broker_corporate_actions`), PostgreSQL/RLS suite (354). Frontend local/cloud tests and both builds passed earlier the same day (no frontend change since). Real browser: the needs_review panel, retry and desktop/mobile widths were checked against the owner's T212 run. **Open:** an end-to-end import of the real GNPX split after the mapper shipped, the second (incremental) sync, and the 31-day audit | — |
 
 The checkbox steps below were not ticked one by one; this table is the record.
 

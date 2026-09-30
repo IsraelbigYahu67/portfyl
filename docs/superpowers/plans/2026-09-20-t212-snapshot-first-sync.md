@@ -6,9 +6,11 @@ history runs), scoped Task 4 slices (finalize into ledger rows, account-identity
 guards, CSV event identity/timestamps, serialized ledger mutations, and
 provenance preservation through undo/export), and scoped Task 6 frontend slices
 are implemented. §10 Task 5 (incremental sync, 30-day audits, payload
-revisions) is implemented too, and Task 4's split handling is still blocked on
-the gate in `2026-09-24-t212-corporate-actions-incremental-sync.md` (real
-`STOCK_SPLIT` payload capture, then a signed-off encoding record). The earlier
+revisions) is implemented too, and Task 4's same-instrument `STOCK_SPLIT`
+handling shipped on 2026-09-30 after the gate in
+`2026-09-24-t212-corporate-actions-incremental-sync.md` (one real reverse split
+captured, signed-off record `docs/research/t212-corporate-action-encoding.md`).
+Other corporate actions and forward splits still go to `needs_review`. The earlier
 backend slice passed the fast and PostgreSQL/RLS suites; the 2026-09-24
 additions pass the 983-test fast suite, the frontend local/cloud gates and the
 346-test PostgreSQL/RLS suite against migrations `0001`–`0021` (all checked
@@ -134,12 +136,14 @@ run to terminal `needs_review` (§6.2.8): nothing is imported, no completion or
 `last_synced_at` is set, and `history-status` reports a dedicated non-retry
 message. The provider docs list the `fill.type` values (`STOCK_SPLIT`,
 `STOCK_DISTRIBUTION`, `FOP`, `SPIN_OFF`, `STOCK_ACQUISITION`, ...) but do not
-document how a split pair encodes quantity, sign, or price, so the mechanical
-same-instrument `STOCK_SPLIT` mapper, `BrokerCorporateAction` records, and
-their application identities wait for real provider payloads (Task 1's
-corporate-action fixtures). Until then a portfolio whose history contains any
-such action gets the snapshot but no imported history; every new sync re-stages
-the history and lands in `needs_review` again. Per-ticker heuristics are
+document how a split pair encodes quantity, sign, or price. (Update
+2026-09-30: a real reverse split was captured; the `STOCK_SPLIT` mapper,
+`BrokerCorporateAction` records and their application identities are built
+against `docs/research/t212-corporate-action-encoding.md`. Every other type,
+forward splits and unverifiable pairs still wait, as described here.) A
+portfolio whose history contains such an action gets the snapshot but no
+imported history, and the needs_review loop guard stops repeat downloads until
+a CSV export covers the action or a mapper exists. Per-ticker heuristics are
 deliberately not treated as authoritative history coverage. The finalizer is
 wired into `broker_backfill`; full split/corporate-action processing and
 cash-movement history remain deferred.

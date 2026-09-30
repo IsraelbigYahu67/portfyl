@@ -911,14 +911,15 @@ def advance_run(
 # worker after all required streams have been staged.
 #
 # Explicitly NOT covered by this function (left for a later increment):
-#   - split/corporate-action detection and mechanical share/price adjustment
-#     (plan §6). A fill whose provider `fill.type` is anything other than
-#     "TRADE" (and is not already covered by an authoritative CSV export)
+#   - corporate actions other than STOCK_SPLIT (plan §6). Same-instrument
+#     STOCK_SPLIT pairs are applied by t212_corporate_actions (gate G1, plan
+#     2026-09-24 Track B). Any other non-"TRADE" `fill.type` (spin-off,
+#     acquisition, distribution, FOP, ...), and a STOCK_SPLIT whose pair cannot
+#     be verified, that is not already covered by an authoritative CSV export
 #     sends the run to terminal `needs_review` (plan §6.2.8): nothing is
 #     imported, no completion or sync marker is set, and the user is told why.
 #     This refuses both a mis-imported corporate-action-as-trade and an
-#     unadjusted pre-split row. The provider does not document how a split
-#     pair encodes quantity/price, so the mapper waits for real payloads;
+#     unadjusted pre-split row;
 #   - per-ticker latest-date heuristics. Only the account-wide authoritative
 #     `t212_csv_covered_through` cutoff suppresses older provider events;
 #   - the `/equity/history/transactions` cash-movement stream (deposits,
