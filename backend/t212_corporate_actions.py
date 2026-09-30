@@ -9,12 +9,21 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, time, timezone
 from decimal import Decimal, InvalidOperation
 from fractions import Fraction
 
-from models import BrokerSyncEvent
-from t212_sync import _parse_t212_datetime
+from sqlalchemy.orm import Session
+
+from models import (
+    BrokerCorporateAction,
+    BrokerCorporateActionApplication,
+    BrokerSyncEvent,
+    BrokerSyncRun,
+    Portfolio,
+    Transaction,
+)
+from t212_sync import _normalize_t212_ticker, _parse_t212_datetime
 
 # G1 decision 1: walletImpact is informational on split legs, but both legs must
 # carry the same value (a real cash component would make them differ). Rounding
@@ -121,3 +130,125 @@ def collapse_split_pairs(events: list[BrokerSyncEvent]) -> list[SplitEvidence]:
         ids = tuple(sorted((close.provider_event_id, open_.provider_event_id)))
         out.append(SplitEvidence(instrument, at, "|".join(ids), old, new, ids))
     return out
+
+
+@dataclass(frozen=True)
+class ApplySummary:
+    actions_created: int
+    applications_created: int
+    csv_represented: int
+
+
+def _is_t212_origin(t: Transaction) -> bool:
+    if t.source in {"t212_api", "t212_csv"}:
+        return True
+    return not t.source and (t.notes or "").startswith("T212")
+
+
+def _row_time(t: Transaction) -> datetime:
+    if t.executed_at is not None:
+        return t.executed_at if t.executed_at.tzinfo else t.executed_at.replace(tzinfo=timezone.utc)
+    return datetime.combine(t.date, time.max, tzinfo=timezone.utc)
+
+
+def _action_ratio(action: BrokerCorporateAction) -> Fraction:
+    return Fraction(Decimal(action.ratio_numerator)) / Fraction(Decimal(action.ratio_denominator))
+
+
+def apply_splits(db: Session, *, run: BrokerSyncRun, portfolio: Portfolio,
+                 evidence: list[SplitEvidence], pending: list[Transaction]) -> ApplySummary:
+    """Record each split once and adjust the T212-origin buy/sell rows that
+    predate it, exactly once per (action, transaction). Runs inside the ledger
+    lock finalize_run already holds. A split whose two legs the CSV importer
+    already stored as split_open/split_close rows is recorded as "csv_rows" and
+    changes nothing: one provider action has exactly one quantity-changing form."""
+    created = applied = csv_rep = 0
+    for ev in sorted(evidence, key=lambda e: e.effective_at):
+        ticker = _normalize_t212_ticker(ev.provider_instrument_id)
+        rows = db.query(Transaction).filter(
+            Transaction.workspace_id == portfolio.workspace_id,
+            Transaction.portfolio_id == portfolio.id,
+            Transaction.ticker == ticker,
+        ).all()
+        action = db.query(BrokerCorporateAction).filter_by(
+            workspace_id=portfolio.workspace_id, portfolio_id=portfolio.id,
+            account_fingerprint=run.account_fingerprint,
+            provider_instrument_id=ev.provider_instrument_id, action_type="STOCK_SPLIT",
+            effective_at=ev.effective_at, provider_event_key=ev.provider_event_key,
+        ).first()
+        if action is None:
+            csv_legs = {t.type for t in rows
+                        if t.type in {"split_open", "split_close"} and t.date == ev.effective_at.date()}
+            action = BrokerCorporateAction(
+                workspace_id=portfolio.workspace_id, portfolio_id=portfolio.id,
+                broker="trading212", account_fingerprint=run.account_fingerprint,
+                provider_instrument_id=ev.provider_instrument_id, ticker=ticker,
+                action_type="STOCK_SPLIT", effective_at=ev.effective_at,
+                provider_event_key=ev.provider_event_key,
+                ratio_numerator=ev.ratio.numerator, ratio_denominator=ev.ratio.denominator,
+                representation="csv_rows" if csv_legs == {"split_open", "split_close"} else "api_normalized",
+                run_id=run.id,
+            )
+            db.add(action)
+            db.flush()
+            created += 1
+        if action.representation == "csv_rows":
+            csv_rep += 1
+            continue
+        already = {
+            a.transaction_id for a in db.query(BrokerCorporateActionApplication).filter_by(
+                workspace_id=portfolio.workspace_id, action_id=action.id,
+            )
+        }
+        ratio = _action_ratio(action)
+        candidates = rows + [p for p in pending if p.ticker == ticker and p not in rows]
+        for t in candidates:
+            if t.type not in {"buy", "sell"} or not _is_t212_origin(t):
+                continue
+            if _row_time(t) >= ev.effective_at:
+                continue
+            if t.id is None:
+                db.add(t)
+                db.flush()
+            if t.id in already:
+                continue
+            before_shares, before_price = t.shares, t.price
+            t.shares = float(Fraction(str(t.shares)) * ratio)
+            t.price = float(Fraction(str(t.price)) / ratio)
+            db.add(BrokerCorporateActionApplication(
+                workspace_id=portfolio.workspace_id, action_id=action.id, transaction_id=t.id,
+                shares_before=before_shares, price_before=before_price,
+                shares_after=t.shares, price_after=t.price, applied_by_run_id=run.id,
+            ))
+            already.add(t.id)
+            applied += 1
+    return ApplySummary(created, applied, csv_rep)
+
+
+def reapply_recorded_splits(db: Session, *, workspace_id, rows: list[Transaction]) -> None:
+    """After an audit run overwrote rows with the provider's raw values, put
+    back every recorded split adjustment, oldest first, and refresh the
+    application markers. Without this a provider correction would silently
+    undo the split and leave pre-split share counts in the ledger."""
+    by_id = {t.id: t for t in rows if t.id is not None}
+    if not by_id:
+        return
+    applications = (
+        db.query(BrokerCorporateActionApplication, BrokerCorporateAction)
+        .join(BrokerCorporateAction, (BrokerCorporateAction.workspace_id
+                                      == BrokerCorporateActionApplication.workspace_id)
+              & (BrokerCorporateAction.id == BrokerCorporateActionApplication.action_id))
+        .filter(
+            BrokerCorporateActionApplication.workspace_id == workspace_id,
+            BrokerCorporateActionApplication.transaction_id.in_(list(by_id)),
+        )
+        .order_by(BrokerCorporateAction.effective_at, BrokerCorporateAction.id)
+        .all()
+    )
+    for application, action in applications:
+        t = by_id[application.transaction_id]
+        application.shares_before, application.price_before = t.shares, t.price
+        ratio = _action_ratio(action)
+        t.shares = float(Fraction(str(t.shares)) * ratio)
+        t.price = float(Fraction(str(t.price)) / ratio)
+        application.shares_after, application.price_after = t.shares, t.price

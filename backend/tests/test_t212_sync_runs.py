@@ -535,7 +535,7 @@ class TestAdvanceRun:
 # history_run_decision (plan 2026-09-24, Task A4)
 # ---------------------------------------------------------------------------
 
-SPLIT = [{"fill_type": "STOCK_SPLIT", "ticker": "NVDA", "date": "2024-06-10"}]
+SPLIT = [{"fill_type": "SPIN_OFF", "ticker": "NVDA", "date": "2024-06-10"}]
 
 
 @pytest.fixture
@@ -599,11 +599,37 @@ class TestHistoryRunDecision:
     ):
         _review_run(db_session, connection, default_portfolio, SPLIT)
         monkeypatch.setattr(
-            t212_sync, "SUPPORTED_CORPORATE_ACTION_TYPES", frozenset({"STOCK_SPLIT"}),
+            t212_sync, "SUPPORTED_CORPORATE_ACTION_TYPES", frozenset({"SPIN_OFF"}),
         )
         assert t212_sync.history_run_decision(
             db_session, connection, default_portfolio,
         ).action == "create"
+
+    def test_needs_review_from_before_the_split_mapper_is_unblocked_by_it(
+        self, db_session, default_portfolio, connection
+    ):
+        # A run that blocked on STOCK_SPLIT before the mapper shipped (plain
+        # "cannot import automatically yet" message) is worth retrying now.
+        run = _review_run(db_session, connection, default_portfolio,
+                          [{"fill_type": "STOCK_SPLIT", "ticker": "NVDA", "date": "2024-06-10"}])
+        run.last_error = t212_sync.HISTORY_NEEDS_REVIEW_ERROR
+        db_session.commit()
+        assert t212_sync.history_run_decision(
+            db_session, connection, default_portfolio,
+        ).action == "create"
+
+    def test_split_the_mapper_could_not_verify_stays_blocked(
+        self, db_session, default_portfolio, connection
+    ):
+        # Supported type, but the mapper itself refused this data: re-staging it
+        # on every sync would only repeat the same dead end.
+        run = _review_run(db_session, connection, default_portfolio,
+                          [{"fill_type": "STOCK_SPLIT", "ticker": "NVDA", "date": "2024-06-10"}])
+        run.last_error = t212_sync.HISTORY_SPLIT_UNVERIFIED_ERROR
+        db_session.commit()
+        decision = t212_sync.history_run_decision(db_session, connection, default_portfolio)
+        assert decision.action == "blocked"
+        assert t212_sync.review_resolution(run, connection, default_portfolio)["mapper_supports_all"] is False
 
     def test_legacy_needs_review_without_details_is_blocked(
         self, db_session, default_portfolio, connection

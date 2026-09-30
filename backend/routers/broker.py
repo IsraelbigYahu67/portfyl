@@ -345,7 +345,11 @@ def get_history_status(
     if resume_at is not None and resume_at.tzinfo is None:
         resume_at = resume_at.replace(tzinfo=timezone.utc)
     if run.state == "needs_review":
-        public_error = t212_sync.HISTORY_NEEDS_REVIEW_ERROR
+        public_error = (
+            t212_sync.HISTORY_SPLIT_UNVERIFIED_ERROR
+            if run.last_error == t212_sync.HISTORY_SPLIT_UNVERIFIED_ERROR
+            else t212_sync.HISTORY_NEEDS_REVIEW_ERROR
+        )
     elif run.last_error:
         public_error = (
             "Trading 212 history sync failed. Start a new sync to retry."

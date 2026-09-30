@@ -738,7 +738,7 @@ def test_autosync_creates_no_history_run_while_needs_review_is_unresolved(db_ses
         broker="trading212", credential_generation=conn.credential_generation,
         mode="incremental", state="needs_review", orders_complete=True,
         dividends_complete=True,
-        review_details=[{"fill_type": "STOCK_SPLIT", "ticker": "NVDA", "date": "2024-06-10"}],
+        review_details=[{"fill_type": "SPIN_OFF", "ticker": "NVDA", "date": "2024-06-10"}],
     ))
     db_session.commit()
     summary = {

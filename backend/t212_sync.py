@@ -299,13 +299,22 @@ def is_snapshot_fresh(as_of: datetime | None, *, now: datetime | None = None) ->
 STREAMS = ("orders", "dividends")
 TERMINAL_RUN_STATES = ("completed", "failed", "cancelled", "needs_review")
 REVIEW_DETAILS_LIMIT = 50
-# fill.type values finalize_run can transform. Empty until gate G1 (plan
-# 2026-09-24 Task A2) is signed off and Task B3 lands.
-SUPPORTED_CORPORATE_ACTION_TYPES: frozenset[str] = frozenset()
+# fill.type values finalize_run can transform (gate G1 signed off 2026-09-30,
+# plan 2026-09-24 Task B3).
+SUPPORTED_CORPORATE_ACTION_TYPES: frozenset[str] = frozenset({"STOCK_SPLIT"})
 HISTORY_RETRY_ERROR = "Trading 212 history sync will retry automatically."
 HISTORY_NEEDS_REVIEW_ERROR = (
     "Trading 212 history contains corporate actions (such as splits) that "
     "Portfyl cannot import automatically yet. No history was imported."
+)
+
+# A STOCK_SPLIT the mapper supports but could not verify (unpaired legs, unequal
+# wallet values, price ratio off). Distinct from the message above so that
+# review_resolution does not treat it as "mapper now supports this": retrying
+# would only re-stage the same dead end on every sync.
+HISTORY_SPLIT_UNVERIFIED_ERROR = (
+    "Trading 212 reported a split that Portfyl could not verify automatically. "
+    "No history was imported."
 )
 
 DEFAULT_LEASE_SECONDS = 90
@@ -571,7 +580,10 @@ def review_resolution(run: BrokerSyncRun, connection: BrokerConnection, portfoli
         and coverage >= datetime.fromisoformat(needed).replace(tzinfo=timezone.utc) + timedelta(days=1)
     )
     types = {d.get("fill_type") for d in details}
-    mapper_supports_all = bool(details) and types <= SUPPORTED_CORPORATE_ACTION_TYPES
+    mapper_supports_all = (
+        bool(details) and types <= SUPPORTED_CORPORATE_ACTION_TYPES
+        and run.last_error != HISTORY_SPLIT_UNVERIFIED_ERROR
+    )
     return {"csv_covers_all": csv_covers_all, "csv_needed_through": needed,
             "mapper_supports_all": mapper_supports_all}
 
@@ -915,7 +927,7 @@ def advance_run(
 # =============================================================================
 
 
-_FINALIZE_MAPPER_VERSION = "t212_finalize_v1"
+_FINALIZE_MAPPER_VERSION = "t212_finalize_v2"
 
 
 @dataclass(frozen=True)
@@ -973,6 +985,7 @@ def _review_details(events: list[BrokerSyncEvent]) -> list[dict]:
 
 def _send_run_to_needs_review(
     db: Session, run: BrokerSyncRun, events: list[BrokerSyncEvent],
+    *, last_error: str = HISTORY_NEEDS_REVIEW_ERROR,
 ) -> FinalizeResult:
     """Terminal state for a run whose staged history holds corporate actions
     no mapper supports yet (plan §6.2.8). Nothing is written to the ledger, no
@@ -981,7 +994,7 @@ def _send_run_to_needs_review(
     `events` are the blocking events; only a bounded summary is persisted."""
     action_types = sorted({_corporate_action_type(e) for e in events} - {None})
     run.state = "needs_review"
-    run.last_error = HISTORY_NEEDS_REVIEW_ERROR
+    run.last_error = last_error
     run.review_details = _review_details(events)
     run.lease_token = None
     run.lease_expires_at = None
@@ -1287,6 +1300,24 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
         if unsupported_events:
             return _send_run_to_needs_review(db, run, unsupported_events)
 
+    # Imported here: t212_corporate_actions imports this module at load time.
+    from t212_corporate_actions import (
+        UnpairedSplitLeg, apply_splits, collapse_split_pairs, reapply_recorded_splits,
+    )
+
+    split_events = [
+        e for e in events
+        if _corporate_action_type(e) == "STOCK_SPLIT" and not _is_csv_covered(e, csv_covered_through)
+    ]
+    try:
+        split_evidence = collapse_split_pairs(split_events)
+    except UnpairedSplitLeg:
+        if run.state == "finalizing":
+            return _send_run_to_needs_review(
+                db, run, split_events, last_error=HISTORY_SPLIT_UNVERIFIED_ERROR,
+            )
+        raise
+
     existing_txns = (
         db.query(Transaction)
         .filter(
@@ -1404,9 +1435,8 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
     for t in new_txns:
         db.add(t)
     # Revise in place under the ledger lock taken above. Identity and user
-    # fields (ticker, type, name, notes) are left alone. Once Track B's
-    # corporate-action applications exist, the recorded ratios must be
-    # re-applied to `shares`/`price` here (plan 2026-09-24, Task C3).
+    # fields (ticker, type, name, notes) are left alone. Recorded split
+    # ratios are re-applied to the revised rows just below.
     for existing_row, mapped in revisions:
         date_moved = mapped.date != existing_row.date
         existing_row.shares = mapped.shares
@@ -1423,6 +1453,11 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
             # No rate for the new date yet; the startup backfill fills it in
             # rather than leaving the old date's rate on the row.
             existing_row.fx_to_czk = None
+    if revisions:
+        reapply_recorded_splits(
+            db, workspace_id=portfolio.workspace_id, rows=[row for row, _ in revisions],
+        )
+    apply_splits(db, run=run, portfolio=portfolio, evidence=split_evidence, pending=new_txns)
     if run.state != "completed":
         finalized_at = datetime.now(timezone.utc)
         run.state = "completed"
