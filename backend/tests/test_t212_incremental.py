@@ -74,7 +74,7 @@ def test_ordering_violation_across_pages_never_stops():
 
 def test_small_fill_time_inversion_inside_a_page_is_not_an_ordering_violation():
     # Real T212 data: an order placed earlier can fill after a newer one, so the
-    # page is not strictly descending by fill time (observed: up to ~21 hours).
+    # page is not strictly descending by fill time (observed: up to ~1 day).
     verdict = evaluate_page(
         page_events=[("a", d(10)), ("b", d(10) + timedelta(hours=20)), ("c", d(11))],
         known_ids={"a", "b", "c"},
@@ -97,9 +97,20 @@ def test_small_inversion_across_pages_is_not_an_ordering_violation():
     assert verdict.ordering_violation is False
 
 
+def test_observed_one_day_nineteen_minute_inversion_is_tolerated():
+    verdict = evaluate_page(
+        page_events=[("a", d(10)), ("b", d(10) + timedelta(days=1, minutes=19))],
+        known_ids={"a", "b"},
+        frontier_at=F,
+        prior_streak=OVERLAP_PAGES - 1,
+        previous_page_oldest=d(9),
+    )
+    assert verdict.ordering_violation is False
+
+
 def test_inversion_larger_than_the_tolerance_is_still_a_violation():
     verdict = evaluate_page(
-        page_events=[("a", d(10)), ("b", d(10) + timedelta(days=2))],
+        page_events=[("a", d(10)), ("b", d(10) + timedelta(days=4))],
         known_ids={"a", "b"},
         frontier_at=F,
         prior_streak=OVERLAP_PAGES,

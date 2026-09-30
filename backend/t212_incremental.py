@@ -14,11 +14,11 @@ OVERLAP_PAGES = 2
 OVERLAP_DAYS = 7
 # The provider orders history by order, not by fill time, so a page is not
 # strictly descending by the timestamps we read: an order placed earlier can
-# fill after a newer one (real account: 4 of 304 orders, up to ~21 hours). Treating
+# fill after a newer one (real account: 5 of 304 orders, up to ~1 day). Treating
 # every such inversion as an ordering doubt turned every incremental run into a
 # full audit. A shift far smaller than OVERLAP_DAYS cannot hide an unseen event
 # past the overlap margin the stop rule already requires, so it is tolerated.
-ORDERING_TOLERANCE = timedelta(days=1)
+ORDERING_TOLERANCE = timedelta(days=3)
 
 
 @dataclass(frozen=True)
