@@ -12,6 +12,13 @@ from datetime import datetime, timedelta
 
 OVERLAP_PAGES = 2
 OVERLAP_DAYS = 7
+# The provider orders history by order, not by fill time, so a page is not
+# strictly descending by the timestamps we read: an order placed earlier can
+# fill after a newer one (real account: 4 of 304 orders, up to ~21 hours). Treating
+# every such inversion as an ordering doubt turned every incremental run into a
+# full audit. A shift far smaller than OVERLAP_DAYS cannot hide an unseen event
+# past the overlap margin the stop rule already requires, so it is tolerated.
+ORDERING_TOLERANCE = timedelta(days=1)
 
 
 @dataclass(frozen=True)
@@ -31,10 +38,10 @@ def evaluate_page(
 ) -> PageVerdict:
     times = [timestamp for _, timestamp in page_events if timestamp is not None]
     violation = any(
-        later > earlier for earlier, later in zip(times, times[1:])
+        later - earlier > ORDERING_TOLERANCE for earlier, later in zip(times, times[1:])
     )
     if previous_page_oldest is not None and any(
-        timestamp > previous_page_oldest for timestamp in times
+        timestamp - previous_page_oldest > ORDERING_TOLERANCE for timestamp in times
     ):
         violation = True
     fully_known = bool(page_events) and all(
