@@ -35,6 +35,15 @@ not imported; no synthetic cash adjustment was created. Fresh gates: 1028 fast
 backend tests, 355 PostgreSQL/RLS tests, one Alembic head equal to
 `EXPECTED_ALEMBIC_HEAD`, and successful backend startup.
 
+Final review on 2026-10-01 found two fail-open split paths and closed them in
+`6b0bec0`: the synthetic tests and mapper still accepted an unobserved forward
+split despite the signed G1 restriction, and an audit correction to the ratio
+or effective time of an already recorded split could be ignored or applied as
+a second action. Both cases now send the run to `needs_review` before any ledger
+write. The post-fix gates passed 1031 fast backend tests, 355 PostgreSQL/RLS
+tests, `alembic upgrade head`, direct `assert_alembic_head()`, and backend
+startup plus `/health`.
+
 - **Task 2**: `backend/t212_sync.py`, the `BrokerPosition` model and
   `0014_broker_positions` migration (forced RLS, grants, cascade, workspace
   export), concurrent summary+positions fetch wired into

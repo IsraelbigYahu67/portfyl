@@ -6,7 +6,8 @@
 (`docs/research/t212-corporate-action-encoding.md`) was signed off on
 2026-09-30 from one real reverse split (GNPX 1-for-22, 2026-07-16); only the
 reverse encoding is verified, so a forward split or any unverifiable pair stays
-`needs_review`. Remaining: V1's real-environment checks (see the table).
+`needs_review`. V1 and the final review correction wave are complete (see the
+table).
 
 | Task | State | Commit |
 |------|-------|--------|
@@ -16,14 +17,14 @@ reverse encoding is verified, so a forward split or any unverifiable pair stays
 | A4 break the re-download loop | done | `7eec1fd` |
 | A5 review panel, CSV guidance, retry (+ retry-error banner) | done | `91d098e` |
 | B1 corporate-action tables (`0020`, revises `0021`, RLS, export v4) | done | `77cf57e` |
-| B2 split-pair collapse (+ G1 checks: equal `walletImpact`, price-ratio cross-check) | done | `c84eda6` |
+| B2 split-pair collapse (+ G1 checks: equal `walletImpact`, price-ratio cross-check, unobserved forward-split guard) | done | `c84eda6`, `6b0bec0` |
 | B3 apply splits in finalization (+ audit re-apply, `HISTORY_SPLIT_UNVERIFIED_ERROR` loop guard) | done | `9bd0fa1` |
 | B4 import undo schema v3 | done | `526bfe2` |
 | C1 coverage checkpoints | done | `97479cc` |
 | C2 incremental stop rule | done (the pure evaluator was written on two parallel lanes: `dc712cd` and `1628c01` both add `t212_incremental.py`) | `dc712cd`, `1628c01`, `6f321cb`, `a46412a` |
-| C3 30-day audits, payload revisions | done | `e05de2b` |
+| C3 30-day audits, payload revisions (+ recorded-split revision guard) | done | `e05de2b`, `6b0bec0` |
 | C4 staging retention | done | `9654588` |
-| V1 gates | Done. 2026-09-30 after Track B: fast backend suite (1014), `alembic heads` (one head, `0020_broker_corporate_actions`), PostgreSQL/RLS suite (354), frontend local/cloud tests and both builds. Real browser: needs_review panel, retry, desktop/mobile. Real T212 history: GNPX 1-for-22 applied once to 7 pre-split rows; 31-day audit re-read 304 orders with no duplicates; next sync was `incremental` (100 orders, 2 pages). It found and fixed the prefixed `nextPagePath` bug (`f2868a9`) and real fill-time inversions (`1bb28bb`). 2026-10-01 non-zero live snapshot closeout: 21 positions exposed a newer documented response shape (`instrument`, `averagePricePaid`, `quantityInPies`, `createdAt`) that the hand-written fixture and mapper did not support, so all rows were silently skipped. The mapper and fixture now follow the official contract while retaining the legacy flat fallback. After a fresh incremental run (100 orders, 23 dividends), all 21 broker positions matched `source="t212_api"` ledger quantities. The public whole-portfolio reconciliation correctly remained `different` only for three synthetic `source="demo"` holdings (AAPL +2, MSFT +2, VWCE.DE +4); no adjustment rows were created. Cash reconciliation also reported `different`, as expected while the same demo portfolio retains its synthetic opening deposit and `/equity/history/transactions` cash movements remain explicitly out of scope; no synthetic cash adjustment was created. Fresh gates: backend 1028, PostgreSQL/RLS 355, one Alembic head equal to `EXPECTED_ALEMBIC_HEAD`, backend startup passed. | V1 closeout |
+| V1 gates | Done. 2026-09-30 after Track B: fast backend suite (1014), `alembic heads` (one head, `0020_broker_corporate_actions`), PostgreSQL/RLS suite (354), frontend local/cloud tests and both builds. Real browser: needs_review panel, retry, desktop/mobile. Real T212 history: GNPX 1-for-22 applied once to 7 pre-split rows; 31-day audit re-read 304 orders with no duplicates; next sync was `incremental` (100 orders, 2 pages). It found and fixed the prefixed `nextPagePath` bug (`f2868a9`) and real fill-time inversions (`1bb28bb`). 2026-10-01 non-zero live snapshot closeout: 21 positions exposed a newer documented response shape (`instrument`, `averagePricePaid`, `quantityInPies`, `createdAt`) that the hand-written fixture and mapper did not support, so all rows were silently skipped. The mapper and fixture now follow the official contract while retaining the legacy flat fallback. After a fresh incremental run (100 orders, 23 dividends), all 21 broker positions matched `source="t212_api"` ledger quantities. The public whole-portfolio reconciliation correctly remained `different` only for three synthetic `source="demo"` holdings (AAPL +2, MSFT +2, VWCE.DE +4); no adjustment rows were created. Cash reconciliation also reported `different`, as expected while the same demo portfolio retains its synthetic opening deposit and `/equity/history/transactions` cash movements remain explicitly out of scope; no synthetic cash adjustment was created. Final review found and fixed two fail-open split paths (`6b0bec0`): unobserved forward splits were applied despite G1, and a provider correction to an already recorded split ratio/time could be ignored or compounded. Both now terminate in `needs_review` before ledger writes. Final gates: backend 1031, PostgreSQL/RLS 355, one Alembic head equal to `EXPECTED_ALEMBIC_HEAD`, `alembic upgrade head`, direct `assert_alembic_head()`, and backend startup/health passed. | `5c9e900`, `6b0bec0` |
 
 The checkbox steps below were not ticked one by one; this table is the record.
 
