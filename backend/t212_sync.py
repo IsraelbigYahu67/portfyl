@@ -241,9 +241,15 @@ def replace_positions(db: Session, portfolio: Portfolio, raw_positions: list[dic
         connection.positions_snapshot_at = now
     inserted = 0
     for raw in raw_positions:
-        provider_ticker = str(raw.get("ticker") or "").strip()
+        instrument = raw.get("instrument") or {}
+        wallet_impact = raw.get("walletImpact") or {}
+        provider_ticker = str(
+            instrument.get("ticker") or raw.get("ticker") or ""
+        ).strip()
         quantity = raw.get("quantity")
-        avg_price = raw.get("averagePrice")
+        avg_price = raw.get("averagePricePaid")
+        if avg_price is None:
+            avg_price = raw.get("averagePrice")
         if not provider_ticker or quantity is None or avg_price is None:
             continue
         db.add(BrokerPosition(
@@ -252,13 +258,21 @@ def replace_positions(db: Session, portfolio: Portfolio, raw_positions: list[dic
             broker="trading212",
             provider_ticker=provider_ticker,
             ticker=_normalize_t212_ticker(provider_ticker),
+            name=instrument.get("name") or raw.get("name"),
+            currency=instrument.get("currency") or raw.get("currency"),
             quantity=float(quantity),
-            pie_quantity=_optional_float(raw.get("pieQuantity")),
+            pie_quantity=_optional_float(
+                raw.get("quantityInPies", raw.get("pieQuantity"))
+            ),
             avg_price=float(avg_price),
             current_price=_optional_float(raw.get("currentPrice")),
-            ppl=_optional_float(raw.get("ppl")),
-            fx_ppl=_optional_float(raw.get("fxPpl")),
-            initial_fill_date=_parse_t212_datetime(raw.get("initialFillDate")),
+            ppl=_optional_float(
+                wallet_impact.get("unrealizedProfitLoss", raw.get("ppl"))
+            ),
+            fx_ppl=_optional_float(wallet_impact.get("fxImpact", raw.get("fxPpl"))),
+            initial_fill_date=_parse_t212_datetime(
+                raw.get("createdAt") or raw.get("initialFillDate")
+            ),
             as_of=now,
         ))
         inserted += 1

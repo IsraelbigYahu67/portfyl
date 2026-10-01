@@ -89,6 +89,48 @@ class TestFetchSnapshot:
 
 
 class TestReplacePositions:
+    def test_inserts_current_official_position_shape(self, db_session, default_portfolio):
+        raw = [{
+            "averagePricePaid": 150.0,
+            "createdAt": "2024-01-15T10:00:00Z",
+            "currentPrice": 175.0,
+            "instrument": {
+                "currency": "USD",
+                "isin": "US0378331005",
+                "name": "Apple",
+                "ticker": "AAPL_US_EQ",
+            },
+            "quantity": 10.0,
+            "quantityAvailableForTrading": 8.0,
+            "quantityInPies": 2.0,
+            "walletImpact": {
+                "currency": "CZK",
+                "currentValue": 40_000.0,
+                "fxImpact": 5.0,
+                "totalCost": 37_500.0,
+                "unrealizedProfitLoss": 2_500.0,
+            },
+        }]
+
+        count = t212_sync.replace_positions(db_session, default_portfolio, raw)
+        db_session.commit()
+
+        assert count == 1
+        row = db_session.query(BrokerPosition).one()
+        assert row.provider_ticker == "AAPL_US_EQ"
+        assert row.ticker == "AAPL"
+        assert row.name == "Apple"
+        assert row.currency == "USD"
+        assert row.quantity == 10.0
+        assert row.avg_price == 150.0
+        assert row.current_price == 175.0
+        assert row.pie_quantity == 2.0
+        assert row.ppl == 2_500.0
+        assert row.fx_ppl == 5.0
+        assert row.initial_fill_date.replace(tzinfo=timezone.utc) == datetime(
+            2024, 1, 15, 10, 0, tzinfo=timezone.utc
+        )
+
     def test_inserts_mapped_fields(self, db_session, default_portfolio):
         raw = [t212_position(ticker="AAPL_US_EQ", quantity=10.0, averagePrice=150.0,
                               currentPrice=175.0, ppl=250.0, fxPpl=5.0, pieQuantity=2.0)]
@@ -109,6 +151,25 @@ class TestReplacePositions:
         assert row.fx_ppl == 5.0
         assert row.pie_quantity == 2.0
         assert row.initial_fill_date is not None
+
+    def test_inserts_legacy_flat_position_shape(self, db_session, default_portfolio):
+        raw = [{
+            "ticker": "AAPL_US_EQ",
+            "quantity": 10.0,
+            "averagePrice": 150.0,
+            "currentPrice": 175.0,
+            "ppl": 250.0,
+            "fxPpl": 5.0,
+            "pieQuantity": 2.0,
+            "initialFillDate": "2024-01-15T10:00:00Z",
+        }]
+
+        assert t212_sync.replace_positions(db_session, default_portfolio, raw) == 1
+        db_session.commit()
+        row = db_session.query(BrokerPosition).one()
+        assert (row.provider_ticker, row.avg_price, row.ppl, row.fx_ppl) == (
+            "AAPL_US_EQ", 150.0, 250.0, 5.0,
+        )
 
     def test_normalizes_exchange_suffix_ticker(self, db_session, default_portfolio):
         raw = [t212_position(ticker="NVDd", averagePrice=100.0, currentPrice=110.0)]

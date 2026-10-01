@@ -19,6 +19,22 @@ read `run.public_id` after the commit on both cancel branches, so a run whose
 credentials rotated or whose connection was removed raised `ObjectDeletedError`
 under forced RLS instead of being reported as cancelled.
 
+The remaining non-zero live reconciliation check closed on 2026-10-01. A
+21-position owner snapshot exposed that Trading 212's current documented
+positions response nests instrument identity under `instrument` and uses
+`averagePricePaid`, `quantityInPies`, `createdAt`, and `walletImpact`; the old
+hand-written fixture and mapper silently skipped every row. The fixture and
+mapper now follow the official contract (with a tested legacy-flat fallback).
+After a fresh incremental run, all 21 broker positions matched the
+`source="t212_api"` ledger. Whole-portfolio reconciliation still reported the
+three intentionally retained onboarding-demo holdings as different, proving the
+read-only mismatch path without fabricating an adjustment. Cash reconciliation
+also reported the expected mismatch while the demo opening deposit remains and
+the explicitly deferred `/equity/history/transactions` cash-movement stream is
+not imported; no synthetic cash adjustment was created. Fresh gates: 1028 fast
+backend tests, 355 PostgreSQL/RLS tests, one Alembic head equal to
+`EXPECTED_ALEMBIC_HEAD`, and successful backend startup.
+
 - **Task 2**: `backend/t212_sync.py`, the `BrokerPosition` model and
   `0014_broker_positions` migration (forced RLS, grants, cascade, workspace
   export), concurrent summary+positions fetch wired into
@@ -961,16 +977,16 @@ run discovery, polling, retry, and final invalidation.
 
 ### Task 4: Finalize exact split-aware history
 
-- [ ] Add provider identity/time fields and migrate all chronological consumers.
+- [x] Add provider identity/time fields and migrate all chronological consumers.
 - [x] Preserve T212 CSV timestamp/ID in normalization, preview canonicalization,
       deduplication, undo, and export.
 - [x] Add deterministic per-leg identity for one-to-many CSV events.
 - [ ] Import fills by `fill.id`, exact settlement, actual dividend amount, and
       cash transactions.
-- [ ] Process splits once per ticker over the complete staged run.
-- [ ] Add durable corporate-action and per-transaction application identities;
+- [x] Process splits once per ticker over the complete staged run.
+- [x] Add durable corporate-action and per-transaction application identities;
       use normalized API trades as the sole canonical split representation.
-- [ ] Handle corporate-action pairs across pages and rate windows.
+- [x] Handle corporate-action pairs across pages and rate windows.
 - [x] Share the workspace ledger lock with CSV commit/undo.
 - [x] Preserve provenance through import undo and workspace export.
 - [ ] Snapshot/restore corporate-action applications and broker coverage in

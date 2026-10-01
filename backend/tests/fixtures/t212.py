@@ -41,22 +41,49 @@ def t212_account_summary_response(**overrides) -> dict:
 
 
 def t212_position(**overrides) -> dict:
-    """One element of a GET /equity/positions response. `/equity/positions`
-    carries no instrument name/currency -- only ticker, quantity, and
-    account-currency price/P&L fields."""
+    """One element of the current documented GET /equity/positions response.
+
+    Tests may keep using the legacy ergonomic keyword names below; the helper
+    translates them into the official nested response shape so mocks exercise
+    the same contract as the live API.
+    """
     base = {
-        "ticker": "AAPL_US_EQ",
-        "quantity": 10.0,
-        "averagePrice": 150.0,
+        "averagePricePaid": 150.0,
+        "createdAt": "2024-01-15T10:00:00Z",
         "currentPrice": 175.0,
-        "ppl": 250.0,
-        "fxPpl": 0.0,
-        "initialFillDate": "2024-01-15T10:00:00Z",
-        "frontend": "API",
-        "maxBuy": 100.0,
-        "maxSell": 10.0,
-        "pieQuantity": 0.0,
+        "instrument": {
+            "currency": "USD",
+            "isin": "US0378331005",
+            "name": "Apple",
+            "ticker": "AAPL_US_EQ",
+        },
+        "quantity": 10.0,
+        "quantityAvailableForTrading": 10.0,
+        "quantityInPies": 0.0,
+        "walletImpact": {
+            "currency": "CZK",
+            "currentValue": 17_500.0,
+            "fxImpact": 0.0,
+            "totalCost": 15_000.0,
+            "unrealizedProfitLoss": 250.0,
+        },
     }
+    aliases = {
+        "ticker": ("instrument", "ticker"),
+        "averagePrice": (None, "averagePricePaid"),
+        "pieQuantity": (None, "quantityInPies"),
+        "initialFillDate": (None, "createdAt"),
+        "ppl": ("walletImpact", "unrealizedProfitLoss"),
+        "fxPpl": ("walletImpact", "fxImpact"),
+    }
+    for legacy_name, (container, current_name) in aliases.items():
+        if legacy_name not in overrides:
+            continue
+        value = overrides.pop(legacy_name)
+        if container is None:
+            base[current_name] = value
+        else:
+            base[container][current_name] = value
     base.update(overrides)
     return base
 
