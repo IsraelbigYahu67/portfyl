@@ -135,6 +135,12 @@ def collapse_split_pairs(events: list[BrokerSyncEvent]) -> list[SplitEvidence]:
         new = abs(_decimal(open_.raw_payload["fill"].get("quantity")) or Decimal(0))
         if old <= 0 or new <= 0:
             raise InvalidSplitPair(f"{label}: non-positive leg quantity")
+        # Gate G1 only observed and owner-approved the Trading 212 reverse-split
+        # encoding.  A symmetric forward mapping is plausible, but applying it
+        # before observing a real payload would turn an assumption into a
+        # quantity-changing ledger write.
+        if new >= old:
+            raise InvalidSplitPair(f"{label}: forward split encoding is not verified")
         _validate_pair(label, close, open_, old, new)
         ids = tuple(sorted((close.provider_event_id, open_.provider_event_id)))
         out.append(SplitEvidence(instrument, at, "|".join(ids), old, new, ids))
@@ -162,6 +168,47 @@ def _row_time(t: Transaction) -> datetime:
 
 def _action_ratio(action: BrokerCorporateAction) -> Fraction:
     return Fraction(Decimal(action.ratio_numerator)) / Fraction(Decimal(action.ratio_denominator))
+
+
+def validate_recorded_splits(db: Session, *, run: BrokerSyncRun, portfolio: Portfolio,
+                             evidence: list[SplitEvidence]) -> None:
+    """Refuse provider revisions to an already-applied split.
+
+    Transaction payload revisions can be replayed from their raw values, but a
+    corporate action has already changed an arbitrary set of ledger rows.  Until
+    there is an explicit action-revision/undo design, silently replacing its
+    ratio or creating a second action at a corrected timestamp could compound
+    those changes.  Matching on the stable leg IDs catches both cases before
+    finalization mutates any ledger row.
+    """
+    for ev in evidence:
+        recorded = db.query(BrokerCorporateAction).filter_by(
+            workspace_id=portfolio.workspace_id,
+            portfolio_id=portfolio.id,
+            broker="trading212",
+            account_fingerprint=run.account_fingerprint,
+            action_type="STOCK_SPLIT",
+            provider_event_key=ev.provider_event_key,
+        ).all()
+        for action in recorded:
+            recorded_at = action.effective_at
+            if recorded_at.tzinfo is None:
+                recorded_at = recorded_at.replace(tzinfo=timezone.utc)
+            else:
+                recorded_at = recorded_at.astimezone(timezone.utc)
+            evidence_at = (
+                ev.effective_at.replace(tzinfo=timezone.utc)
+                if ev.effective_at.tzinfo is None
+                else ev.effective_at.astimezone(timezone.utc)
+            )
+            if (
+                action.provider_instrument_id != ev.provider_instrument_id
+                or recorded_at != evidence_at
+                or _action_ratio(action) != ev.ratio
+            ):
+                raise InvalidSplitPair(
+                    f"{ev.provider_event_key}: recorded split evidence changed"
+                )
 
 
 def apply_splits(db: Session, *, run: BrokerSyncRun, portfolio: Portfolio,

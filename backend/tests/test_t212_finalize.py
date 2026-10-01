@@ -807,7 +807,7 @@ class TestFinalizeAudit:
         assert db_session.query(Transaction).one().source_event_id == "dividend:div-old"
 
 
-def _stage_split(db, run, ticker="NVDA_US_EQ", day="2024-06-10", old=9, new=90, old_px=1200, new_px=120,
+def _stage_split(db, run, ticker="NVDA_US_EQ", day="2024-06-10", old=90, new=9, old_px=120, new_px=1200,
                  wallet_impact=None):
     _order_event(db, run, event_id=f"fill:sc-{day}", ticker=ticker, side="SELL",
                  qty=old, price=old_px, day=day, fill_type="STOCK_SPLIT", wallet_impact=wallet_impact)
@@ -826,21 +826,36 @@ class TestSplitFinalization:
 
     def test_split_adjusts_prior_api_trade_once(self, db_session, default_portfolio, completed_run):
         _order_event(db_session, completed_run, event_id="fill:t1", ticker="NVDA_US_EQ",
-                     qty=9, price=1200, day="2024-05-01")
+                     qty=90, price=120, day="2024-05-01")
         _stage_split(db_session, completed_run)
 
         result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
 
         assert result.needs_review is False
         [buy] = db_session.query(Transaction).filter_by(ticker="NVDA").all()
-        assert (buy.shares, buy.price) == (90, 120)
+        assert (buy.shares, buy.price) == (9, 1200)
         assert db_session.query(BrokerCorporateAction).one().representation == "api_normalized"
         assert db_session.query(BrokerCorporateActionApplication).count() == 1
 
         t212_sync.finalize_run(db_session, completed_run, default_portfolio)  # retry of completed run
         db_session.refresh(buy)
-        assert (buy.shares, buy.price) == (90, 120)
+        assert (buy.shares, buy.price) == (9, 1200)
         assert db_session.query(BrokerCorporateActionApplication).count() == 1
+
+    def test_unobserved_forward_split_goes_to_needs_review_without_ledger_writes(
+        self, db_session, default_portfolio, completed_run
+    ):
+        _order_event(db_session, completed_run, event_id="fill:t1", ticker="NVDA_US_EQ",
+                     qty=9, price=1200, day="2024-05-01")
+        _stage_split(db_session, completed_run, old=9, new=90, old_px=1200, new_px=120)
+
+        result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        assert result.needs_review is True
+        assert completed_run.state == "needs_review"
+        assert db_session.query(Transaction).count() == 0
+        assert db_session.query(BrokerCorporateAction).count() == 0
+        assert db_session.query(BrokerCorporateActionApplication).count() == 0
 
     def test_split_legs_never_become_transactions(self, db_session, default_portfolio, completed_run):
         _stage_split(db_session, completed_run)
@@ -851,7 +866,7 @@ class TestSplitFinalization:
         self, db_session, default_portfolio, completed_run
     ):
         _order_event(db_session, completed_run, event_id="fill:t1", ticker="NVDA_US_EQ",
-                     qty=9, price=1200, day="2024-05-01")
+                     qty=90, price=120, day="2024-05-01")
         _stage_split(db_session, completed_run, wallet_impact={"currency": "CZK", "netValue": 646.4})
 
         result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
@@ -861,10 +876,10 @@ class TestSplitFinalization:
 
     def test_unequal_wallet_impact_goes_to_needs_review(self, db_session, default_portfolio, completed_run):
         _order_event(db_session, completed_run, event_id="fill:sc", ticker="NVDA_US_EQ", side="SELL",
-                     qty=9, price=1200, day="2024-06-10", fill_type="STOCK_SPLIT",
+                     qty=90, price=120, day="2024-06-10", fill_type="STOCK_SPLIT",
                      wallet_impact={"currency": "CZK", "netValue": 646.4})
         _order_event(db_session, completed_run, event_id="fill:so", ticker="NVDA_US_EQ", side="BUY",
-                     qty=90, price=120, day="2024-06-10", fill_type="STOCK_SPLIT",
+                     qty=9, price=1200, day="2024-06-10", fill_type="STOCK_SPLIT",
                      wallet_impact={"currency": "CZK", "netValue": 10.0})
 
         result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
@@ -883,28 +898,28 @@ class TestSplitFinalization:
         assert db_session.query(BrokerCorporateActionApplication).count() == 0
 
     def test_split_adjusts_existing_t212_csv_trade(self, db_session, default_portfolio, completed_run):
-        db_session.add(make_txn("NVDA", "buy", 9, 1200, date=date(2024, 5, 1),
+        db_session.add(make_txn("NVDA", "buy", 90, 120, date=date(2024, 5, 1),
                                 portfolio_id=default_portfolio.id, source="t212_csv"))
         db_session.commit()
         _stage_split(db_session, completed_run)
         t212_sync.finalize_run(db_session, completed_run, default_portfolio)
         [buy] = db_session.query(Transaction).filter_by(ticker="NVDA", type="buy").all()
-        assert (buy.shares, buy.price) == (90, 120)
+        assert (buy.shares, buy.price) == (9, 1200)
 
     def test_csv_split_rows_represent_action_and_nothing_is_adjusted(
         self, db_session, default_portfolio, completed_run
     ):
         for t in (
-            make_txn("NVDA", "buy", 9, 1200, date=date(2024, 5, 1), portfolio_id=default_portfolio.id, source="t212_csv"),
-            make_txn("NVDA", "split_close", 9, 1200, date=date(2024, 6, 10), portfolio_id=default_portfolio.id, source="t212_csv"),
-            make_txn("NVDA", "split_open", 90, 120, date=date(2024, 6, 10), portfolio_id=default_portfolio.id, source="t212_csv"),
+            make_txn("NVDA", "buy", 90, 120, date=date(2024, 5, 1), portfolio_id=default_portfolio.id, source="t212_csv"),
+            make_txn("NVDA", "split_close", 90, 120, date=date(2024, 6, 10), portfolio_id=default_portfolio.id, source="t212_csv"),
+            make_txn("NVDA", "split_open", 9, 1200, date=date(2024, 6, 10), portfolio_id=default_portfolio.id, source="t212_csv"),
         ):
             db_session.add(t)
         db_session.commit()
         _stage_split(db_session, completed_run)
         t212_sync.finalize_run(db_session, completed_run, default_portfolio)
         [buy] = db_session.query(Transaction).filter_by(ticker="NVDA", type="buy").all()
-        assert (buy.shares, buy.price) == (9, 1200)
+        assert (buy.shares, buy.price) == (90, 120)
         assert db_session.query(BrokerCorporateAction).one().representation == "csv_rows"
         assert db_session.query(BrokerCorporateActionApplication).count() == 0
 
@@ -938,18 +953,18 @@ class TestSplitFinalization:
         self, db_session, default_portfolio, completed_run
     ):
         _order_event(db_session, completed_run, event_id="fill:t1", ticker="NVDA_US_EQ",
-                     qty=9, price=1200, day="2024-05-01")
+                     qty=90, price=120, day="2024-05-01")
         _stage_split(db_session, completed_run)
         t212_sync.finalize_run(db_session, completed_run, default_portfolio)
 
         later = _next_run(db_session, completed_run, "audit")
         _stage_split(db_session, later)
         _order_event(db_session, later, event_id="fill:t0", ticker="NVDA_US_EQ",
-                     qty=3, price=1100, day="2024-04-01")
+                     qty=30, price=110, day="2024-04-01")
         t212_sync.finalize_run(db_session, later, default_portfolio)
 
         rows = {t.source_event_id: (t.shares, t.price) for t in db_session.query(Transaction).all()}
-        assert rows == {"fill:t1": (90, 120), "fill:t0": (30, 110)}
+        assert rows == {"fill:t1": (9, 1200), "fill:t0": (3, 1100)}
         assert db_session.query(BrokerCorporateAction).count() == 1
         assert db_session.query(BrokerCorporateActionApplication).count() == 2
 
@@ -957,24 +972,71 @@ class TestSplitFinalization:
         self, db_session, default_portfolio, completed_run
     ):
         _order_event(db_session, completed_run, event_id="fill:t1", ticker="NVDA_US_EQ",
-                     qty=9, price=1200, day="2024-05-01")
+                     qty=90, price=120, day="2024-05-01")
         _stage_split(db_session, completed_run)
         t212_sync.finalize_run(db_session, completed_run, default_portfolio)
         [buy] = db_session.query(Transaction).filter_by(ticker="NVDA").all()
 
         audit = _next_run(db_session, completed_run, "audit")
         _order_event(db_session, audit, event_id="fill:t1", ticker="NVDA_US_EQ",
-                     qty=9, price=1210, day="2024-05-01")  # provider corrected the price
+                     qty=90, price=121, day="2024-05-01")  # provider corrected the price
         _stage_split(db_session, audit)
         result = t212_sync.finalize_run(db_session, audit, default_portfolio)
 
         db_session.refresh(buy)
         assert result.revised == 1
-        assert buy.shares == pytest.approx(90)
-        assert buy.price == pytest.approx(121)  # 1210 / 10, not the raw 1210
+        assert buy.shares == pytest.approx(9)
+        assert buy.price == pytest.approx(1210)  # 121 / (1/10), not the raw 121
         [application] = db_session.query(BrokerCorporateActionApplication).all()
-        assert (application.shares_after, application.price_after) == (pytest.approx(90), pytest.approx(121))
+        assert (application.shares_after, application.price_after) == (pytest.approx(9), pytest.approx(1210))
 
+    def test_changed_ratio_for_recorded_split_goes_to_needs_review_without_reapplying(
+        self, db_session, default_portfolio, completed_run
+    ):
+        _order_event(db_session, completed_run, event_id="fill:t1", ticker="NVDA_US_EQ",
+                     qty=90, price=120, day="2024-05-01")
+        _stage_split(db_session, completed_run, old=90, new=9, old_px=120, new_px=1200)
+        t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+        [buy] = db_session.query(Transaction).filter_by(ticker="NVDA").all()
+        assert (buy.shares, buy.price) == (9, 1200)
+
+        audit = _next_run(db_session, completed_run, "audit")
+        _stage_split(db_session, audit, old=90, new=3, old_px=120, new_px=3600)
+
+        result = t212_sync.finalize_run(db_session, audit, default_portfolio)
+
+        db_session.refresh(buy)
+        assert result.needs_review is True
+        assert audit.state == "needs_review"
+        assert (buy.shares, buy.price) == (9, 1200)
+        [action] = db_session.query(BrokerCorporateAction).all()
+        assert (action.ratio_numerator, action.ratio_denominator) == (1, 10)
+        assert db_session.query(BrokerCorporateActionApplication).count() == 1
+
+    def test_changed_effective_time_for_recorded_split_goes_to_needs_review_without_compounding(
+        self, db_session, default_portfolio, completed_run
+    ):
+        _order_event(db_session, completed_run, event_id="fill:t1", ticker="NVDA_US_EQ",
+                     qty=90, price=120, day="2024-05-01")
+        _stage_split(db_session, completed_run, old=90, new=9, old_px=120, new_px=1200)
+        t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+        [buy] = db_session.query(Transaction).filter_by(ticker="NVDA").all()
+        assert (buy.shares, buy.price) == (9, 1200)
+
+        audit = _next_run(db_session, completed_run, "audit")
+        _order_event(db_session, audit, event_id="fill:sc-2024-06-10", ticker="NVDA_US_EQ",
+                     side="SELL", qty=90, price=120, day="2024-06-11", fill_type="STOCK_SPLIT")
+        _order_event(db_session, audit, event_id="fill:so-2024-06-10", ticker="NVDA_US_EQ",
+                     side="BUY", qty=9, price=1200, day="2024-06-11", fill_type="STOCK_SPLIT")
+
+        result = t212_sync.finalize_run(db_session, audit, default_portfolio)
+
+        db_session.refresh(buy)
+        assert result.needs_review is True
+        assert audit.state == "needs_review"
+        assert (buy.shares, buy.price) == (9, 1200)
+        assert db_session.query(BrokerCorporateAction).count() == 1
+        assert db_session.query(BrokerCorporateActionApplication).count() == 1
 
     def test_orphan_leg_of_an_already_recorded_split_is_ignored(
         self, db_session, default_portfolio, completed_run
@@ -982,13 +1044,13 @@ class TestSplitFinalization:
         # An incremental overlap window can re-stage only one leg of a split that
         # an earlier run already recorded. That must not block the connection.
         _order_event(db_session, completed_run, event_id="fill:t1", ticker="NVDA_US_EQ",
-                     qty=9, price=1200, day="2024-05-01")
+                     qty=90, price=120, day="2024-05-01")
         _stage_split(db_session, completed_run)
         t212_sync.finalize_run(db_session, completed_run, default_portfolio)
 
         later = _next_run(db_session, completed_run, "incremental")
         _order_event(db_session, later, event_id="fill:so-2024-06-10", ticker="NVDA_US_EQ", side="BUY",
-                     qty=90, price=120, day="2024-06-10", fill_type="STOCK_SPLIT")
+                     qty=9, price=1200, day="2024-06-10", fill_type="STOCK_SPLIT")
         result = t212_sync.finalize_run(db_session, later, default_portfolio)
 
         db_session.refresh(later)
@@ -1007,18 +1069,18 @@ class TestSplitFinalization:
         self, db_session, default_portfolio, completed_run
     ):
         _order_event(db_session, completed_run, event_id="fill:t1", ticker="NVDA_US_EQ",
-                     qty=9, price=1200, day="2024-05-01")
+                     qty=90, price=120, day="2024-05-01")
         _stage_split(db_session, completed_run)
         t212_sync.finalize_run(db_session, completed_run, default_portfolio)
         [buy] = db_session.query(Transaction).filter_by(ticker="NVDA").all()
-        assert (buy.shares, buy.price) == (90, 120)
+        assert (buy.shares, buy.price) == (9, 1200)
 
         audit = _next_run(db_session, completed_run, "audit")
         _order_event(db_session, audit, event_id="fill:t1", ticker="NVDA_US_EQ",
-                     qty=9, price=125, day="2024-06-12")  # provider moved the fill after the split
+                     qty=90, price=125, day="2024-06-12")  # provider moved the fill after the split
         _stage_split(db_session, audit)
         t212_sync.finalize_run(db_session, audit, default_portfolio)
 
         db_session.refresh(buy)
-        assert (buy.shares, buy.price) == (9, 125)
+        assert (buy.shares, buy.price) == (90, 125)
         assert db_session.query(BrokerCorporateActionApplication).count() == 0

@@ -1327,7 +1327,7 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
     # Imported here: t212_corporate_actions imports this module at load time.
     from t212_corporate_actions import (
         UnpairedSplitLeg, apply_splits, collapse_split_pairs, drop_recorded_orphan_legs,
-        reapply_recorded_splits,
+        reapply_recorded_splits, validate_recorded_splits,
     )
 
     split_events = [
@@ -1337,6 +1337,9 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
     split_events = drop_recorded_orphan_legs(db, run=run, portfolio=portfolio, events=split_events)
     try:
         split_evidence = collapse_split_pairs(split_events)
+        validate_recorded_splits(
+            db, run=run, portfolio=portfolio, evidence=split_evidence,
+        )
     except UnpairedSplitLeg:
         if run.state == "finalizing":
             return _send_run_to_needs_review(
