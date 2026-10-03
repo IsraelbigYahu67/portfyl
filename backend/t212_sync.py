@@ -296,15 +296,14 @@ def is_snapshot_fresh(as_of: datetime | None, *, now: datetime | None = None) ->
 # =============================================================================
 # Task 3: resumable history runs
 #
-# A BrokerSyncRun stages raw order/dividend pages into BrokerSyncEvent rows.
+# A BrokerSyncRun stages raw order/dividend/cash pages into BrokerSyncEvent rows.
 # Reaching state "finalizing" here means every page is staged. The background
 # worker then turns staged events into Transactions and changes the run to
 # "completed" in the same commit that updates the connection's sync marker.
 #
-# Scope deliberately excludes, for this increment:
-#   - the `/equity/history/transactions` cash-movement stream (deposits,
-#     withdrawals, fees, interest) -- a new provider surface the app doesn't
-#     fetch today, not "making an existing fetch resumable".
+# The `cash` stream (`/equity/history/transactions`: deposits, withdrawals, fees,
+# interest, transfers) was added by plan 2026-10-03; its encoding is the signed-off
+# docs/research/t212-cash-transaction-encoding.md and its pure mapper is t212_cash.
 #
 # Run modes (plan 2026-09-24, Tasks C1-C3): `initial` walks the whole history;
 # `incremental` may stop early past the connection's history frontier
@@ -965,9 +964,10 @@ def advance_run(
 #     unadjusted pre-split row;
 #   - per-ticker latest-date heuristics. Only the account-wide authoritative
 #     `t212_csv_covered_through` cutoff suppresses older provider events;
-#   - the `/equity/history/transactions` cash-movement stream (deposits,
-#     withdrawals, fees, interest) -- BrokerSyncEvent only ever stages
-#     "orders"/"dividends" as of this increment (see advance_run's STREAMS).
+#   - cash transactions the signed-off record does not cover (currency
+#     conversions, unknown types, zero or sign-contradicting amounts): they send
+#     the run to `needs_review` (HISTORY_CASH_UNSUPPORTED_ERROR) like unsupported
+#     corporate actions. Mapped cash events are imported (see _finalize_cash_event).
 # =============================================================================
 
 

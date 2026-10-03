@@ -2223,7 +2223,8 @@ git commit -m "feat(retention): bounded cleanup of staged T212 events, keeping r
 
 ## Out of scope (still tracked by the parent plan)
 
-- `/equity/history/transactions` cash-movement stream and `TRANSFER` handling (parent §5.5 items 7–8).
+- ~~`/equity/history/transactions` cash-movement stream and `TRANSFER` handling (parent §5.5 items 7–8).~~
+  Shipped 2026-10-03: `2026-10-03-t212-cash-stream.md`.
 - Mappers for `STOCK_DISTRIBUTION`, `SPIN_OFF`, `STOCK_ACQUISITION`, `FOP*`.
   Each needs its own captured payloads and a gate like G1.
 - §2.3 stable holdings/summary envelope.

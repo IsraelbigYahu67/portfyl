@@ -382,7 +382,7 @@ def test_broker_backfill_pass_stages_every_page_despite_internal_commits(
     calls = {"orders": 0}
 
     def fake_get(url, headers=None, params=None, timeout=None):
-        if "dividends" in url:
+        if "dividends" in url or "transactions" in url:
             return empty_dividends
         calls["orders"] += 1
         return page1 if calls["orders"] == 1 else page2
@@ -401,6 +401,60 @@ def test_broker_backfill_pass_stages_every_page_despite_internal_commits(
         events = db.query(BrokerSyncEvent).filter(BrokerSyncEvent.run_id == run_id).all()
         assert {e.provider_event_id for e in events} == {"fill:f1", "fill:f2"}
         assert all(e.workspace_id == ws.id for e in events)
+
+
+def test_broker_backfill_imports_cash_events_under_forced_rls(
+    postgres_engine: Engine, single_workspace, runtime_job_session: Session,
+):
+    """Plan 2026-10-03: the cash stream stages, finalizes and inserts its ledger
+    row inside the owning workspace, and the widened stream CHECK accepts it."""
+    from models import Transaction
+
+    ws, pf = single_workspace
+    with _owner_session(postgres_engine) as db:
+        db.query(Portfolio).filter(Portfolio.id == pf.id).update(
+            {"t212_account_fingerprint": "single-account-fingerprint"}, synchronize_session=False,
+        )
+        conn = BrokerConnection(workspace_id=ws.id, portfolio_id=pf.id, broker="trading212",
+                                api_key="k" * 20, api_secret="", environment="live",
+                                account_fingerprint="single-account-fingerprint")
+        db.add(conn)
+        db.flush()
+        run = BrokerSyncRun(
+            workspace_id=ws.id, portfolio_id=pf.id, connection_id=conn.id, broker="trading212",
+            account_fingerprint=conn.account_fingerprint,
+            credential_generation=conn.credential_generation, mode="initial", state="pending",
+        )
+        db.add(run)
+        db.commit()
+        run_id = run.id
+
+    empty = _t212_page_response([], None)
+    cash = _t212_page_response([
+        {"type": "DEPOSIT", "amount": 3200.0, "currency": "CZK",
+         "reference": "c1", "dateTime": "2026-03-01T10:00:00.000Z"},
+        {"type": "TRANSFER", "amount": -200.0, "currency": "CZK",
+         "reference": "c2", "dateTime": "2026-03-02T10:00:00.000Z"},
+    ], None)
+
+    def fake_get(url, headers=None, params=None, timeout=None):
+        return cash if "transactions" in url else empty
+
+    with patch("t212_sync.httpx.get", side_effect=fake_get), \
+            patch("t212_sync.bulk_fetch_fx", return_value={}):
+        results = asyncio.run(broker_backfill_pass(runtime_job_session, ws.id))
+
+    assert results[0]["state"] == "completed"
+    assert results[0]["cash_staged"] == 2
+
+    with _owner_session(postgres_engine) as db:
+        rows = db.query(Transaction).filter(
+            Transaction.workspace_id == ws.id, Transaction.source_event_stream == "cash",
+        ).order_by(Transaction.date).all()
+        assert [(r.type, r.amount, r.currency) for r in rows] == [
+            ("deposit", 3200.0, "CZK"), ("withdrawal", 200.0, "CZK"),
+        ]
+        assert db.get(BrokerSyncRun, run_id).cash_loaded == 2
 
 
 def test_broker_backfill_reports_a_cancelled_run_after_its_credentials_rotated(

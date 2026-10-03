@@ -990,8 +990,10 @@ run discovery, polling, retry, and final invalidation.
 - [x] Preserve T212 CSV timestamp/ID in normalization, preview canonicalization,
       deduplication, undo, and export.
 - [x] Add deterministic per-leg identity for one-to-many CSV events.
-- [ ] Import fills by `fill.id`, exact settlement, actual dividend amount, and
-      cash transactions.
+- [x] Import fills by `fill.id`, exact settlement, actual dividend amount, and
+      cash transactions (the cash stream shipped 2026-10-03, plan
+      `2026-10-03-t212-cash-stream.md`, encoding record
+      `docs/research/t212-cash-transaction-encoding.md`).
 - [x] Process splits once per ticker over the complete staged run.
 - [x] Add durable corporate-action and per-transaction application identities;
       use normalized API trades as the sole canonical split representation.
