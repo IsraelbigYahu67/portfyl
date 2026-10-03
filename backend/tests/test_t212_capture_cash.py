@@ -75,6 +75,38 @@ def test_examples_cap_known_types_but_keep_every_transfer_and_unknown():
     assert kinds.count("MYSTERY") == 1
 
 
+def test_cli_imports_without_a_database_configured():
+    """The CLI runs on the owner's shell with only the T212 credentials set; it
+    must not pull in models/database (which require DATABASE_URL)."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in {"DATABASE_URL", "PORTFYL_TESTING"}
+    }
+    result = subprocess.run(
+        [sys.executable, "-c", "import scripts.t212_capture_cash_transactions"],
+        cwd=Path(__file__).resolve().parent.parent,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr[-800:]
+
+
+def test_local_t212_constants_match_the_sync_module():
+    import scripts.t212_capture_cash_transactions as mod
+    import t212_sync
+
+    assert mod.T212_BASES == t212_sync.T212_BASES
+    assert mod.t212_headers("k", "s") == t212_sync._t212_headers("k", "s")
+    assert mod.t212_headers("k") == t212_sync._t212_headers("k")
+
+
 def test_capture_never_needs_the_key_on_the_command_line():
     import scripts.t212_capture_cash_transactions as mod
 

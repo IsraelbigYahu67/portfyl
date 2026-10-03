@@ -21,6 +21,7 @@ anything into a committed fixture directory.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 from pathlib import Path
@@ -28,8 +29,22 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
-from scripts.t212_capture_corporate_actions import redact_payload
-from t212_sync import T212_BASES, _t212_headers
+from scripts._redact import redact_payload
+
+# Deliberately duplicated from t212_sync (importing it pulls in models/database,
+# which need DATABASE_URL); tests assert the two stay identical.
+T212_BASES = {
+    "live": "https://live.trading212.com/api/v0",
+    "demo": "https://demo.trading212.com/api/v0",
+}
+
+
+def t212_headers(api_key: str, api_secret: str = "") -> dict:
+    if api_secret:
+        credentials = base64.b64encode(f"{api_key}:{api_secret}".encode()).decode()
+        return {"Authorization": f"Basic {credentials}"}
+    return {"Authorization": api_key}
+
 
 CASH_ENDPOINT = "/equity/history/transactions"
 _API_VERSION_PREFIX = "/api/v0"
@@ -139,7 +154,7 @@ def main() -> None:
     parser.add_argument("--max-pages", type=int, default=5)
     args = parser.parse_args()
     key, secret, environment = read_credentials(os.environ)
-    fetch = _make_fetch(T212_BASES[environment], _t212_headers(key, secret))
+    fetch = _make_fetch(T212_BASES[environment], t212_headers(key, secret))
     items, exhausted = collect_pages(fetch, max_pages=args.max_pages)
     capture = {
         "source": "t212 /equity/history/transactions (redacted)",
