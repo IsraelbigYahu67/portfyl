@@ -998,8 +998,8 @@ run discovery, polling, retry, and final invalidation.
 - [x] Handle corporate-action pairs across pages and rate windows.
 - [x] Share the workspace ledger lock with CSV commit/undo.
 - [x] Preserve provenance through import undo and workspace export.
-- [ ] Snapshot/restore corporate-action applications and broker coverage in
-      import undo.
+- [x] Snapshot/restore corporate-action applications and broker coverage in
+      import undo (import undo schema v3, `526bfe2`).
 - [x] Finalize atomically and reconcile against current positions.
 
 ### Task 5: Make subsequent syncs incremental
@@ -1018,14 +1018,17 @@ run discovery, polling, retry, and final invalidation.
 
 ### Task 6: Complete workflow UX and operations
 
-- [ ] Add shared progress/polling and historical-data availability states.
-- [ ] Update connect, Settings, Cash, Dashboard, Allocation, assistant, and
-      dividend notifications.
-- [ ] Add job health, runbook, cloud schedule, and staging cleanup.
-- [ ] Run fast backend, frontend local/cloud, both builds, and PostgreSQL/RLS
-      suites.
-- [ ] Verify against a disposable T212 demo account with enough history to cross
-      a reset and at least one historical split.
+- [x] Add shared progress/polling and historical-data availability states
+      (`useT212Sync`, `history_complete`).
+- [x] Update connect, Settings, Cash, Dashboard, Allocation, assistant
+      (`history_complete=false` prompt rule), and dividend notifications
+      (fresh `BrokerPosition` snapshot first, ledger fallback).
+- [x] Add job health (`broker_backfill` subsystem), runbook and cloud schedule
+      (`deploy/cloudrun.md`), and staging cleanup (`data_retention.py`, C4).
+- [x] Run fast backend, frontend local/cloud, both builds, and PostgreSQL/RLS
+      suites (V1, 2026-10-01: 1031 / 355 passing).
+- [x] Verify against a real T212 account with enough history to cross a reset
+      and one historical split (V1: GNPX 1-for-22, 2026-09-30).
 
 ## 11. Required Tests
 
