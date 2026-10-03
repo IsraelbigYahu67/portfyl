@@ -219,6 +219,7 @@ class TestBrokerBackfillPass:
             orders_next_page_path=checkpoint,
             orders_rate_limit_reset_at=datetime.now(timezone.utc) - timedelta(seconds=1),
             dividends_complete=True,
+            cash_complete=True,
         )
         response = MagicMock(status_code=200, headers={})
         response.json.return_value = {"items": [], "nextPagePath": None}

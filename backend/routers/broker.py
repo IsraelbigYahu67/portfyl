@@ -338,6 +338,7 @@ def get_history_status(
         value for value in (
             run.orders_rate_limit_reset_at,
             run.dividends_rate_limit_reset_at,
+            run.cash_rate_limit_reset_at,
         )
         if value is not None
     ]
@@ -366,11 +367,15 @@ def get_history_status(
             "mode": run.mode,
             "state": run.state,
             "complete": run.state == "completed",
-            "download_complete": bool(run.orders_complete and run.dividends_complete),
+            "download_complete": bool(
+                run.orders_complete and run.dividends_complete and run.cash_complete
+            ),
             "orders_loaded": run.orders_loaded,
             "orders_complete": run.orders_complete,
             "dividends_loaded": run.dividends_loaded,
             "dividends_complete": run.dividends_complete,
+            "cash_loaded": run.cash_loaded,
+            "cash_complete": run.cash_complete,
             "started_at": run.started_at.isoformat() if run.started_at else None,
             "last_progress_at": run.last_progress_at.isoformat() if run.last_progress_at else None,
             "completed_at": run.completed_at.isoformat() if run.completed_at else None,

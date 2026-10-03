@@ -417,6 +417,7 @@ class TestAdvanceRun:
         responses = {
             "https://x/equity/history/orders": _page_response([order_item], None),
             "https://x/equity/history/dividends": _page_response([div_item], None),
+            "https://x/equity/history/transactions": _page_response([_CASH_ITEM], None),
         }
 
         def fake_get(url, headers=None, params=None, timeout=None):
@@ -430,8 +431,10 @@ class TestAdvanceRun:
         assert result.dividends_staged == 1
         assert sync_run.orders_complete is True
         assert sync_run.dividends_complete is True
+        assert result.cash_staged == 1
+        assert sync_run.cash_complete is True
         assert sync_run.completed_at is None
-        assert db_session.query(BrokerSyncEvent).count() == 2
+        assert db_session.query(BrokerSyncEvent).count() == 3
 
     def test_stays_fetching_when_budget_exhausted_before_completion(self, db_session, sync_run):
         # Every page returns a next_page_path, so 3 pages/stream never finishes.
@@ -777,7 +780,7 @@ def _known(db, portfolio, event_ids, *, stream="orders", source="t212_api", pref
 def _scripted_fetch(pages_by_stream):
     """A stand-in for t212_sync._fetch_stream_page serving scripted pages
     (newest first) and counting the pages fetched per stream."""
-    calls = {"orders": 0, "dividends": 0}
+    calls = {stream: 0 for stream in t212_sync.STREAMS}
 
     def fake(base, headers, stream, next_path):
         index = 0 if next_path is None else int(next_path.removeprefix("page"))
@@ -1104,3 +1107,81 @@ class TestHistoryRunAuditMode:
             db_session, connection, default_portfolio, reconciliation_mismatch=True,
         )
         assert decision.mode == "initial"
+
+
+# ---------------------------------------------------------------------------
+# Cash-transaction stream (plan 2026-10-03, Task D3)
+# ---------------------------------------------------------------------------
+
+_CASH_ITEM = {
+    "type": "DEPOSIT", "amount": 100.0, "currency": "CZK",
+    "reference": "c1", "dateTime": "2026-03-01T10:00:00.000Z",
+}
+
+
+def _cash_fake_get(cash_response):
+    def fake_get(url, headers=None, params=None, timeout=None):
+        if "/equity/history/transactions" in url:
+            return cash_response
+        return _page_response([], None)
+
+    return fake_get
+
+
+class TestCashStream:
+    def test_next_page_path_accepts_only_the_transactions_endpoint(self):
+        ok = "/api/v0/equity/history/transactions?limit=50&cursor=abc"
+        assert t212_sync.validate_next_page_path(ok, "cash") == (
+            "/equity/history/transactions?limit=50&cursor=abc"
+        )
+        assert t212_sync.validate_next_page_path(
+            "/equity/history/orders?cursor=abc", "cash"
+        ) is None
+        assert t212_sync.validate_next_page_path(
+            "https://evil.example/equity/history/transactions", "cash"
+        ) is None
+
+    def test_cash_events_are_staged_with_reference_ids_and_timestamps(
+        self, db_session, sync_run
+    ):
+        with patch("t212_sync.httpx.get", side_effect=_cash_fake_get(
+            _page_response([_CASH_ITEM], None)
+        )):
+            result = t212_sync.advance_run(db_session, sync_run, "https://x", {})
+
+        assert result.cash_staged == 1
+        assert sync_run.cash_complete is True
+        assert sync_run.cash_loaded == 1
+        event = db_session.query(BrokerSyncEvent).filter_by(stream="cash").one()
+        assert event.provider_event_id == "cash:c1"
+        assert event.provider_timestamp.replace(tzinfo=None) == datetime(2026, 3, 1, 10)
+
+    def test_a_rate_limited_cash_stream_keeps_the_run_from_finalizing(
+        self, db_session, sync_run
+    ):
+        limited = MagicMock(
+            status_code=429,
+            headers={"x-ratelimit-remaining": "0", "x-ratelimit-reset": "30"},
+        )
+        with patch("t212_sync.httpx.get", side_effect=_cash_fake_get(limited)):
+            result = t212_sync.advance_run(db_session, sync_run, "https://x", {})
+
+        assert result.state == "waiting_rate_limit"
+        assert result.rate_limited_streams == ("cash",)
+        assert sync_run.orders_complete and sync_run.dividends_complete
+        assert sync_run.cash_complete is False
+        assert sync_run.cash_rate_limit_reset_at is not None
+
+    def test_the_run_finalizes_only_once_all_three_streams_are_complete(
+        self, db_session, sync_run
+    ):
+        more = _page_response([_CASH_ITEM], "/equity/history/transactions?cursor=next")
+        with patch("t212_sync.httpx.get", side_effect=_cash_fake_get(more)):
+            result = t212_sync.advance_run(
+                db_session, sync_run, "https://x", {}, max_pages_per_stream=1,
+            )
+
+        assert result.state == "fetching"
+        assert sync_run.orders_complete and sync_run.dividends_complete
+        assert sync_run.cash_complete is False
+        assert sync_run.cash_next_page_path == "/equity/history/transactions?cursor=next"

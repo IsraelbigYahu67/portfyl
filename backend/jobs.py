@@ -413,7 +413,11 @@ async def broker_backfill_pass(
 
         if run.state == "waiting_rate_limit":
             reset_candidates = [
-                r for r in (run.orders_rate_limit_reset_at, run.dividends_rate_limit_reset_at)
+                r for r in (
+                    run.orders_rate_limit_reset_at,
+                    run.dividends_rate_limit_reset_at,
+                    run.cash_rate_limit_reset_at,
+                )
                 if r is not None
             ]
             reset_at = max(reset_candidates) if reset_candidates else None
@@ -495,6 +499,7 @@ async def broker_backfill_pass(
                 "state": state,
                 "orders_staged": result.orders_staged,
                 "dividends_staged": result.dividends_staged,
+                "cash_staged": result.cash_staged,
                 "rate_limited_streams": list(result.rate_limited_streams),
             })
         except Exception as e:

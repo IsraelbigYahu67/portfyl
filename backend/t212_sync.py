@@ -47,6 +47,7 @@ from models import (
     Transaction,
 )
 from ledger_mutation import acquire_workspace_ledger_lock
+from t212_cash import CashRow, UnsupportedCash, cash_event_id, cash_event_time, map_cash_event
 from t212_incremental import OVERLAP_PAGES, evaluate_page
 
 T212_BASES = {
@@ -310,7 +311,7 @@ def is_snapshot_fresh(as_of: datetime | None, *, now: datetime | None = None) ->
 # provider payload changed. history_run_decision picks the mode.
 # =============================================================================
 
-STREAMS = ("orders", "dividends")
+STREAMS = ("orders", "dividends", "cash")
 TERMINAL_RUN_STATES = ("completed", "failed", "cancelled", "needs_review")
 REVIEW_DETAILS_LIMIT = 50
 # fill.type values finalize_run can transform (gate G1 signed off 2026-09-30,
@@ -337,6 +338,7 @@ DEFAULT_MAX_PAGES_PER_STREAM = 3
 _STREAM_ENDPOINT_PATH = {
     "orders": "/equity/history/orders",
     "dividends": "/equity/history/dividends",
+    "cash": "/equity/history/transactions",
 }
 _ALLOWED_NEXT_PAGE_QUERY_KEYS = {"cursor", "limit"}
 _API_VERSION_PREFIX = "/api/v0"  # the path suffix of every T212_BASES entry
@@ -466,7 +468,11 @@ def _dividend_event_id(item: dict) -> str:
 
 
 def _event_id(stream: str, item: dict) -> str:
-    return _order_event_id(item) if stream == "orders" else _dividend_event_id(item)
+    if stream == "orders":
+        return _order_event_id(item)
+    if stream == "cash":
+        return cash_event_id(item)
+    return _dividend_event_id(item)
 
 
 def _extract_provider_timestamp(stream: str, item: dict) -> datetime | None:
@@ -474,6 +480,8 @@ def _extract_provider_timestamp(stream: str, item: dict) -> datetime | None:
         fill = item.get("fill") or {}
         order = item.get("order") or {}
         raw = fill.get("filledAt") or order.get("createdAt")
+    elif stream == "cash":
+        return cash_event_time(item)
     else:
         raw = item.get("paidOn") or item.get("reference")
     return _parse_t212_datetime(raw)
@@ -699,6 +707,7 @@ class RunAdvanceResult:
     orders_staged: int
     dividends_staged: int
     rate_limited_streams: tuple[str, ...]
+    cash_staged: int = 0
 
 
 def _lease_still_held(db: Session, run: BrokerSyncRun, lease_token) -> bool:
@@ -810,7 +819,7 @@ def advance_run(
             BrokerConnection.id == run.connection_id,
         ).first()
 
-    staged_counts = {"orders": 0, "dividends": 0}
+    staged_counts = {stream: 0 for stream in STREAMS}
     rate_limited: list[str] = []
 
     try:
@@ -901,12 +910,13 @@ def advance_run(
             state=run.state,
             orders_staged=staged_counts["orders"],
             dividends_staged=staged_counts["dividends"],
+            cash_staged=staged_counts["cash"],
             rate_limited_streams=tuple(rate_limited),
         )
 
     if rate_limited:
         run.state = "waiting_rate_limit"
-    elif run.orders_complete and run.dividends_complete:
+    elif all(getattr(run, f"{stream}_complete") for stream in STREAMS):
         run.state = "finalizing"
     else:
         run.state = "fetching"
@@ -920,6 +930,7 @@ def advance_run(
         state=run.state,
         orders_staged=staged_counts["orders"],
         dividends_staged=staged_counts["dividends"],
+        cash_staged=staged_counts["cash"],
         rate_limited_streams=tuple(rate_limited),
     )
 
@@ -1059,6 +1070,8 @@ def _staged_event_time(event: BrokerSyncEvent) -> datetime | None:
         raw = fill.get("filledAt") or order.get("createdAt")
     elif event.stream == "dividends":
         raw = payload.get("paidOn") or payload.get("reference")
+    elif event.stream == "cash":
+        return cash_event_time(payload)
     else:
         return None
     return _parse_t212_datetime(raw) if raw else None

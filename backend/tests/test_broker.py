@@ -875,6 +875,31 @@ class TestGetHistoryStatusEndpoint:
         assert result["run"]["orders_loaded"] == 5
         assert result["run"]["dividends_complete"] is True
 
+    def test_cash_progress_is_reported_and_gates_download_complete(
+        self, db_session, default_portfolio
+    ):
+        conn = BrokerConnection(workspace_id=default_portfolio.workspace_id,
+                                portfolio_id=default_portfolio.id,
+                                broker="trading212", api_key="k" * 20)
+        db_session.add(conn)
+        db_session.flush()
+        reset = datetime(2030, 1, 1, tzinfo=timezone.utc)
+        db_session.add(BrokerSyncRun(
+            workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+            connection_id=conn.id, broker="trading212",
+            credential_generation=conn.credential_generation, mode="incremental",
+            state="waiting_rate_limit", orders_complete=True, dividends_complete=True,
+            cash_loaded=7, cash_complete=False, cash_rate_limit_reset_at=reset,
+        ))
+        db_session.commit()
+
+        run = get_history_status(db=db_session, portfolio=default_portfolio)["run"]
+
+        assert run["cash_loaded"] == 7
+        assert run["cash_complete"] is False
+        assert run["download_complete"] is False
+        assert run["resume_at"].startswith("2030-01-01")
+
     def test_needs_review_run_is_not_reported_as_retrying(
         self, db_session, default_portfolio
     ):
