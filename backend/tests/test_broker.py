@@ -932,6 +932,35 @@ class TestGetHistoryStatusEndpoint:
         assert result["run"]["last_error"] == t212_sync.HISTORY_NEEDS_REVIEW_ERROR
         assert "retry" not in result["run"]["last_error"].lower()
 
+    def test_a_cash_review_reports_its_own_reason_not_the_split_message(
+        self, db_session, default_portfolio
+    ):
+        conn = BrokerConnection(
+            workspace_id=default_portfolio.workspace_id,
+            portfolio_id=default_portfolio.id,
+            broker="trading212", api_key="k" * 20,
+        )
+        db_session.add(conn)
+        db_session.flush()
+        db_session.add(BrokerSyncRun(
+            workspace_id=default_portfolio.workspace_id,
+            portfolio_id=default_portfolio.id,
+            connection_id=conn.id, broker="trading212",
+            credential_generation=conn.credential_generation,
+            mode="incremental", state="needs_review",
+            orders_complete=True, dividends_complete=True, cash_complete=True,
+            last_error=t212_sync.HISTORY_CASH_UNSUPPORTED_ERROR,
+            review_details=[{"fill_type": None, "ticker": None,
+                             "date": "2026-03-01", "cash_type": "MYSTERY"}],
+        ))
+        db_session.commit()
+
+        run = get_history_status(db=db_session, portfolio=default_portfolio)["run"]
+
+        assert run["last_error"] == t212_sync.HISTORY_CASH_UNSUPPORTED_ERROR
+        assert run["review"]["items"][0]["cash_type"] == "MYSTERY"
+        assert run["review"]["mapper_supports_all"] is False
+
     def test_waiting_status_exposes_reset_time_without_raw_url_or_cursor(
         self, db_session, default_portfolio
     ):

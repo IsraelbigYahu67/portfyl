@@ -35,6 +35,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 from fastapi import HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from fx import bulk_fetch_fx
@@ -330,6 +331,14 @@ HISTORY_NEEDS_REVIEW_ERROR = (
 HISTORY_SPLIT_UNVERIFIED_ERROR = (
     "Trading 212 reported a split that Portfyl could not verify automatically. "
     "No history was imported."
+)
+
+# A cash transaction the signed-off encoding (docs/research/
+# t212-cash-transaction-encoding.md) does not cover: an unmapped type, a zero or
+# contradictory amount, a missing currency or time. Fail closed, like splits.
+HISTORY_CASH_UNSUPPORTED_ERROR = (
+    "Trading 212 reported a cash transaction that Portfyl cannot import "
+    "automatically yet. No history was imported."
 )
 
 DEFAULT_LEASE_SECONDS = 90
@@ -977,6 +986,9 @@ class FinalizeResult:
     needs_review: bool = False
     unsupported_action_types: tuple[str, ...] = ()
     revised: int = 0
+    cash_imported: int = 0
+    cash_skipped_duplicate: int = 0
+    cash_skipped_invalid: int = 0
 
 
 def _corporate_action_type(event: BrokerSyncEvent) -> str | None:
@@ -1002,6 +1014,20 @@ def _review_details(events: list[BrokerSyncEvent]) -> list[dict]:
     seen: set[tuple] = set()
     details: list[dict] = []
     for event in events:
+        if event.stream == "cash":
+            when = _staged_event_time(event)
+            cash_type = str((event.raw_payload or {}).get("type") or "").upper() or None
+            item = {
+                "fill_type": None,
+                "ticker": None,
+                "date": when.date().isoformat() if when else None,
+                "cash_type": cash_type,
+            }
+            key = ("cash", item["date"], cash_type)
+            if key not in seen:
+                seen.add(key)
+                details.append(item)
+            continue
         order = (event.raw_payload or {}).get("order") or {}
         raw_ticker = (order.get("ticker") or "").strip()
         when = _staged_event_time(event)
@@ -1245,6 +1271,54 @@ def _finalize_dividend_event(event: BrokerSyncEvent, run: BrokerSyncRun):
     return "imported", txn
 
 
+def _finalize_cash_event(event: BrokerSyncEvent, run: BrokerSyncRun):
+    """Map one staged cash event to a ledger cash Transaction. Returns
+    (outcome, transaction_or_none); outcome is "imported" or "unsupported"
+    (finalize_run sends an unsupported event's run to review before any write)."""
+    item = event.raw_payload or {}
+    mapped = map_cash_event(item)
+    if isinstance(mapped, UnsupportedCash):
+        return "unsupported", None
+    txn = Transaction(
+        workspace_id=run.workspace_id,
+        portfolio_id=run.portfolio_id,
+        ticker=None,
+        name=None,
+        type=mapped.type,
+        shares=0.0,
+        price=0.0,
+        amount=mapped.amount,
+        currency=mapped.currency,
+        date=mapped.date,
+        notes=mapped.notes,
+        source="t212_api",
+        source_event_id=event.provider_event_id,
+        source_event_stream="cash",
+        source_account_fingerprint=run.account_fingerprint,
+        source_credential_generation=run.credential_generation,
+        executed_at=mapped.executed_at,
+        source_payload_hash=_stable_fingerprint(item),
+        source_mapper_version=_FINALIZE_MAPPER_VERSION,
+    )
+    # Cash rows are denominated by `amount`/`currency` like the CSV importer's;
+    # they carry no separate settlement amount.
+    txn._native_cash_amount = None
+    txn._native_cash_currency = mapped.currency
+    txn._is_cash_row = True
+    return "imported", txn
+
+
+_CASH_DIRECTION = {
+    "deposit": "in", "cashback": "in", "withdrawal": "out", "card_debit": "out",
+    "fee": "fee", "interest": "interest",
+}
+
+
+def _cash_match_key(txn_type: str, amount: float, currency: str, day: date) -> tuple:
+    return (_CASH_DIRECTION.get(txn_type, txn_type), round(float(amount), 2),
+            (currency or "").upper(), day)
+
+
 def _as_utc(value: datetime) -> datetime:
     return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
 
@@ -1336,6 +1410,16 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
         ]
         if unsupported_events:
             return _send_run_to_needs_review(db, run, unsupported_events)
+        unsupported_cash = [
+            event for event in events
+            if event.stream == "cash"
+            and isinstance(map_cash_event(event.raw_payload or {}), UnsupportedCash)
+            and not _is_csv_covered(event, csv_covered_through)
+        ]
+        if unsupported_cash:
+            return _send_run_to_needs_review(
+                db, run, unsupported_cash, last_error=HISTORY_CASH_UNSUPPORTED_ERROR,
+            )
 
     # Imported here: t212_corporate_actions imports this module at load time.
     from t212_corporate_actions import (
@@ -1365,10 +1449,22 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
         .filter(
             Transaction.workspace_id == portfolio.workspace_id,
             Transaction.portfolio_id == portfolio.id,
-            Transaction.ticker.isnot(None),
+            or_(Transaction.ticker.isnot(None), Transaction.source_event_stream == "cash"),
         )
         .all()
     )
+    # Cash rows without provider identity (manual entries, legacy rows): each can
+    # settle at most one cash event, matched on direction, amount, currency, day.
+    unmatched_legacy_cash: list[tuple] = [
+        _cash_match_key(row.type, row.amount or 0.0, row.currency, row.date)
+        for row in db.query(Transaction).filter(
+            Transaction.workspace_id == portfolio.workspace_id,
+            Transaction.portfolio_id == portfolio.id,
+            Transaction.ticker.is_(None),
+            Transaction.source_event_id.is_(None),
+            Transaction.type.in_(tuple(_CASH_DIRECTION)),
+        )
+    ]
     # Fuzzy matching is only for rows without provider event identity (legacy
     # sync and CSV). Consume each such row at most once: two identical fills
     # with distinct provider IDs are two trades, even on the same day.
@@ -1388,6 +1484,7 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
 
     orders_imported = orders_dup = orders_non_trade = orders_invalid = 0
     dividends_imported = dividends_dup = dividends_invalid = 0
+    cash_imported = cash_dup = cash_invalid = 0
     new_txns: list[Transaction] = []
     # Audit runs only: (existing API row, freshly mapped copy) whose provider
     # payload changed under the same event id.
@@ -1397,6 +1494,8 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
         if _is_csv_covered(event, csv_covered_through):
             if event.stream == "orders":
                 orders_dup += 1
+            elif event.stream == "cash":
+                cash_dup += 1
             else:
                 dividends_dup += 1
             continue
@@ -1407,6 +1506,13 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
                 continue
             if outcome == "invalid":
                 orders_invalid += 1
+                continue
+        elif event.stream == "cash":
+            outcome, txn = _finalize_cash_event(event, run)
+            if outcome == "unsupported":
+                # A first finalization sent such a run to review above; this is
+                # only reachable when retrying an already-completed run.
+                cash_invalid += 1
                 continue
         else:
             outcome, txn = _finalize_dividend_event(event, run)
@@ -1423,8 +1529,24 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
                 revisions.append((existing_row, txn))
             elif event.stream == "orders":
                 orders_dup += 1
+            elif event.stream == "cash":
+                cash_dup += 1
             else:
                 dividends_dup += 1
+            continue
+        if event.stream == "cash":
+            cash_key = _cash_match_key(txn.type, txn.amount, txn.currency, txn.date)
+            cash_match = (
+                unmatched_legacy_cash.index(cash_key) if cash_key in unmatched_legacy_cash else None
+            )
+            if source_key in existing_source_ids or cash_match is not None:
+                if cash_match is not None and source_key not in existing_source_ids:
+                    unmatched_legacy_cash.pop(cash_match)
+                cash_dup += 1
+                continue
+            new_txns.append(txn)
+            existing_source_ids.add(source_key)
+            cash_imported += 1
             continue
         dedup_keys = (
             _dedup_keys(txn.ticker, txn.date, txn.type, txn.shares, txn.price)
@@ -1466,6 +1588,8 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
         cash_fx = 1.0 if ccy == "CZK" else fx_map.get((ccy, t.date))
         if price_fx:
             t.fx_to_czk = price_fx
+        if getattr(t, "_is_cash_row", False):
+            continue  # denominated by amount/currency; no separate settlement
         if cash_fx:
             t.cash_amount = round(t._native_cash_amount * cash_fx, 2)
             t.cash_currency = "CZK"
@@ -1489,6 +1613,9 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
         existing_row.cash_currency = mapped.cash_currency
         existing_row.source_payload_hash = mapped.source_payload_hash
         existing_row.source_mapper_version = mapped.source_mapper_version
+        if getattr(mapped, "_is_cash_row", False):
+            existing_row.amount = mapped.amount
+            existing_row.currency = mapped.currency
         if mapped.fx_to_czk is not None:
             existing_row.fx_to_czk = mapped.fx_to_czk
         elif date_moved:
@@ -1497,7 +1624,8 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
             existing_row.fx_to_czk = None
     if revisions:
         reapply_recorded_splits(
-            db, workspace_id=portfolio.workspace_id, rows=[row for row, _ in revisions],
+            db, workspace_id=portfolio.workspace_id,
+            rows=[row for row, mapped in revisions if not getattr(mapped, "_is_cash_row", False)],
         )
     apply_splits(db, run=run, portfolio=portfolio, evidence=split_evidence, pending=new_txns)
     if run.state != "completed":
@@ -1524,4 +1652,7 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
         dividends_skipped_duplicate=dividends_dup,
         dividends_skipped_invalid=dividends_invalid,
         revised=len(revisions),
+        cash_imported=cash_imported,
+        cash_skipped_duplicate=cash_dup,
+        cash_skipped_invalid=cash_invalid,
     )

@@ -1084,3 +1084,158 @@ class TestSplitFinalization:
         db_session.refresh(buy)
         assert (buy.shares, buy.price) == (90, 125)
         assert db_session.query(BrokerCorporateActionApplication).count() == 0
+
+
+# ---------------------------------------------------------------------------
+# Cash-transaction stream (plan 2026-10-03, Task D4)
+# ---------------------------------------------------------------------------
+
+
+def _cash_event(db, run, *, reference="c1", kind="DEPOSIT", amount=3200.0,
+                currency="CZK", when="2026-03-01T10:00:00.000Z"):
+    payload = {"type": kind, "amount": amount, "currency": currency,
+               "reference": reference, "dateTime": when}
+    event = BrokerSyncEvent(
+        workspace_id=run.workspace_id, portfolio_id=run.portfolio_id, run_id=run.id,
+        broker="trading212", account_fingerprint=run.account_fingerprint,
+        stream="cash", provider_event_id=f"cash:{reference}",
+        provider_timestamp=datetime.fromisoformat(when.replace("Z", "+00:00")),
+        raw_payload=payload,
+    )
+    db.add(event)
+    db.commit()
+    return event
+
+
+def _cash_rows(db):
+    return db.query(Transaction).filter(Transaction.source_event_stream == "cash").all()
+
+
+class TestFinalizeCash:
+    def test_imports_a_deposit_as_a_ledger_cash_row(
+        self, db_session, default_portfolio, completed_run, connection
+    ):
+        _cash_event(db_session, completed_run)
+        with patch("t212_sync.bulk_fetch_fx", return_value={}):
+            result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        assert result.cash_imported == 1
+        [row] = _cash_rows(db_session)
+        assert (row.type, row.amount, row.currency) == ("deposit", 3200.0, "CZK")
+        assert row.ticker is None and row.shares == 0 and row.price == 0
+        assert row.source == "t212_api"
+        assert row.source_event_id == "cash:c1"
+        assert row.source_account_fingerprint == completed_run.account_fingerprint
+        assert row.date == date(2026, 3, 1)
+        assert row.executed_at is not None
+        assert row.fx_to_czk == 1.0
+        assert row.cash_amount is None
+        assert "DEPOSIT" in row.notes
+        db_session.refresh(connection)
+        assert connection.cash_frontier_event_id == "cash:c1"
+
+    def test_every_proven_type_maps_to_the_right_ledger_type(
+        self, db_session, default_portfolio, completed_run
+    ):
+        cases = [
+            ("w", "WITHDRAW", -218.8, "withdrawal"),
+            ("f", "FEE", -0.16, "fee"),
+            ("i1", "INTEREST_ON_FREE_CASH", 0.42, "interest"),
+            ("i2", "LENDING_INTEREST", 0.01, "interest"),
+            ("t1", "TRANSFER", 200.0, "deposit"),
+            ("t2", "TRANSFER", -200.0, "withdrawal"),
+        ]
+        for ref, kind, amount, _ in cases:
+            _cash_event(db_session, completed_run, reference=ref, kind=kind, amount=amount)
+        with patch("t212_sync.bulk_fetch_fx", return_value={}):
+            t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        by_ref = {r.source_event_id: r for r in _cash_rows(db_session)}
+        for ref, _, amount, expected in cases:
+            assert by_ref[f"cash:{ref}"].type == expected
+            assert by_ref[f"cash:{ref}"].amount == abs(amount)
+
+    def test_a_foreign_currency_row_gets_the_historical_rate(
+        self, db_session, default_portfolio, completed_run
+    ):
+        _cash_event(db_session, completed_run, currency="EUR", amount=100.0)
+        with patch("t212_sync.bulk_fetch_fx", return_value={("EUR", date(2026, 3, 1)): 25.1}):
+            t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        [row] = _cash_rows(db_session)
+        assert (row.currency, row.fx_to_czk, row.cash_amount) == ("EUR", 25.1, None)
+
+    def test_finalizing_again_imports_nothing_new(
+        self, db_session, default_portfolio, completed_run
+    ):
+        _cash_event(db_session, completed_run)
+        with patch("t212_sync.bulk_fetch_fx", return_value={}):
+            t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+            again = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        assert again.cash_imported == 0
+        assert again.cash_skipped_duplicate == 1
+        assert len(_cash_rows(db_session)) == 1
+
+    def test_an_unmapped_type_sends_the_run_to_review_before_any_write(
+        self, db_session, default_portfolio, completed_run, connection
+    ):
+        _order_event(db_session, completed_run)
+        _cash_event(db_session, completed_run, reference="ok")
+        _cash_event(db_session, completed_run, reference="odd", kind="MYSTERY", amount=5.0)
+        result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        assert result.needs_review is True
+        assert db_session.query(Transaction).count() == 0
+        db_session.refresh(completed_run)
+        db_session.refresh(connection)
+        assert completed_run.state == "needs_review"
+        assert completed_run.last_error == t212_sync.HISTORY_CASH_UNSUPPORTED_ERROR
+        assert completed_run.review_details == [
+            {"fill_type": None, "ticker": None, "date": "2026-03-01", "cash_type": "MYSTERY"}
+        ]
+        assert connection.history_complete_at is None
+
+    def test_events_covered_by_the_csv_export_are_not_imported(
+        self, db_session, default_portfolio, completed_run
+    ):
+        default_portfolio.t212_csv_covered_through = datetime(2026, 3, 2, tzinfo=timezone.utc)
+        _cash_event(db_session, completed_run, reference="old", when="2026-03-01T10:00:00.000Z")
+        _cash_event(db_session, completed_run, reference="new", when="2026-03-05T10:00:00.000Z")
+        with patch("t212_sync.bulk_fetch_fx", return_value={}):
+            result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        assert [r.source_event_id for r in _cash_rows(db_session)] == ["cash:new"]
+        assert result.cash_skipped_duplicate == 1
+
+    def test_a_manual_row_for_the_same_cash_event_is_matched_once(
+        self, db_session, default_portfolio, completed_run
+    ):
+        db_session.add(Transaction(
+            workspace_id=default_portfolio.workspace_id, portfolio_id=default_portfolio.id,
+            ticker=None, type="deposit", shares=0.0, price=0.0, amount=3200.0,
+            currency="CZK", date=date(2026, 3, 1), source="manual",
+        ))
+        db_session.commit()
+        _cash_event(db_session, completed_run, reference="a")
+        _cash_event(db_session, completed_run, reference="b")  # a second identical deposit
+        with patch("t212_sync.bulk_fetch_fx", return_value={}):
+            result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        assert result.cash_skipped_duplicate == 1
+        assert result.cash_imported == 1
+        assert len(_cash_rows(db_session)) == 1
+
+    def test_an_audit_revises_a_cash_row_whose_payload_changed(
+        self, db_session, default_portfolio, completed_run
+    ):
+        _cash_event(db_session, completed_run, amount=100.0)
+        with patch("t212_sync.bulk_fetch_fx", return_value={}):
+            t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+            audit = _next_run(db_session, completed_run, "audit")
+            _cash_event(db_session, audit, amount=150.0)
+            result = t212_sync.finalize_run(db_session, audit, default_portfolio)
+
+        [row] = _cash_rows(db_session)
+        assert row.amount == 150.0
+        assert result.revised == 1

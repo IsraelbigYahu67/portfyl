@@ -347,8 +347,11 @@ def get_history_status(
         resume_at = resume_at.replace(tzinfo=timezone.utc)
     if run.state == "needs_review":
         public_error = (
-            t212_sync.HISTORY_SPLIT_UNVERIFIED_ERROR
-            if run.last_error == t212_sync.HISTORY_SPLIT_UNVERIFIED_ERROR
+            run.last_error
+            if run.last_error in {
+                t212_sync.HISTORY_SPLIT_UNVERIFIED_ERROR,
+                t212_sync.HISTORY_CASH_UNSUPPORTED_ERROR,
+            }
             else t212_sync.HISTORY_NEEDS_REVIEW_ERROR
         )
     elif run.last_error:

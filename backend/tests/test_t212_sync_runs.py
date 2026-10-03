@@ -840,6 +840,29 @@ class TestIncrementalStopRule:
         db_session.refresh(run)
         assert run.orders_known_streak == OVERLAP_PAGES
 
+    def test_the_cash_stream_stops_early_like_the_others(self, db_session, default_portfolio):
+        conn, run = _incremental_run(db_session, default_portfolio)
+        conn.cash_frontier_at = FRONTIER
+        db_session.commit()
+        _known(db_session, default_portfolio, ["k1", "k2", "k3", "k4", "k5"],
+               stream="cash", prefix="cash")
+
+        def cash_item(reference, days_before):
+            return {"type": "DEPOSIT", "amount": 1.0, "currency": "CZK",
+                    "reference": reference, "dateTime": _iso(days_before)}
+
+        pages = {"cash": [
+            [cash_item("k1", 8)], [cash_item("k2", 9)], [cash_item("k3", 10)],
+            [cash_item("k4", 11)], [cash_item("k5", 12)],
+        ]}
+
+        _, calls = _advance(db_session, run, pages, connection=conn)
+
+        assert calls["cash"] == OVERLAP_PAGES
+        db_session.refresh(run)
+        assert run.cash_complete is True
+        assert run.cash_known_streak == OVERLAP_PAGES
+
     def test_unknown_old_event_keeps_the_walk_going(self, db_session, default_portfolio):
         conn, run = _incremental_run(db_session, default_portfolio)
         _known(db_session, default_portfolio, ["k1", "k2", "k3", "k4", "k5"])
