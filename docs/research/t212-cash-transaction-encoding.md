@@ -1,7 +1,7 @@
 # Trading 212 cash-transaction encoding (observed)
 
-**Status: DRAFT, awaiting human review. The cash mapper must not start until the
-Sign-off line at the bottom is filled in.** Parent plan:
+**Status: SIGNED OFF 2026-10-03 (see the end). The cash mapper may be
+implemented against this record.** Parent plan:
 `docs/superpowers/plans/2026-09-20-t212-snapshot-first-sync.md` §5.5 items 7-8
 (the `/equity/history/transactions` stream, deliberately out of scope until now).
 
@@ -84,4 +84,24 @@ Open before sign-off:
    Other currencies, FX-converted deposits and `Currency conversion` rows
    (present in the CSV) are unobserved in this stream and stay `needs_review`.
 
-Sign-off: _pending (owner)._
+Sign-off: owner (tomzo), 2026-10-03, delegated in chat ("udělej jak uznáš za
+vhodné, máš svolení moje"). Rulings taken on the owner's behalf, each with the
+cost if wrong:
+
+1. **TRANSFER maps by sign** (+ -> `deposit`, - -> `withdrawal`), as proposed.
+   Cost if wrong: another account's TRANSFER may be an internal move (for
+   example between Invest and another T212 account), which would be booked as
+   an external flow and distort TWR/XIRR. Mitigation: the source subtype
+   (`T212 TRANSFER`) is kept in the row notes so such rows are findable, and a
+   zero or non-numeric amount or an empty currency still goes to `needs_review`.
+2. **The FEE without a CSV counterpart is imported** (the API is authoritative).
+   Cost if wrong: a 0.16 CZK fee too many.
+3. **`reference` == CSV `ID` is not assumed.** Overlap with CSV rows is handled
+   only by the CSV coverage cutoff (events at or before the export's end are
+   settled by the CSV) plus one-to-one matching against rows with no provider
+   identity on (type class, amount, currency, UTC day). Cost if wrong: a
+   duplicate cash row for an event just after the export's end.
+4. **"Currency differs from the account currency" is not checked**: the
+   account currency is not stored. Each row keeps the event's own currency,
+   exactly as the CSV importer does. Cost if wrong: none observed (all CZK).
+5. `Currency conversion` and every unknown `type` stay `needs_review`.
