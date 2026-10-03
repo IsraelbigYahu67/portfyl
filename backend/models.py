@@ -575,6 +575,11 @@ class BrokerConnection(Base):
     orders_frontier_event_id = Column(String, nullable=True)
     dividends_frontier_at = Column(DateTime(timezone=True), nullable=True)
     dividends_frontier_event_id = Column(String, nullable=True)
+    # Cash-transaction stream (plan 2026-10-03). A connection whose history was
+    # read before this stream existed has no cash frontier, so its next run
+    # walks the whole cash history once.
+    cash_frontier_at = Column(DateTime(timezone=True), nullable=True)
+    cash_frontier_event_id = Column(String, nullable=True)
     last_full_audit_at = Column(DateTime(timezone=True), nullable=True)
 
     def clear_history_coverage(self) -> None:
@@ -586,6 +591,8 @@ class BrokerConnection(Base):
         self.orders_frontier_event_id = None
         self.dividends_frontier_at = None
         self.dividends_frontier_event_id = None
+        self.cash_frontier_at = None
+        self.cash_frontier_event_id = None
         self.last_full_audit_at = None
 
     # `api_key`/`api_secret` are transparent encrypt-on-set/decrypt-on-get
@@ -813,6 +820,11 @@ class BrokerSyncRun(Base):
     dividends_loaded = Column(Integer, nullable=False, default=0, server_default="0")
     dividends_rate_limit_reset_at = Column(DateTime(timezone=True), nullable=True)
 
+    cash_next_page_path = Column(String, nullable=True)
+    cash_complete = Column(Boolean, nullable=False, default=False, server_default="false")
+    cash_loaded = Column(Integer, nullable=False, default=0, server_default="0")
+    cash_rate_limit_reset_at = Column(DateTime(timezone=True), nullable=True)
+
     # Incremental stop-rule state (plan 2026-09-24, Task C2): consecutive
     # fully-known pages past the connection's frontier, and the oldest event
     # timestamp of the last page seen (for the newest-first ordering check).
@@ -820,6 +832,8 @@ class BrokerSyncRun(Base):
     orders_last_page_oldest_at = Column(DateTime(timezone=True), nullable=True)
     dividends_known_streak = Column(Integer, nullable=False, default=0, server_default="0")
     dividends_last_page_oldest_at = Column(DateTime(timezone=True), nullable=True)
+    cash_known_streak = Column(Integer, nullable=False, default=0, server_default="0")
+    cash_last_page_oldest_at = Column(DateTime(timezone=True), nullable=True)
 
     # Short-lived worker lease (plan §4.2): the foreground request and the
     # minutely broker_backfill job share the same claim function
@@ -865,7 +879,9 @@ class BrokerSyncEvent(Base):
             name="fk_broker_sync_event_workspace_run",
             ondelete="CASCADE",
         ),
-        CheckConstraint("stream IN ('orders', 'dividends')", name="ck_broker_sync_event_stream"),
+        CheckConstraint(
+            "stream IN ('orders', 'dividends', 'cash')", name="ck_broker_sync_event_stream",
+        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)

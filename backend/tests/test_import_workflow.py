@@ -707,7 +707,7 @@ def test_replace_import_clears_t212_history_coverage(
     )
 
     db_session.refresh(connection)
-    assert [getattr(connection, field) for field in T212_COVERAGE_FIELDS] == [None] * 6
+    assert [getattr(connection, field) for field in T212_COVERAGE_FIELDS] == [None] * len(T212_COVERAGE_FIELDS)
 
 
 def test_append_import_keeps_t212_history_coverage(

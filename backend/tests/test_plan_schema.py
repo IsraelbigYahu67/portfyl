@@ -35,7 +35,18 @@ def test_payment_and_trial_models_are_not_mapped():
 
 
 def test_expected_alembic_head_adds_t212_account_binding():
-    assert EXPECTED_ALEMBIC_HEAD == "0020_broker_corporate_actions"
+    assert EXPECTED_ALEMBIC_HEAD == "0022_t212_cash_stream"
+    for column in (
+        "cash_next_page_path", "cash_complete", "cash_loaded",
+        "cash_rate_limit_reset_at", "cash_known_streak", "cash_last_page_oldest_at",
+    ):
+        assert hasattr(models.BrokerSyncRun, column)
+    assert hasattr(models.BrokerConnection, "cash_frontier_at")
+    assert hasattr(models.BrokerConnection, "cash_frontier_event_id")
+    assert "cash" in str(
+        next(c for c in models.BrokerSyncEvent.__table__.constraints
+             if c.name == "ck_broker_sync_event_stream").sqltext
+    )
     assert hasattr(models.BrokerSyncRun, "review_details")
     assert hasattr(models.BrokerConnection, "history_complete_at")
     assert hasattr(models.BrokerSyncRun, "orders_known_streak")

@@ -481,4 +481,4 @@ def test_t212_full_export_replace_clears_history_coverage(db_session, default_po
 
     assert result["replaced"] is True
     db_session.refresh(connection)
-    assert [getattr(connection, field) for field in T212_COVERAGE_FIELDS] == [None] * 6
+    assert [getattr(connection, field) for field in T212_COVERAGE_FIELDS] == [None] * len(T212_COVERAGE_FIELDS)

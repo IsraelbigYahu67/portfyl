@@ -17,6 +17,8 @@ T212_COVERAGE_FIELDS = (
     "orders_frontier_event_id",
     "dividends_frontier_at",
     "dividends_frontier_event_id",
+    "cash_frontier_at",
+    "cash_frontier_event_id",
     "last_full_audit_at",
 )
 
@@ -30,6 +32,7 @@ def make_t212_connection_with_coverage(db, portfolio) -> BrokerConnection:
         history_complete_at=when,
         orders_frontier_at=when, orders_frontier_event_id="fill:9",
         dividends_frontier_at=when, dividends_frontier_event_id="dividend:9",
+        cash_frontier_at=when, cash_frontier_event_id="cash:9",
         last_full_audit_at=when,
     )
     db.add(conn)

@@ -570,4 +570,4 @@ def test_clear_all_transactions_clears_every_t212_history_coverage_field(
     clear_all_transactions(db=db_session, portfolio=default_portfolio)
 
     db_session.refresh(connection)
-    assert [getattr(connection, field) for field in T212_COVERAGE_FIELDS] == [None] * 6
+    assert [getattr(connection, field) for field in T212_COVERAGE_FIELDS] == [None] * len(T212_COVERAGE_FIELDS)
