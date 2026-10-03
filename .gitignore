@@ -22,6 +22,7 @@ Thumbs.db
 .superpowers/
 .firecrawl/
 backend/tests/fixtures/t212_corporate_actions/_captured/
+backend/tests/fixtures/t212_cash_transactions/_captured/
 
 # Stitch design export (extracted copy lives in docs/design/stitch/)
 stitch_portfyl_desktop.zip
