@@ -65,7 +65,7 @@ export function HistoryBackfillStatus({ run, onRetry, retryPending = false }) {
         <span className="font-medium text-ink">{label}</span>
       </div>
       <p className="text-xs text-muted">
-        {run.orders_loaded} order{run.orders_loaded === 1 ? "" : "s"} and {run.dividends_loaded} dividend{run.dividends_loaded === 1 ? "" : "s"} loaded so far.
+        {run.orders_loaded} order{run.orders_loaded === 1 ? "" : "s"}, {run.dividends_loaded} dividend{run.dividends_loaded === 1 ? "" : "s"} and {run.cash_loaded ?? 0} cash transaction{(run.cash_loaded ?? 0) === 1 ? "" : "s"} loaded so far.
         {active && " Continuing in the background — this page can be closed."}
       </p>
       {run.state === "completed" && (
@@ -81,8 +81,10 @@ export function HistoryBackfillStatus({ run, onRetry, retryPending = false }) {
         <div className="space-y-2 text-xs text-muted">
           <ul className="space-y-0.5 text-ink">
             {run.review.items.map((item) => (
-              <li key={`${item.fill_type}-${item.ticker}-${item.date}`}>
-                {FILL_TYPE_LABEL[item.fill_type] ?? item.fill_type} · {item.ticker ?? "unknown"} · {item.date ?? "unknown date"}
+              <li key={`${item.fill_type}-${item.cash_type}-${item.ticker}-${item.date}`}>
+                {item.cash_type !== undefined
+                  ? `Cash transaction (${item.cash_type ?? "unknown type"}) · ${item.date ?? "unknown date"}`
+                  : `${FILL_TYPE_LABEL[item.fill_type] ?? item.fill_type} · ${item.ticker ?? "unknown"} · ${item.date ?? "unknown date"}`}
               </li>
             ))}
           </ul>

@@ -146,6 +146,7 @@ describe("Trading 212 history backfill progress", () => {
       run: {
         id: "run-1", mode: "incremental", state: "fetching", complete: false,
         orders_loaded: 12, orders_complete: false, dividends_loaded: 4, dividends_complete: false,
+        cash_loaded: 1, cash_complete: false,
         started_at: "2026-09-21T10:00:00Z", last_progress_at: "2026-09-21T10:05:00Z",
         completed_at: null, last_error: null,
       },
@@ -153,7 +154,7 @@ describe("Trading 212 history backfill progress", () => {
     mount("/settings?section=connections");
 
     expect(await screen.findByText("Downloading history…")).toBeInTheDocument();
-    expect(screen.getByText(/12 orders and 4 dividends loaded so far/i)).toBeInTheDocument();
+    expect(screen.getByText(/12 orders, 4 dividends and 1 cash transaction loaded so far/i)).toBeInTheDocument();
     expect(screen.getByText(/this page can be closed/i)).toBeInTheDocument();
   });
 
@@ -264,6 +265,27 @@ describe("Trading 212 needs-review panel", () => {
 
     expect(screen.getByText(/MERGER · unknown · unknown date/)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Trading 212 CSV export/i })).not.toBeInTheDocument();
+  });
+
+  it("describes a cash transaction that could not be mapped", () => {
+    render(
+      <MemoryRouter>
+        <HistoryBackfillStatus
+          run={{
+            ...baseRun,
+            last_error: "Trading 212 reported a cash transaction that Portfyl cannot import automatically yet. No history was imported.",
+            review: review({
+              items: [{ fill_type: null, ticker: null, date: "2026-03-01", cash_type: "MYSTERY" }],
+              csv_needed_through: "2026-03-01",
+            }),
+          }}
+          onRetry={() => {}} retryPending={false}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/Cash transaction \(MYSTERY\) · 2026-03-01/)).toBeInTheDocument();
+    expect(screen.getByText(/cash transaction that Portfyl cannot import/i)).toBeInTheDocument();
   });
 
   it("tells the user a retry can succeed once the CSV already covers the actions", () => {
