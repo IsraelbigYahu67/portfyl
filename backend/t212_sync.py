@@ -365,11 +365,37 @@ class RateLimitState:
     reset_at: datetime | None
 
 
+RATE_LIMIT_RESET_MIN_SECONDS = 2
+RATE_LIMIT_RESET_MAX_SECONDS = 120
+RATE_LIMIT_DEFAULT_WAIT_SECONDS = 60
+_UNIX_TIMESTAMP_FLOOR = 1_000_000_000          # values below this are relative seconds
+_UNIX_MILLISECONDS_FLOOR = 100_000_000_000     # values at or above this are milliseconds
+
+
+def _reset_at_from_header(raw, now: datetime) -> datetime | None:
+    """`x-ratelimit-reset` is documented as a Unix timestamp. Small values are
+    still read as relative seconds, and the result is clamped so a misread value
+    can never park a run for longer than RATE_LIMIT_RESET_MAX_SECONDS."""
+    try:
+        value = int(float(raw))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if value >= _UNIX_MILLISECONDS_FLOOR:
+        value //= 1000
+    if value >= _UNIX_TIMESTAMP_FLOOR:
+        reset_at = datetime.fromtimestamp(value, tz=timezone.utc)
+    else:
+        reset_at = now + timedelta(seconds=value)
+    earliest = now + timedelta(seconds=RATE_LIMIT_RESET_MIN_SECONDS)
+    latest = now + timedelta(seconds=RATE_LIMIT_RESET_MAX_SECONDS)
+    return min(max(reset_at, earliest), latest)
+
+
 def parse_rate_limit_headers(headers, *, now: datetime | None = None) -> RateLimitState:
-    """Read T212's rate-limit response headers (plan §5.3). `x-ratelimit-reset`
-    is treated as seconds-until-reset (consistent with the codebase's existing
-    "verified only against docs/fixtures, not a live account" caveat for T212
-    response shapes -- see this module's top-level docstring)."""
+    """Read T212's rate-limit response headers (plan §5.3). Per the Trading 212
+    rate-limiting documentation `x-ratelimit-reset` is a Unix timestamp; the old
+    "seconds until reset" reading is kept only for small values (see
+    _reset_at_from_header)."""
     now = now or datetime.now(timezone.utc)
     remaining_raw = headers.get("x-ratelimit-remaining")
     reset_raw = headers.get("x-ratelimit-reset")
@@ -377,12 +403,7 @@ def parse_rate_limit_headers(headers, *, now: datetime | None = None) -> RateLim
         remaining = int(remaining_raw) if remaining_raw is not None else None
     except (TypeError, ValueError):
         remaining = None
-    reset_at = None
-    if reset_raw is not None:
-        try:
-            reset_at = now + timedelta(seconds=int(reset_raw))
-        except (TypeError, ValueError):
-            reset_at = None
+    reset_at = _reset_at_from_header(reset_raw, now) if reset_raw is not None else None
     return RateLimitState(remaining=remaining, reset_at=reset_at)
 
 
@@ -463,6 +484,8 @@ def _fetch_stream_page(base: str, headers: dict, stream: str, next_page_path: st
     if resp.status_code == 429:
         raise RateLimitedError(parse_rate_limit_headers(resp.headers))
     resp.raise_for_status()
+    state = parse_rate_limit_headers(resp.headers)
+    log.info("T212 %s page: ratelimit remaining=%s reset_at=%s", stream, state.remaining, state.reset_at)
     data = resp.json()
     items = data.get("items") or []
     raw_next = data.get("nextPagePath")
@@ -876,7 +899,11 @@ def advance_run(
                     )
                 except RateLimitedError as e:
                     rate_limited.append(stream)
-                    setattr(run, f"{stream}_rate_limit_reset_at", e.state.reset_at)
+                    setattr(
+                        run, f"{stream}_rate_limit_reset_at",
+                        e.state.reset_at
+                        or datetime.now(timezone.utc) + timedelta(seconds=RATE_LIMIT_DEFAULT_WAIT_SECONDS),
+                    )
                     db.commit()
                     if reassert_context:
                         reassert_context()

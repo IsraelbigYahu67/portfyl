@@ -44,6 +44,47 @@ class TestParseRateLimitHeaders:
         assert state.reset_at is None
 
 
+class TestRateLimitResetHeader:
+    NOW = datetime(2026, 10, 6, 12, 0, 0, tzinfo=timezone.utc)
+
+    def _state(self, reset):
+        return t212_sync.parse_rate_limit_headers(
+            {"x-ratelimit-remaining": "0", "x-ratelimit-reset": str(reset)}, now=self.NOW,
+        )
+
+    def test_reset_header_is_read_as_a_unix_timestamp(self):
+        reset = int((self.NOW + timedelta(seconds=42)).timestamp())
+        assert self._state(reset).reset_at == self.NOW + timedelta(seconds=42)
+
+    def test_reset_header_in_milliseconds_is_accepted(self):
+        reset = int((self.NOW + timedelta(seconds=42)).timestamp()) * 1000
+        assert self._state(reset).reset_at == self.NOW + timedelta(seconds=42)
+
+    def test_small_values_stay_relative_seconds(self):
+        assert self._state(30).reset_at == self.NOW + timedelta(seconds=30)
+
+    def test_a_large_relative_value_is_capped(self):
+        assert self._state(3600).reset_at == self.NOW + timedelta(
+            seconds=t212_sync.RATE_LIMIT_RESET_MAX_SECONDS
+        )
+
+    def test_reset_is_never_further_away_than_the_cap(self):
+        far = int((self.NOW + timedelta(days=30)).timestamp())
+        assert self._state(far).reset_at == self.NOW + timedelta(
+            seconds=t212_sync.RATE_LIMIT_RESET_MAX_SECONDS
+        )
+
+    def test_reset_in_the_past_still_waits_the_minimum(self):
+        past = int((self.NOW - timedelta(seconds=30)).timestamp())
+        assert self._state(past).reset_at == self.NOW + timedelta(
+            seconds=t212_sync.RATE_LIMIT_RESET_MIN_SECONDS
+        )
+
+    def test_fractional_reset_value_is_accepted(self):
+        reset = (self.NOW + timedelta(seconds=42)).timestamp() + 0.4
+        assert self._state(reset).reset_at == self.NOW + timedelta(seconds=42)
+
+
 # ---------------------------------------------------------------------------
 # next_page_path validation (security-critical: never forward auth to an
 # absolute/cross-origin/unexpected-endpoint URL)
@@ -533,6 +574,25 @@ class TestAdvanceRun:
         assert result.state == "fetching"
         assert sync_run.orders_complete is False
         assert sync_run.orders_next_page_path == "/equity/history/orders?cursor=next"
+
+    def test_429_without_reset_header_waits_the_default_instead_of_retrying_every_tick(
+        self, db_session, sync_run
+    ):
+        limited = MagicMock(status_code=429, headers={})
+        ok = _page_response([], None)
+
+        def fake_get(url, headers=None, params=None, timeout=None):
+            return limited if url.endswith("/equity/history/orders") else ok
+
+        before = datetime.now(timezone.utc)
+        with patch("t212_sync.httpx.get", side_effect=fake_get):
+            result = t212_sync.advance_run(db_session, sync_run, "https://x", {})
+
+        db_session.refresh(sync_run)
+        assert result.state == "waiting_rate_limit"
+        wait = t212_sync._as_utc(sync_run.orders_rate_limit_reset_at) - before
+        assert timedelta(seconds=t212_sync.RATE_LIMIT_DEFAULT_WAIT_SECONDS - 5) < wait
+        assert wait < timedelta(seconds=t212_sync.RATE_LIMIT_DEFAULT_WAIT_SECONDS + 5)
 
     def test_rate_limit_on_one_stream_does_not_block_the_other(self, db_session, sync_run):
         rate_limited_resp = MagicMock(
