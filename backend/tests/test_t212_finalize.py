@@ -1177,6 +1177,21 @@ class TestFinalizeCash:
         assert again.cash_skipped_duplicate == 1
         assert len(_cash_rows(db_session)) == 1
 
+    def test_rewalking_cash_history_in_a_new_run_imports_nothing_twice(
+        self, db_session, default_portfolio, completed_run
+    ):
+        _cash_event(db_session, completed_run)
+        with patch("t212_sync.bulk_fetch_fx", return_value={}):
+            first = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+            rewalk = _next_run(db_session, completed_run, "audit")
+            _cash_event(db_session, rewalk)  # the same reference, staged again
+            second = t212_sync.finalize_run(db_session, rewalk, default_portfolio)
+
+        assert first.cash_imported == 1
+        assert second.cash_imported == 0
+        assert second.cash_skipped_duplicate == 1
+        assert len(_cash_rows(db_session)) == 1
+
     def test_an_unmapped_type_sends_the_run_to_review_before_any_write(
         self, db_session, default_portfolio, completed_run, connection
     ):

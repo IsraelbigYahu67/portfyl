@@ -932,6 +932,32 @@ class TestGetHistoryStatusEndpoint:
         assert result["run"]["last_error"] == t212_sync.HISTORY_NEEDS_REVIEW_ERROR
         assert "retry" not in result["run"]["last_error"].lower()
 
+    def test_history_status_shows_the_pagination_error(self, db_session, default_portfolio):
+        conn = BrokerConnection(
+            workspace_id=default_portfolio.workspace_id,
+            portfolio_id=default_portfolio.id,
+            broker="trading212",
+            api_key="k" * 20,
+        )
+        db_session.add(conn)
+        db_session.flush()
+        db_session.add(BrokerSyncRun(
+            workspace_id=default_portfolio.workspace_id,
+            portfolio_id=default_portfolio.id,
+            connection_id=conn.id,
+            broker="trading212",
+            credential_generation=conn.credential_generation,
+            mode="incremental",
+            state="failed",
+            last_error=t212_sync.HISTORY_PAGINATION_ERROR,
+        ))
+        db_session.commit()
+
+        result = get_history_status(db=db_session, portfolio=default_portfolio)
+
+        assert result["run"]["state"] == "failed"
+        assert result["run"]["last_error"] == t212_sync.HISTORY_PAGINATION_ERROR
+
     def test_a_cash_review_reports_its_own_reason_not_the_split_message(
         self, db_session, default_portfolio
     ):

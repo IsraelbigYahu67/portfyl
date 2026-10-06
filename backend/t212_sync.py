@@ -24,6 +24,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import math
 import re
 import uuid
@@ -50,6 +51,8 @@ from models import (
 from ledger_mutation import acquire_workspace_ledger_lock
 from t212_cash import CashRow, UnsupportedCash, cash_event_id, cash_event_time, map_cash_event
 from t212_incremental import OVERLAP_PAGES, evaluate_page
+
+log = logging.getLogger("portfyl.t212_sync")
 
 T212_BASES = {
     "live": "https://live.trading212.com/api/v0",
@@ -349,6 +352,10 @@ _STREAM_ENDPOINT_PATH = {
     "cash": "/equity/history/transactions",
 }
 _ALLOWED_NEXT_PAGE_QUERY_KEYS = {"cursor", "limit"}
+# /equity/history/transactions also documents a `time` query parameter (OpenAPI
+# spec: "Retrieve transactions starting from the specified time"); the capture
+# CLI already allows it.
+_ALLOWED_NEXT_PAGE_QUERY_KEYS_BY_STREAM = {"cash": _ALLOWED_NEXT_PAGE_QUERY_KEYS | {"time"}}
 _API_VERSION_PREFIX = "/api/v0"  # the path suffix of every T212_BASES entry
 
 
@@ -406,9 +413,22 @@ def validate_next_page_path(path: str | None, stream: str) -> str | None:
     if relative_path != expected_path:
         return None
     query_keys = set(parse_qs(parsed.query).keys())
-    if not query_keys <= _ALLOWED_NEXT_PAGE_QUERY_KEYS:
+    allowed_keys = _ALLOWED_NEXT_PAGE_QUERY_KEYS_BY_STREAM.get(stream, _ALLOWED_NEXT_PAGE_QUERY_KEYS)
+    if not query_keys <= allowed_keys:
         return None
     return relative_path + (f"?{parsed.query}" if parsed.query else "")
+
+
+HISTORY_PAGINATION_ERROR = (
+    "Trading 212 returned a history page link Portfyl does not recognise, so "
+    "the history was not imported. Retrying will not help until Portfyl is "
+    "updated; your existing data is unchanged."
+)
+
+
+class UnexpectedNextPagePath(Exception):
+    """Trading 212 returned a nextPagePath that failed validate_next_page_path.
+    Treating it as the end of the stream would store a partial history as complete."""
 
 
 class RateLimitedError(Exception):
@@ -447,6 +467,14 @@ def _fetch_stream_page(base: str, headers: dict, stream: str, next_page_path: st
     items = data.get("items") or []
     raw_next = data.get("nextPagePath")
     validated_next = validate_next_page_path(raw_next, stream) if raw_next else None
+    if raw_next and validated_next is None:
+        # Names only (never the cursor value): enough to diagnose a new key.
+        query_keys = sorted(parse_qs(urlsplit(str(raw_next)).query).keys())
+        log.warning(
+            "T212 %s nextPagePath rejected (path=%s, query keys=%s)",
+            stream, urlsplit(str(raw_next)).path, query_keys,
+        )
+        raise UnexpectedNextPagePath(stream)
     return items, validated_next
 
 
@@ -855,6 +883,23 @@ def advance_run(
                     if lease_token is not None and not _lease_still_held(db, run, lease_token):
                         raise LeaseLost()
                     break
+                except UnexpectedNextPagePath:
+                    if lease_token is not None and not _lease_still_held(db, run, lease_token):
+                        raise LeaseLost()
+                    run.state = "failed"
+                    run.last_error = HISTORY_PAGINATION_ERROR
+                    run.lease_token = None
+                    run.lease_expires_at = None
+                    db.commit()
+                    if reassert_context:
+                        reassert_context()
+                    return RunAdvanceResult(
+                        state="failed",
+                        orders_staged=staged_counts["orders"],
+                        dividends_staged=staged_counts["dividends"],
+                        cash_staged=staged_counts["cash"],
+                        rate_limited_streams=tuple(rate_limited),
+                    )
 
                 staged = stage_events(db, run, stream, items)
                 staged_counts[stream] += staged

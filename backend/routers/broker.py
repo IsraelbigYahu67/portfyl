@@ -355,11 +355,12 @@ def get_history_status(
             else t212_sync.HISTORY_NEEDS_REVIEW_ERROR
         )
     elif run.last_error:
-        public_error = (
-            "Trading 212 history sync failed. Start a new sync to retry."
-            if run.state == "failed"
-            else t212_sync.HISTORY_RETRY_ERROR
-        )
+        if run.state == "failed" and run.last_error == t212_sync.HISTORY_PAGINATION_ERROR:
+            public_error = t212_sync.HISTORY_PAGINATION_ERROR
+        elif run.state == "failed":
+            public_error = "Trading 212 history sync failed. Start a new sync to retry."
+        else:
+            public_error = t212_sync.HISTORY_RETRY_ERROR
     else:
         public_error = None
 

@@ -111,6 +111,24 @@ class TestValidateNextPagePath:
         )
         assert result == "/equity/history/orders?limit=50&cursor=1760346100000"
 
+    def test_cash_path_with_time_key_is_accepted(self):
+        # /equity/history/transactions documents a `time` query parameter; the
+        # capture CLI allows it too. Rejecting it ended the cash stream after
+        # its first page of 50.
+        result = t212_sync.validate_next_page_path(
+            "/api/v0/equity/history/transactions?limit=50&cursor=abc&time=2026-08-30T01:11:00.370Z",
+            "cash",
+        )
+        assert result == (
+            "/equity/history/transactions?limit=50&cursor=abc&time=2026-08-30T01:11:00.370Z"
+        )
+
+    def test_time_key_stays_rejected_for_orders_and_dividends(self):
+        for stream in ("orders", "dividends"):
+            assert t212_sync.validate_next_page_path(
+                f"/equity/history/{stream}?cursor=x&time=2026-01-01", stream
+            ) is None
+
     def test_prefixed_path_for_the_wrong_endpoint_is_rejected(self):
         assert t212_sync.validate_next_page_path(
             "/api/v0/equity/history/dividends?cursor=x", "orders"
@@ -177,15 +195,22 @@ class TestFetchStreamPage:
                 t212_sync._fetch_stream_page("base", {}, "orders", None)
         assert exc_info.value.state.remaining == 0
 
-    def test_invalid_next_page_path_in_response_is_dropped(self):
+    def test_unrecognised_next_page_path_raises(self):
         response = MagicMock(status_code=200, headers={})
         response.json.return_value = {
             "items": [{"a": 1}],
             "nextPagePath": "https://evil.example.com/equity/history/orders?cursor=x",
         }
         with patch("t212_sync.httpx.get", return_value=response):
+            with pytest.raises(t212_sync.UnexpectedNextPagePath):
+                t212_sync._fetch_stream_page("base", {}, "orders", None)
+
+    def test_missing_next_page_path_is_still_the_end_of_the_stream(self):
+        response = MagicMock(status_code=200, headers={})
+        response.json.return_value = {"items": [{"a": 1}], "nextPagePath": None}
+        with patch("t212_sync.httpx.get", return_value=response):
             items, next_path = t212_sync._fetch_stream_page("base", {}, "orders", None)
-        assert next_path is None
+        assert items == [{"a": 1}] and next_path is None
 
 
 # ---------------------------------------------------------------------------
@@ -411,6 +436,54 @@ def _page_response(items, next_page_path=None, *, headers=None):
 
 
 class TestAdvanceRun:
+    @pytest.mark.parametrize("stream", ["orders", "dividends", "cash"])
+    def test_unrecognised_next_page_path_fails_the_run_instead_of_completing_the_stream(
+        self, db_session, sync_run, stream
+    ):
+        endpoint = {"orders": "orders", "dividends": "dividends", "cash": "transactions"}[stream]
+        item = {
+            "orders": {"order": {"id": "o1"}, "fill": {"id": "f1"}},
+            "dividends": {"reference": "d1"},
+            "cash": _CASH_ITEM,
+        }[stream]
+        ok = _page_response([], None)
+        bad = _page_response(
+            [item], "https://evil.example.com/equity/history/orders?cursor=x",
+        )
+
+        def fake_get(url, headers=None, params=None, timeout=None):
+            return bad if url.endswith(f"/equity/history/{endpoint}") else ok
+
+        with patch("t212_sync.httpx.get", side_effect=fake_get):
+            result = t212_sync.advance_run(db_session, sync_run, "https://x", {})
+
+        db_session.refresh(sync_run)
+        assert result.state == "failed"
+        assert sync_run.state == "failed"
+        assert sync_run.last_error == t212_sync.HISTORY_PAGINATION_ERROR
+        assert getattr(sync_run, f"{stream}_complete") is False
+        assert sync_run.lease_token is None
+
+    def test_unrecognised_next_page_path_after_lease_loss_does_not_fail_the_run(
+        self, db_session, sync_run
+    ):
+        # Another worker re-claimed the run while this one was fetching: the
+        # stale worker must not overwrite the new owner's run with `failed`.
+        bad = _page_response(
+            [{"order": {"id": "o1"}, "fill": {"id": "f1"}}],
+            "https://evil.example.com/equity/history/orders?cursor=x",
+        )
+        with patch("t212_sync.httpx.get", return_value=bad), \
+             patch("t212_sync._lease_still_held", return_value=False):
+            result = t212_sync.advance_run(
+                db_session, sync_run, "https://x", {}, lease_token=uuid4(),
+            )
+
+        db_session.refresh(sync_run)
+        assert result.state != "failed"
+        assert sync_run.state != "failed"
+        assert sync_run.last_error is None
+
     def test_completed_streams_wait_for_atomic_finalization(self, db_session, sync_run):
         order_item = {"order": {"id": "o1"}, "fill": {"id": "f1"}}
         div_item = {"reference": "d1"}
@@ -443,9 +516,14 @@ class TestAdvanceRun:
             "/equity/history/orders?cursor=next",
         )
         div_page = _page_response([{"reference": "d"}], "/equity/history/dividends?cursor=next")
+        cash_page = _page_response(
+            [_CASH_ITEM], "/equity/history/transactions?cursor=next"
+        )
 
         def fake_get(url, headers=None, params=None, timeout=None):
-            return page if "orders" in url else div_page
+            if "orders" in url:
+                return page
+            return cash_page if "transactions" in url else div_page
 
         with patch("t212_sync.httpx.get", side_effect=fake_get):
             result = t212_sync.advance_run(
