@@ -52,6 +52,8 @@ import asyncio
 import logging
 import os
 import re
+import time
+from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
@@ -101,6 +103,13 @@ RECURRING_JOB_NAMES = (
 # advance_run bound (t212_sync.DEFAULT_MAX_PAGES_PER_STREAM) already limits
 # the work per run, and a minutely job has the next tick to keep going.
 BROKER_BACKFILL_MAX_RUNS_PER_WORKSPACE = 5
+
+# One pass keeps advancing a run (each step is at most
+# t212_sync.DEFAULT_MAX_PAGES_PER_STREAM pages per stream) until it finalizes,
+# is rate limited, loses its lease, hits the step cap or the shared time
+# budget. Without this a 7-page history needed three minutely ticks.
+BROKER_BACKFILL_DRAIN_SECONDS = 40.0
+BROKER_BACKFILL_MAX_STEPS_PER_RUN = 12
 
 
 def mark_job_succeeded(
@@ -370,11 +379,56 @@ async def broker_autosync_pass(
 # even with auto_sync off and no schedule due (plan §5.4), and this job never
 # creates a run itself.
 
+async def _advance_until_blocked(
+    db: Session, run, workspace_id: UUID, base: str, api_headers: dict, *, deadline: float,
+):
+    """Advance `run` repeatedly. Only a step that ended `fetching` (neither
+    rate limited nor finished) is followed by another one; the run is re-claimed
+    each time because advance_run releases its lease. Returns the last step's
+    state with the staged counts of all steps summed."""
+    import t212_sync
+
+    run_id = run.id
+    lease_token = run.lease_token
+    totals = {"orders": 0, "dividends": 0, "cash": 0}
+    steps = 0
+    while True:
+        result = await asyncio.to_thread(
+            t212_sync.advance_run,
+            db, run, base, api_headers,
+            lease_token=lease_token,
+            reassert_context=lambda: _set_job_workspace_context(db, workspace_id),
+        )
+        steps += 1
+        totals["orders"] += result.orders_staged
+        totals["dividends"] += result.dividends_staged
+        totals["cash"] += result.cash_staged
+        if (
+            result.state != "fetching"
+            or steps >= BROKER_BACKFILL_MAX_STEPS_PER_RUN
+            or time.monotonic() >= deadline
+        ):
+            break
+        _set_job_workspace_context(db, workspace_id)
+        reclaimed = t212_sync.claim_lease(db, run_id, workspace_id)
+        if reclaimed is None:
+            break  # another worker took the run; it carries on from the checkpoint
+        run, lease_token = reclaimed, reclaimed.lease_token
+    return replace(
+        result,
+        orders_staged=totals["orders"],
+        dividends_staged=totals["dividends"],
+        cash_staged=totals["cash"],
+    )
+
+
 async def broker_backfill_pass(
     db: Session,
     workspace_id: UUID,
     *,
     max_runs: int = BROKER_BACKFILL_MAX_RUNS_PER_WORKSPACE,
+    drain_seconds: float = BROKER_BACKFILL_DRAIN_SECONDS,
+    deadline: float | None = None,
 ) -> list[dict]:
     """Claim and advance up to `max_runs` due BrokerSyncRuns in this
     workspace. A run whose lease is currently held by another live worker
@@ -390,6 +444,8 @@ async def broker_backfill_pass(
     # at each site that could run after a prior commit dropped it).
     _set_job_workspace_context(db, workspace_id)
     now = datetime.now(timezone.utc)
+    if deadline is None:
+        deadline = time.monotonic() + drain_seconds
     due_run_ids = db.execute(
         select(BrokerSyncRun.id)
         .where(
@@ -482,11 +538,8 @@ async def broker_backfill_pass(
                 # advance_run is blocking (paginated httpx) -- run it in a worker
                 # thread to keep the event loop free, like broker_autosync_pass
                 # does for sync_transactions above.
-                result = await asyncio.to_thread(
-                    t212_sync.advance_run,
-                    db, run, base, api_headers,
-                    lease_token=lease_token,
-                    reassert_context=lambda: _set_job_workspace_context(db, workspace_id),
+                result = await _advance_until_blocked(
+                    db, run, workspace_id, base, api_headers, deadline=deadline,
                 )
             state = result.state
             if state == "finalizing":
@@ -524,14 +577,19 @@ async def broker_backfill_pass(
     return results
 
 
-async def broker_backfill_all_workspaces(db: Session) -> list[dict]:
+async def broker_backfill_all_workspaces(
+    db: Session, *, drain_seconds: float = BROKER_BACKFILL_DRAIN_SECONDS,
+) -> list[dict]:
     """Poller entry point for T212 history backfill: explicit per-workspace
     pass across every active workspace (see this module's docstring on why
-    only functions in this section are allowed to iterate every tenant)."""
+    only functions in this section are allowed to iterate every tenant).
+    One drain deadline is shared by every workspace: the cloud job runs them
+    all in a single request that must finish within the scheduler deadline."""
+    deadline = time.monotonic() + drain_seconds
     results: list[dict] = []
     for workspace_id in _active_workspace_ids(db):
         _set_job_workspace_context(db, workspace_id)
-        results.extend(await broker_backfill_pass(db, workspace_id))
+        results.extend(await broker_backfill_pass(db, workspace_id, deadline=deadline))
     return results
 
 

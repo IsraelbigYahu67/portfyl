@@ -8,11 +8,13 @@ not the page-fetching mechanics already covered by test_t212_sync_runs.py.
 from __future__ import annotations
 
 import asyncio
+import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+import jobs as jobs_module
 import t212_sync
 from jobs import broker_backfill_pass
 from models import BrokerConnection, BrokerSyncEvent, BrokerSyncRun, Portfolio, Transaction
@@ -53,6 +55,29 @@ def _run_row(db, connection, portfolio, *, state="pending", **overrides):
     db.commit()
     db.refresh(row)
     return row
+
+
+def _scripted_advance(states):
+    """advance_run stand-in: returns the scripted states and, like the real one,
+    releases the lease after each step."""
+    queue = list(states)
+
+    def fake(db, run, base, headers, **kwargs):
+        state = queue.pop(0)
+        run.lease_token = None
+        run.lease_expires_at = None
+        if state == "finalizing":
+            run.orders_complete = True
+            run.dividends_complete = True
+            run.cash_complete = True
+        run.state = state
+        db.commit()
+        return t212_sync.RunAdvanceResult(
+            state=state, orders_staged=50, dividends_staged=0, rate_limited_streams=(),
+            cash_staged=0,
+        )
+
+    return fake
 
 
 class TestBrokerBackfillPass:
@@ -348,6 +373,97 @@ class TestBrokerBackfillPass:
             results = _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID, max_runs=1))
 
         assert len(results) == 1
+
+    def test_drains_a_run_across_steps_in_one_pass(self, db_session, default_portfolio, connection):
+        run = _run_row(db_session, connection, default_portfolio, state="pending")
+        fake = _scripted_advance(["fetching", "fetching", "finalizing"])
+        with patch("t212_sync.advance_run", side_effect=fake) as advance, \
+             patch("t212_sync.finalize_run", wraps=t212_sync.finalize_run) as finalize:
+            results = _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+
+        assert advance.call_count == 3
+        finalize.assert_called_once()
+        assert results[0]["state"] == "completed"
+        assert results[0]["orders_staged"] == 150
+        db_session.refresh(run)
+        assert run.state == "completed"
+
+    def test_drain_stops_when_rate_limited(self, db_session, default_portfolio, connection):
+        _run_row(db_session, connection, default_portfolio, state="pending")
+        fake = _scripted_advance(["fetching", "waiting_rate_limit"])
+        with patch("t212_sync.advance_run", side_effect=fake) as advance, \
+             patch("t212_sync.finalize_run") as finalize:
+            results = _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+
+        assert advance.call_count == 2
+        finalize.assert_not_called()
+        assert results[0]["state"] == "waiting_rate_limit"
+
+    def test_drain_stops_when_the_lease_is_lost(self, db_session, default_portfolio, connection):
+        _run_row(db_session, connection, default_portfolio, state="pending")
+        fake = _scripted_advance(["fetching", "fetching", "fetching"])
+        real_claim = t212_sync.claim_lease
+        calls = {"n": 0}
+
+        def claim_once_then_lose(db, run_id, workspace_id, **kw):
+            calls["n"] += 1
+            return real_claim(db, run_id, workspace_id, **kw) if calls["n"] == 1 else None
+
+        with patch("t212_sync.advance_run", side_effect=fake) as advance, \
+             patch("t212_sync.claim_lease", side_effect=claim_once_then_lose), \
+             patch("t212_sync.finalize_run") as finalize:
+            _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+
+        assert advance.call_count == 1  # first claim ran step 1; the re-claim returned None
+        finalize.assert_not_called()
+
+    def test_expired_budget_still_gives_each_run_one_step(
+        self, db_session, default_portfolio, connection
+    ):
+        _run_row(db_session, connection, default_portfolio, state="pending")
+        fake = _scripted_advance(["fetching", "fetching"])
+        with patch("t212_sync.advance_run", side_effect=fake) as advance:
+            results = _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID, drain_seconds=0))
+
+        assert advance.call_count == 1
+        assert results[0]["state"] == "fetching"
+
+    def test_drain_is_capped_per_run(self, db_session, default_portfolio, connection):
+        _run_row(db_session, connection, default_portfolio, state="pending")
+        fake = _scripted_advance(["fetching"] * 50)
+        with patch("t212_sync.advance_run", side_effect=fake) as advance:
+            _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID, drain_seconds=3600))
+
+        assert advance.call_count == jobs_module.BROKER_BACKFILL_MAX_STEPS_PER_RUN
+
+    def test_an_explicit_deadline_overrides_drain_seconds(
+        self, db_session, default_portfolio, connection
+    ):
+        _run_row(db_session, connection, default_portfolio, state="pending")
+        fake = _scripted_advance(["fetching"] * 5)
+        with patch("t212_sync.advance_run", side_effect=fake) as advance:
+            _run(broker_backfill_pass(
+                db_session, TEST_WORKSPACE_ID, drain_seconds=3600, deadline=0.0,
+            ))
+
+        assert advance.call_count == 1  # deadline already passed: one step only
+
+
+def test_all_workspaces_share_one_deadline(db_session):
+    ws_a, ws_b = uuid.uuid4(), uuid.uuid4()
+    seen = []
+
+    async def fake_pass(db, workspace_id, **kwargs):
+        seen.append(kwargs["deadline"])
+        return []
+
+    with patch("jobs._active_workspace_ids", return_value=[ws_a, ws_b]), \
+         patch("jobs._set_job_workspace_context"), \
+         patch("jobs.broker_backfill_pass", side_effect=fake_pass):
+        _run(jobs_module.broker_backfill_all_workspaces(db_session))
+
+    assert len(seen) == 2
+    assert seen[0] == seen[1] is not None
 
 
 class TestBackfillNeverCreatesRuns:
