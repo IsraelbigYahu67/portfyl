@@ -19,6 +19,14 @@ read `run.public_id` after the commit on both cancel branches, so a run whose
 credentials rotated or whose connection was removed raised `ObjectDeletedError`
 under forced RLS instead of being reported as cancelled.
 
+**Update (2026-10-06):** `2026-10-06-t212-sync-speed.md` implemented a per-pass
+drain in `jobs.broker_backfill_pass` (one pass advances a run until it finalizes,
+is rate limited or a 40 s deadline shared by the whole job invocation passes),
+fail-closed handling of unrecognised `nextPagePath` values (§5.3), a
+`x-ratelimit-reset` reading as a Unix timestamp bounded to 2-120 s, and a 10 s
+local backfill tick. The measured first-sync time (before: 142-160 s) is pending
+the live check in that plan's Task 5 step 3.
+
 The remaining non-zero live reconciliation check closed on 2026-10-01. A
 21-position owner snapshot exposed that Trading 212's current documented
 positions response nests instrument identity under `instrument` and uses
