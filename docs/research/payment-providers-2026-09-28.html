@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Platební brána pro Portfyl</title>
+<style>
+:root{
+  --bg:#f6f7f9;--surface:#fff;--text:#1a1d23;--muted:#5d6573;--line:#e2e5ea;
+  --accent:#2f5bd3;--good:#1f8a4c;--warn:#b7791f;--bad:#c0392b;
+  --good-bg:#e7f5ec;--warn-bg:#fdf3e1;--bad-bg:#fbeaea;--accent-bg:#e8eefc;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1115;--surface:#171a21;--text:#e6e8ec;--muted:#9aa3b2;--line:#2a2f3a;
+  --accent:#7aa2ff;--good:#4cc27e;--warn:#e0a84a;--bad:#ef6b5e;
+  --good-bg:#15271d;--warn-bg:#2a2214;--bad-bg:#2c1716;--accent-bg:#1a2340;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1040px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:28px;margin:0 0 4px}
+h2{font-size:20px;margin:40px 0 12px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font-size:16px;margin:0 0 6px}
+p{margin:8px 0}
+.meta{color:var(--muted);font-size:13px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:12px 0}
+.verdict{border-left:4px solid var(--accent);background:var(--accent-bg)}
+.rank{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.rank .card{margin:0}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:99px;white-space:nowrap}
+.g{background:var(--good-bg);color:var(--good)}.w{background:var(--warn-bg);color:var(--warn)}.b{background:var(--bad-bg);color:var(--bad)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.best td{background:var(--good-bg)}
+.calc{display:flex;flex-wrap:wrap;gap:16px;align-items:end;margin-bottom:12px}
+.calc label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+.calc input,.calc select{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--text);width:140px}
+ul,ol{padding-left:20px;margin:6px 0}
+li{margin:3px 0}
+a{color:var(--accent)}
+code{font-size:13px;background:var(--bg);padding:1px 5px;border-radius:4px}
+.bar{height:8px;border-radius:4px;background:var(--accent);opacity:.7}
+</style>
+</head>
+<body>
+<main>
+<h1>Platební brána pro Portfyl</h1>
+<p class="meta">Rešerše k 28. 9. 2026 · navazuje na <code>docs/research/mor-platforms-eu-2026-09-05/</code> · Kontext: český prodejce, B2C předplatné Investor 4,99 € / Pro 7,99 € měsíčně, zákazníci hlavně v EU.</p>
+
+<div class="card verdict">
+  <h3>Verdikt</h3>
+  <p><strong>1. volba: Stripe Managed Payments.</strong> Od 22. 4. 2026 je GA (v zářijové rešerši bylo ještě „preview“), ČR je mezi podporovanými zeměmi prodejce, SaaS je podporovaná kategorie a Stripe finanční software nezakazuje – omezuje jen „investment and brokerage services“, což read-only tracker není. Poplatek u EU karty vychází stejně jako u Creem (~0,67 € z 7,99 €). Navíc už máme Stripe integraci (vyřazenou 5. 9.), kterou lze z velké části znovu použít.</p>
+  <p><strong>2. volba: Creem.</strong> Nejlevnější nominální sazba, ale podmínky vylučují produkty „subject to licensing … including financial services“. Do produkce jen s písemným potvrzením.</p>
+  <p><strong>Paddle kleslo.</strong> Aktuální AUP řadí <em>„Investment or financial advice, including trading signals and strategies“</em> mezi <strong>zakázané</strong> (ne „restricted“) kategorie. Portfyl má AI asistenta a ocenění podle P/E, takže riziko pozdějšího zrušení účtu je reálné. Paddle je navíc u levného předplatného nejdražší z bezpečných variant.</p>
+  <p><strong>Vyřadit:</strong> Dodo Payments a Polar (výslovně zakazují investiční nástroje a „insights platforms“). Lemon Squeezy nezačínat – postupně přechází do Stripe Managed Payments.</p>
+</div>
+
+<h2>Pořadí</h2>
+<div class="rank">
+  <div class="card"><h3>1 · Stripe Managed Payments</h3><span class="pill g">Doporučeno</span>
+    <p>MoR (Stripe/Link je prodávající), 5 % + 6,50 Kč u EEA karty. Nejzralejší infrastruktura, znovupoužitelný kód.</p></div>
+  <div class="card"><h3>2 · Creem</h3><span class="pill w">Jen se schválením</span>
+    <p>3,9 % + 0,40 $, výplata do ČR. Mladá firma a problematická klauzule o finančních službách.</p></div>
+  <div class="card"><h3>3 · Stripe Billing + Tax (bez MoR)</h3><span class="pill w">Nejlevnější, víc práce</span>
+    <p>~2,7 % + 6,50 Kč. Prodejcem jste vy, takže DPH/OSS, refundy, chargebacky a podpora jsou na vás.</p></div>
+  <div class="card"><h3>4 · Paddle</h3><span class="pill w">Riziko AUP</span>
+    <p>5 % + 0,50 $, u cen pod 10 $ individuální nabídka. Použít jen s písemným schválením.</p></div>
+  <div class="card"><h3>✕ Dodo · Polar · Lemon Squeezy</h3><span class="pill b">Nevhodné</span>
+    <p>Dodo a Polar Portfyl pravidly vylučují. Lemon Squeezy je nejdražší a produkt se přesouvá do Stripe.</p></div>
+</div>
+
+<h2>Kolik zůstane z jedné platby</h2>
+<div class="card">
+  <div class="calc">
+    <label>Cena předplatného (EUR, vč. DPH)
+      <select id="price"><option value="4.99">4,99 € – Investor</option><option value="7.99" selected>7,99 € – Pro</option><option value="custom">vlastní…</option></select></label>
+    <label id="customWrap" style="display:none">Vlastní cena (€)<input id="custom" type="number" step="0.01" min="0.5" value="9.99"></label>
+    <label>Kurz EUR za 1 USD<input id="usd" type="number" step="0.01" value="0.87"></label>
+    <label>Kurz CZK za 1 EUR<input id="czk" type="number" step="0.1" value="24.3"></label>
+  </div>
+  <div class="tablewrap"><table id="fees">
+    <thead><tr><th>Platforma</th><th>Vzorec (EU karta, předplatné)</th><th class="num">Poplatek</th><th class="num">% z ceny</th><th style="width:22%"></th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+  <p class="meta">Výpočet z veřejných ceníků. Poplatek se u MoR počítá z ceny vč. DPH. Nezahrnuje měnovou konverzi (u Stripe +2 %, pokud výplata neprobíhá v EUR – proto doporučujeme EUR výplatní účet), refundy, spory ani výplatní poplatky (Dodo 5 $ pod 1 000 $, Lemon Squeezy 1 % mimo USA). Kurzy jsou orientační a dají se upravit.</p>
+</div>
+
+<h2>Srovnání</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Platforma</th><th>Model</th><th>Přijme Portfyl?</th><th>Český prodejce</th><th>Silné stránky</th><th>Slabiny</th></tr></thead>
+<tbody>
+<tr class="best"><td><strong>Stripe Managed Payments</strong></td><td>MoR (Link)</td><td><span class="pill g">Pravděpodobně</span><br>SaaS je podporovaný kód <code>txcd_10103000</code>; restricted jsou jen investiční a brokerské služby</td><td>Ano (CZ v seznamu)</td><td>GA od 4/2026; DPH ve 80+ zemích; fraud, spory a zákaznická podpora v ceně; Stripe Billing, customer portal a webhooky; znovupoužití vyřazeného kódu</td><td>Zákazník vidí „Sold through Link“ a na výpisu <code>LINK.COM*</code>; pouze Checkout/Payment Links (bez Elements a vlastní domény); Stripe smí do 60 dní refundovat bez vás; předplatné jen přes Checkout</td></tr>
+<tr><td><strong>Creem</strong></td><td>MoR</td><td><span class="pill w">Nejasné</span><br>zakazuje produkty „subject to licensing … financial services“</td><td>Ano, výplata přes Stripe Connect</td><td>Nejnižší veřejná sazba; bez měsíčních poplatků; předplatné, trialy, dunning a portál</td><td>Mladá firma; výplaty 1. a 15. v měsíci; riziko odmítnutí podle podmínek</td></tr>
+<tr><td><strong>Stripe Billing + Stripe Tax</strong></td><td>Vy jste prodejce</td><td><span class="pill g">Ano</span><br>už jsme dříve integrovali</td><td>Ano</td><td>Nejnižší náklady; plná kontrola nad UX, Elements i vlastní doménou</td><td>DPH přes OSS (do 10 000 € přeshraničních B2C prodejů ročně se uplatní české místo plnění), faktury, spory a podpora jsou na vás</td></tr>
+<tr><td><strong>Paddle</strong></td><td>MoR</td><td><span class="pill w">Riziko</span><br>AUP zakazuje „investment or financial advice, including trading signals“</td><td>Ano, po ověření</td><td>Nejzralejší SaaS MoR; silný billing a dunning; 24/7 podpora</td><td>Nejdražší z bezpečných variant; financial services nejsou „restricted“, ale „prohibited“</td></tr>
+<tr><td><strong>Dodo Payments</strong></td><td>MoR</td><td><span class="pill b">Ne</span><br>zakazuje „unlicensed financial tools, investment strategies … tax calculators“</td><td>Ano</td><td>Dobrá cena, moderní API</td><td>Portfyl přímo spadá do zakázané kategorie</td></tr>
+<tr><td><strong>Polar</strong></td><td>MoR</td><td><span class="pill b">Ne</span><br>zakazuje „investment advisory services (including insights platforms)“</td><td>Ano</td><td>Zaměřený na vývojáře, open source</td><td>Výslovně vylučuje analytické platformy</td></tr>
+<tr><td><strong>Lemon Squeezy</strong></td><td>MoR (Stripe)</td><td><span class="pill w">Nejasné</span></td><td>Ano</td><td>Jednoduchý onboarding</td><td>5 % + 0,50 $ + 1,5 % mimo USA + 0,5 % za předplatné; produkt se přesouvá do Stripe Managed Payments</td></tr>
+<tr><td><strong>PayPro Global / FastSpring</strong></td><td>MoR</td><td><span class="pill w">Underwriting</span></td><td>Neověřeno</td><td>Zavedení MoR pro software</td><td>Bez veřejného ceníku, nabídku dostanete až po poptávce; vyplatí se spíš při vyšších objemech</td></tr>
+</tbody></table></div>
+
+<h2>Proč se doporučení posunulo od 5. 9.</h2>
+<ul>
+  <li><strong>Stripe Managed Payments přešel z preview do GA</strong> (22. 4. 2026; Stripe to oznámil i na X a na Sessions 2026). Původní důvod „nevolit jako první“ tak padá.</li>
+  <li><strong>Paddle AUP je přísnější, než uváděla předchozí rešerše.</strong> Finanční služby nejsou „restricted, s dodatečnou kontrolou“, ale „prohibited“, včetně „investment or financial advice, including trading signals and strategies“. Portfyl se tomu dá vyhnout formulacemi, ale rozhodnutí je na compliance týmu Paddle a může přijít i dodatečně.</li>
+  <li><strong>Stripe už jsme jednou postavili a ověřili</strong> (803 backend testů, vyřazeno 5. 9.). Checkout Session, webhooky a mapování entitlementů jdou znovu použít; pro MoR stačí přidat příznak <code>managed_payments</code> a tax code k produktům.</li>
+</ul>
+
+<h2>Na co si dát pozor u Portfylu (u jakékoli brány)</h2>
+<ul>
+  <li><strong>Pozicování produktu:</strong> „read-only software pro sledování a analýzu portfolia; neprovádí obchody, nedrží prostředky, neposkytuje personalizované investiční doporučení“. Stejná formulace patří do obchodních podmínek, na pricing stránku i do onboardingu platební brány.</li>
+  <li><strong>AI asistent a ocenění (fair value podle 5letého P/E)</strong> jsou pro compliance nejcitlivější. Výstupy by neměly znít jako „kup/prodej“ signál, a v UI by měl být disclaimer.</li>
+  <li>Tax Report a Screener v cloudu nejsou, a to je z pohledu plateb výhoda (méně „tax guidance“ a „trading tools“).</li>
+</ul>
+
+<h2>Další kroky</h2>
+<ol>
+  <li>V existujícím Stripe CZ účtu zažádat o Managed Payments (proběhne eligibility review) a nastavit EUR výplatní účet, aby se neplatila 2% konverze.</li>
+  <li>Souběžně poslat Creem krátký underwriting dotaz (text je v rešerši z 5. 9.) jako zálohu.</li>
+  <li>Obnovit Stripe gateway z historie gitu, přidat <code>managed_payments</code> a tax code <code>txcd_10103000</code> (SaaS – personal use) a otestovat v sandboxu celý cyklus: checkout → webhook → entitlement → zrušení → refund.</li>
+  <li>Upravit ToS a Privacy o roli Link/Stripe jako prodávajícího (MoR) a o 60denním refund právu.</li>
+</ol>
+
+<h2>Daně: Portfyl jako vedlejší projekt</h2>
+<p class="meta">Zjednodušený přehled pro fyzickou osobu v ČR. Limity pro rok 2026 jsou orientační a <strong>nejsou ověřené</strong>, před registrací je potvrďte u daňového poradce, na ČSSZ a u finančního úřadu.</p>
+
+<div class="card">
+  <h3>Živnost je potřeba</h3>
+  <p>Opakovaný prodej předplatného je podnikání, takže potřebujete živnostenský list (volná živnost, software). Výjimka pro „příležitostný příjem“ (§ 10, osvobozeno do 50 000 Kč ročně) se na předplatné, které se každý měsíc opakuje, nevztahuje. Reálná volba je tedy <strong>zaměstnanec + vedlejší OSVČ</strong> (případně s.r.o.).</p>
+</div>
+
+<h3 style="margin-top:20px">DPH: kdy jsem plátce</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>Situace</th><th>Důsledek</th></tr></thead>
+<tbody>
+<tr><td>Obrat za kalendářní rok překročí 2 000 000 Kč</td><td>plátcem od 1. ledna následujícího roku</td></tr>
+<tr><td>Obrat během roku překročí 2 536 500 Kč (100 000 €)</td><td>plátcem hned ode dne následujícího po překročení</td></tr>
+<tr><td>Dobrovolná registrace</td><td>kdykoli, pokud o ni požádáte</td></tr>
+<tr><td><strong>Nákup služeb od firem z jiných zemí EU</strong> (Google Cloud, Cloudflare, Neon, Firebase, AI API)</td><td><strong>identifikovaná osoba</strong> i jako neplátce: registrace u finančního úřadu, z těchto nákupů sami přiznáte a zaplatíte českou DPH (reverse charge), nemáte nárok na odpočet a zákazníkům DPH neúčtujete</td></tr>
+</tbody></table></div>
+<p>2 000 000 Kč ročně odpovídá zhruba 21 000 předplatitelů Pro na měsíc. U vedlejšího projektu tedy budete nejspíš neplátce, ale kvůli cloudu identifikovaná osoba.</p>
+<p><strong>Vztah k platební bráně:</strong> u MoR (Stripe Managed Payments, Paddle, Creem) neprodáváte koncovým zákazníkům, ale platformě. Je to prodej služby firmě v jiném státě EU a vykazuje se v souhrnném hlášení. Do obratu pro plátcovství se nepočítá, ale administrativu přidá. U samotného Stripe Billing (bez MoR) jste prodejce vy: do 10 000 € ročně přeshraničních B2C prodejů v EU se uplatní české místo plnění, nad tento limit přichází OSS.</p>
+
+<h3 style="margin-top:20px">Daň z příjmů a pojištění (zaměstnanec + vedlejší OSVČ)</h3>
+<div class="tablewrap"><table>
+<tbody>
+<tr><td><strong>Daň z příjmů</strong></td><td>15 % ze zisku; 23 % nad ~1,7 mil. Kč celkových ročních příjmů</td></tr>
+<tr><td><strong>Výdaje</strong></td><td>skutečné (cloud, AI API, doména…) nebo paušál 60 % z příjmů, vybíráte výhodnější</td></tr>
+<tr><td><strong>Zdravotní pojištění</strong></td><td>13,5 % z poloviny zisku; minimum neplatíte, to za vás řeší zaměstnavatel</td></tr>
+<tr><td><strong>Sociální pojištění</strong></td><td>nic, dokud zisk nepřekročí rozhodnou částku (~110 tis. Kč za rok 2026, ověřte); nad ní 29,2 % z 55 % zisku</td></tr>
+<tr><td><strong>Paušální daň</strong></td><td>není k dispozici, protože máte příjem ze zaměstnání</td></tr>
+<tr><td><strong>Slevy na dani</strong></td><td>slevu na poplatníka už čerpáte v zaměstnání, na OSVČ se znovu neuplatní</td></tr>
+<tr><td><strong>Administrativa</strong></td><td>daňové přiznání, přehled pro ZP a ČSSZ; zálohy se platí až po prvním roce</td></tr>
+</tbody></table></div>
+
+<h3 style="margin-top:20px">Paušál vs. skutečné výdaje</h3>
+<p>S paušálem se daní vždy 40 % tržeb, bez ohledu na to, kolik jste doopravdy utratili. Příklad: tržby 100 000 Kč, skutečné náklady 20 000 Kč.</p>
+<div class="tablewrap"><table>
+<thead><tr><th></th><th class="num">Skutečné výdaje</th><th class="num">Paušál 60 %</th></tr></thead>
+<tbody>
+<tr><td>Odečtené výdaje</td><td class="num">20 000 Kč</td><td class="num">60 000 Kč</td></tr>
+<tr><td>Daňový základ</td><td class="num">80 000 Kč</td><td class="num"><strong>40 000 Kč</strong></td></tr>
+<tr><td>Daň 15 %</td><td class="num">12 000 Kč</td><td class="num"><strong>6 000 Kč</strong></td></tr>
+<tr><td>Zdravotní (13,5 % z ½ základu)</td><td class="num">5 400 Kč</td><td class="num">2 700 Kč</td></tr>
+<tr><td>Sociální (pod rozhodnou částkou)</td><td class="num">0 Kč</td><td class="num">0 Kč</td></tr>
+<tr class="best"><td><strong>Odvody celkem</strong></td><td class="num">17 400 Kč</td><td class="num"><strong>8 700 Kč</strong></td></tr>
+<tr><td>Skutečně vám zůstane před odvody</td><td class="num">80 000 Kč</td><td class="num">80 000 Kč</td></tr>
+</tbody></table></div>
+<ul>
+  <li>Skutečné náklady <strong>pod 60 %</strong> tržeb → vyplatí se <strong>paušál</strong>. Náklady <strong>nad 60 %</strong> → vyplatí se <strong>skutečné výdaje</strong>.</li>
+  <li>S paušálem nemusíte schovávat doklady o výdajích, stačí evidence příjmů. Paušál má strop: 60 % se počítá nejvýš z 2 mil. Kč tržeb, takže odečtete maximálně 1,2 mil. Kč ročně.</li>
+  <li><strong>Pracovní smlouva:</strong> podívejte se na zákaz konkurence a na to, komu patří software, který vytvoříte. Pokud pracujete ve vývoji, může si zaměstnavatel na kód dělat nárok.</li>
+</ul>
+
+<h2>Zdroje</h2>
+<ul class="meta">
+  <li><a href="https://docs.stripe.com/payments/managed-payments/eligibility">Stripe – Managed Payments eligibility (země prodejce vč. CZ, podporované produkty)</a></li>
+  <li><a href="https://docs.stripe.com/payments/managed-payments/how-it-works">Stripe – How Managed Payments works (Link, refundy, spory, omezení)</a></li>
+  <li><a href="https://support.stripe.com/questions/managed-payments-pricing">Stripe – Managed Payments pricing (+3,5 %)</a> · <a href="https://stripe.com/managed-payments">stripe.com/managed-payments</a> · <a href="https://x.com/stripe/status/2049532106712453307">Stripe na X: GA</a></li>
+  <li><a href="https://stripe.com/en-cz/pricing">Stripe ceník CZ (EEA karta 1,5 % + 6,50 Kč)</a> · <a href="https://stripe.com/legal/restricted-businesses">Stripe restricted businesses</a></li>
+  <li><a href="https://www.paddle.com/pricing">Paddle pricing</a> · <a href="https://www.paddle.com/help/start/intro-to-paddle/what-am-i-not-allowed-to-sell-on-paddle">Paddle AUP</a></li>
+  <li><a href="https://www.creem.io/pricing">Creem pricing</a> · <a href="https://www.creem.io/terms">Creem terms §6.4.6</a></li>
+  <li><a href="https://dodopayments.com/pricing">Dodo pricing</a> · <a href="https://docs.dodopayments.com/miscellaneous/merchant-acceptance">Dodo merchant acceptance</a></li>
+  <li><a href="https://polar.sh/docs/merchant-of-record/acceptable-use">Polar acceptable use</a></li>
+  <li><a href="https://docs.lemonsqueezy.com/help/getting-started/fees">Lemon Squeezy fees</a> · <a href="https://www.lemonsqueezy.com/blog/2026-update">Lemon Squeezy 2026 update</a></li>
+</ul>
+<p class="meta">Nejde o právní ani daňové poradenství. DPH/OSS režim a přijatelnost produktu je třeba ověřit u daňového poradce a písemně u vybraného poskytovatele.</p>
+</main>
+<script>
+const P=[
+ {n:"Stripe Billing + Tax (bez MoR)",f:"1,5 % + 0,7 % Billing + 0,5 % Tax + 6,50 Kč",pct:2.7,czk:6.5},
+ {n:"Stripe Managed Payments",f:"1,5 % + 3,5 % + 6,50 Kč",pct:5.0,czk:6.5,best:1},
+ {n:"Creem",f:"3,9 % + 0,40 $",pct:3.9,usd:0.40},
+ {n:"Paddle",f:"5 % + 0,50 $ (pod 10 $ individuální nabídka)",pct:5.0,usd:0.50},
+ {n:"Dodo Payments",f:"4 % + 1,5 % mimo USA + 0,5 % předplatné + 0,40 $",pct:6.0,usd:0.40},
+ {n:"Polar",f:"5 % + 1,5 % mimo USA + 0,50 $",pct:6.5,usd:0.50},
+ {n:"Lemon Squeezy",f:"5 % + 1,5 % mimo USA + 0,5 % předplatné + 0,50 $",pct:7.0,usd:0.50}
+];
+const $=id=>document.getElementById(id);
+const fmt=v=>v.toLocaleString("cs-CZ",{minimumFractionDigits:2,maximumFractionDigits:2});
+function render(){
+  const sel=$("price").value;$("customWrap").style.display=sel==="custom"?"flex":"none";
+  const price=parseFloat(sel==="custom"?$("custom").value:sel)||0;
+  const usd=parseFloat($("usd").value)||0,czk=parseFloat($("czk").value)||1;
+  const rows=P.map(p=>({...p,fee:price*p.pct/100+(p.usd?p.usd*usd:0)+(p.czk?p.czk/czk:0)}));
+  const max=Math.max(...rows.map(r=>r.fee));
+  $("fees").querySelector("tbody").innerHTML=rows.map(r=>`<tr${r.best?' class="best"':''}><td>${r.n}</td><td>${r.f}</td><td class="num">${fmt(r.fee)} €</td><td class="num">${price?fmt(r.fee/price*100):"–"} %</td><td><div class="bar" style="width:${max?r.fee/max*100:0}%"></div></td></tr>`).join("");
+}
+["price","custom","usd","czk"].forEach(id=>$(id).addEventListener("input",render));
+render();
+</script>
+</body>
+</html>
