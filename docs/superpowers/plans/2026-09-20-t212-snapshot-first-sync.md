@@ -24,8 +24,10 @@ drain in `jobs.broker_backfill_pass` (one pass advances a run until it finalizes
 is rate limited or a 40 s deadline shared by the whole job invocation passes),
 fail-closed handling of unrecognised `nextPagePath` values (§5.3), a
 `x-ratelimit-reset` reading as a Unix timestamp bounded to 2-120 s, and a 10 s
-local backfill tick. The measured first-sync time (before: 142-160 s) is pending
-the live check in that plan's Task 5 step 3.
+local backfill tick. Measured live on 2026-10-08 after resetting the owner's
+cash frontier: a full `audit` run (308 orders, 25 dividends, 429 cash events) took
+about 14 s, against 142-160 s for the earlier first sync of the same scope; the
+following `incremental` run took about 8 s. Details in that plan's status note.
 
 The remaining non-zero live reconciliation check closed on 2026-10-01. A
 21-position owner snapshot exposed that Trading 212's current documented
