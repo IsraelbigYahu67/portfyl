@@ -467,6 +467,27 @@ by a `POST /api/broker/trading212/sync` call, not by this job), and that
 
 ---
 
+## Routine redeploy (current production layout)
+
+Production runs in **europe-west1**, but its images live in the
+**europe-west3** Artifact Registry repository, tagged with the short commit
+SHA. There is no `europe-west1 .../portfyl:latest` image, so the step 5 and
+step 6 commands above (`:latest`, `--source .`) do not apply to a redeploy.
+Use the same image for the migration Job and the service; existing secrets
+and env vars persist because no `--set-*` flags are passed:
+
+```powershell
+$SHA = git rev-parse --short HEAD
+$IMAGE = "europe-west3-docker.pkg.dev/portfyl-cloud-fstxby/cloud-run-source-deploy/portfyl:$SHA"
+gcloud builds submit --region=europe-west3 --tag $IMAGE .
+.\deploy\run-migrations.ps1 -ProjectId portfyl-cloud-fstxby -Region europe-west1 -Image $IMAGE -ServiceAccount "portfyl-migrator@portfyl-cloud-fstxby.iam.gserviceaccount.com" -DatabaseUrlSecret "portfyl-migration-database-url"
+gcloud run deploy portfyl --image $IMAGE --region europe-west1 --quiet
+```
+
+Stop if the build or the migration Job fails. The `portfyl` service in
+europe-west3 is an older, unmapped copy (last revision 2026-09-11); do not
+deploy to it.
+
 ## Ongoing rules
 
 - Scheduler schedules, retry limits, and JSON health matching are versioned
