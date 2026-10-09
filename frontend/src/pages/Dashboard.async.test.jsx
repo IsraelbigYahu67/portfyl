@@ -173,3 +173,30 @@ it("keeps insider table headers and notes at least 12px in source (no text-[10px
   const src = await readFile(pathname, "utf-8");
   expect(src).not.toMatch(/text-\[(8|9|10|11)px\]/);
 });
+
+it("shows where prices come from and when they were quoted instead of the request time", async () => {
+  api.fetchSummary.mockResolvedValue({
+    total_value: 1000,
+    total_pnl: 100,
+    holdings_count: 1,
+    last_updated: "2026-10-09T20:00:00",
+    prices_as_of: "2026-10-09T17:44:00Z",
+    price_delay_minutes: 15,
+    price_source: "Yahoo Finance",
+    price_issues: [],
+  });
+  renderPage();
+
+  expect(await screen.findByText(/^Prices from Yahoo Finance · delayed up to 15 min · last quote/)).toBeInTheDocument();
+  expect(screen.queryByText(/^Updated /)).not.toBeInTheDocument();
+});
+
+it("raises a holding with no current price in Needs attention", async () => {
+  api.fetchHoldings.mockResolvedValue([
+    { ticker: "MSFT", weight: 100, market_value: 1000, price_status: "delayed" },
+    { ticker: "GONE", weight: 0, market_value: 0, price_status: "missing" },
+  ]);
+  renderPage();
+
+  expect(await screen.findByText("No current price: GONE")).toBeInTheDocument();
+});

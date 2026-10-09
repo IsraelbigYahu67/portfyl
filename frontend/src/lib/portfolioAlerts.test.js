@@ -9,6 +9,22 @@ describe("derivePortfolioAlerts", () => {
     );
   });
 
+  it("flags a missing price as critical and a stale price as a warning", () => {
+    const alerts = derivePortfolioAlerts({
+      holdings: [
+        { ticker: "GONE", weight: 0, price_status: "missing" },
+        { ticker: "OLD", weight: 5, price_status: "stale" },
+        { ticker: "OK", weight: 5, price_status: "closed" },
+      ],
+      today: "2026-10-09",
+    });
+    expect(alerts).toEqual([
+      expect.objectContaining({ id: "price-missing-GONE", severity: "critical", to: "/allocation" }),
+      expect.objectContaining({ id: "price-stale-OLD", severity: "warning", to: "/allocation" }),
+    ]);
+    expect(alerts[0].detail).toContain("valued at 0");
+  });
+
   it("does not flag a position at exactly 25 percent", () => {
     const alerts = derivePortfolioAlerts({ holdings: [{ ticker: "AAPL", weight: 25 }], today: "2026-09-13" });
     expect(alerts).toEqual([]);

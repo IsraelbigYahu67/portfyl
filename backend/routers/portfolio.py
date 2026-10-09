@@ -1288,6 +1288,7 @@ def get_holdings(
             "currency": ticker_ccy,
             "dividends": round(data["dividends"], 2),
             "closed": False,
+            **market_data.price_freshness(market_data.get_info(ticker), price),
         })
         total_value += market_value
 
@@ -1491,6 +1492,19 @@ def get_summary(
     # cash_total already includes accrued interest -- do NOT add accrued_total again.
     net_worth = total_value + cash_total
 
+    # Quote freshness: the newest quote time among usable prices, the worst
+    # delay among open markets (a closed exchange's delay does not matter),
+    # and every holding whose price is missing (valued at 0) or stale.
+    priced = [h for h in holdings if h.get("price_status") not in ("missing", "stale")]
+    quote_times = [h["price_as_of"] for h in priced if h.get("price_as_of")]
+    delays = [h["price_delay_minutes"] for h in priced
+              if h.get("price_status") in ("live", "delayed")
+              and h.get("price_delay_minutes") is not None]
+    price_issues = [
+        {"ticker": h["ticker"], "status": h["price_status"]}
+        for h in holdings if h.get("price_status") in ("missing", "stale")
+    ]
+
     return {
         "total_value": round(total_value, 2),
         "total_invested": round(total_invested, 2),
@@ -1507,6 +1521,10 @@ def get_summary(
         "cash_source": cash_source,
         "cash_as_of": cash_as_of,
         "cash_updated_at": cash_updated_at,
+        "prices_as_of": max(quote_times) if quote_times else None,
+        "price_delay_minutes": max(delays) if delays else None,
+        "price_source": market_data.PRICE_SOURCE,
+        "price_issues": price_issues,
     }
 
 

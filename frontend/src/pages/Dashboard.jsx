@@ -17,6 +17,7 @@ import DashboardAttention from "../components/DashboardAttention";
 import BrokerPositionSnapshot from "../components/BrokerPositionSnapshot";
 import { useT212Sync } from "../hooks/useT212Sync";
 import { derivePortfolioAlerts } from "../lib/portfolioAlerts";
+import { priceFreshnessLine } from "../lib/priceFreshness";
 import { CATEGORICAL } from "../lib/chartTheme";
 
 const MOVER_PERIODS = [
@@ -129,17 +130,14 @@ export default function Dashboard() {
 
 
   const pnlPos = summary?.total_pnl >= 0;
+  const priceLine = priceFreshnessLine(summary);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold" tabIndex={-1}>Dashboard</h1>
-          {summary?.last_updated && (
-            <p className="text-xs text-muted mt-0.5">
-              Updated {new Date(summary.last_updated).toLocaleTimeString()}
-            </p>
-          )}
+          {priceLine && <p className="text-xs text-muted mt-0.5">{priceLine}</p>}
         </div>
         <div className="flex items-center gap-2">
           <button

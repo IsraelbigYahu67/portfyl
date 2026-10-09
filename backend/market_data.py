@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 
 import yfinance as yf
 
@@ -130,6 +131,53 @@ def quote(info: dict, fallback: str) -> tuple[float, str, str]:
     name = info.get("shortName") or info.get("longName") or fallback
     ccy = info.get("currency") or "USD"
     return price, name, ccy
+
+
+PRICE_SOURCE = "Yahoo Finance"
+# A close older than this is stale: it covers a long weekend plus a holiday,
+# so only a delisted, suspended or broken symbol crosses it.
+STALE_AFTER = timedelta(days=5)
+
+
+def price_freshness(info: dict, price: float, now: datetime | None = None) -> dict:
+    """When ``price`` was set and whether it can be trusted.
+
+    ``price_status`` is one of ``missing`` (no usable price, valued as 0),
+    ``stale`` (older than :data:`STALE_AFTER`), ``live`` / ``delayed`` (market
+    open), ``closed`` (last close), or ``unknown`` (Yahoo sent no quote time).
+    """
+    now = now or datetime.now(timezone.utc)
+    try:
+        as_of = datetime.fromtimestamp(int(info["regularMarketTime"]), tz=timezone.utc)
+    except (KeyError, TypeError, ValueError, OverflowError, OSError):
+        as_of = None
+    delay = None
+    if as_of is not None:
+        if "real time" in str(info.get("quoteSourceName") or "").lower():
+            delay = 0
+        else:
+            try:
+                delay = int(info.get("exchangeDataDelayedBy") or 0)
+            except (TypeError, ValueError):
+                delay = 0
+
+    if not price or price <= 0:
+        status = "missing"
+    elif as_of is None:
+        status = "unknown"
+    elif now - as_of > STALE_AFTER:
+        status = "stale"
+    elif info.get("marketState") == "REGULAR":
+        status = "delayed" if delay else "live"
+    else:
+        status = "closed"
+
+    return {
+        "price_status": status,
+        "price_as_of": as_of.isoformat().replace("+00:00", "Z") if as_of else None,
+        "price_delay_minutes": delay,
+        "price_source": PRICE_SOURCE,
+    }
 
 
 def run_bounded(fn, *args, timeout: float = INFO_TIMEOUT, default=None):

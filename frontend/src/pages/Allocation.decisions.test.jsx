@@ -78,6 +78,21 @@ describe("Allocation composition decisions", () => {
     expect(screen.getAllByText("Technology").length).toBeGreaterThan(0);
   });
 
+  it("marks a holding whose price is out of date or missing", async () => {
+    api.fetchAllHoldings.mockResolvedValue([
+      { ticker: "AAPL", name: "Apple", shares: 10, avg_cost: 100, current_price: 100, currency: "USD", market_value: 1000, weight: 100, closed: false, pnl: 10, pnl_percent: 1, dividends: 0, price_status: "stale", price_source: "Yahoo Finance", price_as_of: "2026-09-01T20:00:00Z" },
+      { ticker: "GONE", name: "Gone Co", shares: 5, avg_cost: 10, current_price: 0, currency: "USD", market_value: 0, weight: 0, closed: false, pnl: -50, pnl_percent: -100, dividends: 0, price_status: "missing", price_source: "Yahoo Finance", price_as_of: null },
+    ]);
+    renderPage();
+
+    const stale = await screen.findByText("out of date");
+    expect(stale).toHaveAttribute("title", expect.stringMatching(/^Yahoo Finance · price is out of date · last quote/));
+    expect(screen.getByText("no price")).toHaveAttribute(
+      "title",
+      "Yahoo Finance · no current price; this holding is valued at 0",
+    );
+  });
+
   it("separates active and sold positions", async () => {
     renderPage();
     await screen.findByText(/Largest position/i);

@@ -220,6 +220,38 @@ class TestHoldingsCurrency:
         assert h["live_price"] == pytest.approx(300.0)     # native live price today
         assert h["pnl"] == pytest.approx(10000.0)          # 10*(250-200)*20 Kč
 
+    def test_open_position_reports_quote_freshness(self, db_session, pid, default_portfolio):
+        db_session.add(make_txn("AAPL", "buy", 10, 150.0, currency="USD",
+                                date=date(2024, 1, 1), portfolio_id=pid))
+        db_session.commit()
+        quote_time = int(datetime.now(timezone.utc).timestamp()) - 60
+        info = {"regularMarketTime": quote_time, "marketState": "REGULAR",
+                "exchangeDataDelayedBy": 15, "quoteSourceName": "Delayed Quote"}
+
+        p1, p2, p3 = self._patches(live_price=200.0)
+        with p1, p2, p3, patch("routers.portfolio.market_data.get_info", return_value=info):
+            rows = get_holdings(currency="CZK", db=db_session, portfolio=default_portfolio)
+
+        h = next(r for r in rows if r["ticker"] == "AAPL")
+        assert h["price_status"] == "delayed"
+        assert h["price_delay_minutes"] == 15
+        assert h["price_source"] == "Yahoo Finance"
+        assert h["price_as_of"] == datetime.fromtimestamp(
+            quote_time, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+
+    def test_unpriced_position_is_flagged_missing(self, db_session, pid, default_portfolio):
+        db_session.add(make_txn("GONE", "buy", 10, 5.0, currency="USD",
+                                date=date(2024, 1, 1), portfolio_id=pid))
+        db_session.commit()
+
+        p1, p2, p3 = self._patches(live_price=0.0)
+        with p1, p2, p3, patch("routers.portfolio.market_data.get_info", return_value={}):
+            rows = get_holdings(currency="CZK", db=db_session, portfolio=default_portfolio)
+
+        h = next(r for r in rows if r["ticker"] == "GONE")
+        assert h["market_value"] == 0
+        assert h["price_status"] == "missing"
+
 
 class TestSummary:
     """Tests for /portfolio/summary logic (get_summary)."""
@@ -254,6 +286,36 @@ class TestSummary:
         s = get_summary(currency="USD", db=db_session, portfolio=default_portfolio)
         assert s["total_value"] == 0.0
         assert s["holdings_count"] == 0
+        assert s["prices_as_of"] is None
+        assert s["price_issues"] == []
+
+    def test_summary_reports_price_freshness_across_holdings(
+        self, db_session, default_portfolio
+    ):
+        def row(ticker, status, as_of, delay):
+            return {"ticker": ticker, "market_value": 100.0, "cost_basis": 90.0,
+                    "price_status": status, "price_as_of": as_of,
+                    "price_delay_minutes": delay, "price_source": "Yahoo Finance"}
+
+        holdings = [
+            row("AAPL", "delayed", "2026-10-09T17:44:00Z", 15),
+            row("CEZ.PR", "closed", "2026-10-09T15:20:00Z", 20),
+            row("OLD", "stale", "2026-09-01T20:00:00Z", 0),
+            row("GONE", "missing", None, None),
+        ]
+        with patch("routers.portfolio.get_holdings", return_value=holdings), \
+             patch("routers.portfolio._live_fx_to_czk", return_value=1.0):
+            s = get_summary(currency="USD", db=db_session, portfolio=default_portfolio)
+
+        # The newest quote time among usable prices; the delay only counts
+        # open markets (a closed exchange's delay is irrelevant to its close).
+        assert s["prices_as_of"] == "2026-10-09T17:44:00Z"
+        assert s["price_delay_minutes"] == 15
+        assert s["price_source"] == "Yahoo Finance"
+        assert s["price_issues"] == [
+            {"ticker": "OLD", "status": "stale"},
+            {"ticker": "GONE", "status": "missing"},
+        ]
 
 
 def test_dividend_forecast_paid_total_uses_received_cash(db_session, default_portfolio, pid):

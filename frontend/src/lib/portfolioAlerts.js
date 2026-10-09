@@ -31,6 +31,23 @@ export function derivePortfolioAlerts({
   const alerts = [];
 
   for (const h of holdings || []) {
+    if (h?.ticker && h.price_status === "missing") {
+      alerts.push({
+        id: `price-missing-${h.ticker}`,
+        severity: "critical",
+        title: `No current price: ${h.ticker}`,
+        detail: `No current price is available for ${h.ticker}, so it is valued at 0 and portfolio totals are understated.`,
+        to: "/allocation",
+      });
+    } else if (h?.ticker && h.price_status === "stale") {
+      alerts.push({
+        id: `price-stale-${h.ticker}`,
+        severity: "warning",
+        title: `Out-of-date price: ${h.ticker}`,
+        detail: `The latest price for ${h.ticker} is more than 5 days old, so its value may be wrong. The ticker may be delisted or suspended.`,
+        to: "/allocation",
+      });
+    }
     if (h?.ticker && h.weight != null && h.weight > CONCENTRATION_THRESHOLD) {
       alerts.push({
         id: `concentration-${h.ticker}`,

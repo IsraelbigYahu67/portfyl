@@ -12,6 +12,7 @@ import SegmentedControl from "../components/ui/SegmentedControl";
 import { AsyncSection } from "../components/ui";
 import BrokerPositionSnapshot from "../components/BrokerPositionSnapshot";
 import { useT212Sync } from "../hooks/useT212Sync";
+import { hasPriceProblem, priceFreshnessTitle } from "../lib/priceFreshness";
 
 const fmtPct = (n) => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
 
@@ -267,7 +268,17 @@ export default function Allocation() {
                         </td>
                         <td className={`px-4 py-3 tabular-nums text-sm text-right ${closed ? "text-muted" : ""}`}>{fmtNative(h.avg_cost, h.currency)}</td>
                         <td className={`px-4 py-3 tabular-nums text-sm text-right font-medium ${closed ? "text-muted" : ""}`}>
-                          <div>{fmtNative(h.current_price, h.currency)}</div>
+                          <div title={closed ? undefined : priceFreshnessTitle(h) ?? undefined}>
+                            {fmtNative(h.current_price, h.currency)}
+                          </div>
+                          {!closed && hasPriceProblem(h) && (
+                            <div
+                              className={`financial-meta leading-tight ${h.price_status === "missing" ? "text-loss" : "text-amber-500"}`}
+                              title={priceFreshnessTitle(h)}
+                            >
+                              {h.price_status === "missing" ? "no price" : "out of date"}
+                            </div>
+                          )}
                           {closed && h.live_price != null && (
                             <div className="financial-meta leading-tight" title="Live market price today">
                               now {fmtNative(h.live_price, h.currency)}
