@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom";
 
 import Dashboard from "./Dashboard";
+import { sourcePath } from "../test/sourcePath";
 
 const api = vi.hoisted(() => ({
   fetchSummary: vi.fn(),
@@ -166,10 +167,9 @@ it("does not record a populated dashboard when holdings are empty", async () => 
 });
 
 it("keeps insider table headers and notes at least 12px in source (no text-[10px]/text-[11px])", async () => {
-  const path = await import("node:path");
   const { readFile } = await import("node:fs/promises");
   const assetUrl = new URL("./Dashboard.jsx", import.meta.url);
-  const pathname = path.resolve(decodeURIComponent(assetUrl.pathname).replace(/^\//, ""));
+  const pathname = sourcePath(assetUrl);
   const src = await readFile(pathname, "utf-8");
   expect(src).not.toMatch(/text-\[(8|9|10|11)px\]/);
 });
