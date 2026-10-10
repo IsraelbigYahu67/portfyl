@@ -1102,6 +1102,37 @@ class CashInterestRate(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class AllocationTarget(Base):
+    """User-chosen target weight for one ticker in one portfolio (plan
+    2026-10-10). A missing row means "no target"; a row with 0 is an explicit
+    zero target. Replaced as a whole set by PUT /api/allocation-targets."""
+
+    __tablename__ = "allocation_targets"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "portfolio_id", "ticker", name="uq_allocation_target_ticker"),
+        ForeignKeyConstraint(
+            ["workspace_id", "portfolio_id"],
+            ["portfolios.workspace_id", "portfolios.id"],
+            name="fk_allocation_target_workspace_portfolio",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint(
+            "target_pct >= 0 AND target_pct <= 100",
+            name="ck_allocation_target_pct_range",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    public_id = _public_id()
+    workspace_id = _workspace_id()
+    portfolio_id = Column(Integer, nullable=False, index=True)
+    ticker = Column(String(32), nullable=False)
+    group_name = Column(String(40), nullable=True)
+    target_pct = Column(Numeric(5, 2), nullable=False)
+    display_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class DividendNotification(Base):
     __tablename__ = "dividend_notifications"
     __table_args__ = (

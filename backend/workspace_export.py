@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from models import (
+    AllocationTarget,
     Benchmark,
     BenchmarkComponent,
     BrokerBalance,
@@ -34,7 +35,7 @@ from models import (
 from tenancy import RequestContext
 
 
-EXPORT_SCHEMA_VERSION = 4
+EXPORT_SCHEMA_VERSION = 5
 
 _WORKSPACE_PREFERENCE_KEYS = (
     "broker_sync_daily_time",
@@ -209,6 +210,15 @@ def build_workspace_export(
             CashInterestRate.portfolio_id,
             CashInterestRate.currency,
             CashInterestRate.id,
+        )
+    ).all()
+    allocation_targets = db.scalars(
+        select(AllocationTarget)
+        .where(AllocationTarget.workspace_id == workspace_id)
+        .order_by(
+            AllocationTarget.portfolio_id,
+            AllocationTarget.display_order,
+            AllocationTarget.id,
         )
     ).all()
     dividend_notifications = db.scalars(
@@ -508,6 +518,19 @@ def build_workspace_export(
             }
             for rate in cash_interest_rates
             if rate.portfolio_id in portfolio_public_ids
+        ],
+        "allocation_targets": [
+            {
+                "id": str(target.public_id),
+                "portfolio_id": portfolio_public_ids[target.portfolio_id],
+                "ticker": target.ticker,
+                "group": target.group_name,
+                "target_pct": float(target.target_pct),
+                "display_order": target.display_order,
+                "created_at": _iso(target.created_at),
+            }
+            for target in allocation_targets
+            if target.portfolio_id in portfolio_public_ids
         ],
         "dividend_notifications": [
             {

@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from fastapi import FastAPI
 
 from models import (
+    AllocationTarget,
     Benchmark,
     BenchmarkComponent,
     BrokerBalance,
@@ -150,7 +151,7 @@ def test_export_contains_portable_workspace_data_without_cross_tenant_rows(
         exported_at=EXPORTED_AT,
     )
 
-    assert payload["schema_version"] == 4
+    assert payload["schema_version"] == 5
     assert payload["exported_at"] == "2026-09-07T12:30:00+00:00"
     assert payload["workspace"]["id"] == str(request_context.workspace.public_id)
     assert payload["membership"] == {
@@ -457,7 +458,7 @@ def test_export_includes_corporate_actions_and_applications(db_session, request_
 
     payload = build_workspace_export(db_session, request_context, exported_at=EXPORTED_AT)
 
-    assert payload["schema_version"] == 4
+    assert payload["schema_version"] == 5
     [a] = payload["broker_corporate_actions"]
     assert a["action_type"] == "STOCK_SPLIT"
     assert float(a["ratio_numerator"]) == 10.0
@@ -466,3 +467,27 @@ def test_export_includes_corporate_actions_and_applications(db_session, request_
     [ap] = payload["broker_corporate_action_applications"]
     assert ap["shares_after"] == 90
     assert ap["action_id"] == a["id"]
+
+
+def test_export_includes_allocation_targets_for_own_portfolios(db_session, request_context):
+    from decimal import Decimal
+
+    portfolio = Portfolio(workspace_id=request_context.workspace.id, name="Targets")
+    db_session.add(portfolio)
+    db_session.flush()
+    db_session.add(AllocationTarget(
+        workspace_id=request_context.workspace.id, portfolio_id=portfolio.id,
+        ticker="VWCE.DE", group_name="Core", target_pct=Decimal("62.50"), display_order=0,
+    ))
+    db_session.commit()
+
+    payload = build_workspace_export(db_session, request_context, exported_at=EXPORTED_AT)
+
+    assert payload["schema_version"] == 5
+    [row] = payload["allocation_targets"]
+    assert row["portfolio_id"] == str(portfolio.public_id)
+    assert row["ticker"] == "VWCE.DE"
+    assert row["group"] == "Core"
+    assert row["target_pct"] == 62.5
+    assert row["display_order"] == 0
+    assert "workspace_id" not in row
