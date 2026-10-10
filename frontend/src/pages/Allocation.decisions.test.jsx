@@ -22,6 +22,9 @@ vi.mock("../components/StockDetail", () => ({
 vi.mock("../components/BreakdownChart", () => ({
   default: ({ title }) => <div>{title}</div>,
 }));
+vi.mock("../components/AllocationTargets", () => ({
+  default: ({ currency }) => <section aria-label="Target allocation">targets in {currency}</section>,
+}));
 
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -61,6 +64,11 @@ describe("Allocation composition decisions", () => {
     expect(await screen.findByRole("region", { name: "Trading 212 current positions" })).toHaveTextContent("TSLA");
     expect(screen.getByText(/allocation charts use imported transactions/i)).toBeInTheDocument();
     expect(await screen.findByText(/Largest position/i)).toBeInTheDocument();
+  });
+
+  it("shows the target allocation section", async () => {
+    renderPage();
+    expect(await screen.findByRole("region", { name: "Target allocation" })).toHaveTextContent("USD");
   });
 
   it("offers composition categories and switches the chart and list", async () => {
