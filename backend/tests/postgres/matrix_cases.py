@@ -284,6 +284,8 @@ PORTFOLIO_SCOPED_READS: tuple[tuple[str, str], ...] = (
     ("polymarket-positions", "/api/polymarket/positions"),
     ("polymarket-summary", "/api/polymarket/summary"),
     ("discord", "/api/discord/webhook"),
+    ("allocation-targets", "/api/allocation-targets"),
+    ("allocation-target-drift", "/api/allocation-targets/drift"),
 )
 
 
@@ -311,6 +313,8 @@ PORTFOLIO_SCOPED_MUTATIONS: tuple[tuple[str, str, str, Any], ...] = (
     ("jobs-alert-check", "POST", "/api/alerts/check", None),
     ("cash-interest-rates", "PUT", "/api/cash/interest-rates",
      {"rates": [{"currency": "USD", "annual_rate": 0.9, "enabled": True}]}),
+    ("allocation-targets", "PUT", "/api/allocation-targets",
+     {"targets": [{"ticker": "MSFT", "target_pct": "100"}]}),
 )
 
 
@@ -346,6 +350,8 @@ OWN_MUTATIONS: tuple[tuple[str, str, str, Any, int], ...] = (
     ("ibkr-disconnect", "DELETE", "/api/broker/ibkr/connect", None, 200),
     ("polymarket-disconnect", "DELETE", "/api/broker/polymarket/connect", None, 200),
     ("transactions-delete-all", "DELETE", "/api/portfolio/transactions", None, 200),
+    ("allocation-targets", "PUT", "/api/allocation-targets",
+     {"targets": [{"ticker": "MSFT", "target_pct": "100"}]}, 200),
 )
 
 
@@ -364,6 +370,8 @@ CSRF_GATED: tuple[tuple[str, str, str, Any], ...] = (
      {"webhook_url": "https://discord.com/api/webhooks/csrf/probe"}),
     ("discord-update", "PATCH", "/api/discord/webhook", {"notify_trades": False}),
     ("discord-delete", "DELETE", "/api/discord/webhook", None),
+    ("allocation-targets", "PUT", "/api/allocation-targets",
+     {"targets": [{"ticker": "MSFT", "target_pct": "100"}]}),
 )
 
 

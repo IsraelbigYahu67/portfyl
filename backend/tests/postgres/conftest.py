@@ -163,6 +163,7 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
         Portfolio,
         PriceAlert,
         TradeNote,
+        AllocationTarget,
         Transaction,
         User,
         UserSetting,
@@ -220,6 +221,10 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
     )
     portfolio.t212_account_fingerprint = t212_connection.account_fingerprint
     db.add_all([
+        AllocationTarget(
+            workspace_id=workspace.id, portfolio_id=portfolio.id,
+            ticker="AAPL", group_name="Core", target_pct=60, display_order=0,
+        ),
         TradeNote(
             workspace_id=workspace.id, transaction_id=trade.id,
             content=f"{label}'s private note",
@@ -443,6 +448,7 @@ def _matrix_app(postgres_engine: Engine) -> FastAPI:
         discord,
         ibkr,
         notes,
+        allocation_targets,
         options,
         polymarket,
         portfolio,
@@ -457,7 +463,7 @@ def _matrix_app(postgres_engine: Engine) -> FastAPI:
     app.state.portfyl_edition = Edition.LOCAL
     app.add_exception_handler(RequestContextError, request_context_error_handler)
     for module in (
-        portfolios, portfolio, analytics, benchmarks, cash, notes,
+        portfolios, portfolio, analytics, benchmarks, cash, notes, allocation_targets,
         watchlists, settings, alerts, assistant,
         broker, ibkr, options, polymarket, discord,
     ):

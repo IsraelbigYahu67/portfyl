@@ -104,6 +104,7 @@ def _hermetic():
         patch("routers.cash.fetch_fx_to_czk", return_value=20.0),
         patch("routers.watchlists._quote", return_value={"symbol": "NVDA"}),
         patch("routers.alerts.market_data.get_infos", return_value={}),
+        patch("routers.allocation_targets._current_holdings", return_value=[]),
     )
 
 
