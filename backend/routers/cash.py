@@ -76,8 +76,12 @@ def create_cash(body: CashCreate, db: Session = Depends(get_db), portfolio: Port
         fx_to_czk=fetch_fx_to_czk(ccy, body.date),
     )
     acquire_workspace_ledger_lock(db, portfolio.workspace_id)
-    db.add(row); db.commit(); db.refresh(row)
-    return _to_row(row)
+    db.add(row); db.flush()
+    # Serialized before commit: the RLS workspace setting is transaction-local,
+    # so reading `row` after commit fails under the runtime role.
+    response = _to_row(row)
+    db.commit()
+    return response
 
 
 @router.put("/{cash_id:uuid}", response_model=CashRow)
@@ -91,8 +95,9 @@ def update_cash(cash_id: UUID, body: CashCreate, db: Session = Depends(get_db), 
     ccy = body.currency.upper()
     row.type, row.amount, row.currency, row.date, row.notes = body.type, body.amount, ccy, body.date, body.note
     row.fx_to_czk = fetch_fx_to_czk(ccy, body.date)
-    db.commit(); db.refresh(row)
-    return _to_row(row)
+    response = _to_row(row)  # before commit, see create_cash
+    db.commit()
+    return response
 
 
 @router.delete("/{cash_id:uuid}")
@@ -146,8 +151,10 @@ def put_rates(body: RatesPayload, db: Session = Depends(get_db), portfolio: Port
             row = CashInterestRate(workspace_id=portfolio.workspace_id, portfolio_id=portfolio.id, currency=ccy)
             db.add(row)
         row.annual_rate, row.enabled, row.start_date = item.annual_rate, item.enabled, item.start_date
+    db.flush()
+    response = get_rates(db, portfolio)  # before commit, see create_cash
     db.commit()
-    return get_rates(db, portfolio)
+    return response
 
 
 @router.get("/history")
