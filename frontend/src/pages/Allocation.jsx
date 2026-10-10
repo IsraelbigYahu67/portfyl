@@ -219,7 +219,9 @@ export default function Allocation() {
         </>
       )}
 
-      <AllocationTargets currency={currency} />
+      {/* Keyed on the portfolio so an open target draft never survives a
+          portfolio switch and gets saved into the newly active portfolio. */}
+      <AllocationTargets key={currentPortfolio?.id ?? "none"} currency={currency} />
 
       <div>
         <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider">
