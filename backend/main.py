@@ -33,7 +33,7 @@ from rate_limit import (
     rate_limit_exceeded_handler,
     rate_limit_unavailable_handler,
 )
-from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, cash, alerts, settings, capabilities, auth as auth_router
+from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, cash, alerts, settings, allocation_targets, capabilities, auth as auth_router
 from tenancy import (
     RequestContextError,
     get_request_context,
@@ -158,6 +158,7 @@ app.include_router(
     dependencies=[Depends(get_request_context)],
 )
 app.include_router(cash.router, prefix="/api")
+app.include_router(allocation_targets.router, prefix="/api")
 app.include_router(alerts.router, prefix="/api")
 app.include_router(
     settings.router,
