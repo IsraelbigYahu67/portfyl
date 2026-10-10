@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
+import { sourcePath } from "../test/sourcePath";
 import {
   AXIS_TICK_STYLE,
   LEGEND_TEXT_STYLE,
@@ -26,13 +26,10 @@ describe("chartTheme constants", () => {
   });
 });
 
-// Vite statically rewrites `new URL(relative, import.meta.url)`; for a path
-// inside the project root it yields a root-relative pathname rather than a
-// file:// URL, so resolve it against the Vitest process cwd (frontend/)
-// instead of fileURLToPath. See primitives.test.jsx for the same pattern.
+// See test/sourcePath.js for how the asset URL becomes a filesystem path.
 async function readSource(relativePath) {
   const assetUrl = new URL(relativePath, import.meta.url);
-  const pathname = path.resolve(decodeURIComponent(assetUrl.pathname).replace(/^\//, ""));
+  const pathname = sourcePath(assetUrl);
   return readFile(pathname, "utf-8");
 }
 

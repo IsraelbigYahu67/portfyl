@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { render, screen } from "@testing-library/react";
 import { Calendar } from "lucide-react";
 import { Card, SectionHeader, Skeleton, EmptyState, DeltaPill } from "./index";
+import { sourcePath } from "../../test/sourcePath";
 
 describe("ui primitives", () => {
   it("Card renders children", () => {
@@ -56,13 +56,8 @@ describe("ui primitives", () => {
 
 describe("index.css semantic financial typography classes", () => {
   it("defines the five semantic classes with their documented floor font-sizes", async () => {
-    // Vite statically rewrites `new URL(relative, import.meta.url)`: for a
-    // path inside the project root it yields a root-relative pathname
-    // ("/src/index.css") rather than a file:// URL, so resolve it against
-    // the Vitest process cwd (the frontend/ project root) instead of using
-    // fileURLToPath, which requires an actual file: scheme.
     const assetUrl = new URL("../../index.css", import.meta.url);
-    const cssPath = path.resolve(decodeURIComponent(assetUrl.pathname).replace(/^\//, ""));
+    const cssPath = sourcePath(assetUrl);
     const css = await readFile(cssPath, "utf-8");
     const floors = {
       "financial-headline": "1rem",

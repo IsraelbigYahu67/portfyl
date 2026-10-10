@@ -1,17 +1,14 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import Stock from "../../pages/Stock";
+import { sourcePath } from "../../test/sourcePath";
 
-// Vite rewrites `new URL(relative, import.meta.url)` for a path inside the
-// project root to a root-relative pathname rather than a file:// URL (see
-// primitives.test.jsx / chartTheme.test.js for the same pattern), so resolve
-// it against the Vitest process cwd (frontend/) instead of fileURLToPath.
+// See test/sourcePath.js for how the asset URL becomes a filesystem path.
 async function readSource(relativePath) {
   const assetUrl = new URL(relativePath, import.meta.url);
-  const pathname = path.resolve(decodeURIComponent(assetUrl.pathname).replace(/^\//, ""));
+  const pathname = sourcePath(assetUrl);
   return readFile(pathname, "utf-8");
 }
 

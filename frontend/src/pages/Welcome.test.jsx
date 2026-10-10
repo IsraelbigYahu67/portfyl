@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import Welcome from "./Welcome";
 import { COPY, LANGUAGES, LANGUAGE_KEY } from "./welcomeCopy";
 import AnalyticsProvider from "../analytics/AnalyticsProvider";
 import { createMemoryAdapter } from "../analytics/analyticsClient";
+import { sourcePath } from "../test/sourcePath";
 
 function renderWelcome({ initialConsent = "pending" } = {}) {
   const adapter = createMemoryAdapter();
@@ -21,7 +21,7 @@ afterEach(() => vi.restoreAllMocks());
 
 it("keeps every declared font-size in Welcome.css at or above the 12px readability floor", async () => {
   const assetUrl = new URL("./Welcome.css", import.meta.url);
-  const cssPath = path.resolve(decodeURIComponent(assetUrl.pathname).replace(/^\//, ""));
+  const cssPath = sourcePath(assetUrl);
   const css = await readFile(cssPath, "utf-8");
   const subFloor = [...css.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].filter(([, n]) => Number(n) < 12);
   expect(subFloor.map((m) => m[0])).toEqual([]);
