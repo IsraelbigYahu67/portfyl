@@ -84,3 +84,56 @@ def test_deleting_a_portfolio_deletes_its_targets(matrix_tenants, postgres_engin
             select(AllocationTarget).where(AllocationTarget.portfolio_id == portfolio_id)
         ).all()
     assert remaining == []
+
+
+@pytest.fixture
+def committing_runtime_session(postgres_engine):
+    """`portfyl_runtime` with a session-level SET ROLE, so the router's real
+    commit happens under forced RLS exactly as in production (Cloud Run logs in
+    as portfyl_runtime). `runtime_session` cannot show this: it never commits."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import sessionmaker
+
+    connection = postgres_engine.connect()
+    connection.execute(text("SET ROLE portfyl_runtime"))
+    connection.commit()
+    session = sessionmaker(autocommit=False, autoflush=False, bind=connection)()
+    try:
+        yield session
+    finally:
+        session.close()
+        try:
+            connection.execute(text("RESET ROLE"))
+            connection.commit()
+        finally:
+            connection.close()
+
+
+def test_saving_targets_under_the_runtime_role_returns_the_saved_set(
+    matrix_tenants, postgres_engine, committing_runtime_session,
+):
+    from routers.allocation_targets import TargetItem, TargetsPayload, replace_targets
+
+    db = committing_runtime_session
+    _as(db, matrix_tenants.alice)
+    portfolio = db.scalars(
+        select(Portfolio).where(Portfolio.id == matrix_tenants.alice.portfolio_id)
+    ).one()
+
+    result = replace_targets(
+        TargetsPayload(targets=[TargetItem(ticker="msft", target_pct="40", group="Core")]),
+        db=db, portfolio=portfolio, context=None,
+    )
+
+    assert result == {
+        "targets": [{"ticker": "MSFT", "group": "Core", "target_pct": 40.0}],
+        "target_total_pct": 40.0,
+        "is_complete": False,
+    }
+    with Session(postgres_engine) as owner:
+        stored = owner.scalars(
+            select(AllocationTarget.ticker).where(
+                AllocationTarget.portfolio_id == matrix_tenants.alice.portfolio_id
+            )
+        ).all()
+    assert stored == ["MSFT"]

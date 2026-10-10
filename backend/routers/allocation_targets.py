@@ -111,8 +111,11 @@ def replace_targets(
         )
         for order, spec in enumerate(specs)
     ])
+    # Built before the commit: the RLS workspace setting is transaction-local,
+    # so reading `portfolio` after commit fails under the runtime role.
+    response = _targets_response(specs)
     db.commit()
-    return _targets_response(_load_specs(db, portfolio))
+    return response
 
 
 @router.get("/drift")
