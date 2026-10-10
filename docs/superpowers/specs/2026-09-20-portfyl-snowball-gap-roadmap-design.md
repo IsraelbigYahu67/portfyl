@@ -155,6 +155,8 @@ after confirmation.
    averages.
 4. **P3 — Advanced analysis.** Corporate actions, Portfolio Lab, and report export.
 
+**Status (2026-10-10):** P0 cash reconciliation shipped. P1 target allocation (targets, groups, drift) implemented per `docs/superpowers/plans/2026-10-10-portfyl-allocation-targets.md`; rebalancing is next.
+
 Each stage is independently releasable. P1 rebalancing cannot start before targets
 are validated. P3 report export cannot start before the preceding API contracts are
 stable.

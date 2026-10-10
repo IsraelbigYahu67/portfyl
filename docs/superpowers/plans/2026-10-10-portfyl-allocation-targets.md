@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status (2026-10-10):** Not started. Plan written, awaiting owner review.
+**Status (2026-10-10):** Implemented on `feat/allocation-targets`. Gates: fast backend 1147, PostgreSQL/RLS 371, frontend local 720 (+1 skipped) / cloud 721, both builds, one Alembic head `0023_allocation_targets` (local dev DB upgraded, `assert_alembic_head()` OK). Final review fixed two defects: the save response was read after commit and failed under `portfyl_runtime` (RLS context is transaction-local), and an open draft survived a portfolio switch. Deviation: `tests/test_plan_schema.py` pins the head and was updated too. Logged-in browser check (Task 7 Step 2) still pending — needs the owner's Firebase login.
 
 **Goal:** Let a user save a target weight (and optional group) for each ticker in a portfolio, and show on the Allocation page how far each holding has drifted from its target.
 
