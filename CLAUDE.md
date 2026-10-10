@@ -223,3 +223,35 @@ Playwright MCP is installed. To check a frontend change, ensure a local
 running (`start.bat`), then drive **http://localhost:5173** — register or log
 in with a Firebase test account — and screenshot/inspect rather than guessing
 from the diff.
+
+## Parallel session safety
+
+Every plan must be built so multiple agent sessions can work in this
+repository concurrently without blocking or corrupting each other:
+
+1. **Isolated work areas.** Each session uses its own git branch (or git
+   worktree) and never commits directly to the shared integration branch.
+   Migrations and resource-mutating steps are isolated or explicitly ordered
+   in the plan (per-session DB names, distinct ports) so sessions never write
+   the same resource at the same time.
+2. **Disjoint files per task.** Split the plan into independent tasks that
+   touch disjoint sets of files. Shared hotspots — `backend/database.py`
+   (`EXPECTED_ALEMBIC_HEAD`), `backend/alembic/versions/`, `.env`/config,
+   lockfiles (`requirements.txt`, `package.json`) — are owned by at most one
+   concurrent task; tasks that need them are sequenced into later waves, not
+   run in parallel.
+3. **No shared resource-mutating steps.** Dev servers (backend :8000,
+   frontend :5173), the test-postgres container, `alembic upgrade head`, and
+   the Cloud Run migration Job against shared Neon are resource-mutating:
+   each session runs them on its own instance (distinct ports/DB names) or
+   the steps are explicitly sequenced in the plan. Never apply migrations to
+   a database another session is actively using without coordination.
+4. **Produce forward-compatible migrations.** Cloud Run serves the cloud
+   edition from multiple instances, so every migration must be safe to apply
+   while older instances are still running (no destructive in-place column
+   changes; expand-then-migrate). Sequence any destructive step as a separate,
+   explicitly-ordered follow-up wave.
+5. **Re-integrate and re-verify before done.** After merging/rebasing shared
+   upstream changes, re-run the affected verification (tests, `alembic heads`
+   vs `EXPECTED_ALEMBIC_HEAD`, lint/test suites) and fix conflicts caused by
+   concurrent sessions locally before reporting a task complete.
