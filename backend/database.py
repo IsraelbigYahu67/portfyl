@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Mapping
 from uuid import UUID
 
-from sqlalchemy import Engine, create_engine, text
+from sqlalchemy import Engine, create_engine, event, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
@@ -74,17 +74,42 @@ def assert_alembic_head(
         )
 
 
+_RLS_CONTEXT_INFO_KEY = "portfyl_rls_context"
+
+
 def set_rls_context(
     session: Session,
     user_id: UUID,
     workspace_id: UUID | None,
 ) -> None:
+    """Set the RLS identity for this session's current and later transactions.
+
+    `set_config(..., true)` is transaction-local, so on its own the context
+    would vanish at the first commit or rollback and every later read in the
+    same request would see nothing under forced RLS. The values are remembered
+    on the session and re-applied at the start of each new transaction by
+    `_reapply_rls_context`. They stay transaction-local, so nothing outlives
+    this Session object or leaks to another session on a pooled connection.
+    """
     values = {
         "portfyl.user_id": str(user_id),
         "portfyl.workspace_id": "" if workspace_id is None else str(workspace_id),
     }
+    session.info[_RLS_CONTEXT_INFO_KEY] = values
     for key, value in values.items():
         session.execute(
+            text("SELECT set_config(:key, :value, true)"),
+            {"key": key, "value": value},
+        )
+
+
+@event.listens_for(Session, "after_begin")
+def _reapply_rls_context(session: Session, _transaction, connection) -> None:
+    values = session.info.get(_RLS_CONTEXT_INFO_KEY)
+    if not values or connection.dialect.name != "postgresql":
+        return
+    for key, value in values.items():
+        connection.execute(
             text("SELECT set_config(:key, :value, true)"),
             {"key": key, "value": value},
         )
