@@ -17,7 +17,7 @@ import { AsyncSection, EmptyState } from "./ui";
 const pct = (n) => formatPercent(n, { sign: false });
 const TH = "text-left px-3 py-2 text-xs font-medium text-muted uppercase tracking-wider";
 const TD = "px-3 py-2 text-sm";
-const INPUT = "input w-full min-w-0 text-sm py-1";
+const INPUT = "input text-sm py-1";
 
 // Highlights large drift only; direction is in the sign. Neutral on purpose:
 // a target is the user's plan, not advice (spec 2026-09-20 §4.2, §7).
@@ -132,7 +132,7 @@ function TargetView({ drift, currency }) {
           <thead className="border-b border-surface-border">
             <tr>
               <th className={TH}>Ticker</th>
-              <th className={TH}>Group</th>
+              <th className={`${TH} hidden sm:table-cell`}>Group</th>
               <th className={`${TH} text-right`}>Target</th>
               <th className={`${TH} text-right`}>Current</th>
               <th className={`${TH} text-right`} title="Current weight minus target weight">Drift</th>
@@ -148,7 +148,7 @@ function TargetView({ drift, currency }) {
                   {r.ticker}
                   {!r.held && <span className="ml-1.5 financial-meta font-normal text-muted">not held</span>}
                 </td>
-                <td className={`${TD} text-muted`}>{r.group ?? "—"}</td>
+                <td className={`${TD} text-muted hidden sm:table-cell`}>{r.group ?? "—"}</td>
                 <td className={`${TD} text-right tabular-nums`}>
                   {r.target_pct == null ? <span className="text-xs text-muted">No target</span> : pct(r.target_pct)}
                 </td>
@@ -184,14 +184,15 @@ function TargetEditor({ rows, onChange, onAdd, onRemove, onFill, onCancel, onSav
   let newIndex = 0;
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto">
-        <table className="w-full">
+      {/* relative: keeps the absolutely positioned sr-only header inside the scroller */}
+      <div className="relative overflow-x-auto">
+        <table className="w-full min-w-[30rem]">
           <thead className="border-b border-surface-border">
             <tr>
               <th className={TH}>Ticker</th>
-              <th className={TH}>Group</th>
               <th className={`${TH} text-right`}>Target %</th>
               <th className={`${TH} text-right`}>Current</th>
+              <th className={TH}>Group</th>
               <th className={TH}><span className="sr-only">Remove</span></th>
             </tr>
           </thead>
@@ -203,7 +204,7 @@ function TargetEditor({ rows, onChange, onAdd, onRemove, onFill, onCancel, onSav
                   <td className={`${TD} font-mono font-bold`}>
                     {r.isNew ? (
                       <input
-                        className={INPUT}
+                        className={`${INPUT} w-24`}
                         aria-label={`Ticker for ${label}`}
                         value={r.ticker}
                         maxLength={32}
@@ -213,19 +214,9 @@ function TargetEditor({ rows, onChange, onAdd, onRemove, onFill, onCancel, onSav
                       r.ticker
                     )}
                   </td>
-                  <td className={TD}>
-                    <input
-                      className={INPUT}
-                      aria-label={`Group for ${label}`}
-                      value={r.group}
-                      maxLength={40}
-                      placeholder="Optional"
-                      onChange={(e) => onChange(r.key, "group", e.target.value)}
-                    />
-                  </td>
                   <td className={`${TD} text-right`}>
                     <input
-                      className={`${INPUT} text-right w-24`}
+                      className={`${INPUT} text-right w-20`}
                       aria-label={`Target for ${label}`}
                       inputMode="decimal"
                       value={r.target}
@@ -234,6 +225,16 @@ function TargetEditor({ rows, onChange, onAdd, onRemove, onFill, onCancel, onSav
                     />
                   </td>
                   <td className={`${TD} text-right tabular-nums text-muted`}>{pct(r.currentPct)}</td>
+                  <td className={TD}>
+                    <input
+                      className={`${INPUT} w-32`}
+                      aria-label={`Group for ${label}`}
+                      value={r.group}
+                      maxLength={40}
+                      placeholder="Optional"
+                      onChange={(e) => onChange(r.key, "group", e.target.value)}
+                    />
+                  </td>
                   <td className={TD}>
                     <button
                       type="button"
