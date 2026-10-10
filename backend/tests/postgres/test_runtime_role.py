@@ -61,6 +61,7 @@ WORKSPACE_SCOPED_TABLES: tuple[str, ...] = (
     "polymarket_positions",
     "discord_webhooks",
     "trade_notes",
+    "allocation_targets",
     "cash_interest_rates",
     "price_alerts",
     "workspace_settings",

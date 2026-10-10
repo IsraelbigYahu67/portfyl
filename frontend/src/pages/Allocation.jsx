@@ -11,6 +11,7 @@ import AllocationBreakdownList from "../components/AllocationBreakdownList";
 import SegmentedControl from "../components/ui/SegmentedControl";
 import { AsyncSection } from "../components/ui";
 import BrokerPositionSnapshot from "../components/BrokerPositionSnapshot";
+import AllocationTargets from "../components/AllocationTargets";
 import { useT212Sync } from "../hooks/useT212Sync";
 import { hasPriceProblem, priceFreshnessTitle } from "../lib/priceFreshness";
 
@@ -217,6 +218,10 @@ export default function Allocation() {
           )}
         </>
       )}
+
+      {/* Keyed on the portfolio so an open target draft never survives a
+          portfolio switch and gets saved into the newly active portfolio. */}
+      <AllocationTargets key={currentPortfolio?.id ?? "none"} currency={currency} />
 
       <div>
         <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider">

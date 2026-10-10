@@ -53,7 +53,7 @@ class Base(DeclarativeBase):
     pass
 
 
-EXPECTED_ALEMBIC_HEAD = "0022_t212_cash_stream"
+EXPECTED_ALEMBIC_HEAD = "0023_allocation_targets"
 
 
 def assert_alembic_head(

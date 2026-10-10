@@ -45,6 +45,7 @@ RLS_TABLES = {
     "polymarket_positions",
     "discord_webhooks",
     "trade_notes",
+    "allocation_targets",
     "cash_interest_rates",
     "dividend_notifications",
     "price_alerts",

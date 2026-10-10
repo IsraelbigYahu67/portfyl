@@ -160,6 +160,10 @@ export const fetchHoldings = (currency = "USD") =>
   api.get(`/portfolio/holdings`, { params: { currency } }).then((r) => r.data);
 export const fetchAllHoldings = (currency = "USD") =>
   api.get(`/portfolio/holdings`, { params: { currency, include_closed: true } }).then((r) => r.data);
+export const fetchAllocationTargetDrift = (currency = "USD") =>
+  api.get("/allocation-targets/drift", { params: { currency } }).then((r) => r.data);
+export const saveAllocationTargets = (targets) =>
+  api.put("/allocation-targets", { targets }).then((r) => r.data);
 export const fetchTransactions = () => api.get("/portfolio/transactions").then((r) => r.data);
 export const fetchTransactionsPage = ({ offset = 0, limit = 50, q = "", type = "", ticker = "", sort = "-date" } = {}) =>
   api

@@ -8,11 +8,13 @@ const api = vi.hoisted(() => ({
   fetchSectorBreakdown: vi.fn(),
 }));
 const t212Mocks = vi.hoisted(() => ({ useT212Sync: vi.fn() }));
+const portfolio = vi.hoisted(() => ({ id: "portfolio-1" }));
+const targetMounts = vi.hoisted(() => ({ count: 0 }));
 
 vi.mock("../api", () => api);
 vi.mock("../App", () => ({
   useCurrency: () => ({ currency: "USD", rate: 22 }),
-  usePortfolio: () => ({ current: { id: "portfolio-1" } }),
+  usePortfolio: () => ({ current: { id: portfolio.id } }),
 }));
 vi.mock("../hooks/useT212Sync", () => t212Mocks);
 vi.mock("../components/StockDetail", () => ({
@@ -22,6 +24,15 @@ vi.mock("../components/StockDetail", () => ({
 vi.mock("../components/BreakdownChart", () => ({
   default: ({ title }) => <div>{title}</div>,
 }));
+vi.mock("../components/AllocationTargets", async () => {
+  const { useState } = await import("react");
+  return {
+    default: function TargetsStub({ currency }) {
+      const [instance] = useState(() => ++targetMounts.count);
+      return <section aria-label="Target allocation" data-instance={instance}>targets in {currency}</section>;
+    },
+  };
+});
 
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -61,6 +72,30 @@ describe("Allocation composition decisions", () => {
     expect(await screen.findByRole("region", { name: "Trading 212 current positions" })).toHaveTextContent("TSLA");
     expect(screen.getByText(/allocation charts use imported transactions/i)).toBeInTheDocument();
     expect(await screen.findByText(/Largest position/i)).toBeInTheDocument();
+  });
+
+  it("shows the target allocation section", async () => {
+    renderPage();
+    expect(await screen.findByRole("region", { name: "Target allocation" })).toHaveTextContent("USD");
+  });
+
+  it("starts a fresh target editor when the active portfolio changes", async () => {
+    portfolio.id = "portfolio-1";
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const page = () => (
+      <QueryClientProvider client={qc}>
+        <Allocation />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(page());
+    const first = (await screen.findByRole("region", { name: "Target allocation" })).dataset.instance;
+
+    portfolio.id = "portfolio-2";
+    rerender(page());
+
+    await waitFor(() =>
+      expect(screen.getByRole("region", { name: "Target allocation" }).dataset.instance).not.toBe(first)
+    );
   });
 
   it("offers composition categories and switches the chart and list", async () => {
