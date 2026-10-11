@@ -141,6 +141,14 @@ before starting any auth, tenancy, database, or billing work.
   Run migration Job (`deploy/run-migrations.ps1`) before every service deploy
   — see `deploy/cloudrun.md`. Never commit, deploy, or report migration work
   complete while the two revisions differ.
+- **Never run database work on the event loop.** SQLAlchemy is synchronous
+  here, so an endpoint or dependency that touches a `Session` is a plain
+  `def` (FastAPI runs it in the threadpool); an `async def` one froze the
+  whole Cloud Run instance on 2026-10-11. Async helpers shared with the job
+  passes (`alerts.run_check`, `ibkr._run_ibkr_sync`, the `jobs.py` passes)
+  are driven from sync code via `private_loop.run_on_private_loop`. Call
+  `database.release_connection` before slow outbound calls.
+  `tests/test_event_loop_not_blocked.py` enforces this.
 - **Money / FX**: transactions carry `fx_to_czk`; values are normalized to **CZK**.
   Missing rates are backfilled at startup via `fx.bulk_fetch_fx`. Preserve this
   when touching valuation/performance code.

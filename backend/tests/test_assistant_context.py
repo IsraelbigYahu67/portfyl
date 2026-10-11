@@ -1,6 +1,5 @@
-import asyncio
 from datetime import date, datetime, timedelta, timezone
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 import pytest
 from pydantic import ValidationError
@@ -28,7 +27,7 @@ def test_general_prompt_has_no_snapshot_language():
 @pytest.mark.parametrize('mode', ['none', 'portfolio_summary'])
 def test_context_boundary_and_response(mode, db_session, request_context, default_portfolio, monkeypatch):
     set_user_secret(db_session, request_context.user.id, assistant.KEY_SETTING, 'sk-encrypted-test-key')
-    provider = AsyncMock(return_value=('answer', {'total_tokens': 4}))
+    provider = Mock(return_value=('answer', {'total_tokens': 4}))
     builder = Mock(return_value='Private scoped snapshot')
     reserve = Mock()
     monkeypatch.setattr(assistant, '_call_deepseek', provider)
@@ -36,7 +35,7 @@ def test_context_boundary_and_response(mode, db_session, request_context, defaul
     monkeypatch.setattr(assistant, 'reserve_usage', reserve)
     payload = assistant.ChatRequest(messages=[{'role': 'system', 'content': 'untrusted'}] +
         [{'role': 'user', 'content': str(i)} for i in range(30)], context_mode=mode)
-    result = asyncio.run(assistant.chat(payload, db=db_session, portfolio=default_portfolio, request_context=request_context))
+    result = assistant.chat(payload, db=db_session, portfolio=default_portfolio, request_context=request_context)
     forwarded = provider.call_args.args[2]
     assert len(forwarded) == 21
     assert forwarded[-1] == {'role': 'user', 'content': '29'}
@@ -146,15 +145,15 @@ def test_hosted_reservation_still_finalizes_or_releases(mode, failure, db_sessio
     entitlements = EffectiveEntitlements(PlanTier.PRO, 'private_test', None, False, False,
         ('assistant_byok', 'assistant_hosted'), plan_limits()[PlanTier.PRO])
     monkeypatch.setenv('PORTFYL_HOSTED_DEEPSEEK_API_KEY', 'hosted-test-key')
-    provider = AsyncMock(side_effect=RuntimeError('provider failed')) if failure else AsyncMock(return_value=('answer', None))
+    provider = Mock(side_effect=RuntimeError('provider failed')) if failure else Mock(return_value=('answer', None))
     monkeypatch.setattr(assistant, '_call_deepseek', provider)
     kwargs = dict(db=db_session, portfolio=default_portfolio, request_context=request_context,
         idempotency_key='hosted-test', _entitlements=entitlements)
     payload = assistant.ChatRequest(messages=[{'role': 'user', 'content': 'Question'}], context_mode=mode)
     if failure:
-        with pytest.raises(RuntimeError): asyncio.run(assistant.chat(payload, **kwargs))
+        with pytest.raises(RuntimeError): assistant.chat(payload, **kwargs)
     else:
-        assert asyncio.run(assistant.chat(payload, **kwargs))['context_mode'] == mode
+        assert assistant.chat(payload, **kwargs)['context_mode'] == mode
     reservation = db_session.query(UsageReservation).one()
     assert reservation.status == ('released' if failure else 'finalized')
     counter = db_session.query(UsageCounter).one()

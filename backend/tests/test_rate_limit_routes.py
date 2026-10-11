@@ -4,7 +4,7 @@ limit, using minimal mini-apps in the same style as
 tests/test_hosted_assistant.py."""
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import Mock, patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -221,7 +221,7 @@ class TestAssistantChatRateLimit:
         app.dependency_overrides[require_csrf] = lambda: request_context
         app.dependency_overrides[require_portfolio] = lambda: default_portfolio
 
-        provider = AsyncMock(return_value=("answer", {"total_tokens": 4}))
+        provider = Mock(return_value=("answer", {"total_tokens": 4}))
         payload = {"messages": [{"role": "user", "content": "hi"}]}
         with patch("routers.assistant._call_deepseek", provider), TestClient(app) as client:
             first = client.post(

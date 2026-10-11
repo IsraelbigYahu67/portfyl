@@ -338,8 +338,10 @@ class _ParsedImport:
     t212_covered_through: datetime | None
 
 
-async def _read_import_upload(file: UploadFile) -> bytes:
-    content = await file.read(MAX_IMPORT_BYTES + 1)
+def _read_import_upload(file: UploadFile) -> bytes:
+    # The import endpoints are plain defs (they run in the threadpool), so
+    # read the already-spooled upload synchronously.
+    content = file.file.read(MAX_IMPORT_BYTES + 1)
     if len(content) > MAX_IMPORT_BYTES:
         raise HTTPException(
             status_code=413,
@@ -768,7 +770,7 @@ def clear_all_transactions(
 
 
 @router.post("/import-csv/preview")
-async def preview_import_csv(
+def preview_import_csv(
     file: UploadFile = File(...),
     replace: bool = False,
     db: Session = Depends(get_db),
@@ -776,7 +778,7 @@ async def preview_import_csv(
     _context: RequestContext = Depends(get_request_context),
 ):
     """Parse and reconcile an upload without mutating portfolio data."""
-    parsed = _parse_import_content(await _read_import_upload(file))
+    parsed = _parse_import_content(_read_import_upload(file))
     current_rows = _portfolio_txns(db, portfolio).all()
     current_state = capture_portfolio_state(db, portfolio)
     preview = build_preview(
@@ -903,7 +905,7 @@ def _delete_portfolio_transaction_rows(db: Session, portfolio: Portfolio) -> Non
 
 
 @router.post("/import-csv/commit")
-async def commit_import_csv(
+def commit_import_csv(
     file: UploadFile = File(...),
     preview_id: str = "",
     replace: bool = False,
@@ -911,7 +913,7 @@ async def commit_import_csv(
     portfolio: Portfolio = Depends(require_portfolio),
     context: RequestContext = Depends(require_csrf),
 ):
-    parsed = _parse_import_content(await _read_import_upload(file))
+    parsed = _parse_import_content(_read_import_upload(file))
     acquire_workspace_ledger_lock(db, portfolio.workspace_id)
     current_rows = _portfolio_txns(db, portfolio).all()
     before = capture_portfolio_state(db, portfolio)
@@ -1085,14 +1087,14 @@ def undo_import_csv(
 # Compatibility helper for existing direct normalization tests. This function
 # is intentionally no longer registered as an HTTP route; clients must use the
 # preview/commit protocol above.
-async def import_csv(
+def import_csv(
     file: UploadFile = File(...),
     replace: bool = False,
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
     _context: RequestContext = Depends(get_request_context),
 ):
-    content = await file.read()
+    content = file.file.read()
     try:
         df = pd.read_csv(io.StringIO(content.decode("utf-8")))
     except Exception as e:

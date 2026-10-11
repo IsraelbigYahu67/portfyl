@@ -28,6 +28,7 @@ import market_data
 from database import get_db
 from entitlements import EffectiveEntitlements, require_capability, require_capacity, require_writable_resource
 from models import Portfolio, PriceAlert
+from private_loop import run_on_private_loop
 from routers.portfolios import require_portfolio
 from routers.discord import send_discord_notification
 
@@ -229,14 +230,18 @@ def delete_alert(alert_id: UUID, db: Session = Depends(get_db), portfolio: Portf
 
 
 @router.post("/check")
-async def check_now(
+def check_now(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
     entitlements: EffectiveEntitlements = Depends(require_capability("alerts")),
 ):
     """Manually evaluate this portfolio's alerts right now (same logic as the
-    background poller). Returns the alerts that fired."""
-    fired = await run_check(
+    background poller). Returns the alerts that fired.
+
+    A plain def so its queries run in the threadpool; run_check's awaits and
+    the database work between them share this worker thread's own loop."""
+    fired = run_on_private_loop(
+        run_check,
         db,
         portfolio.workspace_id,
         portfolio.id,

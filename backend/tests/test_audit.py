@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from audit import record_audit_event
@@ -136,12 +135,12 @@ def test_ibkr_connection_create_and_delete_are_audited(
     db_session, default_portfolio, request_context
 ):
     with patch("routers.ibkr._send_flex_request", AsyncMock(return_value="ref")):
-        asyncio.run(connect_ibkr(
+        connect_ibkr(
             {"flex_token": "flex-token", "query_id": "query-id"},
             db_session,
             default_portfolio,
             request_context,
-        ))
+        )
     disconnect_ibkr(db_session, default_portfolio, request_context)
 
     rows = db_session.query(AuditLog).order_by(AuditLog.created_at).all()

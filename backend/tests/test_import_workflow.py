@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
-import asyncio
 import io
 
 from fastapi import HTTPException, UploadFile
@@ -250,13 +249,13 @@ def test_preview_endpoint_is_read_only_and_returns_bounded_reconciliation(
         ("USD", date(2026, 1, 2)): 23.0,
         ("USD", date(2026, 1, 3)): 23.0,
     }):
-        result = asyncio.run(preview_import_csv(
+        result = preview_import_csv(
             file=_upload(csv),
             replace=False,
             db=db_session,
             portfolio=default_portfolio,
             _context=request_context,
-        ))
+        )
 
     assert result["format"] == "Native"
     assert result["mode"] == "append"
@@ -296,13 +295,13 @@ def test_preview_rejects_upload_larger_than_five_mib(
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(preview_import_csv(
+        preview_import_csv(
             file=upload,
             replace=False,
             db=db_session,
             portfolio=default_portfolio,
             _context=request_context,
-        ))
+        )
 
     assert exc_info.value.status_code == 413
     assert "5 MiB" in str(exc_info.value.detail)
@@ -316,13 +315,13 @@ def _preview(
     request_context,
     replace: bool = False,
 ):
-    return asyncio.run(preview_import_csv(
+    return preview_import_csv(
         file=_upload(csv),
         replace=replace,
         db=db_session,
         portfolio=default_portfolio,
         _context=request_context,
-    ))
+    )
 
 
 def _commit(
@@ -334,14 +333,14 @@ def _commit(
     request_context,
     replace: bool = False,
 ):
-    return asyncio.run(commit_import_csv(
+    return commit_import_csv(
         file=_upload(csv),
         preview_id=preview_id,
         replace=replace,
         db=db_session,
         portfolio=default_portfolio,
         context=request_context,
-    ))
+    )
 
 
 def test_commit_requires_matching_preview_and_current_state(

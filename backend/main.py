@@ -272,8 +272,29 @@ def health(db=Depends(get_db)):
 _BG_TASKS: list = []
 
 
+def _run_periodic_pass(name: str, pass_fn, logger: logging.Logger) -> None:
+    """One poller tick, run in a worker thread: the pass's sync database work
+    between its awaits runs on that thread's own loop (private_loop), never
+    on the server's event loop, so a slow query cannot stall requests."""
+    from private_loop import run_on_private_loop
+
+    token = correlation_id_var.set(f"job-{name}-{uuid.uuid4().hex[:8]}")
+    db = SessionLocal()
+    try:
+        happened = run_on_private_loop(pass_fn, db)
+        from jobs import mark_job_succeeded
+
+        mark_job_succeeded(db, name)
+        db.commit()
+        if happened:
+            logger.info("%s pass: %d event(s)", name, len(happened))
+    finally:
+        correlation_id_var.reset(token)
+        db.close()
+
+
 async def _periodic_loop(name: str, pass_fn, interval: int, initial_delay: int):
-    """Run `await pass_fn(db)` every `interval` seconds, forever. `pass_fn`
+    """Run `pass_fn(db)` every `interval` seconds, forever. `pass_fn`
     returns a list of things that happened (logged when non-empty)."""
     import asyncio as _asyncio
 
@@ -283,19 +304,7 @@ async def _periodic_loop(name: str, pass_fn, interval: int, initial_delay: int):
         try:
             await _asyncio.sleep(delay)
             delay = interval
-            token = correlation_id_var.set(f"job-{name}-{uuid.uuid4().hex[:8]}")
-            db = SessionLocal()
-            try:
-                happened = await pass_fn(db)
-                from jobs import mark_job_succeeded
-
-                mark_job_succeeded(db, name)
-                db.commit()
-                if happened:
-                    logger.info("%s pass: %d event(s)", name, len(happened))
-            finally:
-                correlation_id_var.reset(token)
-                db.close()
+            await _asyncio.to_thread(_run_periodic_pass, name, pass_fn, logger)
         except _asyncio.CancelledError:
             break
         except Exception:

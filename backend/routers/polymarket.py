@@ -5,7 +5,7 @@ import httpx
 import re
 import os
 
-from database import get_db
+from database import get_db, release_connection
 from entitlements import require_broker_capacity, require_capability, require_writable_broker
 from rate_limit import rate_limit
 from models import BrokerConnection, PolymarketPosition, Portfolio
@@ -44,7 +44,7 @@ def _portfolio_positions(db: Session, portfolio: Portfolio):
     "/broker/polymarket/connect",
     dependencies=[Depends(require_capability("polymarket")), Depends(require_broker_capacity("polymarket"))],
 )
-async def connect(
+def connect(
     payload: dict,
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
@@ -59,8 +59,8 @@ async def connect(
 
     # Validate by test-fetching positions from the public Data API
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(f"{DATA_API_BASE}/positions", params={"user": address})
+        with httpx.Client(timeout=15) as client:
+            resp = client.get(f"{DATA_API_BASE}/positions", params={"user": address})
             if resp.status_code != 200:
                 raise HTTPException(
                     status_code=502,
@@ -141,7 +141,7 @@ def disconnect(
 # POST /broker/polymarket/sync
 # ---------------------------------------------------------------------------
 @router.post("/broker/polymarket/sync", dependencies=[Depends(require_capability("polymarket")), Depends(require_writable_broker("polymarket")), Depends(rate_limit("broker_sync", by="workspace"))])
-async def sync_positions(
+def sync_positions(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
     _context: RequestContext = Depends(require_csrf),
@@ -151,15 +151,17 @@ async def sync_positions(
         raise HTTPException(status_code=404, detail="Polymarket is not connected")
 
     address = conn.api_key
+    # Don't hold a pooled connection while the Data API pages through trades.
+    release_connection(db)
 
     # Fetch all trades (the only source of truth for actual buy/sell prices)
     all_trades = []
     offset = 0
     limit = 100
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        with httpx.Client(timeout=30) as client:
             while True:
-                resp = await client.get(
+                resp = client.get(
                     f"{DATA_API_BASE}/trades",
                     params={"user": address, "limit": limit, "offset": offset},
                 )
@@ -173,7 +175,7 @@ async def sync_positions(
                 offset += limit
 
             # Fetch current market prices for open positions
-            pos_resp = await client.get(f"{DATA_API_BASE}/positions", params={"user": address})
+            pos_resp = client.get(f"{DATA_API_BASE}/positions", params={"user": address})
             pos_resp.raise_for_status()
             live_positions = pos_resp.json() if pos_resp.status_code == 200 else []
     except httpx.HTTPStatusError as e:
