@@ -6,7 +6,7 @@ import { preloadRoute } from "./navigation";
 export default function DesktopSidebar({ groups }) {
   return (
     <aside
-      className="w-[232px] shrink-0 bg-surface-card border-r border-surface-border flex flex-col"
+      className="app-sidebar w-[232px] shrink-0 bg-surface-card border-r border-surface-border flex flex-col"
       style={{ boxShadow: "1px 0 0 var(--glass-border-alpha)" }}
     >
       <div className="flex items-center gap-2.5 px-[18px] py-4 border-b border-hairline">

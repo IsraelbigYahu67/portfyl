@@ -39,6 +39,9 @@ describe("theme contrast matrix", () => {
   it.each(THEME_CONTRAST_PAIRS)("$theme $name meets contrast", ({ foreground, background, minimum }) => {
     expect(contrastRatio(foreground, background)).toBeGreaterThanOrEqual(minimum);
   });
+  it("covers the Clay theme", () => {
+    expect(THEME_CONTRAST_PAIRS.some((pair) => pair.theme === "clay")).toBe(true);
+  });
 });
 
 describe("Premium theme contrast against the cream card", () => {

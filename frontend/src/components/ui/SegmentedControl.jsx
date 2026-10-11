@@ -26,7 +26,7 @@ export default function SegmentedControl({
     <div
       role="group"
       aria-label={ariaLabel}
-      className={`${block ? "flex w-full" : "inline-flex"} gap-0.5 rounded-[var(--radius-card)] bg-surface-hover p-0.5 ${className}`}
+      className={`segmented ${block ? "flex w-full" : "inline-flex"} gap-0.5 rounded-[var(--radius-card)] bg-surface-hover p-0.5 ${className}`}
     >
       {options.map((opt) => {
         const active = opt.value === value;

@@ -12,7 +12,9 @@ const PALETTE_OPTIONS = [
 export default function PreferencesSettings({ headingRef }) {
   const { currency, setCurrency, rate, rateLoading } = useCurrency();
   const { palette, setPalette, theme, setTheme, themeStyle, setThemeStyle } = usePalette();
-  const premium = themeStyle === "neu";
+  // Premium and Clay each have one fixed light look, so Appearance and Accent
+  // palette only apply to Classic.
+  const fixedLook = themeStyle === "neu" || themeStyle === "clay";
   const czkUnavailable = !rateLoading && rate === null;
 
   return (
@@ -33,11 +35,12 @@ export default function PreferencesSettings({ headingRef }) {
             options={[
               { value: "glass", label: "Classic", title: "Classic glass theme" },
               { value: "neu", label: "Premium", title: "Warm glass-hybrid theme" },
+              { value: "clay", label: "Clay", title: "Soft clay theme" },
             ]}
           />
         </div>
 
-        <div className={premium ? "opacity-50" : ""}>
+        <div className={fixedLook ? "opacity-50" : ""}>
           <h3 className="mb-2 text-sm font-semibold">Appearance</h3>
           <SegmentedControl
             aria-label="Appearance"
@@ -45,15 +48,15 @@ export default function PreferencesSettings({ headingRef }) {
             value={theme}
             onChange={setTheme}
             options={[
-              { value: "light", label: <><Sun size={14} aria-hidden="true" /> <span>Light</span></>, title: "Light", disabled: premium },
-              { value: "dark", label: <><Moon size={14} aria-hidden="true" /> <span>Dark</span></>, title: "Dark", disabled: premium },
-              { value: "system", label: <><Monitor size={14} aria-hidden="true" /> <span>System</span></>, title: "System", disabled: premium },
+              { value: "light", label: <><Sun size={14} aria-hidden="true" /> <span>Light</span></>, title: "Light", disabled: fixedLook },
+              { value: "dark", label: <><Moon size={14} aria-hidden="true" /> <span>Dark</span></>, title: "Dark", disabled: fixedLook },
+              { value: "system", label: <><Monitor size={14} aria-hidden="true" /> <span>System</span></>, title: "System", disabled: fixedLook },
             ]}
           />
-          {premium && <p className="mt-2 text-xs text-muted">Premium uses its own fixed light appearance.</p>}
+          {fixedLook && <p className="mt-2 text-xs text-muted">{themeStyle === "clay" ? "Clay" : "Premium"} uses its own fixed light appearance.</p>}
         </div>
 
-        <div className={premium ? "opacity-50" : ""}>
+        <div className={fixedLook ? "opacity-50" : ""}>
           <h3 className="mb-2 text-sm font-semibold">Accent palette</h3>
           <div className="flex flex-wrap gap-2">
             {PALETTE_OPTIONS.map(({ key, label, color }) => (
@@ -62,7 +65,7 @@ export default function PreferencesSettings({ headingRef }) {
                 type="button"
                 aria-label={`Theme: ${label}`}
                 aria-pressed={palette === key}
-                disabled={premium}
+                disabled={fixedLook}
                 onClick={() => setPalette(key)}
                 className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm disabled:cursor-not-allowed ${
                   palette === key ? "border-brand text-ink" : "border-surface-border text-muted"

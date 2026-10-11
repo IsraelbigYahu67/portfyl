@@ -49,7 +49,7 @@ export default function MobileNavDrawer({ groups, open, onClose }) {
         role="dialog"
         aria-modal="true"
         aria-label="Navigation"
-        className={`h-full w-[280px] max-w-[85vw] bg-surface-card border-r border-hairline overflow-y-auto ${transitionClass}`}
+        className={`app-drawer h-full w-[280px] max-w-[85vw] bg-surface-card border-r border-hairline overflow-y-auto ${transitionClass}`}
       >
         <div className="flex items-center justify-between px-4 py-2 border-b border-hairline">
           <span className="font-display font-bold text-[15px] text-ink">Navigation</span>

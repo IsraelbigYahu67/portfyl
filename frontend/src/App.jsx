@@ -19,7 +19,7 @@ import StartupPrefetch from "./components/StartupPrefetch";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { EDITION_NAVIGATION, EDITION_ROUTES, EditionShell } from "@edition-manifest";
 import { enabledEditionEntries } from "./editions/filter";
-import { PALETTES, DARK_SURFACES, LIGHT_TOKENS, NEU_TOKENS, GLASS_CHART, SEMANTIC_THEME_TOKENS } from "./lib/themeTokens";
+import { PALETTES, DARK_SURFACES, LIGHT_TOKENS, NEU_TOKENS, CLAY_TOKENS, GLASS_CHART, SEMANTIC_THEME_TOKENS } from "./lib/themeTokens";
 
 export { NEU_TOKENS } from "./lib/themeTokens";
 
@@ -37,38 +37,47 @@ export function resolveDark(theme) {
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
+// Premium ("neu") and Clay share one warm palette and a fixed light look;
+// they differ only in tokens and the root class that scopes their CSS.
+const WARM_STYLES = {
+  neu: { tokens: NEU_TOKENS, rootClass: "theme-premium" },
+  clay: { tokens: CLAY_TOKENS, rootClass: "theme-clay" },
+};
+
 function applyAppearance(name, isDark, themeStyle) {
   const s = document.documentElement.style;
+  const root = document.documentElement.classList;
+  const warm = WARM_STYLES[themeStyle];
+  Object.values(WARM_STYLES).forEach(({ rootClass }) => root.toggle(rootClass, warm?.rootClass === rootClass));
 
-  if (themeStyle === "neu") {
-    s.setProperty("--brand", NEU_TOKENS.brand);
-    s.setProperty("--brand-hover", NEU_TOKENS.brandHover);
-    s.setProperty("--brand-light", NEU_TOKENS.brandLight);
-    s.setProperty("--bg", NEU_TOKENS.bg);
-    s.setProperty("--bg-subtle", NEU_TOKENS.bgSubtle);
-    s.setProperty("--sidebar-active", NEU_TOKENS.brandLight);
-    s.setProperty("--surface-card", NEU_TOKENS.surfaceCard);
-    s.setProperty("--surface-card-elevated", NEU_TOKENS.surfaceCardElevated);
-    s.setProperty("--border", NEU_TOKENS.border);
-    s.setProperty("--hairline", NEU_TOKENS.hairline);
-    s.setProperty("--ink", NEU_TOKENS.ink);
-    s.setProperty("--muted", NEU_TOKENS.muted);
-    s.setProperty("--gain", NEU_TOKENS.gain);
-    s.setProperty("--loss", NEU_TOKENS.loss);
-    s.setProperty("--glass-border-alpha", NEU_TOKENS.glassBorderAlpha);
-    s.setProperty("--glass-overlay-alpha", NEU_TOKENS.glassOverlayAlpha);
-    s.setProperty("--blur-card", NEU_TOKENS.blurCard);
-    s.setProperty("--blur-overlay", NEU_TOKENS.blurOverlay);
-    s.setProperty("--shadow-ambient", NEU_TOKENS.shadowAmbient);
-    s.setProperty("--shadow-inset", NEU_TOKENS.shadowInset);
-    s.setProperty("--radius-card", NEU_TOKENS.radiusCard);
-    NEU_TOKENS.chart.forEach((color, i) => s.setProperty(`--chart-${i + 1}`, color));
-    document.documentElement.classList.toggle("dark", false);
-    document.documentElement.classList.toggle("theme-premium", true);
+  if (warm) {
+    const t = warm.tokens;
+    s.setProperty("--brand", t.brand);
+    s.setProperty("--brand-hover", t.brandHover);
+    s.setProperty("--brand-light", t.brandLight);
+    s.setProperty("--bg", t.bg);
+    s.setProperty("--bg-subtle", t.bgSubtle);
+    s.setProperty("--sidebar-active", t.brandLight);
+    s.setProperty("--surface-card", t.surfaceCard);
+    s.setProperty("--surface-card-elevated", t.surfaceCardElevated);
+    s.setProperty("--border", t.border);
+    s.setProperty("--hairline", t.hairline);
+    s.setProperty("--ink", t.ink);
+    s.setProperty("--muted", t.muted);
+    s.setProperty("--gain", t.gain);
+    s.setProperty("--loss", t.loss);
+    s.setProperty("--glass-border-alpha", t.glassBorderAlpha);
+    s.setProperty("--glass-overlay-alpha", t.glassOverlayAlpha);
+    s.setProperty("--blur-card", t.blurCard);
+    s.setProperty("--blur-overlay", t.blurOverlay);
+    s.setProperty("--shadow-ambient", t.shadowAmbient);
+    s.setProperty("--shadow-inset", t.shadowInset);
+    s.setProperty("--radius-card", t.radiusCard);
+    t.chart.forEach((color, i) => s.setProperty(`--chart-${i + 1}`, color));
+    root.toggle("dark", false);
     return;
   }
 
-  document.documentElement.classList.toggle("theme-premium", false);
   const p = PALETTES[name] || PALETTES.green;
   s.setProperty("--brand", p.brand);
   s.setProperty("--brand-hover", p.brandHover);
@@ -264,7 +273,7 @@ function PaletteProvider({ children }) {
     const apply = () => applyAppearance(palette, resolveDark(theme), themeStyle);
     apply();
     // Follow OS changes only while on "system" AND on Classic glass --
-    // Premium ignores Light/Dark/System entirely.
+    // Premium and Clay ignore Light/Dark/System entirely.
     if (theme === "system" && themeStyle === "glass") {
       const mq = window.matchMedia("(prefers-color-scheme: dark)");
       mq.addEventListener("change", apply);
