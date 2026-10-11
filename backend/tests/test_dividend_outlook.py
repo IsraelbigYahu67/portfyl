@@ -1,5 +1,4 @@
 from datetime import date, datetime, time, timedelta, timezone
-from types import SimpleNamespace
 
 import pandas as pd
 
@@ -49,7 +48,9 @@ def test_forecast_outlook_marks_announced_payment_confirmed_and_the_rest_forecas
     infos = {"QRT": {"shortName": "Quarterly Corp", "currency": "USD", "dividendDate": _epoch(pay_day)}}
     monkeypatch.setattr(portfolio.market_data, "get_infos", lambda _: infos)
     monkeypatch.setattr(portfolio.market_data, "get_info", lambda t: infos[t])
-    monkeypatch.setattr(portfolio.market_data, "ticker", lambda _: SimpleNamespace(dividends=history))
+    monkeypatch.setattr(
+        portfolio.market_data, "ticker_attrs", lambda symbols, attr: {s: history for s in symbols}
+    )
     monkeypatch.setattr(portfolio, "_live_to_usd", lambda _: 1.0)
 
     outlook = portfolio.get_dividend_forecast(db=db_session, portfolio=default_portfolio)["outlook"]
