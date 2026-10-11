@@ -10,6 +10,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 import yfinance as yf
 
+import market_data
+
 from database import get_db
 from entitlements import require_capacity, require_writable_resource
 from models import Watchlist, WatchlistItem
@@ -42,7 +44,7 @@ class ItemCreate(BaseModel):
 def _quote(sym: str) -> dict:
     """Best-effort live quote so the watchlist row can show price + change."""
     try:
-        info = yf.Ticker(yf_symbol(sym)).info or {}
+        info = market_data.ticker(yf_symbol(sym)).info or {}
         price = info.get("currentPrice") or info.get("regularMarketPrice")
         return {
             "symbol": sym,

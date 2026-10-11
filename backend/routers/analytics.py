@@ -35,7 +35,7 @@ def _load_close_panel(yf_tickers: list[str], start: date) -> pd.DataFrame:
     if not yf_tickers:
         return pd.DataFrame()
     try:
-        raw = yf.download(
+        raw = market_data.download(
             yf_tickers,
             start=start.isoformat(),
             auto_adjust=False,
@@ -101,7 +101,7 @@ def _fx_to_usd_series(currencies: set[str], start: date, index: pd.Index) -> dic
         if c == "USD":
             continue
         try:
-            raw = yf.download(f"{c}USD=X", start=start.isoformat(), auto_adjust=True, progress=False)
+            raw = market_data.download(f"{c}USD=X", start=start.isoformat(), auto_adjust=True, progress=False)
             if raw is None or raw.empty:
                 continue
             col = raw["Close"]
@@ -815,7 +815,7 @@ def _modified_dietz_daily_returns(V: pd.Series, C: pd.Series, window_start: date
 def _ticker_daily_returns(ticker: str, start_date: date, target_index) -> pd.Series:
     """Daily simple returns for a single yfinance symbol, reindexed onto target_index."""
     try:
-        raw = yf.download(ticker, start=start_date.isoformat(), auto_adjust=True, progress=False)
+        raw = market_data.download(ticker, start=start_date.isoformat(), auto_adjust=True, progress=False)
     except Exception:
         return pd.Series(dtype=float)
     if raw is None or raw.empty or "Close" not in raw.columns:

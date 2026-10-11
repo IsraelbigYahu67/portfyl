@@ -11,6 +11,8 @@ from typing import Iterable
 import pandas as pd
 import yfinance as yf
 
+import market_data
+
 
 _DAILY_CACHE: dict[str, pd.Series] = {}
 
@@ -30,7 +32,7 @@ def _load_series(currency: str, start: date, end: date) -> pd.Series | None:
     if key in _DAILY_CACHE:
         return _DAILY_CACHE[key]
     try:
-        raw = yf.download(
+        raw = market_data.download(
             pair,
             start=start.strftime("%Y-%m-%d"),
             end=(end + timedelta(days=2)).strftime("%Y-%m-%d"),

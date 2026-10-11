@@ -24,6 +24,9 @@ from models import AuthSession
 
 
 SESSION_MAX_AGE = timedelta(days=30)
+# last_seen_at is a coarse activity marker. Refreshing it on every request
+# turned every read into a pending write, so it moves at most this often.
+LAST_SEEN_RESOLUTION = timedelta(minutes=5)
 
 
 def session_cookie_policy(env: Mapping[str, str]) -> tuple[str, bool]:
@@ -101,7 +104,8 @@ def resolve_session(db: Session, raw_token: str) -> AuthSession | None:
         or _as_utc(row.expires_at) <= now
     ):
         return None
-    row.last_seen_at = now
+    if row.last_seen_at is None or now - _as_utc(row.last_seen_at) >= LAST_SEEN_RESOLUTION:
+        row.last_seen_at = now
     return row
 
 

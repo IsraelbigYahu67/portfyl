@@ -48,6 +48,33 @@ def _ttl(info: dict) -> float:
     return _OK_TTL if info else _EMPTY_TTL
 
 
+def _release_db() -> None:
+    """Hand the current request's DB connection back before waiting on Yahoo.
+
+    Imported lazily so this module keeps working where no database is
+    configured (scripts, the market-data unit tests).
+    """
+    from database import release_request_connections
+
+    release_request_connections()
+
+
+def ticker(symbol: str):
+    """``yf.Ticker`` for request code: frees the request's DB connection first.
+
+    The Ticker's network calls happen when its attributes are read, so call
+    this after the last database read that precedes them.
+    """
+    _release_db()
+    return yf.Ticker(symbol)
+
+
+def download(*args, **kwargs):
+    """``yf.download`` for request code: frees the request's DB connection first."""
+    _release_db()
+    return yf.download(*args, **kwargs)
+
+
 def _raw_info(symbol: str) -> dict:
     """Fetch ``.info`` behind a short ``history()`` fail-fast gate.
 
@@ -84,6 +111,9 @@ def get_infos(tickers, timeout: float = INFO_TIMEOUT) -> dict[str, dict]:
         if cached and now - cached[0] < _ttl(cached[1]):
             out[tk] = cached[1]
         elif key not in pending:
+            if not pending:
+                # Before the first submit: the worker may reach Yahoo at once.
+                _release_db()
             fut = _inflight.get(key)
             if fut is None:
                 fut = _executor.submit(_raw_info, yf_symbol(tk))

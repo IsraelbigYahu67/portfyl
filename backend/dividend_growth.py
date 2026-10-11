@@ -13,6 +13,8 @@ from typing import Optional
 import pandas as pd
 import yfinance as yf
 
+import market_data
+
 import shibui_client
 from cache import ttl_cache
 from ticker_map import yf_symbol
@@ -128,7 +130,7 @@ def compute_dividend_growth(symbol: str, _current_year: int | None = None) -> di
     source = "shibui" if div is not None else "yfinance"
 
     try:
-        tk = yf.Ticker(yf_symbol(symbol))
+        tk = market_data.ticker(yf_symbol(symbol))
     except Exception:
         tk = None
 

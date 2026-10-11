@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from auth import csrf_matches, resolve_session, session_token_from_request
-from database import get_db, set_rls_context
+from database import get_db, release_connection, set_rls_context
 from models import AuthSession, Membership, Portfolio, User, Workspace
 
 
@@ -115,6 +115,11 @@ def get_request_context(
         selected_membership, workspace = available[0]
 
     set_rls_context(db, user_id=user.id, workspace_id=workspace.id)
+    # Authentication is done: commit its own write (the throttled last-seen
+    # touch) and hand the connection back, so the route starts with a clean
+    # session that market-data calls can release again before waiting on
+    # Yahoo. The RLS identity is re-applied on the route's first query.
+    release_connection(db, commit_pending=True)
     return RequestContext(
         user=user,
         workspace=workspace,

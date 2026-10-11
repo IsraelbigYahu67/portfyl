@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextvars
 import os
+import weakref
 from dataclasses import dataclass
 from typing import Mapping
 from uuid import UUID
@@ -115,8 +117,87 @@ def _reapply_rls_context(session: Session, _transaction, connection) -> None:
         )
 
 
+_REQUEST_SCOPED_KEY = "portfyl_request_scoped"
+_FLUSHED_WRITES_KEY = "portfyl_flushed_writes"
+# Request sessions used by the current call. Starlette runs every sync
+# dependency and endpoint through anyio, which gives each call its own copy
+# of the caller's context, so this only ever sees the sessions of the
+# request running in this thread right now, never another request's.
+_request_sessions: contextvars.ContextVar[tuple[weakref.ref, ...]] = contextvars.ContextVar(
+    "portfyl_request_sessions", default=()
+)
+
+
+@event.listens_for(Session, "do_orm_execute")
+def _track_request_session(orm_execute_state) -> None:
+    session = orm_execute_state.session
+    if not session.info.get(_REQUEST_SCOPED_KEY):
+        return
+    refs = _request_sessions.get()
+    if any(ref() is session for ref in refs):
+        return
+    _request_sessions.set(refs + (weakref.ref(session),))
+
+
+@event.listens_for(Session, "after_flush")
+def _mark_flushed_writes(session: Session, _flush_context) -> None:
+    session.info[_FLUSHED_WRITES_KEY] = True
+
+
+@event.listens_for(Session, "after_transaction_end")
+def _clear_flushed_writes(session: Session, transaction) -> None:
+    if transaction.parent is None:
+        session.info.pop(_FLUSHED_WRITES_KEY, None)
+
+
+def release_connection(session: Session, *, commit_pending: bool = False) -> None:
+    """Give this session's pooled connection back before slow network I/O.
+
+    A Session holds its connection from the first query until the
+    transaction ends. An endpoint that read the database and then waited on
+    Yahoo Finance kept a pool slot busy the whole time, so a few concurrent
+    dashboard requests exhausted the pool (5 + 2) and every other request,
+    login included, timed out. Ending the read transaction returns the
+    connection. Loaded objects stay attached and readable: the commit skips
+    expire_on_commit, so touching them does not reopen a transaction. The
+    next query begins a new transaction and `_reapply_rls_context` restores
+    the RLS identity, so tenant scoping is unchanged.
+
+    A session with pending or flushed-but-uncommitted writes is left alone,
+    so a write is never committed early. `commit_pending=True` is for a
+    caller that owns those writes and wants them committed here (the auth
+    dependency's last-seen touch, see tenancy.get_request_context).
+    """
+    if not session.in_transaction():
+        return
+    if not commit_pending and (
+        session.new or session.dirty or session.deleted or session.info.get(_FLUSHED_WRITES_KEY)
+    ):
+        return
+    expire = session.expire_on_commit
+    session.expire_on_commit = False
+    try:
+        session.commit()
+    finally:
+        session.expire_on_commit = expire
+
+
+def release_request_connections() -> None:
+    """Release the connection of every request session this call has used.
+
+    Called by market_data right before it reaches Yahoo Finance, so the
+    routers do not have to thread `db` into every helper that fetches quotes.
+    Sessions outside a request (background jobs) are never touched.
+    """
+    for ref in _request_sessions.get():
+        session = ref()
+        if session is not None:
+            release_connection(session)
+
+
 def get_db():
     db = SessionLocal()
+    db.info[_REQUEST_SCOPED_KEY] = True
     try:
         yield db
     finally:
