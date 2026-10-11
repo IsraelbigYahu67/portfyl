@@ -1,4 +1,4 @@
-const CLOUD_RUN_ORIGIN = "https://portfyl-741407058560.europe-west1.run.app";
+const CLOUD_RUN_ORIGIN = "https://portfyl-812512242326.europe-west1.run.app";
 
 export default {
   async fetch(request, env) {
