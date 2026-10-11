@@ -14,9 +14,16 @@ function Chip({ label, value, positive, negative }) {
   );
 }
 
-export default function PortfolioHero({ summary, loading, currency = "USD", series = [] }) {
+// `snapshot` ({ positionsValue }) replaces the ledger's position value while
+// a broker history backfill is still filling the ledger (see
+// lib/dashboardSummaries.snapshotNetWorth). The ledger's day change is
+// meaningless then, so it is hidden.
+export default function PortfolioHero({ summary, snapshot = null, loading, currency = "USD", series = [] }) {
   const positive = (summary?.day_change ?? summary?.total_pnl ?? 0) >= 0;
-  const netWorth = summary?.net_worth ?? summary?.total_value ?? 0;
+  const positionsValue = snapshot ? snapshot.positionsValue : summary?.total_value;
+  const netWorth = snapshot
+    ? snapshot.positionsValue + (summary?.cash ?? 0)
+    : summary?.net_worth ?? summary?.total_value ?? 0;
   const animatedValue = useCountUp(netWorth, { enabled: !loading && summary != null });
 
   return (
@@ -34,13 +41,20 @@ export default function PortfolioHero({ summary, loading, currency = "USD", seri
                   <span className="financial-headline font-display text-[clamp(2.25rem,5vw,3.25rem)] tracking-tight leading-none">
                     {formatMoney(animatedValue, currency)}
                   </span>
-                  <DeltaPill value={summary.day_change} pct={summary.day_change_percent} currency={currency} size="lg" />
+                  {!snapshot && (
+                    <DeltaPill value={summary.day_change} pct={summary.day_change_percent} currency={currency} size="lg" />
+                  )}
                 </div>
                 <div className="flex items-center gap-3 mt-1 financial-data font-sans">
-                  <span>Positions {formatMoney(summary.total_value, currency)}</span>
+                  <span>Positions {formatMoney(positionsValue, currency)}</span>
                   <span aria-hidden="true">·</span>
                   <span>Cash {formatMoney(summary.cash, currency)}</span>
                 </div>
+                {snapshot && (
+                  <p className="text-xs text-muted mt-1">
+                    Current value from your Trading 212 snapshot. Performance figures fill in once the history import finishes.
+                  </p>
+                )}
               </>
             )}
           </div>

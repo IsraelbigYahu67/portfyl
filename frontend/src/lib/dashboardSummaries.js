@@ -66,3 +66,20 @@ export function buildCompositionRows(breakdown = [], targetGroups = []) {
     };
   });
 }
+
+// While a Trading 212 history backfill is still running, the transaction
+// ledger is incomplete and the ledger-based net worth reads near zero. The
+// broker's current positions snapshot is then the only current-value evidence,
+// so the hero shows it instead. Returns null whenever the ledger should be
+// trusted (no backfill, or it completed) or the snapshot cannot be valued in
+// full in the display currency.
+export function snapshotNetWorth({ positions, historyRun, currency }) {
+  if (!historyRun || historyRun.state === "completed") return null;
+  const rows = positions?.positions ?? [];
+  if (!rows.length || positions.currency !== currency) return null;
+  if (rows.some((p) => !Number.isFinite(p.market_value))) return null;
+  return {
+    positionsValue: rows.reduce((sum, p) => sum + p.market_value, 0),
+    asOf: positions.as_of ?? null,
+  };
+}

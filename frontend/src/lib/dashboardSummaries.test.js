@@ -1,4 +1,4 @@
-import { summarizePassiveIncome, splitDividendForecast, buildCompositionRows } from "./dashboardSummaries";
+import { summarizePassiveIncome, splitDividendForecast, buildCompositionRows, snapshotNetWorth } from "./dashboardSummaries";
 
 describe("summarizePassiveIncome", () => {
   const holdings = [
@@ -115,5 +115,42 @@ describe("buildCompositionRows", () => {
 
   it("works without any targets", () => {
     expect(buildCompositionRows(breakdown, undefined).every((r) => r.targetPct === null)).toBe(true);
+  });
+});
+
+describe("snapshotNetWorth", () => {
+  const positions = {
+    status: "fresh",
+    as_of: "2026-10-11T14:00:00Z",
+    currency: "CZK",
+    positions: [{ market_value: 50000 }, { market_value: 18609 }],
+  };
+  const fetching = { state: "fetching" };
+
+  it("sums the broker snapshot while T212 history is still loading", () => {
+    expect(snapshotNetWorth({ positions, historyRun: fetching, currency: "CZK" })).toEqual({
+      positionsValue: 68609,
+      asOf: "2026-10-11T14:00:00Z",
+    });
+  });
+
+  it("is null once history has completed, so the ledger value is used", () => {
+    expect(snapshotNetWorth({ positions, historyRun: { state: "completed" }, currency: "CZK" })).toBeNull();
+  });
+
+  it("is null without a history run (e.g. a CSV-only portfolio)", () => {
+    expect(snapshotNetWorth({ positions, historyRun: null, currency: "CZK" })).toBeNull();
+  });
+
+  it("is null when any position has no market value or the currency differs", () => {
+    const partial = { ...positions, positions: [{ market_value: 50000 }, { market_value: null }] };
+    expect(snapshotNetWorth({ positions: partial, historyRun: fetching, currency: "CZK" })).toBeNull();
+    expect(snapshotNetWorth({ positions, historyRun: fetching, currency: "USD" })).toBeNull();
+  });
+
+  it("is null without snapshot positions", () => {
+    const empty = { ...positions, positions: [] };
+    expect(snapshotNetWorth({ positions: empty, historyRun: fetching, currency: "CZK" })).toBeNull();
+    expect(snapshotNetWorth({ positions: undefined, historyRun: fetching, currency: "CZK" })).toBeNull();
   });
 });
