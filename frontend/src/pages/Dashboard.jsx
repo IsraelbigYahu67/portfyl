@@ -11,7 +11,7 @@ import MetricCard from "../components/MetricCard";
 import PerformanceChart from "../components/PerformanceChart";
 import { RefreshCw, TrendingUp, TrendingDown, Calendar, LayoutGrid, Lock, UserCheck, PieChart, Activity, Coins } from "lucide-react";
 import { formatMoney, formatPercent, formatShortDate } from "../lib/format";
-import { AsyncSection, Card, SectionHeader, SkeletonRows, SkeletonChart, EmptyState, DeltaPill, ChartSummary, KpiBox } from "../components/ui";
+import { AsyncSection, Card, SectionHeader, SkeletonRows, SkeletonChart, EmptyState, DeltaPill, KpiBox } from "../components/ui";
 import Heatmap from "../components/Heatmap";
 import { TickerLink } from "../components/TickerLink";
 import DashboardGrid from "../components/DashboardGrid";
@@ -360,26 +360,6 @@ export default function Dashboard() {
                   benchmarks={benchmarkData}
                   benchmarkMeta={BENCHMARKS.filter((b) => activeBenchmarks.includes(b.key))}
                 />
-                <ChartSummary title="Performance chart data">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="text-muted">
-                        <th className="pr-3 font-medium">Date</th>
-                        <th className="font-medium">{chartMode === "value" ? "Value" : "Growth %"}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(perf || []).map((point) => (
-                        <tr key={point.date}>
-                          <td className="pr-3 tabular-nums">{point.date}</td>
-                          <td className="tabular-nums">
-                            {chartMode === "value" ? formatMoney(point.value, currency) : `${point.pnl_pct}%`}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </ChartSummary>
               </AsyncSection>
             </Card>
           ),
@@ -441,24 +421,6 @@ export default function Dashboard() {
                   empty={<div className="flex-1 flex"><EmptyState icon={LayoutGrid} title="No holdings to map" hint="Import transactions to see your heatmap." /></div>}
                 >
                   <Heatmap />
-                  <ChartSummary title="Heatmap holdings data">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="text-muted">
-                          <th className="pr-3 font-medium">Ticker</th>
-                          <th className="font-medium">Weight</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {holdings.map((h) => (
-                          <tr key={h.ticker}>
-                            <td className="pr-3 font-mono">{h.ticker}</td>
-                            <td className="tabular-nums">{h.weight}%</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </ChartSummary>
                 </AsyncSection>
               </Card>
 

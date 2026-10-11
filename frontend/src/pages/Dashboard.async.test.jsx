@@ -132,14 +132,6 @@ it("orders dashboard widgets by purpose and collapses insider activity", async (
   }
 });
 
-it("gives the heatmap an accessible data summary", async () => {
-  api.fetchHoldings.mockResolvedValue([{ ticker: "MSFT", weight: 100, market_value: 1000 }]);
-  renderPage();
-
-  await screen.findByText("Healthy heatmap");
-  expect(screen.getByRole("group", { name: "Heatmap holdings data" })).toHaveTextContent("MSFT");
-});
-
 it("records a populated dashboard once summary and holdings both load with real data", async () => {
   renderPage();
   await screen.findByText("Healthy performance chart");
