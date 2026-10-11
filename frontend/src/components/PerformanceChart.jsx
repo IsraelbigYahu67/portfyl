@@ -65,7 +65,7 @@ function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }
         {mode === "value" && (
           <>
             {line("Value", formatMoney(row.value, currency), "text-ink")}
-            {line("Invested", formatMoney(row.invested, currency), "text-muted")}
+            {line("Deposited", formatMoney(row.invested, currency), "text-muted")}
           </>
         )}
         {pnl != null && line("Period P&L", formatMoney(pnl, currency), moneyColor(pnl))}
@@ -232,7 +232,7 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                 wrapperStyle={{ paddingBottom: '20px' }}
                 formatter={(v) => {
                   if (v === "value") return <span style={LEGEND_TEXT_STYLE}>Portfolio Value</span>;
-                  if (v === "invested") return <span style={LEGEND_TEXT_STYLE}>Invested</span>;
+                  if (v === "invested") return <span style={LEGEND_TEXT_STYLE}>Deposited</span>;
                   const bm = benchmarkMeta.find((b) => `bench_${b.key}` === v);
                   if (bm) return <span style={{ ...LEGEND_TEXT_STYLE, color: bm.color }}>{bm.label}</span>;
                   return <span style={LEGEND_TEXT_STYLE}>{v}</span>;

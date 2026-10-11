@@ -40,7 +40,7 @@ vi.mock("../hooks/useT212Sync", () => t212Mocks);
 vi.mock("../components/DashboardGrid", () => ({
   default: ({ children }) => {
     // Mirror the real grid's fixed widget order.
-    const order = ["attention", "performance", "composition", "concentration", "movers", "dividends", "insiderBuys"];
+    const order = ["attention", "performance", "composition", "insiderBuys", "concentration", "movers", "dividends"];
     return (
       <div>
         {order
@@ -123,7 +123,7 @@ it("orders dashboard widgets by purpose and collapses insider activity", async (
 
   await screen.findByText("Healthy performance chart");
 
-  const order = ["Attention signals", "Portfolio Performance", "Top 10 Holdings", "Top Movers", "Earnings Calendar", "Insider activity (1Y)"];
+  const order = ["Attention signals", "Portfolio Performance", "Insider activity (1Y)", "Top 10 Holdings", "Top Movers", "Earnings Calendar"];
   const nodes = order.map((label) => screen.getByText(label));
   for (let i = 1; i < nodes.length; i += 1) {
     expect(

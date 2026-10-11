@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import DashboardGrid, { ALL_WIDGETS, normalizeWidgetOrder, swapLayoutPositions } from "./DashboardGrid";
 
-const ORDER_KEY = "sb_dashboard_widget_order_v3";
+const ORDER_KEY = "sb_dashboard_widget_order_v4";
 const HIDDEN_KEY = "sb_dashboard_widgets_hidden";
-const LAYOUT_KEY = "sb_dashboard_layout_v2";
+const LAYOUT_KEY = "sb_dashboard_layout_v3";
 
 const children = Object.fromEntries(
   ALL_WIDGETS.map((w) => [

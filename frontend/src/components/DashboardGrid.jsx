@@ -5,23 +5,24 @@ import "react-grid-layout/css/styles.css";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
-// v2/v3 keys: the dashboard was rebuilt around design variant A (attention
-// cards first, composition and dividends added), so orders and grid
-// coordinates saved for the old widget set start fresh instead of mixing in.
-const STORAGE_KEY = "sb_dashboard_layout_v2";
+// Layout v3 / order v4 keys: insider activity moved up to sit full-width
+// between composition and the top-holdings row, so orders and grid
+// coordinates saved for the previous arrangement start fresh instead of
+// keeping insider activity beside composition.
+const STORAGE_KEY = "sb_dashboard_layout_v3";
 // Order-first persistence: the widget sequence is the source of truth, and
 // desktop drag/resize coordinates are an optional decoration on top of it.
-const ORDER_KEY = "sb_dashboard_widget_order_v3";
+const ORDER_KEY = "sb_dashboard_widget_order_v4";
 const HIDDEN_KEY = "sb_dashboard_widgets_hidden";
 
 const ALL_WIDGETS = [
   { id: "attention", label: "Attention signals", minW: 3, minH: 3 },
   { id: "performance", label: "Performance", minW: 3, minH: 4 },
   { id: "composition", label: "Portfolio composition", minW: 3, minH: 4 },
+  { id: "insiderBuys", label: "Insider activity (1Y)", minW: 3, minH: 4 },
   { id: "concentration", label: "Top holdings & heatmap", minW: 3, minH: 4 },
   { id: "movers", label: "Movers & earnings", minW: 4, minH: 4 },
   { id: "dividends", label: "Dividends", minW: 3, minH: 4 },
-  { id: "insiderBuys", label: "Insider activity (1Y)", minW: 3, minH: 4 },
 ];
 
 const KNOWN_IDS = ALL_WIDGETS.map((w) => w.id);
@@ -31,10 +32,10 @@ const DEFAULT_LAYOUTS = {
     { i: "attention", x: 0, y: 0, w: 6, h: 4 },
     { i: "performance", x: 0, y: 4, w: 6, h: 5 },
     { i: "composition", x: 0, y: 9, w: 6, h: 5 },
-    { i: "concentration", x: 0, y: 14, w: 6, h: 5 },
-    { i: "movers", x: 0, y: 19, w: 6, h: 5 },
-    { i: "dividends", x: 0, y: 24, w: 6, h: 5 },
-    { i: "insiderBuys", x: 0, y: 29, w: 6, h: 5 },
+    { i: "insiderBuys", x: 0, y: 14, w: 6, h: 5 },
+    { i: "concentration", x: 0, y: 19, w: 6, h: 5 },
+    { i: "movers", x: 0, y: 24, w: 6, h: 5 },
+    { i: "dividends", x: 0, y: 29, w: 6, h: 5 },
   ],
 };
 
