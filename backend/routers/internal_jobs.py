@@ -38,6 +38,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from database import DatabaseSettings, SessionLocal, build_engine
 from logging_setup import correlation_id_var
+from private_loop import run_on_private_loop
 
 router = APIRouter(prefix="/internal/jobs", tags=["internal-jobs"], include_in_schema=False)
 log = logging.getLogger("portfyl.internal_jobs")
@@ -145,7 +146,11 @@ def with_job_lock(db: Session, job_name: str) -> Iterator[bool]:
             db.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": key})
 
 
-async def _run_job(job_name: str, pass_fn: Callable[[Session], Awaitable[list]]) -> dict:
+def _run_job(job_name: str, pass_fn: Callable[[Session], Awaitable[list]]) -> dict:
+    """Run one pass with its own session. Called from the plain-def job
+    endpoints below, so it runs in the threadpool: the token check (which may
+    fetch Google's certificates), the advisory lock, and the pass's sync
+    database work between its awaits never touch the server's event loop."""
     token = correlation_id_var.set(f"job-{job_name}-{uuid.uuid4().hex[:8]}")
     db = _new_job_session()
     try:
@@ -153,7 +158,7 @@ async def _run_job(job_name: str, pass_fn: Callable[[Session], Awaitable[list]])
             if not acquired:
                 log.info("%s: skipped, already running", job_name)
                 return {"job": job_name, "skipped": "already running"}
-            happened = await pass_fn(db)
+            happened = run_on_private_loop(pass_fn, db)
             from jobs import mark_job_succeeded
 
             mark_job_succeeded(db, job_name)
@@ -167,50 +172,50 @@ async def _run_job(job_name: str, pass_fn: Callable[[Session], Awaitable[list]])
 
 
 @router.post("/alerts")
-async def run_alerts_job(authorization: str | None = Header(default=None)) -> dict:
+def run_alerts_job(authorization: str | None = Header(default=None)) -> dict:
     verify_scheduler_token(authorization)
     from jobs import alert_check_all_workspaces
 
-    return await _run_job("alerts", alert_check_all_workspaces)
+    return _run_job("alerts", alert_check_all_workspaces)
 
 
 @router.post("/autosync")
-async def run_autosync_job(authorization: str | None = Header(default=None)) -> dict:
+def run_autosync_job(authorization: str | None = Header(default=None)) -> dict:
     verify_scheduler_token(authorization)
     from jobs import autosync_all_workspaces
 
-    return await _run_job("autosync", autosync_all_workspaces)
+    return _run_job("autosync", autosync_all_workspaces)
 
 
 @router.post("/dividends")
-async def run_dividends_job(authorization: str | None = Header(default=None)) -> dict:
+def run_dividends_job(authorization: str | None = Header(default=None)) -> dict:
     verify_scheduler_token(authorization)
     from jobs import dividend_notify_all_workspaces
 
-    return await _run_job("dividends", dividend_notify_all_workspaces)
+    return _run_job("dividends", dividend_notify_all_workspaces)
 
 
 @router.post("/broker_backfill")
-async def run_broker_backfill_job(authorization: str | None = Header(default=None)) -> dict:
+def run_broker_backfill_job(authorization: str | None = Header(default=None)) -> dict:
     verify_scheduler_token(authorization)
     from jobs import broker_backfill_all_workspaces
 
-    return await _run_job("broker_backfill", broker_backfill_all_workspaces)
+    return _run_job("broker_backfill", broker_backfill_all_workspaces)
 
 
 @router.post("/rate_limit_cleanup")
-async def run_rate_limit_cleanup_job(authorization: str | None = Header(default=None)) -> dict:
+def run_rate_limit_cleanup_job(authorization: str | None = Header(default=None)) -> dict:
     verify_scheduler_token(authorization)
     from jobs import rate_limit_cleanup_pass
 
-    return await _run_job("rate_limit_cleanup", rate_limit_cleanup_pass)
+    return _run_job("rate_limit_cleanup", rate_limit_cleanup_pass)
 
 
 @router.post("/account_deletion_cleanup")
-async def run_account_deletion_cleanup_job(
+def run_account_deletion_cleanup_job(
     authorization: str | None = Header(default=None),
 ) -> dict:
     verify_scheduler_token(authorization)
     from jobs import account_deletion_cleanup_pass
 
-    return await _run_job("account_deletion_cleanup", account_deletion_cleanup_pass)
+    return _run_job("account_deletion_cleanup", account_deletion_cleanup_pass)

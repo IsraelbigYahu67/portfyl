@@ -613,13 +613,13 @@ def test_polymarket_sync_replaces_only_the_authorized_workspace(
             return None
 
     class Client:
-        async def __aenter__(self):
+        def __enter__(self):
             return self
 
-        async def __aexit__(self, *_args):
+        def __exit__(self, *_args):
             return False
 
-        async def get(self, url, **_kwargs):
+        def get(self, url, **_kwargs):
             if url.endswith("/trades"):
                 return Response([{
                     "conditionId": "alice-new-condition",
@@ -637,7 +637,7 @@ def test_polymarket_sync_replaces_only_the_authorized_workspace(
                 "curPrice": 0.6,
             }])
 
-    monkeypatch.setattr(polymarket_router.httpx, "AsyncClient", lambda **_kwargs: Client())
+    monkeypatch.setattr(polymarket_router.httpx, "Client", lambda **_kwargs: Client())
 
     response = alice_client.post(
         "/api/broker/polymarket/sync",

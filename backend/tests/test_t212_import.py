@@ -7,7 +7,6 @@ The fixture rows are verbatim lines from a real Trading 212 export
 
 from __future__ import annotations
 
-import asyncio
 import io
 from datetime import date, datetime, timezone
 
@@ -251,8 +250,8 @@ def test_failed_t212_normalization_cannot_replace_existing_rows(db_session, defa
     upload = UploadFile(filename="bad-t212.csv", file=io.BytesIO(payload))
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(import_csv(file=upload, replace=True, db=db_session,
-                               portfolio=default_portfolio))
+        import_csv(file=upload, replace=True, db=db_session,
+                   portfolio=default_portfolio)
 
     assert exc_info.value.status_code == 400
     assert "Row 2" in str(exc_info.value.detail)
@@ -318,8 +317,8 @@ def test_valid_t212_replace_is_atomic_and_marks_csv_source(db_session, default_p
     }]).to_csv(index=False).encode()
     upload = UploadFile(filename="full-t212.csv", file=io.BytesIO(payload))
 
-    result = asyncio.run(import_csv(file=upload, replace=False, db=db_session,
-                                    portfolio=default_portfolio))
+    result = import_csv(file=upload, replace=False, db=db_session,
+                        portfolio=default_portfolio)
 
     assert result["replaced"] is True
     assert result["events"] == 1
@@ -476,8 +475,8 @@ def test_t212_full_export_replace_clears_history_coverage(db_session, default_po
     }]).to_csv(index=False).encode()
     upload = UploadFile(filename="full-t212.csv", file=io.BytesIO(payload))
 
-    result = asyncio.run(import_csv(file=upload, replace=False, db=db_session,
-                                    portfolio=default_portfolio))
+    result = import_csv(file=upload, replace=False, db=db_session,
+                        portfolio=default_portfolio)
 
     assert result["replaced"] is True
     db_session.refresh(connection)

@@ -10,7 +10,7 @@ from typing import Annotated
 
 from audit import record_audit_event
 from plans import PlanTier
-from database import get_db
+from database import get_db, release_connection
 from models import BrokerConnection, Transaction, Portfolio
 from routers.portfolios import require_portfolio
 from app_settings import get_user_secret, get_user_setting, set_user_secret, set_user_setting
@@ -188,7 +188,7 @@ def _system_prompt(context: str | None) -> str:
 # DeepSeek call
 # ---------------------------------------------------------------------------
 
-async def _call_deepseek(api_key: str, model: str, messages: list[dict]) -> tuple[str, dict | None]:
+def _call_deepseek(api_key: str, model: str, messages: list[dict]) -> tuple[str, dict | None]:
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -196,8 +196,8 @@ async def _call_deepseek(api_key: str, model: str, messages: list[dict]) -> tupl
     body = {"model": model, "messages": messages, "stream": False, "temperature": 0.3}
 
     try:
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(DEEPSEEK_URL, headers=headers, json=body)
+        with httpx.Client(timeout=120) as client:
+            resp = client.post(DEEPSEEK_URL, headers=headers, json=body)
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="DeepSeek timed out. Try again or use deepseek-chat.")
     except httpx.HTTPError as e:
@@ -310,7 +310,7 @@ class ChatRequest(BaseModel):
 
 
 @router.post("/chat", dependencies=[Depends(require_capability("assistant_byok")), Depends(rate_limit("assistant_chat", by="workspace"))])
-async def chat(
+def chat(
     payload: ChatRequest,
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
@@ -377,8 +377,10 @@ async def chat(
                 detail={"code": "idempotency_key_already_used"},
             )
         db.commit()
+    # The model can take minutes; don't hold a pooled connection meanwhile.
+    release_connection(db)
     try:
-        content, usage = await _call_deepseek(api_key, model, messages)
+        content, usage = _call_deepseek(api_key, model, messages)
     except Exception:
         if usage_reservation is not None:
             usage_reservation = db.merge(usage_reservation)

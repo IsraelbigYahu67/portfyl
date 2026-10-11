@@ -14,10 +14,6 @@ from fastapi import HTTPException
 import routers.internal_jobs as internal_jobs
 
 
-def _run(coro):
-    return asyncio.run(coro)
-
-
 class TestVerifySchedulerToken:
     def test_missing_header_is_401(self):
         with pytest.raises(HTTPException) as exc_info:
@@ -88,7 +84,7 @@ class TestJobEndpointsRunExactlyOnePass:
         monkeypatch.setattr(internal_jobs, "verify_scheduler_token", lambda auth: None)
         pass_fn = AsyncMock(return_value=[{"triggered": 1}])
         with patch("jobs.alert_check_all_workspaces", pass_fn):
-            result = _run(internal_jobs.run_alerts_job(authorization="Bearer x"))
+            result = internal_jobs.run_alerts_job(authorization="Bearer x")
         pass_fn.assert_awaited_once()
         assert result == {"job": "alerts", "events": 1}
 
@@ -96,7 +92,7 @@ class TestJobEndpointsRunExactlyOnePass:
         monkeypatch.setattr(internal_jobs, "verify_scheduler_token", lambda auth: None)
         pass_fn = AsyncMock(return_value=[])
         with patch("jobs.autosync_all_workspaces", pass_fn):
-            result = _run(internal_jobs.run_autosync_job(authorization="Bearer x"))
+            result = internal_jobs.run_autosync_job(authorization="Bearer x")
         pass_fn.assert_awaited_once()
         assert result == {"job": "autosync", "events": 0}
 
@@ -104,7 +100,7 @@ class TestJobEndpointsRunExactlyOnePass:
         monkeypatch.setattr(internal_jobs, "verify_scheduler_token", lambda auth: None)
         pass_fn = AsyncMock(return_value=[])
         with patch("jobs.dividend_notify_all_workspaces", pass_fn):
-            result = _run(internal_jobs.run_dividends_job(authorization="Bearer x"))
+            result = internal_jobs.run_dividends_job(authorization="Bearer x")
         pass_fn.assert_awaited_once()
         assert result == {"job": "dividends", "events": 0}
 
@@ -112,7 +108,7 @@ class TestJobEndpointsRunExactlyOnePass:
         monkeypatch.setattr(internal_jobs, "verify_scheduler_token", lambda auth: None)
         pass_fn = AsyncMock(return_value=[{"deleted": 42}])
         with patch("jobs.rate_limit_cleanup_pass", pass_fn):
-            result = _run(internal_jobs.run_rate_limit_cleanup_job(authorization="Bearer x"))
+            result = internal_jobs.run_rate_limit_cleanup_job(authorization="Bearer x")
         pass_fn.assert_awaited_once()
         assert result == {"job": "rate_limit_cleanup", "events": 1}
 
@@ -120,10 +116,8 @@ class TestJobEndpointsRunExactlyOnePass:
         monkeypatch.setattr(internal_jobs, "verify_scheduler_token", lambda auth: None)
         pass_fn = AsyncMock(return_value=[])
         with patch("jobs.account_deletion_cleanup_pass", pass_fn):
-            result = _run(
-                internal_jobs.run_account_deletion_cleanup_job(
-                    authorization="Bearer x"
-                )
+            result = internal_jobs.run_account_deletion_cleanup_job(
+                authorization="Bearer x"
             )
         pass_fn.assert_awaited_once()
         assert result == {"job": "account_deletion_cleanup", "events": 0}
@@ -132,7 +126,7 @@ class TestJobEndpointsRunExactlyOnePass:
         pass_fn = AsyncMock(return_value=[])
         with patch("jobs.alert_check_all_workspaces", pass_fn):
             with pytest.raises(HTTPException) as exc_info:
-                _run(internal_jobs.run_alerts_job(authorization=None))
+                internal_jobs.run_alerts_job(authorization=None)
         assert exc_info.value.status_code == 401
         pass_fn.assert_not_awaited()
 
@@ -175,7 +169,7 @@ class TestEditionConditionalMounting:
         try:
             main = _reload_main(monkeypatch, "local")
             monkeypatch.setattr(main, "assert_alembic_head", lambda db: None)
-            _run(main._start_background_pollers())
+            asyncio.run(main._start_background_pollers())
             assert len(main._BG_TASKS) == 4
         finally:
             for task in main._BG_TASKS:
@@ -187,7 +181,7 @@ class TestEditionConditionalMounting:
         try:
             main = _reload_main(monkeypatch, "cloud")
             monkeypatch.setattr(main, "assert_alembic_head", lambda db: None)
-            _run(main._start_background_pollers())
+            asyncio.run(main._start_background_pollers())
             assert main._BG_TASKS == []
         finally:
             _reload_main(monkeypatch, "local")

@@ -6,7 +6,7 @@ from uuid import UUID
 import httpx
 
 from audit import record_audit_event
-from database import get_db
+from database import get_db, release_connection
 from entitlements import require_capability
 from models import DiscordWebhook, Portfolio
 from tenancy import RequestContext, require_csrf, require_portfolio
@@ -165,7 +165,7 @@ def delete_webhook(
 
 
 @router.post("/webhook/test", dependencies=[Depends(require_capability("notification_integrations"))])
-async def test_webhook(
+def test_webhook(
     body: WebhookTestMessage,
     portfolio: Portfolio = Depends(require_portfolio),
     db: Session = Depends(get_db),
@@ -173,6 +173,9 @@ async def test_webhook(
     hook = _portfolio_webhook(db, portfolio)
     if not hook:
         raise HTTPException(404, "No webhook configured")
+    webhook_url = hook.webhook_url
+    # Don't hold a pooled connection while Discord answers.
+    release_connection(db)
 
     message = body.message or "Test notification from Portfyl"
     payload = {
@@ -184,8 +187,8 @@ async def test_webhook(
         }]
     }
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(hook.webhook_url, json=payload)
+    with httpx.Client() as client:
+        resp = client.post(webhook_url, json=payload)
         if resp.status_code not in (200, 204):
             raise HTTPException(502, f"Discord returned {resp.status_code}: {resp.text[:200]}")
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import Mock, patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -25,7 +25,7 @@ def test_free_cloud_workspace_cannot_call_hosted_assistant(
     app.dependency_overrides[get_request_context] = lambda: request_context
     app.dependency_overrides[require_csrf] = lambda: request_context
     app.dependency_overrides[require_portfolio] = lambda: default_portfolio
-    provider = AsyncMock(return_value=("answer", {"total_tokens": 4}))
+    provider = Mock(return_value=("answer", {"total_tokens": 4}))
     monkeypatch.setenv("PORTFYL_HOSTED_DEEPSEEK_API_KEY", "hosted-test-key")
 
     with patch("routers.assistant._call_deepseek", provider), TestClient(app) as client:
@@ -38,6 +38,6 @@ def test_free_cloud_workspace_cannot_call_hosted_assistant(
     assert response.status_code == 403
     assert response.json()["code"] == "plan_upgrade_required"
     assert response.json()["required_plan"] == "investor"
-    provider.assert_not_awaited()
+    provider.assert_not_called()
     assert db_session.query(UsageCounter).count() == 0
     assert db_session.query(UsageReservation).count() == 0

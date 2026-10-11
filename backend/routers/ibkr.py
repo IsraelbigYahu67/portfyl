@@ -10,10 +10,11 @@ import xml.etree.ElementTree as ET
 import os
 
 from audit import record_audit_event
-from database import get_db
+from database import get_db, release_request_connections
 from entitlements import require_broker_capacity, require_capability, require_writable_broker
 from rate_limit import rate_limit
 from models import BrokerConnection, OptionsTrade, BrokerBalance, Portfolio
+from private_loop import run_on_private_loop
 from tenancy import RequestContext, require_csrf, require_portfolio
 
 router = APIRouter(prefix="/broker/ibkr", tags=["ibkr"])
@@ -357,7 +358,7 @@ def _upsert_balance(db: Session, portfolio: Portfolio, bal: dict) -> None:
     "/connect",
     dependencies=[Depends(require_capability("broker_sync")), Depends(require_broker_capacity("ibkr"))],
 )
-async def connect(
+def connect(
     payload: dict,
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
@@ -372,7 +373,7 @@ async def connect(
         raise HTTPException(status_code=400, detail="query_id is required")
 
     try:
-        await _send_flex_request(flex_token, query_id)
+        run_on_private_loop(_send_flex_request, flex_token, query_id)
     except HTTPException:
         raise
     except Exception as e:
@@ -566,6 +567,9 @@ async def _run_ibkr_sync(
     token = conn.api_key
     query_id = conn.api_secret or ""
     errors: list[str] = []
+    # A request session must not hold a pooled connection through the Flex
+    # round trips (up to a minute of polling). Job sessions are left alone.
+    release_request_connections()
 
     # Phase 1: Send request
     try:
@@ -692,13 +696,14 @@ async def _run_ibkr_sync(
 
 
 @router.post("/sync", dependencies=[Depends(require_capability("broker_sync")), Depends(require_writable_broker("ibkr")), Depends(rate_limit("broker_sync", by="workspace"))])
-async def sync_trades(
+def sync_trades(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
     _context: RequestContext = Depends(require_csrf),
 ):
-    """User-facing IBKR sync for the authorized portfolio."""
-    return await _run_ibkr_sync(db, portfolio.workspace_id, portfolio.id)
+    """User-facing IBKR sync for the authorized portfolio. A plain def: the
+    sync's database work and Flex awaits run on this worker thread's own loop."""
+    return run_on_private_loop(_run_ibkr_sync, db, portfolio.workspace_id, portfolio.id)
 
 
 # The standalone /scheduler-sync entrypoint (a static SCHEDULER_TOKEN header,
