@@ -85,6 +85,11 @@ export default function Dashboard() {
     queryKey: ["movers", moverPeriod],
     queryFn: () => fetchMovers(moverPeriod),
   });
+  // The %/$ toggle switches between two server-side rankings of the WHOLE
+  // portfolio — re-sorting the five %-ranked rows would hide bigger money
+  // movers. Older API responses lack value_* lists, so fall back to %.
+  const moverGainers = (moverSort === "value" ? movers?.value_gainers : null) ?? movers?.gainers ?? [];
+  const moverLosers = (moverSort === "value" ? movers?.value_losers : null) ?? movers?.losers ?? [];
 
   const { data: earnings = [], isLoading: el, error: earningsError, refetch: refetchEarnings } = useQuery({
     queryKey: ["earnings"],
@@ -589,10 +594,10 @@ export default function Dashboard() {
                         <TrendingUp size={12} /> Gainers
                       </h3>
                       <div className="space-y-1.5">
-                        {(movers?.gainers || []).length === 0 ? (
+                        {moverGainers.length === 0 ? (
                           <p className="text-muted text-xs">No data</p>
                         ) : (
-                          [...movers.gainers].sort((a, b) => moverSort === "value" ? b.period_pnl - a.period_pnl : b.change_pct - a.change_pct).map((m) => (
+                          moverGainers.map((m) => (
                             <div key={m.ticker} className="flex items-center gap-3 text-sm">
                               <TickerLink ticker={m.ticker} className="w-14 font-mono font-semibold text-left" />
                               <span className="flex-1 text-muted truncate">{m.name}</span>
@@ -610,10 +615,10 @@ export default function Dashboard() {
                         <TrendingDown size={12} /> Losers
                       </h3>
                       <div className="space-y-1.5">
-                        {(movers?.losers || []).length === 0 ? (
+                        {moverLosers.length === 0 ? (
                           <p className="text-muted text-xs">No data</p>
                         ) : (
-                          [...movers.losers].sort((a, b) => moverSort === "value" ? a.period_pnl - b.period_pnl : a.change_pct - b.change_pct).map((m) => (
+                          moverLosers.map((m) => (
                             <div key={m.ticker} className="flex items-center gap-3 text-sm">
                               <TickerLink ticker={m.ticker} className="w-14 font-mono font-semibold text-left" />
                               <span className="flex-1 text-muted truncate">{m.name}</span>

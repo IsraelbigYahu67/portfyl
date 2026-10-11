@@ -2214,6 +2214,31 @@ def _two_day_closes(tickers):
     return out
 
 
+def _rank_movers(results: list[dict]) -> dict:
+    """Top-5 gainers/losers ranked over the WHOLE holdings list, both by
+    percentage move and by money move.
+
+    The money ranking uses ``period_pnl_czk`` so positions quoted in different
+    currencies compare fairly; the %/$ toggle on the dashboard picks one of
+    the two rankings instead of re-sorting the five rows it already has.
+    """
+    def top(key):
+        ordered = sorted(results, key=lambda x: x[key], reverse=True)
+        return ordered[:5], list(reversed(ordered[-5:]))
+
+    gainers, losers = top("change_pct")
+    value_gainers, value_losers = top("period_pnl_czk")
+    return {
+        "gainers": gainers,
+        "losers": losers,
+        "value_gainers": value_gainers,
+        "value_losers": value_losers,
+    }
+
+
+_EMPTY_MOVERS = {"gainers": [], "losers": [], "value_gainers": [], "value_losers": []}
+
+
 @router.get("/movers", dependencies=[Depends(require_capability("standard_research"))])
 def get_movers(
     period: str = "1d",
@@ -2222,88 +2247,68 @@ def get_movers(
 ):
     transactions = _portfolio_txns(db, portfolio).all()
     if not transactions:
-        return {"gainers": [], "losers": []}
+        return dict(_EMPTY_MOVERS)
 
     active = _build_holdings(transactions)
     if not active:
-        return {"gainers": [], "losers": []}
+        return dict(_EMPTY_MOVERS)
 
     tickers = list(active.keys())
 
     if period.lower() == "1d":
         closes_map = _two_day_closes(tickers)
-        if not closes_map:
-            return {"gainers": [], "losers": []}
-        results = []
+    else:
+        period_map = {"1w": "7d", "1m": "1mo"}
+        yf_period = period_map.get(period.lower(), "2d")
+        try:
+            raw = market_data.download(tickers, period=yf_period, auto_adjust=True, progress=False)
+            if raw.empty:
+                return dict(_EMPTY_MOVERS)
+            if len(tickers) == 1:
+                closes = raw[["Close"]].rename(columns={"Close": tickers[0]})
+            else:
+                closes = raw["Close"] if "Close" in raw.columns else raw
+        except Exception:
+            return dict(_EMPTY_MOVERS)
+
+        closes = closes.ffill().dropna(how="all")
+        if len(closes) < 2:
+            return dict(_EMPTY_MOVERS)
+        closes_map = {}
         for ticker in tickers:
-            if ticker not in closes_map:
+            if ticker not in closes.columns:
                 continue
-            start_price, end_price = closes_map[ticker]
-            if start_price <= 0:
+            col = closes[ticker].dropna()
+            if len(col) < 2:
                 continue
-            change_pct = round(((end_price - start_price) / start_price) * 100, 2)
-            price, name, currency = _fetch_price_and_info(ticker)
-            shares = active[ticker]["shares"]
-            results.append({
-                "ticker": ticker, "name": name,
-                "current_price": round(end_price, 2),
-                "change_pct": change_pct,
-                "period_pnl": round(shares * (end_price - start_price), 2),
-                "currency": currency,
-            })
-        results.sort(key=lambda x: x["change_pct"], reverse=True)
-        return {
-            "gainers": results[:5],
-            "losers": list(reversed(results[-5:])) if len(results) >= 5 else list(reversed(results)),
-        }
+            closes_map[ticker] = (float(col.iloc[0]), float(col.iloc[-1]))
 
-    period_map = {"1d": "2d", "1w": "7d", "1m": "1mo"}
-    yf_period = period_map.get(period.lower(), "2d")
+    if not closes_map:
+        return dict(_EMPTY_MOVERS)
 
-    try:
-        raw = market_data.download(tickers, period=yf_period, auto_adjust=True, progress=False)
-        if raw.empty:
-            return {"gainers": [], "losers": []}
-        if len(tickers) == 1:
-            closes = raw[["Close"]].rename(columns={"Close": tickers[0]})
-        else:
-            closes = raw["Close"] if "Close" in raw.columns else raw
-    except Exception:
-        return {"gainers": [], "losers": []}
-
-    closes = closes.ffill().dropna(how="all")
-    if len(closes) < 2:
-        return {"gainers": [], "losers": []}
-
+    fx_cache: dict = {}
     results = []
     for ticker in tickers:
-        if ticker not in closes.columns:
+        if ticker not in closes_map:
             continue
-        col = closes[ticker].dropna()
-        if len(col) < 2:
-            continue
-        start_price = float(col.iloc[0])
-        end_price = float(col.iloc[-1])
+        start_price, end_price = closes_map[ticker]
         if start_price <= 0:
             continue
         change_pct = round(((end_price - start_price) / start_price) * 100, 2)
         price, name, currency = _fetch_price_and_info(ticker)
         shares = active[ticker]["shares"]
-        period_pnl = round(shares * (end_price - start_price), 2)
+        period_pnl = shares * (end_price - start_price)
         results.append({
             "ticker": ticker,
             "name": name,
             "current_price": round(end_price, 2),
             "change_pct": change_pct,
-            "period_pnl": period_pnl,
+            "period_pnl": round(period_pnl, 2),
+            "period_pnl_czk": round(period_pnl * _live_fx_to_czk(currency, fx_cache), 2),
             "currency": currency,
         })
 
-    results.sort(key=lambda x: x["change_pct"], reverse=True)
-    return {
-        "gainers": results[:5],
-        "losers": list(reversed(results[-5:])) if len(results) >= 5 else list(reversed(results)),
-    }
+    return _rank_movers(results)
 
 
 @router.get("/heatmap", dependencies=[Depends(require_capability("standard_research"))])
