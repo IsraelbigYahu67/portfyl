@@ -11,6 +11,7 @@ import logging
 import math
 import os
 from datetime import date, datetime, timedelta, timezone
+from types import SimpleNamespace
 
 from uuid import UUID
 
@@ -1547,12 +1548,8 @@ def _ts_to_date_str(raw) -> str | None:
         return None
 
 
-def _pay_date_from_calendar(yf_ticker) -> str | None:
-    """Fallback: pull next dividend pay date from yfinance .calendar."""
-    try:
-        cal = yf_ticker.calendar
-    except Exception:
-        return None
+def _pay_date_from_calendar(cal) -> str | None:
+    """Fallback: pull next dividend pay date from a yfinance ``.calendar``."""
     if cal is None:
         return None
     try:
@@ -1685,6 +1682,20 @@ def get_dividends(
     infos = market_data.get_infos(list(active.keys()))
     as_of = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     result = []
+    # Payers whose quote carries no pay date fall back to .calendar: one
+    # parallel, cached batch instead of one Yahoo call per ticker.
+    calendars = market_data.ticker_attrs(
+        [
+            yf_symbol(ticker) for ticker in active
+            if not _ts_to_date_str((infos.get(ticker) or {}).get("dividendDate"))
+            and (
+                (infos.get(ticker) or {}).get("dividendRate")
+                or (infos.get(ticker) or {}).get("trailingAnnualDividendRate")
+                or (infos.get(ticker) or {}).get("dividendYield")
+            )
+        ],
+        "calendar",
+    )
 
     for ticker in active:
         try:
@@ -1698,7 +1709,7 @@ def get_dividends(
             ex_date = _ts_to_date_str(info.get("exDividendDate"))
             pay_date = _ts_to_date_str(info.get("dividendDate"))
             if not pay_date:
-                pay_date = _pay_date_from_calendar(market_data.ticker(yf_symbol(ticker)))
+                pay_date = _pay_date_from_calendar(calendars.get(yf_symbol(ticker)))
 
             if div_rate is None and div_yield is None:
                 continue
@@ -1796,6 +1807,7 @@ def get_dividend_forecast(
     #    history.
     active = _build_holdings(transactions)
     market_data.get_infos(list(active.keys()))  # warm cache concurrently/bounded
+    histories = market_data.ticker_attrs([yf_symbol(t) for t in active], "dividends")
     for ticker, data in active.items():
         shares = data.get("shares", 0.0)
         if shares <= 0:
@@ -1805,7 +1817,7 @@ def get_dividend_forecast(
             ccy = info.get("currency", "USD")
             display_name = info.get("shortName") or info.get("longName") or ticker
 
-            div_history = market_data.ticker(yf_symbol(ticker)).dividends
+            div_history = histories.get(yf_symbol(ticker))
             if div_history is None or div_history.empty:
                 continue
 
@@ -2061,11 +2073,11 @@ def get_earnings(
     cet = pytz.timezone("Europe/Prague")
     now_cet = pd.Timestamp.now(tz=cet)
     result = []
+    earnings_dates = market_data.ticker_attrs([yf_symbol(t) for t in active], "earnings_dates")
 
     for ticker in active:
         try:
-            yf_ticker = market_data.ticker(yf_symbol(ticker))
-            ed = yf_ticker.earnings_dates
+            ed = earnings_dates.get(yf_symbol(ticker))
             if ed is None or ed.empty:
                 continue
             upcoming = ed[ed.index >= now_cet.tz_convert(ed.index.tz)]
@@ -2397,17 +2409,22 @@ def get_insider_buys(
     cutoff = datetime.now() - timedelta(days=365)
     results = []
     prices: dict[str, float] = {}
+    # One parallel batch each instead of two Yahoo calls per ticker in turn;
+    # the quotes come from the bounded cache the summary already filled.
+    infos = market_data.get_infos(active_tickers)
+    insider_frames = market_data.ticker_attrs(active_tickers, "insider_transactions")
 
     for ticker in active_tickers:
         try:
-            stock = market_data.ticker(ticker)
-            info = stock.info or {}
+            info = infos.get(ticker) or {}
             ticker_ccy = info.get("currency", "USD")
             current_price = info.get("currentPrice") or info.get("regularMarketPrice")
             if current_price is not None:
                 prices[ticker] = float(current_price)
 
-            insider_txns = _build_insider_transactions(stock, limit=200)
+            insider_txns = _build_insider_transactions(
+                SimpleNamespace(insider_transactions=insider_frames.get(ticker)), limit=200,
+            )
             for txn in insider_txns:
                 if txn["side"] != "buy":
                     continue

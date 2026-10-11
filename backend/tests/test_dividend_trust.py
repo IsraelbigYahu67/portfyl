@@ -108,6 +108,7 @@ def test_endpoint_uses_one_timestamp_and_excludes_review_income_from_rows(
     monkeypatch.setattr(portfolio.market_data, "get_infos", lambda _: infos)
     monkeypatch.setattr(portfolio.market_data, "get_info", lambda ticker: infos[ticker])
     monkeypatch.setattr(portfolio, "_pay_date_from_calendar", lambda _: None)
+    monkeypatch.setattr(portfolio.market_data, "ticker_attrs", lambda symbols, attr: {})
 
     rows = portfolio.get_dividends(db=db_session, portfolio=default_portfolio)
 
