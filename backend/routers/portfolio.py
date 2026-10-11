@@ -1730,6 +1730,48 @@ def get_dividends(
     return sorted(result, key=sort_key)
 
 
+def _outlook_window(today: date) -> list[tuple[int, int]]:
+    """The 12 (year, month) pairs from the current month onward."""
+    return [
+        ((today.year * 12 + today.month - 1 + i) // 12, (today.month - 1 + i) % 12 + 1)
+        for i in range(12)
+    ]
+
+
+def _confirmed_payment_month(info: dict, today: date) -> tuple[int, int] | None:
+    """(year, month) of a dividend the provider already has dated in the future.
+
+    Yahoo's dividendDate / exDividendDate hold the most recent *or* announced
+    payment, so a date that is still ahead of today means it is announced.
+    The pay date wins; the ex-date stands in when no pay date is ahead.
+    """
+    for raw in (info.get("dividendDate"), info.get("exDividendDate")):
+        day = _ts_to_date_str(raw)
+        if day and day >= today.isoformat():
+            return int(day[:4]), int(day[5:7])
+    return None
+
+
+def _build_outlook(window: list[tuple[int, int]], entries: dict[tuple[int, int], list[dict]]) -> dict:
+    """Shape per-month outlook entries into confirmed / forecasted subtotals."""
+    names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    months = []
+    for y, m in window:
+        rows = sorted(entries.get((y, m), []), key=lambda e: -e["amount"])
+        months.append({
+            "month": names[m - 1],
+            "year": y,
+            "confirmed": round(sum(e["amount"] for e in rows if e["status"] == "confirmed"), 2),
+            "forecasted": round(sum(e["amount"] for e in rows if e["status"] == "forecasted"), 2),
+            "entries": rows,
+        })
+    return {
+        "months": months,
+        "total_confirmed": round(sum(r["confirmed"] for r in months), 2),
+        "total_forecasted": round(sum(r["forecasted"] for r in months), 2),
+    }
+
+
 @router.get("/dividends/forecast", dependencies=[Depends(require_capability("dividend_analysis"))])
 def get_dividend_forecast(
     db: Session = Depends(get_db),
@@ -1742,12 +1784,16 @@ def get_dividend_forecast(
     dividend history from yfinance, take the average per-share payment for each
     calendar month it historically paid in, and project that into the same
     month-of-year going forward — scaled by the user's current share count.
+
+    `outlook` adds a rolling 12 months starting this month: payments the
+    provider has already dated are "confirmed", the rest "forecasted".
     """
     transactions = _portfolio_txns(db, portfolio).all()
     year = datetime.now().year
     today = datetime.now().date()
     month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    window = _outlook_window(today)
 
     if not transactions:
         return {
@@ -1759,12 +1805,14 @@ def get_dividend_forecast(
             ],
             "total_paid": 0.0,
             "total_estimated": 0.0,
+            "outlook": _build_outlook(window, {}),
         }
 
     paid_by_month = [0.0] * 12
     estimated_by_month = [0.0] * 12
     # entries_by_month[i] = list of {ticker, name, amount, status}
     entries_by_month: list[list[dict]] = [[] for _ in range(12)]
+    outlook_entries: dict[tuple[int, int], list[dict]] = {}
 
     # 1. Actual paid dividends (real transactions in current year), aggregated
     #    per (ticker, month) so multiple lots collapse into one entry.
@@ -1825,7 +1873,8 @@ def get_dividend_forecast(
             for ts, amount in recent.items():
                 by_month.setdefault(ts.month, []).append(float(amount))
 
-            usd_rate = _live_to_usd(ccy)
+            # LSE quotes (and their dividends) are in pence, not pounds.
+            usd_rate = _live_to_usd("GBP" if ccy == "GBp" else ccy) / (100.0 if ccy == "GBp" else 1.0)
             for m in range(1, 13):
                 if m < today.month:
                     continue
@@ -1845,6 +1894,29 @@ def get_dividend_forecast(
                     "amount": round(est_usd, 2),
                     "status": "estimated",
                 })
+
+            # 3. Rolling 12-month outlook: one announced payment is "confirmed"
+            #    (sized like the latest one), every other month the ticker paid
+            #    in over the past ~13 months is "forecasted" from that history.
+            confirmed = _confirmed_payment_month(info, today)
+            for ym in window:
+                if ym[0] == year and (ticker, ym[1]) in paid_keys:
+                    continue
+                if confirmed == ym:
+                    per_share, status = float(recent.iloc[-1]), "confirmed"
+                else:
+                    payments = by_month.get(ym[1])
+                    if not payments:
+                        continue
+                    per_share, status = sum(payments) / len(payments), "forecasted"
+                amount = shares * per_share * usd_rate
+                if amount > 0:
+                    outlook_entries.setdefault(ym, []).append({
+                        "ticker": ticker,
+                        "name": display_name,
+                        "amount": round(amount, 2),
+                        "status": status,
+                    })
         except Exception:
             continue
 
@@ -1864,6 +1936,7 @@ def get_dividend_forecast(
         "months": months,
         "total_paid": round(sum(paid_by_month), 2),
         "total_estimated": round(sum(estimated_by_month), 2),
+        "outlook": _build_outlook(window, outlook_entries),
     }
 
 

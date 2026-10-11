@@ -227,8 +227,11 @@ it("adds IRR, composition and dividend cards when the workspace has the analytic
   expect(await screen.findByText(/^IRR \+11\.40% · /)).toBeInTheDocument();
   expect(await screen.findByText("Portfolio composition")).toBeInTheDocument();
   expect(screen.getByText("90% · +10.0 pp")).toBeInTheDocument();
-  expect(screen.getByText("Upcoming payments")).toBeInTheDocument();
-  expect(screen.getByText("Dividends received")).toBeInTheDocument();
+  const received = screen.getByText("Dividends received");
+  const upcoming = screen.getByText("Upcoming payments");
+  // Received sits to the left of upcoming (first in the two-column grid).
+  expect(received.compareDocumentPosition(upcoming) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.getByText("Next 12 months")).toBeInTheDocument();
   expect(api.fetchRiskMetrics).toHaveBeenCalledWith("1y", null);
 });
 

@@ -31,21 +31,55 @@ export function summarizePassiveIncome({ dividends = [], holdings = [], totalVal
 
 const EMPTY_HALF = { months: [], total: 0, monthlyAverage: 0 };
 
-function half(months, key, usdRate) {
-  const rows = months.map((m) => ({ month: m.month, amount: (m[key] || 0) * usdRate }));
+function convertEntries(entries = [], usdRate, keep) {
+  return entries
+    .filter((e) => keep(e.status))
+    .map((e) => ({ ticker: e.ticker, name: e.name, status: e.status === "estimated" ? "forecasted" : e.status, amount: e.amount * usdRate }));
+}
+
+function finish(rows) {
   const total = rows.reduce((sum, r) => sum + r.amount, 0);
   return { months: rows, total, monthlyAverage: rows.length ? total / rows.length : 0 };
 }
 
-// /portfolio/dividends/forecast covers the current calendar year in USD:
-// `paid` for money already received, `estimated` for projected payments from
-// this month on. The dashboard shows them as two cards, split at the current
-// month (which can hold both a paid and a still-expected payment).
+function receivedHalf(months, usdRate) {
+  return finish(months.map((m) => ({
+    month: m.month,
+    amount: (m.paid || 0) * usdRate,
+    entries: convertEntries(m.entries, usdRate, (s) => s === "paid"),
+  })));
+}
+
+// Each upcoming month keeps its confirmed / forecasted split so the chart can
+// stack them; `entries` carries the per-company payments for the tooltip.
+function upcomingHalf(months, usdRate) {
+  return finish(months.map((m) => {
+    const confirmed = (m.confirmed || 0) * usdRate;
+    const forecasted = (m.forecasted ?? m.estimated ?? 0) * usdRate;
+    return {
+      month: m.month,
+      year: m.year,
+      confirmed,
+      forecasted,
+      amount: confirmed + forecasted,
+      entries: convertEntries(m.entries, usdRate, (s) => s !== "paid"),
+    };
+  }));
+}
+
+// /portfolio/dividends/forecast is in USD. `months` covers the current
+// calendar year (`paid` = received, `estimated` = still expected); `outlook`
+// is the rolling 12 months from this month, each payment confirmed (already
+// dated by the provider) or forecasted (projected from past payments). The
+// dashboard shows received-so-far (calendar year, up to the current month)
+// beside the 12-month outlook. Older responses without `outlook` fall back to
+// the rest of the calendar year.
 export function splitDividendForecast(forecast, { monthIndex, usdRate = 1 }) {
   if (!forecast?.months?.length) return { received: EMPTY_HALF, upcoming: EMPTY_HALF };
+  const outlook = forecast.outlook?.months;
   return {
-    received: half(forecast.months.slice(0, monthIndex + 1), "paid", usdRate),
-    upcoming: half(forecast.months.slice(monthIndex), "estimated", usdRate),
+    received: receivedHalf(forecast.months.slice(0, monthIndex + 1), usdRate),
+    upcoming: upcomingHalf(outlook?.length ? outlook : forecast.months.slice(monthIndex), usdRate),
   };
 }
 

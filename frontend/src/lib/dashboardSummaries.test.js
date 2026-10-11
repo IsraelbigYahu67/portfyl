@@ -86,6 +86,43 @@ describe("splitDividendForecast", () => {
     expect(upcoming.months[0].amount).toBe(100);
   });
 
+  it("uses the rolling 12-month outlook for upcoming and keeps the confirmed / forecasted split per company", () => {
+    const outlook = {
+      months: [
+        {
+          month: "Oct", year: 2026, confirmed: 10, forecasted: 5,
+          entries: [
+            { ticker: "AAA", name: "Aaa Corp", amount: 10, status: "confirmed" },
+            { ticker: "BBB", name: "Bbb Corp", amount: 5, status: "forecasted" },
+          ],
+        },
+        { month: "Jan", year: 2027, confirmed: 0, forecasted: 20, entries: [{ ticker: "AAA", name: "Aaa Corp", amount: 20, status: "forecasted" }] },
+      ],
+    };
+    const { received, upcoming } = splitDividendForecast({ ...forecast, outlook }, { monthIndex: 9, usdRate: 2 });
+
+    expect(upcoming.months.map((m) => `${m.month} ${m.year}`)).toEqual(["Oct 2026", "Jan 2027"]);
+    expect(upcoming.months[0]).toMatchObject({ confirmed: 20, forecasted: 10, amount: 30 });
+    expect(upcoming.months[0].entries).toEqual([
+      { ticker: "AAA", name: "Aaa Corp", amount: 20, status: "confirmed" },
+      { ticker: "BBB", name: "Bbb Corp", amount: 10, status: "forecasted" },
+    ]);
+    expect(upcoming.total).toBe(30 + 40);
+    // Received still comes from the calendar year, not the outlook.
+    expect(received.months).toHaveLength(10);
+  });
+
+  it("lists only paid entries under received", () => {
+    const withEntries = {
+      ...forecast,
+      months: forecast.months.map((m, i) => (i === 0
+        ? { ...m, entries: [{ ticker: "AAA", name: "Aaa Corp", amount: 10, status: "paid" }, { ticker: "BBB", name: "Bbb Corp", amount: 3, status: "estimated" }] }
+        : m)),
+    };
+    const { received } = splitDividendForecast(withEntries, { monthIndex: 9, usdRate: 1 });
+    expect(received.months[0].entries).toEqual([{ ticker: "AAA", name: "Aaa Corp", amount: 10, status: "paid" }]);
+  });
+
   it("returns empty halves for a missing forecast", () => {
     const { received, upcoming } = splitDividendForecast(null, { monthIndex: 3, usdRate: 1 });
     expect(received).toEqual({ months: [], total: 0, monthlyAverage: 0 });
