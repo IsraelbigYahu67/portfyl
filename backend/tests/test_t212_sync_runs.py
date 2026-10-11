@@ -804,6 +804,40 @@ class TestHistoryRunDecision:
             db_session, connection, default_portfolio,
         ).action == "blocked"
 
+    def test_csv_coverage_without_csv_rows_forces_a_full_reread(
+        self, db_session, default_portfolio, connection
+    ):
+        # A finished history import that honoured CSV coverage nothing backs
+        # dropped the older history. The next sync must read everything again
+        # (audit) so finalization can import what was skipped; an incremental
+        # run would stop at the already-staged events and never repair it.
+        run = _review_run(db_session, connection, default_portfolio, SPLIT)
+        run.state = "completed"
+        connection.history_complete_at = datetime.now(timezone.utc)
+        default_portfolio.t212_csv_covered_through = datetime(2026, 8, 31, 4, 3, 42)
+        db_session.add(make_txn("AAPL", "buy", 1, 100, date=date(2026, 9, 1), source="t212_api",
+                                portfolio_id=default_portfolio.id))
+        db_session.commit()
+
+        decision = t212_sync.history_run_decision(db_session, connection, default_portfolio)
+
+        assert (decision.action, decision.mode) == ("create", "audit")
+
+    def test_csv_coverage_backed_by_csv_rows_stays_incremental(
+        self, db_session, default_portfolio, connection
+    ):
+        run = _review_run(db_session, connection, default_portfolio, SPLIT)
+        run.state = "completed"
+        connection.history_complete_at = datetime.now(timezone.utc)
+        default_portfolio.t212_csv_covered_through = datetime(2026, 8, 31, 4, 3, 42)
+        db_session.add(make_txn("AAPL", "buy", 1, 100, date=date(2026, 8, 1), source="t212_csv",
+                                portfolio_id=default_portfolio.id))
+        db_session.commit()
+
+        decision = t212_sync.history_run_decision(db_session, connection, default_portfolio)
+
+        assert (decision.action, decision.mode) == ("create", "incremental")
+
     def test_failed_latest_run_creates(self, db_session, default_portfolio, connection):
         run = _review_run(db_session, connection, default_portfolio, SPLIT)
         run.state = "failed"
@@ -1088,6 +1122,9 @@ class TestIncrementalStopRule:
         # into a full walk.
         conn, run = _incremental_run(db_session, default_portfolio)
         conn.t212_csv_covered_through = FRONTIER - timedelta(days=8)
+        # The CSV row the coverage stands for (t212_sync.csv_coverage_is_stale).
+        db_session.add(make_txn("MSFT", "buy", 1, 300.0, date=date(2024, 1, 2), source="t212_csv",
+                                portfolio_id=default_portfolio.id))
         db_session.commit()
         pages = {"orders": [
             [_order_item("c1", 8)], [_order_item("c2", 9)], [_order_item("c3", 10)],

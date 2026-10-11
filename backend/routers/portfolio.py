@@ -871,14 +871,18 @@ def _check_import_capacity(
 
 def _clear_t212_history_coverage(db: Session, portfolio: Portfolio) -> None:
     """A replace deletes every ledger row of the portfolio, including the
-    provider-imported ones the connection's history frontiers vouch for. Forget
-    the coverage so the next sync re-walks the whole history."""
+    provider-imported ones the connection's history frontiers vouch for and
+    the T212 CSV rows `t212_csv_covered_through` vouches for. Forget both so
+    the next sync re-walks and imports the whole history; a replacing T212
+    export sets its own CSV coverage again right after this."""
+    portfolio.t212_csv_covered_through = None
     for connection in db.query(BrokerConnection).filter(
         BrokerConnection.workspace_id == portfolio.workspace_id,
         BrokerConnection.portfolio_id == portfolio.id,
         BrokerConnection.broker == "trading212",
     ):
         connection.clear_history_coverage()
+        connection.t212_csv_covered_through = None
 
 
 def _delete_portfolio_transaction_rows(db: Session, portfolio: Portfolio) -> None:

@@ -80,6 +80,16 @@ def _order_event(db, run, *, event_id="fill:f1", ticker="AAPL_US_EQ", side="BUY"
     return event
 
 
+def _add_csv_row(db, portfolio):
+    """A row from the T212 CSV export that `t212_csv_covered_through` stands
+    for; coverage without one is ignored (t212_sync.csv_coverage_is_stale). A
+    different trade, so it never doubles as a fuzzy duplicate of an event."""
+    db.add(make_txn(
+        "MSFT", "buy", 1, 300.0, date=date(2024, 1, 2), source="t212_csv",
+        portfolio_id=portfolio.id,
+    ))
+
+
 def _dividend_event(db, run, *, event_id="dividend:d1", ticker="KO", gross=0.485,
                      quantity=10, day="2024-03-15", currency="USD",
                      account_currency="USD", amount=None):
@@ -280,6 +290,7 @@ class TestFinalizeOrders:
         covered_through = datetime(2024, 6, 15, 12, 0, tzinfo=timezone.utc)
         default_portfolio.t212_csv_covered_through = covered_through
         connection.t212_csv_covered_through = covered_through
+        _add_csv_row(db_session, default_portfolio)
         db_session.commit()
         _order_event(
             db_session, completed_run, event_id="fill:split", day="2024-06-10",
@@ -294,9 +305,10 @@ class TestFinalizeOrders:
         assert result.orders_imported == 1
         assert result.orders_skipped_duplicate == 1
         assert completed_run.state == "completed"
-        assert {row.source_event_id for row in db_session.query(Transaction).all()} == {
-            "fill:new",
-        }
+        assert {
+            row.source_event_id for row in db_session.query(Transaction).all()
+            if row.source == "t212_api"
+        } == {"fill:new"}
 
     def test_corporate_action_after_csv_coverage_still_needs_review(
         self, db_session, default_portfolio, connection, completed_run
@@ -518,6 +530,7 @@ class TestFinalizeMixed:
         covered_through = datetime(2024, 6, 1, 12, 0, tzinfo=timezone.utc)
         default_portfolio.t212_csv_covered_through = covered_through
         connection.t212_csv_covered_through = covered_through
+        _add_csv_row(db_session, default_portfolio)
         db_session.commit()
         _order_event(
             db_session, completed_run, event_id="fill:covered", day="2024-06-01",
@@ -546,9 +559,37 @@ class TestFinalizeMixed:
         assert result.orders_skipped_duplicate == 1
         assert result.dividends_imported == 1
         assert result.dividends_skipped_duplicate == 1
-        assert {row.source_event_id for row in db_session.query(Transaction).all()} == {
-            "fill:new", "dividend:new",
-        }
+        assert {
+            row.source_event_id for row in db_session.query(Transaction).all()
+            if row.source == "t212_api"
+        } == {"fill:new", "dividend:new"}
+
+    def test_csv_coverage_without_csv_rows_is_ignored_and_forgotten(
+        self, db_session, default_portfolio, connection, completed_run
+    ):
+        """Production, 2026-10-11: the portfolio still claimed T212 CSV coverage
+        through 2026-08-31 although no CSV row was left in its ledger. The
+        initial history import then dropped every older order, dividend and
+        deposit as "covered by the CSV": 15 of 22 positions were missing and
+        cash went negative. Coverage nothing backs must not hide history."""
+        covered_through = datetime(2024, 6, 1, 12, 0, tzinfo=timezone.utc)
+        default_portfolio.t212_csv_covered_through = covered_through
+        connection.t212_csv_covered_through = covered_through
+        db_session.commit()
+        _order_event(db_session, completed_run, event_id="fill:old", day="2024-05-01")
+        _order_event(db_session, completed_run, event_id="fill:new", day="2024-06-02")
+
+        with patch("t212_sync.bulk_fetch_fx", return_value={
+            ("USD", date(2024, 5, 1)): 25.0, ("USD", date(2024, 6, 2)): 25.0,
+        }):
+            result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        assert result.orders_imported == 2
+        assert result.orders_skipped_duplicate == 0
+        db_session.refresh(default_portfolio)
+        db_session.refresh(connection)
+        assert default_portfolio.t212_csv_covered_through is None
+        assert connection.t212_csv_covered_through is None
 
     def test_orders_and_dividends_together(self, db_session, default_portfolio, completed_run):
         _order_event(db_session, completed_run)
@@ -1215,6 +1256,7 @@ class TestFinalizeCash:
         self, db_session, default_portfolio, completed_run
     ):
         default_portfolio.t212_csv_covered_through = datetime(2026, 3, 2, tzinfo=timezone.utc)
+        _add_csv_row(db_session, default_portfolio)
         _cash_event(db_session, completed_run, reference="old", when="2026-03-01T10:00:00.000Z")
         _cash_event(db_session, completed_run, reference="new", when="2026-03-05T10:00:00.000Z")
         with patch("t212_sync.bulk_fetch_fx", return_value={}):
