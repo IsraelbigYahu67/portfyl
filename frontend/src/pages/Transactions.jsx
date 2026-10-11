@@ -195,7 +195,7 @@ export default function Transactions() {
               <thead className="border-b border-surface-border">
                 <tr>
                   {["Date", "Ticker", "Type", "Shares", "Price", "Total", "Currency", "Notes", "Note", ""].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">
+                    <th key={h} scope="col" className="text-left px-4 py-3 whitespace-nowrap text-xs font-medium text-muted uppercase tracking-wider">
                       {h}
                     </th>
                   ))}
@@ -204,7 +204,7 @@ export default function Transactions() {
               <tbody className="divide-y divide-surface-border">
                 {txns.map((t) => (
                   <tr key={t.id} className="hover:bg-surface-hover transition-colors">
-                    <td className="px-4 py-3 text-sm text-ink">{t.date}</td>
+                    <td className="px-4 py-3 text-sm text-ink whitespace-nowrap tabular-nums">{t.date}</td>
                     <td className="px-4 py-3 font-mono font-bold text-sm">
                       <TickerLink ticker={t.ticker}>{t.ticker}</TickerLink>
                     </td>
@@ -221,8 +221,9 @@ export default function Transactions() {
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => setNoteTarget(t)}
-                        className={`transition-colors ${notesMap[t.id] ? "text-brand hover:text-brand/80" : "text-muted hover:text-ink"}`}
+                        className={`inline-flex h-11 w-11 items-center justify-center rounded-md transition-colors md:h-8 md:w-8 ${notesMap[t.id] ? "text-brand hover:text-brand/80" : "text-muted hover:text-ink"}`}
                         title={notesMap[t.id] ? "Edit note" : "Add note"}
+                        aria-label={`${notesMap[t.id] ? "Edit" : "Add"} note for ${t.ticker} on ${t.date}`}
                       >
                         <StickyNote size={14} />
                       </button>
@@ -231,7 +232,7 @@ export default function Transactions() {
                       <button
                         onClick={() => handleDelete(t)}
                         aria-label={`Delete ${t.type} ${t.ticker} on ${t.date}`}
-                        className="text-muted hover:text-red-600 transition-colors"
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-md text-muted hover:text-red-600 transition-colors md:h-8 md:w-8"
                       >
                         <Trash2 size={14} />
                       </button>
