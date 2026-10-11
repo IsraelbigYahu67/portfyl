@@ -116,6 +116,42 @@ describe("DividendBarsCard", () => {
     expect(screen.getByTestId("bar-Oct")).toHaveStyle({ height: "33.33%" });
   });
 
+  it("stacks confirmed and forecasted amounts, labels both, and lists each company on hover", () => {
+    const outlook = {
+      months: [
+        {
+          month: "Oct", year: 2026, confirmed: 100, forecasted: 100, amount: 200,
+          entries: [
+            { ticker: "AAA", name: "Aaa Corp", amount: 100, status: "confirmed" },
+            { ticker: "BBB", name: "Bbb Corp", amount: 100, status: "forecasted" },
+          ],
+        },
+        { month: "Nov", year: 2026, confirmed: 0, forecasted: 50, amount: 50, entries: [{ ticker: "CCC", name: "Ccc Corp", amount: 50, status: "forecasted" }] },
+      ],
+      total: 250,
+      monthlyAverage: 125,
+    };
+    render(<DividendBarsCard title="Upcoming payments" half={outlook} totalLabel="Next 12 months" currency="USD" />);
+
+    const legend = screen.getByTestId("dividend-legend");
+    expect(within(legend).getByText("Confirmed")).toBeInTheDocument();
+    expect(within(legend).getByText("Forecasted")).toBeInTheDocument();
+    expect(screen.getByTestId("forecast-Oct")).toHaveStyle({ height: "50%" });
+    expect(screen.queryByTestId("dividend-tooltip")).not.toBeInTheDocument();
+
+    fireEvent.mouseEnter(screen.getByTestId("column-Oct"));
+
+    const tooltip = screen.getByTestId("dividend-tooltip");
+    expect(within(tooltip).getByText("Oct 2026")).toBeInTheDocument();
+    expect(within(tooltip).getByText("AAA")).toBeInTheDocument();
+    expect(within(tooltip).getByText("Confirmed")).toBeInTheDocument();
+    expect(within(tooltip).getByText("BBB")).toBeInTheDocument();
+    expect(within(tooltip).getByText("Forecasted")).toBeInTheDocument();
+
+    fireEvent.mouseLeave(screen.getByRole("img", { name: /Upcoming payments by month/ }));
+    expect(screen.queryByTestId("dividend-tooltip")).not.toBeInTheDocument();
+  });
+
   it("shows an empty state when nothing is expected", () => {
     render(<DividendBarsCard title="Upcoming payments" half={{ months: [], total: 0, monthlyAverage: 0 }} totalLabel="Rest of 2026" currency="USD" emptyHint="No dividends expected." />);
     expect(screen.getByText("No dividends expected.")).toBeInTheDocument();
