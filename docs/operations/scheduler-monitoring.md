@@ -2,7 +2,7 @@
 
 ## Configuration
 
-Use `deploy/operations.json` for the five recurring jobs, UTC cron schedules,
+Use `deploy/operations.json` for the six recurring jobs, UTC cron schedules,
 five-minute attempt deadline, and bounded retries. Use
 `deploy/monitoring-policies.json` for alert policies, substituting the created
 uptime check ID for `__HEALTH_CHECK_ID__` and the operator notification-channel
@@ -14,6 +14,10 @@ to the Monitoring API. The health-check template additionally needs an
   `alerts` in the cloud edition is 4 hours (`_JOB_MAX_AGES` in `backend/main.py`);
   change both together.
 - Autosync: hourly; existing plan gates and per-connection opt-in still apply.
+- T212 history backfill (`portfyl-broker-backfill`): every minute. It only
+  drains history runs that a sync already created, so without it a newly
+  connected account's history stays "Queued". `/health` reports it stale
+  after 30 minutes (`_JOB_MAX_AGES["broker_backfill"]`).
 - Dividends: every 12 hours; existing plan/notification preferences still apply.
 - Expired rate-limit buckets: hourly, using the existing bounded cleanup.
 - Due account deletion and technical retention cleanup: daily at 03:17 UTC.

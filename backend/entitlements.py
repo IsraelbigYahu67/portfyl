@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app_settings import get_workspace_setting
 from plans import MINIMUM_PLAN, PlanLimits, PlanTier, plan_allows, plan_limits
-from database import get_db
+from database import get_db, release_connection
 from edition import CAPABILITY_REGISTRY, CapabilityClass, Edition, edition_allows
 from models import UsageCounter, UsageReservation
 from tenancy import RequestContext, get_request_context
@@ -200,7 +200,11 @@ def ensure_final_count_limit(
 
 
 def require_capability(capability: str) -> Callable:
-    async def dependency(
+    # Every dependency here is a plain `def` on purpose: FastAPI runs it in
+    # the threadpool. As `async def` its synchronous queries ran on the event
+    # loop, and a wait for a pooled connection froze the whole instance
+    # (tests/test_event_loop_not_blocked.py).
+    def dependency(
         request: Request,
         context: RequestContext = Depends(get_request_context),
         db: Session = Depends(get_db),
@@ -209,6 +213,11 @@ def require_capability(capability: str) -> Callable:
         entitlements = resolve_entitlements(
             db, edition=edition, workspace_id=context.workspace.id
         )
+        # Read-only check: hand the connection back before the route, which
+        # may wait on Yahoo Finance. A threadpool dependency runs in its own
+        # copy of the request context, so market_data's automatic release
+        # never sees the query made here.
+        release_connection(db)
         ensure_capability(entitlements, capability, edition=edition)
         return entitlements
 
@@ -217,7 +226,7 @@ def require_capability(capability: str) -> Callable:
 
 def require_capacity(resource: str, model, *, increase: int = 1) -> Callable:
     """FastAPI dependency for workspace-wide create limits."""
-    async def dependency(
+    def dependency(
         request: Request,
         context: RequestContext = Depends(get_request_context),
         db: Session = Depends(get_db),
@@ -242,7 +251,7 @@ def require_capacity(resource: str, model, *, increase: int = 1) -> Callable:
 
 def require_writable_resource(resource: str, model, path_parameter: str) -> Callable:
     """Reject updates to deterministic overflow rows while leaving DELETE free."""
-    async def dependency(
+    def dependency(
         request: Request,
         context: RequestContext = Depends(get_request_context),
         db: Session = Depends(get_db),
@@ -274,7 +283,7 @@ def require_writable_resource(resource: str, model, path_parameter: str) -> Call
 
 def require_broker_capacity(broker: str) -> Callable:
     """Count broker connections, while permitting credential rotation in place."""
-    async def dependency(
+    def dependency(
         request: Request,
         context: RequestContext = Depends(get_request_context),
         db: Session = Depends(get_db),
@@ -336,7 +345,7 @@ def require_broker_capacity(broker: str) -> Callable:
 
 def require_writable_broker(broker: str) -> Callable:
     """Keep deterministic overflow connections readable/deletable, not usable."""
-    async def dependency(
+    def dependency(
         request: Request,
         context: RequestContext = Depends(get_request_context),
         db: Session = Depends(get_db),

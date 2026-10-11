@@ -265,6 +265,10 @@ Why these flags:
 - `--max-instances=5`: safe to raise further at any time — PostgreSQL, unlike
   the old GCS-mounted SQLite file, has no single-writer constraint. Start
   conservative and watch Neon connection-pool usage before raising it a lot.
+  Each instance opens at most `DB_POOL_SIZE + DB_MAX_OVERFLOW` (default
+  10 + 5) connections to the pooled `DATABASE_URL` and fails a request after
+  `DB_POOL_TIMEOUT` (default 10s) without a free one; tune them with
+  `--update-env-vars` (`backend/database.py`'s `DatabaseSettings`).
 - `--memory=1Gi` gives pandas/numpy/yfinance headroom.
 - The eight `RATE_LIMIT_*` values are the spec's defaults, not
   evidence-based constants — the spec's own rollout gate requires a
@@ -469,24 +473,58 @@ by a `POST /api/broker/trading212/sync` call, not by this job), and that
 
 ## Routine redeploy (current production layout)
 
-Production runs in **europe-west1**, but its images live in the
-**europe-west3** Artifact Registry repository, tagged with the short commit
-SHA. There is no `europe-west1 .../portfyl:latest` image, so the step 5 and
-step 6 commands above (`:latest`, `--source .`) do not apply to a redeploy.
-Use the same image for the migration Job and the service; existing secrets
-and env vars persist because no `--set-*` flags are passed:
+Since 2026-10-11 production is the `portfyl` service in project
+**`portfyl-prod-f6shqb`**, region **europe-west1**, behind
+`app.portfyl.com` (Cloudflare Worker + Access). Images live in that
+project's `europe-west1 .../cloud-run-source-deploy` Artifact Registry
+repository, tagged with the short commit SHA; there is no `:latest`, so the
+step 5 and step 6 commands above do not apply to a redeploy. Firebase Auth
+and the KMS key stay in the old project `portfyl-cloud-fstxby`
+(cross-project IAM); do not deploy anything to that project.
+
+Build from a clean `git archive` of `main`, not the working tree. The four
+`VITE_FIREBASE_*` values are compiled into the SPA at build time and
+`.dockerignore` excludes `.env*`, so they must be passed as build args (an
+image built without them serves a login page that cannot sign anyone in).
+Use the same image digest for the migration Job and the service; existing
+secrets and env vars persist because no `--set-*` flags are passed. Set the
+gcloud configuration per shell, never with
+`gcloud config configurations activate` (other sessions share the default
+configuration, which still points at the old project):
 
 ```powershell
-$SHA = git rev-parse --short HEAD
-$IMAGE = "europe-west3-docker.pkg.dev/portfyl-cloud-fstxby/cloud-run-source-deploy/portfyl:$SHA"
-gcloud builds submit --region=europe-west3 --tag $IMAGE .
-.\deploy\run-migrations.ps1 -ProjectId portfyl-cloud-fstxby -Region europe-west1 -Image $IMAGE -ServiceAccount "portfyl-migrator@portfyl-cloud-fstxby.iam.gserviceaccount.com" -DatabaseUrlSecret "portfyl-migration-database-url"
-gcloud run deploy portfyl --image $IMAGE --region europe-west1 --quiet
+$env:CLOUDSDK_ACTIVE_CONFIG_NAME = "newgcp"
+$PROJECT = "portfyl-prod-f6shqb"; $REGION = "europe-west1"
+$SHA = git rev-parse --short main
+$REPO = "$REGION-docker.pkg.dev/$PROJECT/cloud-run-source-deploy/portfyl"
+$SRC = Join-Path $env:TEMP "portfyl-build-$SHA"
+New-Item -ItemType Directory -Force $SRC | Out-Null
+git archive main | tar -x -C $SRC
+$fb = @{}
+Get-Content frontend/.env.local | Where-Object { $_ -match '^(VITE_FIREBASE_\w+)=(.*)$' } | ForEach-Object { $fb[$Matches[1]] = $Matches[2].Trim().Trim('"') }
+@"
+steps:
+- name: gcr.io/cloud-builders/docker
+  args: ['build', '-t', '${REPO}:$SHA',
+         '--build-arg', 'VITE_FIREBASE_API_KEY=$($fb.VITE_FIREBASE_API_KEY)',
+         '--build-arg', 'VITE_FIREBASE_AUTH_DOMAIN=$($fb.VITE_FIREBASE_AUTH_DOMAIN)',
+         '--build-arg', 'VITE_FIREBASE_PROJECT_ID=$($fb.VITE_FIREBASE_PROJECT_ID)',
+         '--build-arg', 'VITE_FIREBASE_APP_ID=$($fb.VITE_FIREBASE_APP_ID)',
+         '.']
+images: ['${REPO}:$SHA']
+"@ | Set-Content -Encoding ascii (Join-Path $SRC "cloudbuild.yaml")
+# cmd /c: gcloud streams build logs to stderr, which PowerShell would treat as an error.
+cmd /c "gcloud builds submit --region=$REGION --project=$PROJECT --config=$SRC\cloudbuild.yaml $SRC"
+$DIGEST = gcloud artifacts docker images describe "${REPO}:$SHA" --project $PROJECT --format "value(image_summary.digest)"
+$IMAGE = "${REPO}@$DIGEST"
+.\deploy\run-migrations.ps1 -ProjectId $PROJECT -Region $REGION -Image $IMAGE -ServiceAccount "portfyl-migrator@$PROJECT.iam.gserviceaccount.com" -DatabaseUrlSecret "portfyl-migration-database-url"
+gcloud run deploy portfyl --image $IMAGE --region $REGION --project $PROJECT --quiet
 ```
 
-Stop if the build or the migration Job fails. The `portfyl` service in
-europe-west3 is an older, unmapped copy (last revision 2026-09-11); do not
-deploy to it.
+Stop if the build or the migration Job fails. `app.portfyl.com` sits behind
+Cloudflare Access and the `run.app` URL answers 403 without the edge token,
+so verify a deploy by logging in through `app.portfyl.com` and by reading
+the new revision's Cloud Run logs, not with an anonymous `curl`.
 
 ## Ongoing rules
 
@@ -498,9 +536,9 @@ deploy to it.
 - **Always migrate before you deploy** (step 5) — never redeploy the service
   image without first running `deploy/run-migrations.ps1` against the same
   database.
-- **Redeploy after backend changes**: re-run the step 6 command (secrets and
-  other settings persist across redeploys unless you change them; `--source .`
-  rebuilds).
+- **Redeploy after backend or frontend changes**: follow "Routine redeploy"
+  above (secrets and other settings persist across redeploys unless you
+  change them).
 - **Back up / restore**: Neon takes continuous WAL-based backups
   automatically (point-in-time recovery); see
   `docs/operations/neon-backup-restore.md` for the recovery-branch drill and

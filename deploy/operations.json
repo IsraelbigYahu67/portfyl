@@ -2,6 +2,7 @@
   "scheduler": [
     {"name": "alerts", "schedule": "0 */2 * * *"},
     {"name": "autosync", "schedule": "0 * * * *"},
+    {"name": "broker_backfill", "schedule": "* * * * *"},
     {"name": "dividends", "schedule": "0 */12 * * *"},
     {"name": "rate_limit_cleanup", "schedule": "0 * * * *"},
     {"name": "account_deletion_cleanup", "schedule": "17 3 * * *"}

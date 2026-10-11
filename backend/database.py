@@ -17,8 +17,13 @@ class DatabaseSettings:
     url: str
     pool_pre_ping: bool = True
     pool_recycle: int = 300
-    pool_size: int = 5
-    max_overflow: int = 2
+    # Per instance. One dashboard load fires ~13 requests at once, and the
+    # runtime DATABASE_URL is Neon's pooled endpoint, so client connections
+    # are cheap. A short pool_timeout turns a starved pool into a quick error
+    # instead of a 30s hang.
+    pool_size: int = 10
+    max_overflow: int = 5
+    pool_timeout: float = 10.0
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> "DatabaseSettings":
@@ -31,7 +36,25 @@ class DatabaseSettings:
             url = "postgresql+psycopg://" + url.removeprefix("postgresql://")
         if not url.startswith("postgresql+psycopg://") and env.get("PORTFYL_TESTING") != "1":
             raise RuntimeError("DATABASE_URL must use PostgreSQL")
-        return cls(url=url)
+        return cls(
+            url=url,
+            pool_size=_env_number(env, "DB_POOL_SIZE", int, cls.pool_size, minimum=1),
+            max_overflow=_env_number(env, "DB_MAX_OVERFLOW", int, cls.max_overflow, minimum=0),
+            pool_timeout=_env_number(env, "DB_POOL_TIMEOUT", float, cls.pool_timeout, minimum=0.1),
+        )
+
+
+def _env_number(env: Mapping[str, str], key: str, kind, default, *, minimum):
+    raw = env.get(key, "").strip()
+    if not raw:
+        return default
+    try:
+        value = kind(raw)
+    except ValueError:
+        value = None
+    if value is None or value < minimum:
+        raise RuntimeError(f"{key} must be a number >= {minimum}")
+    return value
 
 
 def build_engine(settings: DatabaseSettings) -> Engine:
@@ -43,6 +66,7 @@ def build_engine(settings: DatabaseSettings) -> Engine:
         pool_recycle=settings.pool_recycle,
         pool_size=settings.pool_size,
         max_overflow=settings.max_overflow,
+        pool_timeout=settings.pool_timeout,
     )
 
 
