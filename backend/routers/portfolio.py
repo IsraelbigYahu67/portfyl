@@ -1694,7 +1694,7 @@ def get_dividends(
             ex_date = _ts_to_date_str(info.get("exDividendDate"))
             pay_date = _ts_to_date_str(info.get("dividendDate"))
             if not pay_date:
-                pay_date = _pay_date_from_calendar(yf.Ticker(yf_symbol(ticker)))
+                pay_date = _pay_date_from_calendar(market_data.ticker(yf_symbol(ticker)))
 
             if div_rate is None and div_yield is None:
                 continue
@@ -1801,7 +1801,7 @@ def get_dividend_forecast(
             ccy = info.get("currency", "USD")
             display_name = info.get("shortName") or info.get("longName") or ticker
 
-            div_history = yf.Ticker(yf_symbol(ticker)).dividends
+            div_history = market_data.ticker(yf_symbol(ticker)).dividends
             if div_history is None or div_history.empty:
                 continue
 
@@ -2060,7 +2060,7 @@ def get_earnings(
 
     for ticker in active:
         try:
-            yf_ticker = yf.Ticker(yf_symbol(ticker))
+            yf_ticker = market_data.ticker(yf_symbol(ticker))
             ed = yf_ticker.earnings_dates
             if ed is None or ed.empty:
                 continue
@@ -2104,7 +2104,7 @@ def _two_day_closes(tickers):
     if not tickers:
         return {}
     try:
-        raw = yf.download(tickers, period="2d", auto_adjust=True, progress=False)
+        raw = market_data.download(tickers, period="2d", auto_adjust=True, progress=False)
         if raw is None or raw.empty:
             return {}
         if len(tickers) == 1:
@@ -2172,7 +2172,7 @@ def get_movers(
     yf_period = period_map.get(period.lower(), "2d")
 
     try:
-        raw = yf.download(tickers, period=yf_period, auto_adjust=True, progress=False)
+        raw = market_data.download(tickers, period=yf_period, auto_adjust=True, progress=False)
         if raw.empty:
             return {"gainers": [], "losers": []}
         if len(tickers) == 1:
@@ -2253,11 +2253,11 @@ def get_heatmap(
 
     try:
         if start_date is not None:
-            raw = yf.download(yf_tickers, start=start_date.strftime("%Y-%m-%d"),
+            raw = market_data.download(yf_tickers, start=start_date.strftime("%Y-%m-%d"),
                               auto_adjust=True, progress=False)
         else:
             yf_period = period_map.get(p, "2d")
-            raw = yf.download(yf_tickers, period=yf_period,
+            raw = market_data.download(yf_tickers, period=yf_period,
                               auto_adjust=True, progress=False)
         if raw.empty:
             return []
@@ -2332,7 +2332,7 @@ def get_benchmarks(
     for key in keys:
         ticker = BENCHMARK_TICKERS[key]
         try:
-            raw = yf.download(ticker, start=first_date, auto_adjust=True, progress=False)
+            raw = market_data.download(ticker, start=first_date, auto_adjust=True, progress=False)
             if raw.empty:
                 continue
             close_col = raw["Close"]
@@ -2396,7 +2396,7 @@ def get_insider_buys(
 
     for ticker in active_tickers:
         try:
-            stock = yf.Ticker(ticker)
+            stock = market_data.ticker(ticker)
             info = stock.info or {}
             ticker_ccy = info.get("currency", "USD")
             current_price = info.get("currentPrice") or info.get("regularMarketPrice")
