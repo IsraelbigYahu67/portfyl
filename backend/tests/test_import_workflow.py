@@ -710,6 +710,34 @@ def test_replace_import_clears_t212_history_coverage(
     assert [getattr(connection, field) for field in T212_COVERAGE_FIELDS] == [None] * len(T212_COVERAGE_FIELDS)
 
 
+def test_replace_import_forgets_the_previous_t212_csv_coverage(
+    db_session, default_portfolio, request_context
+):
+    """A replace deletes the T212 CSV rows the coverage marker vouched for. Kept,
+    the marker made the next history import drop every older API event as
+    "already covered by the CSV", so the ledger silently lost most history."""
+    covered = datetime(2026, 8, 31, 4, 3, 42)
+    db_session.add(make_txn(
+        "AAPL", "buy", 2, 150, date=date(2026, 1, 2),
+        source="t212_csv", portfolio_id=default_portfolio.id,
+    ))
+    default_portfolio.t212_csv_covered_through = covered
+    connection = make_t212_connection_with_coverage(db_session, default_portfolio)
+    connection.t212_csv_covered_through = covered
+    db_session.commit()
+    csv = "date,ticker,type,shares,price,currency\n2026-02-01,MSFT,buy,1,400,USD\n"
+
+    _import_csv_via_preview(
+        csv, replace=True, db_session=db_session,
+        default_portfolio=default_portfolio, request_context=request_context,
+    )
+
+    db_session.refresh(connection)
+    db_session.refresh(default_portfolio)
+    assert default_portfolio.t212_csv_covered_through is None
+    assert connection.t212_csv_covered_through is None
+
+
 def test_append_import_keeps_t212_history_coverage(
     db_session, default_portfolio, request_context
 ):

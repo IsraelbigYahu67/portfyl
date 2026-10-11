@@ -719,8 +719,16 @@ def history_run_decision(
         return HistoryDecision("create", None, "initial")
     last_read = last_full_read_at(connection)
     audit_due = last_read is None or datetime.now(timezone.utc) - last_read > AUDIT_INTERVAL
+    # History a completed run skipped under coverage nothing backs is only
+    # recovered by reading it all again (see csv_coverage_is_stale).
+    stale_coverage = (
+        _latest_csv_coverage(portfolio.t212_csv_covered_through,
+                             connection.t212_csv_covered_through) is not None
+        and csv_coverage_is_stale(db, portfolio.workspace_id, portfolio.id)
+    )
     return HistoryDecision(
-        "create", None, "audit" if (reconciliation_mismatch or audit_due) else "incremental",
+        "create", None,
+        "audit" if (reconciliation_mismatch or audit_due or stale_coverage) else "incremental",
     )
 
 
@@ -819,6 +827,8 @@ def _csv_cutoff_for_run(
         Portfolio.workspace_id == run.workspace_id,
         Portfolio.id == run.portfolio_id,
     ).scalar()
+    if csv_coverage_is_stale(db, run.workspace_id, run.portfolio_id):
+        return None  # finalize_run ignores it too
     return _latest_csv_coverage(
         portfolio_cutoff,
         connection.t212_csv_covered_through if connection is not None else None,
@@ -1188,6 +1198,22 @@ def _latest_csv_coverage(*values: datetime | None) -> datetime | None:
     return max(normalized) if normalized else None
 
 
+def csv_coverage_is_stale(db: Session, workspace_id, portfolio_id) -> bool:
+    """True when the portfolio's ledger holds no row except T212 API rows.
+
+    `t212_csv_covered_through` promises that rows from a T212 CSV export
+    already hold the account's history up to that moment, so older API events
+    are skipped. Once those rows are gone (a replace import, deletions), the
+    promise is empty and honouring it silently drops all older history: on
+    2026-10-11 a portfolio lost 15 of 22 positions and its deposits that way.
+    Any non-API row (CSV, manual, legacy) keeps the coverage trusted."""
+    return db.query(Transaction.id).filter(
+        Transaction.workspace_id == workspace_id,
+        Transaction.portfolio_id == portfolio_id,
+        or_(Transaction.source.is_(None), Transaction.source != "t212_api"),
+    ).first() is None
+
+
 def _finalize_order_event(event: BrokerSyncEvent, run: BrokerSyncRun):
     """Map one staged order/fill event to a Transaction, or explain why not.
     Returns (outcome, transaction_or_none); outcome is one of "imported",
@@ -1455,6 +1481,11 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
         raise ValueError("run account identity or credential generation is stale")
 
     acquire_workspace_ledger_lock(db, portfolio.workspace_id)
+    if csv_coverage_is_stale(db, portfolio.workspace_id, portfolio.id):
+        # Forgotten in this run's commit, so the history it skipped is
+        # imported now and later syncs stop treating it as covered.
+        portfolio.t212_csv_covered_through = None
+        connection.t212_csv_covered_through = None
     csv_covered_through = _latest_csv_coverage(
         portfolio.t212_csv_covered_through,
         connection.t212_csv_covered_through,
