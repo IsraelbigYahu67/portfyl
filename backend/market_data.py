@@ -19,6 +19,7 @@ deadline, so N tickers cost ~one timeout in the worst case rather than N.
 """
 from __future__ import annotations
 
+import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -69,10 +70,113 @@ def ticker(symbol: str):
     return yf.Ticker(symbol)
 
 
+# Shared across requests. One dashboard load used to fetch the same Yahoo
+# data several times: the 2-day closes of every holding three times
+# (summary, heatmap, movers), the price history twice (performance, risk
+# metrics), and per-ticker dividends / calendar / earnings dates one ticker
+# after another, on every load.
+DOWNLOAD_TTL = 300.0
+_DOWNLOAD_CACHE_MAX = 128
+TICKER_ATTR_TTL = 6 * 3600.0
+_shared_lock = threading.Lock()
+# key -> (stored_at, ttl, result)
+_download_cache: dict[tuple, tuple[float, float, object]] = {}
+_download_inflight: dict[tuple, Future] = {}
+# (symbol, attribute) -> (stored_at, ttl, value)
+_attr_cache: dict[tuple[str, str], tuple[float, float, object]] = {}
+_attr_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="yf-attr")
+
+
+def clear_shared_caches() -> None:
+    with _shared_lock:
+        _download_cache.clear()
+        _download_inflight.clear()
+        _attr_cache.clear()
+
+
+def _freeze(value):
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze(v) for v in value)
+    if isinstance(value, dict):
+        return tuple(sorted((k, _freeze(v)) for k, v in value.items()))
+    return value
+
+
+def _private_copy(value):
+    return value.copy() if hasattr(value, "copy") else value
+
+
 def download(*args, **kwargs):
-    """``yf.download`` for request code: frees the request's DB connection first."""
+    """``yf.download`` for request code: frees the request's DB connection
+    first, and shares the result with identical calls for DOWNLOAD_TTL.
+
+    Concurrent identical calls wait for the first one instead of asking Yahoo
+    again. Every caller gets its own copy, so mutating it is safe. A failure
+    is never cached, and an empty result (yfinance's answer to most errors)
+    only for _EMPTY_TTL."""
     _release_db()
-    return yf.download(*args, **kwargs)
+    key = (_freeze(args), _freeze(kwargs))
+    with _shared_lock:
+        hit = _download_cache.get(key)
+        if hit and time.monotonic() - hit[0] < hit[1]:
+            return _private_copy(hit[2])
+        pending = _download_inflight.get(key)
+        if pending is None:
+            pending = _download_inflight[key] = Future()
+            owner = True
+        else:
+            owner = False
+    if not owner:
+        return _private_copy(pending.result())
+    try:
+        result = yf.download(*args, **kwargs)
+    except BaseException as exc:
+        with _shared_lock:
+            _download_inflight.pop(key, None)
+        pending.set_exception(exc)
+        raise
+    ttl = _EMPTY_TTL if getattr(result, "empty", False) else DOWNLOAD_TTL
+    with _shared_lock:
+        _download_inflight.pop(key, None)
+        _download_cache[key] = (time.monotonic(), ttl, result)
+        if len(_download_cache) > _DOWNLOAD_CACHE_MAX:
+            oldest = min(_download_cache, key=lambda k: _download_cache[k][0])
+            del _download_cache[oldest]
+    pending.set_result(result)
+    return _private_copy(result)
+
+
+def _fetch_attr(symbol: str, attr: str):
+    try:
+        return getattr(yf.Ticker(symbol), attr), True
+    except Exception:
+        return None, False
+
+
+def ticker_attrs(symbols, attr: str, ttl: float = TICKER_ATTR_TTL) -> dict:
+    """``{symbol: yf.Ticker(symbol).<attr>}`` for slow per-ticker lookups
+    (dividends, calendar, earnings_dates), fetched in parallel and cached for
+    ``ttl``. A lookup that raises maps to None and is retried after
+    _EMPTY_TTL. Values are shared between callers: do not mutate them."""
+    out: dict = {}
+    missing: list[str] = []
+    now = time.monotonic()
+    with _shared_lock:
+        for symbol in dict.fromkeys(symbols):
+            hit = _attr_cache.get((symbol, attr))
+            if hit and now - hit[0] < hit[1]:
+                out[symbol] = hit[2]
+            else:
+                missing.append(symbol)
+    if missing:
+        _release_db()
+        futures = {s: _attr_executor.submit(_fetch_attr, s, attr) for s in missing}
+        for symbol, future in futures.items():
+            value, ok = future.result()
+            out[symbol] = value
+            with _shared_lock:
+                _attr_cache[(symbol, attr)] = (time.monotonic(), ttl if ok else _EMPTY_TTL, value)
+    return out
 
 
 def _raw_info(symbol: str) -> dict:

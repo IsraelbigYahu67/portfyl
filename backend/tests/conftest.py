@@ -40,6 +40,17 @@ from models import (
     Workspace,
 )
 from tenancy import RequestContext
+import market_data
+
+
+@pytest.fixture(autouse=True)
+def _fresh_market_data_caches():
+    """Tests stub yf.download / yf.Ticker with their own data; the shared
+    download and per-ticker caches must not carry one test's answers into
+    the next."""
+    market_data.clear_shared_caches()
+    yield
+    market_data.clear_shared_caches()
 from tests.helpers import TEST_WORKSPACE_ID
 
 
