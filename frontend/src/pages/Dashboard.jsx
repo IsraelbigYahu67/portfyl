@@ -19,7 +19,7 @@ import PortfolioHero from "../components/PortfolioHero";
 import InsightCards from "../components/dashboard/InsightCards";
 import CompositionCard from "../components/dashboard/CompositionCard";
 import DividendBarsCard from "../components/dashboard/DividendBarsCard";
-import { summarizePassiveIncome, splitDividendForecast } from "../lib/dashboardSummaries";
+import { snapshotNetWorth, summarizePassiveIncome, splitDividendForecast } from "../lib/dashboardSummaries";
 import BrokerPositionSnapshot from "../components/BrokerPositionSnapshot";
 import { useT212Sync } from "../hooks/useT212Sync";
 import { derivePortfolioAlerts } from "../lib/portfolioAlerts";
@@ -191,6 +191,12 @@ export default function Dashboard() {
   const convert = (n) => n;
 
 
+  const snapshot = snapshotNetWorth({
+    positions: t212.positionsQuery.data,
+    historyRun: t212.historyRun,
+    currency,
+  });
+
   const pnlPos = summary?.total_pnl >= 0;
   const priceLine = priceFreshnessLine(summary);
 
@@ -248,7 +254,7 @@ export default function Dashboard() {
           onRetry={() => refetchSummary()}
           loading={<PortfolioHero loading currency={currency} series={[]} />}
         >
-          <PortfolioHero summary={summary} currency={currency} series={heroSeries} />
+          <PortfolioHero summary={summary} snapshot={snapshot} currency={currency} series={heroSeries} />
         </AsyncSection>
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-1">
           <KpiBox

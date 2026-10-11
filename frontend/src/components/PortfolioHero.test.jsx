@@ -35,3 +35,23 @@ describe("PortfolioHero", () => {
     expect(container.querySelector(".shimmer")).toBeTruthy();
   });
 });
+
+describe("PortfolioHero with a broker snapshot", () => {
+  const emptyLedger = { ...summary, total_value: 0, cash: 1000, net_worth: 1000, day_change: 0, day_change_percent: 0 };
+
+  it("shows the snapshot value plus cash while history loads, and says so", () => {
+    render(
+      <PortfolioHero
+        summary={emptyLedger}
+        snapshot={{ positionsValue: 68609, asOf: "2026-10-11T14:00:00Z" }}
+        loading={false}
+        currency="USD"
+        series={[]}
+      />,
+    );
+    expect(screen.getByText(/\$69,609\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Positions \$68,609\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Trading 212 snapshot/i)).toBeInTheDocument();
+    expect(screen.queryByText(/0\.00%/)).not.toBeInTheDocument();
+  });
+});
