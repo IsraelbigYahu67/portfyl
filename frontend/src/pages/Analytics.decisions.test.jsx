@@ -80,12 +80,11 @@ describe("Analytics decisions", () => {
     expect(screen.queryByText("Asset Type Breakdown")).not.toBeInTheDocument();
   });
 
-  it("shows period and data-loaded context and a correlation data summary", async () => {
+  it("shows period and data-loaded context", async () => {
     renderPage();
     await screen.findByText(/Time-Weighted/i);
 
     expect(screen.getAllByText(/Period: 1Y · Data loaded/).length).toBeGreaterThan(0);
-    expect(screen.getByRole("group", { name: "Strongest correlation pairs data" })).toHaveTextContent("AAPL / MSFT");
   });
 
   it("correlation matrix cells use the financial-data semantic class, not sub-12px text", async () => {

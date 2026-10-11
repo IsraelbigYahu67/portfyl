@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import { Activity, RefreshCw, TrendingDown, TrendingUp, Shield, Wallet } from "lucide-react";
 import { TickerLink } from "../components/StockDetail";
-import { AsyncSection, ChartSummary } from "../components/ui";
+import { AsyncSection } from "../components/ui";
 import {
   CATEGORICAL, GAIN_COLOR, NEUTRAL_COLOR, AXIS_TICK_STYLE, GRID_STROKE, TOOLTIP_STYLE,
 } from "../lib/chartTheme";
@@ -490,28 +490,6 @@ export default function Analytics() {
                       <Line type="monotone" dataKey="active_pct" stroke={CATEGORICAL[0]} strokeWidth={1} strokeDasharray="4 4" dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
-                  <ChartSummary title="Benchmark comparison chart data">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="text-muted">
-                          <th className="pr-3 font-medium">Date</th>
-                          <th className="pr-3 font-medium">Portfolio</th>
-                          <th className="pr-3 font-medium">{benchName}</th>
-                          <th className="font-medium">Active</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(comparison.series || []).map((row) => (
-                          <tr key={row.date}>
-                            <td className="pr-3 tabular-nums">{row.date}</td>
-                            <td className="pr-3 tabular-nums">{row.portfolio_pct}%</td>
-                            <td className="pr-3 tabular-nums">{row.benchmark_pct}%</td>
-                            <td className="tabular-nums">{row.active_pct}%</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </ChartSummary>
                 </div>
                 <div className="grid grid-cols-2 gap-3 content-start">
                   <MetricCard
@@ -691,24 +669,6 @@ export default function Analytics() {
                 </li>
               ))}
             </ul>
-            <ChartSummary title="Strongest correlation pairs data">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="text-muted">
-                    <th className="pr-3 font-medium">Pair</th>
-                    <th className="font-medium">Correlation</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {correlationPairs.map((p) => (
-                    <tr key={`${p.a}-${p.b}`}>
-                      <td className="pr-3 font-mono">{p.a} / {p.b}</td>
-                      <td className="tabular-nums">{p.value.toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </ChartSummary>
             <details className="mt-4">
               <summary className="text-xs text-muted cursor-pointer select-none">Advanced: full matrix</summary>
               <CorrelationMatrixSelector allTickers={corr.tickers} matrix={corr.matrix} />

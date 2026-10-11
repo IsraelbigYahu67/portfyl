@@ -13,7 +13,7 @@ vi.mock("../../api", () => new Proxy({}, {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("DemoAnalytics", () => {
-  it("derives finite synthetic performance metrics and a textual benchmark comparison locally", () => {
+  it("derives finite synthetic performance metrics locally", () => {
     const fetch = vi.fn(() => {
       throw new Error("The public demo must not fetch data");
     });
@@ -28,8 +28,6 @@ describe("DemoAnalytics", () => {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
     expect(screen.getAllByText(/^\+\d+\.\d{2}%$/).length).toBeGreaterThan(0);
-    expect(screen.getByText("S&P 500")).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Performance comparison" })).toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,6 @@
 import PerformanceChart from "../../components/PerformanceChart";
 import KpiBox from "../../components/ui/KpiBox";
 import { SectionHeader } from "../../components/ui/SectionHeader";
-import ChartSummary from "../../components/ui/ChartSummary";
 import { formatPercent } from "../../lib/format";
 import { useDemoData } from "../DemoDataContext";
 
@@ -89,15 +88,6 @@ export default function DemoAnalytics() {
           benchmarks={data.benchmarks}
           benchmarkMeta={data.benchmarkMeta}
         />
-        <ChartSummary title="Performance comparison">
-          <table className="w-full text-left">
-            <thead><tr className="data-label"><th>Series</th><th className="text-right">Return</th></tr></thead>
-            <tbody>
-              <tr><td>Portfolio</td><td className="financial-data text-right">{formatPercent(metrics.totalReturn * 100)}</td></tr>
-              <tr><td>S&amp;P 500</td><td className="financial-data text-right">{formatPercent(benchmarkFinal)}</td></tr>
-            </tbody>
-          </table>
-        </ChartSummary>
       </section>
     </div>
   );
