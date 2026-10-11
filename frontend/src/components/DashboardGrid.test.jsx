@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import DashboardGrid, { ALL_WIDGETS, normalizeWidgetOrder, swapLayoutPositions } from "./DashboardGrid";
 
-const ORDER_KEY = "sb_dashboard_widget_order_v2";
+const ORDER_KEY = "sb_dashboard_widget_order_v3";
 const HIDDEN_KEY = "sb_dashboard_widgets_hidden";
-const LAYOUT_KEY = "sb_dashboard_layout";
+const LAYOUT_KEY = "sb_dashboard_layout_v2";
 
 const children = Object.fromEntries(
   ALL_WIDGETS.map((w) => [
@@ -56,22 +56,22 @@ describe("DashboardGrid", () => {
   it("moves a default-grid widget visually and keeps the new reading order", () => {
     const { container } = renderGrid({ editing: true });
 
-    fireEvent.click(screen.getByRole("button", { name: /move concentration up/i }));
+    fireEvent.click(screen.getByRole("button", { name: /move performance up/i }));
 
-    expect(domOrder(container)[0]).toBe("concentration");
-    expect(JSON.parse(localStorage.getItem(ORDER_KEY))[0]).toBe("concentration");
+    expect(domOrder(container)[0]).toBe("performance");
+    expect(JSON.parse(localStorage.getItem(ORDER_KEY))[0]).toBe("performance");
     const storedLayout = JSON.parse(localStorage.getItem(LAYOUT_KEY)).lg;
-    expect(storedLayout.find((item) => item.i === "concentration").y).toBe(0);
-    expect(storedLayout.find((item) => item.i === "performance").y).toBe(5);
+    expect(storedLayout.find((item) => item.i === "performance").y).toBe(0);
+    expect(storedLayout.find((item) => item.i === "attention").y).toBe(5);
   });
 
   it("hides and restores a widget via named, focusable buttons", () => {
     renderGrid({ editing: true });
 
-    fireEvent.click(screen.getByRole("button", { name: /hide top movers/i }));
+    fireEvent.click(screen.getByRole("button", { name: /hide movers & earnings/i }));
     expect(screen.queryByTestId("child-movers")).not.toBeInTheDocument();
 
-    const restore = screen.getByRole("button", { name: /restore top movers/i });
+    const restore = screen.getByRole("button", { name: /restore movers & earnings/i });
     expect(restore).toBeEnabled();
     fireEvent.click(restore);
 
@@ -107,3 +107,18 @@ describe("swapLayoutPositions", () => {
     ]);
   });
 });
+
+describe("DashboardGrid with unavailable widgets", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("skips a widget the page did not provide without forgetting its saved position", () => {
+    const { composition, dividends, ...partial } = children;
+    const { container } = render(<DashboardGrid>{partial}</DashboardGrid>);
+
+    expect(domOrder(container)).toEqual(KNOWN_WITHOUT(["composition", "dividends"]));
+  });
+});
+
+function KNOWN_WITHOUT(ids) {
+  return ALL_WIDGETS.map((w) => w.id).filter((id) => !ids.includes(id));
+}

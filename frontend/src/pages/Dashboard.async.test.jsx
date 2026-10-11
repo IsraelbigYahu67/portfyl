@@ -14,6 +14,11 @@ const api = vi.hoisted(() => ({
   fetchEarnings: vi.fn(),
   fetchInsiderBuys: vi.fn(),
   fetchDividends: vi.fn(),
+  fetchCapabilities: vi.fn(),
+  fetchRiskMetrics: vi.fn(),
+  fetchSectorBreakdown: vi.fn(),
+  fetchAllocationTargetDrift: vi.fn(),
+  fetchDividendForecast: vi.fn(),
 }));
 const activationMocks = vi.hoisted(() => ({
   recordPopulatedDashboard: vi.fn(() => true),
@@ -35,7 +40,7 @@ vi.mock("../hooks/useT212Sync", () => t212Mocks);
 vi.mock("../components/DashboardGrid", () => ({
   default: ({ children }) => {
     // Mirror the real grid's fixed widget order.
-    const order = ["performance", "concentration", "attention", "movers", "insiderBuys"];
+    const order = ["attention", "performance", "composition", "concentration", "movers", "dividends", "insiderBuys"];
     return (
       <div>
         {order
@@ -80,6 +85,7 @@ beforeEach(() => {
   api.fetchEarnings.mockResolvedValue([]);
   api.fetchInsiderBuys.mockResolvedValue([]);
   api.fetchDividends.mockResolvedValue([]);
+  api.fetchCapabilities.mockResolvedValue({ capabilities: [] });
 });
 
 it("shows current T212 quantities from the snapshot while historical dashboard widgets stay separate", async () => {
@@ -117,7 +123,7 @@ it("orders dashboard widgets by purpose and collapses insider activity", async (
 
   await screen.findByText("Healthy performance chart");
 
-  const order = ["Portfolio Performance", "Concentration", "Needs attention", "Top Movers", "Insider activity (1Y)"];
+  const order = ["Attention signals", "Portfolio Performance", "Top 10 Holdings", "Top Movers", "Earnings Calendar", "Insider activity (1Y)"];
   const nodes = order.map((label) => screen.getByText(label));
   for (let i = 1; i < nodes.length; i += 1) {
     expect(
@@ -199,4 +205,42 @@ it("raises a holding with no current price in Needs attention", async () => {
   renderPage();
 
   expect(await screen.findByText("No current price: GONE")).toBeInTheDocument();
+});
+
+it("adds IRR, composition and dividend cards when the workspace has the analytics capabilities", async () => {
+  api.fetchCapabilities.mockResolvedValue({ capabilities: ["portfolio_analytics", "dividend_analysis"] });
+  api.fetchSummary.mockResolvedValue({ total_value: 1000, total_pnl: 100, total_pnl_percent: 11.1, total_invested: 900 });
+  api.fetchRiskMetrics.mockResolvedValue({ lifetime: { xirr: 11.4 } });
+  api.fetchSectorBreakdown.mockResolvedValue({
+    total_value: 1000,
+    asset_types: [{ name: "Stocks", value: 1000, weight: 100 }],
+    sectors: [],
+    countries: [],
+  });
+  api.fetchAllocationTargetDrift.mockResolvedValue({ groups: [{ group: "Stocks", target_pct: 90 }] });
+  api.fetchDividendForecast.mockResolvedValue({
+    year: 2026,
+    months: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((month) => ({ month, paid: 5, estimated: 5, entries: [] })),
+  });
+  renderPage();
+
+  expect(await screen.findByText(/^IRR \+11\.40% · /)).toBeInTheDocument();
+  expect(await screen.findByText("Portfolio composition")).toBeInTheDocument();
+  expect(screen.getByText("90% · +10.0 pp")).toBeInTheDocument();
+  expect(screen.getByText("Upcoming payments")).toBeInTheDocument();
+  expect(screen.getByText("Dividends received")).toBeInTheDocument();
+  expect(api.fetchRiskMetrics).toHaveBeenCalledWith("1y", null);
+});
+
+it("leaves paid widgets out and never calls their endpoints without the capabilities", async () => {
+  renderPage();
+
+  await screen.findByText("Healthy performance chart");
+  expect(screen.queryByText("Portfolio composition")).not.toBeInTheDocument();
+  expect(screen.queryByText("Upcoming payments")).not.toBeInTheDocument();
+  expect(screen.getByText("Total profit")).toBeInTheDocument();
+  expect(screen.getByText("Passive income")).toBeInTheDocument();
+  expect(api.fetchRiskMetrics).not.toHaveBeenCalled();
+  expect(api.fetchSectorBreakdown).not.toHaveBeenCalled();
+  expect(api.fetchDividendForecast).not.toHaveBeenCalled();
 });
