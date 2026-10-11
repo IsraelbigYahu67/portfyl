@@ -1,0 +1,233 @@
+/* Portfyl dashboard variants A–D — extra pieces on top of clay.css.
+   Each variant combines the Snowball-style clay dashboard (clay-mockup.html) with blocks
+   from the live Portfyl dashboard (frontend/src/pages/Dashboard.jsx):
+   Net Worth hero + sparkline, broker snapshot freshness, attention signals, top 10 holdings,
+   combined top movers, insider buys. Same palette and tokens as clay.css; nothing new is invented
+   except layout. Static mockups, sample data. */
+
+/* ---------- Variant switcher (only for comparing mockups) ---------- */
+.vswitch { display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px; background: var(--well); box-shadow: var(--inset-sm); }
+.vswitch a { height: 30px; padding: 0 12px; border-radius: 999px; display: inline-flex; align-items: center; font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.vswitch a:hover { color: var(--ink); }
+.vswitch a.on { background: var(--card-elevated); color: var(--brand); box-shadow: var(--raise-sm); }
+
+/* ---------- Broker / price freshness strip (Portfyl BrokerPositionSnapshot + priceFreshnessLine) ---------- */
+.sync-strip { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sync { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 14px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--card-elevated); box-shadow: var(--raise-sm); white-space: nowrap; }
+.sync b { color: var(--ink); font-weight: 700; }
+.sync .led { width: 8px; height: 8px; border-radius: 50%; background: var(--gain); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gain) 22%, transparent); }
+.sync .led.warn { background: var(--chart-6); box-shadow: 0 0 0 3px color-mix(in srgb, var(--chart-6) 25%, transparent); }
+
+/* ---------- Net Worth hero (Portfyl PortfolioHero, clay-ified) ---------- */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 20px; align-items: stretch; padding: 26px 26px 22px; }
+.eyebrow { font-family: var(--font-display); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.hero-num { margin-top: 8px; font-family: var(--font-display); font-size: 44px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.02; white-space: nowrap; }
+.hero-num.md { font-size: 36px; }
+.hero-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.hero-sub { margin-top: 8px; color: var(--muted); font-weight: 500; }
+.hero-sub b { color: var(--ink); font-weight: 700; }
+.wells { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 20px; }
+.wells.w3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.wells.w2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.wellk { padding: 10px 12px; border-radius: 14px; background: var(--well); box-shadow: var(--inset-sm); min-width: 0; }
+.wellk small { display: block; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wellk b { display: block; margin-top: 2px; font-family: var(--font-display); font-size: 16px; font-weight: 700; white-space: nowrap; }
+.wellk em { display: block; font-style: normal; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.spark { position: relative; min-height: 150px; display: flex; flex-direction: column; }
+.spark svg { flex: 1; width: 100%; height: 100%; min-height: 120px; }
+.spark-x { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
+.spark-head { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+
+/* ---------- Compact stat card (used in hero row / bento) ---------- */
+.mstat { display: flex; flex-direction: column; gap: 6px; padding: 18px 20px; }
+.mstat .stat-head { font-size: 13px; }
+.mstat .v { font-family: var(--font-display); font-size: 24px; font-weight: 700; letter-spacing: -0.015em; white-space: nowrap; }
+.mstat .s { color: var(--muted); font-size: 13px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.hero-row { display: grid; grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr); gap: 20px; }
+.hero-row > .stack > .clay { flex: 1; }
+
+/* ---------- Attention signals (Portfyl DashboardAttention) ---------- */
+.attn { display: flex; flex-direction: column; gap: 10px; }
+.attn-item { --c: var(--chart-5); display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; padding: 12px; border-radius: 16px; background: var(--card-elevated); box-shadow: var(--raise-sm); }
+.attn-item.crit { --c: var(--loss); }
+.attn-item.warn { --c: var(--chart-6); }
+.attn-ico { width: 34px; height: 34px; border-radius: 12px; display: grid; place-items: center; color: var(--ink); background: color-mix(in srgb, var(--c) 34%, var(--card-solid)); box-shadow: var(--raise-sm); }
+.attn-ico .i { width: 16px; height: 16px; }
+.attn-item b { display: block; font-weight: 700; line-height: 1.3; }
+.attn-item p { margin-top: 2px; color: var(--muted); font-size: 13px; }
+.attn-item .sev { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: color-mix(in srgb, var(--c) 70%, var(--ink)); }
+.attn-item .link { font-size: 13px; margin-left: 10px; }
+.attn-strip { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px 12px 18px; border-radius: 999px; background: var(--card-elevated); box-shadow: var(--raise-sm); }
+.attn-strip > b { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-display); }
+.attn-strip .tag { height: 28px; }
+.attn-strip .link { margin-left: auto; }
+
+/* ---------- Top holdings with weight bars (Portfyl Top 10 Holdings) ---------- */
+.hlist { display: flex; flex-direction: column; }
+.hrow { display: grid; grid-template-columns: 30px 58px minmax(0, 1fr) 52px 104px; align-items: center; gap: 10px; padding: 8px 4px; border-radius: 12px; }
+.hrow + .hrow { border-top: 1px solid var(--hairline); }
+.hrow:hover { background: color-mix(in srgb, var(--brand-light) 55%, transparent); }
+.hrow .logo { width: 30px; height: 30px; font-size: 9px; }
+.hrow .t { font-family: var(--font-mono); font-weight: 700; font-size: 13px; }
+.wbar { height: 10px; border-radius: 999px; background: var(--well); box-shadow: var(--inset-sm); overflow: hidden; }
+.wbar i { display: block; height: 100%; width: var(--w, 50%); border-radius: 999px; background: linear-gradient(90deg, var(--chart-1), var(--brand)); }
+.hrow .p { text-align: right; font-weight: 700; }
+.hrow .val { text-align: right; color: var(--muted); font-weight: 600; white-space: nowrap; }
+
+/* ---------- Combined movers card (Portfyl Top Movers: gainers + losers side by side) ---------- */
+.movers2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.movers2 h3 { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.mrow { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 7px 4px; border-radius: 12px; }
+.mrow + .mrow { border-top: 1px solid var(--hairline); }
+.mrow:hover { background: color-mix(in srgb, var(--brand-light) 55%, transparent); }
+.mrow .logo { width: 30px; height: 30px; font-size: 9px; }
+.mrow b { display: block; font-family: var(--font-mono); font-size: 13px; }
+.mrow small { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mrow .delta { font-size: 12px; padding: 2px 8px; }
+
+/* ---------- Upcoming timeline (dividends + earnings merged) ---------- */
+.tl { display: flex; flex-direction: column; }
+.tl-day { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; padding: 10px 0; }
+.tl-day + .tl-day { border-top: 1px solid var(--hairline); }
+.tl-date { text-align: center; padding: 6px 0; border-radius: 14px; background: var(--well); box-shadow: var(--inset-sm); line-height: 1.1; align-self: start; }
+.tl-date b { display: block; font-family: var(--font-display); font-size: 18px; font-weight: 800; }
+.tl-date small { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+.tl-ev { display: flex; align-items: center; gap: 8px; min-height: 30px; flex-wrap: wrap; }
+.tl-ev + .tl-ev { margin-top: 4px; }
+.tl-ev .tag { height: 22px; font-size: 10px; }
+.tl-ev .tag.div { --c: var(--chart-1); }
+.tl-ev .tag.earn { --c: var(--chart-2); }
+.tl-ev span.t { font-family: var(--font-mono); font-weight: 700; font-size: 13px; }
+.tl-ev .amt { margin-left: auto; font-weight: 700; white-space: nowrap; }
+.tl-ev .amt.muted { font-weight: 600; }
+
+/* ---------- Insider buys (Portfyl insider table, compact) ---------- */
+.ins-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 0; }
+.ins-row + .ins-row { border-top: 1px solid var(--hairline); }
+.ins-row .logo { width: 30px; height: 30px; font-size: 9px; }
+.ins-row b { display: block; font-weight: 700; }
+.ins-row small { display: block; color: var(--muted); font-size: 12px; }
+.ins-row .amt { text-align: right; font-weight: 700; white-space: nowrap; }
+.ins-row .amt small { text-align: right; }
+
+/* ---------- Variant B: bento grid ---------- */
+.bento { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; grid-auto-flow: dense; }
+.bento > * { min-width: 0; }
+.c2 { grid-column: span 2; }
+.c3 { grid-column: span 3; }
+.c4 { grid-column: span 4; }
+.r2 { grid-row: span 2; }
+.tile-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.tile-head h2 { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
+.tile-head h2 .i { color: var(--muted); width: 16px; height: 16px; }
+.bento .clay { padding: 20px; }
+.bento .hero { padding: 22px; grid-template-columns: 1fr; }
+.bento .chart-wrap { height: 230px; }
+.mini-donut { position: relative; width: 150px; aspect-ratio: 1; margin: 0 auto; }
+.mini-donut svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.mini-donut .c { position: absolute; inset: 22%; border-radius: 50%; display: grid; place-content: center; text-align: center; background: var(--card-elevated); box-shadow: var(--raise-sm); font-family: var(--font-display); font-weight: 800; font-size: 15px; }
+.mini-donut .c small { display: block; font-family: var(--font-body); font-size: 10px; font-weight: 700; color: var(--muted); }
+.legend { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; font-size: 13px; }
+.legend div { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.legend b { font-weight: 700; text-align: right; }
+.legend .drift { font-size: 12px; min-width: 52px; text-align: right; }
+.legend .ok { font-size: 12px; min-width: 52px; text-align: right; color: var(--muted); font-weight: 600; }
+.nextpay { display: flex; flex-direction: column; gap: 8px; }
+.nextpay .big { display: flex; align-items: center; gap: 12px; }
+.nextpay .big b { font-family: var(--font-display); font-size: 22px; font-weight: 800; }
+.heatmap.compact { grid-auto-rows: 52px; }
+
+/* ---------- Variant C: cockpit + right rail ---------- */
+.cockpit { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
+.cockpit .col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.rail { position: sticky; top: 100px; }
+.rail .clay { padding: 20px; }
+.hero-chart { display: flex; flex-direction: column; gap: 4px; }
+.hero-chart .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.hero-chart .chart-wrap { height: 240px; margin-top: 14px; }
+.tbl tr.sub td { padding-top: 8px; padding-bottom: 8px; background: color-mix(in srgb, var(--well) 55%, transparent); }
+.tbl tr.sub td:first-child { padding-left: 34px; }
+.tbl tr.sub .tk { display: flex; align-items: center; gap: 10px; }
+.tbl tr.sub .logo { width: 28px; height: 28px; font-size: 9px; }
+.tbl tr.sub b { font-family: var(--font-mono); font-size: 13px; }
+.tbl tr.sub .wbar { width: 90px; display: inline-block; vertical-align: middle; margin-right: 8px; height: 8px; }
+.tbl tr.sub .num small { display: inline; }
+.caret { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; margin-right: 6px; background: var(--well); box-shadow: var(--inset-sm); color: var(--muted); }
+.caret .i-sm { width: 12px; height: 12px; }
+.sync-card { display: flex; flex-direction: column; gap: 10px; }
+.sync-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; }
+.sync-row .led { width: 8px; height: 8px; border-radius: 50%; background: var(--gain); }
+.sync-row .led.warn { background: var(--chart-6); }
+.sync-row b { font-weight: 700; }
+.sync-row small { color: var(--muted); }
+
+/* ---------- Variant D: KPI row + tabbed main card ---------- */
+.tabcard { padding: 0; overflow: hidden; }
+.tabcard .tabs { padding: 0 20px; }
+.tabcard .panel { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+.tabcard .panel[hidden] { display: none; }
+.panel .comp { gap: 24px; }
+.panel .inner-card { padding: 20px; }
+.stat .spark-mini { display: block; width: 100%; height: 34px; margin-top: 10px; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1320px) {
+  .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bento .c3, .bento .c4 { grid-column: span 2; }
+  .cockpit { grid-template-columns: minmax(0, 1fr) 320px; }
+}
+@media (max-width: 1180px) {
+  .hero-row { grid-template-columns: 1fr; }
+  .hero-row > .stack { flex-direction: row; }
+  .hero-row > .stack > .clay { flex: 1; }
+  .cockpit { grid-template-columns: 1fr; }
+  .rail { position: static; }
+}
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; }
+  .movers2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .page-head .vswitch { order: 3; width: 100%; overflow-x: auto; }
+  .hero { padding: 20px; }
+  .hero-num { font-size: 34px; }
+  .hero-num.md { font-size: 30px; }
+  .wells, .wells.w3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hero-row > .stack { flex-direction: column; }
+  .bento { grid-template-columns: 1fr; gap: 14px; }
+  .bento .c2, .bento .c3, .bento .c4 { grid-column: auto; }
+  .bento .r2 { grid-row: auto; }
+  .hrow { grid-template-columns: 30px 52px minmax(0, 1fr) 46px; }
+  .hrow .val { display: none; }
+  .attn-strip { border-radius: 22px; }
+  .attn-strip .link { margin-left: 0; }
+  .tabcard .panel { padding: 16px; }
+  .tbl tr.sub .wbar { display: none; }
+  .sync { height: 30px; }
+}
+
+/* Hero: number + sparkline on top, the four wells span the full card width underneath. */
+.hero > .wells { grid-column: 1 / -1; margin-top: 0; }
+
+/* Bento: a shorter hero chart keeps the four KPI tiles next to it compact. */
+.bento .hero { gap: 14px; }
+.bento .hero .spark { min-height: 0; }
+.bento .hero .spark svg { flex: none; height: 120px; min-height: 0; }
+.bento .attn-item p { font-size: 12px; }
+
+/* Page head: let the variant switcher wrap / scroll instead of widening the page on phones. */
+.page-head .actions { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+@media (max-width: 640px) {
+  .page-head .actions { width: 100%; }
+  .page-head .actions .vswitch { order: 3; width: 100%; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .page-head .actions .vswitch a { flex: none; }
+}
+@media (max-width: 640px) {
+  /* Variant C holdings table: tighter expanded rows so the table fits a phone. */
+  .tbl th small { display: none; }
+  .tbl tr.sub td:first-child { padding-left: 14px; }
+  .tbl tr.sub .logo { display: none; }
+  .tbl tr.sub td { font-size: 12px; }
+  .caret { display: none; }
+}

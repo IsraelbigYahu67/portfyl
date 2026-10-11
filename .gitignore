@@ -26,3 +26,6 @@ backend/tests/fixtures/t212_cash_transactions/_captured/
 
 # Stitch design export (extracted copy lives in docs/design/stitch/)
 stitch_portfyl_desktop.zip
+
+# Playwright MCP screenshots / page snapshots (local debugging only)
+.playwright-mcp/

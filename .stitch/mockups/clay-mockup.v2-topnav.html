@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portfyl Clay v2 — Dashboard &amp; Stock Detail mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="clay.v2-topnav.css">
+</head>
+<body data-view="dashboard">
+
+<!-- Icon sprite (stroke icons, 24x24) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-dash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></symbol>
+    <symbol id="i-brief" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></symbol>
+    <symbol id="i-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3l1.9 5.1L18 10l-5.1 1.9L11 17l-1.9-5.1L4 10l5.1-1.9z"/><path d="M19 15l.7 1.8 1.8.7-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-msg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+    <symbol id="i-coins" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4M16.71 13.88l.7.71-2.82 2.82"/></symbol>
+    <symbol id="i-pct" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></symbol>
+    <symbol id="i-bitcoin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.77 2v2M14.77 2v2M11.77 20v2M14.77 20v2M8 7h7a3 3 0 0 1 0 6H8zM8 13h8a3 3 0 0 1 0 6H8zM6 7h2M6 19h2M8 7v12"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 10 5-10 5L2 7z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></symbol>
+    <symbol id="i-trend-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-bldg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></symbol>
+  </defs>
+</svg>
+
+<!-- ================= Top navigation (Snowball-style, 5 groups instead of 12 sidebar links) ================= -->
+<div class="topbar-wrap">
+  <header class="topbar">
+    <a class="brand" href="#dashboard"><span class="brand-mark">P</span><span class="brand-name">Portfyl</span></a>
+    <nav class="tnav" aria-label="Primary">
+      <a href="#dashboard" id="nav-dashboard" class="active"><svg class="i"><use href="#i-dash"/></svg>Dashboard</a>
+      <a href="#"><svg class="i"><use href="#i-chart"/></svg>Analytics</a>
+      <a href="#"><svg class="i"><use href="#i-brief"/></svg>Portfolio</a>
+      <a href="#" id="nav-research"><svg class="i"><use href="#i-search"/></svg>Research</a>
+      <a href="#"><svg class="i"><use href="#i-cal"/></svg>Dividends</a>
+    </nav>
+    <div class="top-actions">
+      <button class="icon-btn ai" type="button" aria-label="AI assistant"><svg class="i"><use href="#i-sparkle"/></svg></button>
+      <button class="btn btn-primary btn-add" type="button" aria-label="Add transaction"><svg class="i"><use href="#i-plus"/></svg><span>Add</span></button>
+      <button class="icon-btn hide-sm" type="button" aria-label="Search"><svg class="i"><use href="#i-search"/></svg></button>
+      <button class="icon-btn hide-sm" type="button" aria-label="Watchlists"><svg class="i"><use href="#i-star"/></svg></button>
+      <button class="select" type="button"><svg class="i-sm"><use href="#i-brief"/></svg>Main portfolio<svg class="i-sm"><use href="#i-chev"/></svg></button>
+      <button class="select cur" type="button">CZK<svg class="i-sm"><use href="#i-chev"/></svg></button>
+      <span class="avatar" role="img" aria-label="Account: Tomáš Z.">TZ</span>
+    </div>
+  </header>
+</div>
+
+<main class="page" id="main">
+
+  <!-- ================= DASHBOARD ================= -->
+  <div class="view" id="view-dashboard">
+    <header class="page-head">
+      <div>
+        <h1>Main portfolio <button class="icon-btn" type="button" aria-label="Portfolio note" style="width:32px;height:32px"><svg class="i-sm"><use href="#i-msg"/></svg></button></h1>
+        <p>Prices updated 2 min ago · 23 holdings · Trading 212 + IBKR</p>
+      </div>
+      <div class="actions">
+        <button class="btn" type="button"><svg class="i"><use href="#i-dash"/></svg>Customize</button>
+        <button class="icon-btn" type="button" aria-label="More options"><svg class="i"><use href="#i-dots"/></svg></button>
+      </div>
+    </header>
+
+    <!-- KPI row: Value · Total profit · IRR · Passive income -->
+    <section class="kpi-row" aria-label="Portfolio summary">
+      <article class="clay stat hov">
+        <div class="stat-head"><span class="stat-ico" style="--c:var(--chart-1)"><svg class="i"><use href="#i-wallet"/></svg></span>Value<button class="help" type="button" aria-label="About value">?</button><span class="stat-tag"><svg class="i-sm"><use href="#i-sparkle"/></svg>In 10 years?</span></div>
+        <div class="stat-val"><span class="num">CZK 2 486 310</span><button class="icon-btn" type="button" aria-label="Hide amounts"><svg class="i-sm"><use href="#i-eye"/></svg></button></div>
+        <div class="stat-sub">CZK 1 910 000 invested</div>
+      </article>
+      <article class="clay stat hov">
+        <div class="stat-head"><span class="stat-ico" style="--c:var(--chart-5)"><svg class="i"><use href="#i-trend-up"/></svg></span>Total profit<button class="help" type="button" aria-label="About total profit">?</button></div>
+        <div class="stat-val"><span class="num">+CZK 576 310</span><span class="chg up">30.2%</span></div>
+        <div class="stat-sub"><span class="gain">+CZK 12 480</span><span class="chg up">0.51%</span>today</div>
+      </article>
+      <article class="clay stat hov">
+        <div class="stat-head"><span class="stat-ico" style="--c:var(--chart-7)"><svg class="i"><use href="#i-pct"/></svg></span>IRR<button class="help" type="button" aria-label="About IRR">?</button></div>
+        <div class="stat-val"><span class="num">11.4%</span></div>
+        <div class="stat-sub">9.8% <span class="dotted">current holdings</span></div>
+      </article>
+      <article class="clay stat hov">
+        <div class="stat-head"><span class="stat-ico" style="--c:var(--chart-2)"><svg class="i"><use href="#i-coins"/></svg></span>Passive income<button class="help" type="button" aria-label="About passive income">?</button></div>
+        <div class="stat-val"><span class="num">1.96%</span><span class="chg up">6%</span></div>
+        <div class="stat-sub">CZK 48 760 annually</div>
+      </article>
+    </section>
+
+    <!-- Insights (Snowball "Portfolio insights" ← Portfyl attention signals) -->
+    <section class="clay" aria-labelledby="ins-title">
+      <div class="card-head">
+        <h2 class="card-title" id="ins-title">Portfolio insights<button class="help" type="button" aria-label="About insights">?</button><span class="badge-new">NEW</span></h2>
+        <a class="link" href="#">All insights<svg class="i-sm"><use href="#i-arrow"/></svg></a>
+      </div>
+      <div class="insights">
+        <article class="insight">
+          <div class="insight-top"><span class="tag"><svg class="i-sm"><use href="#i-alert"/></svg>Concentration</span><button class="icon-btn" type="button" aria-label="Dismiss"><svg class="i-sm"><use href="#i-x"/></svg></button></div>
+          <h3>NVDA is 10.4% of your portfolio</h3>
+          <p>Above your 10% single-position target. Stocks are 2 pp over their category target.</p>
+          <button class="btn btn-primary btn-sm" type="button">See details</button>
+        </article>
+        <article class="insight info">
+          <div class="insight-top"><span class="tag"><svg class="i-sm"><use href="#i-coins"/></svg>Dividend</span><button class="icon-btn" type="button" aria-label="Dismiss"><svg class="i-sm"><use href="#i-x"/></svg></button></div>
+          <h3>MSFT pays CZK 1 240 on 14 Oct</h3>
+          <p>Estimated after 15% withholding tax. 3 more payments are due this month.</p>
+          <button class="btn btn-sm" type="button">Open calendar</button>
+        </article>
+        <article class="insight cal">
+          <div class="insight-top"><span class="tag"><svg class="i-sm"><use href="#i-cal"/></svg>Earnings</span><button class="icon-btn" type="button" aria-label="Dismiss"><svg class="i-sm"><use href="#i-x"/></svg></button></div>
+          <h3>ASML reports in 3 days</h3>
+          <p>13 Oct, before market open. Consensus EPS 5.84.</p>
+          <button class="btn btn-sm" type="button">See details</button>
+        </article>
+      </div>
+    </section>
+
+    <!-- Composition: donut (actual + target ring) + category table -->
+    <div class="comp">
+      <section class="clay" aria-labelledby="donut-title">
+        <div class="card-head">
+          <h2 class="card-title" id="donut-title">Portfolio</h2>
+          <div class="seg" role="group" aria-label="Group by" data-seg><button type="button" class="on">Categories</button><button type="button">Sectors</button><button type="button">Countries</button></div>
+        </div>
+        <div class="donut" role="img" aria-label="Allocation: Stocks 47 percent (target 45), ETFs 40 (target 45), Cash 7.4 (target 5), Crypto 5.6 (target 5)">
+          <svg viewBox="0 0 200 200">
+            <g fill="none" stroke-width="26">
+              <circle cx="100" cy="100" r="68" pathLength="100" stroke="#6D7048" stroke-dasharray="46.2 53.8" stroke-dashoffset="0"/>
+              <circle cx="100" cy="100" r="68" pathLength="100" stroke="#DBAA89" stroke-dasharray="39.2 60.8" stroke-dashoffset="-47"/>
+              <circle cx="100" cy="100" r="68" pathLength="100" stroke="#D4C3A1" stroke-dasharray="6.6 93.4" stroke-dashoffset="-87"/>
+              <circle cx="100" cy="100" r="68" pathLength="100" stroke="#C08457" stroke-dasharray="4.8 95.2" stroke-dashoffset="-94.4"/>
+            </g>
+            <g fill="none" stroke-width="5" stroke-linecap="round">
+              <circle cx="100" cy="100" r="93" pathLength="100" stroke="#6D7048" stroke-opacity=".55" stroke-dasharray="43.4 56.6" stroke-dashoffset="-0.4"/>
+              <circle cx="100" cy="100" r="93" pathLength="100" stroke="#DBAA89" stroke-opacity=".75" stroke-dasharray="43.4 56.6" stroke-dashoffset="-45.4"/>
+              <circle cx="100" cy="100" r="93" pathLength="100" stroke="#D4C3A1" stroke-opacity=".9" stroke-dasharray="3.4 96.6" stroke-dashoffset="-90.4"/>
+              <circle cx="100" cy="100" r="93" pathLength="100" stroke="#C08457" stroke-opacity=".75" stroke-dasharray="3.4 96.6" stroke-dashoffset="-95.4"/>
+            </g>
+          </svg>
+          <div class="donut-center"><small>Total value</small><b>CZK 2.49M</b><span class="chg up">30.2%</span></div>
+        </div>
+        <div class="donut-legend"><span><i class="ring-a"></i>Actual</span><span><i class="ring-t"></i>Target</span></div>
+      </section>
+
+      <section class="clay" aria-labelledby="cat-title">
+        <div class="card-head">
+          <h2 class="card-title" id="cat-title">Categories</h2>
+          <div style="display:flex;gap:8px;align-items:center"><a class="link" href="#">Rebalance<svg class="i-sm"><use href="#i-arrow"/></svg></a><button class="icon-btn" type="button" aria-label="Table options"><svg class="i"><use href="#i-dots"/></svg></button></div>
+        </div>
+        <table class="tbl">
+          <thead><tr><th scope="col">Name</th><th scope="col" class="num">Value / Invested</th><th scope="col" class="num col-gain">Gain</th><th scope="col" class="num">Allocation <small>actual · target</small></th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="cat" style="--c:#6D7048"><span class="cat-ico"><svg class="i"><use href="#i-trend-up"/></svg></span><span><b>Stocks</b><small>14 items</small></span></div></td>
+              <td class="num"><b>CZK 1 168 560</b><small>CZK 860 000</small></td>
+              <td class="num col-gain"><b class="gain">+CZK 308 560</b><small class="chg up">35.9%</small></td>
+              <td class="num"><b>47.0%</b><small>45% · <span class="drift">+2.0 pp</span></small></td>
+            </tr>
+            <tr>
+              <td><div class="cat" style="--c:#DBAA89"><span class="cat-ico"><svg class="i"><use href="#i-layers"/></svg></span><span><b>ETFs</b><small>6 items</small></span></div></td>
+              <td class="num"><b>CZK 994 520</b><small>CZK 820 000</small></td>
+              <td class="num col-gain"><b class="gain">+CZK 174 520</b><small class="chg up">21.3%</small></td>
+              <td class="num"><b>40.0%</b><small>45% · <span class="drift">−5.0 pp</span></small></td>
+            </tr>
+            <tr>
+              <td><div class="cat" style="--c:#D4C3A1"><span class="cat-ico"><svg class="i"><use href="#i-wallet"/></svg></span><span><b>Cash</b><small>2 items</small></span></div></td>
+              <td class="num"><b>CZK 185 190</b><small>CZK 185 190</small></td>
+              <td class="num col-gain"><b class="muted">–</b></td>
+              <td class="num"><b>7.4%</b><small>5% · <span class="drift">+2.4 pp</span></small></td>
+            </tr>
+            <tr>
+              <td><div class="cat" style="--c:#C08457"><span class="cat-ico"><svg class="i"><use href="#i-bitcoin"/></svg></span><span><b>Crypto</b><small>1 item</small></span></div></td>
+              <td class="num"><b>CZK 138 040</b><small>CZK 44 810</small></td>
+              <td class="num col-gain"><b class="gain">+CZK 93 230</b><small class="chg up">208.1%</small></td>
+              <td class="num"><b>5.6%</b><small>5% · +0.6 pp</small></td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td><span class="total">Total</span></td>
+              <td class="num"><b>CZK 2 486 310</b><small>CZK 1 910 000</small></td>
+              <td class="num col-gain"><b class="gain">+CZK 576 310</b><small class="chg up">30.2%</small></td>
+              <td class="num"><b>100%</b><small>3 categories off target</small></td>
+            </tr>
+          </tfoot>
+        </table>
+      </section>
+    </div>
+
+    <!-- Performance -->
+    <section class="clay" aria-labelledby="perf-title">
+      <div class="card-head" style="margin-bottom:14px">
+        <h2 class="card-title" id="perf-title">Portfolio performance<button class="help" type="button" aria-label="About performance">?</button></h2>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div class="seg" role="group" aria-label="Chart mode" data-seg><button type="button">Value</button><button type="button" class="on">Growth %</button></div>
+          <div class="seg" role="group" aria-label="Period" data-seg>
+            <button type="button">7D</button><button type="button">1M</button><button type="button">3M</button><button type="button">YTD</button><button type="button">1Y</button><button type="button">5Y</button><button type="button" class="on">All</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap" aria-label="Benchmarks">
+        <button class="chip on" type="button" style="--dot:#C08457" data-chip><i></i>S&amp;P 500</button>
+        <button class="chip on" type="button" style="--dot:#A9AB88" data-chip><i></i>NASDAQ 100</button>
+        <button class="chip" type="button" style="--dot:#D4C3A1" data-chip><i></i>Dow Jones</button>
+        <button class="chip" type="button" style="--dot:#9E8E6E" data-chip><i></i>STOXX 50</button>
+        <button class="chip" type="button" style="--dot:#DBAA89" data-chip><i></i>Bitcoin</button>
+      </div>
+      <p class="banner"><svg class="i"><use href="#i-trend-up"/></svg><span>Portfolio is ahead of the S&amp;P 500 by <b class="gain">+10.1 pp</b> since Jan 2023.</span></p>
+
+      <div class="chart-wrap" role="img" aria-label="Growth percentage of portfolio versus S&amp;P 500 and NASDAQ 100 since inception">
+        <span class="chart-y" style="top:6.7%">40%</span>
+        <span class="chart-y" style="top:26.7%">30%</span>
+        <span class="chart-y" style="top:46.7%">20%</span>
+        <span class="chart-y" style="top:66.7%">10%</span>
+        <span class="chart-y" style="top:86.7%">0%</span>
+        <svg viewBox="0 0 900 300" preserveAspectRatio="none">
+          <defs><linearGradient id="g-perf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6D7048" stop-opacity=".22"/><stop offset="1" stop-color="#6D7048" stop-opacity="0"/></linearGradient></defs>
+          <g stroke="#786954" stroke-opacity=".22" stroke-width="1" vector-effect="non-scaling-stroke">
+            <line x1="0" x2="900" y1="20" y2="20" stroke-dasharray="3 6"/><line x1="0" x2="900" y1="80" y2="80" stroke-dasharray="3 6"/>
+            <line x1="0" x2="900" y1="140" y2="140" stroke-dasharray="3 6"/><line x1="0" x2="900" y1="200" y2="200" stroke-dasharray="3 6"/>
+            <line x1="0" x2="900" y1="260" y2="260" stroke-dasharray="3 6"/>
+          </g>
+          <path d="M0,250 C60,245 90,230 140,222 S220,200 270,205 S350,170 410,150 S500,160 550,120 S650,100 700,70 S840,48 900,38 L900,300 L0,300 Z" fill="url(#g-perf)"/>
+          <path d="M0,250 C80,240 140,236 200,226 S320,210 380,190 S500,180 560,150 S640,132 700,124 S830,100 900,92" fill="none" stroke="#C08457" stroke-width="3" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+          <path d="M0,250 C70,238 130,228 190,214 S300,186 370,170 S480,150 540,118 S640,98 700,90 S830,66 900,56" fill="none" stroke="#A9AB88" stroke-width="3" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+          <path d="M0,250 C60,245 90,230 140,222 S220,200 270,205 S350,170 410,150 S500,160 550,120 S650,100 700,70 S840,48 900,38" fill="none" stroke="#6D7048" stroke-width="4" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+        </svg>
+        <div class="cursor-line" style="left:77.8%"></div>
+        <span class="dot" style="left:77.8%;top:23.3%;background:#6D7048"></span>
+        <span class="dot" style="left:77.8%;top:30%;background:#A9AB88"></span>
+        <span class="dot" style="left:77.8%;top:41.3%;background:#C08457"></span>
+        <div class="tooltip" style="left:77.8%;top:56%">
+          <b>12 Jun 2026</b>
+          <div><span><i class="dot-s" style="background:#6D7048"></i>Portfolio</span><span>+32.5%</span></div>
+          <div><span><i class="dot-s" style="background:#A9AB88"></i>NASDAQ 100</span><span>+28.1%</span></div>
+          <div><span><i class="dot-s" style="background:#C08457"></i>S&amp;P 500</span><span>+22.4%</span></div>
+        </div>
+      </div>
+      <div class="chart-x"><span>Jan ’23</span><span>Jul ’23</span><span>Jan ’24</span><span>Jul ’24</span><span>Jan ’25</span><span>Jul ’25</span><span>Jan ’26</span><span>Oct ’26</span></div>
+    </section>
+
+    <!-- Top day gainers / losers -->
+    <div class="row-2">
+      <section class="clay" aria-labelledby="gain-title">
+        <div class="card-head"><h2 class="card-title" id="gain-title">Top gainers<button class="help" type="button" aria-label="About gainers">?</button></h2><div class="seg" role="group" aria-label="Period" data-seg><button type="button" class="on">Day</button><button type="button">Week</button><button type="button">Month</button></div></div>
+        <ul class="movers">
+          <li><a class="mv" href="#stock"><span class="logo" style="--c:#7C8A5A">ASML</span><span class="mv-id"><b>ASML Holding</b><small>ASML</small></span><span class="mv-val"><b>CZK 133 500</b><span class="chg up">2.10% (+CZK 2 760)</span></span></a></li>
+          <li><a class="mv" href="#stock"><span class="logo" style="--c:#A9AB88">NVDA</span><span class="mv-id"><b>NVIDIA Corporation</b><small>NVDA</small></span><span class="mv-val"><b>CZK 257 700</b><span class="chg up">1.65% (+CZK 4 190)</span></span></a></li>
+          <li><a class="mv" href="#stock"><span class="logo" style="--c:#D4C3A1">MSFT</span><span class="mv-id"><b>Microsoft</b><small>MSFT</small></span><span class="mv-val"><b>CZK 223 200</b><span class="chg up">0.84% (+CZK 1 870)</span></span></a></li>
+          <li><a class="mv" href="#stock"><span class="logo" style="--c:#B7AFA3">SAP</span><span class="mv-id"><b>SAP SE</b><small>SAP</small></span><span class="mv-val"><b>CZK 101 200</b><span class="chg up">0.71% (+CZK 720)</span></span></a></li>
+          <li><a class="mv" href="#stock"><span class="logo" style="--c:#DBAA89">VWCE</span><span class="mv-id"><b>Vanguard FTSE All-World</b><small>VWCE</small></span><span class="mv-val"><b>CZK 423 400</b><span class="chg up">0.32% (+CZK 1 350)</span></span></a></li>
+        </ul>
+      </section>
+      <section class="clay" aria-labelledby="loss-title">
+        <div class="card-head"><h2 class="card-title" id="loss-title">Top losers<button class="help" type="button" aria-label="About losers">?</button></h2><div class="seg" role="group" aria-label="Period" data-seg><button type="button" class="on">Day</button><button type="button">Week</button><button type="button">Month</button></div></div>
+        <ul class="movers">
+          <li><a class="mv" href="#stock"><span class="logo" style="--c:#C08457">CEZ</span><span class="mv-id"><b>ČEZ</b><small>CEZ</small></span><span class="mv-val"><b>CZK 145 000</b><span class="chg down">1.22% (−CZK 1 770)</span></span></a></li>
+          <li><a class="mv" href="#stock"><span class="logo" style="--c:#8A8478">AAPL</span><span class="mv-id"><b>Apple Inc</b><small>AAPL</small></span><span class="mv-val"><b>CZK 186 400</b><span class="chg down">0.41% (−CZK 760)</span></span></a></li>
+          <li><a class="mv" href="#stock"><span class="logo" style="--c:#DBAA89">KO</span><span class="mv-id"><b>Coca-Cola</b><small>KO</small></span><span class="mv-val"><b>CZK 82 800</b><span class="chg down">0.35% (−CZK 290)</span></span></a></li>
+          <li><a class="mv" href="#stock"><span class="logo" style="--c:#9E8E6E">O</span><span class="mv-id"><b>Realty Income</b><small>O</small></span><span class="mv-val"><b>CZK 71 300</b><span class="chg down">0.28% (−CZK 200)</span></span></a></li>
+          <li><a class="mv" href="#stock"><span class="logo" style="--c:#D4C3A1">MC</span><span class="mv-id"><b>LVMH</b><small>MC</small></span><span class="mv-val"><b>CZK 62 100</b><span class="chg down">0.19% (−CZK 120)</span></span></a></li>
+        </ul>
+      </section>
+    </div>
+
+    <!-- Dividends: future payments + received -->
+    <div class="row-2">
+      <section class="clay" aria-labelledby="fut-title">
+        <div class="card-head"><h2 class="card-title" id="fut-title">Future payments<button class="help" type="button" aria-label="About future payments">?</button></h2><a class="link" href="#">Calendar<svg class="i-sm"><use href="#i-arrow"/></svg></a></div>
+        <div class="mini-kpis"><div class="mini-kpi"><small>Next 12 months</small><b>CZK 51 240</b></div><div class="mini-kpi"><small>Monthly average</small><b>CZK 4 270</b></div></div>
+        <div class="bars" role="img" aria-label="Expected dividends per month, October to September, peaking in June at CZK 8 410">
+          <div class="bar"><small>2.1k</small><i style="--h:25%"></i></div>
+          <div class="bar"><small>3.5k</small><i style="--h:42%"></i></div>
+          <div class="bar"><small>6.9k</small><i style="--h:82%"></i></div>
+          <div class="bar"><small>2.5k</small><i style="--h:29%"></i></div>
+          <div class="bar"><small>3.1k</small><i style="--h:37%"></i></div>
+          <div class="bar"><small>7.3k</small><i style="--h:86%"></i></div>
+          <div class="bar"><small>2.4k</small><i style="--h:28%"></i></div>
+          <div class="bar"><small>3.9k</small><i style="--h:46%"></i></div>
+          <div class="bar"><small>8.4k</small><i style="--h:100%"></i></div>
+          <div class="bar"><small>2.6k</small><i style="--h:31%"></i></div>
+          <div class="bar"><small>3.4k</small><i style="--h:40%"></i></div>
+          <div class="bar"><small>5.2k</small><i style="--h:62%"></i></div>
+        </div>
+        <div class="bars-x"><span>Oct</span><span>Nov</span><span>Dec</span><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span></div>
+      </section>
+      <section class="clay" aria-labelledby="rec-title">
+        <div class="card-head"><h2 class="card-title" id="rec-title">Dividends received<button class="help" type="button" aria-label="About dividends received">?</button></h2><div class="seg" role="group" aria-label="Range" data-seg><button type="button" class="on">12M</button><button type="button">YTD</button><button type="button">All</button></div></div>
+        <div class="mini-kpis"><div class="mini-kpi"><small>Trailing 12 months</small><b>CZK 46 980</b></div><div class="mini-kpi"><small>vs. previous 12M</small><b class="gain">+18.4%</b></div></div>
+        <div class="bars received" role="img" aria-label="Dividends received per month, November 2025 to October 2026, peaking in June at CZK 7 950">
+          <div class="bar"><small>3.2k</small><i style="--h:40%"></i></div>
+          <div class="bar"><small>6.5k</small><i style="--h:81%"></i></div>
+          <div class="bar"><small>2.2k</small><i style="--h:27%"></i></div>
+          <div class="bar"><small>2.9k</small><i style="--h:37%"></i></div>
+          <div class="bar"><small>6.9k</small><i style="--h:86%"></i></div>
+          <div class="bar"><small>2.2k</small><i style="--h:28%"></i></div>
+          <div class="bar"><small>3.6k</small><i style="--h:46%"></i></div>
+          <div class="bar"><small>8.0k</small><i style="--h:100%"></i></div>
+          <div class="bar"><small>2.5k</small><i style="--h:31%"></i></div>
+          <div class="bar"><small>3.2k</small><i style="--h:40%"></i></div>
+          <div class="bar"><small>4.9k</small><i style="--h:62%"></i></div>
+          <div class="bar"><small>1.0k</small><i style="--h:13%"></i></div>
+        </div>
+        <div class="bars-x"><span>Nov</span><span>Dec</span><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span></div>
+      </section>
+    </div>
+
+    <!-- Heatmap + earnings -->
+    <div class="row-2">
+      <section class="clay" aria-labelledby="heat-title">
+        <div class="card-head"><h2 class="card-title" id="heat-title">Heatmap</h2><div class="seg" role="group" aria-label="Period" data-seg><button type="button" class="on">Day</button><button type="button">Week</button></div></div>
+        <div class="heatmap" role="img" aria-label="Holdings heatmap by weight and daily change">
+          <a class="tile g1 s2x2" href="#stock"><span class="mono">VWCE</span><small>+0.32%</small></a>
+          <a class="tile g2 s2x2" href="#stock"><span class="mono">NVDA</span><small>+1.65%</small></a>
+          <div class="tile g1 s2"><span class="mono">MSFT</span><small>+0.84%</small></div>
+          <div class="tile r1"><span class="mono">AAPL</span><small>−0.41%</small></div>
+          <div class="tile r2"><span class="mono">CEZ</span><small>−1.22%</small></div>
+          <div class="tile g2 s3"><span class="mono">ASML</span><small>+2.10%</small></div>
+          <div class="tile g1"><span class="mono">SAP</span><small>+0.71%</small></div>
+          <div class="tile r1 s2"><span class="mono">KO</span><small>−0.35%</small></div>
+          <div class="tile r1 s2"><span class="mono">O</span><small>−0.28%</small></div>
+          <div class="tile r1 s2"><span class="mono">MC</span><small>−0.19%</small></div>
+          <div class="tile g1"><span class="mono">BAC</span><small>+0.40%</small></div>
+          <div class="tile g1"><span class="mono">V</span><small>+0.22%</small></div>
+        </div>
+      </section>
+      <section class="clay" aria-labelledby="earn-title">
+        <div class="card-head"><h2 class="card-title" id="earn-title">Earnings calendar</h2><a class="link" href="#">All<svg class="i-sm"><use href="#i-arrow"/></svg></a></div>
+        <div>
+          <div class="earn-row"><span class="logo" style="--c:#7C8A5A">ASML</span><span><b>ASML Holding</b></span><span class="date">13 Oct</span><span class="tag bmo">BMO</span><span class="eps">EPS 5.84</span></div>
+          <div class="earn-row"><span class="logo" style="--c:#B7AFA3">SAP</span><span><b>SAP SE</b></span><span class="date">21 Oct</span><span class="tag bmo">BMO</span><span class="eps">EPS 1.18</span></div>
+          <div class="earn-row"><span class="logo" style="--c:#DBAA89">KO</span><span><b>Coca-Cola</b></span><span class="date">21 Oct</span><span class="tag bmo">BMO</span><span class="eps">EPS 0.77</span></div>
+          <div class="earn-row"><span class="logo" style="--c:#D4C3A1">MSFT</span><span><b>Microsoft</b></span><span class="date">28 Oct</span><span class="tag amc">AMC</span><span class="eps">EPS 3.12</span></div>
+          <div class="earn-row"><span class="logo" style="--c:#8A8478">AAPL</span><span><b>Apple</b></span><span class="date">30 Oct</span><span class="tag amc">AMC</span><span class="eps">EPS 1.62</span></div>
+          <div class="earn-row"><span class="logo" style="--c:#A9AB88">V</span><span><b>Visa</b></span><span class="date">4 Nov</span><span class="tag amc">AMC</span><span class="eps">EPS 2.84</span></div>
+        </div>
+      </section>
+    </div>
+
+    <button class="disclosure" type="button"><svg class="i"><use href="#i-right"/></svg>Insider activity (1Y)</button>
+    <p class="mock-note">Static design mockup v2 — sample data, not connected to the app. Click a ticker to open the Stock Detail view. v1 is in clay-mockup.v1.html.</p>
+  </div>
+
+  <!-- ================= STOCK DETAIL ================= -->
+  <div class="view" id="view-stock">
+    <a class="back" href="#dashboard"><svg class="i"><use href="#i-left"/></svg>Back</a>
+
+    <section class="clay stock-card" aria-labelledby="stock-title">
+      <div class="stock-head">
+        <div class="stock-id">
+          <span class="logo lg" style="--c:#A9AB88">NVDA</span>
+          <div>
+            <h1 id="stock-title">NVIDIA Corporation<span class="name mono">NVDA</span></h1>
+            <div class="meta">
+              <span><svg class="i-sm"><use href="#i-bldg"/></svg>Technology</span>
+              <span><svg class="i-sm"><use href="#i-globe"/></svg>United States</span>
+              <span>NASDAQ · USD</span>
+            </div>
+          </div>
+        </div>
+        <div class="stock-price">
+          <div>
+            <div class="price">$132.48</div>
+            <div class="price-change"><span class="chg up">1.65% (+$2.15) today</span></div>
+          </div>
+          <button class="btn btn-star" type="button" id="watch-btn" aria-pressed="false"><svg class="i"><use href="#i-star"/></svg><span>Add to watchlist</span></button>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="Stock sections" data-tabs>
+        <button type="button" role="tab" aria-selected="true" class="on"><svg class="i"><use href="#i-dash"/></svg>Overview</button>
+        <button type="button" role="tab" aria-selected="false"><svg class="i"><use href="#i-chart"/></svg>Financials</button>
+        <button type="button" role="tab" aria-selected="false"><svg class="i"><use href="#i-pct"/></svg>Valuation</button>
+        <button type="button" role="tab" aria-selected="false"><svg class="i"><use href="#i-coins"/></svg>Dividends</button>
+        <button type="button" role="tab" aria-selected="false"><svg class="i"><use href="#i-users"/></svg>Ownership</button>
+        <button type="button" role="tab" aria-selected="false"><svg class="i"><use href="#i-file"/></svg>Filings</button>
+      </div>
+
+      <div class="stock-body">
+        <div class="kpis">
+          <div class="kpi"><small>Market cap</small><b>$3.26T</b></div>
+          <div class="kpi"><small>P/E (TTM)</small><b>54.2</b></div>
+          <div class="kpi"><small>5Y avg P/E</small><b>61.8</b></div>
+          <div class="kpi"><small>Dividend yield</small><b>0.03%</b></div>
+          <div class="kpi"><small>Beta</small><b>1.74</b></div>
+          <div class="kpi"><small>Volume</small><b>212M</b></div>
+        </div>
+
+        <div class="well range">
+          <div class="label">52-week range</div>
+          <div class="range-bar" role="img" aria-label="Price is 69 percent of the way between the 52-week low and high">
+            <div class="range-fill"></div><div class="range-marker"></div>
+          </div>
+          <div class="range-labels"><span><small>52W low</small>$86.62</span><span style="text-align:center"><small>Current</small>$132.48</span><span style="text-align:right"><small>52W high</small>$152.89</span></div>
+        </div>
+
+        <div class="row-2">
+          <section class="inner-card" aria-labelledby="hist-title">
+            <div class="card-head">
+              <h2 class="card-title" id="hist-title">Price history</h2>
+              <div class="seg" role="group" aria-label="Period" data-seg><button type="button">1M</button><button type="button">6M</button><button type="button" class="on">1Y</button><button type="button">5Y</button></div>
+            </div>
+            <div class="price-chart" role="img" aria-label="NVDA one-year closing price chart, rising from about 105 to 132 dollars">
+              <span class="chart-y" style="top:10%">$150</span><span class="chart-y" style="top:35%">$130</span><span class="chart-y" style="top:60%">$110</span><span class="chart-y" style="top:85%">$90</span>
+              <svg viewBox="0 0 700 220" preserveAspectRatio="none">
+                <defs><linearGradient id="g-px" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6D7048" stop-opacity=".25"/><stop offset="1" stop-color="#6D7048" stop-opacity="0"/></linearGradient></defs>
+                <g stroke="#786954" stroke-opacity=".22" vector-effect="non-scaling-stroke"><line x1="0" x2="700" y1="22" y2="22" stroke-dasharray="3 6"/><line x1="0" x2="700" y1="77" y2="77" stroke-dasharray="3 6"/><line x1="0" x2="700" y1="132" y2="132" stroke-dasharray="3 6"/><line x1="0" x2="700" y1="187" y2="187" stroke-dasharray="3 6"/></g>
+                <path d="M0,170 C40,160 70,175 110,150 S170,120 210,135 S280,160 330,115 S400,70 450,90 S520,40 580,55 S650,25 700,30 L700,220 L0,220 Z" fill="url(#g-px)"/>
+                <path d="M0,170 C40,160 70,175 110,150 S170,120 210,135 S280,160 330,115 S400,70 450,90 S520,40 580,55 S650,25 700,30" fill="none" stroke="#6D7048" stroke-width="3.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+              </svg>
+            </div>
+            <div class="chart-x" style="margin-top:8px"><span>Oct ’25</span><span>Jan ’26</span><span>Apr ’26</span><span>Jul ’26</span><span>Oct ’26</span></div>
+          </section>
+
+          <section class="inner-card" aria-labelledby="pos-title">
+            <div class="card-head"><h2 class="card-title" id="pos-title">Your position</h2><a class="link" href="#">Transactions<svg class="i-sm"><use href="#i-arrow"/></svg></a></div>
+            <div class="kpis k3">
+              <div class="kpi"><small>Shares</small><b>84</b></div>
+              <div class="kpi"><small>Avg cost</small><b>$98.40</b></div>
+              <div class="kpi"><small>Market value</small><b>$11 128</b></div>
+              <div class="kpi"><small>Profit</small><b class="gain">+$2 862</b></div>
+              <div class="kpi"><small>Return</small><b class="gain">+34.6%</b></div>
+              <div class="kpi"><small>Weight</small><b>10.4%</b></div>
+            </div>
+            <div class="divider"></div>
+            <div class="label">Latest transaction</div>
+            <p style="margin-top:4px;font-weight:600">3 Sep 2026 · Buy · 10 shares at $128.10</p>
+            <p class="muted" style="margin-top:4px">Note: added on the pullback after earnings.</p>
+          </section>
+        </div>
+
+        <div class="well range about">
+          <div class="label">About</div>
+          <p>NVIDIA designs GPUs and accelerated-computing platforms used in data centres, AI training and inference, professional visualisation, gaming and automotive. Its CUDA software ecosystem and networking products make it the leading supplier of AI infrastructure hardware.</p>
+        </div>
+      </div>
+    </section>
+    <p class="mock-note">Static design mockup v2 — sample data, not connected to the app.</p>
+  </div>
+
+  <!-- ================= PALETTE (shown under both views) ================= -->
+  <details class="clay palette">
+    <summary><svg class="i"><use href="#i-right"/></svg>Color palette — current Portfyl “Premium” theme</summary>
+    <div class="palette-body">
+      <p class="palette-src">
+        Warm, organic theme the app uses today (cream, olive, terracotta). Values are copied from
+        <code>frontend/src/lib/themeTokens.js</code> (<code>NEU_TOKENS</code>) and the warm mesh gradient from
+        <code>frontend/src/index.css</code> (<code>.theme-premium body</code>). The layout follows Snowball Analytics; only the clay shapes and shadow depth are new. The same list is in the header of <code>clay.css</code>.
+      </p>
+
+      <div>
+        <h3>Brand</h3>
+        <div class="swatches">
+          <div class="sw"><i style="background:#6D7048"></i><span><b>Brand (olive)</b><small>#6D7048</small></span></div>
+          <div class="sw"><i style="background:#5C5F3C"></i><span><b>Brand hover</b><small>#5C5F3C</small></span></div>
+          <div class="sw"><i style="background:#E4E5D3"></i><span><b>Brand light</b><small>#E4E5D3</small></span></div>
+          <div class="sw"><i style="background:#5B7A4C"></i><span><b>Gain</b><small>#5B7A4C</small></span></div>
+          <div class="sw"><i style="background:#B8543A"></i><span><b>Loss</b><small>#B8543A</small></span></div>
+        </div>
+      </div>
+
+      <div>
+        <h3>Surfaces &amp; text</h3>
+        <div class="swatches">
+          <div class="sw"><i style="background:#F3E8DA"></i><span><b>Page background</b><small>#F3E8DA</small></span></div>
+          <div class="sw"><i style="background:#ECE0CF"></i><span><b>Inset well</b><small>#ECE0CF</small></span></div>
+          <div class="sw"><i style="background:rgba(250,245,237,0.78)"></i><span><b>Card (glass)</b><small>rgba(250,245,237,.78)</small></span></div>
+          <div class="sw"><i style="background:rgba(253,249,243,0.92)"></i><span><b>Card elevated</b><small>rgba(253,249,243,.92)</small></span></div>
+          <div class="sw"><i style="background:rgba(120,105,84,0.14)"></i><span><b>Hairline</b><small>rgba(120,105,84,.14)</small></span></div>
+          <div class="sw"><i style="background:#3A352C"></i><span><b>Ink</b><small>#3A352C</small></span></div>
+          <div class="sw"><i style="background:#6B6353"></i><span><b>Muted</b><small>#6B6353</small></span></div>
+        </div>
+      </div>
+
+      <div>
+        <h3>Chart series (NEU_TOKENS.chart)</h3>
+        <div class="swatches">
+          <div class="sw"><i style="background:#A9AB88"></i><span><b>Series 1 (sage)</b><small>#A9AB88</small></span></div>
+          <div class="sw"><i style="background:#DBAA89"></i><span><b>Series 2 (clay)</b><small>#DBAA89</small></span></div>
+          <div class="sw"><i style="background:#D4C3A1"></i><span><b>Series 3 (sand)</b><small>#D4C3A1</small></span></div>
+          <div class="sw"><i style="background:#B7AFA3"></i><span><b>Series 4 (stone)</b><small>#B7AFA3</small></span></div>
+          <div class="sw"><i style="background:#7C8A5A"></i><span><b>Series 5 (moss)</b><small>#7C8A5A</small></span></div>
+          <div class="sw"><i style="background:#C08457"></i><span><b>Series 6 (terracotta)</b><small>#C08457</small></span></div>
+          <div class="sw"><i style="background:#9E8E6E"></i><span><b>Series 7 (taupe)</b><small>#9E8E6E</small></span></div>
+          <div class="sw"><i style="background:#8A8478"></i><span><b>Series 8 (ash)</b><small>#8A8478</small></span></div>
+        </div>
+      </div>
+
+      <div>
+        <h3>Derived only for readable text (not in the app)</h3>
+        <div class="swatches">
+          <div class="sw"><i style="background:#4A6A3C"></i><span><b>Gain text</b><small>#4A6A3C</small></span></div>
+          <div class="sw"><i style="background:#9E4129"></i><span><b>Loss text</b><small>#9E4129</small></span></div>
+        </div>
+        <p class="palette-src" style="margin-top:10px">Darkened shades of gain and loss so small text keeps WCAG AA contrast on the cream surfaces. Tints (pills, tags, icon tiles) are the app colours mixed with the card cream. Shadows use the app’s warm shadow colours (<code>rgba(190,172,146,…)</code> and <code>rgba(255,253,248,…)</code>).</p>
+      </div>
+    </div>
+  </details>
+</main>
+
+<script>
+  // Tiny view router: #dashboard (default) and #stock.
+  function route() {
+    var view = location.hash === "#stock" ? "stock" : "dashboard";
+    document.body.dataset.view = view;
+    document.getElementById("nav-dashboard").classList.toggle("active", view === "dashboard");
+    document.getElementById("nav-research").classList.toggle("active", view === "stock");
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener("hashchange", route);
+  route();
+  // Inert placeholder links.
+  document.querySelectorAll('a[href="#"]').forEach(function (a) {
+    a.addEventListener("click", function (e) { e.preventDefault(); });
+  });
+  // Segmented controls and tabs: one active item at a time.
+  document.querySelectorAll("[data-seg], [data-tabs]").forEach(function (group) {
+    group.addEventListener("click", function (e) {
+      var btn = e.target.closest("button");
+      if (!btn) return;
+      group.querySelectorAll("button").forEach(function (b) { b.classList.remove("on"); if (b.hasAttribute("aria-selected")) b.setAttribute("aria-selected", "false"); });
+      btn.classList.add("on");
+      if (btn.hasAttribute("aria-selected")) btn.setAttribute("aria-selected", "true");
+    });
+  });
+  // Benchmark chips toggle.
+  document.querySelectorAll("[data-chip]").forEach(function (c) {
+    c.addEventListener("click", function () { c.classList.toggle("on"); });
+  });
+  // Insight dismiss.
+  document.querySelectorAll(".insight .icon-btn").forEach(function (b) {
+    b.addEventListener("click", function () { b.closest(".insight").remove(); });
+  });
+  // Watchlist star toggle.
+  var watch = document.getElementById("watch-btn");
+  watch.addEventListener("click", function () {
+    var on = watch.classList.toggle("on");
+    watch.setAttribute("aria-pressed", String(on));
+    watch.querySelector("span").textContent = on ? "In 1 watchlist" : "Add to watchlist";
+  });
+</script>
+</body>
+</html>

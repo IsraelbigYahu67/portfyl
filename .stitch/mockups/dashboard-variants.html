@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portfyl dashboard — návrhy A–D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="clay.css">
+<link rel="stylesheet" href="dash-variants.css">
+<style>
+  .ov { max-width: 1232px; margin: 0 auto; padding: 32px 24px 56px; display: flex; flex-direction: column; gap: 24px; }
+  .ov-head h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; }
+  .ov-head p { margin-top: 6px; color: var(--muted); max-width: 760px; line-height: 1.6; }
+  .ov-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  .vcard { display: flex; flex-direction: column; gap: 14px; padding: 18px; }
+  .vcard .shot { display: block; border-radius: 16px; overflow: hidden; box-shadow: var(--inset); background: var(--well); aspect-ratio: 16 / 10; }
+  .vcard .shot img { width: 100%; height: 100%; object-fit: cover; object-position: top left; display: block; transition: transform .3s ease; }
+  .vcard .shot:hover img { transform: scale(1.02); }
+  .vcard h2 { display: flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 800; }
+  .vcard h2 .letter { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--brand); box-shadow: var(--raise-brand); font-size: 15px; }
+  .vcard > p { color: var(--muted); line-height: 1.55; }
+  .mix { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .mix div { padding: 10px 12px; border-radius: 14px; background: var(--well); box-shadow: var(--inset-sm); font-size: 13px; line-height: 1.5; }
+  .mix b { display: block; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+  .pc { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; font-size: 13px; line-height: 1.5; }
+  .pc ul { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+  .pc li::before { content: "+ "; font-weight: 800; color: var(--gain-text); }
+  .pc ul.con li::before { content: "− "; color: var(--loss-text); }
+  .vcard .btn { align-self: flex-start; margin-top: auto; }
+  .ov-foot { color: var(--muted); font-size: 13px; line-height: 1.6; }
+  .ov-foot code { font-family: var(--font-mono); font-size: 12px; background: var(--well); padding: 2px 8px; border-radius: 999px; box-shadow: var(--inset-sm); }
+  @media (max-width: 900px) { .ov-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) { .ov { padding: 20px 16px 40px; } .mix, .pc { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main class="ov">
+  <header class="ov-head">
+    <h1>Dashboard: Snowball × Portfyl</h1>
+    <p>Čtyři návrhy, jak spojit Snowball-style clay dashboard (<a class="link" href="clay-mockup.html">clay-mockup.html</a>) s tím, co dnes umí Portfyl dashboard. Všechny používají stejnou paletu, stejná vzorová data a stejný sidebar, liší se jen rozložením. Klikni na náhled a otevře se celý návrh. Nahoře v každém návrhu je přepínač A · B · C · D.</p>
+  </header>
+
+  <div class="ov-grid">
+    <article class="clay vcard">
+      <a class="shot" href="dashboard-a-hero.html"><img src="previews/dashboard-a.jpg" alt="Náhled návrhu A" loading="lazy"></a>
+      <h2><span class="letter">A</span>Hero first</h2>
+      <p>Kostra dnešního Portfylu zůstává. Velké číslo Net Worth s grafem je pořád „kotva“, jen se k němu přidá to nejlepší ze Snowballu.</p>
+      <div class="mix">
+        <div><b>Z Portfylu</b>Net Worth hero se sparkline, stav synchronizace, výkon s benchmarky, heatmapa, top 10 pozic, top movers, insider nákupy</div>
+        <div><b>Ze Snowballu</b>Celkový zisk + IRR, pasivní příjem, insight karty (z attention signals), donut + kategorie s cíli, dividendové sloupce</div>
+      </div>
+      <div class="pc">
+        <ul><li>nejmenší změna oproti dnešku</li><li>uživatelé Portfylu se hned zorientují</li></ul>
+        <ul class="con"><li>nejdelší stránka, hodně scrollování</li><li>dividendy až úplně dole</li></ul>
+      </div>
+      <a class="btn btn-primary btn-sm" href="dashboard-a-hero.html">Otevřít návrh A</a>
+    </article>
+
+    <article class="clay vcard">
+      <a class="shot" href="dashboard-b-bento.html"><img src="previews/dashboard-b.jpg" alt="Náhled návrhu B" loading="lazy"></a>
+      <h2><span class="letter">B</span>Bento</h2>
+      <p>Mřížka dlaždic jako „ovládací panel“. Všechno podstatné je vidět najednou a každá dlaždice odpovídá na jednu otázku.</p>
+      <div class="mix">
+        <div><b>Z Portfylu</b>Net Worth hero, attention signals jako seznam, heatmapa, movers, top pozice</div>
+        <div><b>Ze Snowballu</b>KPI dlaždice (zisk, IRR, pasivní příjem), příští výplata, mini donut s odchylkou od cíle, budoucí dividendy</div>
+      </div>
+      <div class="pc">
+        <ul><li>nejvíc informací nad ohybem stránky</li><li>dobře se hodí k funkci „Customize“ (přesouvání dlaždic)</li></ul>
+        <ul class="con"><li>na menších monitorech hutné</li><li>graf výkonu je menší</li></ul>
+      </div>
+      <a class="btn btn-primary btn-sm" href="dashboard-b-bento.html">Otevřít návrh B</a>
+    </article>
+
+    <article class="clay vcard">
+      <a class="shot" href="dashboard-c-cockpit.html"><img src="previews/dashboard-c.jpg" alt="Náhled návrhu C" loading="lazy"></a>
+      <h2><span class="letter">C</span>Kokpit + pravý panel</h2>
+      <p>Vlevo „kolik mám a jak se mi daří“, vpravo „co se děje a co mě čeká“. Hodnota a výkon jsou v jedné kartě, pozice jsou seskupené podle kategorií.</p>
+      <div class="mix">
+        <div><b>Z Portfylu</b>stav dat (T212 / IBKR / ceny), attention, movers, insider nákupy, top pozice (rozbalené uvnitř kategorie)</div>
+        <div><b>Ze Snowballu</b>tabulka kategorií s cíli a ziskem, IRR + pasivní příjem, nadcházející dividendy a earnings v jedné časové ose</div>
+      </div>
+      <div class="pc">
+        <ul><li>jasné rozdělení: přehled × aktivita</li><li>méně opakování (kategorie + pozice v jedné tabulce)</li></ul>
+        <ul class="con"><li>na mobilu se pravý panel posune dolů</li><li>potřebuje široký monitor</li></ul>
+      </div>
+      <a class="btn btn-primary btn-sm" href="dashboard-c-cockpit.html">Otevřít návrh C</a>
+    </article>
+
+    <article class="clay vcard">
+      <a class="shot" href="dashboard-d-tabs.html"><img src="previews/dashboard-d.jpg" alt="Náhled návrhu D" loading="lazy"></a>
+      <h2><span class="letter">D</span>KPI + záložky</h2>
+      <p>Nahoře 4 KPI karty jako ve Snowballu, pod nimi signály v jednom proužku a jedna velká karta se záložkami. Minimum scrollování.</p>
+      <div class="mix">
+        <div><b>Z Portfylu</b>Net Worth se sparkline, attention signals (proužek), výkon s benchmarky, top 10, heatmapa, insider nákupy, movers</div>
+        <div><b>Ze Snowballu</b>KPI řada, podtržené záložky, Alokace (donut + kategorie), Příjem (budoucí + přijaté dividendy), Události</div>
+      </div>
+      <div class="pc">
+        <ul><li>nejčistší první dojem</li><li>nejkratší stránka, škáluje i pro další sekce</li></ul>
+        <ul class="con"><li>část obsahu je schovaná v záložkách</li><li>nevidíš všechno najednou</li></ul>
+      </div>
+      <a class="btn btn-primary btn-sm" href="dashboard-d-tabs.html">Otevřít návrh D</a>
+    </article>
+  </div>
+
+  <p class="ov-foot">Statické mockupy se vzorovými daty, nejsou napojené na aplikaci. Soubory: <code>dashboard-a-hero.html</code>, <code>dashboard-b-bento.html</code>, <code>dashboard-c-cockpit.html</code>, <code>dashboard-d-tabs.html</code>, společné styly v <code>dash-variants.css</code> (nad <code>clay.css</code>).</p>
+</main>
+</body>
+</html>
