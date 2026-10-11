@@ -207,7 +207,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
         <div>
           <h1 className="text-xl font-bold" tabIndex={-1}>Dashboard</h1>
           {priceLine && <p className="text-xs text-muted mt-0.5">{priceLine}</p>}
@@ -303,7 +303,8 @@ export default function Dashboard() {
                       <button
                         key={m}
                         onClick={() => setChartMode(m)}
-                        className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
+                        aria-pressed={chartMode === m}
+                        className={`px-3 py-2 text-xs rounded-md font-medium transition-colors md:px-2.5 md:py-1 ${
                           chartMode === m
                             ? "bg-surface-card text-brand font-semibold shadow-sm"
                             : "text-muted hover:text-ink"
@@ -318,7 +319,8 @@ export default function Dashboard() {
                       <button
                         key={p}
                         onClick={() => setPeriod(p)}
-                        className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
+                        aria-pressed={period === p}
+                        className={`px-3 py-2 text-xs rounded-md font-medium transition-colors md:px-2.5 md:py-1 ${
                           period === p
                             ? "bg-surface-card text-brand font-semibold shadow-sm"
                             : "text-muted hover:text-ink"
@@ -336,13 +338,18 @@ export default function Dashboard() {
                   <button
                     key={b.key}
                     onClick={() => toggleBenchmark(b.key)}
-                    className={`px-2 py-0.5 text-xs rounded-md font-medium transition-colors border ${
+                    aria-pressed={activeBenchmarks.includes(b.key)}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors border md:py-1 ${
                       activeBenchmarks.includes(b.key)
-                        ? "border-current opacity-100"
-                        : "border-transparent opacity-50 hover:opacity-80"
+                        ? "border-hairline bg-surface-card text-ink shadow-sm"
+                        : "border-transparent text-muted hover:text-ink"
                     }`}
-                    style={{ color: b.color }}
                   >
+                    <span
+                      aria-hidden="true"
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: b.color, opacity: activeBenchmarks.includes(b.key) ? 1 : 0.5 }}
+                    />
                     {b.label}
                   </button>
                 ))}
