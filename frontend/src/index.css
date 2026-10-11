@@ -199,3 +199,127 @@
     radial-gradient(ellipse 60% 40% at 50% 100%, rgba(212, 195, 161, 0.16), transparent 60%);
   background-attachment: fixed;
 }
+
+/* ----------------------------------------------------------------------------
+ * Clay theme: the .stitch/mockups/clay-mockup.html look applied to the live
+ * app. Same warm palette as Premium (tokens: CLAY_TOKENS in themeTokens.js),
+ * but soft clay depth instead of glass: raised surfaces with an inner
+ * highlight, pressed wells for tracks/inputs, 24px cards, pill controls and a
+ * floating sidebar. Light always comes from the top-left. Toggled by
+ * applyAppearance() in App.jsx; Classic and Premium are untouched.
+ * ------------------------------------------------------------------------- */
+.theme-clay {
+  --clay-raise: var(--shadow-ambient);
+  --clay-raise-hover: 9px 9px 22px rgba(190, 172, 146, 0.5), -7px -7px 18px rgba(255, 253, 248, 0.95),
+    inset 1px 1px 2px rgba(255, 253, 248, 0.9), inset -2px -2px 5px rgba(190, 172, 146, 0.22);
+  --clay-raise-sm: 3px 3px 8px rgba(190, 172, 146, 0.42), -3px -3px 8px rgba(255, 253, 248, 0.9),
+    inset 1px 1px 2px rgba(255, 253, 248, 0.85);
+  --clay-inset-sm: inset 2px 2px 5px rgba(190, 172, 146, 0.42), inset -2px -2px 5px rgba(255, 253, 248, 0.85);
+  --clay-raise-brand: 4px 5px 12px rgba(109, 112, 72, 0.34), -3px -3px 8px rgba(255, 253, 248, 0.9),
+    inset 1px 1px 3px rgba(255, 255, 255, 0.28), inset -2px -2px 5px rgba(50, 52, 30, 0.3);
+}
+.theme-clay body {
+  background-image:
+    radial-gradient(ellipse 70% 50% at 15% -10%, rgba(169, 171, 136, 0.28), transparent 60%),
+    radial-gradient(ellipse 60% 45% at 100% 0%, rgba(219, 170, 137, 0.26), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(212, 195, 161, 0.26), transparent 60%);
+  background-attachment: fixed;
+}
+.theme-clay ::-webkit-scrollbar-thumb { background: var(--bg-subtle); }
+.theme-clay :focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+
+/* Surfaces: cards and bordered panels become raised clay; bordered tiles on
+   the elevated tone (mini KPIs, stat cells) become pressed wells. */
+.theme-clay .card,
+.theme-clay .bg-surface-card.border {
+  border-color: transparent;
+  border-radius: 24px;
+  box-shadow: var(--clay-raise);
+}
+.theme-clay .rounded-lg.bg-surface-card.border { border-radius: 20px; }
+.theme-clay .bg-surface-card-elevated.border:not(.card) {
+  border-color: transparent;
+  border-radius: 14px;
+  background: var(--bg-subtle);
+  box-shadow: var(--clay-inset-sm);
+}
+.theme-clay .card-interactive:hover { box-shadow: var(--clay-raise-hover); border-color: transparent; }
+.theme-clay .rounded-xl { border-radius: 20px; }
+.theme-clay .rounded-2xl { border-radius: 24px; }
+
+/* Controls: pills, pressed tracks, brand buttons with a clay bevel. */
+.theme-clay .btn-primary { border-radius: 999px; box-shadow: var(--clay-raise-brand); }
+.theme-clay .btn-ghost {
+  border-radius: 999px;
+  border-color: transparent;
+  background: var(--surface-card-elevated);
+  box-shadow: var(--clay-raise-sm);
+}
+.theme-clay .btn-primary:active,
+.theme-clay .btn-ghost:active { box-shadow: var(--clay-inset-sm); }
+.theme-clay .input {
+  border-color: transparent;
+  border-radius: 16px;
+  background: var(--bg-subtle);
+  box-shadow: var(--clay-inset-sm);
+}
+.theme-clay .input:focus { box-shadow: var(--clay-inset-sm), 0 0 0 3px var(--brand-light); }
+.theme-clay .segmented {
+  border-radius: 999px;
+  padding: 4px;
+  gap: 2px;
+  background: var(--bg-subtle);
+  box-shadow: var(--clay-inset-sm);
+}
+.theme-clay .segmented > button { border-radius: 999px; padding-top: 0.3rem; padding-bottom: 0.3rem; }
+.theme-clay .segmented > button[aria-pressed="true"] { box-shadow: var(--clay-raise-sm); font-weight: 800; }
+
+/* Shell: floating clay sidebar, pill top bar and drawer (mockup layout). */
+.theme-clay .app-sidebar {
+  position: sticky;
+  top: 16px;
+  align-self: flex-start;
+  height: calc(100dvh - 32px);
+  margin: 16px 0 16px 16px;
+  border: 0;
+  border-radius: 28px;
+  background: var(--surface-card-elevated);
+  box-shadow: var(--clay-raise) !important;
+  overflow: hidden;
+}
+.theme-clay .app-sidebar > div:first-child { border-bottom-color: transparent; }
+.theme-clay .app-sidebar nav a,
+.theme-clay .app-drawer nav a { border-radius: 16px; font-weight: 600; }
+.theme-clay .app-sidebar nav a:not([aria-current="page"]):hover,
+.theme-clay .app-drawer nav a:not([aria-current="page"]):hover {
+  background: var(--surface-card-elevated);
+  box-shadow: var(--clay-raise-sm);
+}
+.theme-clay .app-sidebar nav a[aria-current="page"],
+.theme-clay .app-drawer nav a[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 700;
+  background: var(--brand-light);
+  box-shadow: var(--clay-inset-sm);
+}
+.theme-clay .app-sidebar nav a[aria-current="page"] svg,
+.theme-clay .app-drawer nav a[aria-current="page"] svg { color: var(--brand); }
+.theme-clay .app-topbar {
+  position: sticky;
+  top: 8px;
+  z-index: 30;
+  margin: 8px 12px 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-card-elevated);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--clay-raise);
+}
+.theme-clay .app-drawer {
+  height: calc(100% - 24px);
+  margin: 12px;
+  border: 0;
+  border-radius: 28px;
+  background: var(--surface-card-elevated);
+  box-shadow: var(--clay-raise);
+}

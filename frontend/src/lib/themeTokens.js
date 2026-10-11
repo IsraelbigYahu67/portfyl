@@ -48,6 +48,21 @@ export const NEU_TOKENS = {
   radiusCard: "1.25rem",
   chart: ["#A9AB88", "#DBAA89", "#D4C3A1", "#B7AFA3", "#7C8A5A", "#C08457", "#9E8E6E", "#8A8478"],
 };
+// "Clay" — the .stitch/mockups/clay-mockup.html look on live data: the same
+// warm Premium palette, but opaque-feeling clay depth (raised surfaces with a
+// soft inner highlight, pressed "wells"), larger 24px radii and pill controls.
+// Shape-level overrides live under .theme-clay in index.css; these are the
+// tokens applyAppearance() sets. Like Premium it has one fixed light look.
+// gain/loss use the mockup's darkened text variants so small deltas clear AA.
+export const CLAY_TOKENS = {
+  ...NEU_TOKENS,
+  surfaceCard: "rgba(250,245,237,0.86)", surfaceCardElevated: "rgba(253,249,243,0.94)",
+  gain: "#4A6A3C", loss: "#9E4129",
+  glassBorderAlpha: "transparent", glassOverlayAlpha: "rgba(255,252,247,0.35)",
+  shadowAmbient: "6px 6px 16px rgba(190,172,146,0.42), -6px -6px 14px rgba(255,253,248,0.9), inset 1px 1px 2px rgba(255,253,248,0.9), inset -2px -2px 5px rgba(190,172,146,0.22)",
+  shadowInset: "inset 3px 3px 8px rgba(190,172,146,0.45), inset -3px -3px 8px rgba(255,253,248,0.85)",
+  radiusCard: "24px",
+};
 // Classic's chart series previously lived only in index.css's :root block
 // (--chart-1..8); pulled into this constant so applyAppearance() can reset
 // them inline the same way both branches reset every other token, since an
@@ -82,6 +97,17 @@ export const SEMANTIC_THEME_TOKENS = {
     focus: NEU_TOKENS.brand,
     gain: NEU_TOKENS.gain,
     loss: NEU_TOKENS.loss,
+  },
+  clay: {
+    background: CLAY_TOKENS.bg,
+    textPrimary: CLAY_TOKENS.ink,
+    textSecondary: CLAY_TOKENS.muted,
+    textTertiary: CLAY_TOKENS.muted,
+    chartAxis: CLAY_TOKENS.muted,
+    chartGrid: CLAY_TOKENS.muted,
+    focus: CLAY_TOKENS.brand,
+    gain: CLAY_TOKENS.gain,
+    loss: CLAY_TOKENS.loss,
   },
   classicLight: {
     background: LIGHT_TOKENS.surfaceCard,
@@ -135,6 +161,14 @@ export const THEME_CONTRAST_PAIRS = [
   pair("premium", "focus", "nonText", SEMANTIC_THEME_TOKENS.premium.focus, SEMANTIC_THEME_TOKENS.premium.background, 3),
   pair("premium", "gain", "nonText", SEMANTIC_THEME_TOKENS.premium.gain, SEMANTIC_THEME_TOKENS.premium.background, 3),
   pair("premium", "loss", "nonText", SEMANTIC_THEME_TOKENS.premium.loss, SEMANTIC_THEME_TOKENS.premium.background, 3),
+
+  pair("clay", "textPrimary", "text", SEMANTIC_THEME_TOKENS.clay.textPrimary, SEMANTIC_THEME_TOKENS.clay.background, 4.5),
+  pair("clay", "textSecondary", "text", SEMANTIC_THEME_TOKENS.clay.textSecondary, SEMANTIC_THEME_TOKENS.clay.background, 4.5),
+  pair("clay", "chartAxis", "text", SEMANTIC_THEME_TOKENS.clay.chartAxis, SEMANTIC_THEME_TOKENS.clay.background, 4.5),
+  pair("clay", "focus", "nonText", SEMANTIC_THEME_TOKENS.clay.focus, SEMANTIC_THEME_TOKENS.clay.background, 3),
+  // Clay's gain/loss are the darkened text variants, so they clear body-text AA.
+  pair("clay", "gain", "text", SEMANTIC_THEME_TOKENS.clay.gain, SEMANTIC_THEME_TOKENS.clay.background, 4.5),
+  pair("clay", "loss", "text", SEMANTIC_THEME_TOKENS.clay.loss, SEMANTIC_THEME_TOKENS.clay.background, 4.5),
 
   pair("classicLight", "textPrimary", "text", SEMANTIC_THEME_TOKENS.classicLight.textPrimary, SEMANTIC_THEME_TOKENS.classicLight.background, 4.5),
   pair("classicLight", "textSecondary", "text", SEMANTIC_THEME_TOKENS.classicLight.textSecondary, SEMANTIC_THEME_TOKENS.classicLight.background, 4.5),
