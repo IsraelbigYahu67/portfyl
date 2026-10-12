@@ -60,18 +60,28 @@ def _verified_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _refresh_profile(user: User, identity: VerifiedIdentity) -> None:
+    # Only a provider that actually supplies a name (e.g. Google) may set it;
+    # a later e-mail/password login carries no `name` claim and must not wipe
+    # the one already on file.
+    if identity.display_name is not None:
+        user.display_name = identity.display_name
+    user.email_verified_at = _verified_now()
+
+
 def _provision_identity(
     db: Session,
     identity: VerifiedIdentity,
-) -> User:
+) -> tuple[User, bool]:
+    """Return the Portfyl user for a verified identity and whether this
+    exchange created it (and its personal workspace)."""
     user = db.scalar(select(User).where(User.firebase_uid == identity.uid))
     if user is not None:
         if user.email != identity.email or user.disabled_at is not None:
             raise AuthAPIError(401, "authentication_required")
-        user.display_name = identity.display_name
-        user.email_verified_at = _verified_now()
+        _refresh_profile(user, identity)
         db.flush()
-        return user
+        return user, False
 
     user = db.scalar(select(User).where(User.email == identity.email))
     if user is not None:
@@ -80,10 +90,9 @@ def _provision_identity(
         if user.disabled_at is not None:
             raise AuthAPIError(401, "authentication_required")
         user.firebase_uid = identity.uid
-        user.display_name = identity.display_name
-        user.email_verified_at = _verified_now()
+        _refresh_profile(user, identity)
         db.flush()
-        return user
+        return user, False
 
     user = User(
         firebase_uid=identity.uid,
@@ -114,7 +123,7 @@ def _provision_identity(
     db.flush()
     db.add(membership)
     db.flush()
-    return user
+    return user, True
 
 
 def _account_payload(db: Session, user: User, csrf_token: str) -> dict:
@@ -190,20 +199,26 @@ def exchange_session(
         except BetaAccessDenied as exc:
             raise AuthAPIError(403, "beta_access_required") from exc
 
-    user = _provision_identity(db, identity)
+    user, account_created = _provision_identity(db, identity)
     issued = create_session(
         db,
         user.id,
         user_agent=request.headers.get("User-Agent"),
     )
     response_payload = _account_payload(db, user, issued.csrf_token)
+    # Lets the SPA tell a first Google sign-in (a signup) apart from a return
+    # visit; /auth/me never carries it.
+    response_payload["account_created"] = account_created
     record_audit_event(
         db,
         actor_user_id=user.id,
         action="auth.session.created",
         target_type="user",
         target_id=str(user.id),
-        metadata={"user_agent": request.headers.get("User-Agent") or ""},
+        metadata={
+            "user_agent": request.headers.get("User-Agent") or "",
+            "provider": identity.sign_in_provider or "unknown",
+        },
     )
     db.commit()
     response = JSONResponse(response_payload, status_code=201)
