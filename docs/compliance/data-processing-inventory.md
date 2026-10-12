@@ -1,6 +1,6 @@
 # Portfyl Data Processing Inventory
 
-Last technical review: 2026-09-24
+Last technical review: 2026-10-12 (Google sign-in)
 
 This document describes the implemented Portfyl runtime. It is an engineering
 record for privacy review, incident response, export/deletion maintenance, and
@@ -48,7 +48,7 @@ legal bases on behalf of the service operator.
 
 | Category | Examples and source | Primary storage | External processing or recipient | Current deletion/export behaviour |
 |---|---|---|---|---|
-| Identity | Firebase UID, normalized e-mail, display name, verification and disabled timestamps | Firebase Authentication and `users` | Google Firebase | Workspace export includes only safe membership metadata. The Portfyl/Firebase user is removed after deletion of the last workspace. |
+| Identity | Firebase UID, normalized e-mail, display name (from the Google profile name when the user signs in with Google), verification and disabled timestamps | Firebase Authentication and `users` | Google Firebase; Google account sign-in when the user chooses "Continue with Google" | Workspace export includes only safe membership metadata. The Portfyl/Firebase user is removed after deletion of the last workspace. |
 | Sessions and security | Digests of opaque session and CSRF tokens, expiry/revocation/last-seen time, user agent | `auth_sessions` | Cloudflare and Cloud Run process request metadata in transit | Never exported. Cascades when the final Portfyl user is deleted. Expired/revoked rows are removed 30 days after becoming invalid. |
 | Workspace and membership | Workspace name/public UUID, role, status, timestamps | `workspaces`, `memberships` | Neon, Cloud Run | Exported with public identifiers. Sole-owner deletion cascades after a cancellable 30-day grace period; shared workspace deletion is refused. |
 | Portfolio financial data | Portfolio metadata, transactions, tickers, quantities, prices, cash, currencies, dates, notes, FX rates, current broker-reported open positions | `portfolios`, `transactions`, `broker_balances`, `broker_positions`, `cash_interest_rates`, `options_trades`, `polymarket_positions`, `trade_notes` | Neon; selected tickers/date ranges are sent to market-data sources as needed | Core portfolio and transaction data is exported, including the current `broker_positions` snapshot; current export schema intentionally does not yet include every derived/specialist table. `broker_positions` is replaced atomically on each sync and never substitutes for ledger data in historical/tax calculations. Tenant rows cascade with workspace deletion. |
@@ -67,7 +67,7 @@ legal bases on behalf of the service operator.
 | Service | Implemented use | Classification needing legal confirmation | Data sent |
 |---|---|---|---|
 | Google Cloud Run, Logging, KMS, Secret Manager, Scheduler | Hosting, logs, encryption, secrets, scheduled jobs | Processor/subprocessor | Requests, operational metadata, encrypted/configuration material; application data is processed in memory. |
-| Firebase Authentication | Registration, verified e-mail/password identity, re-authentication, identity deletion | Processor/subprocessor | E-mail, UID, display/verification/authentication data. Passwords go to Firebase, not Portfyl. |
+| Firebase Authentication | Registration, verified e-mail/password identity, optional Google sign-in (OAuth popup, `openid email profile` scopes only), re-authentication, identity deletion | Processor/subprocessor | E-mail, UID, display/verification/authentication data. Passwords go to Firebase, not Portfyl. For Google sign-in, Google returns the verified e-mail, name, and Google account identifier to Firebase. Portfyl stores only the e-mail and name, and receives no Google API access. The audit log records which sign-in method was used (`password` or `google.com`). |
 | Neon | Managed PostgreSQL and PITR/branch recovery | Processor/subprocessor | All durable Portfyl database rows. |
 | Cloudflare | DNS, TLS proxy, trusted-edge header and request protection | Processor/subprocessor | IP/network/request metadata and encrypted HTTP traffic at the edge. |
 | Trading 212 / IBKR | Optional user-requested broker import/sync | Provider selected by the user; role/terms require review | Credential-authenticated account/trade requests and returned broker data. |

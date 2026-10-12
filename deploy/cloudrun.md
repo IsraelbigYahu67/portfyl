@@ -510,6 +510,7 @@ steps:
          '--build-arg', 'VITE_FIREBASE_AUTH_DOMAIN=$($fb.VITE_FIREBASE_AUTH_DOMAIN)',
          '--build-arg', 'VITE_FIREBASE_PROJECT_ID=$($fb.VITE_FIREBASE_PROJECT_ID)',
          '--build-arg', 'VITE_FIREBASE_APP_ID=$($fb.VITE_FIREBASE_APP_ID)',
+         '--build-arg', 'VITE_FIREBASE_GOOGLE_SIGN_IN=$($fb.VITE_FIREBASE_GOOGLE_SIGN_IN)',
          '.']
 images: ['${REPO}:$SHA']
 "@ | Set-Content -Encoding ascii (Join-Path $SRC "cloudbuild.yaml")
@@ -525,6 +526,35 @@ Stop if the build or the migration Job fails. `app.portfyl.com` sits behind
 Cloudflare Access and the `run.app` URL answers 403 without the edge token,
 so verify a deploy by logging in through `app.portfyl.com` and by reading
 the new revision's Cloud Run logs, not with an anonymous `curl`.
+
+### Google sign-in
+
+"Continue with Google" is off unless the image is built with
+`VITE_FIREBASE_GOOGLE_SIGN_IN=true`. The redeploy above passes whatever
+`frontend/.env.local` holds, and a missing value builds it off. See
+`docs/superpowers/plans/2026-10-12-portfyl-google-sign-in.md`. To turn it on:
+
+1. Check that the Firebase console prerequisites are in place in
+   `portfyl-cloud-fstxby` (plan T0):
+   - the Google provider is enabled;
+   - `app.portfyl.com` is an Authorized domain;
+   - "one account per e-mail address" is on;
+   - the OAuth consent screen is configured;
+   - every private tester is a consent-screen Test user, in addition to
+     Cloudflare Access and `beta_invites`.
+2. One time only, give the service the auth domain its CSP must admit for
+   Firebase's popup. It must equal `VITE_FIREBASE_AUTH_DOMAIN`. Until it is
+   set, the CSP keeps blocking Google's popup scripts:
+   ```powershell
+   gcloud run services update portfyl --region $REGION --project $PROJECT --update-env-vars="PORTFYL_FIREBASE_AUTH_DOMAIN=portfyl-cloud-fstxby.firebaseapp.com"
+   ```
+3. Add `VITE_FIREBASE_GOOGLE_SIGN_IN=true` to `frontend/.env.local`. The same
+   line also enables the button in local dev. Then run the routine redeploy.
+4. On `app.portfyl.com`, sign in with Google and check the browser console:
+   there must be no Content-Security-Policy violations.
+
+To roll back, remove the line or set it to `false` and redeploy. No data
+changes are involved. Leaving `PORTFYL_FIREBASE_AUTH_DOMAIN` set is harmless.
 
 ## Ongoing rules
 

@@ -1,9 +1,11 @@
 # Portfyl — Sign in with Google
 
 **Date:** 2026-10-12
-**Status:** Wave 0 done by the owner (2026-10-12, spike step 5 pending). Waves 1
-(T1–T3) and 2 (T4–T5) are implemented on branch `feat/google-sign-in`.
-Wave 3 has not started.
+**Status:** Wave 0 is done by the owner (2026-10-12). Waves 1–2 and T6 are
+implemented on branch `feat/google-sign-in`. T7's automated checks pass (§7).
+The owner skipped the account-linking spike (T0 step 5). The T7 manual
+end-to-end checks with a real Google account are also still open. Do both
+before setting the flag in production.
 **Goal:** Let a person create a Portfyl account, and log in afterwards, with
 their Google account, as an alternative to e-mail/password. This works in both
 editions and keeps every existing guarantee: the private-beta invite gate, the
@@ -365,5 +367,35 @@ Implementation notes from Wave 1:
   bare hostname. T6 must set it on Cloud Run to
   `portfyl-cloud-fstxby.firebaseapp.com`.
 
-Spike results (T0 step 5): _pending. These need the Wave 2 button running
-locally._
+Spike results (T0 step 5): **not run.** The owner chose to skip it on
+2026-10-12. The behavior for an existing password account that signs in with
+Google is therefore still unverified (case b: expected same UID, Google
+linked). Covering it is part of T7 manual check 4.
+
+## 7. Verification record (2026-10-12)
+
+Automated:
+
+| Check | Result |
+|---|---|
+| Fast backend suite | 1219 passed |
+| PostgreSQL suite (disposable PostgreSQL 16 on its own port) | 423 passed, including the new Google provisioning cases |
+| Auth, analytics and privacy-settings frontend tests | 147 passed |
+| Full `npm test` / `npm run test:cloud` | Green except 3–4 heavy demo/routing files that time out at 5 s under full-suite load. They pass in isolation (45/45 in both editions) and are unrelated to auth. A separate follow-up task was suggested for them. |
+| `npm run build` and `npm run build:cloud` | Pass |
+
+CSP spot check against a production-style build:
+
+- Setup: the local edition built with `VITE_FIREBASE_GOOGLE_SIGN_IN=true` and
+  served by FastAPI with
+  `PORTFYL_FIREBASE_AUTH_DOMAIN=portfyl-cloud-fstxby.firebaseapp.com`.
+- The served CSP contained `script-src 'self' https://apis.google.com` and
+  `frame-src https://portfyl-cloud-fstxby.firebaseapp.com`.
+- Clicking "Continue with Google" loaded the gapi scripts from
+  `apis.google.com` and the `/__/auth/iframe` from the auth domain, with
+  **zero** `securitypolicyviolation` events.
+- The click was synthetic, so the browser blocked the popup, and the UI showed
+  the popup-blocked message. No Google account was signed in.
+
+Manual checks still open: T7 items 1–9, which need a real Google account and,
+for the cloud checks, a deployed revision.
