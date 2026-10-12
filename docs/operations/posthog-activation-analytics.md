@@ -118,7 +118,7 @@ allow-list is enforced in code, not just documented convention.
 | `demo_activation_reached` | `activation_path` (`three_pages`\|`stock_after_page`), `distinct_demo_pages` | The demo activation milestone is reached (once per session) |
 | `signup_cta_clicked` | `source_surface`, `language` | The registration CTA is clicked from the landing page or demo shell |
 | `signup_started` | `source_surface` (`landing_hero`\|`landing_closing`\|`demo`\|`direct`), `language` | The `/register` route mounts |
-| `signup_completed` | `source_surface` | Firebase account creation succeeds, before navigating to `/verify-email` |
+| `signup_completed` | `source_surface`, `auth_method` (`password`\|`google`) | Password: Firebase account creation succeeds, before navigating to `/verify-email`. Google: the first Google sign-in's session exchange reports `account_created`, before navigating to the tracker |
 | `portfolio_created` | `creation_path` (`blank`\|`demo`\|`csv`\|`broker`) | A portfolio is created in Onboarding, after the create call succeeds |
 | `portfolio_data_imported` | `source_type` (`demo`\|`csv`\|`broker`) | Data actually lands in a portfolio (demo creation, a committed CSV import, or a broker sync with `total_imported > 0`) |
 | `dashboard_first_value_rendered` | `source_type` | The first populated Dashboard render occurs once an import source and a rendered dashboard both exist |

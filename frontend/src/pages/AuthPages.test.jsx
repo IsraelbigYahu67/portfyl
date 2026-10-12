@@ -22,6 +22,9 @@ const firebaseMocks = vi.hoisted(() => ({
   getCurrentFirebaseUser: vi.fn(() => null),
   getIdToken: vi.fn(() => Promise.resolve("id-token-123")),
   mapFirebaseAuthError: vi.fn((err) => err?.code || "Something went wrong. Please try again."),
+  isGoogleSignInEnabled: vi.fn(() => false),
+  prepareGoogleSignIn: vi.fn(() => Promise.resolve()),
+  signInWithGoogle: vi.fn(),
 }));
 vi.mock("../auth/firebase", () => firebaseMocks);
 
@@ -103,7 +106,7 @@ describe("Register", () => {
     );
   });
 
-  it("captures signup_completed with source_surface only, after registration succeeds and before navigation", async () => {
+  it("captures signup_completed with source_surface and auth_method only, after registration succeeds and before navigation", async () => {
     const fakeUser = { email: "new@example.com" };
     firebaseMocks.registerWithEmailPassword.mockResolvedValueOnce(fakeUser);
 
@@ -114,7 +117,7 @@ describe("Register", () => {
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() =>
-      expect(adapter.events).toContainEqual(["signup_completed", { source_surface: "demo" }])
+      expect(adapter.events).toContainEqual(["signup_completed", { source_surface: "demo", auth_method: "password" }])
     );
     expect(await screen.findByText("Verify email page")).toBeInTheDocument();
 
@@ -187,6 +190,94 @@ describe("Login", () => {
     fireEvent.click(screen.getByRole("button", { name: /log in/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/private beta invitation/i);
+  });
+});
+
+describe("Continue with Google", () => {
+  const googleUser = { email: "person@gmail.com", emailVerified: true };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    firebaseMocks.isGoogleSignInEnabled.mockReturnValue(true);
+    firebaseMocks.signInWithGoogle.mockResolvedValue(googleUser);
+    authMocks.loginWithIdToken.mockResolvedValue({ account_created: false });
+  });
+
+  afterEach(() => {
+    firebaseMocks.isGoogleSignInEnabled.mockReturnValue(false);
+    firebaseMocks.signInWithGoogle.mockReset();
+    authMocks.loginWithIdToken.mockReset().mockImplementation(() => Promise.resolve({}));
+  });
+
+  it.each(["/login", "/register"])("is hidden on %s unless the build enables it", (path) => {
+    firebaseMocks.isGoogleSignInEnabled.mockReturnValue(false);
+    renderAt(path);
+    expect(screen.queryByRole("button", { name: /continue with google/i })).not.toBeInTheDocument();
+  });
+
+  it.each(["/login", "/register"])("preloads the Firebase SDK on %s so the popup is not blocked", async (path) => {
+    renderAt(path);
+    expect(screen.getByRole("button", { name: /continue with google/i })).toBeInTheDocument();
+    await waitFor(() => expect(firebaseMocks.prepareGoogleSignIn).toHaveBeenCalledTimes(1));
+  });
+
+  it("logs a returning Google user in and goes home without a signup event", async () => {
+    const { adapter } = renderAt("/login");
+    fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
+
+    await waitFor(() => expect(firebaseMocks.getIdToken).toHaveBeenCalledWith(googleUser));
+    expect(authMocks.loginWithIdToken).toHaveBeenCalledWith("id-token-123");
+    expect(await screen.findByText("Home")).toBeInTheDocument();
+    expect(adapter.events.map(([name]) => name)).not.toContain("signup_completed");
+  });
+
+  it("records a first Google sign-in as a signup and skips e-mail verification", async () => {
+    authMocks.loginWithIdToken.mockResolvedValue({ account_created: true });
+
+    const { adapter } = renderAt("/register?source=demo");
+    fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
+
+    expect(await screen.findByText("Home")).toBeInTheDocument();
+    expect(adapter.events).toContainEqual(["signup_completed", { source_surface: "demo", auth_method: "google" }]);
+    expect(firebaseMocks.sendVerificationEmail).not.toHaveBeenCalled();
+    expect(JSON.stringify(adapter.events)).not.toMatch(/person@gmail\.com/);
+  });
+
+  it("does nothing when the Google popup is dismissed", async () => {
+    firebaseMocks.signInWithGoogle.mockResolvedValue(null);
+
+    renderAt("/login");
+    const button = screen.getByRole("button", { name: /continue with google/i });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(button).not.toBeDisabled());
+    expect(authMocks.loginWithIdToken).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("explains a rejected Google sign-in and stays on the page", async () => {
+    authMocks.loginWithIdToken.mockRejectedValue({
+      response: { status: 403, data: { code: "beta_access_required" } },
+    });
+    firebaseMocks.mapFirebaseAuthError.mockImplementationOnce(
+      () => "This e-mail does not have an active Portfyl private beta invitation."
+    );
+
+    renderAt("/register");
+    fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/private beta invitation/i);
+    expect(screen.queryByText("Home")).not.toBeInTheDocument();
+  });
+
+  it("shows popup failures such as a blocked window", async () => {
+    firebaseMocks.signInWithGoogle.mockRejectedValue({ code: "auth/popup-blocked" });
+
+    renderAt("/login");
+    fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("auth/popup-blocked");
+    expect(authMocks.loginWithIdToken).not.toHaveBeenCalled();
   });
 });
 

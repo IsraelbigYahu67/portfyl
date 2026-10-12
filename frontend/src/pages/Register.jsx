@@ -1,7 +1,14 @@
 import { useEffect, useId, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { UserPlus } from "lucide-react";
-import { mapFirebaseAuthError, registerWithEmailPassword, sendVerificationEmail } from "../auth/firebase";
+import {
+  isGoogleSignInEnabled,
+  mapFirebaseAuthError,
+  registerWithEmailPassword,
+  sendVerificationEmail,
+} from "../auth/firebase";
+import AuthMethodDivider from "../components/auth/AuthMethodDivider";
+import GoogleSignInButton from "../components/auth/GoogleSignInButton";
 import { useAnalytics } from "../analytics/AnalyticsProvider";
 import { ANALYTICS_EVENTS } from "../analytics/eventContract";
 import { getAnalyticsLanguage } from "../analytics/analyticsCopy";
@@ -58,8 +65,8 @@ export default function Register() {
       // Capture before navigating away, and only once Firebase user
       // creation has actually succeeded. No e-mail or Firebase UID leaves
       // this call -- the schema for signup_completed allows source_surface
-      // only.
-      capture(ANALYTICS_EVENTS.SIGNUP_COMPLETED, { source_surface: sourceSurface });
+      // and auth_method only.
+      capture(ANALYTICS_EVENTS.SIGNUP_COMPLETED, { source_surface: sourceSurface, auth_method: "password" });
       navigate("/verify-email", { state: { email } });
     } catch (err) {
       setError(mapFirebaseAuthError(err));
@@ -78,6 +85,13 @@ export default function Register() {
             Track your portfolio, dividends, and taxes in one place.
           </p>
         </div>
+
+        {isGoogleSignInEnabled() && (
+          <div className="space-y-4">
+            <GoogleSignInButton sourceSurface={sourceSurface} />
+            <AuthMethodDivider />
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="card space-y-4" noValidate>
           <div className="space-y-1.5">

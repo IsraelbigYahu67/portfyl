@@ -203,6 +203,9 @@ const BACKEND_ERROR_MESSAGES = {
   beta_access_required: "This e-mail does not have an active Portfyl private beta invitation.",
   identity_conflict:
     "This e-mail is already linked to a different sign-in method. Log in with your e-mail and password.",
+  // Login.jsx handles this for passwords with a resend flow; a Google
+  // account whose address Google itself has not verified ends up here.
+  email_verification_required: "This e-mail address is not verified yet.",
 };
 
 export function mapFirebaseAuthError(error) {

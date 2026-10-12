@@ -1,8 +1,9 @@
 # Portfyl — Sign in with Google
 
 **Date:** 2026-10-12
-**Status:** Wave 0 done by the owner (2026-10-12, spike step 5 pending); Wave 1
-(T1–T3) implemented on branch `feat/google-sign-in`; Waves 2–3 not started.
+**Status:** Wave 0 done by the owner (2026-10-12, spike step 5 pending). Waves 1
+(T1–T3) and 2 (T4–T5) are implemented on branch `feat/google-sign-in`.
+Wave 3 has not started.
 **Goal:** Let a person create a Portfyl account, and log in afterwards, with
 their Google account, as an alternative to e-mail/password. This works in both
 editions and keeps every existing guarantee: the private-beta invite gate, the

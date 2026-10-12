@@ -3,7 +3,15 @@ import { Link, useNavigate } from "react-router-dom";
 import { LogIn } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { TRACKER_HOME } from "../lib/routes";
-import { getIdToken, mapFirebaseAuthError, sendVerificationEmail, signInWithEmailPassword } from "../auth/firebase";
+import {
+  getIdToken,
+  isGoogleSignInEnabled,
+  mapFirebaseAuthError,
+  sendVerificationEmail,
+  signInWithEmailPassword,
+} from "../auth/firebase";
+import AuthMethodDivider from "../components/auth/AuthMethodDivider";
+import GoogleSignInButton from "../components/auth/GoogleSignInButton";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -71,6 +79,13 @@ export default function Login() {
           <h1 className="font-display font-bold text-xl text-ink">Log in to Portfyl</h1>
           <p className="text-sm text-muted">Track your portfolio, dividends, and taxes in one place.</p>
         </div>
+
+        {isGoogleSignInEnabled() && (
+          <div className="space-y-4">
+            <GoogleSignInButton />
+            <AuthMethodDivider />
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="card space-y-4" noValidate>
           <div className="space-y-1.5">

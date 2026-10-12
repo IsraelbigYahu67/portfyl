@@ -9,9 +9,16 @@ import {
   scheduleWorkspaceDeletion,
 } from "../api";
 import { useAuth } from "../auth/AuthProvider";
-import { mapFirebaseAuthError, reauthenticateWithPassword } from "../auth/firebase";
+import {
+  isGoogleSignInEnabled,
+  mapFirebaseAuthError,
+  prepareGoogleSignIn,
+  reauthenticateWithGoogle,
+  reauthenticateWithPassword,
+} from "../auth/firebase";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import AnalyticsPreferences from "../analytics/AnalyticsPreferences";
+import AuthMethodDivider from "./auth/AuthMethodDivider";
 
 
 function errorMessage(error, fallback) {
@@ -21,7 +28,7 @@ function errorMessage(error, fallback) {
     workspace_owner_required: "Only the workspace owner can schedule deletion.",
     workspace_has_other_members: "Remove other workspace members before scheduling deletion.",
     workspace_confirmation_mismatch: "The workspace name does not match.",
-    recent_reauthentication_required: "Sign in with your password again and retry.",
+    recent_reauthentication_required: "Confirm your identity again and retry.",
     reauthentication_identity_mismatch: "The signed-in identity does not match this account.",
     email_verification_required: "Verify your e-mail before scheduling deletion.",
   };
@@ -46,6 +53,10 @@ export default function DataPrivacySettings() {
     restoreFocusRef: deleteButtonRef,
   });
   const queryKey = ["workspace-deletion", currentWorkspace?.id];
+  // Either proof is equivalent to the backend: it only checks that a fresh
+  // Firebase token belongs to this user. Offering both avoids having to know
+  // which providers the account has.
+  const googleEnabled = isGoogleSignInEnabled();
 
   const { data: deletion, isLoading } = useQuery({
     queryKey,
@@ -70,14 +81,18 @@ export default function DataPrivacySettings() {
   });
 
   const scheduleMutation = useMutation({
-    mutationFn: async () => {
-      const reauthIdToken = await reauthenticateWithPassword(user.email, password);
+    mutationFn: async (method) => {
+      const reauthIdToken = method === "google"
+        ? await reauthenticateWithGoogle(user.email)
+        : await reauthenticateWithPassword(user.email, password);
+      if (!reauthIdToken) return null; // Google popup dismissed
       return scheduleWorkspaceDeletion({
         reauth_id_token: reauthIdToken,
         confirmation,
       });
     },
     onSuccess: (status) => {
+      if (!status) return;
       queryClient.setQueryData(queryKey, status);
       setPassword("");
       setConfirmation("");
@@ -106,10 +121,10 @@ export default function DataPrivacySettings() {
 
   if (!currentWorkspace) return null;
 
-  const canSchedule =
-    confirmation === currentWorkspace.name
-    && password.length > 0
-    && !scheduleMutation.isPending;
+  const confirmationMatches = confirmation === currentWorkspace.name;
+  const canSchedule = confirmationMatches && password.length > 0 && !scheduleMutation.isPending;
+  const canScheduleWithGoogle = confirmationMatches && !scheduleMutation.isPending;
+  const pendingMethod = scheduleMutation.isPending ? scheduleMutation.variables : null;
 
   return (
     <div className="bg-surface-card border border-surface-border rounded-xl p-6 space-y-5">
@@ -180,6 +195,9 @@ export default function DataPrivacySettings() {
             onClick={() => {
               setDialogOpen(true);
               setError(null);
+              // Warm Firebase up so the Google popup opens straight from the
+              // click instead of being blocked after an async load.
+              if (googleEnabled) prepareGoogleSignIn().catch(() => {});
             }}
             className="flex items-center gap-2 border border-loss/40 rounded-lg px-4 py-2 text-sm font-medium text-loss hover:bg-loss/10"
           >
@@ -241,13 +259,30 @@ export default function DataPrivacySettings() {
             </label>
             <button
               type="button"
-              onClick={() => scheduleMutation.mutate()}
+              onClick={() => scheduleMutation.mutate("password")}
               disabled={!canSchedule}
               className="w-full flex items-center justify-center gap-2 bg-loss text-white rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
             >
-              {scheduleMutation.isPending && <Loader2 size={16} className="animate-spin" />}
+              {pendingMethod === "password" && <Loader2 size={16} className="animate-spin" />}
               Schedule deletion
             </button>
+            {googleEnabled && (
+              <>
+                <AuthMethodDivider />
+                <p className="text-xs text-muted">
+                  Signed up with Google? Confirm with your Google account instead of a password.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => scheduleMutation.mutate("google")}
+                  disabled={!canScheduleWithGoogle}
+                  className="w-full flex items-center justify-center gap-2 border border-loss/40 rounded-lg px-4 py-2.5 text-sm font-semibold text-loss hover:bg-loss/10 disabled:opacity-40"
+                >
+                  {pendingMethod === "google" && <Loader2 size={16} className="animate-spin" />}
+                  Confirm with Google
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

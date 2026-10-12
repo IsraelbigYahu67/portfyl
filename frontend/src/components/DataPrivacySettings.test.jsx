@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
   scheduleWorkspaceDeletion: vi.fn(),
   cancelWorkspaceDeletion: vi.fn(),
   reauthenticateWithPassword: vi.fn(),
+  reauthenticateWithGoogle: vi.fn(),
+  prepareGoogleSignIn: vi.fn(),
+  isGoogleSignInEnabled: vi.fn(),
 }));
 
 vi.mock("../api", () => ({
@@ -22,6 +25,10 @@ vi.mock("../api", () => ({
 
 vi.mock("../auth/firebase", () => ({
   reauthenticateWithPassword: mocks.reauthenticateWithPassword,
+  reauthenticateWithGoogle: mocks.reauthenticateWithGoogle,
+  prepareGoogleSignIn: mocks.prepareGoogleSignIn,
+  isGoogleSignInEnabled: mocks.isGoogleSignInEnabled,
+  mapFirebaseAuthError: (err) => err?.code,
 }));
 
 vi.mock("../auth/AuthProvider", () => ({
@@ -63,6 +70,9 @@ describe("DataPrivacySettings", () => {
     });
     mocks.cancelWorkspaceDeletion.mockReset().mockResolvedValue(undefined);
     mocks.reauthenticateWithPassword.mockReset().mockResolvedValue("fresh-id-token");
+    mocks.reauthenticateWithGoogle.mockReset().mockResolvedValue("fresh-google-token");
+    mocks.prepareGoogleSignIn.mockReset().mockResolvedValue(undefined);
+    mocks.isGoogleSignInEnabled.mockReset().mockReturnValue(false);
     vi.stubGlobal("URL", {
       ...URL,
       createObjectURL: vi.fn(() => "blob:workspace-export"),
@@ -138,6 +148,71 @@ describe("DataPrivacySettings", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
+  });
+
+  it("offers no Google confirmation unless the build enables Google sign-in", async () => {
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: /delete workspace/i }));
+
+    expect(screen.queryByRole("button", { name: /confirm with google/i })).not.toBeInTheDocument();
+    expect(mocks.prepareGoogleSignIn).not.toHaveBeenCalled();
+  });
+
+  it("schedules deletion with a fresh Google token and no password", async () => {
+    mocks.isGoogleSignInEnabled.mockReturnValue(true);
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: /delete workspace/i }));
+    expect(mocks.prepareGoogleSignIn).toHaveBeenCalledTimes(1);
+
+    const google = screen.getByRole("button", { name: /confirm with google/i });
+    expect(google).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/type alice workspace/i), {
+      target: { value: "Alice workspace" },
+    });
+    expect(google).toBeEnabled();
+    expect(screen.getByRole("button", { name: /schedule deletion/i })).toBeDisabled();
+    fireEvent.click(google);
+
+    await waitFor(() => expect(mocks.reauthenticateWithGoogle).toHaveBeenCalledWith("alice@example.com"));
+    expect(mocks.reauthenticateWithPassword).not.toHaveBeenCalled();
+    expect(mocks.scheduleWorkspaceDeletion).toHaveBeenCalledWith({
+      reauth_id_token: "fresh-google-token",
+      confirmation: "Alice workspace",
+    });
+    expect(await screen.findByText(/scheduled for/i)).toBeInTheDocument();
+  });
+
+  it("keeps the dialog open without an error when the Google popup is dismissed", async () => {
+    mocks.isGoogleSignInEnabled.mockReturnValue(true);
+    mocks.reauthenticateWithGoogle.mockResolvedValueOnce(null);
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: /delete workspace/i }));
+    fireEvent.change(screen.getByLabelText(/type alice workspace/i), {
+      target: { value: "Alice workspace" },
+    });
+    const google = screen.getByRole("button", { name: /confirm with google/i });
+    fireEvent.click(google);
+
+    await waitFor(() => expect(mocks.reauthenticateWithGoogle).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(google).toBeEnabled());
+    expect(mocks.scheduleWorkspaceDeletion).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("asks for a fresh confirmation when the backend finds the proof stale", async () => {
+    mocks.isGoogleSignInEnabled.mockReturnValue(true);
+    mocks.scheduleWorkspaceDeletion.mockRejectedValueOnce({
+      response: { status: 403, data: { code: "recent_reauthentication_required" } },
+    });
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: /delete workspace/i }));
+    fireEvent.change(screen.getByLabelText(/type alice workspace/i), {
+      target: { value: "Alice workspace" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /confirm with google/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Confirm your identity again and retry.");
   });
 
   it("shows a pending deadline and allows cancellation", async () => {
