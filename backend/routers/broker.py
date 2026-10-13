@@ -9,6 +9,7 @@ from account_identity import account_fingerprint
 from audit import record_audit_event
 from broker_reconciliation import reconcile_positions
 from database import get_db
+from demo_cleanup import purge_demo_data
 from entitlements import require_broker_capacity, require_capability, require_writable_broker
 from rate_limit import rate_limit
 from fx import convert_amount
@@ -543,6 +544,9 @@ def connect(
         )
         db.add(connection)
     db.flush()
+    # A real account makes the onboarding sample data misleading, so it goes
+    # away in the same transaction as the connection (see demo_cleanup).
+    demo_removed = purge_demo_data(db, portfolio)
     if _context is not None:
         record_audit_event(
             db,
@@ -553,6 +557,16 @@ def connect(
             target_id=str(connection.public_id),
             metadata={"broker": "trading212", "portfolio_id": str(portfolio.public_id)},
         )
+        if demo_removed["transactions"] or demo_removed["portfolios"]:
+            record_audit_event(
+                db,
+                actor_user_id=_context.user.id,
+                workspace_id=portfolio.workspace_id,
+                action="onboarding.demo.removed",
+                target_type="portfolio",
+                target_id=str(portfolio.public_id),
+                metadata=demo_removed,
+            )
     result = {
         "ok": True,
         "id": str(connection.public_id),
