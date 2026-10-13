@@ -10,7 +10,8 @@ import t212_sync
 
 from account_identity import account_fingerprint
 from models import (
-    BrokerBalance, BrokerConnection, BrokerPosition, BrokerSyncRun, Portfolio, Transaction,
+    AuditLog, BrokerBalance, BrokerConnection, BrokerPosition, BrokerSyncRun,
+    OptionsTrade, Portfolio, Transaction, Workspace,
 )
 from routers.broker import (
     _fetch_account_summary,
@@ -450,6 +451,194 @@ class TestDisconnectAndReconnectClearPositions:
         assert db_session.query(Transaction).count() == 1
         db_session.refresh(connection)
         assert connection.positions_snapshot_at == snapshot_at.replace(tzinfo=None)
+
+
+class TestDemoCleanupOnConnect:
+    @staticmethod
+    def _connect(db_session, portfolio):
+        with patch("routers.broker.httpx.get", return_value=_account_response(101)):
+            connect(
+                payload={"api_key": "new-key-value-1234567890"},
+                db=db_session, portfolio=portfolio, _context=None,
+            )
+
+    def test_removes_demo_rows_but_keeps_real_ones_and_renames(
+        self, db_session, default_portfolio
+    ):
+        default_portfolio.name = "Portfyl demo"
+        db_session.add_all([
+            make_txn(ticker="AAPL", date=date(2025, 1, 2),
+                     portfolio_id=default_portfolio.id, source="demo"),
+            make_txn(ticker="MSFT", date=date(2025, 2, 3),
+                     portfolio_id=default_portfolio.id, source="demo"),
+            make_txn(ticker="VWCE", date=date(2026, 1, 19),
+                     portfolio_id=default_portfolio.id, source="t212_api"),
+            make_txn(ticker="CEZ", date=date(2026, 1, 20),
+                     portfolio_id=default_portfolio.id, source="manual"),
+        ])
+        db_session.commit()
+
+        self._connect(db_session, default_portfolio)
+
+        remaining = {t.ticker for t in db_session.query(Transaction).all()}
+        assert remaining == {"VWCE", "CEZ"}
+        db_session.refresh(default_portfolio)
+        assert default_portfolio.name == "Trading 212"
+        assert db_session.query(BrokerConnection).count() == 1
+
+    def test_keeps_custom_portfolio_name(self, db_session, default_portfolio):
+        db_session.add(make_txn(
+            ticker="AAPL", date=date(2025, 1, 2),
+            portfolio_id=default_portfolio.id, source="demo",
+        ))
+        db_session.commit()
+
+        self._connect(db_session, default_portfolio)
+
+        db_session.refresh(default_portfolio)
+        assert default_portfolio.name == "Default"
+        assert db_session.query(Transaction).count() == 0
+
+    def test_removes_separate_pristine_demo_portfolio(
+        self, db_session, default_portfolio, test_workspace
+    ):
+        demo = Portfolio(
+            workspace_id=test_workspace.id, name="Portfyl demo", is_default=True,
+        )
+        default_portfolio.is_default = False
+        db_session.add(demo)
+        db_session.commit()
+        db_session.add(make_txn(
+            ticker="AAPL", date=date(2025, 1, 2), portfolio_id=demo.id, source="demo",
+        ))
+        db_session.commit()
+
+        self._connect(db_session, default_portfolio)
+
+        names = [p.name for p in db_session.query(Portfolio).all()]
+        assert names == ["Default"]
+        db_session.refresh(default_portfolio)
+        assert default_portfolio.is_default is True
+        assert db_session.query(Transaction).count() == 0
+
+    def test_keeps_demo_named_portfolio_that_holds_real_data(
+        self, db_session, default_portfolio, test_workspace
+    ):
+        other = Portfolio(workspace_id=test_workspace.id, name="Portfyl demo")
+        db_session.add(other)
+        db_session.commit()
+        db_session.add_all([
+            make_txn(ticker="AAPL", date=date(2025, 1, 2),
+                     portfolio_id=other.id, source="demo"),
+            make_txn(ticker="MSFT", date=date(2025, 1, 3),
+                     portfolio_id=other.id, source="manual"),
+        ])
+        db_session.commit()
+
+        self._connect(db_session, default_portfolio)
+
+        assert db_session.query(Portfolio).count() == 2
+        assert db_session.query(Transaction).count() == 2
+
+    def test_keeps_demo_portfolio_with_other_user_data(
+        self, db_session, default_portfolio, test_workspace
+    ):
+        demo = Portfolio(workspace_id=test_workspace.id, name="Portfyl demo")
+        db_session.add(demo)
+        db_session.commit()
+        db_session.add_all([
+            make_txn(ticker="AAPL", date=date(2025, 1, 2),
+                     portfolio_id=demo.id, source="demo"),
+            OptionsTrade(
+                workspace_id=test_workspace.id, portfolio_id=demo.id,
+                underlying="AAPL", strike=200.0, expiry=date(2026, 12, 18),
+                put_call="P", quantity=1, open_price=3.5,
+                open_date=date(2026, 9, 1), status="open",
+            ),
+        ])
+        db_session.commit()
+
+        self._connect(db_session, default_portfolio)
+
+        assert db_session.query(Portfolio).count() == 2
+        assert db_session.query(OptionsTrade).count() == 1
+
+    def test_leaves_other_workspaces_untouched(
+        self, db_session, default_portfolio, test_workspace
+    ):
+        other_ws = Workspace(name="Someone else")
+        db_session.add(other_ws)
+        db_session.flush()
+        foreign_demo = Portfolio(workspace_id=other_ws.id, name="Portfyl demo")
+        db_session.add(foreign_demo)
+        db_session.flush()
+        db_session.add_all([
+            make_txn(ticker="AAPL", date=date(2025, 1, 2), source="demo",
+                     portfolio_id=foreign_demo.id, workspace_id=other_ws.id),
+            make_txn(ticker="MSFT", date=date(2025, 1, 2), source="demo",
+                     portfolio_id=default_portfolio.id),
+        ])
+        db_session.commit()
+
+        self._connect(db_session, default_portfolio)
+
+        foreign = db_session.query(Transaction).filter(
+            Transaction.workspace_id == other_ws.id
+        ).all()
+        assert [t.ticker for t in foreign] == ["AAPL"]
+        assert db_session.get(Portfolio, foreign_demo.id) is not None
+        assert db_session.query(Transaction).filter(
+            Transaction.workspace_id == test_workspace.id
+        ).count() == 0
+
+    def test_failed_connect_rolls_back_purge(self, db_session, default_portfolio):
+        default_portfolio.name = "Portfyl demo"
+        db_session.add(make_txn(
+            ticker="AAPL", date=date(2025, 1, 2),
+            portfolio_id=default_portfolio.id, source="demo",
+        ))
+        db_session.commit()
+
+        with patch("routers.broker.record_audit_event", side_effect=RuntimeError("boom")), \
+                patch("routers.broker.httpx.get", return_value=_account_response(101)), \
+                pytest.raises(RuntimeError):
+            connect(
+                payload={"api_key": "new-key-value-1234567890"},
+                db=db_session, portfolio=default_portfolio, _context=MagicMock(),
+            )
+        db_session.rollback()
+
+        assert db_session.query(Transaction).count() == 1
+        assert db_session.query(BrokerConnection).count() == 0
+        db_session.refresh(default_portfolio)
+        assert default_portfolio.name == "Portfyl demo"
+
+    def test_records_audit_event_only_when_demo_removed(
+        self, db_session, default_portfolio, request_context
+    ):
+        db_session.add(make_txn(
+            ticker="AAPL", date=date(2025, 1, 2),
+            portfolio_id=default_portfolio.id, source="demo",
+        ))
+        db_session.commit()
+
+        with patch("routers.broker.httpx.get", return_value=_account_response(101)):
+            connect(
+                payload={"api_key": "new-key-value-1234567890"},
+                db=db_session, portfolio=default_portfolio, _context=request_context,
+            )
+            connect(
+                payload={"api_key": "new-key-value-1234567890"},
+                db=db_session, portfolio=default_portfolio, _context=request_context,
+            )
+
+        removed = db_session.query(AuditLog).filter(
+            AuditLog.action == "onboarding.demo.removed"
+        ).all()
+        assert len(removed) == 1
+        assert removed[0].event_metadata == {
+            "transactions": 1, "portfolios": 0, "renamed": False,
+        }
 
 
 class TestAccountBinding:
