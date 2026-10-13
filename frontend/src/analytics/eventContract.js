@@ -22,6 +22,7 @@ const entryPoints = new Set(["landing_hero", "landing_closing", "direct"]);
 const demoPages = new Set(["overview", "allocation", "analytics", "dividends", "stock"]);
 const demoSymbols = new Set(["VUAA", "MSFT", "JPM", "JNJ", "XOM", "PG", "AMZN", "CAT", "NEE", "PLD"]);
 const activationPaths = new Set(["three_pages", "stock_after_page"]);
+const authMethods = new Set(["password", "google"]);
 
 function stringField(value, { max = 80, values } = {}) {
   if (typeof value !== "string") return null;
@@ -48,6 +49,7 @@ const fields = Object.freeze({
   source_surface: (value) => stringField(value, { values: sourceSurfaces }),
   creation_path: (value) => stringField(value, { values: creationPaths }),
   source_type: (value) => stringField(value, { values: sourceTypes }),
+  auth_method: (value) => stringField(value, { values: authMethods }),
 });
 
 const schemas = Object.freeze({
@@ -58,7 +60,7 @@ const schemas = Object.freeze({
   [ANALYTICS_EVENTS.DEMO_ACTIVATION_REACHED]: ["activation_path", "distinct_demo_pages"],
   [ANALYTICS_EVENTS.SIGNUP_CTA_CLICKED]: ["source_surface", "language"],
   [ANALYTICS_EVENTS.SIGNUP_STARTED]: ["source_surface", "language"],
-  [ANALYTICS_EVENTS.SIGNUP_COMPLETED]: ["source_surface"],
+  [ANALYTICS_EVENTS.SIGNUP_COMPLETED]: ["source_surface", "auth_method"],
   [ANALYTICS_EVENTS.PORTFOLIO_CREATED]: ["creation_path"],
   [ANALYTICS_EVENTS.PORTFOLIO_DATA_IMPORTED]: ["source_type"],
   [ANALYTICS_EVENTS.DASHBOARD_FIRST_VALUE_RENDERED]: ["source_type"],

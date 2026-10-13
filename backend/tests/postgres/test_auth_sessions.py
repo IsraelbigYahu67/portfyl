@@ -82,6 +82,36 @@ class StubIdentityVerifier:
                 email_verified=False,
                 display_name=None,
             ),
+            # Same Firebase UID as alice-token: Firebase's default "one
+            # account per e-mail" linking keeps the UID when Google is added.
+            "alice-google-token": VerifiedIdentity(
+                uid="firebase-alice",
+                email="alice@example.com",
+                email_verified=True,
+                display_name="Alice From Google",
+                sign_in_provider="google.com",
+            ),
+            "alice-password-token": VerifiedIdentity(
+                uid="firebase-alice",
+                email="alice@example.com",
+                email_verified=True,
+                display_name=None,
+                sign_in_provider="password",
+            ),
+            "google-unverified-token": VerifiedIdentity(
+                uid="firebase-google-unverified",
+                email="unverified@workspace.example",
+                email_verified=False,
+                display_name="Unverified",
+                sign_in_provider="google.com",
+            ),
+            "bob-google-token": VerifiedIdentity(
+                uid="firebase-bob-google",
+                email="bob@gmail.com",
+                email_verified=True,
+                display_name="Bob Google",
+                sign_in_provider="google.com",
+            ),
         }
         self.revoked_uids: list[str] = []
 
@@ -268,6 +298,96 @@ def test_verified_owner_claims_only_exact_normalized_pending_email(
         assert membership.workspace_id == workspace_id
         assert db.scalar(select(func.count()).select_from(User)) == 1
         assert db.scalar(select(func.count()).select_from(Workspace)) == 1
+
+
+def test_google_identity_signup_provisions_account_and_audits_provider(
+    client: TestClient,
+    postgres_engine,
+):
+    response = client.post("/api/auth/session", json={"id_token": "bob-google-token"})
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["account_created"] is True
+    assert payload["user"]["display_name"] == "Bob Google"
+    assert payload["workspaces"][0]["name"] == "Bob Google's workspace"
+    with admin_session(postgres_engine) as db:
+        assert db.scalar(select(func.count()).select_from(User)) == 1
+        assert db.scalar(select(func.count()).select_from(Membership)) == 1
+        audit = db.scalar(select(AuditLog))
+        assert audit is not None
+        assert audit.event_metadata["provider"] == "google.com"
+
+
+def test_repeat_exchange_reports_existing_account(client: TestClient):
+    first = client.post("/api/auth/session", json={"id_token": "alice-token"})
+    second = client.post("/api/auth/session", json={"id_token": "alice-token"})
+
+    assert first.json()["account_created"] is True
+    assert second.json()["account_created"] is False
+    me = client.get("/api/auth/me")
+    assert "account_created" not in me.json()
+
+
+def test_password_and_google_sign_ins_share_one_account(
+    client: TestClient,
+    postgres_engine,
+):
+    flags = []
+    for token in ("alice-password-token", "alice-google-token", "alice-password-token"):
+        response = client.post("/api/auth/session", json={"id_token": token})
+        assert response.status_code == 201
+        flags.append(response.json()["account_created"])
+
+    assert flags == [True, False, False]
+    with admin_session(postgres_engine) as db:
+        assert db.scalar(select(func.count()).select_from(User)) == 1
+        assert db.scalar(select(func.count()).select_from(Workspace)) == 1
+        assert db.scalar(select(func.count()).select_from(Membership)) == 1
+        user = db.scalar(select(User))
+        assert user is not None
+        # The trailing password login has no name claim and must not erase
+        # the name Google supplied.
+        assert user.display_name == "Alice From Google"
+        assert [row.event_metadata["provider"] for row in db.scalars(
+            select(AuditLog).order_by(AuditLog.created_at)
+        )] == ["password", "google.com", "password"]
+
+
+def test_unverified_google_identity_is_rejected(client: TestClient, postgres_engine):
+    response = client.post(
+        "/api/auth/session",
+        json={"id_token": "google-unverified-token"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "email_verification_required"
+    with admin_session(postgres_engine) as db:
+        assert db.scalar(select(func.count()).select_from(User)) == 0
+
+
+def test_cloud_beta_rejects_uninvited_google_identity_before_provisioning(
+    client: TestClient,
+    postgres_engine,
+    monkeypatch,
+):
+    monkeypatch.setattr(rate_limit, "RATE_LIMIT_RULES", {
+        "auth_session": rate_limit.RateLimitRule("auth_session", 100, 60),
+    })
+    monkeypatch.setattr(rate_limit, "consume_rate_limit", lambda **_kwargs: None)
+    client.app.state.portfyl_edition = Edition.CLOUD
+
+    response = client.post(
+        "/api/auth/session",
+        json={"id_token": "bob-google-token"},
+        headers={"CF-Connecting-IP": "203.0.113.12"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "beta_access_required"
+    with admin_session(postgres_engine) as db:
+        assert db.scalar(select(func.count()).select_from(User)) == 0
+        assert db.scalar(select(func.count()).select_from(Workspace)) == 0
 
 
 def test_me_bootstraps_account_and_rotates_usable_csrf(client: TestClient):

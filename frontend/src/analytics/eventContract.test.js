@@ -10,7 +10,7 @@ const validEvents = [
   ["demo_activation_reached", { activation_path: "three_pages", distinct_demo_pages: 3 }],
   ["signup_cta_clicked", { source_surface: "demo", language: "en" }],
   ["signup_started", { source_surface: "direct", language: "cs" }],
-  ["signup_completed", { source_surface: "landing_closing" }],
+  ["signup_completed", { source_surface: "landing_closing", auth_method: "google" }],
   ["portfolio_created", { creation_path: "blank" }],
   ["portfolio_data_imported", { source_type: "csv" }],
   ["dashboard_first_value_rendered", { source_type: "broker" }],
@@ -41,6 +41,7 @@ describe("activation event contract", () => {
     ["source_type", "invalid"],
     ["creation_path", "invalid"],
     ["source_surface", "invalid"],
+    ["auth_method", "github"],
     ["entry_point", "invalid"],
     ["demo_page", "invalid"],
     ["activation_path", "invalid"],
@@ -55,7 +56,9 @@ describe("activation event contract", () => {
         : property === "creation_path"
           ? { creation_path: value }
           : property === "source_surface"
-            ? { source_surface: value }
+            ? { source_surface: value, auth_method: "password" }
+            : property === "auth_method"
+            ? { source_surface: "direct", auth_method: value }
             : property === "entry_point"
               ? { language: "en", entry_point: value }
               : property === "demo_page"
@@ -67,7 +70,7 @@ describe("activation event contract", () => {
       ? "portfolio_data_imported"
       : property === "creation_path"
         ? "portfolio_created"
-        : property === "source_surface"
+        : property === "source_surface" || property === "auth_method"
           ? "signup_completed"
           : property === "demo_page"
             ? "demo_page_viewed"

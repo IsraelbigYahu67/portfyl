@@ -24,13 +24,17 @@ function firebaseConfig() {
 
 let _app = null;
 let _auth = null;
+let _sdk = null;
 let _sdkPromise = null;
 let _initialization = null;
 
 function loadFirebaseSdk() {
   if (!_sdkPromise) {
     _sdkPromise = Promise.all([import("firebase/app"), import("firebase/auth")])
-      .then(([app, auth]) => ({ ...app, ...auth }))
+      .then(([app, auth]) => {
+        _sdk = { ...app, ...auth };
+        return _sdk;
+      })
       .catch((error) => {
         _sdkPromise = null;
         throw error;
@@ -103,6 +107,66 @@ export async function reauthenticateWithPassword(email, password) {
   }
 }
 
+// Google sign-in (docs/superpowers/plans/2026-10-12-portfyl-google-sign-in.md)
+// uses a popup, never a redirect: a redirect would need the Firebase session
+// to survive a full page reload, which inMemoryPersistence deliberately
+// prevents. The button is a build-time opt-in so the code can ship before the
+// provider is enabled in the Firebase console.
+export function isGoogleSignInEnabled() {
+  return import.meta.env.VITE_FIREBASE_GOOGLE_SIGN_IN === "true";
+}
+
+// The user closing or superseding the popup is a choice, not an error.
+const POPUP_DISMISSED_CODES = new Set(["auth/popup-closed-by-user", "auth/cancelled-popup-request"]);
+
+// Browsers only allow a popup while the click's user activation is still
+// live, so a page offering Google sign-in calls this on mount. Once it has
+// resolved, signInWithGoogle/reauthenticateWithGoogle reach signInWithPopup
+// without awaiting anything first.
+export async function prepareGoogleSignIn() {
+  await Promise.all([readyAuth(), loadFirebaseSdk()]);
+}
+
+function googleProvider(sdk, customParameters) {
+  const provider = new sdk.GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account", ...customParameters });
+  return provider;
+}
+
+// Resolves to the Firebase user, or null when the person dismissed the popup.
+export async function signInWithGoogle() {
+  const auth = _auth || (await readyAuth());
+  const sdk = _sdk || (await loadFirebaseSdk());
+  try {
+    const credential = await sdk.signInWithPopup(auth, googleProvider(sdk));
+    return credential.user;
+  } catch (error) {
+    if (POPUP_DISMISSED_CODES.has(error?.code)) return null;
+    throw error;
+  }
+}
+
+// Google counterpart of reauthenticateWithPassword for accounts without a
+// password. The backend still checks that the fresh token's UID and e-mail
+// match the signed-in Portfyl user, so picking another Google account fails
+// there. Resolves to a fresh ID token, or null when the popup was dismissed.
+export async function reauthenticateWithGoogle(expectedEmail) {
+  const auth = _auth || (await readyAuth());
+  const sdk = _sdk || (await loadFirebaseSdk());
+  try {
+    const credential = await sdk.signInWithPopup(
+      auth,
+      googleProvider(sdk, expectedEmail ? { login_hint: expectedEmail } : {}),
+    );
+    return await credential.user.getIdToken(true);
+  } catch (error) {
+    if (POPUP_DISMISSED_CODES.has(error?.code)) return null;
+    throw error;
+  } finally {
+    if (auth.currentUser) await sdk.signOut(auth);
+  }
+}
+
 export async function signOutFirebaseClient() {
   if (!_auth) return;
   const { signOut } = await loadFirebaseSdk();
@@ -126,11 +190,26 @@ const ERROR_MESSAGES = {
   "auth/too-many-requests": "Too many attempts. Please wait a moment and try again.",
   "auth/network-request-failed": "Network error — check your connection and try again.",
   "auth/user-disabled": "This account has been disabled.",
+  "auth/popup-blocked":
+    "Your browser blocked the Google sign-in window. Allow pop-ups for this site and try again.",
+  "auth/account-exists-with-different-credential":
+    "This e-mail already has a Portfyl password. Log in with your e-mail and password.",
+  "auth/unauthorized-domain": "Google sign-in is not available right now.",
+  "auth/operation-not-allowed": "Google sign-in is not available right now.",
+};
+
+// Codes returned by POST /api/auth/session (backend/routers/auth.py).
+const BACKEND_ERROR_MESSAGES = {
+  beta_access_required: "This e-mail does not have an active Portfyl private beta invitation.",
+  identity_conflict:
+    "This e-mail is already linked to a different sign-in method. Log in with your e-mail and password.",
+  // Login.jsx handles this for passwords with a resend flow; a Google
+  // account whose address Google itself has not verified ends up here.
+  email_verification_required: "This e-mail address is not verified yet.",
 };
 
 export function mapFirebaseAuthError(error) {
-  if (error?.response?.data?.code === "beta_access_required") {
-    return "This e-mail does not have an active Portfyl private beta invitation.";
-  }
+  const backendMessage = BACKEND_ERROR_MESSAGES[error?.response?.data?.code];
+  if (backendMessage) return backendMessage;
   return ERROR_MESSAGES[error?.code] || "Something went wrong. Please try again.";
 }

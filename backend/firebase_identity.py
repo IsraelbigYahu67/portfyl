@@ -14,6 +14,12 @@ class IdentityVerificationError(RuntimeError):
     """Raised when Firebase cannot provide a usable verified identity."""
 
 
+# Firebase `firebase.sign_in_provider` values Portfyl enables. Anything else is
+# reported as None rather than echoed, so audit metadata never carries an
+# arbitrary claim string.
+KNOWN_SIGN_IN_PROVIDERS = frozenset({"password", "google.com"})
+
+
 @dataclass(frozen=True)
 class VerifiedIdentity:
     uid: str
@@ -21,6 +27,15 @@ class VerifiedIdentity:
     email_verified: bool
     display_name: str | None
     authenticated_at: datetime | None = None
+    sign_in_provider: str | None = None
+
+
+def _sign_in_provider(claims: dict) -> str | None:
+    firebase_claims = claims.get("firebase")
+    if not isinstance(firebase_claims, dict):
+        return None
+    provider = firebase_claims.get("sign_in_provider")
+    return provider if provider in KNOWN_SIGN_IN_PROVIDERS else None
 
 
 def _default_firebase_app():
@@ -70,6 +85,7 @@ class FirebaseIdentityVerifier:
             email_verified=bool(claims.get("email_verified")),
             display_name=display_name or None,
             authenticated_at=authenticated_at,
+            sign_in_provider=_sign_in_provider(claims),
         )
 
     def revoke_refresh_tokens(self, uid: str) -> None:

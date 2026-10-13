@@ -85,6 +85,49 @@ def test_firebase_verifier_maps_auth_time_for_sensitive_reauthentication():
     )
 
 
+@pytest.mark.parametrize(
+    "firebase_claims,expected",
+    [
+        ({"sign_in_provider": "google.com"}, "google.com"),
+        ({"sign_in_provider": "password"}, "password"),
+        # Providers Portfyl has not enabled are never echoed into audit data.
+        ({"sign_in_provider": "custom"}, None),
+        ({"sign_in_provider": "anonymous"}, None),
+        ({}, None),
+        ("not-a-mapping", None),
+    ],
+)
+def test_firebase_verifier_maps_only_known_sign_in_providers(
+    firebase_claims: object,
+    expected: str | None,
+):
+    auth_client = FakeFirebaseAuth({
+        "uid": "firebase-alice",
+        "email": "alice@gmail.com",
+        "email_verified": True,
+        "name": "Alice Investor",
+        "firebase": firebase_claims,
+    })
+    verifier = FirebaseIdentityVerifier(auth_client=auth_client, app=object())
+
+    identity = verifier.verify_id_token("google-token")
+
+    assert identity.sign_in_provider == expected
+
+
+def test_firebase_verifier_omits_provider_when_claim_is_absent():
+    verifier = FirebaseIdentityVerifier(
+        auth_client=FakeFirebaseAuth({
+            "uid": "firebase-alice",
+            "email": "alice@example.com",
+            "email_verified": True,
+        }),
+        app=object(),
+    )
+
+    assert verifier.verify_id_token("legacy-token").sign_in_provider is None
+
+
 @pytest.mark.parametrize("claims", [
     {"email": "alice@example.com", "email_verified": True},
     {"uid": "firebase-alice", "email_verified": True},
