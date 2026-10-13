@@ -1,11 +1,10 @@
 # Portfyl — Sign in with Google
 
 **Date:** 2026-10-12
-**Status:** Wave 0 is done by the owner (2026-10-12). Waves 1–2 and T6 are
-implemented on branch `feat/google-sign-in`. T7's automated checks pass (§7).
-The owner skipped the account-linking spike (T0 step 5). The T7 manual
-end-to-end checks with a real Google account are also still open. Do both
-before setting the flag in production.
+**Status:** Shipped. The code was merged to `main` and deployed to
+production on 2026-10-13 (revision `portfyl-00009-8hl`, flag on). The owner
+confirmed that a real Google sign-in on `app.portfyl.com` works. T7's
+automated checks pass (§7). §5 lists the remaining follow-ups.
 **Goal:** Let a person create a Portfyl account, and log in afterwards, with
 their Google account, as an alternative to e-mail/password. This works in both
 editions and keeps every existing guarantee: the private-beta invite gate, the
@@ -418,8 +417,10 @@ Rollout state (2026-10-13):
     `portfyl-00009-8hl`. It serves 100 % of traffic and keeps the
     auth-domain env.
   - Startup logs show no warnings.
-- Still open: the owner's first real Google sign-in on `app.portfyl.com`,
-  which covers T7 checks 1–8 and the account-linking case.
+- **2026-10-13: the owner signed in with Google on `app.portfyl.com`, and it
+  works.** This is the first real end-to-end Google sign-in in production.
+  It was not separately recorded whether this covered the account-linking
+  case, a later password login, or a CSP-clean console.
 - Runbook gotcha seen during the build: under Windows PowerShell 5.1,
   `git archive main | tar -x` pipes binary data through the text pipeline.
   Use `git archive --format=tar -o <file> main` and then `tar -x -f <file>`.
