@@ -43,6 +43,26 @@ describe("DashboardGrid", () => {
     expect(domOrder(container)[1]).toBe("performance");
   });
 
+  it("drops the retired insiderBuys widget from every stored key without leaving a hole", () => {
+    localStorage.setItem(ORDER_KEY, JSON.stringify(
+      ["attention", "performance", "composition", "insiderBuys", "concentration", "movers", "dividends"]
+    ));
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify(["insiderBuys"]));
+    localStorage.setItem(LAYOUT_KEY, JSON.stringify({ lg: [
+      { i: "attention", x: 0, y: 0, w: 6, h: 4 },
+      { i: "insiderBuys", x: 0, y: 4, w: 6, h: 5 },
+      { i: "concentration", x: 0, y: 9, w: 6, h: 5 },
+    ] }));
+
+    const { container, unmount } = renderGrid();
+    expect(domOrder(container)).toEqual(ALL_WIDGETS.map((w) => w.id));
+    unmount();
+
+    const edit = renderGrid({ editing: true });
+    expect(domOrder(edit.container)).toEqual(ALL_WIDGETS.map((w) => w.id));
+    expect(screen.queryByRole("button", { name: /restore/i })).not.toBeInTheDocument();
+  });
+
   it("moves a widget with a labelled control and persists the order", () => {
     localStorage.setItem(ORDER_KEY, JSON.stringify(["movers", "performance"]));
     const { container } = renderGrid({ editing: true });
