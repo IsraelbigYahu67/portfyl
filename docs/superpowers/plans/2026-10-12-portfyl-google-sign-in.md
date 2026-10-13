@@ -1,11 +1,10 @@
 # Portfyl — Sign in with Google
 
 **Date:** 2026-10-12
-**Status:** Wave 0 is done by the owner (2026-10-12). Waves 1–2 and T6 are
-implemented on branch `feat/google-sign-in`. T7's automated checks pass (§7).
-The owner skipped the account-linking spike (T0 step 5). The T7 manual
-end-to-end checks with a real Google account are also still open. Do both
-before setting the flag in production.
+**Status:** Shipped. The code was merged to `main` and deployed to
+production on 2026-10-13 (revision `portfyl-00009-8hl`, flag on). The owner
+confirmed that a real Google sign-in on `app.portfyl.com` works. T7's
+automated checks pass (§7). §5 lists the remaining follow-ups.
 **Goal:** Let a person create a Portfyl account, and log in afterwards, with
 their Google account, as an alternative to e-mail/password. This works in both
 editions and keeps every existing guarantee: the private-beta invite gate, the
@@ -405,9 +404,29 @@ Rollout state (2026-10-13):
 - The owner's `frontend/.env.local` now contains
   `VITE_FIREBASE_GOOGLE_SIGN_IN=true`. The **next routine redeploy of `main`
   turns the button on in production.**
-- The Cloud Run env `PORTFYL_FIREBASE_AUTH_DOMAIN` (cloudrun.md "Google
-  sign-in" step 2) is to be set by the owner. Do not redeploy until it is
-  set, or the CSP will block the popup.
+- The Cloud Run env `PORTFYL_FIREBASE_AUTH_DOMAIN=portfyl-cloud-fstxby.firebaseapp.com`
+  (cloudrun.md "Google sign-in" step 2) was set by the owner on 2026-10-13.
+  It created revision `portfyl-00008-7xh`, on the same image, and was
+  verified with `gcloud run services describe`.
+- **Deployed 2026-10-13.** The steps:
+  - Cloud Build built `main` at `b0b6302` with the flag set to `true`
+    (`sha256:c2821393…`).
+  - The migration Job `portfyl-migrate-kxdbm` ran on the same image and
+    succeeded; the head was unchanged.
+  - The owner ran `gcloud run deploy`, which created revision
+    `portfyl-00009-8hl`. It serves 100 % of traffic and keeps the
+    auth-domain env.
+  - Startup logs show no warnings.
+- **2026-10-13: the owner signed in with Google on `app.portfyl.com`, and it
+  works.** This is the first real end-to-end Google sign-in in production.
+  It was not separately recorded whether this covered the account-linking
+  case, a later password login, or a CSP-clean console.
+- Runbook gotcha seen during the build: under Windows PowerShell 5.1,
+  `git archive main | tar -x` pipes binary data through the text pipeline.
+  Use `git archive --format=tar -o <file> main` and then `tar -x -f <file>`.
+  Do not run `deploy/run-migrations.ps1` with `2>&1`: gcloud's progress
+  output on stderr becomes a terminating error under
+  `$ErrorActionPreference = 'Stop'`.
 - Production gcloud access uses the `newgcp` configuration with account
   `support@portfyl.com`. The default configuration (`tom.zoubek@gmail.com`)
   has no access to `portfyl-prod-f6shqb`. On machines where PowerShell
