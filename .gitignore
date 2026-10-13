@@ -11,6 +11,7 @@ __pycache__/
 .env*
 portfoliodata.csv
 docs/operations/control-files/
+docs/operations/code-stats.html
 
 # local agent state / worktrees
 .claude/

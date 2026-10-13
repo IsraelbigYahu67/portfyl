@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portfyl · Přehled kódu</title>
+<style>
+:root { color-scheme: dark; font-family: Segoe UI, system-ui, sans-serif; background: #10151e; color: #eef3fa; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 1120px; margin: auto; padding: 48px 24px; }
+.eyebrow { color: #82dac8; font-size: 13px; letter-spacing: .16em; font-weight: 700; }
+h1 { font-size: clamp(30px, 5vw, 48px); letter-spacing: -.04em; margin: 12px 0; }
+h2 { font-size: 21px; margin: 0 0 20px; }
+p { color: #b9c6d6; line-height: 1.65; }
+.meta { font-size: 14px; }
+.cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 30px 0; }
+.card, section { background: #18212e; border: 1px solid #344256; border-radius: 16px; padding: 24px; }
+.card span { display: block; color: #b9c6d6; font-size: 14px; }
+.card strong { display: block; font-size: clamp(23px, 3vw, 32px); margin: 10px 0 5px; letter-spacing: -.04em; }
+.card small { color: #a9bacd; }
+section { margin: 18px 0; }
+.table-wrap { overflow-x: auto; }
+.table-wrap:focus-visible { outline: 2px solid #82dac8; outline-offset: 4px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { padding: 13px 12px; border-bottom: 1px solid #344256; text-align: right; white-space: nowrap; }
+th:first-child { text-align: left; }
+thead th { color: #b9c6d6; font-weight: 500; }
+tbody th { font-weight: 500; }
+tfoot { color: #82dac8; font-weight: 700; }
+.bar-row { margin: 17px 0; }
+.bar-label { display: flex; justify-content: space-between; gap: 15px; font-size: 14px; margin-bottom: 8px; }
+.track { background: #28364a; height: 9px; border-radius: 10px; overflow: hidden; }
+.fill { background: #82dac8; height: 100%; border-radius: 10px; }
+li { color: #b9c6d6; margin: 9px 0; line-height: 1.6; }
+.note { border-left: 3px solid #82dac8; padding-left: 16px; }
+footer { color: #a9bacd; font-size: 13px; margin-top: 24px; }
+@media (max-width: 760px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } main { padding: 28px 16px; } section, .card { padding: 18px; } }
+@media (max-width: 380px) { .cards { grid-template-columns: 1fr; } }
+@media print { :root { color-scheme: light; background: white; color: black; } main { padding: 0; } section, .card { background: white; border-color: #ccc; } p, li, .meta, .card span, .card small, footer, thead th { color: #333; } .eyebrow, tfoot { color: #175b50; } section { break-inside: avoid; } }
+</style>
+</head>
+<body><main>
+<div class="eyebrow">PORTFYL / VELIKOST PROJEKTU</div>
+<h1>Přehled kódu</h1>
+<p>Rychlý pohled na rozsah projektu, testy a největší soubory.</p>
+<p class="meta">Naměřeno: %%DATE%% · Přepočítáno při spuštění přehledu.</p>
+<div class="cards">
+<div class="card"><span>Řádky celkem</span><strong>%%LINES%%</strong><small>Včetně komentářů a prázdných řádků</small></div>
+<div class="card"><span>Znaky celkem</span><strong>%%CHARS%%</strong><small>Včetně mezer a konců řádků</small></div>
+<div class="card"><span>Soubory kódu</span><strong>%%COUNT%%</strong><small>Vybrané zdrojové přípony</small></div>
+<div class="card"><span>Neprázdné řádky</span><strong>%%NONBLANK%%</strong><small>Komentáře jsou zahrnuté</small></div>
+</div>
+<section><h2>Rozdělení projektu</h2><div class="table-wrap" tabindex="0" role="region" aria-label="Statistiky podle částí projektu"><table><thead>%%HEAD%%</thead><tbody>%%GROUPS%%</tbody><tfoot>%%TOTAL%%</tfoot></table></div></section>
+<section><h2>Podíl na počtu řádků</h2>%%BARS%%<p class="meta">Testy tvoří %%TESTSHARE%% % řádků projektu. Tento podíl nevyjadřuje pokrytí kódu testy.</p></section>
+<section><h2>Jazyky a typy souborů</h2><div class="table-wrap" tabindex="0" role="region" aria-label="Statistiky podle přípon"><table><thead>%%HEAD%%</thead><tbody>%%LANGS%%</tbody></table></div></section>
+<section><h2>10 největších souborů</h2><p class="meta">Seřazeno podle všech řádků, včetně testů.</p><div class="table-wrap" tabindex="0" role="region" aria-label="Největší soubory"><table><thead><tr><th scope="col">Soubor</th><th scope="col">Řádky</th><th scope="col">Znaky</th></tr></thead><tbody>%%LARGEST%%</tbody></table></div></section>
+<section><h2>Jak se počítalo</h2><ul>
+<li>Aktuální lokální soubory sledované Gitem a nové soubory, které nejsou ignorované. Nejde o celou historii repozitáře.</li>
+<li>Počítají se zdrojové přípony: %%EXTENSIONS%%. Zahrnuty jsou také HTML prototypy, konfigurace v těchto jazycích, migrace a testovací data v SQL.</li>
+<li>Vynechány jsou závislosti, buildy, cache, reporty, minifikované JS/CSS, obrázky, Markdown, JSON, YAML, lock soubory a tento přehled s jeho šablonou.</li>
+<li>Testy jsou určeny podle adresářů tests/test/e2e/__tests__, názvů test_*, *.test.*, *.spec.* a conftest.py. Ostatní soubory se dělí podle složek backend a frontend.</li>
+<li>Znaky jsou Unicode znaky včetně mezer a původních konců řádků; případný UTF-8 BOM se nepočítá. Neprázdné řádky vylučují i řádky tvořené pouze mezerami.</li>
+</ul><p class="note">Pro aktuální čísla otevři dvojklikem <strong>otevrit-prehled.bat</strong> v této složce. Spouštěč nejprve přepočítá soubory a pak otevře tento přehled. Samotný HTML soubor ani jeho obnovení v prohlížeči nové měření nespustí. Funguje offline; potřebuje Python a Git.</p></section>
+<footer>Portfyl · Lokální statistický přehled · Bez externích služeb</footer>
+</main></body></html>
