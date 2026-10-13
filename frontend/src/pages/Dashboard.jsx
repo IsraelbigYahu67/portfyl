@@ -124,8 +124,9 @@ export default function Dashboard() {
     retry: false,
   });
   const capabilitiesPending = editionCapabilitiesPending || planCapabilitiesPending;
-  // An unknown plan fails closed to the free widgets.
-  const planFilter = planCapabilitiesError ? [] : planCapabilities;
+  // A plan that is still loading or failed to load fails closed to the free
+  // widgets, so no paid endpoint is requested before the plan is known.
+  const planFilter = planCapabilitiesPending || planCapabilitiesError ? [] : planCapabilities;
   const capabilities = new Set(
     (capabilityState?.capabilities || []).filter(
       (key) => planFilter == null || planFilter.includes(key)

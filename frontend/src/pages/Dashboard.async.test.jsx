@@ -169,6 +169,17 @@ it("keeps Top 10 Holdings when the edition offers advanced research but the plan
   await waitFor(() => expect(api.fetchRiskMetrics).toHaveBeenCalled());
 });
 
+it("requests no paid endpoint while the plan is still loading", async () => {
+  api.fetchCapabilities.mockResolvedValue({ capabilities: ["portfolio_analytics", "advanced_research"] });
+  editionMocks.fetchEditionPlanCapabilities.mockReturnValue(new Promise(() => {}));
+  renderPage();
+
+  expect(await screen.findByText("Recent insider buys")).toBeInTheDocument();
+  await screen.findByText("Healthy performance chart");
+  expect(api.fetchInsiderBuys).not.toHaveBeenCalled();
+  expect(api.fetchRiskMetrics).not.toHaveBeenCalled();
+});
+
 it("fails closed to the free widgets when the plan cannot be loaded", async () => {
   api.fetchCapabilities.mockResolvedValue({ capabilities: ["advanced_research"] });
   editionMocks.fetchEditionPlanCapabilities.mockRejectedValue(new Error("offline"));
@@ -176,6 +187,17 @@ it("fails closed to the free widgets when the plan cannot be loaded", async () =
 
   expect(await screen.findByText("Top 10 Holdings")).toBeInTheDocument();
   expect(api.fetchInsiderBuys).not.toHaveBeenCalled();
+});
+
+it("shows a P&L that rounds to zero as a neutral 0.0%, not a red -0.0%", async () => {
+  api.fetchCapabilities.mockResolvedValue({ capabilities: ["advanced_research"] });
+  api.fetchInsiderBuys.mockResolvedValue([insiderBuy(0, { pnl: -4.03, pnl_pct: -0.04 })]);
+  renderPage();
+
+  const card = (await screen.findByText("Recent insider buys")).closest(".card");
+  const pct = await within(card).findByText("0.0%");
+  expect(pct).toHaveClass("text-muted");
+  expect(within(card).queryByText("-0.0%")).not.toBeInTheDocument();
 });
 
 it("replaces Top 10 Holdings with recent insider buys that open the full table in a dialog", async () => {

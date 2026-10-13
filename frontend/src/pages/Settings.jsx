@@ -132,7 +132,10 @@ function ConnectionsSettings({ headingRef }) {
       setActionError(null);
       setSuccess("Connected to Trading 212 successfully");
       // Connecting can also remove onboarding demo data (and demo portfolios),
-      // which every portfolio-derived query may still be showing.
+      // which every portfolio-derived query may still be showing — including
+      // long-cached ones such as insider buys, since the holdings changed.
+      // Unlike Dashboard's Refresh, this is deliberate: only the few queries
+      // active on Settings refetch now, the rest when their page next mounts.
       queryClient.invalidateQueries();
       setTimeout(() => setSuccess(null), 4000);
     },

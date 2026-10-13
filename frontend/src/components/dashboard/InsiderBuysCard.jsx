@@ -40,14 +40,18 @@ function useFittingRows(ref, enabled) {
   return rows;
 }
 
+// One-decimal P&L percent with its sign. Rounding first keeps a tiny move
+// such as -0.04 from rendering as a red "-0.0%"; it reads as a neutral 0.0%.
+function signedPct(value) {
+  const rounded = Math.round(value * 10) / 10 || 0;
+  const tone = rounded > 0 ? "text-gain" : rounded < 0 ? "text-loss" : "text-muted";
+  return { tone, text: `${rounded > 0 ? "+" : ""}${rounded.toFixed(1)}%` };
+}
+
 function PnlPct({ buy }) {
   if (buy.pnl_pct == null) return <span className="text-muted">—</span>;
-  const up = buy.pnl_pct >= 0;
-  return (
-    <span className={up ? "text-gain" : "text-loss"}>
-      {up ? "+" : ""}{buy.pnl_pct.toFixed(1)}%
-    </span>
-  );
+  const { tone, text } = signedPct(buy.pnl_pct);
+  return <span className={tone}>{text}</span>;
 }
 
 function CompactTable({ buys }) {
@@ -55,7 +59,7 @@ function CompactTable({ buys }) {
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-surface-border">
-          <th className={`${thBase} text-left text-muted`}>Ticker</th>
+          <th className={`${thBase} pr-3 text-left text-muted`}>Ticker</th>
           <th className={`${thBase} text-left text-muted`}>Insider</th>
           <th className={`${thBase} text-right text-muted`}>Value</th>
           <th className={`${thBase} text-right text-muted`}>P&L</th>
@@ -68,7 +72,7 @@ function CompactTable({ buys }) {
             <td className="py-1.5 pr-3 whitespace-nowrap">
               <TickerLink ticker={b.ticker} className="font-mono font-semibold" />
             </td>
-            <td className="py-1.5 pr-3 text-muted max-w-[160px] truncate" title={`${b.insider || ""}${b.position ? ` — ${b.position}` : ""}`}>
+            <td className="py-1.5 pr-3 text-muted max-w-[140px] truncate" title={`${b.insider || ""}${b.position ? ` — ${b.position}` : ""}`}>
               {b.insider || "—"}
             </td>
             <td className="py-1.5 pr-3 text-right tabular-nums text-ink font-medium whitespace-nowrap">
@@ -132,7 +136,7 @@ function FullTable({ buys, sort, onSort }) {
                 {b.pnl != null ? (
                   <span title={`Current: ${formatMoney(b.current_price, b.currency)}`}>
                     {b.pnl >= 0 ? "+" : ""}{formatMoney(b.pnl, b.currency)}
-                    {b.pnl_pct != null && <span className="text-xs ml-1">({b.pnl_pct >= 0 ? "+" : ""}{b.pnl_pct.toFixed(1)}%)</span>}
+                    {b.pnl_pct != null && <span className="text-xs ml-1">({signedPct(b.pnl_pct).text})</span>}
                   </span>
                 ) : "—"}
               </td>
