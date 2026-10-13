@@ -6,22 +6,19 @@ import { preloadRoute } from "./navigation";
 export default function DesktopSidebar({ groups }) {
   return (
     <aside
-      className="app-sidebar w-[232px] shrink-0 bg-surface-card border-r border-surface-border flex flex-col"
+      className="app-sidebar w-[232px] h-full shrink-0 bg-surface-card border-r border-surface-border flex flex-col"
       style={{ boxShadow: "1px 0 0 var(--glass-border-alpha)" }}
     >
       <div className="flex items-center gap-2.5 px-[18px] py-4 border-b border-hairline">
         <img src="/portfyl-mark.png" alt="Portfyl" className="w-11 h-11 object-contain" />
-        <div className="flex flex-col leading-tight">
-          <span className="font-display font-bold text-[17px] tracking-tight text-ink">Portfyl</span>
-          <span className="data-label">Institutional Grade</span>
-        </div>
+        <span className="font-display font-bold text-[17px] tracking-tight text-ink leading-tight">Portfyl</span>
       </div>
 
       <div className="px-3 pt-2">
         <PortfolioSwitcher />
       </div>
 
-      <nav aria-label="Primary" className="flex-1 px-2.5 py-2 space-y-3 overflow-y-auto">
+      <nav aria-label="Primary" className="flex-1 min-h-0 px-2.5 py-2 space-y-3 overflow-y-auto">
         {groups.map((group) => {
           const headingId = `desktop-nav-${group.id}`;
           return (
@@ -55,14 +52,8 @@ export default function DesktopSidebar({ groups }) {
         })}
       </nav>
 
-      <div className="mt-auto pb-3 space-y-3">
-        <div className="px-3">
-          <AccountMenu />
-        </div>
-
-        <div className="px-5 financial-meta">
-          Live data via Yahoo Finance
-        </div>
+      <div className="mt-auto px-3 pb-2">
+        <AccountMenu />
       </div>
     </aside>
   );

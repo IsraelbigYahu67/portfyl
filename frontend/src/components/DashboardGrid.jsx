@@ -8,7 +8,9 @@ const ResponsiveGridLayout = WidthProvider(Responsive);
 // Layout v3 / order v4 keys: insider activity moved up to sit full-width
 // between composition and the top-holdings row, so orders and grid
 // coordinates saved for the previous arrangement start fresh instead of
-// keeping insider activity beside composition.
+// keeping insider activity beside composition. The standalone insiderBuys
+// widget has since been folded into the concentration row (it replaced Top
+// 10 Holdings); normalizeWidgetOrder drops its stale stored id.
 const STORAGE_KEY = "sb_dashboard_layout_v3";
 // Order-first persistence: the widget sequence is the source of truth, and
 // desktop drag/resize coordinates are an optional decoration on top of it.
@@ -19,8 +21,7 @@ const ALL_WIDGETS = [
   { id: "attention", label: "Attention signals", minW: 3, minH: 3 },
   { id: "performance", label: "Performance", minW: 3, minH: 4 },
   { id: "composition", label: "Portfolio composition", minW: 3, minH: 4 },
-  { id: "insiderBuys", label: "Insider activity (1Y)", minW: 3, minH: 4 },
-  { id: "concentration", label: "Top holdings & heatmap", minW: 3, minH: 4 },
+  { id: "concentration", label: "Insider buys & heatmap", minW: 3, minH: 4 },
   { id: "movers", label: "Movers & earnings", minW: 4, minH: 4 },
   { id: "dividends", label: "Dividends", minW: 3, minH: 4 },
 ];
@@ -32,10 +33,9 @@ const DEFAULT_LAYOUTS = {
     { i: "attention", x: 0, y: 0, w: 6, h: 4 },
     { i: "performance", x: 0, y: 4, w: 6, h: 5 },
     { i: "composition", x: 0, y: 9, w: 6, h: 5 },
-    { i: "insiderBuys", x: 0, y: 14, w: 6, h: 5 },
-    { i: "concentration", x: 0, y: 19, w: 6, h: 5 },
-    { i: "movers", x: 0, y: 24, w: 6, h: 5 },
-    { i: "dividends", x: 0, y: 29, w: 6, h: 5 },
+    { i: "concentration", x: 0, y: 14, w: 6, h: 5 },
+    { i: "movers", x: 0, y: 19, w: 6, h: 5 },
+    { i: "dividends", x: 0, y: 24, w: 6, h: 5 },
   ],
 };
 

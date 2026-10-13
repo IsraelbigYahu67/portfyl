@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Check, FlaskConical, LoaderCircle } from "lucide-react";
 
 import { fetchTestPlan, updateTestPlan } from "../api";
@@ -35,6 +36,7 @@ function euro(cents) {
 
 
 export default function Pricing() {
+  const queryClient = useQueryClient();
   const [currentPlan, setCurrentPlan] = useState(null);
   const [changingPlan, setChangingPlan] = useState(null);
   const [error, setError] = useState("");
@@ -61,6 +63,8 @@ export default function Pricing() {
     try {
       const result = await updateTestPlan(plan.id);
       setCurrentPlan(result.plan);
+      // The dashboard picks its paid widgets from the plan's capabilities.
+      queryClient.invalidateQueries({ queryKey: ["plan-capabilities"] });
       setAnnouncement(`${plan.name} is now active for this workspace.`);
     } catch {
       setError("The plan could not be changed. Please try again.");

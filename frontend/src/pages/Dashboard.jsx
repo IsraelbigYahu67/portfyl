@@ -6,10 +6,10 @@ import {
 } from "../api";
 import { useCurrency, usePortfolio } from "../App";
 import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
-import { fetchEditionDashboardSignals } from "@edition-manifest";
+import { fetchEditionDashboardSignals, fetchEditionPlanCapabilities } from "@edition-manifest";
 import MetricCard from "../components/MetricCard";
 import PerformanceChart from "../components/PerformanceChart";
-import { RefreshCw, TrendingUp, TrendingDown, Calendar, LayoutGrid, Lock, UserCheck, PieChart, Activity, Coins } from "lucide-react";
+import { RefreshCw, TrendingUp, TrendingDown, Calendar, LayoutGrid, Lock, PieChart, Activity, Coins } from "lucide-react";
 import { formatMoney, formatPercent, formatShortDate } from "../lib/format";
 import { AsyncSection, Card, SectionHeader, SkeletonRows, SkeletonChart, EmptyState, DeltaPill, KpiBox } from "../components/ui";
 import Heatmap from "../components/Heatmap";
@@ -19,6 +19,7 @@ import PortfolioHero from "../components/PortfolioHero";
 import InsightCards from "../components/dashboard/InsightCards";
 import CompositionCard from "../components/dashboard/CompositionCard";
 import DividendBarsCard from "../components/dashboard/DividendBarsCard";
+import InsiderBuysCard from "../components/dashboard/InsiderBuysCard";
 import { snapshotNetWorth, summarizePassiveIncome, splitDividendForecast } from "../lib/dashboardSummaries";
 import BrokerPositionSnapshot from "../components/BrokerPositionSnapshot";
 import { useT212Sync } from "../hooks/useT212Sync";
@@ -55,7 +56,6 @@ export default function Dashboard() {
   const [activeBenchmarks, setActiveBenchmarks] = useState([]);
   const [moverPeriod, setMoverPeriod] = useState("1d");
   const [moverSort, setMoverSort] = useState("pct");
-  const [insiderSort, setInsiderSort] = useState("date");
   const [editingLayout, setEditingLayout] = useState(false);
 
   const toggleBenchmark = (key) =>
@@ -96,12 +96,6 @@ export default function Dashboard() {
     queryFn: fetchEarnings,
   });
 
-  const { data: insiderBuys = [], isLoading: il, error: insiderError, refetch: refetchInsider } = useQuery({
-    queryKey: ["insider-buys"],
-    queryFn: fetchInsiderBuys,
-    staleTime: 30 * 60 * 1000,
-  });
-
   const { data: dividends = [], isLoading: dl, error: dividendsError, refetch: refetchDividends } = useQuery({
     queryKey: ["dividends"],
     queryFn: fetchDividends,
@@ -114,15 +108,41 @@ export default function Dashboard() {
 
   // Paid-tier widgets (variant A): only query what this workspace can use, and
   // reuse the cache keys of the Analytics / Allocation / Dividends pages.
-  const { data: capabilityState } = useQuery({
+  const { data: capabilityState, isPending: editionCapabilitiesPending } = useQuery({
     queryKey: ["capabilities"],
     queryFn: fetchCapabilities,
     staleTime: Infinity,
     retry: false,
   });
-  const capabilities = new Set(capabilityState?.capabilities || []);
+  // The edition's capabilities, narrowed to the workspace's plan where the
+  // edition has plans (null = no narrowing). Without this a cloud Free
+  // workspace would request Investor/Pro endpoints and get 403 upgrade prompts.
+  const { data: planCapabilities, isPending: planCapabilitiesPending, isError: planCapabilitiesError } = useQuery({
+    queryKey: ["plan-capabilities"],
+    queryFn: fetchEditionPlanCapabilities,
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+  const capabilitiesPending = editionCapabilitiesPending || planCapabilitiesPending;
+  // An unknown plan fails closed to the free widgets.
+  const planFilter = planCapabilitiesError ? [] : planCapabilities;
+  const capabilities = new Set(
+    (capabilityState?.capabilities || []).filter(
+      (key) => planFilter == null || planFilter.includes(key)
+    )
+  );
   const hasAnalytics = capabilities.has("portfolio_analytics");
   const hasDividendAnalysis = capabilities.has("dividend_analysis");
+  // Insider buys are a Pro (advanced_research) endpoint; workspaces without it
+  // keep the Top 10 Holdings card in that slot instead of a 403 error card.
+  const hasResearch = capabilities.has("advanced_research");
+
+  const { data: insiderBuys = [], isLoading: il, error: insiderError, refetch: refetchInsider } = useQuery({
+    queryKey: ["insider-buys"],
+    queryFn: fetchInsiderBuys,
+    staleTime: 30 * 60 * 1000,
+    enabled: hasResearch,
+  });
 
   const { data: riskMetrics, isLoading: rl, isError: riskError } = useQuery({
     queryKey: ["risk-metrics", "1Y", null],
@@ -386,6 +406,16 @@ export default function Dashboard() {
 
           concentration: (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {capabilitiesPending || hasResearch ? (
+              <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "200ms" }}>
+                <InsiderBuysCard
+                  buys={insiderBuys}
+                  isLoading={capabilitiesPending || il}
+                  error={insiderError}
+                  onRetry={() => refetchInsider()}
+                />
+              </Card>
+              ) : (
               <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "200ms" }}>
                 <SectionHeader icon={PieChart}>Top 10 Holdings</SectionHeader>
                 <AsyncSection
@@ -417,6 +447,7 @@ export default function Dashboard() {
                   </div>
                 </AsyncSection>
               </Card>
+              )}
               <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "150ms" }}>
                 <SectionHeader icon={LayoutGrid}>Heatmap</SectionHeader>
                 <AsyncSection
@@ -433,86 +464,6 @@ export default function Dashboard() {
 
             </div>
           ),
-
-          insiderBuys: (() => {
-            const sorted = [...insiderBuys].sort((a, b) => {
-              if (insiderSort === "value") return (Math.abs(b.value) || 0) - (Math.abs(a.value) || 0);
-              if (insiderSort === "pnl") return (b.pnl ?? -Infinity) - (a.pnl ?? -Infinity);
-              return (b.date || "").localeCompare(a.date || "");
-            });
-            const thBase = "text-xs font-medium uppercase tracking-wider pb-2";
-            const thSortable = (key, align) => `${thBase} ${align} cursor-pointer select-none transition-colors ${insiderSort === key ? "text-brand" : "text-muted hover:text-ink"}`;
-            const sortArrow = (key) => insiderSort === key ? " ▼" : "";
-            return (
-            <details className="animate-fade-up">
-              <summary className="cursor-pointer select-none text-sm font-semibold text-muted uppercase tracking-wider mb-3">
-                Insider activity (1Y)
-              </summary>
-              <Card className="h-full flex flex-col" style={{ animationDelay: "300ms" }}>
-              <AsyncSection
-                isLoading={il}
-                error={insiderError}
-                onRetry={() => refetchInsider()}
-                loading={<SkeletonRows rows={6} cols={6} />}
-                isEmpty={sorted.length === 0}
-                empty={<EmptyState icon={UserCheck} title="No insider buys" hint="No insider purchases across your holdings in the last 12 months." />}
-              >
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-surface-border">
-                        <th className={`${thBase} text-left text-muted`}>Ticker</th>
-                        <th className={`${thBase} text-left text-muted`}>Insider</th>
-                        <th className={`${thBase} text-right text-muted`}>Shares</th>
-                        <th className={`${thBase} text-right text-muted`}>Buy Price</th>
-                        <th className={thSortable("value", "text-right")} onClick={() => setInsiderSort("value")}>Value{sortArrow("value")}</th>
-                        <th className={thSortable("pnl", "text-right")} onClick={() => setInsiderSort("pnl")}>P&L{sortArrow("pnl")}</th>
-                        <th className={thSortable("date", "text-right")} onClick={() => setInsiderSort("date")}>Date{sortArrow("date")}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-surface-border">
-                      {sorted.map((b, i) => {
-                        const pnlUp = b.pnl != null && b.pnl >= 0;
-                        return (
-                        <tr key={i} className="hover:bg-surface-hover transition-colors">
-                          <td className="py-1.5 pr-3">
-                            <TickerLink ticker={b.ticker} className="font-mono font-semibold" />
-                          </td>
-                          <td className="py-1.5 pr-3 text-muted max-w-[180px] truncate" title={`${b.insider || ""}${b.position ? ` — ${b.position}` : ""}`}>
-                            {b.insider || "—"}
-                            {b.position && <span className="text-muted text-xs ml-1">({b.position})</span>}
-                          </td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums text-ink">
-                            {b.shares != null ? Math.abs(b.shares).toLocaleString() : "—"}
-                          </td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums text-ink">
-                            {b.buy_price != null ? formatMoney(b.buy_price, b.currency) : "—"}
-                          </td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums text-ink font-medium">
-                            {b.value != null ? formatMoney(Math.abs(b.value), b.currency) : "—"}
-                          </td>
-                          <td className={`py-1.5 pr-3 text-right tabular-nums font-medium ${b.pnl == null ? "text-muted" : pnlUp ? "text-gain" : "text-loss"}`}>
-                            {b.pnl != null ? (
-                              <span title={`Current: ${formatMoney(b.current_price, b.currency)}`}>
-                                {b.pnl >= 0 ? "+" : ""}{formatMoney(b.pnl, b.currency)}
-                                {b.pnl_pct != null && <span className="text-xs ml-1">({b.pnl_pct >= 0 ? "+" : ""}{b.pnl_pct.toFixed(1)}%)</span>}
-                              </span>
-                            ) : "—"}
-                          </td>
-                          <td className="py-1.5 text-right tabular-nums text-muted text-xs">
-                            {b.date || "—"}
-                          </td>
-                        </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </AsyncSection>
-              </Card>
-            </details>
-            );
-          })(),
 
           movers: (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
