@@ -405,9 +405,11 @@ Rollout state (2026-10-13):
 - The owner's `frontend/.env.local` now contains
   `VITE_FIREBASE_GOOGLE_SIGN_IN=true`. The **next routine redeploy of `main`
   turns the button on in production.**
-- The Cloud Run env `PORTFYL_FIREBASE_AUTH_DOMAIN` (cloudrun.md "Google
-  sign-in" step 2) is to be set by the owner. Do not redeploy until it is
-  set, or the CSP will block the popup.
+- The Cloud Run env `PORTFYL_FIREBASE_AUTH_DOMAIN=portfyl-cloud-fstxby.firebaseapp.com`
+  (cloudrun.md "Google sign-in" step 2) was set by the owner on 2026-10-13.
+  It created revision `portfyl-00008-7xh`, on the same image, and was
+  verified with `gcloud run services describe`. A routine redeploy of `main`
+  can now ship the button.
 - Production gcloud access uses the `newgcp` configuration with account
   `support@portfyl.com`. The default configuration (`tom.zoubek@gmail.com`)
   has no access to `portfyl-prod-f6shqb`. On machines where PowerShell
