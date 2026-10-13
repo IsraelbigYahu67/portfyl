@@ -408,8 +408,24 @@ Rollout state (2026-10-13):
 - The Cloud Run env `PORTFYL_FIREBASE_AUTH_DOMAIN=portfyl-cloud-fstxby.firebaseapp.com`
   (cloudrun.md "Google sign-in" step 2) was set by the owner on 2026-10-13.
   It created revision `portfyl-00008-7xh`, on the same image, and was
-  verified with `gcloud run services describe`. A routine redeploy of `main`
-  can now ship the button.
+  verified with `gcloud run services describe`.
+- **Deployed 2026-10-13.** The steps:
+  - Cloud Build built `main` at `b0b6302` with the flag set to `true`
+    (`sha256:c2821393…`).
+  - The migration Job `portfyl-migrate-kxdbm` ran on the same image and
+    succeeded; the head was unchanged.
+  - The owner ran `gcloud run deploy`, which created revision
+    `portfyl-00009-8hl`. It serves 100 % of traffic and keeps the
+    auth-domain env.
+  - Startup logs show no warnings.
+- Still open: the owner's first real Google sign-in on `app.portfyl.com`,
+  which covers T7 checks 1–8 and the account-linking case.
+- Runbook gotcha seen during the build: under Windows PowerShell 5.1,
+  `git archive main | tar -x` pipes binary data through the text pipeline.
+  Use `git archive --format=tar -o <file> main` and then `tar -x -f <file>`.
+  Do not run `deploy/run-migrations.ps1` with `2>&1`: gcloud's progress
+  output on stderr becomes a terminating error under
+  `$ErrorActionPreference = 'Stop'`.
 - Production gcloud access uses the `newgcp` configuration with account
   `support@portfyl.com`. The default configuration (`tom.zoubek@gmail.com`)
   has no access to `portfyl-prod-f6shqb`. On machines where PowerShell
