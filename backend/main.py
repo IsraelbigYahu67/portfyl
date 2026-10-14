@@ -36,6 +36,7 @@ from rate_limit import (
 from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, options, polymarket, discord, notes, assistant, cash, alerts, settings, allocation_targets, capabilities, auth as auth_router
 from tenancy import (
     RequestContextError,
+    csrf_guard,
     get_request_context,
     request_context_error_handler,
 )
@@ -112,20 +113,25 @@ async def _stamp_correlation_id(request: Request, call_next):
         correlation_id_var.reset(token)
 
 
+# Every state-changing /api route is CSRF-checked centrally (tenancy.csrf_guard);
+# the auth router is the exception because it runs its own checks and
+# /auth/session must work without a token. internal_jobs (below) is outside /api.
+_CSRF_DEPENDENCIES = [Depends(csrf_guard)]
+
 app.include_router(auth_router.router, prefix="/api")
-app.include_router(capabilities.build_router(PORTFYL_EDITION), prefix="/api")
+app.include_router(capabilities.build_router(PORTFYL_EDITION), prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 if PORTFYL_EDITION is Edition.CLOUD:
     from routers import test_plans
 
-    app.include_router(test_plans.router, prefix="/api")
-app.include_router(portfolios.router, prefix="/api")
-app.include_router(portfolio.router, prefix="/api")
+    app.include_router(test_plans.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
+app.include_router(portfolios.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
+app.include_router(portfolio.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 app.include_router(
     market.router,
     prefix="/api",
-    dependencies=[Depends(get_request_context)],
+    dependencies=[Depends(csrf_guard), Depends(get_request_context)],
 )
-app.include_router(analytics.router, prefix="/api")
+app.include_router(analytics.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 if PORTFYL_EDITION is Edition.LOCAL:
     # Imported only in the local edition so cloud never registers the owner-only
     # Tax Report or Screener operations (and they stay absent from OpenAPI).
@@ -134,36 +140,36 @@ if PORTFYL_EDITION is Edition.LOCAL:
     app.include_router(
         local_features.router,
         prefix="/api",
-        dependencies=[Depends(get_request_context)],
+        dependencies=[Depends(csrf_guard), Depends(get_request_context)],
     )
-app.include_router(broker.router, prefix="/api")
+app.include_router(broker.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 app.include_router(
     watchlists.router,
     prefix="/api",
-    dependencies=[Depends(get_request_context)],
+    dependencies=[Depends(csrf_guard), Depends(get_request_context)],
 )
-app.include_router(benchmarks.router, prefix="/api")
-app.include_router(ibkr.router, prefix="/api")
+app.include_router(benchmarks.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
+app.include_router(ibkr.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 app.include_router(
     options.router,
     prefix="/api",
-    dependencies=[Depends(get_request_context)],
+    dependencies=[Depends(csrf_guard), Depends(get_request_context)],
 )
-app.include_router(polymarket.router, prefix="/api")
-app.include_router(discord.router, prefix="/api")
-app.include_router(notes.router, prefix="/api")
+app.include_router(polymarket.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
+app.include_router(discord.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
+app.include_router(notes.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 app.include_router(
     assistant.router,
     prefix="/api",
-    dependencies=[Depends(get_request_context)],
+    dependencies=[Depends(csrf_guard), Depends(get_request_context)],
 )
-app.include_router(cash.router, prefix="/api")
-app.include_router(allocation_targets.router, prefix="/api")
-app.include_router(alerts.router, prefix="/api")
+app.include_router(cash.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
+app.include_router(allocation_targets.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
+app.include_router(alerts.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 app.include_router(
     settings.router,
     prefix="/api",
-    dependencies=[Depends(get_request_context)],
+    dependencies=[Depends(csrf_guard), Depends(get_request_context)],
 )
 if PORTFYL_EDITION is Edition.CLOUD:
     # Cloud Scheduler-triggered job endpoints, replacing the in-process
@@ -247,27 +253,27 @@ def health(db=Depends(get_db)):
 
 # --- background pollers --------------------------------------------------------
 # The app has no external scheduler, so asyncio tasks handle the recurring work:
-#   * price alerts  — every ALERT_CHECK_INTERVAL_SECONDS (default 15 min),
+#   * price alerts  â€” every ALERT_CHECK_INTERVAL_SECONDS (default 15 min),
 #                     opt-out ALERT_POLLER_ENABLED=0
-#   * broker sync   — 60 s heartbeat; jobs.autosync_tick runs the sync when the
-#                     configured schedule says so (Settings → Auto-sync
-#                     schedule: daily at HH:MM — default 02:00 Europe/Prague,
-#                     BROKER_SYNC_TIMEZONE overrides — or every N hours).
+#   * broker sync   â€” 60 s heartbeat; jobs.autosync_tick runs the sync when the
+#                     configured schedule says so (Settings â†’ Auto-sync
+#                     schedule: daily at HH:MM â€” default 02:00 Europe/Prague,
+#                     BROKER_SYNC_TIMEZONE overrides â€” or every N hours).
 #                     Opt-out BROKER_AUTOSYNC_ENABLED=0; only connections whose
 #                     auto_sync flag is on are synced (per-portfolio opt-in).
 #                     Last-run is persisted, so a missed boundary (asleep at
 #                     2 AM) catches up at the first tick after startup.
-#   * dividends     — every DIVIDEND_NOTIFY_INTERVAL_SECONDS (default 12 h),
+#   * dividends     â€” every DIVIDEND_NOTIFY_INTERVAL_SECONDS (default 12 h),
 #                     opt-out DIVIDEND_NOTIFY_ENABLED=0; announces ex-dates due
 #                     within DIVIDEND_NOTIFY_LEAD_DAYS (default 3), each at most
 #                     once (dividend_notifications dedup table)
-#   * broker backfill — BROKER_BACKFILL_INTERVAL_SECONDS heartbeat (default
+#   * broker backfill â€” BROKER_BACKFILL_INTERVAL_SECONDS heartbeat (default
 #                     10 s); drains BrokerSyncRun rows created by a
 #                     T212 connect/sync (see t212_sync.claim_or_create_run),
 #                     independent of auto_sync/schedule. Opt-out
 #                     BROKER_BACKFILL_ENABLED=0.
 # Each tick uses its own DB session and swallows errors so a bad pass never
-# takes the app down. While the process is asleep between ticks nothing fires —
+# takes the app down. While the process is asleep between ticks nothing fires â€”
 # these are self-hosted convenience pollers, not low-latency feeds.
 _BG_TASKS: list = []
 
@@ -356,7 +362,7 @@ async def _start_background_pollers():
             _periodic_loop("autosync", autosync_all_workspaces, interval=60, initial_delay=300)))
 
     if os.environ.get("BROKER_BACKFILL_ENABLED", "1") == "1":
-        # Independent of auto_sync and the sync schedule (plan §5.4) -- this
+        # Independent of auto_sync and the sync schedule (plan Â§5.4) -- this
         # only drains BrokerSyncRun rows sync_transactions already created; it
         # never starts one itself. Short initial delay so a run started just
         # before a restart resumes promptly. The tick is short so a user who
@@ -379,7 +385,7 @@ async def _start_background_pollers():
             return await dividend_notify_all_workspaces(db, lead_days=_lead)
 
         # Short initial delay (not a full interval): a restart shouldn't be able
-        # to skip today's ex-date check — the dedup table makes early runs safe.
+        # to skip today's ex-date check â€” the dedup table makes early runs safe.
         _BG_TASKS.append(_asyncio.create_task(
             _periodic_loop("dividends", _dividend_pass, interval, initial_delay=300)))
 

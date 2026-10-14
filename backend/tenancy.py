@@ -11,7 +11,12 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from auth import csrf_matches, resolve_session, session_token_from_request
+from auth import (
+    csrf_matches,
+    csrf_matches_derived,
+    resolve_session,
+    session_token_from_request,
+)
 from database import get_db, release_connection, set_rls_context
 from models import AuthSession, Membership, Portfolio, User, Workspace
 
@@ -132,9 +137,42 @@ def require_csrf(
     request: Request,
     context: RequestContext = Depends(get_request_context),
 ) -> RequestContext:
-    if not csrf_matches(context.session, request.headers.get("X-CSRF-Token")):
+    if not csrf_matches(
+        context.session,
+        session_token_from_request(request),
+        request.headers.get("X-CSRF-Token"),
+    ):
         raise RequestContextError(403, "csrf_failed")
     return context
+
+
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+def csrf_guard(request: Request, db: Session = Depends(get_db)) -> None:
+    """Router-level CSRF check for every state-changing /api request.
+
+    Safe methods and requests without a session cookie pass through (the route
+    answers the latter with 401). Otherwise the X-CSRF-Token header must equal
+    the token derived from the cookie; only on a mismatch is the session looked
+    up, to honour a pre-deploy random token (legacy branch in csrf_matches). A
+    cookie that names no live session also passes: the route's own
+    authentication turns it into 401, not a misleading 403.
+    """
+    if request.method in _SAFE_METHODS:
+        return
+    raw_session_token = session_token_from_request(request)
+    if not raw_session_token:
+        return
+    header_token = request.headers.get("X-CSRF-Token")
+    if csrf_matches_derived(raw_session_token, header_token):
+        return
+    session = resolve_session(db, raw_session_token)
+    if session is None:
+        return
+    if csrf_matches(session, raw_session_token, header_token):
+        return
+    raise RequestContextError(403, "csrf_failed")
 
 
 def require_portfolio(

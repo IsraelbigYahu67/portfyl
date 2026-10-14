@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   configureRequestContext,
@@ -6,6 +6,7 @@ import {
   fetchMe,
   logoutAllSessions,
   logoutSession,
+  setCsrfRefreshHandler,
 } from "../api";
 import { signOutFirebaseClient } from "./firebase";
 import { useAnalytics } from "../analytics/AnalyticsProvider";
@@ -78,6 +79,24 @@ export function AuthProvider({ children }) {
     queryClient.clear();
   }, [queryClient]);
 
+  // api.js replays a request that failed with 403 csrf_failed once the token
+  // has been re-read. Only the token is refreshed: applyAccount would also
+  // clear the query cache, which a CSRF refresh must not do.
+  const workspaceIdRef = useRef(null);
+  useEffect(() => {
+    workspaceIdRef.current = currentWorkspace?.id ?? null;
+  }, [currentWorkspace?.id]);
+
+  useEffect(() => {
+    setCsrfRefreshHandler(async () => {
+      const payload = await fetchMe();
+      const nextCsrfToken = payload?.csrf_token || null;
+      setCsrfToken(nextCsrfToken);
+      configureRequestContext({ workspaceId: workspaceIdRef.current, csrfToken: nextCsrfToken });
+    });
+    return () => setCsrfRefreshHandler(null);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     fetchMe()
@@ -128,25 +147,42 @@ export function AuthProvider({ children }) {
     [applyAccount]
   );
 
-  const logout = useCallback(async () => {
-    try {
-      await logoutSession();
-    } finally {
+  // The local sign-out only happens once the server has really ended the
+  // session. If the request fails (even after api.js's csrf_failed retry), the
+  // session cookie is still valid, so wiping local state would only pretend:
+  // a reload would silently sign the user back in. Leave them signed in and
+  // let the caller show the error. A 401 means the session is already gone,
+  // which is the outcome the user wanted.
+  const finishSignOut = useCallback(
+    (error) => {
+      if (error && error?.response?.status !== 401) throw error;
       clearAccount();
       // An explicit sign-out, unlike an unauthenticated initial /me request,
       // ends this browser's analytics identity too.
       analytics.reset();
+    },
+    [clearAccount, analytics.reset]
+  );
+
+  const logout = useCallback(async () => {
+    try {
+      await logoutSession();
+    } catch (error) {
+      finishSignOut(error);
+      return;
     }
-  }, [clearAccount, analytics.reset]);
+    finishSignOut();
+  }, [finishSignOut]);
 
   const logoutAll = useCallback(async () => {
     try {
       await logoutAllSessions();
-    } finally {
-      clearAccount();
-      analytics.reset();
+    } catch (error) {
+      finishSignOut(error);
+      return;
     }
-  }, [clearAccount, analytics.reset]);
+    finishSignOut();
+  }, [finishSignOut]);
 
   const selectWorkspace = useCallback(
     (workspaceId) => {

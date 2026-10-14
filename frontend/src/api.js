@@ -43,8 +43,8 @@ function isPortfolioAgnostic(url) {
   return PORTFOLIO_AGNOSTIC_PREFIXES.some((p) => url === p || url.startsWith(p + "/") || url.startsWith(p + "?"));
 }
 
-// State-changing requests need X-CSRF-Token (backend's require_csrf dependency
-// checks it only on mutating routes); every request needs X-Workspace-ID once a
+// State-changing requests need X-CSRF-Token (backend's csrf_guard checks it on
+// every mutating /api route); every request needs X-Workspace-ID once a
 // workspace has been resolved, GETs included, so tenancy.get_request_context can
 // select the right workspace.
 const MUTATING_METHODS = new Set(["post", "put", "patch", "delete"]);
@@ -85,27 +85,79 @@ function isPublicAuthPath(pathname) {
 // the login page (same-origin in prod; proxied in dev), unless they're already
 // on one of the public auth pages. Guarded so a burst of 401s triggers a
 // single navigation.
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error?.response?.status === 401 && typeof window !== "undefined") {
-      if (!window.__sbRedirectingToLogin && !isPublicAuthPath(window.location.pathname)) {
-        window.__sbRedirectingToLogin = true;
-        window.location.assign("/login");
-      }
-    }
-    const denial = error?.response?.data;
-    if (
-      error?.response?.status === 403
-      && ["plan_upgrade_required", "quota_exceeded", "resource_read_only"].includes(denial?.code)
-      && !error?.config?.suppressEntitlementPrompt
-      && typeof window !== "undefined"
-    ) {
-      window.dispatchEvent(new CustomEvent("portfyl:entitlement-denied", { detail: denial }));
-    }
-    return Promise.reject(error);
+// Entitlement denials (403 plan_upgrade_required etc.) raise a window event the
+// UpgradePrompt listens for.
+//
+// A 403 csrf_failed means the in-memory CSRF token no longer matches the session
+// (e.g. a rolling deploy, or a token issued before the session-bound scheme).
+// AuthProvider registers a handler that re-reads the token from /auth/me; the
+// failed request is then replayed exactly once (config._csrfRetried guards the
+// loop).
+let _csrfRefreshHandler = null;
+let _csrfRefreshInFlight = null;
+
+export function setCsrfRefreshHandler(fn) {
+  _csrfRefreshHandler = typeof fn === "function" ? fn : null;
+}
+
+function refreshCsrfOnce() {
+  // Parallel failures share one /auth/me round trip.
+  if (!_csrfRefreshInFlight) {
+    _csrfRefreshInFlight = Promise.resolve()
+      .then(() => _csrfRefreshHandler())
+      .finally(() => {
+        _csrfRefreshInFlight = null;
+      });
   }
-);
+  return _csrfRefreshInFlight;
+}
+
+export async function handleResponseError(error) {
+  const config = error?.config;
+  if (
+    error?.response?.status === 403
+    && error.response.data?.code === "csrf_failed"
+    && _csrfRefreshHandler
+    && config
+    && !config._csrfRetried
+  ) {
+    config._csrfRetried = true;
+    let refreshed = false;
+    try {
+      await refreshCsrfOnce();
+      refreshed = true;
+    } catch {
+      // Could not re-read the token (offline, or the session is gone and the
+      // 401 path below already took over); surface the original 403.
+    }
+    if (refreshed) {
+      // The request interceptor stamps the freshly configured token again.
+      return api.request(config);
+    }
+  }
+  if (error?.response?.status === 401 && typeof window !== "undefined") {
+    if (!window.__sbRedirectingToLogin && !isPublicAuthPath(window.location.pathname)) {
+      window.__sbRedirectingToLogin = true;
+      window.location.assign("/login");
+    }
+  }
+  return rejectWithEntitlementEvent(error);
+}
+
+function rejectWithEntitlementEvent(error) {
+  const denial = error?.response?.data;
+  if (
+    error?.response?.status === 403
+    && ["plan_upgrade_required", "quota_exceeded", "resource_read_only"].includes(denial?.code)
+    && !error?.config?.suppressEntitlementPrompt
+    && typeof window !== "undefined"
+  ) {
+    window.dispatchEvent(new CustomEvent("portfyl:entitlement-denied", { detail: denial }));
+  }
+  return Promise.reject(error);
+}
+
+api.interceptors.response.use((response) => response, handleResponseError);
 
 // ----- Auth/session/account (not portfolio-scoped) --------------------------
 

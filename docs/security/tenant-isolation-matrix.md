@@ -49,7 +49,7 @@ context-setting bug away from a breach.
 | Condition | Status | Body |
 | --- | --- | --- |
 | No session cookie | **401** | `{"code": "authentication_required"}` |
-| Valid session, missing/incorrect `X-CSRF-Token` on a CSRF-gated route | **403** | `{"code": "csrf_failed"}` |
+| Valid session, missing/incorrect `X-CSRF-Token` on any state-changing `/api` request (central `tenancy.csrf_guard`; `/api/auth/*` checks it itself) | **403** | `{"code": "csrf_failed"}` |
 | Foreign resource UUID (another tenant's row) | **404** | identical to a random UUID |
 | Nonexistent UUID | **404** | identical to the foreign case |
 | Foreign `portfolio_id` query parameter | **404** | identical to a random UUID |
@@ -108,6 +108,8 @@ Application test names are abbreviated below; each is parametrized by the
 | --- | --- | --- |
 | Any list endpoint with no session | 401 `authentication_required` | `test_unauthenticated_request_is_401[*]` |
 | CSRF-gated write with no CSRF token | 403 `csrf_failed` | `test_missing_csrf_token_is_403_not_a_silent_success[*]` |
+| State-changing /api route without a CSRF guard | none may exist (local and cloud edition) | 	ests/test_csrf_coverage.py |
+| Mutation on the real app with no CSRF header (alerts, ledger clear) | 403 csrf_failed, nothing written | 	est_main_app_rejects_mutation_without_csrf_header, 	est_main_app_clear_ledger_requires_csrf_header |
 | `X-Workspace-ID` = another tenant's workspace | 404 `resource_not_found` | `test_forged_workspace_header_is_404_for_a_non_member` |
 | `X-Workspace-ID` unknown / not a UUID | 404, identical bodies | `test_unknown_and_malformed_workspace_headers_match_the_foreign_contract` |
 | Foreign UUID vs random UUID | identical status **and** body | `test_foreign_resource_uuid_is_indistinguishable_from_a_random_uuid[*]`, `test_foreign_portfolio_read_is_not_addressable[*]`, `test_foreign_portfolio_mutation_is_not_addressable[*]` |

@@ -6,6 +6,7 @@ export default function AccountMenu() {
   const { user, logout, logoutAll } = useAuth();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const containerRef = useRef(null);
   const triggerRef = useRef(null);
   const firstItemRef = useRef(null);
@@ -35,25 +36,23 @@ export default function AccountMenu() {
 
   if (!user) return null;
 
-  async function handleLogout() {
+  // AuthProvider only signs the browser out once the server confirmed it; on a
+  // failure it rejects and the user stays signed in, so say so.
+  async function runSignOut(action) {
     setOpen(false);
     setBusy(true);
+    setError("");
     try {
-      await logout();
+      await action();
+    } catch {
+      setError("Could not sign out. You are still signed in. Please try again.");
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleLogoutAll() {
-    setOpen(false);
-    setBusy(true);
-    try {
-      await logoutAll();
-    } finally {
-      setBusy(false);
-    }
-  }
+  const handleLogout = () => runSignOut(logout);
+  const handleLogoutAll = () => runSignOut(logoutAll);
 
   return (
     <div ref={containerRef} className="relative">
@@ -73,6 +72,12 @@ export default function AccountMenu() {
         </span>
         <ChevronDown size={14} className={`text-muted transition-transform shrink-0 ${open ? "rotate-180" : ""}`} />
       </button>
+
+      {error && (
+        <p role="alert" className="mt-1 text-xs text-loss">
+          {error}
+        </p>
+      )}
 
       {open && (
         <div

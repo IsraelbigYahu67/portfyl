@@ -12,11 +12,20 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from auth import create_session, resolve_session, revoke_session
+from auth import create_session, derive_csrf_token, resolve_session, revoke_session
 from database import get_db
 from edition import Edition
 from firebase_identity import IdentityVerificationError, VerifiedIdentity
-from models import AuditLog, AuthSession, BetaInvite, Membership, User, Workspace
+from models import (
+    AuditLog,
+    AuthSession,
+    BetaInvite,
+    Membership,
+    PriceAlert,
+    Transaction,
+    User,
+    Workspace,
+)
 from routers import auth as auth_router
 
 
@@ -390,20 +399,88 @@ def test_cloud_beta_rejects_uninvited_google_identity_before_provisioning(
         assert db.scalar(select(func.count()).select_from(Workspace)) == 0
 
 
-def test_me_bootstraps_account_and_rotates_usable_csrf(client: TestClient):
+def test_me_returns_the_session_bound_csrf_token_without_rotating_it(
+    client: TestClient,
+    postgres_engine,
+):
     login = client.post("/api/auth/session", json={"id_token": "alice-token"})
     assert login.status_code == 201
+    with admin_session(postgres_engine) as db:
+        digest_before = db.scalar(select(AuthSession.csrf_digest))
 
-    response = client.get("/api/auth/me")
+    first = client.get("/api/auth/me")
+    second = client.get("/api/auth/me")
 
-    assert response.status_code == 200
-    assert response.json()["user"]["email"] == "alice@example.com"
-    assert response.json()["csrf_token"]
+    assert first.status_code == 200
+    assert first.json()["user"]["email"] == "alice@example.com"
+    token = first.json()["csrf_token"]
+    assert token
+    # Every tab of the session gets the same token, and so does the login.
+    assert second.json()["csrf_token"] == token
+    assert login.json()["csrf_token"] == token
+    with admin_session(postgres_engine) as db:
+        assert db.scalar(select(AuthSession.csrf_digest)) == digest_before
+    logout = client.post("/api/auth/logout", headers={"X-CSRF-Token": token})
+    assert logout.status_code == 204
+
+
+def test_token_from_login_survives_later_me_calls(client: TestClient):
+    login = client.post("/api/auth/session", json={"id_token": "alice-token"})
+    client.get("/api/auth/me")
+    client.get("/api/auth/me")
+
     logout = client.post(
         "/api/auth/logout",
-        headers={"X-CSRF-Token": response.json()["csrf_token"]},
+        headers={"X-CSRF-Token": login.json()["csrf_token"]},
     )
+
     assert logout.status_code == 204
+
+
+def test_legacy_random_csrf_token_still_accepted(
+    client: TestClient,
+    postgres_engine,
+):
+    login = client.post("/api/auth/session", json={"id_token": "alice-token"})
+    assert login.status_code == 201
+    legacy_token = "legacy-random-token-issued-before-deploy"
+    with admin_session(postgres_engine) as db:
+        row = db.scalar(select(AuthSession))
+        row.csrf_digest = hashlib.sha256(legacy_token.encode()).hexdigest()
+        db.commit()
+
+    logout = client.post(
+        "/api/auth/logout",
+        headers={"X-CSRF-Token": legacy_token},
+    )
+
+    assert logout.status_code == 204
+
+
+def test_other_sessions_csrf_token_is_rejected(client: TestClient):
+    first = client.post("/api/auth/session", json={"id_token": "alice-token"})
+    first_token = first.json()["csrf_token"]
+    second = client.post("/api/auth/session", json={"id_token": "alice-token"})
+    assert second.json()["csrf_token"] != first_token
+
+    # The client's cookie jar now holds the second session.
+    response = client.post(
+        "/api/auth/logout",
+        headers={"X-CSRF-Token": first_token},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "csrf_failed"
+
+
+def test_session_stores_digest_of_derived_csrf_token(
+    postgres_session: Session,
+    alice: User,
+):
+    issued = create_session(postgres_session, alice.id)
+
+    assert issued.csrf_token == derive_csrf_token(issued.raw_token)
+    assert issued.csrf_token != issued.raw_token
 
 
 @pytest.mark.parametrize("csrf_header", [None, "wrong-token"])
@@ -540,6 +617,87 @@ def test_main_gate_rejects_session_for_disabled_user(
 
     main_client.cookies.set("portfyl_session", issued.raw_token)
     response = main_client.get("/api/portfolios")
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "authentication_required"
+
+
+@pytest.fixture
+def alice_main_client(main_client: TestClient, matrix_tenants) -> TestClient:
+    """The real main.app, authenticated as the seeded Alice (cookie only: each
+    test decides which CSRF header, if any, to send)."""
+    main_client.cookies.set("portfyl_session", matrix_tenants.session_token)
+    main_client.headers["X-Workspace-ID"] = str(
+        matrix_tenants.alice.workspace_public_id
+    )
+    return main_client
+
+
+def test_main_app_rejects_mutation_without_csrf_header(
+    alice_main_client: TestClient,
+    postgres_engine,
+):
+    # routers/alerts.py has no per-route require_csrf; the central guard must
+    # still cover it.
+    body = {"ticker": "MSFT", "direction": "above", "target_price": 500}
+
+    response = alice_main_client.post("/api/alerts", json=body)
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "csrf_failed"
+    with Session(postgres_engine) as db:
+        assert db.scalar(select(func.count()).select_from(PriceAlert)) == 2
+
+
+def test_main_app_accepts_mutation_with_valid_csrf_header(
+    alice_main_client: TestClient,
+    matrix_tenants,
+    postgres_engine,
+):
+    body = {"ticker": "MSFT", "direction": "above", "target_price": 500}
+
+    response = alice_main_client.post(
+        "/api/alerts",
+        json=body,
+        headers={"X-CSRF-Token": matrix_tenants.csrf_token},
+    )
+
+    assert response.status_code in (200, 201), response.text
+    with Session(postgres_engine) as db:
+        assert db.scalar(select(func.count()).select_from(PriceAlert)) == 3
+
+
+def test_main_app_clear_ledger_requires_csrf_header(
+    alice_main_client: TestClient,
+    matrix_tenants,
+    postgres_engine,
+):
+    with Session(postgres_engine) as db:
+        before = db.scalar(select(func.count()).select_from(Transaction))
+
+    rejected = alice_main_client.delete("/api/portfolio/transactions")
+
+    assert rejected.status_code == 403
+    assert rejected.json()["code"] == "csrf_failed"
+    with Session(postgres_engine) as db:
+        assert db.scalar(select(func.count()).select_from(Transaction)) == before
+
+    accepted = alice_main_client.delete(
+        "/api/portfolio/transactions",
+        headers={"X-CSRF-Token": matrix_tenants.csrf_token},
+    )
+
+    assert accepted.status_code == 200, accepted.text
+    with Session(postgres_engine) as db:
+        assert db.scalar(select(func.count()).select_from(Transaction)) < before
+
+
+def test_main_app_unknown_session_cookie_is_401_not_csrf_403(
+    main_client: TestClient,
+):
+    main_client.cookies.set("portfyl_session", "not-a-real-session")
+
+    response = main_client.delete("/api/portfolio/transactions")
 
     assert response.status_code == 401
     assert response.json()["code"] == "authentication_required"
