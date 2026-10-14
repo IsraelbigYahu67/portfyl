@@ -19,8 +19,8 @@ from auth import (
     csrf_matches,
     resolve_session,
     revoke_all_sessions,
+    derive_csrf_token,
     revoke_session,
-    rotate_csrf_token,
     session_token_from_request,
     set_session_cookie,
 )
@@ -172,7 +172,11 @@ def _require_session(db: Session, request: Request) -> tuple[AuthSession, User]:
 
 
 def _require_csrf(request: Request, session: AuthSession) -> None:
-    if not csrf_matches(session, request.headers.get("X-CSRF-Token")):
+    if not csrf_matches(
+        session,
+        session_token_from_request(request),
+        request.headers.get("X-CSRF-Token"),
+    ):
         raise AuthAPIError(403, "csrf_failed")
 
 
@@ -228,8 +232,10 @@ def exchange_session(
 
 @router.get("/me")
 def get_me(request: Request, db: Session = Depends(get_db)):
-    session, user = _require_session(db, request)
-    csrf_token = rotate_csrf_token(db, session)
+    _session, user = _require_session(db, request)
+    # The token is derived from the session cookie, so every tab of this
+    # session receives the same value and nothing is rotated or stored here.
+    csrf_token = derive_csrf_token(session_token_from_request(request))
     payload = _account_payload(db, user, csrf_token)
     db.commit()
     return payload

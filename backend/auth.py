@@ -1,12 +1,14 @@
 """Opaque, revocable Portfyl sessions.
 
 Firebase proves an e-mail identity only during login. Every later request uses
-an opaque Portfyl token whose SHA-256 digest is stored in PostgreSQL. Raw
-session and CSRF tokens never enter the database.
+an opaque Portfyl token whose SHA-256 digest is stored in PostgreSQL. The raw
+session token never enters the database; the CSRF token is derived from it
+(see derive_csrf_token) and only its digest is stored.
 """
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import os
@@ -60,13 +62,29 @@ def _as_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
+_CSRF_MESSAGE = b"portfyl-csrf-v1"
+
+
+def derive_csrf_token(raw_session_token: str) -> str:
+    """CSRF token bound to the session: HMAC-SHA256 keyed by the raw session
+    token. The server can recompute it from the HttpOnly cookie at any time,
+    script cannot, and every tab of one session gets the same value, so
+    /auth/me has nothing to rotate or store."""
+    mac = hmac.new(
+        raw_session_token.encode("utf-8"),
+        _CSRF_MESSAGE,
+        hashlib.sha256,
+    ).digest()
+    return base64.urlsafe_b64encode(mac).rstrip(b"=").decode("ascii")
+
+
 def create_session(
     db: Session,
     user_id: UUID,
     user_agent: str | None = None,
 ) -> IssuedSession:
     raw_token = secrets.token_urlsafe(32)
-    csrf_token = secrets.token_urlsafe(32)
+    csrf_token = derive_csrf_token(raw_token)
     expires_at = _utcnow() + SESSION_MAX_AGE
     db.add(AuthSession(
         user_id=user_id,
@@ -131,17 +149,29 @@ def revoke_all_sessions(db: Session, user_id: UUID) -> int:
     return int(result.rowcount or 0)
 
 
-def csrf_matches(session: AuthSession, raw_token: str | None) -> bool:
-    if not raw_token:
+def csrf_matches_derived(raw_session_token: str, header_token: str | None) -> bool:
+    if not raw_session_token or not header_token:
         return False
-    return hmac.compare_digest(session.csrf_digest, _digest(raw_token))
+    return hmac.compare_digest(
+        derive_csrf_token(raw_session_token).encode("ascii"),
+        header_token.encode("utf-8"),
+    )
 
 
-def rotate_csrf_token(db: Session, session: AuthSession) -> str:
-    raw_token = secrets.token_urlsafe(32)
-    session.csrf_digest = _digest(raw_token)
-    db.flush()
-    return raw_token
+def csrf_matches(
+    session: AuthSession,
+    raw_session_token: str,
+    header_token: str | None,
+) -> bool:
+    if csrf_matches_derived(raw_session_token, header_token):
+        return True
+    if not header_token:
+        return False
+    # Legacy branch: sessions issued before the derived token carry a random
+    # token whose digest is in auth_sessions.csrf_digest. Sessions live at most
+    # SESSION_MAX_AGE (30 days), so remove this branch 30 days after the
+    # deploy that introduced derive_csrf_token (plan 2026-10-14, decision R1).
+    return hmac.compare_digest(session.csrf_digest, _digest(header_token))
 
 
 def session_token_from_request(request: Request) -> str:

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./AuthProvider";
@@ -12,6 +13,7 @@ const apiMocks = vi.hoisted(() => ({
   logoutSession: vi.fn(() => Promise.resolve()),
   logoutAllSessions: vi.fn(() => Promise.resolve()),
   configureRequestContext: vi.fn(),
+  setCsrfRefreshHandler: vi.fn(),
 }));
 vi.mock("../api", () => ({
   fetchMe: apiMocks.fetchMe,
@@ -19,6 +21,7 @@ vi.mock("../api", () => ({
   logoutSession: apiMocks.logoutSession,
   logoutAllSessions: apiMocks.logoutAllSessions,
   configureRequestContext: apiMocks.configureRequestContext,
+  setCsrfRefreshHandler: apiMocks.setCsrfRefreshHandler,
 }));
 
 const firebaseMocks = vi.hoisted(() => ({
@@ -32,8 +35,12 @@ afterEach(() => localStorage.clear());
 
 function Probe() {
   const auth = useAuth();
+  const [signOutError, setSignOutError] = useState("");
   return (
     <div>
+      <span data-testid="signout-error">{signOutError}</span>
+      <button onClick={() => auth.logout().catch(() => setSignOutError("logout failed"))}>logout-safe</button>
+      <button onClick={() => auth.logoutAll().catch(() => setSignOutError("logout-all failed"))}>logout-all-safe</button>
       <span data-testid="ready">{String(auth.ready)}</span>
       <span data-testid="email">{auth.user?.email ?? ""}</span>
       <span data-testid="workspace">{auth.currentWorkspace?.id ?? ""}</span>
@@ -158,6 +165,93 @@ describe("AuthProvider", () => {
 
     expect(apiMocks.logoutAllSessions).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("email").textContent).toBe("");
+  });
+
+  describe("sign-out failures", () => {
+    const account = {
+      user: { id: "u1", email: "alice@example.com" },
+      workspaces: [{ id: "w1", name: "Alice's workspace", role: "owner" }],
+      csrf_token: "csrf-1",
+    };
+
+    it.each([
+      ["logout", "logout-safe", "logoutSession", "logout failed"],
+      ["logout-all", "logout-all-safe", "logoutAllSessions", "logout-all failed"],
+    ])("keeps the user signed in when the server does not confirm %s", async (_name, button, mockName, message) => {
+      apiMocks.fetchMe.mockResolvedValueOnce(account);
+      const { adapter, clearSpy } = mount();
+      await waitFor(() => expect(screen.getByTestId("email").textContent).toBe("alice@example.com"));
+      clearSpy.mockClear();
+      apiMocks.configureRequestContext.mockClear();
+      apiMocks[mockName].mockRejectedValueOnce({ response: { status: 403, data: { code: "csrf_failed" } } });
+
+      await act(async () => {
+        screen.getByRole("button", { name: button }).click();
+      });
+
+      expect(screen.getByTestId("signout-error").textContent).toBe(message);
+      expect(screen.getByTestId("email").textContent).toBe("alice@example.com");
+      expect(screen.getByTestId("csrf").textContent).toBe("csrf-1");
+      expect(clearSpy).not.toHaveBeenCalled();
+      expect(apiMocks.configureRequestContext).not.toHaveBeenCalledWith({ workspaceId: null, csrfToken: null });
+      expect(adapter.resetCount).toBe(0);
+    });
+
+    it("treats an already-expired session (401) as signed out", async () => {
+      apiMocks.fetchMe.mockResolvedValueOnce(account);
+      mount();
+      await waitFor(() => expect(screen.getByTestId("email").textContent).toBe("alice@example.com"));
+      apiMocks.logoutSession.mockRejectedValueOnce({ response: { status: 401 } });
+
+      await act(async () => {
+        screen.getByRole("button", { name: "logout-safe" }).click();
+      });
+
+      expect(screen.getByTestId("email").textContent).toBe("");
+      expect(screen.getByTestId("signout-error").textContent).toBe("");
+    });
+  });
+
+  describe("csrf refresh handler", () => {
+    it("re-reads the token from /auth/me without clearing the query cache or workspace", async () => {
+      apiMocks.fetchMe.mockResolvedValueOnce({
+        user: { id: "u1", email: "alice@example.com" },
+        workspaces: [{ id: "w1", name: "Alice's workspace", role: "owner" }],
+        csrf_token: "csrf-1",
+      });
+      const { clearSpy } = mount();
+      await waitFor(() => expect(screen.getByTestId("csrf").textContent).toBe("csrf-1"));
+      const handler = apiMocks.setCsrfRefreshHandler.mock.calls
+        .map(([fn]) => fn)
+        .filter(Boolean)
+        .at(-1);
+      expect(handler).toBeTypeOf("function");
+      clearSpy.mockClear();
+      apiMocks.fetchMe.mockResolvedValueOnce({
+        user: { id: "u1", email: "alice@example.com" },
+        workspaces: [{ id: "w1", name: "Alice's workspace", role: "owner" }],
+        csrf_token: "csrf-2",
+      });
+
+      await act(async () => {
+        await handler();
+      });
+
+      expect(screen.getByTestId("csrf").textContent).toBe("csrf-2");
+      expect(screen.getByTestId("workspace").textContent).toBe("w1");
+      expect(apiMocks.configureRequestContext).toHaveBeenLastCalledWith({ workspaceId: "w1", csrfToken: "csrf-2" });
+      expect(clearSpy).not.toHaveBeenCalled();
+    });
+
+    it("unregisters the handler when the provider unmounts", async () => {
+      apiMocks.fetchMe.mockRejectedValueOnce({ response: { status: 401 } });
+      const { unmount } = mount();
+      await waitFor(() => expect(screen.getByTestId("ready").textContent).toBe("true"));
+
+      unmount();
+
+      expect(apiMocks.setCsrfRefreshHandler).toHaveBeenLastCalledWith(null);
+    });
   });
 
   it("throws when useAuth() is called outside an AuthProvider", () => {
