@@ -26,6 +26,7 @@ from datetime import datetime, timedelta, timezone
 
 import yfinance as yf
 
+from cache import BoundedTTLCache
 from ticker_map import yf_symbol
 
 # Per-batch wall-clock bound for resolving ``.info``.
@@ -36,13 +37,29 @@ _OK_TTL = 300.0
 _EMPTY_TTL = 60.0
 
 _executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="yf-info")
-# broker-ticker(upper) -> (fetched_at, info_dict)
-_cache: dict[str, tuple[float, dict]] = {}
+# Every cache below is size-bounded (LRU) and expires entries, because keys come
+# from user input and the instance lives for days. ``.info`` dicts are the big
+# values (tens of KB each), so that cache is the smallest.
+_INFO_CACHE_MAX = 1024
+# A Future that outlives this was abandoned (the yfinance stall cap is ~10
+# minutes); dropping it lets a later call resubmit instead of waiting forever.
+_INFLIGHT_TTL = 900.0
+
+# broker-ticker(upper) -> (fetched_at, info_dict). Freshness is judged per entry
+# by ``_ttl``; the cache TTL is how long an outdated entry is kept as the
+# fallback when a later lookup misses its deadline (``price_freshness`` flags
+# a quote that is really stale).
+_STALE_FALLBACK_TTL = 6 * 3600.0
+_cache: BoundedTTLCache = BoundedTTLCache(_INFO_CACHE_MAX, ttl=_STALE_FALLBACK_TTL)
 # broker-ticker(upper) -> Future still running past a caller's deadline. Kept so
 # a later call collects the eventual result instead of resubmitting — and so a
 # deadline miss is never cached as "no data" (that once poisoned USDCZK=X for
-# 60s and every position rendered at ≈ -95%).
-_inflight: dict[str, Future] = {}
+# 60s and every position rendered at ≈ -95%). Bounded and expiring so futures
+# nobody ever collects cannot pile up.
+_inflight: BoundedTTLCache = BoundedTTLCache(_INFO_CACHE_MAX, ttl=_INFLIGHT_TTL)
+
+
+_MISS = object()
 
 
 def _ttl(info: dict) -> float:
@@ -78,12 +95,13 @@ def ticker(symbol: str):
 DOWNLOAD_TTL = 300.0
 _DOWNLOAD_CACHE_MAX = 128
 TICKER_ATTR_TTL = 6 * 3600.0
+_ATTR_CACHE_MAX = 2048
 _shared_lock = threading.Lock()
-# key -> (stored_at, ttl, result)
-_download_cache: dict[tuple, tuple[float, float, object]] = {}
+# key -> result; each entry carries its own TTL (DOWNLOAD_TTL or _EMPTY_TTL)
+_download_cache: BoundedTTLCache = BoundedTTLCache(_DOWNLOAD_CACHE_MAX)
 _download_inflight: dict[tuple, Future] = {}
-# (symbol, attribute) -> (stored_at, ttl, value)
-_attr_cache: dict[tuple[str, str], tuple[float, float, object]] = {}
+# (symbol, attribute) -> value; per-entry TTL (``ttl`` argument or _EMPTY_TTL)
+_attr_cache: BoundedTTLCache = BoundedTTLCache(_ATTR_CACHE_MAX)
 _attr_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="yf-attr")
 
 
@@ -117,9 +135,9 @@ def download(*args, **kwargs):
     _release_db()
     key = (_freeze(args), _freeze(kwargs))
     with _shared_lock:
-        hit = _download_cache.get(key)
-        if hit and time.monotonic() - hit[0] < hit[1]:
-            return _private_copy(hit[2])
+        hit = _download_cache.get(key, _MISS)
+        if hit is not _MISS:
+            return _private_copy(hit)
         pending = _download_inflight.get(key)
         if pending is None:
             pending = _download_inflight[key] = Future()
@@ -138,10 +156,7 @@ def download(*args, **kwargs):
     ttl = _EMPTY_TTL if getattr(result, "empty", False) else DOWNLOAD_TTL
     with _shared_lock:
         _download_inflight.pop(key, None)
-        _download_cache[key] = (time.monotonic(), ttl, result)
-        if len(_download_cache) > _DOWNLOAD_CACHE_MAX:
-            oldest = min(_download_cache, key=lambda k: _download_cache[k][0])
-            del _download_cache[oldest]
+        _download_cache.set(key, result, ttl)
     pending.set_result(result)
     return _private_copy(result)
 
@@ -160,12 +175,11 @@ def ticker_attrs(symbols, attr: str, ttl: float = TICKER_ATTR_TTL) -> dict:
     _EMPTY_TTL. Values are shared between callers: do not mutate them."""
     out: dict = {}
     missing: list[str] = []
-    now = time.monotonic()
     with _shared_lock:
         for symbol in dict.fromkeys(symbols):
-            hit = _attr_cache.get((symbol, attr))
-            if hit and now - hit[0] < hit[1]:
-                out[symbol] = hit[2]
+            hit = _attr_cache.get((symbol, attr), _MISS)
+            if hit is not _MISS:
+                out[symbol] = hit
             else:
                 missing.append(symbol)
     if missing:
@@ -175,7 +189,7 @@ def ticker_attrs(symbols, attr: str, ttl: float = TICKER_ATTR_TTL) -> dict:
             value, ok = future.result()
             out[symbol] = value
             with _shared_lock:
-                _attr_cache[(symbol, attr)] = (time.monotonic(), ttl if ok else _EMPTY_TTL, value)
+                _attr_cache.set((symbol, attr), value, ttl if ok else _EMPTY_TTL)
     return out
 
 
@@ -205,6 +219,7 @@ def get_infos(tickers, timeout: float = INFO_TIMEOUT) -> dict[str, dict]:
     """
     out: dict[str, dict] = {}
     pending: dict[str, Future] = {}
+    resolved: dict[str, dict] = {}
     now = time.time()
     for tk in tickers:
         key = (tk or "").upper()
@@ -237,11 +252,15 @@ def get_infos(tickers, timeout: float = INFO_TIMEOUT) -> dict[str, dict]:
             except Exception:
                 info = {}
             _cache[key] = (time.time(), info)
+            resolved[key] = info
             _inflight.pop(key, None)
 
     for tk in tickers:
         if tk not in out:
-            out[tk] = _cache.get((tk or "").upper(), (0.0, {}))[1]
+            # ``resolved`` first: a batch larger than the cache must not lose
+            # results to LRU eviction between the write and this read.
+            key = (tk or "").upper()
+            out[tk] = resolved.get(key) if key in resolved else _cache.get(key, (0.0, {}))[1]
     return out
 
 
