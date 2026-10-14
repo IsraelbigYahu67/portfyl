@@ -8,9 +8,14 @@ import t212_sync
 from account_identity import account_fingerprint
 from audit import record_audit_event
 from broker_reconciliation import reconcile_positions
-from database import get_db
+from database import get_db, release_connection
 from demo_cleanup import purge_demo_data
-from entitlements import require_broker_capacity, require_capability, require_writable_broker
+from entitlements import (
+    enforce_broker_capacity_locked,
+    require_broker_capacity,
+    require_capability,
+    require_writable_broker,
+)
 from rate_limit import rate_limit
 from fx import convert_amount
 from models import BrokerBalance, BrokerConnection, BrokerPosition, BrokerSyncRun, Portfolio, Transaction
@@ -113,7 +118,9 @@ def get_status(
     # "We couldn't load this data." -- with no connection info rendered at
     # all, there's no Disconnect button left to click to recover.
     try:
-        api_key_preview = conn.api_key[:6] + "..." + conn.api_key[-4:] if len(conn.api_key) > 10 else "***"
+        # One decrypt: each `conn.api_key` read is a separate KMS call.
+        api_key = conn.api_key
+        api_key_preview = api_key[:6] + "..." + api_key[-4:] if len(api_key) > 10 else "***"
         decrypt_error = None
     except Exception:
         api_key_preview = None
@@ -429,6 +436,12 @@ def connect(
         )
         .all()
     )
+    # Everything from here to the lock is slow (KMS decrypts, up to three
+    # Trading 212 round trips): hold neither a pooled connection nor the
+    # workspace lock. The clash check is only a friendlier early error; the
+    # authoritative guard is the account-fingerprint binding under the lock.
+    connection = _get_connection(db, portfolio)
+    release_connection(db)
     clash = next((c for c in other_connections if c.api_key == api_key), None)
     if clash:
         raise HTTPException(
@@ -454,7 +467,6 @@ def connect(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Could not reach Trading 212: {e}")
 
-    connection = _get_connection(db, portfolio)
     try:
         candidate_summary = _fetch_account_summary(
             base, _t212_headers(api_key, api_secret),
@@ -505,6 +517,21 @@ def connect(
         if existing_fingerprint != candidate_fingerprint:
             _reject_account_replacement()
 
+    # All network is done. Take the workspace lock only now, enforce the
+    # connection limit authoritatively and re-read what may have changed
+    # while we were talking to Trading 212 (another connect, a disconnect).
+    enforce_broker_capacity_locked(db, portfolio.workspace_id, None, "trading212", portfolio)
+    db.refresh(portfolio)
+    connection = (
+        db.query(BrokerConnection)
+        .populate_existing()
+        .filter(
+            BrokerConnection.workspace_id == portfolio.workspace_id,
+            BrokerConnection.broker == "trading212",
+            BrokerConnection.portfolio_id == portfolio.id,
+        )
+        .first()
+    )
     _bind_verified_account(db, portfolio, connection, candidate_fingerprint)
     action = "broker.connection.rotated" if connection else "broker.connection.created"
     if connection:

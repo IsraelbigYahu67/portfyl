@@ -26,7 +26,13 @@ from sqlalchemy.orm import Session
 
 import market_data
 from database import get_db
-from entitlements import EffectiveEntitlements, require_capability, require_capacity, require_writable_resource
+from entitlements import (
+    EffectiveEntitlements,
+    enforce_capacity_locked,
+    require_capability,
+    require_capacity,
+    require_writable_resource,
+)
 from models import Portfolio, PriceAlert
 from private_loop import run_on_private_loop
 from routers.portfolios import require_portfolio
@@ -42,13 +48,15 @@ ALERT_COLOR = 0xF59E0B  # amber — distinct from the trade (green) notification
 class AlertCreate(BaseModel):
     ticker: str = Field(min_length=1, max_length=24)
     direction: str = Field(pattern="^(above|below)$")
-    target_price: float = Field(gt=0)
+    # allow_inf_nan=False: Starlette parses JSON with json.loads, which accepts
+    # the literals NaN and Infinity; without it they would reach the database.
+    target_price: float = Field(gt=0, allow_inf_nan=False)
     note: Optional[str] = None
 
 
 class AlertUpdate(BaseModel):
     direction: Optional[str] = Field(default=None, pattern="^(above|below)$")
-    target_price: Optional[float] = Field(default=None, gt=0)
+    target_price: Optional[float] = Field(default=None, gt=0, allow_inf_nan=False)
     note: Optional[str] = None
     enabled: Optional[bool] = None
     # Only "active" (re-arm) is accepted: "triggered" is set exclusively by the
@@ -183,6 +191,7 @@ def list_alerts(db: Session = Depends(get_db), portfolio: Portfolio = Depends(re
 
 @router.post("", dependencies=[Depends(require_capacity("alerts", PriceAlert))])
 def create_alert(body: AlertCreate, db: Session = Depends(get_db), portfolio: Portfolio = Depends(require_portfolio)):
+    enforce_capacity_locked(db, portfolio.workspace_id, None, "alerts", PriceAlert)
     a = PriceAlert(
         workspace_id=portfolio.workspace_id,
         portfolio_id=portfolio.id,

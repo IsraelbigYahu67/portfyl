@@ -6,17 +6,17 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, Field
 from typing import Optional
-from concurrent.futures import ThreadPoolExecutor
-
-import yfinance as yf
 
 import market_data
 
-from database import get_db
-from entitlements import require_capacity, require_writable_resource
+from database import get_db, release_connection
+from entitlements import (
+    enforce_capacity_locked,
+    require_capacity,
+    require_writable_resource,
+)
 from models import Watchlist, WatchlistItem
 from tenancy import RequestContext, get_request_context
-from ticker_map import yf_symbol
 
 
 router = APIRouter(prefix="/watchlists", tags=["watchlists"])
@@ -44,7 +44,16 @@ class ItemCreate(BaseModel):
 def _quote(sym: str) -> dict:
     """Best-effort live quote so the watchlist row can show price + change."""
     try:
-        info = market_data.ticker(yf_symbol(sym)).info or {}
+        info = market_data.get_info(sym)
+    except Exception:
+        info = {}
+    return _quote_from_info(sym, info)
+
+
+def _quote_from_info(sym: str, info: dict | None) -> dict:
+    """Shape one ``.info`` dict (bounded, cached via market_data) into a row quote."""
+    try:
+        info = info or {}
         price = info.get("currentPrice") or info.get("regularMarketPrice")
         return {
             "symbol": sym,
@@ -113,14 +122,17 @@ def list_watchlists(
     for it in items:
         by_list.setdefault(it.watchlist_id, []).append(it)
 
-    # Fetch all distinct tickers' quotes in parallel — one network round-trip
-    # per unique ticker rather than per item.
+    # Fetch all distinct tickers' quotes in one bounded, cached, concurrent
+    # market_data call rather than raw per-item yfinance `.info`.
     tickers = sorted({it.ticker for it in items})
     quotes: dict[str, dict] = {}
     if tickers:
-        with ThreadPoolExecutor(max_workers=min(10, len(tickers))) as ex:
-            for q in ex.map(_quote, tickers):
-                quotes[q["symbol"]] = q
+        release_connection(db)
+        try:
+            infos = market_data.get_infos(tickers)
+        except Exception:
+            infos = {}
+        quotes = {tk: _quote_from_info(tk, infos.get(tk)) for tk in tickers}
 
     return [_serialize_watchlist(w, by_list.get(w.id, []), quotes) for w in lists]
 
@@ -134,6 +146,7 @@ def create_watchlist(
     name = payload.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Watchlist name is required")
+    enforce_capacity_locked(db, context.workspace.id, None, "watchlists", Watchlist)
     w = Watchlist(workspace_id=context.workspace.id, name=name, color=payload.color)
     db.add(w)
     try:
@@ -200,10 +213,19 @@ def add_item(
     db: Session = Depends(get_db),
     context: RequestContext = Depends(get_request_context),
 ):
-    w = _find_watchlist(db, context, watchlist_id)
+    _find_watchlist(db, context, watchlist_id)
     ticker = payload.ticker.strip().upper()
     if not ticker:
         raise HTTPException(status_code=400, detail="Ticker is required")
+    # The quote is slow network work: fetch it before taking the workspace
+    # lock, and hand the connection back while waiting.
+    release_connection(db)
+    quote = _quote(ticker)
+    enforce_capacity_locked(
+        db, context.workspace.id, None, "watchlist_symbols", WatchlistItem
+    )
+    # The watchlist may have been deleted while the quote was loading.
+    w = _find_watchlist(db, context, watchlist_id)
     item = WatchlistItem(workspace_id=context.workspace.id, watchlist_id=w.id, ticker=ticker, note=payload.note)
     db.add(item)
     try:
@@ -214,7 +236,7 @@ def add_item(
             "ticker": item.ticker,
             "note": item.note,
             "watchlist_id": str(w.public_id),
-            "quote": _quote(ticker),
+            "quote": quote,
         }
         db.commit()
     except IntegrityError:

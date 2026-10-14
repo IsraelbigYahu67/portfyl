@@ -1,12 +1,15 @@
+import json
 import logging
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from logging_setup import configure_logging, correlation_id_var
@@ -57,6 +60,43 @@ app.add_exception_handler(EntitlementDenied, entitlement_denied_handler)
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 app.add_exception_handler(RateLimitUnavailable, rate_limit_unavailable_handler)
 app.add_exception_handler(InvalidClientIp, invalid_client_ip_handler)
+
+
+def _json_safe(value):
+    """`value` as strict JSON, or its repr when that is impossible (NaN, Inf, objects)."""
+    if isinstance(value, BaseException):
+        # pydantic puts the raised ValueError into `ctx`; the encoder would
+        # reduce it to {}, losing the message.
+        return str(value)
+    try:
+        encoded = jsonable_encoder(value)
+        json.dumps(encoded, allow_nan=False)
+        return encoded
+    except (TypeError, ValueError):
+        return repr(value)
+
+
+async def request_validation_error_handler(_request: Request, exc: RequestValidationError):
+    """Answer 422 even when the rejected input cannot be serialised.
+
+    Starlette parses JSON with `json.loads`, which accepts the literals NaN and
+    Infinity. FastAPI's default handler echoes the offending value back as
+    `input`; JSONResponse renders with allow_nan=False, so that echo raised and
+    the client got a 500 instead of the 422. Unserialisable `input` and `ctx`
+    values are replaced by their repr.
+    """
+    errors = []
+    for error in exc.errors():
+        safe = dict(error)
+        if "input" in safe:
+            safe["input"] = _json_safe(safe["input"])
+        if "ctx" in safe:
+            safe["ctx"] = {key: _json_safe(item) for key, item in safe["ctx"].items()}
+        errors.append(safe)
+    return JSONResponse(status_code=422, content={"detail": errors})
+
+
+app.add_exception_handler(RequestValidationError, request_validation_error_handler)
 
 
 # The desktop SPA is same-origin (baked into the image), but the native app calls

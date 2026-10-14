@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from database import get_db
+from database import get_db, release_connection
+from entitlements import enforce_capacity_locked, require_capacity
 from models import Portfolio, Transaction, CashInterestRate
 from routers.portfolios import require_portfolio
 from fx import fetch_fx_to_czk, cash_amount_to_display, cash_total_from_transactions
@@ -21,7 +22,9 @@ class CashCreate(BaseModel):
     # Manual entry uses the first four; the rest exist so imported rows
     # (card debits, cashback, FX legs) can be edited without a 422.
     type: str = Field(pattern="^(deposit|withdrawal|fee|interest|card_debit|cashback|fx_in|fx_out)$")
-    amount: float = Field(gt=0)
+    # allow_inf_nan=False: Starlette parses JSON with json.loads, which accepts
+    # the literals NaN and Infinity; without it they would reach the ledger.
+    amount: float = Field(gt=0, allow_inf_nan=False)
     currency: str = Field(min_length=3, max_length=3)
     date: date_type
     note: Optional[str] = None
@@ -62,9 +65,14 @@ def list_cash(db: Session = Depends(get_db), portfolio: Portfolio = Depends(requ
     return [_to_row(t) for t in rows]
 
 
-@router.post("", response_model=CashRow)
+# Cash rows are ledger transactions, so they count against the same quota as
+# POST /portfolio/transactions.
+@router.post("", response_model=CashRow, dependencies=[Depends(require_capacity("transactions", Transaction))])
 def create_cash(body: CashCreate, db: Session = Depends(get_db), portfolio: Portfolio = Depends(require_portfolio)):
     ccy = body.currency.upper()
+    # Network first, without the workspace lock or a held connection.
+    release_connection(db)
+    fx = fetch_fx_to_czk(ccy, body.date)
     row = Transaction(
         workspace_id=portfolio.workspace_id, portfolio_id=portfolio.id, ticker=None, name=None, type=body.type,
         # shares/price are NOT NULL columns on Transaction (only ticker was relaxed
@@ -73,9 +81,9 @@ def create_cash(body: CashCreate, db: Session = Depends(get_db), portfolio: Port
         # shares/price nullity.
         shares=0.0, price=0.0, amount=body.amount, currency=ccy,
         date=body.date, notes=body.note, source="manual",
-        fx_to_czk=fetch_fx_to_czk(ccy, body.date),
+        fx_to_czk=fx,
     )
-    acquire_workspace_ledger_lock(db, portfolio.workspace_id)
+    enforce_capacity_locked(db, portfolio.workspace_id, None, "transactions", Transaction)
     db.add(row); db.flush()
     # Serialized before commit: the RLS workspace setting is transaction-local,
     # so reading `row` after commit fails under the runtime role.
@@ -86,15 +94,18 @@ def create_cash(body: CashCreate, db: Session = Depends(get_db), portfolio: Port
 
 @router.put("/{cash_id:uuid}", response_model=CashRow)
 def update_cash(cash_id: UUID, body: CashCreate, db: Session = Depends(get_db), portfolio: Portfolio = Depends(require_portfolio)):
+    ccy = body.currency.upper()
+    # Network first: the rate lookup must not run under the workspace lock.
+    release_connection(db)
+    fx = fetch_fx_to_czk(ccy, body.date)
     acquire_workspace_ledger_lock(db, portfolio.workspace_id)
     row = _portfolio_cash_rows(db, portfolio).filter(Transaction.public_id == cash_id).first()
     if not row:
         raise HTTPException(404, "Cash entry not found")
     if is_broker_managed(row):
         raise HTTPException(409, "Broker-managed cash entries cannot be edited individually")
-    ccy = body.currency.upper()
     row.type, row.amount, row.currency, row.date, row.notes = body.type, body.amount, ccy, body.date, body.note
-    row.fx_to_czk = fetch_fx_to_czk(ccy, body.date)
+    row.fx_to_czk = fx
     response = _to_row(row)  # before commit, see create_cash
     db.commit()
     return response
@@ -119,7 +130,7 @@ def delete_cash(cash_id: UUID, db: Session = Depends(get_db), portfolio: Portfol
 
 class RateItem(BaseModel):
     currency: str = Field(min_length=3, max_length=3)
-    annual_rate: float = Field(ge=0)
+    annual_rate: float = Field(ge=0, allow_inf_nan=False)
     enabled: bool = False
     start_date: Optional[date_type] = None
 

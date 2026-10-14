@@ -6,7 +6,12 @@ import re
 import os
 
 from database import get_db, release_connection
-from entitlements import require_broker_capacity, require_capability, require_writable_broker
+from entitlements import (
+    enforce_broker_capacity_locked,
+    require_broker_capacity,
+    require_capability,
+    require_writable_broker,
+)
 from rate_limit import rate_limit
 from models import BrokerConnection, PolymarketPosition, Portfolio
 from tenancy import RequestContext, require_csrf, require_portfolio
@@ -57,7 +62,9 @@ def connect(
     if not WALLET_RE.match(address):
         raise HTTPException(status_code=400, detail="Invalid wallet address format (expected 0x + 40 hex chars)")
 
-    # Validate by test-fetching positions from the public Data API
+    # Validate by test-fetching positions from the public Data API. The call
+    # runs before the workspace lock and without a held connection.
+    release_connection(db)
     try:
         with httpx.Client(timeout=15) as client:
             resp = client.get(f"{DATA_API_BASE}/positions", params={"user": address})
@@ -69,7 +76,17 @@ def connect(
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Could not reach Polymarket API: {e}")
 
-    connection = _get_poly_connection(db, portfolio)
+    enforce_broker_capacity_locked(db, portfolio.workspace_id, None, "polymarket", portfolio)
+    connection = (
+        db.query(BrokerConnection)
+        .populate_existing()
+        .filter(
+            BrokerConnection.workspace_id == portfolio.workspace_id,
+            BrokerConnection.broker == "polymarket",
+            BrokerConnection.portfolio_id == portfolio.id,
+        )
+        .first()
+    )
     if connection:
         connection.api_key = address
         connection.api_secret = None
