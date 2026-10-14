@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useQueryClient, useIsFetching } from "@tanstack/react-query";
 import {
   fetchSummary, fetchHoldings, fetchPerformance, fetchBenchmarks, fetchMovers, fetchEarnings, fetchInsiderBuys, fetchDividends,
@@ -44,6 +45,21 @@ const BENCHMARKS = [
   { key: "bitcoin", label: "Bitcoin", color: CATEGORICAL[4] },
 ];
 
+// Slot content for an Investor-plan widget on a workspace without
+// standard_research: no request is made, the card just points at the plans.
+function InvestorOnly({ icon }) {
+  return (
+    <div className="flex-1 flex">
+      <EmptyState
+        icon={icon}
+        title="Dostupné od plánu Investor"
+        action={<Link to="/pricing" className="btn-primary text-xs">Porovnat plány</Link>}
+        className="flex-1"
+      />
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { currency, rate } = useCurrency();
   const currentPortfolio = usePortfolio()?.current;
@@ -79,21 +95,6 @@ export default function Dashboard() {
     queryKey: ["benchmarks", activeBenchmarks, period],
     queryFn: () => fetchBenchmarks(activeBenchmarks, period.toLowerCase()),
     enabled: activeBenchmarks.length > 0,
-  });
-
-  const { data: movers, isLoading: ml, error: moversError, refetch: refetchMovers } = useQuery({
-    queryKey: ["movers", moverPeriod],
-    queryFn: () => fetchMovers(moverPeriod),
-  });
-  // The %/$ toggle switches between two server-side rankings of the WHOLE
-  // portfolio — re-sorting the five %-ranked rows would hide bigger money
-  // movers. Older API responses lack value_* lists, so fall back to %.
-  const moverGainers = (moverSort === "value" ? movers?.value_gainers : null) ?? movers?.gainers ?? [];
-  const moverLosers = (moverSort === "value" ? movers?.value_losers : null) ?? movers?.losers ?? [];
-
-  const { data: earnings = [], isLoading: el, error: earningsError, refetch: refetchEarnings } = useQuery({
-    queryKey: ["earnings"],
-    queryFn: fetchEarnings,
   });
 
   const { data: dividends = [], isLoading: dl, error: dividendsError, refetch: refetchDividends } = useQuery({
@@ -137,6 +138,26 @@ export default function Dashboard() {
   // Insider buys are a Pro (advanced_research) endpoint; workspaces without it
   // keep the Top 10 Holdings card in that slot instead of a 403 error card.
   const hasResearch = capabilities.has("advanced_research");
+  // Movers, earnings and the heatmap are Investor (standard_research)
+  // endpoints; on Free they would 403 and raise the upgrade prompt on load.
+  const hasStandardResearch = capabilities.has("standard_research");
+
+  const { data: movers, isLoading: ml, error: moversError, refetch: refetchMovers } = useQuery({
+    queryKey: ["movers", moverPeriod],
+    queryFn: () => fetchMovers(moverPeriod),
+    enabled: hasStandardResearch,
+  });
+  // The %/$ toggle switches between two server-side rankings of the WHOLE
+  // portfolio — re-sorting the five %-ranked rows would hide bigger money
+  // movers. Older API responses lack value_* lists, so fall back to %.
+  const moverGainers = (moverSort === "value" ? movers?.value_gainers : null) ?? movers?.gainers ?? [];
+  const moverLosers = (moverSort === "value" ? movers?.value_losers : null) ?? movers?.losers ?? [];
+
+  const { data: earnings = [], isLoading: el, error: earningsError, refetch: refetchEarnings } = useQuery({
+    queryKey: ["earnings"],
+    queryFn: fetchEarnings,
+    enabled: hasStandardResearch,
+  });
 
   const { data: insiderBuys = [], isLoading: il, error: insiderError, refetch: refetchInsider } = useQuery({
     queryKey: ["insider-buys"],
@@ -451,16 +472,20 @@ export default function Dashboard() {
               )}
               <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "150ms" }}>
                 <SectionHeader icon={LayoutGrid}>Heatmap</SectionHeader>
-                <AsyncSection
-                  isLoading={hl}
-                  error={holdingsError}
-                  onRetry={() => refetchHoldings()}
-                  loading={<div className="flex-1"><SkeletonChart height={256} /></div>}
-                  isEmpty={holdings.length === 0}
-                  empty={<div className="flex-1 flex"><EmptyState icon={LayoutGrid} title="No holdings to map" hint="Import transactions to see your heatmap." /></div>}
-                >
-                  <Heatmap />
-                </AsyncSection>
+                {!capabilitiesPending && !hasStandardResearch ? (
+                  <InvestorOnly icon={LayoutGrid} />
+                ) : (
+                  <AsyncSection
+                    isLoading={capabilitiesPending || hl}
+                    error={holdingsError}
+                    onRetry={() => refetchHoldings()}
+                    loading={<div className="flex-1"><SkeletonChart height={256} /></div>}
+                    isEmpty={holdings.length === 0}
+                    empty={<div className="flex-1 flex"><EmptyState icon={LayoutGrid} title="No holdings to map" hint="Import transactions to see your heatmap." /></div>}
+                  >
+                    <Heatmap />
+                  </AsyncSection>
+                )}
               </Card>
 
             </div>
@@ -469,7 +494,7 @@ export default function Dashboard() {
           movers: (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "350ms" }}>
-                <SectionHeader icon={Activity} action={<div className="flex items-center gap-3">
+                <SectionHeader icon={Activity} action={!capabilitiesPending && !hasStandardResearch ? null : <div className="flex items-center gap-3">
                     <div className="flex gap-0.5 bg-surface rounded-md p-0.5 border border-surface-border">
                       {[{ key: "pct", label: "%" }, { key: "value", label: "$" }].map((s) => (
                         <button
@@ -501,8 +526,11 @@ export default function Dashboard() {
                       ))}
                     </div>
                   </div>}>Top Movers</SectionHeader>
+                {!capabilitiesPending && !hasStandardResearch ? (
+                  <InvestorOnly icon={Activity} />
+                ) : (
                 <AsyncSection
-                  isLoading={ml}
+                  isLoading={capabilitiesPending || ml}
                   error={moversError}
                   onRetry={() => refetchMovers()}
                   loading={<SkeletonRows rows={6} cols={3} />}
@@ -554,11 +582,15 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </AsyncSection>
+                )}
               </Card>
               <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "300ms" }}>
                 <SectionHeader icon={Calendar}>Earnings Calendar</SectionHeader>
+                {!capabilitiesPending && !hasStandardResearch ? (
+                  <InvestorOnly icon={Calendar} />
+                ) : (
                 <AsyncSection
-                  isLoading={el}
+                  isLoading={capabilitiesPending || el}
                   error={earningsError}
                   onRetry={() => refetchEarnings()}
                   loading={<SkeletonRows rows={6} cols={3} />}
@@ -583,6 +615,7 @@ export default function Dashboard() {
                     ))}
                   </div>
                 </AsyncSection>
+                )}
               </Card>
             </div>
           ),

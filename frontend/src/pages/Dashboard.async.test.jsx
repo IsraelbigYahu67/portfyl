@@ -19,6 +19,7 @@ const api = vi.hoisted(() => ({
   fetchSectorBreakdown: vi.fn(),
   fetchAllocationTargetDrift: vi.fn(),
   fetchDividendForecast: vi.fn(),
+  fetchHeatmap: vi.fn(),
 }));
 const activationMocks = vi.hoisted(() => ({
   recordPopulatedDashboard: vi.fn(() => true),
@@ -58,7 +59,17 @@ vi.mock("../components/PortfolioHero", () => ({
 vi.mock("../components/PerformanceChart", () => ({
   default: () => <div>Healthy performance chart</div>,
 }));
-vi.mock("../components/Heatmap", () => ({ default: () => <div>Healthy heatmap</div> }));
+// Like the real Heatmap, the stand-in owns its query, so a rendered heatmap
+// is what triggers the (Investor-only) request.
+vi.mock("../components/Heatmap", async () => {
+  const { useQuery } = await import("@tanstack/react-query");
+  return {
+    default: () => {
+      useQuery({ queryKey: ["heatmap", "1d"], queryFn: () => api.fetchHeatmap("1d") });
+      return <div>Healthy heatmap</div>;
+    },
+  };
+});
 vi.mock("../components/TickerLink", () => ({
   TickerLink: ({ ticker, children }) => <span>{children || ticker}</span>,
 }));
@@ -85,6 +96,7 @@ beforeEach(() => {
     .mockRejectedValueOnce({ response: { data: { detail: "Movers unavailable" } } })
     .mockResolvedValue({ gainers: [], losers: [] });
   api.fetchEarnings.mockResolvedValue([]);
+  api.fetchHeatmap.mockResolvedValue([]);
   api.fetchInsiderBuys.mockResolvedValue([]);
   api.fetchDividends.mockResolvedValue([]);
   api.fetchCapabilities.mockResolvedValue({ capabilities: [] });
@@ -107,6 +119,7 @@ it("shows current T212 quantities from the snapshot while historical dashboard w
 });
 
 it("keeps healthy dashboard widgets visible when Movers fails and retries only Movers", async () => {
+  api.fetchCapabilities.mockResolvedValue({ capabilities: ["standard_research"] });
   renderPage();
 
   expect(await screen.findByText("Healthy portfolio hero")).toBeInTheDocument();
@@ -337,4 +350,52 @@ it("leaves paid widgets out and never calls their endpoints without the capabili
   expect(api.fetchRiskMetrics).not.toHaveBeenCalled();
   expect(api.fetchSectorBreakdown).not.toHaveBeenCalled();
   expect(api.fetchDividendForecast).not.toHaveBeenCalled();
+});
+
+describe("Investor-only widgets (standard_research)", () => {
+  const investorEndpoints = () => [api.fetchMovers, api.fetchEarnings, api.fetchHeatmap];
+
+  it("on the Free plan requests no movers, earnings or heatmap and raises no upgrade prompt", async () => {
+    // The edition offers standard_research, the workspace's plan does not.
+    api.fetchCapabilities.mockResolvedValue({ capabilities: ["standard_research", "portfolio_analytics"] });
+    editionMocks.fetchEditionPlanCapabilities.mockResolvedValue([]);
+    const denied = vi.fn();
+    window.addEventListener("portfyl:entitlement-denied", denied);
+    try {
+      renderPage();
+
+      await screen.findByText("Healthy performance chart");
+      expect(await screen.findAllByText("Dostupné od plánu Investor")).toHaveLength(3);
+      for (const link of screen.getAllByRole("link", { name: "Porovnat plány" })) {
+        expect(link).toHaveAttribute("href", "/pricing");
+      }
+      expect(screen.queryByText("Healthy heatmap")).not.toBeInTheDocument();
+      investorEndpoints().forEach((endpoint) => expect(endpoint).not.toHaveBeenCalled());
+      expect(denied).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("portfyl:entitlement-denied", denied);
+    }
+  });
+
+  it("on the Investor plan requests movers, earnings and the heatmap", async () => {
+    api.fetchCapabilities.mockResolvedValue({ capabilities: ["standard_research"] });
+    editionMocks.fetchEditionPlanCapabilities.mockResolvedValue(["standard_research"]);
+    renderPage();
+
+    expect(await screen.findByText("Healthy heatmap")).toBeInTheDocument();
+    await waitFor(() => investorEndpoints().forEach((endpoint) => expect(endpoint).toHaveBeenCalled()));
+    expect(screen.queryByText("Dostupné od plánu Investor")).not.toBeInTheDocument();
+  });
+
+  it("requests none of them while the plan is still loading", async () => {
+    api.fetchCapabilities.mockResolvedValue({ capabilities: ["standard_research"] });
+    editionMocks.fetchEditionPlanCapabilities.mockReturnValue(new Promise(() => {}));
+    renderPage();
+
+    await screen.findByText("Healthy performance chart");
+    expect(screen.getByText("Top Movers")).toBeInTheDocument();
+    expect(screen.queryByText("Dostupné od plánu Investor")).not.toBeInTheDocument();
+    expect(screen.queryByText("Healthy heatmap")).not.toBeInTheDocument();
+    investorEndpoints().forEach((endpoint) => expect(endpoint).not.toHaveBeenCalled());
+  });
 });
