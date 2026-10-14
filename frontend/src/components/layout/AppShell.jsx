@@ -17,7 +17,7 @@ export default function AppShell({ groups, children }) {
         Skip to main content
       </a>
 
-      <div className="hidden lg:flex shrink-0">
+      <div className="hidden lg:flex shrink-0 sticky top-0 h-dvh self-start">
         <DesktopSidebar groups={groups} />
       </div>
 

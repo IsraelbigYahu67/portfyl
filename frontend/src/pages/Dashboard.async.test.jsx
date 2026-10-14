@@ -24,6 +24,7 @@ const activationMocks = vi.hoisted(() => ({
   recordPopulatedDashboard: vi.fn(() => true),
 }));
 const t212Mocks = vi.hoisted(() => ({ useT212Sync: vi.fn() }));
+const editionMocks = vi.hoisted(() => ({ fetchEditionPlanCapabilities: vi.fn() }));
 
 vi.mock("../api", () => api);
 vi.mock("../analytics/useRegisteredActivation", () => ({
@@ -31,6 +32,7 @@ vi.mock("../analytics/useRegisteredActivation", () => ({
 }));
 vi.mock("@edition-manifest", () => ({
   fetchEditionDashboardSignals: async () => ({ taxReport: null }),
+  fetchEditionPlanCapabilities: editionMocks.fetchEditionPlanCapabilities,
 }));
 vi.mock("../App", () => ({
   useCurrency: () => ({ currency: "USD", rate: 22 }),
@@ -40,7 +42,7 @@ vi.mock("../hooks/useT212Sync", () => t212Mocks);
 vi.mock("../components/DashboardGrid", () => ({
   default: ({ children }) => {
     // Mirror the real grid's fixed widget order.
-    const order = ["attention", "performance", "composition", "insiderBuys", "concentration", "movers", "dividends"];
+    const order = ["attention", "performance", "composition", "concentration", "movers", "dividends"];
     return (
       <div>
         {order
@@ -86,6 +88,7 @@ beforeEach(() => {
   api.fetchInsiderBuys.mockResolvedValue([]);
   api.fetchDividends.mockResolvedValue([]);
   api.fetchCapabilities.mockResolvedValue({ capabilities: [] });
+  editionMocks.fetchEditionPlanCapabilities.mockResolvedValue(null);
 });
 
 it("shows current T212 quantities from the snapshot while historical dashboard widgets stay separate", async () => {
@@ -118,18 +121,114 @@ it("keeps healthy dashboard widgets visible when Movers fails and retries only M
   expect(api.fetchPerformance).toHaveBeenCalledTimes(1);
 });
 
-it("orders dashboard widgets by purpose and collapses insider activity", async () => {
+const insiderBuy = (i, overrides = {}) => ({
+  ticker: `T${i}`,
+  insider: `Person ${i}`,
+  position: "Director",
+  shares: 100,
+  value: 1000 * (i + 1),
+  buy_price: 10,
+  current_price: 12,
+  pnl: 200,
+  pnl_pct: 20,
+  date: `2026-09-${String(10 + i).padStart(2, "0")}`,
+  currency: "USD",
+  ...overrides,
+});
+
+it("orders dashboard widgets by purpose", async () => {
   renderPage();
 
   await screen.findByText("Healthy performance chart");
 
-  const order = ["Attention signals", "Portfolio Performance", "Insider activity (1Y)", "Top 10 Holdings", "Top Movers", "Earnings Calendar"];
+  const order = ["Attention signals", "Portfolio Performance", "Top 10 Holdings", "Heatmap", "Top Movers", "Earnings Calendar"];
   const nodes = order.map((label) => screen.getByText(label));
   for (let i = 1; i < nodes.length; i += 1) {
     expect(
       nodes[i - 1].compareDocumentPosition(nodes[i]) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
   }
+});
+
+it("keeps Top 10 Holdings and never calls insider buys without advanced research", async () => {
+  renderPage();
+
+  expect(await screen.findByText("Top 10 Holdings")).toBeInTheDocument();
+  expect(screen.queryByText("Recent insider buys")).not.toBeInTheDocument();
+  expect(api.fetchInsiderBuys).not.toHaveBeenCalled();
+});
+
+it("keeps Top 10 Holdings when the edition offers advanced research but the plan does not", async () => {
+  api.fetchCapabilities.mockResolvedValue({ capabilities: ["portfolio_analytics", "advanced_research"] });
+  editionMocks.fetchEditionPlanCapabilities.mockResolvedValue(["portfolio_analytics"]);
+  renderPage();
+
+  expect(await screen.findByText("Top 10 Holdings")).toBeInTheDocument();
+  expect(screen.queryByText("Recent insider buys")).not.toBeInTheDocument();
+  expect(api.fetchInsiderBuys).not.toHaveBeenCalled();
+  await waitFor(() => expect(api.fetchRiskMetrics).toHaveBeenCalled());
+});
+
+it("requests no paid endpoint while the plan is still loading", async () => {
+  api.fetchCapabilities.mockResolvedValue({ capabilities: ["portfolio_analytics", "advanced_research"] });
+  editionMocks.fetchEditionPlanCapabilities.mockReturnValue(new Promise(() => {}));
+  renderPage();
+
+  expect(await screen.findByText("Recent insider buys")).toBeInTheDocument();
+  await screen.findByText("Healthy performance chart");
+  expect(api.fetchInsiderBuys).not.toHaveBeenCalled();
+  expect(api.fetchRiskMetrics).not.toHaveBeenCalled();
+});
+
+it("fails closed to the free widgets when the plan cannot be loaded", async () => {
+  api.fetchCapabilities.mockResolvedValue({ capabilities: ["advanced_research"] });
+  editionMocks.fetchEditionPlanCapabilities.mockRejectedValue(new Error("offline"));
+  renderPage();
+
+  expect(await screen.findByText("Top 10 Holdings")).toBeInTheDocument();
+  expect(api.fetchInsiderBuys).not.toHaveBeenCalled();
+});
+
+it("shows a P&L that rounds to zero as a neutral 0.0%, not a red -0.0%", async () => {
+  api.fetchCapabilities.mockResolvedValue({ capabilities: ["advanced_research"] });
+  api.fetchInsiderBuys.mockResolvedValue([insiderBuy(0, { pnl: -4.03, pnl_pct: -0.04 })]);
+  renderPage();
+
+  const card = (await screen.findByText("Recent insider buys")).closest(".card");
+  const pct = await within(card).findByText("0.0%");
+  expect(pct).toHaveClass("text-muted");
+  expect(within(card).queryByText("-0.0%")).not.toBeInTheDocument();
+});
+
+it("replaces Top 10 Holdings with recent insider buys that open the full table in a dialog", async () => {
+  api.fetchCapabilities.mockResolvedValue({ capabilities: ["advanced_research"] });
+  api.fetchInsiderBuys.mockResolvedValue(Array.from({ length: 10 }, (_, i) => insiderBuy(i)));
+  renderPage();
+
+  const card = (await screen.findByText("Recent insider buys")).closest(".card");
+  expect(screen.queryByText("Top 10 Holdings")).not.toBeInTheDocument();
+  // Compact (jsdom has no layout, so the unmeasured fallback row count):
+  // newest first, no shares / buy-price columns.
+  await within(card).findByText("T9");
+  expect(within(card).queryByText("T1")).not.toBeInTheDocument();
+  expect(within(card).queryByText("Buy Price")).not.toBeInTheDocument();
+  expect(within(card).getByText("8 of 10 buys · view all")).toBeInTheDocument();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+  fireEvent.click(within(card).getByRole("button", { name: "Expand insider buys" }));
+
+  const dialog = screen.getByRole("dialog", { name: "Insider buys" });
+  expect(within(dialog).getByText("Buy Price")).toBeInTheDocument();
+  expect(within(dialog).getByText("T0")).toBeInTheDocument();
+  // The page stays put underneath.
+  expect(screen.getByText("Healthy performance chart")).toBeInTheDocument();
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+  fireEvent.click(within(card).getByRole("button", { name: "8 of 10 buys · view all" }));
+  fireEvent.keyDown(document, { key: "Escape" });
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 });
 
 it("records a populated dashboard once summary and holdings both load with real data", async () => {

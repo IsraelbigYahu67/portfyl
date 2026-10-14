@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fetchTestPlan, updateTestPlan } from "../api";
@@ -9,6 +10,13 @@ vi.mock("../api", () => ({
   fetchTestPlan: vi.fn(),
   updateTestPlan: vi.fn(),
 }));
+
+let queryClient;
+
+function render(ui) {
+  queryClient = new QueryClient();
+  return rtlRender(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 
 describe("Pricing", () => {
@@ -38,12 +46,14 @@ describe("Pricing", () => {
   it("switches the workspace plan without starting checkout", async () => {
     updateTestPlan.mockResolvedValue({ plan: "investor" });
     render(<Pricing />);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
 
     const button = await screen.findByRole("button", { name: "Use Investor for testing" });
     fireEvent.click(button);
 
     await waitFor(() => expect(updateTestPlan).toHaveBeenCalledWith("investor"));
     expect(await screen.findByText("Current test plan")).toBeInTheDocument();
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["plan-capabilities"] });
     expect(screen.getByRole("button", { name: "Active for testing" })).toBeDisabled();
   });
 

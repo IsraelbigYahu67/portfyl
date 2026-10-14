@@ -18,6 +18,10 @@ export const fetchEditionDashboardSignals = async () => ({
   taxReport: await fetchLocalTaxReport(),
 });
 
+// The local edition has no plans (it always resolves to Pro), so nothing
+// narrows the capabilities /api/capabilities returns.
+export const fetchEditionPlanCapabilities = async () => null;
+
 export function EditionShell() {
   return null;
 }

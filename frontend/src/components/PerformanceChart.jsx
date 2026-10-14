@@ -69,9 +69,9 @@ function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }
           </>
         )}
         {pnl != null && line("Period P&L", formatMoney(pnl, currency), moneyColor(pnl))}
-        {pnlPct != null && line("Period %", formatPercent(pnlPct), moneyColor(pnlPct))}
+        {pnlPct != null && line("Period % (TWR)", formatPercent(pnlPct), moneyColor(pnlPct))}
         {totalPnl != null && line("Total P&L", formatMoney(totalPnl, currency), moneyColor(totalPnl))}
-        {totalPnlPct != null && line("Total %", formatPercent(totalPnlPct), moneyColor(totalPnlPct))}
+        {totalPnlPct != null && line("Total % (TWR)", formatPercent(totalPnlPct), moneyColor(totalPnlPct))}
         {benchmarkMeta?.map((b) => {
           const val = row[`bench_${b.key}`];
           if (val == null) return null;
@@ -85,6 +85,11 @@ function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }
           );
         })}
       </div>
+      {(pnlPct != null || totalPnlPct != null) && (
+        <p className="text-muted mt-1.5 pt-1.5 border-t border-hairline text-[10px]">
+          % = time-weighted return, excludes deposits/withdrawals
+        </p>
+      )}
     </div>
   );
 }
