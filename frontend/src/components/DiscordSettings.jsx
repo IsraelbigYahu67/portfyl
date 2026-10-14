@@ -58,9 +58,16 @@ export default function DiscordSettings() {
   const toggleMut = useMutation({
     mutationFn: (data) => updateDiscordWebhook(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["discord-webhook"] }),
+    onError: (err) => {
+      setSuccess(null);
+      setError(err.response?.data?.detail || "Failed to update settings");
+    },
   });
 
   const connected = webhook?.connected;
+  // Webhooks saved before URLs were validated may not be Discord URLs; the
+  // backend never sends to them, so the user has to enter a new one.
+  const invalidStored = connected && webhook?.valid === false;
   const busy = connectMut.isPending || disconnectMut.isPending || testMut.isPending;
 
   return (
@@ -78,7 +85,7 @@ export default function DiscordSettings() {
           </p>
         </div>
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${connected ? "bg-indigo-100 text-indigo-600" : "bg-surface-hover text-muted"}`}>
-          {isLoading ? "..." : connected ? "Active" : "Not configured"}
+          {isLoading ? "..." : invalidStored ? "Needs attention" : connected ? "Active" : "Not configured"}
         </span>
       </div>
 
@@ -96,7 +103,15 @@ export default function DiscordSettings() {
         </div>
       )}
 
-      {!connected && !isLoading && (
+      {invalidStored && !isLoading && (
+        <div role="alert" className="flex items-center gap-2 text-sm text-loss bg-loss/10 border border-loss/30 rounded-lg px-4 py-3">
+          <AlertCircle size={16} className="shrink-0" />
+          The saved webhook is not a valid Discord webhook URL, so no notifications are being sent.
+          Enter a new URL below.
+        </div>
+      )}
+
+      {(!connected || invalidStored) && !isLoading && (
         <div className="space-y-3">
           <div>
             <label className="block text-sm text-muted mb-1.5">Webhook URL</label>
@@ -162,7 +177,7 @@ export default function DiscordSettings() {
           <div className="flex gap-3">
             <button
               onClick={() => testMut.mutate()}
-              disabled={busy}
+              disabled={busy || invalidStored}
               className="flex items-center gap-2 bg-[#5865F2] text-white font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-[#4752C4] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {testMut.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
