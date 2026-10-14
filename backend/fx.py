@@ -12,9 +12,12 @@ import pandas as pd
 import yfinance as yf
 
 import market_data
+from cache import BoundedTTLCache
 
 
-_DAILY_CACHE: dict[str, pd.Series] = {}
+# Keys embed the requested date window, which varies per transaction date, so
+# this must be bounded. Windows ending today keep moving, hence the TTL.
+_DAILY_CACHE: BoundedTTLCache = BoundedTTLCache(512, ttl=6 * 3600.0)
 
 
 def _pair(currency: str) -> str | None:
@@ -29,8 +32,9 @@ def _load_series(currency: str, start: date, end: date) -> pd.Series | None:
     if pair is None:
         return None
     key = f"{pair}:{start}:{end}"
-    if key in _DAILY_CACHE:
-        return _DAILY_CACHE[key]
+    cached = _DAILY_CACHE.get(key)
+    if cached is not None:
+        return cached
     try:
         raw = market_data.download(
             pair,

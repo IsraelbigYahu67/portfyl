@@ -15,7 +15,7 @@ import market_data
 import shibui_client
 import alphavantage_client
 import edgar_client
-from cache import ttl_cache
+from cache import BoundedTTLCache, ttl_cache
 from entitlements import require_capability
 from pydantic import BaseModel
 from tenancy import RequestContext, get_request_context
@@ -68,14 +68,16 @@ SECTOR_CONSTITUENTS = {
 }
 
 # Each sector's medians are computed lazily on first request and cached for
-# the process lifetime. Restarting the backend re-fetches.
-_SECTOR_CACHE: dict[str, dict[str, Any]] = {}
+# the process lifetime. Restarting the backend re-fetches. The key is a string
+# Yahoo returns, so the cache is capped even though the real set is small.
+_SECTOR_CACHE: BoundedTTLCache = BoundedTTLCache(64)
 
 # Fundamentals views have different upstream costs, so cache each assembled
 # result independently. The second tuple item is the requested view, or
-# ``full`` for the backwards-compatible aggregate response.
-_FUND_CACHE: dict[tuple[str, str], tuple[float, dict]] = {}
+# ``full`` for the backwards-compatible aggregate response. Payloads are the
+# largest values cached in this module, hence the small cap.
 _FUND_TTL = 300.0
+_FUND_CACHE: BoundedTTLCache = BoundedTTLCache(128, ttl=_FUND_TTL)
 
 # Sanity bounds: yfinance occasionally returns garbage outliers (negative P/E
 # on a money-losing company, P/S in the thousands, etc) that would skew even
@@ -312,8 +314,9 @@ def _sector_avg(sector: Optional[str]) -> dict[str, Any]:
     dict instantly."""
     if not sector:
         return {}
-    if sector in _SECTOR_CACHE:
-        return _SECTOR_CACHE[sector]
+    cached = _SECTOR_CACHE.get(sector)
+    if cached is not None:
+        return cached
     constituents = SECTOR_CONSTITUENTS.get(sector)
     if not constituents:
         _SECTOR_CACHE[sector] = {}
@@ -861,8 +864,8 @@ def _build_insider_transactions(stock: yf.Ticker, limit: int = 200) -> list[dict
 
 # Autocomplete results are cached briefly: users backspace and retype, so the
 # same query repeats constantly within a few seconds.
-_SEARCH_CACHE: dict[tuple[str, int], tuple[float, list]] = {}
 _SEARCH_TTL = 120.0
+_SEARCH_CACHE: BoundedTTLCache = BoundedTTLCache(1024, ttl=_SEARCH_TTL)
 
 
 def _yahoo_search(q: str, safe_limit: int) -> list[dict]:
@@ -909,7 +912,7 @@ def _shibui_search(q: str, safe_limit: int) -> list[dict]:
 
 
 @router.get("/search")
-@ttl_cache(_SEARCH_TTL)
+@ttl_cache(_SEARCH_TTL, maxsize=1024)
 def search_tickers(q: str, limit: int = 10):
     """Search for stocks/ETFs by name or symbol. Backed by yfinance's lookup
     API (Yahoo's autocomplete service), with a Shibui fallback (NYSE/NASDAQ
@@ -1039,7 +1042,7 @@ def get_history(ticker: str, period: str = "1y"):
 
 
 @router.get("/fundamentals/{ticker}", dependencies=[Depends(require_capability("standard_research"))])
-@ttl_cache(_FUNDAMENTALS_TTL)
+@ttl_cache(_FUNDAMENTALS_TTL, maxsize=128)
 def get_fundamentals(ticker: str, view: Optional[str] = None):
     """Comprehensive fundamentals for the stock-detail modal.
 
@@ -2255,7 +2258,7 @@ _PRESET_UNIVERSES = {
 # scan of ~500 names pays the yfinance cost once, then filtering/sorting/
 # re-screening is instant until the TTL lapses.
 _SCREENER_ROW_TTL = 3600.0
-_SCREENER_ROW_CACHE: dict[str, tuple[float, dict]] = {}
+_SCREENER_ROW_CACHE: BoundedTTLCache = BoundedTTLCache(2048, ttl=_SCREENER_ROW_TTL)
 
 
 def _ticker_screener_row(sym: str) -> dict[str, Any]:
