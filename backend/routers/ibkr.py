@@ -10,8 +10,13 @@ import xml.etree.ElementTree as ET
 import os
 
 from audit import record_audit_event
-from database import get_db, release_request_connections
-from entitlements import require_broker_capacity, require_capability, require_writable_broker
+from database import get_db, release_connection, release_request_connections
+from entitlements import (
+    enforce_broker_capacity_locked,
+    require_broker_capacity,
+    require_capability,
+    require_writable_broker,
+)
 from rate_limit import rate_limit
 from models import BrokerConnection, OptionsTrade, BrokerBalance, Portfolio
 from private_loop import run_on_private_loop
@@ -372,6 +377,9 @@ def connect(
     if not query_id:
         raise HTTPException(status_code=400, detail="query_id is required")
 
+    # The Flex call is slow: run it before the workspace lock and without a
+    # held connection.
+    release_connection(db)
     try:
         run_on_private_loop(_send_flex_request, flex_token, query_id)
     except HTTPException:
@@ -379,7 +387,18 @@ def connect(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Could not validate IBKR credentials: {e}")
 
-    connection = _get_ibkr_connection(db, portfolio)
+    enforce_broker_capacity_locked(db, portfolio.workspace_id, None, "ibkr", portfolio)
+    # Re-read under the lock: another connect or a disconnect may have won.
+    connection = (
+        db.query(BrokerConnection)
+        .populate_existing()
+        .filter(
+            BrokerConnection.workspace_id == portfolio.workspace_id,
+            BrokerConnection.broker == "ibkr",
+            BrokerConnection.portfolio_id == portfolio.id,
+        )
+        .first()
+    )
     action = "broker.connection.rotated" if connection else "broker.connection.created"
     if connection:
         connection.api_key = flex_token

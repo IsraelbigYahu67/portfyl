@@ -17,9 +17,10 @@ from types import SimpleNamespace
 
 from uuid import UUID
 
-from database import get_db
+from database import get_db, release_connection
 from edition import edition_from_env
 from entitlements import (
+    enforce_capacity_locked,
     ensure_count_limit,
     ensure_final_count_limit,
     require_capacity,
@@ -727,7 +728,10 @@ def create_transaction(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
 ):
-    # Bounded: a bad symbol used to be able to hang the POST for minutes.
+    # All network first, holding neither the workspace lock nor a pooled
+    # connection: a bad symbol used to be able to hang the POST for minutes
+    # with every other write in the workspace queued behind the lock.
+    release_connection(db)
     name = market_data.get_info(txn.ticker.upper()).get("shortName") or txn.ticker
     fx = fetch_fx_to_czk(txn.currency, txn.date)
     db_txn = Transaction(
@@ -742,12 +746,14 @@ def create_transaction(
         workspace_id=portfolio.workspace_id,
         portfolio_id=portfolio.id,
     )
-    acquire_workspace_ledger_lock(db, portfolio.workspace_id)
     entitlements = resolve_entitlements(
         db,
         edition=edition_from_env(os.environ),
         workspace_id=portfolio.workspace_id,
         env=os.environ,
+    )
+    enforce_capacity_locked(
+        db, portfolio.workspace_id, entitlements, "transactions", Transaction
     )
     existing_transactions = db.query(Transaction).filter(
         Transaction.workspace_id == portfolio.workspace_id

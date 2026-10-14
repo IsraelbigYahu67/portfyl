@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from edition import edition_from_env
 from entitlements import (
+    enforce_capacity_locked,
     ensure_count_limit,
     ensure_final_count_limit,
     require_capacity,
@@ -167,6 +168,7 @@ def create_portfolio(
     name = payload.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Portfolio name is required")
+    enforce_capacity_locked(db, context.workspace.id, None, "portfolios", Portfolio)
     portfolio = Portfolio(
         workspace_id=context.workspace.id,
         name=name,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Callable
@@ -16,9 +17,10 @@ from sqlalchemy.orm import Session
 from app_settings import get_workspace_setting
 from plans import MINIMUM_PLAN, PlanLimits, PlanTier, plan_allows, plan_limits
 from database import get_db, release_connection
-from edition import CAPABILITY_REGISTRY, CapabilityClass, Edition, edition_allows
-from models import UsageCounter, UsageReservation
-from tenancy import RequestContext, get_request_context
+from edition import CAPABILITY_REGISTRY, CapabilityClass, Edition, edition_allows, edition_from_env
+from ledger_mutation import acquire_workspace_ledger_lock
+from models import BrokerConnection, Portfolio, UsageCounter, UsageReservation
+from tenancy import RequestContext, RequestContextError, get_request_context, require_portfolio
 
 
 PRIVATE_TEST_PLAN_SETTING_KEY = "private_test_plan"
@@ -224,29 +226,67 @@ def require_capability(capability: str) -> Callable:
     return dependency
 
 
+def _workspace_count(db: Session, model, workspace_id: UUID) -> int:
+    return db.scalar(
+        select(func.count()).select_from(model).where(model.workspace_id == workspace_id)
+    ) or 0
+
+
 def require_capacity(resource: str, model, *, increase: int = 1) -> Callable:
-    """FastAPI dependency for workspace-wide create limits."""
+    """FastAPI dependency: fast, lock-free limit check for an early 403.
+
+    It takes no lock and hands its connection back, so a slow handler (Yahoo,
+    Trading 212, KMS) never holds the workspace row. The authoritative check
+    is `enforce_capacity_locked`, which the handler calls inside the writing
+    transaction right before it inserts.
+    """
     def dependency(
         request: Request,
         context: RequestContext = Depends(get_request_context),
         db: Session = Depends(get_db),
     ) -> EffectiveEntitlements:
-        from models import Workspace
-
         edition = request.app.state.portfyl_edition
         entitlements = resolve_entitlements(db, edition=edition, workspace_id=context.workspace.id)
-        if db.get_bind().dialect.name == "postgresql":
-            db.execute(
-                select(Workspace.id)
-                .where(Workspace.id == context.workspace.id)
-                .with_for_update()
-            )
-        used = db.scalar(
-            select(func.count()).select_from(model).where(model.workspace_id == context.workspace.id)
-        ) or 0
+        used = _workspace_count(db, model, context.workspace.id)
         ensure_count_limit(entitlements, resource, used=used, increase=increase)
+        release_connection(db)
         return entitlements
     return dependency
+
+
+def _locked_entitlements(
+    db: Session, workspace_id: UUID, entitlements: EffectiveEntitlements | None
+) -> EffectiveEntitlements:
+    """Entitlements for the locked check: the caller's, or resolved afresh.
+
+    Passing None resolves them inside the lock, so a plan change made while a
+    handler was waiting on the network is honoured.
+    """
+    if entitlements is not None:
+        return entitlements
+    return resolve_entitlements(
+        db, edition=edition_from_env(os.environ), workspace_id=workspace_id, env=os.environ
+    )
+
+
+def enforce_capacity_locked(
+    db: Session,
+    workspace_id: UUID,
+    entitlements: EffectiveEntitlements | None,
+    resource: str,
+    model,
+    increase: int = 1,
+) -> None:
+    """Authoritative limit check inside the writing transaction.
+
+    Takes the workspace ledger lock (held until the caller commits) and counts
+    again, so two concurrent creates at limit-1 cannot both pass. Call it only
+    after all slow network work, immediately before the insert.
+    """
+    acquire_workspace_ledger_lock(db, workspace_id)
+    entitlements = _locked_entitlements(db, workspace_id, entitlements)
+    used = _workspace_count(db, model, workspace_id)
+    ensure_count_limit(entitlements, resource, used=used, increase=increase)
 
 
 def require_writable_resource(resource: str, model, path_parameter: str) -> Callable:
@@ -261,14 +301,20 @@ def require_writable_resource(resource: str, model, path_parameter: str) -> Call
         limit = getattr(entitlements.limits, resource)
         if limit is None:
             return
-        raw_id = request.path_params.get(path_parameter)
+        # Compare parsed UUIDs, not path strings: FastAPI accepts upper-case
+        # and dash-less spellings, which a string comparison never matched,
+        # so such a request skipped the overflow check.
+        try:
+            target = UUID(str(request.path_params.get(path_parameter)))
+        except ValueError:
+            raise RequestContextError(404, "resource_not_found")
         rows = db.scalars(
             select(model)
             .where(model.workspace_id == context.workspace.id)
             .order_by(model.created_at, model.id)
         ).all()
         for index, row in enumerate(rows):
-            if str(row.public_id) == str(raw_id):
+            if row.public_id == target:
                 if index >= limit:
                     raise EntitlementDenied(
                         "resource_read_only",
@@ -281,66 +327,74 @@ def require_writable_resource(resource: str, model, path_parameter: str) -> Call
     return dependency
 
 
-def require_broker_capacity(broker: str) -> Callable:
+def _check_broker_capacity(
+    db: Session,
+    workspace_id: UUID,
+    entitlements: EffectiveEntitlements,
+    broker: str,
+    portfolio: Portfolio,
+) -> None:
     """Count broker connections, while permitting credential rotation in place."""
+    existing = db.scalar(
+        select(BrokerConnection).where(
+            BrokerConnection.workspace_id == workspace_id,
+            BrokerConnection.portfolio_id == portfolio.id,
+            BrokerConnection.broker == broker,
+        )
+    )
+    if existing is None:
+        used = _workspace_count(db, BrokerConnection, workspace_id)
+        ensure_count_limit(entitlements, "broker_connections", used=used)
+        return
+    limit = entitlements.limits.broker_connections
+    if limit is None:
+        return
+    rows = db.scalars(
+        select(BrokerConnection)
+        .where(BrokerConnection.workspace_id == workspace_id)
+        .order_by(BrokerConnection.created_at, BrokerConnection.id)
+    ).all()
+    if existing.id not in {row.id for row in rows[:limit]}:
+        raise EntitlementDenied(
+            "resource_read_only",
+            plan=entitlements.plan,
+            resource="broker_connections",
+            limit=limit,
+            used=len(rows),
+        )
+
+
+def require_broker_capacity(broker: str) -> Callable:
+    """Lock-free early check; `enforce_broker_capacity_locked` is authoritative.
+
+    The portfolio comes from `require_portfolio`, so this checks exactly the
+    portfolio the route will use, with or without a `portfolio_id` query.
+    """
     def dependency(
         request: Request,
         context: RequestContext = Depends(get_request_context),
+        portfolio: Portfolio = Depends(require_portfolio),
         db: Session = Depends(get_db),
     ) -> EffectiveEntitlements:
-        from models import BrokerConnection, Portfolio
-        from models import Workspace
-
         edition = request.app.state.portfyl_edition
         entitlements = resolve_entitlements(db, edition=edition, workspace_id=context.workspace.id)
-        if db.get_bind().dialect.name == "postgresql":
-            db.execute(
-                select(Workspace.id)
-                .where(Workspace.id == context.workspace.id)
-                .with_for_update()
-            )
-        raw_portfolio_id = request.query_params.get("portfolio_id")
-        existing = None
-        if raw_portfolio_id:
-            try:
-                portfolio_id = UUID(raw_portfolio_id)
-            except ValueError:
-                portfolio_id = None
-            if portfolio_id:
-                existing = db.scalar(
-                    select(BrokerConnection)
-                    .join(Portfolio, Portfolio.id == BrokerConnection.portfolio_id)
-                    .where(
-                        BrokerConnection.workspace_id == context.workspace.id,
-                        Portfolio.public_id == portfolio_id,
-                        BrokerConnection.broker == broker,
-                    )
-                )
-        if existing is None:
-            used = db.scalar(
-                select(func.count()).select_from(BrokerConnection).where(
-                    BrokerConnection.workspace_id == context.workspace.id
-                )
-            ) or 0
-            ensure_count_limit(entitlements, "broker_connections", used=used)
-        else:
-            limit = entitlements.limits.broker_connections
-            if limit is not None:
-                rows = db.scalars(
-                    select(BrokerConnection)
-                    .where(BrokerConnection.workspace_id == context.workspace.id)
-                    .order_by(BrokerConnection.created_at, BrokerConnection.id)
-                ).all()
-                if existing.id not in {row.id for row in rows[:limit]}:
-                    raise EntitlementDenied(
-                        "resource_read_only",
-                        plan=entitlements.plan,
-                        resource="broker_connections",
-                        limit=limit,
-                        used=len(rows),
-                    )
+        _check_broker_capacity(db, context.workspace.id, entitlements, broker, portfolio)
+        release_connection(db)
         return entitlements
     return dependency
+
+
+def enforce_broker_capacity_locked(
+    db: Session,
+    workspace_id: UUID,
+    entitlements: EffectiveEntitlements | None,
+    broker: str,
+    portfolio: Portfolio,
+) -> None:
+    """Authoritative broker-connection limit check under the workspace lock."""
+    acquire_workspace_ledger_lock(db, workspace_id)
+    entitlements = _locked_entitlements(db, workspace_id, entitlements)
+    _check_broker_capacity(db, workspace_id, entitlements, broker, portfolio)
 
 
 def require_writable_broker(broker: str) -> Callable:
@@ -348,26 +402,18 @@ def require_writable_broker(broker: str) -> Callable:
     def dependency(
         request: Request,
         context: RequestContext = Depends(get_request_context),
+        portfolio: Portfolio = Depends(require_portfolio),
         db: Session = Depends(get_db),
     ) -> None:
-        from models import BrokerConnection, Portfolio
-
         edition = request.app.state.portfyl_edition
         entitlements = resolve_entitlements(db, edition=edition, workspace_id=context.workspace.id)
         limit = entitlements.limits.broker_connections
         if limit is None:
             return
-        raw_portfolio_id = request.query_params.get("portfolio_id")
-        try:
-            portfolio_public_id = UUID(raw_portfolio_id) if raw_portfolio_id else None
-        except ValueError:
-            return
         target = db.scalar(
-            select(BrokerConnection)
-            .join(Portfolio, Portfolio.id == BrokerConnection.portfolio_id)
-            .where(
+            select(BrokerConnection).where(
                 BrokerConnection.workspace_id == context.workspace.id,
-                Portfolio.public_id == portfolio_public_id,
+                BrokerConnection.portfolio_id == portfolio.id,
                 BrokerConnection.broker == broker,
             )
         )
