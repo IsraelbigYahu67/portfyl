@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from bisect import bisect_left
 from datetime import date, timedelta
 from collections import defaultdict
 from uuid import UUID
@@ -170,11 +171,12 @@ def _get_transactions(db: Session, portfolio: Portfolio):
     return [t for t in rows if t.type in POSITION_TYPES and t.ticker]
 
 
-# Czech Income Tax Act §4: capital gain on a security is exempt if the holding
-# period exceeds 3 years (1095 days). Cap of CZK 40,000,000/year on the time
-# test introduced 2024-01-01. Separately, the "value test" exempts gains for any
-# tax year where total gross sale proceeds ≤ CZK 100,000.
-CZ_TIME_TEST_DAYS = 365 * 3 + 1
+# Czech Income Tax Act §4: capital gain on a security is exempt if the period
+# between acquisition and sale exceeds 3 years. That is decided by the calendar
+# anniversary (see _first_exempt_day), not by a day count. Cap of CZK
+# 40,000,000/year on the time test introduced 2024-01-01. Separately, the
+# "value test" exempts gains for any tax year where total gross sale proceeds
+# ≤ CZK 100,000.
 CZ_VALUE_TEST_LIMIT_CZK = 100_000
 CZ_TIME_TEST_CAP_CZK = 40_000_000
 CZ_TIME_TEST_CAP_FROM_YEAR = 2024
@@ -286,6 +288,16 @@ def _add_years(d: date, years: int) -> date:
         return d.replace(year=d.year + years, day=28)
 
 
+def _first_exempt_day(buy_date: date) -> date:
+    """First day a sale passes the Czech 3-year time test.
+
+    The period must *exceed* 3 years, so the third anniversary itself is still
+    taxable and the next day is the first exempt one. A buy on 29 Feb has its
+    anniversary on 28 Feb of a non-leap year (see _add_years), so the first
+    exempt day is 1 Mar."""
+    return _add_years(buy_date, 3) + timedelta(days=1)
+
+
 def _compute_capital_gains(transactions: list, tax_year: int | None = None):
     lots: dict[str, list[dict]] = defaultdict(list)
     ratios = _split_ratios(transactions)
@@ -319,7 +331,8 @@ def _compute_capital_gains(transactions: list, tax_year: int | None = None):
             gain = proceeds - cost_basis
             holding_days = (txn.date - lot["date"]).days
             is_long_term = holding_days > 365
-            cz_exempt_time_test = holding_days > CZ_TIME_TEST_DAYS
+            first_exempt_day = _first_exempt_day(lot["date"])
+            cz_exempt_time_test = txn.date >= first_exempt_day
 
             buy_fx = lot.get("fx_to_czk")
             cost_basis_czk = _to_czk(cost_basis, buy_fx)
@@ -344,7 +357,7 @@ def _compute_capital_gains(transactions: list, tax_year: int | None = None):
                 # Czech tax fields — booleans are unconditional; CZK amounts may
                 # be None if any FX rate is missing.
                 "cz_exempt_time_test": cz_exempt_time_test,
-                "cz_exempt_date": _add_years(lot["date"], 3).isoformat(),
+                "cz_exempt_date": first_exempt_day.isoformat(),
                 "cost_basis_czk": round(cost_basis_czk, 6) if cost_basis_czk is not None else None,
                 "proceeds_czk": round(proceeds_czk, 6) if proceeds_czk is not None else None,
                 "gain_czk": round(gain_czk, 6) if gain_czk is not None else None,
@@ -555,7 +568,7 @@ def _compute_unrealized_gains(transactions: list):
             gain = market_value - cost_basis
             holding_days = (date.today() - lot["date"]).days
 
-            exempt_date = _add_years(lot["date"], 3)
+            exempt_date = _first_exempt_day(lot["date"])
             days_to_exemption = (exempt_date - date.today()).days
             unrealized.append({
                 "ticker": ticker,
@@ -600,6 +613,27 @@ def _resolve_window(transactions: list, period: str) -> tuple[date, date] | None
     # first transaction inside the requested window.
     start_date = max(first_txn_date - timedelta(days=5), window_start - timedelta(days=5))
     return start_date, window_start
+
+
+def _bucket_by_trading_day(
+    txns_by_date: dict[date, list], trading_days: list[date]
+) -> list[list]:
+    """Hand every date's transactions to the first trading day on or after it,
+    so the series loops read their rows from a list instead of rescanning the
+    date keys each day. Within a day the keys keep their insertion order and
+    each key its row order: that is exactly the order in which the previous
+    "every key <= today" scan visited them, which the cash sums depend on.
+    Dates after the last trading day get no bucket, as before. The running
+    maximum makes the lookup right even for an index that is not sorted."""
+    running_max: list[date] = []
+    for d in trading_days:
+        running_max.append(d if not running_max or d > running_max[-1] else running_max[-1])
+    buckets: list[list] = [[] for _ in trading_days]
+    for d_key, rows in txns_by_date.items():
+        i = bisect_left(running_max, d_key)
+        if i < len(buckets):
+            buckets[i].extend(rows)
+    return buckets
 
 
 def _build_value_cashflow_series(
@@ -674,38 +708,45 @@ def _build_value_cashflow_series(
         cash_fx_series = _fx_to_usd_series(extra_ccys, start_date, closes.index) if extra_ccys else {}
         combined_fx = {**fx_series, **cash_fx_series}
 
-        pre_window_cash = [t for t in transactions if t.date < first_trading_day]
-        cash_txns_to_date: list = list(pre_window_cash)
+        # Running per-currency balance instead of re-summing the whole ledger
+        # every day. It starts from the pre-window rows and then adds each
+        # row once, in the same order the full re-sum used, so every balance
+        # is the same float, not just a close one.
+        balances = cash_balance_by_currency(
+            [t for t in transactions if t.date < first_trading_day]
+        )
+        day_buckets = _bucket_by_trading_day(
+            txns_by_date, [d.date() for d in closes.index]
+        )
 
         values: list[float] = []
         cashflows: list[float] = []
-        for date_idx in closes.index:
-            curr_date = date_idx.date()
+        for day_no, date_idx in enumerate(closes.index):
             cf_today = 0.0
-            for d_key in [d for d in list(txns_by_date.keys()) if d <= curr_date]:
-                for txn in txns_by_date.pop(d_key):
-                    if txn.type == "buy":
-                        holdings[txn.ticker] = holdings.get(txn.ticker, 0) + txn.shares
-                    elif txn.type == "sell":
-                        prev = holdings.get(txn.ticker, 0)
-                        sold = min(txn.shares, prev)
-                        holdings[txn.ticker] = max(0.0, prev - sold)
-                    elif txn.type == "split_close":
-                        holdings[txn.ticker] = max(
-                            0.0, holdings.get(txn.ticker, 0) - txn.shares
-                        )
-                    elif txn.type == "split_open":
-                        holdings[txn.ticker] = holdings.get(txn.ticker, 0) + txn.shares
+            for txn in day_buckets[day_no]:
+                if txn.type == "buy":
+                    holdings[txn.ticker] = holdings.get(txn.ticker, 0) + txn.shares
+                elif txn.type == "sell":
+                    prev = holdings.get(txn.ticker, 0)
+                    sold = min(txn.shares, prev)
+                    holdings[txn.ticker] = max(0.0, prev - sold)
+                elif txn.type == "split_close":
+                    holdings[txn.ticker] = max(
+                        0.0, holdings.get(txn.ticker, 0) - txn.shares
+                    )
+                elif txn.type == "split_open":
+                    holdings[txn.ticker] = holdings.get(txn.ticker, 0) + txn.shares
 
-                    if txn.type in EXTERNAL_FLOW_TYPES:
-                        # deposit/cashback add external money; withdrawal/card
-                        # debit remove it.
-                        amt_usd = _price_to_usd(txn.amount, (txn.currency or "USD").upper(), combined_fx, date_idx)
-                        if pd.notna(amt_usd):
-                            cf_today += amt_usd if txn.type in ("deposit", "cashback") else -amt_usd
-                    # Every transaction participates in the cash ledger. Split
-                    # rows contribute zero; income/fees/dividends move V but not C.
-                    cash_txns_to_date.append(txn)
+                if txn.type in EXTERNAL_FLOW_TYPES:
+                    # deposit/cashback add external money; withdrawal/card
+                    # debit remove it.
+                    amt_usd = _price_to_usd(txn.amount, (txn.currency or "USD").upper(), combined_fx, date_idx)
+                    if pd.notna(amt_usd):
+                        cf_today += amt_usd if txn.type in ("deposit", "cashback") else -amt_usd
+                # Every transaction participates in the cash ledger. Split
+                # rows contribute zero; income/fees/dividends move V but not C.
+                ccy, amt = signed_cash(txn)
+                balances[ccy] = balances.get(ccy, 0.0) + amt
 
             v = 0.0
             for tk, sh in holdings.items():
@@ -719,7 +760,6 @@ def _build_value_cashflow_series(
                 if pd.notna(p_usd):
                     v += sh * p_usd
 
-            balances = cash_balance_by_currency(cash_txns_to_date)
             for ccy, bal in balances.items():
                 bal_usd = _price_to_usd(bal, ccy, combined_fx, date_idx)
                 if pd.notna(bal_usd):
@@ -733,26 +773,27 @@ def _build_value_cashflow_series(
         V, C = _usd_series_to_display(V, C, start_date, display_currency)
         return V, C, closes.index
     else:
+        day_buckets = _bucket_by_trading_day(
+            txns_by_date, [d.date() for d in closes.index]
+        )
         values: list[float] = []
         cashflows: list[float] = []
-        for date_idx in closes.index:
-            curr_date = date_idx.date()
+        for day_no, date_idx in enumerate(closes.index):
             cf_today = 0.0
-            for d_key in [d for d in list(txns_by_date.keys()) if d <= curr_date]:
-                for txn in txns_by_date.pop(d_key):
-                    ccy = ticker_ccy.get(txn.ticker, "USD")
-                    if txn.type == "buy":
-                        holdings[txn.ticker] = holdings.get(txn.ticker, 0) + txn.shares
-                        px_usd = _price_to_usd(txn.price, ccy, fx_series, date_idx)
-                        if pd.notna(px_usd):
-                            cf_today += txn.shares * px_usd
-                    elif txn.type == "sell":
-                        prev = holdings.get(txn.ticker, 0)
-                        sold = min(txn.shares, prev)
-                        holdings[txn.ticker] = max(0.0, prev - sold)
-                        px_usd = _price_to_usd(txn.price, ccy, fx_series, date_idx)
-                        if pd.notna(px_usd):
-                            cf_today -= sold * px_usd
+            for txn in day_buckets[day_no]:
+                ccy = ticker_ccy.get(txn.ticker, "USD")
+                if txn.type == "buy":
+                    holdings[txn.ticker] = holdings.get(txn.ticker, 0) + txn.shares
+                    px_usd = _price_to_usd(txn.price, ccy, fx_series, date_idx)
+                    if pd.notna(px_usd):
+                        cf_today += txn.shares * px_usd
+                elif txn.type == "sell":
+                    prev = holdings.get(txn.ticker, 0)
+                    sold = min(txn.shares, prev)
+                    holdings[txn.ticker] = max(0.0, prev - sold)
+                    px_usd = _price_to_usd(txn.price, ccy, fx_series, date_idx)
+                    if pd.notna(px_usd):
+                        cf_today -= sold * px_usd
 
             v = 0.0
             for tk, sh in holdings.items():
