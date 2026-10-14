@@ -37,6 +37,7 @@ from urllib.parse import parse_qs, urlsplit
 import httpx
 from fastapi import HTTPException
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from fx import bulk_fetch_fx
@@ -321,6 +322,33 @@ REVIEW_DETAILS_LIMIT = 50
 # plan 2026-09-24 Task B3).
 SUPPORTED_CORPORATE_ACTION_TYPES: frozenset[str] = frozenset({"STOCK_SPLIT"})
 HISTORY_RETRY_ERROR = "Trading 212 history sync will retry automatically."
+
+# Trading 212 rejected the API key (401/403) while a history run was fetching.
+# Retrying cannot help until the user reconnects, so the run fails for good.
+HISTORY_CREDENTIALS_ERROR = (
+    "Trading 212 rejected the API credentials, so the history was not imported. "
+    "Reconnect Trading 212 with a new API key."
+)
+# What the user sees on the connection (GET /broker/trading212/status).
+CONNECTION_CREDENTIALS_ERROR = (
+    "Trading 212 rejected the API key. Reconnect Trading 212 with a new API key "
+    "to continue importing history."
+)
+# A run that kept failing with transient errors stops after
+# jobs.BROKER_BACKFILL_MAX_RETRIES attempts instead of retrying forever.
+HISTORY_RETRY_EXHAUSTED_ERROR = (
+    "Trading 212 history sync kept failing and was stopped. "
+    "Start a new sync to try again."
+)
+# Finalization hit staged data it cannot import (e.g. a dividend without a paid
+# amount). Re-running would fail identically, so the run waits for review.
+HISTORY_DATA_ERROR = (
+    "Trading 212 sent history data that Portfyl could not import automatically. "
+    "No history was imported."
+)
+# fill_type placeholder in the review_details item of a HISTORY_DATA_ERROR run;
+# not a Trading 212 type, so review_resolution never treats it as supported.
+REVIEW_INVALID_DATA = "INVALID_DATA"
 HISTORY_NEEDS_REVIEW_ERROR = (
     "Trading 212 history contains corporate actions (such as splits) that "
     "Portfyl cannot import automatically yet. No history was imported."
@@ -461,6 +489,17 @@ class RateLimitedError(Exception):
     def __init__(self, state: RateLimitState):
         super().__init__("Trading 212 rate limit reached")
         self.state = state
+
+
+def is_credentials_rejection(exc: BaseException) -> bool:
+    """True when Trading 212 refused the API key: the 401 _fetch_stream_page
+    turns into an HTTPException, or a raw 401/403 from raise_for_status. Only
+    the user reconnecting can fix these, so retrying them is pointless."""
+    if isinstance(exc, HTTPException):
+        return exc.status_code == 401
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in (401, 403)
+    return False
 
 
 class LeaseLost(Exception):
@@ -618,11 +657,15 @@ def claim_or_create_run(
         mode=mode,
         state="pending",
     )
-    db.add(run)
     try:
-        db.flush()
-    except Exception:
-        db.rollback()
+        # SAVEPOINT: on a collision only the insert is rolled back. A full
+        # db.rollback() here also discarded whatever the caller had already
+        # written in this transaction (sync_transactions' balance/positions
+        # snapshot) and, in a job session, the transaction-local RLS context.
+        with db.begin_nested():
+            db.add(run)
+            db.flush()
+    except IntegrityError:
         existing = (
             db.query(BrokerSyncRun)
             .filter(
@@ -1071,6 +1114,19 @@ class FinalizeResult:
     cash_imported: int = 0
     cash_skipped_duplicate: int = 0
     cash_skipped_invalid: int = 0
+
+
+class FinalizeDataError(ValueError):
+    """A staged event finalize_run cannot turn into a ledger row (today: a
+    dividend with no paid amount or currency). Carries only the stream, the
+    event's time and the error type -- never the payload -- so the job can
+    persist a safe review_details item."""
+
+    def __init__(self, stream: str, when: datetime | None, error_type: str, message: str):
+        super().__init__(message)  # a fixed string, never payload content
+        self.stream = stream
+        self.when = when
+        self.error_type = error_type
 
 
 def _corporate_action_type(event: BrokerSyncEvent) -> str | None:
@@ -1618,7 +1674,12 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
                 cash_invalid += 1
                 continue
         else:
-            outcome, txn = _finalize_dividend_event(event, run)
+            try:
+                outcome, txn = _finalize_dividend_event(event, run)
+            except ValueError as exc:
+                raise FinalizeDataError(
+                    event.stream, _staged_event_time(event), type(exc).__name__, str(exc),
+                ) from exc
             if outcome == "invalid":
                 dividends_invalid += 1
                 continue

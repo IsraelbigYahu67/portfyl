@@ -8,11 +8,15 @@ not the page-fetching mechanics already covered by test_t212_sync_runs.py.
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
+from fastapi import HTTPException
+from sqlalchemy.exc import OperationalError
 
 import jobs as jobs_module
 import t212_sync
@@ -447,6 +451,311 @@ class TestBrokerBackfillPass:
             ))
 
         assert advance.call_count == 1  # deadline already passed: one step only
+
+
+def _http_error(status):
+    request = httpx.Request("GET", "https://live.trading212.com/api/v0/equity/history/orders")
+    return httpx.HTTPStatusError(
+        "rejected", request=request, response=httpx.Response(status, request=request),
+    )
+
+
+def _dividend_without_amount(run):
+    return BrokerSyncEvent(
+        workspace_id=run.workspace_id, portfolio_id=run.portfolio_id, run_id=run.id,
+        broker="trading212", account_fingerprint=run.account_fingerprint,
+        stream="dividends", provider_event_id="dividend:no-amount",
+        raw_payload={
+            "ticker": "AAPL_US_EQ", "reference": "private-reference",
+            "grossAmountPerShare": 0.25, "quantity": 10, "currency": "EUR",
+            "paidOn": "2024-03-15T00:00:00Z",
+        },
+    )
+
+
+class TestBackfillErrorClassification:
+    """N4: a deterministic failure must not be retried every tick forever."""
+
+    @pytest.mark.parametrize("error", [
+        HTTPException(status_code=401, detail="API key is invalid or expired"),
+        _http_error(401),
+        _http_error(403),
+    ])
+    def test_rejected_credentials_fail_the_run_and_flag_the_connection(
+        self, db_session, default_portfolio, connection, error
+    ):
+        run = _run_row(db_session, connection, default_portfolio, state="pending")
+
+        with patch("t212_sync.advance_run", side_effect=error) as advance:
+            first = _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+            second = _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+
+        advance.assert_called_once()  # the next tick does not claim it again
+        assert first == [{
+            "run_id": str(run.public_id), "error": t212_sync.HISTORY_CREDENTIALS_ERROR,
+        }]
+        assert second == []
+        db_session.refresh(run)
+        db_session.refresh(connection)
+        assert run.state == "failed"
+        assert run.last_error == t212_sync.HISTORY_CREDENTIALS_ERROR
+        assert run.lease_token is None
+        assert connection.needs_attention is True
+        assert connection.last_error == t212_sync.CONNECTION_CREDENTIALS_ERROR
+
+    def test_server_error_is_transient_not_credentials(
+        self, db_session, default_portfolio, connection
+    ):
+        run = _run_row(db_session, connection, default_portfolio, state="pending")
+
+        with patch("t212_sync.advance_run", side_effect=_http_error(503)):
+            _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+
+        db_session.refresh(run)
+        db_session.refresh(connection)
+        assert run.state == "pending"
+        assert run.retry_count == 1
+        assert connection.needs_attention is False
+
+    def test_finalize_value_error_parks_the_run_in_needs_review(
+        self, db_session, default_portfolio, connection
+    ):
+        run = _run_row(
+            db_session, connection, default_portfolio, state="finalizing",
+            orders_complete=True, dividends_complete=True, cash_complete=True,
+        )
+        db_session.add(_dividend_without_amount(run))
+        db_session.commit()
+
+        first = _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+        second = _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+
+        db_session.refresh(run)
+        assert first[0]["state"] == "needs_review"
+        assert second == []
+        assert run.state == "needs_review"
+        assert run.last_error == t212_sync.HISTORY_DATA_ERROR
+        assert run.retry_count == 0
+        assert run.completed_at is None
+        assert run.review_details == [{
+            "fill_type": t212_sync.REVIEW_INVALID_DATA, "ticker": None,
+            "date": "2024-03-15", "stream": "dividends", "error_type": "ValueError",
+        }]
+        assert "private-reference" not in str(run.review_details)
+        assert db_session.query(Transaction).count() == 0
+
+    def test_needs_review_run_blocks_the_next_automatic_run(
+        self, db_session, default_portfolio, connection
+    ):
+        run = _run_row(
+            db_session, connection, default_portfolio, state="finalizing",
+            orders_complete=True, dividends_complete=True, cash_complete=True,
+        )
+        db_session.add(_dividend_without_amount(run))
+        db_session.commit()
+        _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+
+        decision = t212_sync.history_run_decision(db_session, connection, default_portfolio)
+        forced = t212_sync.history_run_decision(
+            db_session, connection, default_portfolio, force=True,
+        )
+
+        assert decision.action == "blocked"
+        assert decision.run.id == run.id
+        assert forced.action == "create"
+
+    def test_other_finalize_errors_stay_transient(
+        self, db_session, default_portfolio, connection
+    ):
+        run = _run_row(
+            db_session, connection, default_portfolio, state="finalizing",
+            orders_complete=True, dividends_complete=True,
+        )
+        with patch("t212_sync.finalize_run", side_effect=OperationalError("s", {}, Exception())):
+            _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+
+        db_session.refresh(run)
+        assert run.state == "finalizing"
+        assert run.retry_count == 1
+
+    def test_json_decode_error_from_a_fetch_is_transient(
+        self, db_session, default_portfolio, connection
+    ):
+        """json.JSONDecodeError is a ValueError, but only finalize_run's
+        ValueError means bad data; a garbled provider response retries."""
+        run = _run_row(db_session, connection, default_portfolio, state="pending")
+
+        with patch("t212_sync.advance_run", side_effect=json.JSONDecodeError("bad", "{", 0)):
+            _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+
+        db_session.refresh(run)
+        assert run.state == "pending"
+        assert run.retry_count == 1
+
+
+class TestBackfillRetryBackoff:
+    def test_backoff_doubles_and_is_capped(self):
+        delays = [jobs_module.backfill_backoff_seconds(n) for n in range(0, 9)]
+        assert delays == [0, 60, 120, 240, 480, 960, 1920, 3600, 3600]
+
+    def test_a_run_inside_its_backoff_window_is_not_claimed(
+        self, db_session, default_portfolio, connection
+    ):
+        run = _run_row(db_session, connection, default_portfolio, state="pending")
+        with patch("t212_sync.advance_run", side_effect=RuntimeError("boom")):
+            _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+        db_session.refresh(run)
+        assert run.retry_count == 1
+        updated_at = run.updated_at
+
+        with patch("t212_sync.advance_run") as advance, \
+             patch("t212_sync.claim_lease") as claim:
+            results = _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+
+        assert results == []
+        advance.assert_not_called()
+        claim.assert_not_called()  # claim would bump updated_at, the backoff clock
+        db_session.refresh(run)
+        assert run.updated_at == updated_at
+
+    def test_a_run_past_its_backoff_window_is_retried(
+        self, db_session, default_portfolio, connection
+    ):
+        run = _run_row(
+            db_session, connection, default_portfolio, state="pending", retry_count=2,
+        )
+        run.updated_at = datetime.now(timezone.utc) - timedelta(seconds=121)
+        db_session.commit()
+        fake_result = t212_sync.RunAdvanceResult(
+            state="fetching", orders_staged=1, dividends_staged=0, rate_limited_streams=(),
+        )
+        with patch("t212_sync.advance_run", return_value=fake_result) as advance:
+            results = _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+
+        advance.assert_called()
+        assert len(results) == 1
+
+    def test_runs_in_backoff_do_not_use_up_the_max_runs_slots(
+        self, db_session, default_portfolio, connection
+    ):
+        other_portfolio = Portfolio(workspace_id=default_portfolio.workspace_id, name="Other 3")
+        other_portfolio.t212_account_fingerprint = "account-fingerprint-3"
+        db_session.add(other_portfolio)
+        db_session.commit()
+        other_conn = BrokerConnection(
+            workspace_id=default_portfolio.workspace_id, portfolio_id=other_portfolio.id,
+            broker="trading212", api_key="k" * 20,
+            account_fingerprint="account-fingerprint-3",
+        )
+        db_session.add(other_conn)
+        db_session.commit()
+        waiting = _run_row(
+            db_session, connection, default_portfolio, state="pending", retry_count=3,
+        )
+        waiting.updated_at = datetime.now(timezone.utc)
+        db_session.commit()
+        due = _run_row(db_session, other_conn, other_portfolio, state="pending")
+
+        fake_result = t212_sync.RunAdvanceResult(
+            state="fetching", orders_staged=0, dividends_staged=0, rate_limited_streams=(),
+        )
+        with patch("t212_sync.advance_run", return_value=fake_result):
+            results = _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID, max_runs=1))
+
+        assert [r["run_id"] for r in results] == [str(due.public_id)]
+
+    def test_run_fails_after_the_last_retry(self, db_session, default_portfolio, connection):
+        run = _run_row(
+            db_session, connection, default_portfolio, state="pending",
+            retry_count=jobs_module.BROKER_BACKFILL_MAX_RETRIES - 1,
+        )
+        run.updated_at = datetime.now(timezone.utc) - timedelta(hours=2)
+        db_session.commit()
+
+        with patch("t212_sync.advance_run", side_effect=RuntimeError("boom")):
+            results = _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+
+        db_session.refresh(run)
+        assert results == [{
+            "run_id": str(run.public_id), "error": t212_sync.HISTORY_RETRY_EXHAUSTED_ERROR,
+        }]
+        assert run.state == "failed"
+        assert run.retry_count == jobs_module.BROKER_BACKFILL_MAX_RETRIES
+        assert run.last_error == t212_sync.HISTORY_RETRY_EXHAUSTED_ERROR
+        assert run.lease_token is None
+
+        with patch("t212_sync.advance_run") as advance:
+            assert _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID)) == []
+        advance.assert_not_called()
+
+    def test_a_run_below_the_limit_stays_active(self, db_session, default_portfolio, connection):
+        run = _run_row(
+            db_session, connection, default_portfolio, state="pending",
+            retry_count=jobs_module.BROKER_BACKFILL_MAX_RETRIES - 2,
+        )
+        run.updated_at = datetime.now(timezone.utc) - timedelta(hours=2)
+        db_session.commit()
+
+        with patch("t212_sync.advance_run", side_effect=RuntimeError("boom")):
+            _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+
+        db_session.refresh(run)
+        assert run.state == "pending"
+        assert run.last_error == t212_sync.HISTORY_RETRY_ERROR
+
+    def test_a_successful_step_resets_retry_count(self, db_session, default_portfolio, connection):
+        run = _run_row(
+            db_session, connection, default_portfolio, state="pending", retry_count=4,
+            last_error=t212_sync.HISTORY_RETRY_ERROR,
+        )
+        run.updated_at = datetime.now(timezone.utc) - timedelta(hours=2)
+        db_session.commit()
+        fake_result = t212_sync.RunAdvanceResult(
+            state="fetching", orders_staged=50, dividends_staged=0, rate_limited_streams=(),
+        )
+        with patch("t212_sync.advance_run", return_value=fake_result):
+            _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+
+        db_session.refresh(run)
+        assert run.retry_count == 0
+
+    def test_a_completed_finalization_resets_retry_count(
+        self, db_session, default_portfolio, connection
+    ):
+        run = _run_row(
+            db_session, connection, default_portfolio, state="finalizing", retry_count=3,
+            orders_complete=True, dividends_complete=True, cash_complete=True,
+        )
+        run.updated_at = datetime.now(timezone.utc) - timedelta(hours=2)
+        db_session.commit()
+
+        results = _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+
+        db_session.refresh(run)
+        assert results[0]["state"] == "completed"
+        assert run.state == "completed"
+        assert run.retry_count == 0
+
+
+class TestNewRunAfterFailure:
+    def test_the_next_sync_creates_a_new_run_after_a_failed_one(
+        self, db_session, default_portfolio, connection
+    ):
+        failed = _run_row(db_session, connection, default_portfolio, state="pending")
+        with patch("t212_sync.advance_run", side_effect=_http_error(401)):
+            _run(broker_backfill_pass(db_session, TEST_WORKSPACE_ID))
+        db_session.refresh(failed)
+        assert failed.state == "failed"
+
+        decision = t212_sync.history_run_decision(db_session, connection, default_portfolio)
+        assert decision.action == "create"
+        new_run = t212_sync.claim_or_create_run(
+            db_session, connection, default_portfolio, mode=decision.mode,
+        )
+        db_session.commit()
+
+        assert new_run.id != failed.id
+        assert new_run.state == "pending"
 
 
 def test_all_workspaces_share_one_deadline(db_session):
