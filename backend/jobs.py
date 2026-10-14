@@ -61,7 +61,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yfinance as yf
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.orm import Session
 
 from app_settings import get_workspace_setting, set_workspace_setting
@@ -110,6 +110,24 @@ BROKER_BACKFILL_MAX_RUNS_PER_WORKSPACE = 5
 # budget. Without this a 7-page history needed three minutely ticks.
 BROKER_BACKFILL_DRAIN_SECONDS = 40.0
 BROKER_BACKFILL_MAX_STEPS_PER_RUN = 12
+
+# A history run failing with a transient error (network, timeout, 5xx, DB) is
+# retried with exponential backoff: 1, 2, 4 ... minutes, capped at an hour. The
+# BROKER_BACKFILL_MAX_RETRIES-th consecutive failure stops the run (failed).
+# retry_count resets after any step that completes without an exception.
+BROKER_BACKFILL_MAX_RETRIES = int(os.environ.get("BROKER_BACKFILL_MAX_RETRIES", 8))
+BROKER_BACKFILL_BACKOFF_BASE_SECONDS = 60
+BROKER_BACKFILL_BACKOFF_MAX_SECONDS = 3600
+
+
+def backfill_backoff_seconds(retry_count: int) -> int:
+    """How long a run with `retry_count` consecutive failures stays unclaimed."""
+    if retry_count <= 0:
+        return 0
+    return min(
+        BROKER_BACKFILL_BACKOFF_MAX_SECONDS,
+        BROKER_BACKFILL_BACKOFF_BASE_SECONDS * 2 ** min(retry_count - 1, 20),
+    )
 
 
 def mark_job_succeeded(
@@ -422,6 +440,103 @@ async def _advance_until_blocked(
     )
 
 
+def _in_backoff(retry_count: int | None, updated_at: datetime | None, now: datetime) -> bool:
+    delay = backfill_backoff_seconds(retry_count or 0)
+    if not delay or updated_at is None:
+        return False
+    if updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=timezone.utc)
+    return now < updated_at + timedelta(seconds=delay)
+
+
+def _reload_run(db: Session, workspace_id: UUID, run_id: int):
+    """Re-read a run after a rollback/commit dropped the RLS context."""
+    _set_job_workspace_context(db, workspace_id)
+    return db.query(BrokerSyncRun).filter(
+        BrokerSyncRun.workspace_id == workspace_id, BrokerSyncRun.id == run_id,
+    ).first()
+
+
+def _fail_run_credentials(db: Session, workspace_id: UUID, run_id: int) -> None:
+    """Trading 212 refused the key: end the run for good and tell the user, via
+    the connection's needs_attention/last_error, to reconnect."""
+    import t212_sync
+
+    run = _reload_run(db, workspace_id, run_id)
+    if run is None:
+        return
+    run.state = "failed"
+    run.last_error = t212_sync.HISTORY_CREDENTIALS_ERROR
+    run.lease_token = None
+    run.lease_expires_at = None
+    connection = db.query(BrokerConnection).filter(
+        BrokerConnection.workspace_id == workspace_id,
+        BrokerConnection.id == run.connection_id,
+    ).first()
+    if connection is not None:
+        connection.needs_attention = True
+        connection.last_error = t212_sync.CONNECTION_CREDENTIALS_ERROR
+    db.commit()
+
+
+def _park_run_for_review(
+    db: Session, workspace_id: UUID, run_id: int, exc: ValueError,
+) -> None:
+    """finalize_run raised a ValueError on the staged data. Re-running would
+    fail the same way, so park the run in needs_review (history_run_decision
+    then blocks new automatic runs until an explicit retry). review_details
+    holds the stream, date and error type only -- never the raw payload."""
+    import t212_sync
+
+    run = _reload_run(db, workspace_id, run_id)
+    if run is None:
+        return
+    when = getattr(exc, "when", None)
+    run.state = "needs_review"
+    run.last_error = t212_sync.HISTORY_DATA_ERROR
+    run.review_details = [{
+        "fill_type": t212_sync.REVIEW_INVALID_DATA,
+        "ticker": None,
+        "date": when.date().isoformat() if when else None,
+        "stream": getattr(exc, "stream", None),
+        "error_type": getattr(exc, "error_type", type(exc).__name__),
+    }]
+    run.lease_token = None
+    run.lease_expires_at = None
+    db.commit()
+
+
+def _record_transient_failure(db: Session, workspace_id: UUID, run_id: int) -> str:
+    """Count a transient failure; stop the run once retries are exhausted.
+    Returns the public error message."""
+    import t212_sync
+
+    run = _reload_run(db, workspace_id, run_id)
+    if run is None:
+        return t212_sync.HISTORY_RETRY_ERROR
+    run.retry_count = (run.retry_count or 0) + 1
+    if run.retry_count >= BROKER_BACKFILL_MAX_RETRIES:
+        run.state = "failed"
+        run.last_error = t212_sync.HISTORY_RETRY_EXHAUSTED_ERROR
+        run.lease_token = None
+        run.lease_expires_at = None
+    else:
+        run.last_error = t212_sync.HISTORY_RETRY_ERROR
+    error = run.last_error
+    db.commit()
+    return error
+
+
+def _reset_retry_count(db: Session, workspace_id: UUID, run_id: int) -> None:
+    _set_job_workspace_context(db, workspace_id)
+    db.execute(
+        update(BrokerSyncRun)
+        .where(BrokerSyncRun.workspace_id == workspace_id, BrokerSyncRun.id == run_id)
+        .values(retry_count=0)
+    )
+    db.commit()
+
+
 async def broker_backfill_pass(
     db: Session,
     workspace_id: UUID,
@@ -446,15 +561,21 @@ async def broker_backfill_pass(
     now = datetime.now(timezone.utc)
     if deadline is None:
         deadline = time.monotonic() + drain_seconds
-    due_run_ids = db.execute(
-        select(BrokerSyncRun.id)
+    # A run in its retry backoff window is filtered out here, before
+    # claim_lease: claiming bumps updated_at, which is the backoff's clock.
+    # The filter runs before the max_runs cut so waiting runs take no slot.
+    candidates = db.execute(
+        select(BrokerSyncRun.id, BrokerSyncRun.retry_count, BrokerSyncRun.updated_at)
         .where(
             BrokerSyncRun.workspace_id == workspace_id,
             BrokerSyncRun.state.in_(("pending", "fetching", "waiting_rate_limit", "finalizing")),
         )
         .order_by(BrokerSyncRun.created_at)
-        .limit(max_runs)
-    ).scalars().all()
+    ).all()
+    due_run_ids = [
+        run_id for run_id, retry_count, updated_at in candidates
+        if not _in_backoff(retry_count, updated_at, now)
+    ][:max_runs]
 
     results: list[dict] = []
     for run_id in due_run_ids:
@@ -526,6 +647,7 @@ async def broker_backfill_pass(
         api_headers = t212_sync._t212_headers(connection.api_key, connection.api_secret or "")
         lease_token = run.lease_token
         public_id = str(run.public_id)
+        prior_retries = run.retry_count or 0
         try:
             if run.state == "finalizing":
                 result = t212_sync.RunAdvanceResult(
@@ -543,10 +665,27 @@ async def broker_backfill_pass(
                 )
             state = result.state
             if state == "finalizing":
-                finalized = await asyncio.to_thread(
-                    t212_sync.finalize_run, db, run, portfolio,
-                )
+                try:
+                    finalized = await asyncio.to_thread(
+                        t212_sync.finalize_run, db, run, portfolio,
+                    )
+                except ValueError as exc:
+                    # Deterministic: the staged data itself cannot be imported.
+                    db.rollback()
+                    _park_run_for_review(db, workspace_id, run_id, exc)
+                    log.warning(
+                        "broker_backfill run %s needs review (%s)",
+                        public_id, type(exc).__name__,
+                    )
+                    results.append({
+                        "run_id": public_id,
+                        "state": "needs_review",
+                        "error": t212_sync.HISTORY_DATA_ERROR,
+                    })
+                    continue
                 state = "needs_review" if finalized.needs_review else "completed"
+            if prior_retries:
+                _reset_retry_count(db, workspace_id, run_id)
             results.append({
                 "run_id": public_id,
                 "state": state,
@@ -557,14 +696,11 @@ async def broker_backfill_pass(
             })
         except Exception as e:
             db.rollback()
-            _set_job_workspace_context(db, workspace_id)
-            run = db.query(BrokerSyncRun).filter(
-                BrokerSyncRun.workspace_id == workspace_id, BrokerSyncRun.id == run_id,
-            ).first()
-            if run is not None:
-                run.retry_count = (run.retry_count or 0) + 1
-                run.last_error = t212_sync.HISTORY_RETRY_ERROR
-                db.commit()
+            if t212_sync.is_credentials_rejection(e):
+                _fail_run_credentials(db, workspace_id, run_id)
+                error = t212_sync.HISTORY_CREDENTIALS_ERROR
+            else:
+                error = _record_transient_failure(db, workspace_id, run_id)
             log.warning(
                 "broker_backfill failed for run %s (%s)",
                 public_id,
@@ -572,7 +708,7 @@ async def broker_backfill_pass(
             )
             results.append({
                 "run_id": public_id,
-                "error": t212_sync.HISTORY_RETRY_ERROR,
+                "error": error,
             })
     return results
 

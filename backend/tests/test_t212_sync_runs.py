@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import text
 
 import t212_sync
 from models import BrokerConnection, BrokerSyncEvent, BrokerSyncRun, Portfolio
@@ -421,6 +422,66 @@ class TestClaimOrCreateRun:
 
         assert second.id != first.id
         assert db_session.query(BrokerSyncRun).count() == 2
+
+    def test_collision_keeps_the_callers_uncommitted_writes(
+        self, db_session, default_portfolio, connection, monkeypatch
+    ):
+        """The insert races with another worker's run: only the savepoint is
+        rolled back, so the snapshot written earlier in this transaction
+        (sync_transactions' balance/positions) is still there to commit."""
+        # Only the Alembic migration creates this index (models.py does not),
+        # so the SQLite fast schema needs it added to be able to collide.
+        db_session.execute(text(
+            "CREATE UNIQUE INDEX uq_broker_sync_run_one_active_per_connection "
+            "ON broker_sync_runs (workspace_id, connection_id) "
+            "WHERE state NOT IN ('completed', 'failed', 'cancelled', 'needs_review')"
+        ))
+        winner = BrokerSyncRun(
+            workspace_id=connection.workspace_id, portfolio_id=default_portfolio.id,
+            connection_id=connection.id, broker="trading212",
+            account_fingerprint=connection.account_fingerprint,
+            credential_generation=connection.credential_generation,
+            mode="incremental", state="fetching",
+        )
+        db_session.add(winner)
+        db_session.commit()
+        winner_id = winner.id
+
+        connection.last_error = "snapshot written before the collision"
+        db_session.flush()
+
+        # The pre-insert lookup misses the winner, as it would if the winner
+        # committed between that read and our insert.
+        real_query = db_session.query
+        calls = {"n": 0}
+
+        def query(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                miss = MagicMock()
+                miss.filter.return_value.first.return_value = None
+                return miss
+            return real_query(*args, **kwargs)
+
+        monkeypatch.setattr(db_session, "query", query)
+
+        run = t212_sync.claim_or_create_run(db_session, connection, default_portfolio)
+        monkeypatch.undo()
+        db_session.commit()
+        db_session.expire_all()
+
+        assert run.id == winner_id
+        assert db_session.query(BrokerSyncRun).count() == 1
+        assert db_session.get(BrokerConnection, connection.id).last_error == (
+            "snapshot written before the collision"
+        )
+
+    def test_non_collision_integrity_error_is_reraised(
+        self, db_session, default_portfolio, connection
+    ):
+        with patch.object(db_session, "flush", side_effect=t212_sync.IntegrityError("x", {}, Exception())):
+            with pytest.raises(t212_sync.IntegrityError):
+                t212_sync.claim_or_create_run(db_session, connection, default_portfolio)
 
 
 # ---------------------------------------------------------------------------
