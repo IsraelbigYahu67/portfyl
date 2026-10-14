@@ -5,6 +5,9 @@ import { HAS_PUBLIC_HOME, TRACKER_HOME } from "./lib/routes";
 
 vi.mock("./TrackerBootstrap", () => ({ default: () => <div>Protected tracker</div> }));
 vi.mock("./demo/DemoBootstrap", () => ({ default: () => <div>Public demo</div> }));
+// Cloud's Root lazy-loads Welcome; load it during collection (untimed) so the
+// first test doesn't spend its findBy window on the cold module graph.
+if (HAS_PUBLIC_HOME) await import("./pages/Welcome");
 beforeEach(() => { localStorage.clear(); window.history.replaceState({}, '', '/'); });
 afterEach(() => { vi.unstubAllGlobals(); });
 

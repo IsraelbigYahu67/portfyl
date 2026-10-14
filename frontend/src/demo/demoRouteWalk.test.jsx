@@ -6,6 +6,13 @@ import { DemoDataProvider } from "./DemoDataContext";
 import { demoPortfolio } from "./demoPortfolio";
 import AnalyticsProvider from "../analytics/AnalyticsProvider";
 import { createMemoryAdapter } from "../analytics/analyticsClient";
+// Load DemoApp's lazy pages during collection (untimed), not inside the first
+// route's findBy window.
+import "./pages/DemoOverview";
+import "./pages/DemoAllocation";
+import "./pages/DemoAnalytics";
+import "./pages/DemoDividends";
+import "./pages/DemoStock";
 
 const ROUTES = [
   ["/demo", "Overview"], ["/demo/allocation", "Allocation"], ["/demo/analytics", "Analytics"], ["/demo/dividends", "Dividends"],

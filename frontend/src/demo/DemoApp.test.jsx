@@ -7,6 +7,14 @@ import { demoPortfolio } from "./demoPortfolio";
 import { DEMO_COPY } from "./demoCopy";
 import AnalyticsProvider from "../analytics/AnalyticsProvider";
 import { createMemoryAdapter } from "../analytics/analyticsClient";
+// DemoApp lazy-loads its pages. Load them during collection (untimed) so the
+// first route test doesn't spend its findBy window on the cold module graph
+// (recharts alone is ~1 s, ~2 s+ under full-suite load).
+import "./pages/DemoOverview";
+import "./pages/DemoAllocation";
+import "./pages/DemoAnalytics";
+import "./pages/DemoDividends";
+import "./pages/DemoStock";
 
 const lazyRouteWait = { timeout: 5_000 };
 
