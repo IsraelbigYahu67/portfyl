@@ -6,10 +6,12 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy.pool import NullPool
 
 import routers.internal_jobs as internal_jobs
 
@@ -72,6 +74,40 @@ class TestJobDatabaseConfiguration:
             })
 
 
+class TestJobLockEngine:
+    def test_lock_engine_uses_a_null_pool(self):
+        engine = internal_jobs.build_job_lock_engine({
+            "PORTFYL_EDITION": "cloud",
+            "JOB_DATABASE_URL": "postgresql://user:pass@db.example.com/portfyl",
+        })
+        try:
+            assert isinstance(engine.pool, NullPool)
+            assert engine.dialect.name == "postgresql"
+        finally:
+            engine.dispose()
+
+    def test_lock_engine_applies_the_same_fail_closed_checks(self):
+        with pytest.raises(RuntimeError, match="JOB_DATABASE_URL is required"):
+            internal_jobs.build_job_lock_engine({"PORTFYL_EDITION": "cloud"})
+        with pytest.raises(RuntimeError, match="direct Neon hostname"):
+            internal_jobs.build_job_lock_engine({
+                "PORTFYL_EDITION": "cloud",
+                "JOB_DATABASE_URL": "postgresql://u:p@ep-example-pooler.eu.aws.neon.tech/db",
+            })
+
+    def test_lock_is_a_no_op_without_a_postgres_engine(self):
+        # PORTFYL_TESTING=1 (set by conftest) resolves no lock engine at all,
+        # so the fast suite's SQLite fixture trivially "acquires" the lock.
+        with internal_jobs.with_job_lock("alerts") as acquired:
+            assert acquired is True
+        with internal_jobs.with_job_lock("alerts") as nested:
+            assert nested is True  # nothing is actually held
+
+    def test_lock_is_a_no_op_for_a_non_postgres_engine(self, db_session):
+        with internal_jobs.with_job_lock("alerts", db_session.get_bind()) as acquired:
+            assert acquired is True
+
+
 class TestJobEndpointsRunExactlyOnePass:
     @pytest.fixture(autouse=True)
     def _job_session(self, monkeypatch, db_session):
@@ -121,6 +157,59 @@ class TestJobEndpointsRunExactlyOnePass:
             )
         pass_fn.assert_awaited_once()
         assert result == {"job": "account_deletion_cleanup", "events": 0}
+
+    def test_heartbeat_is_recorded_only_after_a_successful_pass(self, monkeypatch):
+        monkeypatch.setattr(internal_jobs, "verify_scheduler_token", lambda auth: None)
+        calls = []
+        pass_fn = AsyncMock(side_effect=lambda db: calls.append("pass") or [])
+        mark = lambda db, name: calls.append(f"mark:{name}")  # noqa: E731
+        with patch("jobs.alert_check_all_workspaces", pass_fn), \
+             patch("jobs.mark_job_succeeded", mark):
+            internal_jobs.run_alerts_job(authorization="Bearer x")
+        assert calls == ["pass", "mark:alerts"]
+
+    def test_failed_pass_never_marks_the_job_succeeded(self, monkeypatch):
+        monkeypatch.setattr(internal_jobs, "verify_scheduler_token", lambda auth: None)
+        pass_fn = AsyncMock(side_effect=RuntimeError("pass failed"))
+        mark = patch("jobs.mark_job_succeeded")
+        with patch("jobs.alert_check_all_workspaces", pass_fn), mark as marked:
+            with pytest.raises(RuntimeError, match="pass failed"):
+                internal_jobs.run_alerts_job(authorization="Bearer x")
+        marked.assert_not_called()
+
+    def test_skipped_invocation_neither_runs_the_pass_nor_marks_success(self, monkeypatch):
+        monkeypatch.setattr(internal_jobs, "verify_scheduler_token", lambda auth: None)
+
+        @contextmanager
+        def lock_held_elsewhere(job_name, engine=None):
+            yield False
+
+        monkeypatch.setattr(internal_jobs, "with_job_lock", lock_held_elsewhere)
+        pass_fn = AsyncMock(return_value=[])
+        with patch("jobs.alert_check_all_workspaces", pass_fn), \
+             patch("jobs.mark_job_succeeded") as marked:
+            result = internal_jobs.run_alerts_job(authorization="Bearer x")
+        assert result == {"job": "alerts", "skipped": "already running"}
+        pass_fn.assert_not_awaited()
+        marked.assert_not_called()
+
+    def test_job_session_is_closed_before_the_lock_is_released(self, monkeypatch, db_session):
+        monkeypatch.setattr(internal_jobs, "verify_scheduler_token", lambda auth: None)
+        events = []
+
+        @contextmanager
+        def recording_lock(job_name, engine=None):
+            events.append("lock")
+            try:
+                yield True
+            finally:
+                events.append("unlock")
+
+        monkeypatch.setattr(internal_jobs, "with_job_lock", recording_lock)
+        monkeypatch.setattr(db_session, "close", lambda: events.append("session-close"))
+        with patch("jobs.alert_check_all_workspaces", AsyncMock(return_value=[])):
+            internal_jobs.run_alerts_job(authorization="Bearer x")
+        assert events == ["lock", "session-close", "unlock"]
 
     def test_unverified_request_never_reaches_the_pass(self, monkeypatch):
         pass_fn = AsyncMock(return_value=[])

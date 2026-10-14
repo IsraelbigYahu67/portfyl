@@ -32,9 +32,10 @@ from typing import Awaitable, Callable, Iterator, Mapping
 from fastapi import APIRouter, Header, HTTPException
 from google.auth.transport import requests as google_auth_requests
 from google.oauth2 import id_token as google_id_token
-from sqlalchemy import text
-from sqlalchemy.engine import make_url
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from database import DatabaseSettings, SessionLocal, build_engine
 from logging_setup import correlation_id_var
@@ -45,14 +46,15 @@ log = logging.getLogger("portfyl.internal_jobs")
 
 _google_auth_request = google_auth_requests.Request()
 _job_session_factory = None
+_lock_engine: Engine | None = None
 
 
-def build_job_session_factory(env: Mapping[str, str]):
-    """Build scheduler sessions from a direct, non-pooled PostgreSQL URL.
+def _job_database_settings(env: Mapping[str, str]) -> DatabaseSettings:
+    """Settings for the direct, non-pooled PostgreSQL URL the jobs run on.
 
     Neon pooled endpoints use PgBouncer transaction pooling, which cannot
-    preserve this router's session-level advisory lock across commits inside
-    a job pass. Failing closed prevents silently ineffective cloud locking.
+    preserve this router's session-level advisory lock for the duration of a
+    job pass. Failing closed prevents silently ineffective cloud locking.
     """
     raw_url = env.get("JOB_DATABASE_URL", "").strip()
     if not raw_url:
@@ -67,11 +69,39 @@ def build_job_session_factory(env: Mapping[str, str]):
             "JOB_DATABASE_URL must use the direct Neon hostname, not a "
             "transaction-pooled -pooler endpoint"
         )
+    return settings
+
+
+def build_job_session_factory(env: Mapping[str, str]):
+    """Build scheduler sessions from a direct, non-pooled PostgreSQL URL."""
     return sessionmaker(
         autocommit=False,
         autoflush=False,
-        bind=build_engine(settings),
+        bind=build_engine(_job_database_settings(env)),
     )
+
+
+def build_job_lock_engine(env: Mapping[str, str]) -> Engine:
+    """Engine used only to hold a job's advisory lock.
+
+    NullPool is the point: a connection checked out from it is really closed
+    on release, so a lock can never survive on a connection parked in a pool.
+    The job Session keeps its own pooled engine and returns its connections
+    to that pool on every commit, which is exactly why the lock cannot live
+    on it.
+    """
+    return create_engine(_job_database_settings(env).url, poolclass=NullPool)
+
+
+def _job_lock_engine() -> Engine | None:
+    """The engine for with_job_lock, or None where the lock is a no-op (the
+    fast suite's SQLite fixture, same switch as _new_job_session)."""
+    if os.environ.get("PORTFYL_TESTING") == "1":
+        return None
+    global _lock_engine
+    if _lock_engine is None:
+        _lock_engine = build_job_lock_engine(os.environ)
+    return _lock_engine
 
 
 def _new_job_session() -> Session:
@@ -115,13 +145,23 @@ def _lock_key(job_name: str) -> int:
 
 
 @contextmanager
-def with_job_lock(db: Session, job_name: str) -> Iterator[bool]:
-    """Non-blocking Postgres SESSION-level advisory lock -- deliberately not
-    pg_try_advisory_XACT_lock, which auto-releases at the pass's first
-    internal COMMIT (jobs.py's passes commit more than once per run). A
-    session-level lock stays held for this connection's lifetime regardless
-    of how many times the pass commits, and is released explicitly in
-    `finally` (or by the connection closing, if the process dies mid-pass).
+def with_job_lock(job_name: str, engine: Engine | None = None) -> Iterator[bool]:
+    """Non-blocking Postgres SESSION-level advisory lock held on a dedicated
+    connection for the whole pass -- deliberately not pg_try_advisory_XACT_lock,
+    which auto-releases at the pass's first internal COMMIT (jobs.py's passes
+    commit more than once per run).
+
+    The lock must NOT live on the job Session's connection. That Session is
+    bound to a pooled engine and hands its connection back to the pool on
+    every commit, so the rest of the pass runs on some other connection and
+    the unlock can land on one that does not hold the lock. The lock would
+    then sit on a pooled connection until pool_recycle, making the next
+    invocation skip as "already running", or be re-entrant on the same
+    connection and let two passes run at once. Here the lock owns a
+    connection from a NullPool engine that nothing else uses, so it stays
+    put until the `finally` below, and closing it really closes the socket
+    (which also releases the lock if the process dies mid-pass).
+
     Yields True if this call acquired the lock (safe to run the pass), False
     if another invocation already holds it (the caller must skip, never
     queue or retry inline -- Cloud Scheduler's own retry policy is the retry
@@ -132,18 +172,39 @@ def with_job_lock(db: Session, job_name: str) -> Iterator[bool]:
     edition, which is fail-closed to PostgreSQL (see database.py), but the
     fast unit suite still exercises these endpoints end-to-end against its
     SQLite fixture. There, every call trivially "acquires" the lock, the
-    same no-op pattern jobs.py's _rls_enforced already uses for RLS context."""
-    if db.get_bind().dialect.name != "postgresql":
+    same no-op pattern jobs.py's _rls_enforced already uses for RLS context.
+    `engine` is for tests; production resolves it from JOB_DATABASE_URL."""
+    if engine is None:
+        engine = _job_lock_engine()
+    if engine is None or engine.dialect.name != "postgresql":
         yield True
         return
 
     key = _lock_key(job_name)
-    acquired = bool(db.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": key}).scalar_one())
-    try:
-        yield acquired
-    finally:
-        if acquired:
-            db.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": key})
+    with engine.connect() as lock_conn:
+        acquired = bool(
+            lock_conn.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": key}).scalar_one()
+        )
+        # End the implicit transaction so the lock connection does not sit
+        # "idle in transaction" for the whole pass; the session-level lock
+        # does not depend on it.
+        lock_conn.commit()
+        try:
+            yield acquired
+        finally:
+            if acquired:
+                try:
+                    released = lock_conn.execute(
+                        text("SELECT pg_advisory_unlock(:key)"), {"key": key}
+                    ).scalar_one()
+                    lock_conn.commit()
+                except Exception:
+                    log.warning("%s: advisory unlock failed; dropping the lock connection", job_name)
+                    lock_conn.invalidate()
+                else:
+                    if not released:
+                        log.warning("%s: advisory lock was not held at unlock; dropping the lock connection", job_name)
+                        lock_conn.invalidate()
 
 
 def _run_job(job_name: str, pass_fn: Callable[[Session], Awaitable[list]]) -> dict:
@@ -152,22 +213,26 @@ def _run_job(job_name: str, pass_fn: Callable[[Session], Awaitable[list]]) -> di
     fetch Google's certificates), the advisory lock, and the pass's sync
     database work between its awaits never touch the server's event loop."""
     token = correlation_id_var.set(f"job-{job_name}-{uuid.uuid4().hex[:8]}")
-    db = _new_job_session()
     try:
-        with with_job_lock(db, job_name) as acquired:
+        with with_job_lock(job_name) as acquired:
             if not acquired:
                 log.info("%s: skipped, already running", job_name)
                 return {"job": job_name, "skipped": "already running"}
-            happened = run_on_private_loop(pass_fn, db)
-            from jobs import mark_job_succeeded
+            # The pass runs on its own pooled Session; the lock is held on a
+            # separate connection, so the pass's commits cannot disturb it.
+            db = _new_job_session()
+            try:
+                happened = run_on_private_loop(pass_fn, db)
+                from jobs import mark_job_succeeded
 
-            mark_job_succeeded(db, job_name)
-            db.commit()
+                mark_job_succeeded(db, job_name)
+                db.commit()
+            finally:
+                db.close()
             if happened:
                 log.info("%s pass: %d event(s)", job_name, len(happened))
             return {"job": job_name, "events": len(happened)}
     finally:
-        db.close()
         correlation_id_var.reset(token)
 
 
