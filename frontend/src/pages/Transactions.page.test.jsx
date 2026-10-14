@@ -128,4 +128,62 @@ describe("Transactions (server-side pagination)", () => {
 
     expect(await screen.findByText(/no transactions match/i)).toBeInTheDocument();
   });
+
+  describe("add transaction form", () => {
+    async function openAndSubmit() {
+      api.fetchTransactionsPage.mockResolvedValue(page());
+      renderPage();
+      await screen.findByText("AAPL");
+      fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
+      fireEvent.change(screen.getByPlaceholderText("AAPL"), { target: { value: "MSFT" } });
+      fireEvent.change(screen.getByPlaceholderText("10"), { target: { value: "5" } });
+      fireEvent.change(screen.getByPlaceholderText("185.50"), { target: { value: "100" } });
+      fireEvent.submit(screen.getByPlaceholderText("AAPL").closest("form"));
+    }
+
+    it("requires a positive quantity and price in the browser", async () => {
+      api.fetchTransactionsPage.mockResolvedValue(page());
+      renderPage();
+      await screen.findByText("AAPL");
+      fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
+
+      for (const placeholder of ["10", "185.50"]) {
+        const input = screen.getByPlaceholderText(placeholder);
+        fireEvent.change(input, { target: { value: "0" } });
+        expect(input.validity.rangeUnderflow).toBe(true);
+        fireEvent.change(input, { target: { value: "0.5" } });
+        expect(input.validity.valid).toBe(true);
+      }
+    });
+
+    it("shows a readable message for a 422 with a list of validation errors", async () => {
+      api.createTransaction.mockRejectedValue({
+        response: {
+          status: 422,
+          data: {
+            detail: [
+              { type: "greater_than", loc: ["body", "shares"], msg: "Input should be greater than 0", ctx: { gt: 0 } },
+              { type: "string_pattern_mismatch", loc: ["body", "currency"], msg: "String should match pattern" },
+            ],
+          },
+        },
+      });
+      await openAndSubmit();
+
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent("Shares must be greater than 0");
+      expect(alert).toHaveTextContent("Currency has an invalid format");
+      expect(screen.getByRole("heading", { name: /add transaction/i })).toBeInTheDocument();
+    });
+
+    it("still shows a string detail and falls back when there is no response", async () => {
+      api.createTransaction.mockRejectedValueOnce({ response: { data: { detail: "Portfolio not found" } } });
+      await openAndSubmit();
+      expect(await screen.findByRole("alert")).toHaveTextContent("Portfolio not found");
+
+      api.createTransaction.mockRejectedValueOnce(new Error("Network Error"));
+      fireEvent.submit(screen.getByPlaceholderText("AAPL").closest("form"));
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Failed to add transaction"));
+    });
+  });
 });

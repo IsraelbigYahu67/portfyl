@@ -9,6 +9,7 @@ import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/Toast";
 import { AsyncSection } from "../components/ui";
 import Pagination from "../components/ui/Pagination";
+import { formatValidationDetail, uiLanguage } from "../lib/validationDetail";
 
 const TYPE_COLORS = { buy: "text-gain", sell: "text-loss", dividend: "text-yellow-600" };
 
@@ -60,11 +61,11 @@ function AddModal({ onClose }) {
             </div>
             <div>
               <label className="text-xs text-muted mb-1 block">Shares *</label>
-              <input className="input" type="number" step="any" placeholder="10" value={form.shares} onChange={set("shares")} required />
+              <input className="input" type="number" min="0.00000001" step="any" placeholder="10" value={form.shares} onChange={set("shares")} required />
             </div>
             <div>
               <label className="text-xs text-muted mb-1 block">Price per share *</label>
-              <input className="input" type="number" step="any" placeholder="185.50" value={form.price} onChange={set("price")} required />
+              <input className="input" type="number" min="0.00000001" step="any" placeholder="185.50" value={form.price} onChange={set("price")} required />
             </div>
             <div>
               <label className="text-xs text-muted mb-1 block">Date *</label>
@@ -80,7 +81,11 @@ function AddModal({ onClose }) {
             <input className="input" placeholder="Optional" value={form.notes} onChange={set("notes")} />
           </div>
           {mut.error && (
-            <p className="text-loss text-xs">{mut.error.response?.data?.detail || "Failed to add transaction"}</p>
+            <p role="alert" className="text-loss text-xs">
+              {formatValidationDetail(mut.error.response?.data?.detail, {
+                fallback: uiLanguage() === "cs" ? "Transakci se nepodařilo přidat" : "Failed to add transaction",
+              })}
+            </p>
           )}
           <div className="flex gap-2 pt-1">
             <button type="button" onClick={onClose} className="btn-ghost flex-1">Cancel</button>
