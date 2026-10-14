@@ -10,6 +10,8 @@ import io
 import logging
 import math
 import os
+import re
+import time
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -350,6 +352,62 @@ def _read_import_upload(file: UploadFile) -> bytes:
     return content
 
 
+_NATIVE_IMPORT_TYPES = ("buy", "sell", "dividend")
+
+
+def _native_positive_number(row, column: str) -> float:
+    """A finite number > 0. An empty cell reaches us as pandas NaN."""
+    raw = row[column]
+    try:
+        number = float(raw)
+    except (TypeError, ValueError):
+        raise ValueError(f"{column} must be a number, got {raw!r}") from None
+    if not math.isfinite(number) or number <= 0:
+        shown = "empty" if pd.isna(raw) else repr(raw)
+        raise ValueError(f"{column} must be a finite number greater than 0 ({shown})")
+    return number
+
+
+def _parse_native_row(row) -> dict:
+    """Validate one native-format CSV row; raises ValueError describing the first problem."""
+    ticker = "" if pd.isna(row["ticker"]) else str(row["ticker"]).upper().strip()
+    if not ticker or ticker == "NAN":
+        raise ValueError("ticker is empty")
+
+    txn_type = "" if pd.isna(row["type"]) else str(row["type"]).lower().strip()
+    if txn_type not in _NATIVE_IMPORT_TYPES:
+        raise ValueError(
+            f"unsupported type {txn_type!r}; supported types: "
+            f"{', '.join(_NATIVE_IMPORT_TYPES)}"
+        )
+
+    shares = _native_positive_number(row, "shares")
+    price = _native_positive_number(row, "price")
+
+    parsed_date = pd.to_datetime(row["date"])
+    if pd.isna(parsed_date):
+        raise ValueError("date is empty or invalid")
+
+    currency = "USD"
+    if pd.notna(row.get("currency")):
+        currency = str(row["currency"]).upper().strip()
+        if not re.fullmatch(r"[A-Z]{3}", currency):
+            raise ValueError(f"currency must be a 3-letter code, got {currency!r}")
+
+    return {
+        "ticker": ticker,
+        "type": txn_type,
+        "shares": shares,
+        "price": price,
+        "currency": currency,
+        "date": parsed_date.date(),
+        "notes": (
+            str(row["notes"])
+            if "notes" in row and pd.notna(row.get("notes")) else None
+        ),
+    }
+
+
 def _parse_import_content(content: bytes) -> _ParsedImport:
     try:
         df = pd.read_csv(io.StringIO(content.decode("utf-8-sig")))
@@ -395,21 +453,7 @@ def _parse_import_content(content: bytes) -> _ParsedImport:
         errors = []
         for index, row in df.iterrows():
             try:
-                rows.append({
-                    "ticker": str(row["ticker"]).upper().strip(),
-                    "type": str(row["type"]).lower().strip(),
-                    "shares": float(row["shares"]),
-                    "price": float(row["price"]),
-                    "currency": (
-                        str(row.get("currency", "USD")).upper().strip()
-                        if pd.notna(row.get("currency")) else "USD"
-                    ),
-                    "date": pd.to_datetime(row["date"]).date(),
-                    "notes": (
-                        str(row["notes"])
-                        if "notes" in row and pd.notna(row.get("notes")) else None
-                    ),
-                })
+                rows.append(_parse_native_row(row))
             except Exception as exc:
                 errors.append(f"Row {index + 2}: {exc}")
         if errors:
@@ -1575,7 +1619,11 @@ def _pay_date_from_calendar(cal) -> str | None:
     return None
 
 
-_USD_FX_CACHE: dict[str, float] = {}
+# ccy -> (rate to USD, monotonic timestamp). Entries expire after the TTL.
+_USD_FX_CACHE: dict[str, tuple[float, float]] = {}
+_USD_FX_TTL_SECONDS = 600
+# Last successful ccy -> USD rate, kept past cache expiry for provider outages.
+_LAST_GOOD_USD_FX: dict[str, float] = {}
 
 
 def _positive_finite(value) -> float | None:
@@ -1653,22 +1701,66 @@ def _normalize_dividend_row(
     }
 
 
+def _usd_fx_clock() -> float:
+    return time.monotonic()
+
+
 def _live_to_usd(ccy: str) -> float:
-    """Best-effort live conversion rate from `ccy` to USD. Returns 1.0 on failure."""
+    """Best-effort live conversion rate from `ccy` to USD.
+
+    Order: fresh cache entry (10 min), direct `{ccy}USD=X` quote, last known
+    good rate, pivot through CZK. Only when every source is missing does it
+    return 1.0, and then it logs a warning and caches nothing so the next
+    call retries. A silent 1.0 once made CZK dividends count as USD (~23x).
+    """
     c = (ccy or "USD").upper()
     if c == "USD":
         return 1.0
-    if c in _USD_FX_CACHE:
-        return _USD_FX_CACHE[c]
+    cached = _USD_FX_CACHE.get(c)
+    if cached is not None and _usd_fx_clock() - cached[1] < _USD_FX_TTL_SECONDS:
+        return cached[0]
+
+    rate = None
     try:
         info = market_data.get_info(f"{c}USD=X")
-        rate = info.get("regularMarketPrice") or info.get("previousClose")
-        if rate and rate > 0:
-            _USD_FX_CACHE[c] = float(rate)
-            return float(rate)
+        rate = _positive_finite(info.get("regularMarketPrice") or info.get("previousClose"))
     except Exception:
-        pass
-    return 1.0
+        rate = None
+
+    if rate is None:
+        rate = _LAST_GOOD_USD_FX.get(c)
+        if rate is not None:
+            logging.getLogger("portfyl.fx").warning(
+                "No live %s→USD quote; using last known good rate %s", c, rate)
+            # Short-lived, so the live quote is retried on the next lookup.
+            _USD_FX_CACHE[c] = (rate, _usd_fx_clock() - _USD_FX_TTL_SECONDS + 60)
+            return rate
+
+    if rate is None:
+        rate = _usd_rate_via_czk(c)
+    if rate is None:
+        logging.getLogger("portfyl.fx").warning(
+            "No %s→USD rate available (live quote, last-known-good and CZK pivot "
+            "all missing); falling back to 1.0", c)
+        return 1.0
+
+    _LAST_GOOD_USD_FX[c] = rate
+    _USD_FX_CACHE[c] = (rate, _usd_fx_clock())
+    return rate
+
+
+def _usd_rate_via_czk(c: str) -> float | None:
+    """ccy→USD as (ccy→CZK) / (USD→CZK); None unless both legs are real rates."""
+    legs: dict[str, float] = {}
+    ccy_czk = _live_fx_to_czk(c, legs)
+    usd_czk = _live_fx_to_czk("USD", legs)
+    # _live_fx_to_czk answers 1.0 for "no rate at all" without caching it, so a
+    # leg counts only when it landed in `legs` (CZK itself is genuinely 1.0).
+    if c != "CZK" and c not in legs:
+        return None
+    if "USD" not in legs:
+        return None
+    return _positive_finite(ccy_czk / usd_czk)
 
 
 @router.get("/dividends")
