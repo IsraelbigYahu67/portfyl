@@ -841,3 +841,130 @@ def test_undo_point_taken_before_corporate_actions_existed_is_still_usable(
     projected = _as_v2_snapshot(current)
     assert "corporate_actions" not in projected and "corporate_action_applications" not in projected
     assert projected["transactions"] == current["transactions"]
+
+
+# --- Native CSV input validation (review finding N5) -------------------------
+
+_NATIVE_HEADER = "date,ticker,type,shares,price,currency\n"
+
+
+def _native_csv(*lines: str) -> str:
+    return _NATIVE_HEADER + "\n".join(lines) + "\n"
+
+
+def _csv_with_bad_line(bad_line: str, position: int = 30) -> str:
+    """Valid rows everywhere except CSV line `position` (header is line 1)."""
+    lines = [f"2026-01-{(i % 27) + 1:02d},AAPL,buy,1,{100 + i},USD" for i in range(position + 5)]
+    lines[position - 2] = bad_line
+    return _native_csv(*lines)
+
+
+def _import_errors(csv: str, *, db_session, default_portfolio, request_context) -> list[str]:
+    with pytest.raises(HTTPException) as exc_info:
+        _preview(
+            csv, db_session=db_session, default_portfolio=default_portfolio,
+            request_context=request_context,
+        )
+    assert exc_info.value.status_code == 400
+    detail = exc_info.value.detail
+    assert detail["message"] == "CSV validation failed"
+    return detail["errors"]
+
+
+def test_empty_price_beyond_the_preview_sample_is_rejected_with_its_row_number(
+    db_session, default_portfolio, request_context,
+):
+    csv = _csv_with_bad_line("2026-01-05,AAPL,buy,1,,USD", position=30)
+
+    errors = _import_errors(
+        csv, db_session=db_session, default_portfolio=default_portfolio,
+        request_context=request_context,
+    )
+
+    assert len(errors) == 1
+    assert errors[0].startswith("Row 30:") and "price" in errors[0]
+    # Commit goes through the same parser, so nothing can be stored either.
+    with pytest.raises(HTTPException) as exc_info:
+        _commit(
+            csv, "0" * 64, db_session=db_session, default_portfolio=default_portfolio,
+            request_context=request_context,
+        )
+    assert exc_info.value.status_code == 400
+    assert db_session.query(Transaction).filter(
+        Transaction.portfolio_id == default_portfolio.id
+    ).count() == 0
+
+
+@pytest.mark.parametrize(
+    ("bad_line", "expected"),
+    [
+        ("2026-01-05,AAPL,buy,,150,USD", "shares"),
+        ("2026-01-05,AAPL,buy,0,150,USD", "shares"),
+        ("2026-01-05,AAPL,buy,-3,150,USD", "shares"),
+        ("2026-01-05,AAPL,buy,inf,150,USD", "shares"),
+        ("2026-01-05,AAPL,buy,abc,150,USD", "shares"),
+        ("2026-01-05,AAPL,buy,1,0,USD", "price"),
+        ("2026-01-05,AAPL,buy,1,-1,USD", "price"),
+        ("2026-01-05,AAPL,buy,1,nan,USD", "price"),
+        ("2026-01-05,,buy,1,150,USD", "ticker"),
+        ("2026-01-05,   ,buy,1,150,USD", "ticker"),
+        ("2026-01-05,NAN,buy,1,150,USD", "ticker"),
+        ("2026-01-05,AAPL,split,1,150,USD", "supported types: buy, sell, dividend"),
+        ("2026-01-05,AAPL,,1,150,USD", "supported types: buy, sell, dividend"),
+        (",AAPL,buy,1,150,USD", "date"),
+        ("not-a-date,AAPL,buy,1,150,USD", "Row"),
+        ("2026-01-05,AAPL,buy,1,150,US", "currency"),
+        ("2026-01-05,AAPL,buy,1,150,US1", "currency"),
+    ],
+)
+def test_native_csv_rejects_invalid_rows(
+    bad_line, expected, db_session, default_portfolio, request_context,
+):
+    errors = _import_errors(
+        _native_csv("2026-01-02,MSFT,buy,1,400,USD", bad_line),
+        db_session=db_session, default_portfolio=default_portfolio,
+        request_context=request_context,
+    )
+
+    assert len(errors) == 1
+    assert errors[0].startswith("Row 3:")
+    assert expected in errors[0]
+
+
+def test_native_csv_reports_every_bad_row_not_just_the_first(
+    db_session, default_portfolio, request_context,
+):
+    errors = _import_errors(
+        _native_csv(
+            "2026-01-02,AAPL,buy,,150,USD",
+            "2026-01-03,AAPL,buy,1,150,USD",
+            "2026-01-04,AAPL,gift,1,150,USD",
+        ),
+        db_session=db_session, default_portfolio=default_portfolio,
+        request_context=request_context,
+    )
+
+    assert [e.split(":")[0] for e in errors] == ["Row 2", "Row 4"]
+
+
+def test_native_csv_preview_never_contains_nan(
+    db_session, default_portfolio, request_context,
+):
+    import json
+
+    csv = _native_csv(
+        "2026-01-02,aapl,BUY,1.5,150,usd",
+        "2026-01-03,MSFT,dividend,2,0.75,USD",
+    )
+
+    with patch("routers.portfolio.bulk_fetch_fx", return_value={}):
+        result = _preview(
+            csv, db_session=db_session, default_portfolio=default_portfolio,
+            request_context=request_context,
+        )
+
+    json.dumps(result, allow_nan=False)  # the response encoder refuses NaN too
+    assert [(s["ticker"], s["type"], s["currency"]) for s in result["sample"]] == [
+        ("AAPL", "buy", "USD"),
+        ("MSFT", "dividend", "USD"),
+    ]
