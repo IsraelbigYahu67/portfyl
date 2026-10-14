@@ -37,9 +37,11 @@ ENV PYTHONUNBUFFERED=1 \
     PORT=8080
 WORKDIR /app
 
-# Backend deps first (layer cached unless requirements.txt changes).
-COPY backend/requirements.txt ./backend/requirements.txt
-RUN pip install --no-cache-dir -r backend/requirements.txt
+# Backend deps first (layer cached unless the lock changes). The hashed lock is
+# generated from requirements.txt -- see "Run it" in CLAUDE.md for how to
+# refresh it. --require-hashes makes pip refuse anything the lock does not pin.
+COPY backend/requirements.lock ./backend/requirements.lock
+RUN pip install --no-cache-dir --require-hashes -r backend/requirements.lock
 
 # Backend source. snowball.db / .env / __pycache__ are kept out via .dockerignore,
 # so no data or secrets are baked into the image. The cloud edition's database

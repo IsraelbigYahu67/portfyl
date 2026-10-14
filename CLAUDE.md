@@ -75,7 +75,8 @@ before starting any auth, tenancy, database, or billing work.
 ## Run it
 
 - **Dev (Windows)**: `start.bat` bootstraps the backend venv with **uv** on first
-  run (`uv venv .venv --python 3.12`, then `uv pip install -r requirements.txt`),
+  run (`uv venv .venv --python 3.12`, then
+  `uv pip install --require-hashes -r requirements.lock`),
   launches backend (`uvicorn main:app --reload`, port **8000**) + frontend
   (`npm run dev`, port **5173**) and opens the browser. Use **http://localhost:5173**
   — Vite proxies `/api` → :8000. (Install uv from
@@ -84,6 +85,24 @@ before starting any auth, tenancy, database, or billing work.
   `backend/alembic.ini` / `alembic upgrade head`.
 - **Backend only**: activate the `.venv` uv created, then from `backend/`,
   `python -m uvicorn main:app --reload --port 8000`.
+- **Python runtime & dependency lock**: production runs `python:3.14-slim` and
+  `node:22-alpine` (`Dockerfile`); CI runs the backend jobs as a matrix on
+  Python **3.12** (dev) and **3.14** (prod) and the frontend on Node 22. Dev
+  stays on 3.12 until the matrix has been green for two weeks, then `start.bat`
+  and CI move to 3.14 (plan R2). `backend/requirements.txt` and
+  `requirements-dev.txt` are the input specs (lower bounds only);
+  `backend/requirements.lock` / `requirements-dev.lock` are the universal,
+  hashed lock (valid on 3.12 and 3.14) that the Dockerfile, CI and `start.bat`
+  install with `--require-hashes`. After changing a spec file, or to pick up
+  newer versions, regenerate from the repo root (dev lock second, it is
+  constrained to the prod lock) and commit both:
+  `uv pip compile backend/requirements.txt --universal --generate-hashes --python-version 3.12 -o backend/requirements.lock`
+  then
+  `uv pip compile backend/requirements-dev.txt --universal --generate-hashes --python-version 3.12 -c backend/requirements.lock -o backend/requirements-dev.lock`
+  (add `--upgrade` to the first to bump pins). The `backend-lock` CI job fails
+  when the committed locks no longer match the specs. `requirements*.txt` and
+  `requirements*.lock` are a **hotspot**: only one task at a time may change
+  them (see "Parallel session safety").
 - **Prod build**: `npm run build` emits `frontend/dist`, which FastAPI serves as a
   same-origin local-edition SPA; `npm run build:cloud` emits the cloud edition.
   The Dockerfile always uses the cloud build. See the SPA fallback at the
@@ -212,9 +231,10 @@ plus Portfyl's own opaque sessions (`__Host-portfyl_session` /
   with SQLite-only assertions — RLS and real-role behavior don't exist in
   SQLite.
 - **Neither pytest nor the PostgreSQL-test extras are in `requirements.txt`**
-  — install `backend/requirements-dev.txt` into the venv
-  (`uv pip install -r requirements-dev.txt` / `pip install -r requirements-dev.txt`,
-  which also installs `requirements.txt`) before running either suite.
+  — install the hashed lock `backend/requirements-dev.lock` into the venv
+  (`uv pip install --require-hashes -r requirements-dev.lock`, which includes
+  the runtime lock) before running either suite. Run the fast suite on both 3.12
+  and 3.14 (`uv venv --python 3.14`) when touching dependencies — CI does.
 
 ### Frontend (`frontend/src/**/*.test.{js,jsx}`)
 
@@ -251,7 +271,7 @@ repository concurrently without blocking or corrupting each other:
 2. **Disjoint files per task.** Split the plan into independent tasks that
    touch disjoint sets of files. Shared hotspots — `backend/database.py`
    (`EXPECTED_ALEMBIC_HEAD`), `backend/alembic/versions/`, `.env`/config,
-   lockfiles (`requirements.txt`, `package.json`) — are owned by at most one
+   lockfiles (`requirements*.txt`, `requirements*.lock`, `package.json`) — are owned by at most one
    concurrent task; tasks that need them are sequenced into later waves, not
    run in parallel.
 3. **No shared resource-mutating steps.** Dev servers (backend :8000,
