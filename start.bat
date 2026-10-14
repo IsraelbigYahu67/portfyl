@@ -15,7 +15,7 @@ REM First run: create an isolated Python environment with uv (https://docs.astra
 if not exist ".venv\Scripts\python.exe" (
     echo Setting up backend Python environment with uv...
     uv venv .venv --python 3.12 || goto :no_uv
-    uv pip install --python ".venv\Scripts\python.exe" -r requirements.txt || goto :no_uv
+    uv pip install --python ".venv\Scripts\python.exe" --require-hashes -r requirements.lock || goto :no_uv
 )
 
 start "Portfyl Backend" cmd /k ".venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000"
