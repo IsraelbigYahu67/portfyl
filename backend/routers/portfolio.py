@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from typing import List
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import yfinance as yf
 import pandas as pd
 import pytz
@@ -17,7 +17,7 @@ from types import SimpleNamespace
 
 from uuid import UUID
 
-from database import get_db, release_connection
+from database import get_db, release_connection, release_request_connections
 from edition import edition_from_env
 from entitlements import (
     enforce_capacity_locked,
@@ -50,6 +50,9 @@ from import_undo import (
 )
 from audit import record_audit_event
 from portfolio_activation import clear_pending_portfolio
+from importers import registry as import_registry
+from importers.base import ImportFile, validate_rows
+from importers.openfigi import OpenFigiUnavailable
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -339,6 +342,46 @@ class _ParsedImport:
     skipped: int
     mandatory_replace: bool
     t212_covered_through: datetime | None
+    skipped_reasons: dict[str, int] = field(default_factory=dict)
+
+
+def get_instrument_resolver():
+    """Import-time instrument resolver factory; tests monkeypatch it."""
+    from importers.instruments import DefaultInstrumentResolver
+    return DefaultInstrumentResolver.from_env()
+
+
+def _parse_plugin_import(plugin, upload: ImportFile) -> _ParsedImport:
+    # Instrument resolution may call OpenFIGI; never hold a pooled DB
+    # connection (taken by require_portfolio) across that outbound call.
+    release_request_connections()
+    try:
+        result = plugin.parse(upload, get_instrument_resolver())
+    except OpenFigiUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    errors = [*result.errors, *validate_rows(result.rows)]
+    if errors:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": f"{result.format_name} import failed validation; nothing was imported",
+                "errors": errors[:100],
+            },
+        )
+    if not result.rows:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "Import validation failed", "errors": ["File contains no importable rows"]},
+        )
+    return _ParsedImport(
+        format_name=result.format_name,
+        rows=result.rows,
+        source_events=result.source_events,
+        skipped=result.skipped,
+        mandatory_replace=False,
+        t212_covered_through=None,
+        skipped_reasons=dict(result.skipped_reasons),
+    )
 
 
 def _read_import_upload(file: UploadFile) -> bytes:
@@ -348,7 +391,7 @@ def _read_import_upload(file: UploadFile) -> bytes:
     if len(content) > MAX_IMPORT_BYTES:
         raise HTTPException(
             status_code=413,
-            detail="CSV upload exceeds the 5 MiB limit",
+            detail="Upload exceeds the 5 MiB limit",
         )
     return content
 
@@ -409,7 +452,15 @@ def _parse_native_row(row) -> dict:
     }
 
 
-def _parse_import_content(content: bytes) -> _ParsedImport:
+def _parse_import_content(content: bytes, filename: str = "") -> _ParsedImport:
+    upload = ImportFile(filename=filename or "", content=content)
+    try:
+        plugin = import_registry.detect_format(upload)
+    except import_registry.AmbiguousFormat as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if plugin is not None:
+        return _parse_plugin_import(plugin, upload)
+
     try:
         df = pd.read_csv(io.StringIO(content.decode("utf-8-sig")))
     except Exception as exc:
@@ -828,7 +879,7 @@ def preview_import_csv(
     _context: RequestContext = Depends(get_request_context),
 ):
     """Parse and reconcile an upload without mutating portfolio data."""
-    parsed = _parse_import_content(_read_import_upload(file))
+    parsed = _parse_import_content(_read_import_upload(file), file.filename or "")
     current_rows = _portfolio_txns(db, portfolio).all()
     current_state = capture_portfolio_state(db, portfolio)
     preview = build_preview(
@@ -849,6 +900,7 @@ def preview_import_csv(
     rows_to_insert = preview.pop("rows_to_insert")
     preview["sample"] = _preview_sample(rows_to_insert)
     preview["sample_truncated"] = len(rows_to_insert) > IMPORT_SAMPLE_LIMIT
+    preview["skipped_reasons"] = parsed.skipped_reasons
     return preview
 
 
@@ -963,7 +1015,7 @@ def commit_import_csv(
     portfolio: Portfolio = Depends(require_portfolio),
     context: RequestContext = Depends(require_csrf),
 ):
-    parsed = _parse_import_content(_read_import_upload(file))
+    parsed = _parse_import_content(_read_import_upload(file), file.filename or "")
     acquire_workspace_ledger_lock(db, portfolio.workspace_id)
     current_rows = _portfolio_txns(db, portfolio).all()
     before = capture_portfolio_state(db, portfolio)
