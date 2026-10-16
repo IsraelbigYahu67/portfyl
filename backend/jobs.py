@@ -340,8 +340,16 @@ async def broker_autosync_pass(
                 detail = "current snapshot"
             elif conn.broker == "ibkr":
                 r = await _run_ibkr_sync(db, workspace_id, conn.portfolio_id)
-                summary["imported"] = r.get("imported", 0)
-                detail = f"{r.get('imported', 0)} trade(s)"
+                ledger = r.get("ledger") or {}
+                ledger_imported = ledger.get("imported", 0)
+                summary["imported"] = r.get("imported", 0) + ledger_imported
+                detail = f"{r.get('imported', 0)} option trade(s)"
+                if ledger_imported:
+                    detail += f" and {ledger_imported} stock/cash transaction(s)"
+                if ledger.get("status") == "needs_review":
+                    # The sync succeeded but flagged the statement for the
+                    # user; keep that flag (and its message) below.
+                    summary["needs_review"] = True
             else:
                 continue  # unknown broker — nothing to do
         except Exception as e:
@@ -369,7 +377,9 @@ async def broker_autosync_pass(
         # The sync above committed internally, dropping the context set at
         # the top of this iteration -- restore it before the Discord lookup.
         _set_job_workspace_context(db, workspace_id)
-        if conn.consecutive_failures or conn.needs_attention:
+        if summary.get("needs_review"):
+            conn.consecutive_failures = 0
+        elif conn.consecutive_failures or conn.needs_attention:
             conn.consecutive_failures = 0
             conn.needs_attention = False
             conn.last_error = None

@@ -126,7 +126,23 @@ def _needs_ticker(el: ET.Element) -> bool:
     return bool(el.get("symbol")) and _category(el) in _STOCK_CATEGORIES
 
 
+def _missing_detail_level(elements: list[ET.Element], allowed: str, section: str) -> str | None:
+    """A query set to Orders/Summary only would otherwise import nothing
+    for that section without saying so."""
+    if elements and not any(_detail(el, allowed) for el in elements):
+        return (f"The Flex Query reports {section} without the {allowed.title()} level; "
+                f"enable {section} → {allowed.title()} in the query and sync again")
+    return None
+
+
 def _parse_one(statement: ET.Element, base: str, resolver: InstrumentResolver, result: ParseResult) -> None:
+    stock_trades = [t for t in statement.iter("Trade") if _category(t) in _STOCK_CATEGORIES | {"CASH"}]
+    for problem in (
+        _missing_detail_level(stock_trades, "EXECUTION", "Trades"),
+        _missing_detail_level(list(statement.iter("CashTransaction")), "DETAIL", "Cash Transactions"),
+    ):
+        if problem:
+            result.errors.append(problem)
     trades = [t for t in statement.iter("Trade") if _detail(t, "EXECUTION")]
     cash = [c for c in statement.iter("CashTransaction") if _detail(c, "DETAIL")]
     actions = [a for a in statement.iter("CorporateAction") if _detail(a, "DETAIL")]

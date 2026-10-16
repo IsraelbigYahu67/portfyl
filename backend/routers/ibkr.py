@@ -617,6 +617,27 @@ async def _run_ibkr_sync(
     # Phase 4: Pair trades (FIFO)
     paired = _pair_trades(raw_trades)
 
+    # Phase 4c: stock/ETF/cash ledger events from the same statement. Runs
+    # before any write of this sync so its instrument/FX lookups do not hold
+    # a pooled connection. A statement that needs review leaves the ledger
+    # untouched and flags the connection; options below still sync.
+    from ibkr_ledger import apply_flex_ledger
+    from importers.instruments import DefaultInstrumentResolver
+    from importers.openfigi import OpenFigiUnavailable
+    try:
+        ledger = apply_flex_ledger(db, portfolio, xml_text, resolver=DefaultInstrumentResolver.from_env())
+    except OpenFigiUnavailable as exc:
+        # Transient: the next sync re-reads the same statement window.
+        ledger = {"status": "deferred", "imported": 0, "already_present": 0, "errors": [str(exc)]}
+    if ledger["status"] == "needs_review":
+        conn.needs_attention = True
+        conn.last_error = ledger["errors"][0][:500]
+    elif conn.needs_attention and not conn.consecutive_failures:
+        # Only a ledger review sets attention without failures (the
+        # dead-letter path counts them); this statement imported cleanly.
+        conn.needs_attention = False
+        conn.last_error = None
+
     # Phase 4b: Parse + store the account balance snapshot from the same XML.
     # Best-effort: a Flex Query without the NAV / Cash Report sections simply
     # yields no balance, and the sync still succeeds for trades.
@@ -711,6 +732,7 @@ async def _run_ibkr_sync(
         "updated": updated,
         "errors": errors,
         "balance_found": balance_found,
+        "ledger": ledger,
     }
 
 

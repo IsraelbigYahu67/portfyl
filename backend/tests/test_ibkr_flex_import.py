@@ -143,6 +143,12 @@ def test_withholding_tax_on_interest_is_a_fee():
     assert fee["type"] == "fee" and fee["amount"] == pytest.approx(0.18)
 
 
+def test_order_level_only_query_is_an_error_not_an_empty_import():
+    xml = FIXTURE.read_text().replace('levelOfDetail="EXECUTION"', 'levelOfDetail="ORDER"')
+    result = _parse(xml)
+    assert any("Execution level" in e for e in result.errors)
+
+
 def test_unsupported_corporate_action_is_error():
     result = _parse(FIXTURE.read_text().replace('type="FS"', 'type="SO"'))
     assert any("SO" in e for e in result.errors)
