@@ -1,0 +1,26 @@
+<FlexQueryResponse queryName="Portfyl" type="AF">
+ <FlexStatements count="1">
+  <FlexStatement accountId="U0000000" fromDate="20250101" toDate="20251231" period="Custom">
+   <AccountInformation accountId="U0000000" currency="CZK"/>
+   <Trades>
+    <Trade assetCategory="STK" symbol="AAPL" description="APPLE INC" conid="265598" isin="US0378331005" listingExchange="NASDAQ" currency="USD" fxRateToBase="23.10" tradeDate="20250102" dateTime="20250102;093015" quantity="10" tradePrice="190.5" ibCommission="-1" ibCommissionCurrency="USD" netCash="-1906" buySell="BUY" tradeID="111" transactionID="9001" levelOfDetail="EXECUTION"/>
+    <Trade assetCategory="STK" symbol="AAPL" description="APPLE INC" conid="265598" isin="US0378331005" listingExchange="NASDAQ" currency="USD" fxRateToBase="23.10" tradeDate="20250102" dateTime="20250102;093015" quantity="10" tradePrice="190.5" ibCommission="-1" ibCommissionCurrency="USD" netCash="-1906" buySell="BUY" tradeID="111" transactionID="" levelOfDetail="ORDER"/>
+    <Trade assetCategory="STK" symbol="VWCE" description="VANGUARD FTSE ALL-WORLD" conid="1" isin="IE00BK5BQT80" listingExchange="IBIS2" currency="EUR" fxRateToBase="25.0" tradeDate="20250310" dateTime="20250310;040000" quantity="-2" tradePrice="120" ibCommission="-1.25" ibCommissionCurrency="EUR" netCash="238.75" buySell="SELL" tradeID="112" transactionID="9002" levelOfDetail="EXECUTION"/>
+    <Trade assetCategory="CASH" symbol="EUR.USD" currency="USD" fxRateToBase="23.10" tradeDate="20250311" dateTime="20250311;100000" quantity="1000" tradePrice="1.08" ibCommission="-2" ibCommissionCurrency="USD" netCash="-1080" buySell="BUY" tradeID="113" transactionID="9003" levelOfDetail="EXECUTION"/>
+    <Trade assetCategory="OPT" symbol="AAPL  250620C00200000" currency="USD" tradeDate="20250401" dateTime="20250401;100000" quantity="1" tradePrice="3" netCash="-300" buySell="BUY" tradeID="114" transactionID="9004" levelOfDetail="EXECUTION"/>
+    <Trade assetCategory="BOND" symbol="T 4 1/2" currency="USD" tradeDate="20250402" dateTime="20250402;100000" quantity="1000" tradePrice="99" netCash="-990" buySell="BUY" tradeID="115" transactionID="9005" levelOfDetail="EXECUTION"/>
+   </Trades>
+   <CashTransactions>
+    <CashTransaction type="Dividends" symbol="AAPL" conid="265598" isin="US0378331005" listingExchange="NASDAQ" currency="USD" fxRateToBase="23.20" dateTime="20250515" amount="2.5" description="AAPL(US0378331005) CASH DIVIDEND USD 0.25 PER SHARE (Ordinary Dividend)" transactionID="8001" actionID="A1" levelOfDetail="DETAIL"/>
+    <CashTransaction type="Withholding Tax" symbol="AAPL" conid="265598" isin="US0378331005" listingExchange="NASDAQ" currency="USD" fxRateToBase="23.20" dateTime="20250515" amount="-0.375" description="AAPL(US0378331005) CASH DIVIDEND USD 0.25 PER SHARE - US TAX" transactionID="8002" actionID="A1" levelOfDetail="DETAIL"/>
+    <CashTransaction type="Dividends" symbol="AAPL" conid="265598" currency="USD" dateTime="20250515" amount="2.5" transactionID="" actionID="A1" levelOfDetail="SUMMARY"/>
+    <CashTransaction type="Deposits/Withdrawals" currency="CZK" fxRateToBase="1" dateTime="20250101" amount="50000" description="CASH RECEIPTS" transactionID="8003" levelOfDetail="DETAIL"/>
+    <CashTransaction type="Broker Interest Received" currency="USD" fxRateToBase="23.0" dateTime="20250605" amount="1.2" description="USD CREDIT INT" transactionID="8004" levelOfDetail="DETAIL"/>
+    <CashTransaction type="Other Fees" currency="USD" fxRateToBase="23.0" dateTime="20250605" amount="-10" description="MARKET DATA" transactionID="8005" levelOfDetail="DETAIL"/>
+   </CashTransactions>
+   <CorporateActions>
+    <CorporateAction type="FS" assetCategory="STK" symbol="NVDA" conid="4815747" isin="US67066G1040" listingExchange="NASDAQ" currency="USD" dateTime="20250610;202500" quantity="90" description="NVDA(US67066G1040) SPLIT 10 FOR 1" transactionID="7001" actionID="S1" levelOfDetail="DETAIL"/>
+   </CorporateActions>
+  </FlexStatement>
+ </FlexStatements>
+</FlexQueryResponse>
