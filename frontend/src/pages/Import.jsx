@@ -192,7 +192,8 @@ export default function Import({ focused = false }) {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { "text/csv": [".csv"] },
+    // .xml: Interactive Brokers Activity Flex statements.
+    accept: { "text/csv": [".csv"], "application/xml": [".xml"], "text/xml": [".xml"] },
     multiple: false,
   });
 
