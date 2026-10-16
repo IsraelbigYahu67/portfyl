@@ -1,10 +1,12 @@
 # Cloud Run deploy — Neon PostgreSQL + Firebase identity, multi-instance
 
-> Production domain routing, verified 2026-09-11: `portfyl.com` maps to the
-> `portfyl` service in **europe-west1**. The separate europe-west3 service does
-> not serve this domain. Verify the domain mapping before selecting a deployment
-> target; the Artifact Registry remaining in europe-west3 does not determine
-> the service region. See `docs/operations/2026-09-10-public-landing.md`.
+> Production domain routing, verified 2026-10-16: both `portfyl.com` and
+> `app.portfyl.com` reach the `portfyl` service in project
+> `portfyl-prod-f6shqb`, **europe-west1**, through the Cloudflare Worker
+> `portfyl-beta-proxy` (`deploy/cloudflare/`). No Cloud Run domain mapping is
+> in use; the old one in `portfyl-cloud-fstxby` is obsolete. Only the
+> `app.portfyl.com` route sends the edge token, so `/api` on the apex fails
+> closed with `403 untrusted_edge`.
 
 The shared backend (this repo's `backend/`, with the built SPA baked in by the
 root `Dockerfile`) runs on **Cloud Run**. The database is **Neon** (managed

@@ -21,7 +21,9 @@ Worker secret. Its `workers.dev` and preview URLs are disabled, and the route
 is configured to fail closed. This avoids exposing a second public origin or
 depending on a separate Google-managed certificate for the beta hostname.
 The versioned Worker source and deployment configuration live in
-`deploy/cloudflare/`.
+`deploy/cloudflare/`. Since 2026-10-16 the same Worker also has the route
+`portfyl.com/*` for the public home; it proxies those requests without the
+edge token (see `deploy/cloudflare/README.md`).
 
 ## Invite a tester
 
