@@ -1,0 +1,12 @@
+
+
+Run Date,Action,Symbol,Description,Type,Quantity,Price ($),Commission ($),Fees ($),Accrued Interest ($),Amount ($),Settlement Date
+01/02/2025,"YOU BOUGHT APPLE INC (AAPL) (Cash)",AAPL,APPLE INC,Cash,10,190.5,,,,-1905,01/03/2025
+02/14/2025,"DIVIDEND RECEIVED APPLE INC (AAPL) (Cash)",AAPL,APPLE INC,Cash,,,,,,2.5,
+02/14/2025,"FOREIGN TAX PAID APPLE INC (AAPL) (Cash)",AAPL,APPLE INC,Cash,,,,,,-0.38,
+02/28/2025,"DIVIDEND RECEIVED FIDELITY GOVERNMENT MONEY MARKET (SPAXX) (Cash)",SPAXX,FIDELITY GOVERNMENT MONEY MARKET,Cash,,,,,,1.1,
+02/28/2025,"REINVESTMENT FIDELITY GOVERNMENT MONEY MARKET (SPAXX) (Cash)",SPAXX,FIDELITY GOVERNMENT MONEY MARKET,Cash,1.1,1,,,,-1.1,
+03/01/2025,"Electronic Funds Transfer Received (Cash)",,No Description,Cash,,,,,,5000,
+
+
+"The data and information in this spreadsheet is provided to you solely for your use..."
