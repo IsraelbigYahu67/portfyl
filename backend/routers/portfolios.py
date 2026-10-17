@@ -371,7 +371,10 @@ def create_demo_portfolio(
         )
         db.flush()
         db.refresh(portfolio)
-        result = {**_serialize(portfolio, {portfolio.id: len(_DEMO_TRANSACTIONS)}), "demo": True}
+        result = {
+            **_serialize(portfolio, {portfolio.id: len(_DEMO_TRANSACTIONS)}, brokers={portfolio.id: ["demo"]}),
+            "demo": True,
+        }
         db.commit()
     except Exception:
         db.rollback()

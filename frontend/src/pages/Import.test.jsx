@@ -337,6 +337,9 @@ describe("Import preview and undo", () => {
       expect(mocks.setCurrentId).toHaveBeenCalledWith("new-id");
       expect(mocks.previewImportCSV).toHaveBeenCalledTimes(2);
       expect(mocks.previewImportCSV.mock.calls[1][1]).toBe(false);
+      // Re-renders must not clean the new portfolio up again.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(mocks.deletePortfolio).not.toHaveBeenCalled();
     });
 
     it("removes the new portfolio again when the preview is cancelled", async () => {

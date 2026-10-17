@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import { createPortfolio, deletePortfolio } from "../api";
 import { usePortfolio } from "../App";
@@ -50,5 +50,8 @@ export function useBrokerPortfolio() {
     }
   }, []);
 
-  return { open, discard };
+  // Stable identity: callers use it in effect dependencies (Import.jsx cleans
+  // up an unused portfolio on unmount), so a new object per render would fire
+  // that cleanup on every render.
+  return useMemo(() => ({ open, discard }), [open, discard]);
 }
