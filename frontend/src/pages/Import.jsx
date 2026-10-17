@@ -43,14 +43,36 @@ function downloadSample() {
   URL.revokeObjectURL(url);
 }
 
+const FORMAT_BADGE_CLASS = {
+  "Trading 212": "bg-blue-100 text-blue-700",
+  Native: "bg-green-100 text-green-700",
+};
+
 function FormatBadge({ format }) {
-  const trading212 = format === "Trading 212";
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-      trading212 ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
+      FORMAT_BADGE_CLASS[format] ?? "bg-surface-hover text-ink"
     }`}>
       {format}
     </span>
+  );
+}
+
+// Rows the parser recognized but did not import, grouped by reason.
+function SkippedReasons({ reasons, total }) {
+  const entries = Object.entries(reasons ?? {}).filter(([, count]) => count > 0);
+  if (entries.length === 0) {
+    return total > 0 ? <p className="text-muted">{plural(total, "informational row")} recognized and skipped.</p> : null;
+  }
+  return (
+    <div className="text-muted">
+      <p>{plural(entries.reduce((sum, [, count]) => sum + count, 0), "row")} recognized and skipped:</p>
+      <ul aria-label="Skipped rows" className="mt-1 list-disc space-y-0.5 pl-5">
+        {entries.map(([reason, count]) => (
+          <li key={reason}><span className="text-ink">{reason}</span> <span className="tabular-nums">× {count}</span></li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -206,7 +228,7 @@ export default function Import({ focused = false }) {
     <div className="space-y-6 max-w-3xl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold">Import CSV</h1>
+          <h1 className="text-xl font-bold">Import transactions</h1>
           <p className="text-xs text-muted mt-1">Preview every change before it reaches your portfolio.</p>
         </div>
         <div className="flex gap-2">
@@ -248,6 +270,7 @@ export default function Import({ focused = false }) {
         <div className="flex items-center gap-2 flex-wrap">
           <FormatBadge format="Trading 212" />
           <FormatBadge format="Native" />
+          <FormatBadge format="Interactive Brokers (Flex XML)" />
           <span className="text-xs text-muted">Auto-detected · maximum 5 MiB</span>
         </div>
         <div className="flex items-start gap-2 text-xs text-muted">
@@ -255,6 +278,14 @@ export default function Import({ focused = false }) {
           <p>
             Trading 212 exports include the full account history and therefore replace this portfolio.
             Native CSV files can append new rows or replace the portfolio.
+          </p>
+        </div>
+        <div className="flex items-start gap-2 text-xs text-muted">
+          <Info size={14} className="text-brand mt-0.5 shrink-0" />
+          <p>
+            Interactive Brokers Activity Flex XML statements (.xml) add stocks, ETFs, dividends and cash; rows already
+            in the portfolio are skipped. A Flex statement covers at most 365 days, so for older history upload one XML
+            per year. The Flex Query setup is in <Link to="/settings?section=connections" className="text-brand underline">Settings → Connections</Link>.
           </p>
         </div>
       </section>
@@ -276,7 +307,7 @@ export default function Import({ focused = false }) {
           </div>
         ) : (
           <div className="text-center">
-            <p className="text-sm font-medium">Drop your CSV here or click to browse</p>
+            <p className="text-sm font-medium">Drop your CSV or IBKR XML file here or click to browse</p>
             <p className="text-xs text-muted mt-1">Nothing is saved until you review and confirm.</p>
           </div>
         )}
@@ -320,7 +351,11 @@ export default function Import({ focused = false }) {
 
           {preview.mode === "replace" && (
             <div className="rounded-lg bg-loss/10 border border-red-500/30 p-3 text-sm">
-              <p className="font-semibold text-loss">Trading 212 exports replace the full portfolio when detected.</p>
+              <p className="font-semibold text-loss">
+                {preview.format === "Trading 212"
+                  ? "Trading 212 exports replace the full portfolio when detected."
+                  : "This import replaces the full portfolio."}
+              </p>
               <p className="text-muted mt-1">
                 {plural(preview.counts.removed, "current transaction")} will be removed. You can undo for 24 hours if the portfolio stays unchanged.
               </p>
@@ -342,7 +377,7 @@ export default function Import({ focused = false }) {
           <div className="text-sm space-y-1">
             <p>{plural(preview.counts.added, "transaction")} will be added.</p>
             {duplicateCount > 0 && <p className="text-muted">{plural(duplicateCount, "exact duplicate")} will be skipped.</p>}
-            {preview.counts.skipped > 0 && <p className="text-muted">{plural(preview.counts.skipped, "informational row")} recognized and skipped.</p>}
+            <SkippedReasons reasons={preview.skipped_reasons} total={preview.counts.skipped} />
           </div>
 
           {preview.sample.length > 0 && (

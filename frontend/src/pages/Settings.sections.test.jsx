@@ -33,6 +33,7 @@ vi.mock("../App", () => ({
 vi.mock("../components/SyncScheduleSettings", () => ({ default: () => <div>Sync schedule</div> }));
 vi.mock("../components/DiscordSettings", () => ({ default: () => { mocks.discordMount(); return <div>Discord destination</div>; } }));
 vi.mock("../components/DataPrivacySettings", () => ({ default: () => { mocks.dataMount(); return <div>Privacy controls</div>; } }));
+vi.mock("../components/settings/IBKRConnectionCard", () => ({ default: ({ portfolioName }) => <div>IBKR card for {portfolioName}</div> }));
 
 function LocationProbe() {
   const location = useLocation();
@@ -79,6 +80,7 @@ it("mounts only the selected section and trusts the broker status for connection
   expect(await screen.findByText("Not connected")).toBeInTheDocument();
   expect(screen.getAllByText("Imported portfolio").length).toBeGreaterThan(0);
   expect(mocks.fetchT212Status).toHaveBeenCalledTimes(1);
+  expect(screen.getByText("IBKR card for Imported portfolio")).toBeInTheDocument();
   expect(mocks.discordMount).not.toHaveBeenCalled();
   expect(mocks.dataMount).not.toHaveBeenCalled();
 });

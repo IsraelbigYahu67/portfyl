@@ -363,10 +363,19 @@ export const retryT212History = () =>
 export const fetchCombinedSummary = (currency = "USD") =>
   api.get(`/portfolio/combined-summary`, { params: { currency } }).then((r) => r.data);
 
-// ----- IBKR balance ---------------------------------------------------------
-// Kept only because pages/Options.jsx (disconnected from routing/nav) still
-// imports it. The connect/status/sync IBKR endpoints have no frontend caller.
+// ----- IBKR (Flex Web Service) ---------------------------------------------
+// fetchIBKRBalance is used by pages/Options.jsx (disconnected from routing/nav).
 export const fetchIBKRBalance = () => api.get("/broker/ibkr/balance").then((r) => r.data);
+export const fetchIBKRStatus = () => api.get("/broker/ibkr/status").then((r) => r.data);
+export const connectIBKR = (flexToken, queryId) =>
+  api.post("/broker/ibkr/connect", { flex_token: flexToken, query_id: queryId }).then((r) => r.data);
+export const disconnectIBKR = () => api.delete("/broker/ibkr/connect").then((r) => r.data);
+// The response's `ledger` reports the stock/ETF/dividend/cash import:
+// { status: "imported" | "needs_review" | "deferred" | "sections_missing",
+//   imported, already_present, errors }.
+export const syncIBKR = () => api.post("/broker/ibkr/sync").then((r) => r.data);
+export const setIBKRAutoSync = (enabled) =>
+  api.post("/broker/ibkr/auto-sync", { enabled }).then((r) => r.data);
 
 // ----- Global settings (not portfolio-scoped) ---------------------------------
 
