@@ -34,10 +34,14 @@ VENUE_SUFFIX: dict[str, str] = {
 }
 # Canonical venue key -> Bloomberg exchCode used by OpenFIGI. PRAGUE "CP" is
 # an assumption until a real lookup (plan Task 0 step 3.5) confirms it.
+# XETRA uses the German composite "GR": Xetra-traded ETFs (VWCE, EUNL) have
+# no "GY" listing in OpenFIGI, while stocks carry both with the same ticker.
 VENUE_FIGI: dict[str, str] = {
-    "US": "US", "XETRA": "GY", "FRANKFURT": "GF", "LSE": "LN", "AMSTERDAM": "NA",
+    "US": "US", "XETRA": "GR", "FRANKFURT": "GF", "LSE": "LN", "AMSTERDAM": "NA",
     "PARIS": "FP", "MILAN": "IM", "SIX": "SW", "PRAGUE": "CP",
 }
+# exchCode -> venue, for candidates of an unfiltered (venue-less) lookup.
+_FIGI_VENUE: dict[str, str] = {code: venue for venue, code in VENUE_FIGI.items()} | {"GY": "XETRA"}
 _POSITIVE_TTL = 30 * 24 * 3600
 _NEGATIVE_TTL = 24 * 3600
 _MISS = object()
@@ -125,7 +129,7 @@ class DefaultInstrumentResolver:
                 continue
             if wanted and item.get("exchCode") != wanted:
                 continue
-            match = next((v for v, code in VENUE_FIGI.items() if code == item.get("exchCode")), None)
+            match = _FIGI_VENUE.get(item.get("exchCode"))
             if match and item.get("ticker"):
                 return yahoo_symbol(item["ticker"], match)
         return None

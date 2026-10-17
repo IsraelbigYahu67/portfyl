@@ -34,15 +34,29 @@ def _figi(handler):
 
 
 def test_isin_resolved_via_openfigi_with_venue_filter():
+    # Real OpenFIGI answer (2026-10-17): Xetra ETFs such as VWCE have no "GY"
+    # listing, only the German composite "GR" (plus GF, GD, ...).
     def handler(request):
         [job] = json.loads(request.read())
-        assert job == {"idType": "ID_ISIN", "idValue": "IE00BK5BQT80", "exchCode": "GY"}
+        assert job == {"idType": "ID_ISIN", "idValue": "IE00BK5BQT80", "exchCode": "GR"}
         return httpx.Response(200, json=[{"data": [
-            {"ticker": "VWCE", "exchCode": "GY", "marketSector": "Equity"},
+            {"ticker": "VWCE", "exchCode": "GR", "marketSector": "Equity"},
         ]}])
     resolver = DefaultInstrumentResolver(figi=_figi(handler))
     ref = InstrumentRef(isin="IE00BK5BQT80", venue="XETRA")
     assert resolver.resolve_many([ref]) == {ref: "VWCE.DE"}
+
+
+def test_xetra_listing_maps_to_xetra_without_a_venue():
+    def handler(request):
+        [job] = json.loads(request.read())
+        assert "exchCode" not in job
+        return httpx.Response(200, json=[{"data": [
+            {"ticker": "SAP", "exchCode": "GY", "marketSector": "Equity"},
+        ]}])
+    resolver = DefaultInstrumentResolver(figi=_figi(handler))
+    ref = InstrumentRef(isin="DE0007164600")
+    assert resolver.resolve_many([ref]) == {ref: "SAP.DE"}
 
 
 def test_wrong_exchange_candidate_is_ignored():
@@ -84,7 +98,7 @@ def test_results_are_cached_between_calls():
 
     def handler(request):
         calls.append(1)
-        return httpx.Response(200, json=[{"data": [{"ticker": "VWCE", "exchCode": "GY", "marketSector": "Equity"}]}])
+        return httpx.Response(200, json=[{"data": [{"ticker": "VWCE", "exchCode": "GR", "marketSector": "Equity"}]}])
     resolver = DefaultInstrumentResolver(figi=_figi(handler))
     ref = InstrumentRef(isin="IE00BK5BQT80", venue="XETRA")
     resolver.resolve_many([ref])
@@ -98,7 +112,7 @@ def test_refs_differing_only_by_name_share_one_lookup():
     def handler(request):
         jobs = json.loads(request.read())
         sizes.append(len(jobs))
-        return httpx.Response(200, json=[{"data": [{"ticker": "VWCE", "exchCode": "GY"}]}] * len(jobs))
+        return httpx.Response(200, json=[{"data": [{"ticker": "VWCE", "exchCode": "GR"}]}] * len(jobs))
     resolver = DefaultInstrumentResolver(figi=_figi(handler))
     a = InstrumentRef(isin="IE00BK5BQT80", venue="XETRA", name="Vanguard")
     b = InstrumentRef(isin="IE00BK5BQT80", venue="XETRA", name="VANGUARD FTSE ALL-WORLD")
