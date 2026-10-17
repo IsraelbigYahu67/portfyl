@@ -8,6 +8,8 @@ import { useCurrency, usePortfolio } from "../App";
 import BrokerPositionSnapshot from "../components/BrokerPositionSnapshot";
 import DataPrivacySettings from "../components/DataPrivacySettings";
 import DiscordSettings from "../components/DiscordSettings";
+import EtoroConnectionCard from "../components/settings/EtoroConnectionCard";
+import IBKRConnectionCard from "../components/settings/IBKRConnectionCard";
 import PreferencesSettings from "../components/settings/PreferencesSettings";
 import PortfolioDataManagement from "../components/settings/PortfolioDataManagement";
 import SettingsSectionNav, { SETTINGS_SECTIONS } from "../components/settings/SettingsSectionNav";
@@ -205,7 +207,7 @@ function ConnectionsSettings({ headingRef }) {
           <Briefcase size={14} className="text-brand" aria-hidden="true" />
           <span>Managing connection for portfolio</span>
           <span className="font-medium text-ink">{currentPortfolio.name}</span>
-          <span className="ml-auto text-xs">Each portfolio holds its own Trading 212 API key — data is never mixed.</span>
+          <span className="ml-auto text-xs">Each portfolio holds its own broker connections — data is never mixed.</span>
         </div>
       )}
 
@@ -259,6 +261,10 @@ function ConnectionsSettings({ headingRef }) {
           )}
         </div>
       </AsyncSection>
+
+      <IBKRConnectionCard portfolioId={currentPortfolio?.id} portfolioName={currentPortfolio?.name} />
+
+      <EtoroConnectionCard portfolioId={currentPortfolio?.id} portfolioName={currentPortfolio?.name} />
 
       <SyncScheduleSettings />
     </section>

@@ -290,6 +290,7 @@ async def broker_autosync_pass(
     # at module import time.
     from routers.broker import sync_transactions
     from routers.ibkr import _run_ibkr_sync
+    from routers.etoro import etoro_sync
 
     all_connections = db.query(BrokerConnection).filter(
         BrokerConnection.workspace_id == workspace_id,
@@ -340,8 +341,25 @@ async def broker_autosync_pass(
                 detail = "current snapshot"
             elif conn.broker == "ibkr":
                 r = await _run_ibkr_sync(db, workspace_id, conn.portfolio_id)
+                ledger = r.get("ledger") or {}
+                ledger_imported = ledger.get("imported", 0)
+                summary["imported"] = r.get("imported", 0) + ledger_imported
+                detail = f"{r.get('imported', 0)} option trade(s)"
+                if ledger_imported:
+                    detail += f" and {ledger_imported} stock/cash transaction(s)"
+                if ledger.get("status") == "needs_review":
+                    # The sync succeeded but flagged the statement for the
+                    # user; keep that flag (and its message) below.
+                    summary["needs_review"] = True
+            elif conn.broker == "etoro":
+                # A plain def with a blocking httpx client: keep it off the
+                # event loop, like the Trading 212 snapshot above.
+                r = await asyncio.to_thread(
+                    etoro_sync, db, workspace_id, conn.portfolio_id)
                 summary["imported"] = r.get("imported", 0)
-                detail = f"{r.get('imported', 0)} trade(s)"
+                detail = f"{summary['imported']} transaction(s)"
+                if r.get("status") == "needs_review":
+                    summary["needs_review"] = True
             else:
                 continue  # unknown broker — nothing to do
         except Exception as e:
@@ -369,7 +387,9 @@ async def broker_autosync_pass(
         # The sync above committed internally, dropping the context set at
         # the top of this iteration -- restore it before the Discord lookup.
         _set_job_workspace_context(db, workspace_id)
-        if conn.consecutive_failures or conn.needs_attention:
+        if summary.get("needs_review"):
+            conn.consecutive_failures = 0
+        elif conn.consecutive_failures or conn.needs_attention:
             conn.consecutive_failures = 0
             conn.needs_attention = False
             conn.last_error = None

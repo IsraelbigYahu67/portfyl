@@ -137,7 +137,7 @@ describe("Import preview and undo", () => {
 
   it("does not expose destructive portfolio clearing", async () => {
     mount();
-    expect(await screen.findByRole("heading", { name: "Import CSV" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Import transactions" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /clear portfolio/i })).not.toBeInTheDocument();
     expect(mocks.clearAllTransactions).not.toHaveBeenCalled();
   });
@@ -171,6 +171,125 @@ describe("Import preview and undo", () => {
     expect(screen.getByText(/Trading 212 exports replace the full portfolio/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /continue to confirm/i }));
     expect(screen.getByRole("button", { name: /replace portfolio with 10 transactions/i })).toBeInTheDocument();
+  });
+
+  it("lists IBKR skipped reasons without the Trading 212 replace warning", async () => {
+    mocks.previewImportCSV.mockResolvedValueOnce({
+      preview_id: "ibkr-1",
+      format: "Interactive Brokers (Flex XML)",
+      mode: "append",
+      mandatory_replace: false,
+      counts: {
+        source_events: 9, recognized_rows: 5, unique_rows: 5,
+        duplicates_in_file: 0, duplicates_existing: 0,
+        current: 0, added: 5, removed: 0, unchanged: 0, projected: 5, skipped: 4,
+      },
+      sample: [],
+      sample_truncated: false,
+      skipped_reasons: { "options trade (synced from Settings)": 3, "FX conversion": 1 },
+    });
+    const { container } = mount();
+    fireEvent.change(container.querySelector('input[type="file"]'), {
+      target: { files: [new File(["<FlexQueryResponse/>"], "ibkr_2024.xml", { type: "text/xml" })] },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: /preview import/i }));
+
+    const skipped = await screen.findByRole("list", { name: "Skipped rows" });
+    expect(skipped).toHaveTextContent("options trade (synced from Settings) × 3");
+    expect(skipped).toHaveTextContent("FX conversion × 1");
+    expect(screen.getByText(/4 rows recognized and skipped/i)).toBeInTheDocument();
+    expect(screen.queryByText(/informational row/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/replace the full portfolio/i)).not.toBeInTheDocument();
+  });
+
+  it("falls back to the skipped count when the preview has no reasons", async () => {
+    mocks.previewImportCSV.mockResolvedValueOnce({
+      preview_id: "native-skip",
+      format: "Native",
+      mode: "append",
+      mandatory_replace: false,
+      counts: {
+        source_events: 3, recognized_rows: 1, unique_rows: 1,
+        duplicates_in_file: 0, duplicates_existing: 0,
+        current: 0, added: 1, removed: 0, unchanged: 0, projected: 1, skipped: 2,
+      },
+      sample: [],
+      sample_truncated: false,
+    });
+    const { container } = mount();
+    chooseCsv(container);
+    fireEvent.click(await screen.findByRole("button", { name: /preview import/i }));
+    expect(await screen.findByText(/2 informational rows recognized and skipped/i)).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Skipped rows" })).not.toBeInTheDocument();
+  });
+
+  it("does not blame Trading 212 for a requested native replace", async () => {
+    mocks.previewImportCSV.mockResolvedValueOnce({
+      preview_id: "native-replace",
+      format: "Native",
+      mode: "replace",
+      mandatory_replace: false,
+      counts: {
+        source_events: 1, recognized_rows: 1, unique_rows: 1,
+        duplicates_in_file: 0, duplicates_existing: 0,
+        current: 3, added: 1, removed: 3, unchanged: 0, projected: 1, skipped: 0,
+      },
+      sample: [],
+      sample_truncated: false,
+      skipped_reasons: {},
+    });
+    const { container } = mount();
+    chooseCsv(container);
+    fireEvent.click(await screen.findByRole("checkbox", { name: /replace existing portfolio/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /preview import/i }));
+    expect(await screen.findByText("This import replaces the full portfolio.")).toBeInTheDocument();
+    expect(screen.queryByText(/Trading 212 exports replace/i)).not.toBeInTheDocument();
+  });
+
+  it("explains that IBKR Flex XML is accepted, one file per year", () => {
+    const { container } = mount();
+    expect(screen.getByText("Interactive Brokers (Flex XML)")).toBeInTheDocument();
+    expect(screen.getByText(/Activity Flex XML statements \(\.xml\)/i)).toHaveTextContent(/upload one XML\s+per year/i);
+    expect(screen.getByRole("link", { name: /settings → connections/i })).toHaveAttribute("href", "/settings?section=connections");
+    expect(container.querySelector('input[type="file"]').getAttribute("accept")).toContain(".xml");
+  });
+
+  it("previews a Degiro export as an append with its skipped reasons", async () => {
+    mocks.previewImportCSV.mockResolvedValueOnce({
+      preview_id: "degiro-1",
+      format: "Degiro (Transactions)",
+      mode: "append",
+      mandatory_replace: false,
+      counts: {
+        source_events: 7, recognized_rows: 4, unique_rows: 4,
+        duplicates_in_file: 0, duplicates_existing: 0,
+        current: 2, added: 4, removed: 0, unchanged: 2, projected: 6, skipped: 3,
+      },
+      sample: [],
+      sample_truncated: false,
+      skipped_reasons: { "trade settlement (imported from Transactions.csv)": 3 },
+    });
+    const { container } = mount();
+    fireEvent.change(container.querySelector('input[type="file"]'), {
+      target: { files: [new File(["Datum,Tijd"], "Transactions.csv", { type: "text/csv" })] },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: /preview import/i }));
+
+    const skipped = await screen.findByRole("list", { name: "Skipped rows" });
+    expect(skipped).toHaveTextContent("trade settlement (imported from Transactions.csv) × 3");
+    expect(screen.getAllByText("Degiro (Transactions)").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/replaces the full portfolio/i)).not.toBeInTheDocument();
+  });
+
+  it("accepts XTB spreadsheets and shows the broker export guides until a file is picked", async () => {
+    const { container } = mount();
+    expect(container.querySelector('input[type="file"]').getAttribute("accept")).toContain(".xlsx");
+    for (const name of ["Degiro", "XTB", "Charles Schwab", "Fidelity"]) {
+      expect(screen.getAllByText(name).length).toBeGreaterThan(0);
+    }
+    expect(screen.getByRole("heading", { name: "How to export from your broker" })).toBeInTheDocument();
+    chooseCsv(container);
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "How to export from your broker" })).not.toBeInTheDocument());
   });
 
   it("shows the four import stages in order", () => {

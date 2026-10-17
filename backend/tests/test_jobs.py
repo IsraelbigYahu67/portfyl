@@ -150,6 +150,33 @@ def test_autosync_ibkr_uses_ibkr_sync(db_session, pid):
     assert results == [{"portfolio_id": pid, "broker": "ibkr", "ok": True, "imported": 4}]
 
 
+def test_autosync_ibkr_counts_ledger_rows_and_keeps_review_flag(db_session, pid):
+    conn = _connect(db_session, pid, broker="ibkr", auto_sync=True)
+
+    async def flagging_sync(db, _workspace_id, _portfolio_id):
+        # _run_ibkr_sync flags the connection itself when the statement
+        # needs review, then commits; the pass must not clear that flag.
+        conn.needs_attention = True
+        conn.last_error = "Portfolio already contains trades from another source for AAPL."
+        db.commit()
+        return {"imported": 1, "ledger": {"status": "needs_review", "imported": 0}}
+
+    with patch("routers.ibkr._run_ibkr_sync", AsyncMock(side_effect=flagging_sync)), \
+         patch("jobs.send_discord_notification", AsyncMock()):
+        results = _run(broker_autosync_pass(db_session, TEST_WORKSPACE_ID))
+    db_session.commit()  # the pass's caller commits
+    assert results[0]["ok"] is True and results[0]["needs_review"] is True
+    assert conn.needs_attention is True and "AAPL" in conn.last_error
+
+    with patch("routers.ibkr._run_ibkr_sync",
+               AsyncMock(return_value={"imported": 1, "ledger": {"status": "imported", "imported": 5}})), \
+         patch("jobs.send_discord_notification", AsyncMock()):
+        results = _run(broker_autosync_pass(db_session, TEST_WORKSPACE_ID))
+    db_session.commit()  # the pass's caller commits
+    assert results[0]["imported"] == 6
+    assert conn.needs_attention is False and conn.last_error is None
+
+
 def test_autosync_t212_sync_runs_off_event_loop(db_session, pid):
     # sync_transactions does blocking HTTP; it must run in a worker thread,
     # never directly on the event loop — a direct call froze every concurrent

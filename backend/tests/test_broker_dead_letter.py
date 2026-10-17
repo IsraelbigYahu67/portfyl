@@ -135,3 +135,43 @@ class TestReenablingClearsDeadLetterState:
 
         assert conn.needs_attention is False
         assert conn.consecutive_failures == 0
+
+
+class TestEtoroAutoSync:
+    @staticmethod
+    def _etoro(db, portfolio):
+        conn = BrokerConnection(
+            workspace_id=portfolio.workspace_id, portfolio_id=portfolio.id, broker="etoro",
+            api_key="u" * 20, api_secret=None, environment="live", auto_sync=True,
+        )
+        db.add(conn)
+        db.commit()
+        return conn
+
+    def test_repeated_etoro_failures_disable_auto_sync(self, db_session, default_portfolio):
+        conn = self._etoro(db_session, default_portfolio)
+
+        with patch("routers.etoro.etoro_sync", side_effect=RuntimeError("eToro is down")):
+            for _ in range(BROKER_AUTOSYNC_FAILURE_THRESHOLD):
+                _run(broker_autosync_pass(db_session, default_portfolio.workspace_id))
+
+        assert conn.consecutive_failures == BROKER_AUTOSYNC_FAILURE_THRESHOLD
+        assert (conn.needs_attention, conn.auto_sync) == (True, False)
+        assert "eToro is down" in conn.last_error
+
+    def test_etoro_review_keeps_the_flag_without_counting_a_failure(
+        self, db_session, default_portfolio,
+    ):
+        conn = self._etoro(db_session, default_portfolio)
+
+        def review(db, workspace_id, portfolio_id):
+            conn.needs_attention, conn.last_error = True, "eToro instrument 9 has no market ticker"
+            db.commit()
+            return {"status": "needs_review", "imported": 0, "already_present": 0,
+                    "errors": [conn.last_error], "skipped_reasons": {}}
+
+        with patch("routers.etoro.etoro_sync", side_effect=review):
+            [summary] = _run(broker_autosync_pass(db_session, default_portfolio.workspace_id))
+
+        assert summary["ok"] is True and summary["needs_review"] is True
+        assert (conn.consecutive_failures, conn.needs_attention, conn.auto_sync) == (0, True, True)
