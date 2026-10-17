@@ -74,6 +74,13 @@ def test_server_time_is_converted_to_utc():
     assert buy["executed_at"] == datetime(2025, 1, 2, 14, 31, tzinfo=timezone.utc)
 
 
+def test_ledger_date_is_the_xtb_server_date_not_utc():
+    # 2025-06-30 00:00 in Warsaw is 2025-06-29 22:00 UTC; the statement says June 30.
+    [interest] = xtb.FORMAT.parse(_workbook([ROWS[6]]), RESOLVER).rows
+    assert interest["date"].isoformat() == "2025-06-30"
+    assert interest["executed_at"] == datetime(2025, 6, 29, 22, 0, tzinfo=timezone.utc)
+
+
 def test_dividend_net_in_account_currency():
     [div] = [r for r in xtb.FORMAT.parse(_workbook(ROWS[:5]), RESOLVER).rows if r["type"] == "dividend"]
     assert div["cash_amount"] == pytest.approx(49.09) and div["cash_currency"] == "CZK"

@@ -110,11 +110,13 @@ def _parse(file: ImportFile, resolver) -> ParseResult:
         if not isinstance(when, datetime):
             result.errors.append(f"XTB {event_id}: time is missing")
             continue
+        # The statement date is the server-local one; only executed_at is UTC.
+        day = when.date()
         executed_at = when.replace(tzinfo=_SERVER_TZ).astimezone(timezone.utc)
         amount = float(row[col["Amount"]] or 0.0)
         symbol = str(row[col["Symbol"]] or "").strip()
         comment = str(row[col["Comment"]] or "").strip()
-        common = {"date": executed_at.date(), "executed_at": executed_at, "source": SOURCE,
+        common = {"date": day, "executed_at": executed_at, "source": SOURCE,
                   "source_event_stream": STREAM, "source_event_id": event_id, "notes": comment}
         if lowered in _CFD:
             result.skip("CFD trade")
@@ -142,9 +144,9 @@ def _parse(file: ImportFile, resolver) -> ParseResult:
                 continue
             # The dividend is paid in the account currency, so its price is
             # too; dividend analytics read cash_amount/cash_currency.
-            legs.append(DividendLeg(group_key=f"{symbol}|{executed_at.date().isoformat()}",
+            legs.append(DividendLeg(group_key=f"{symbol}|{day.isoformat()}",
                                     kind="tax" if lowered == "withholding tax" else "gross",
-                                    ticker=ticker, name=symbol, pay_date=executed_at.date(),
+                                    ticker=ticker, name=symbol, pay_date=day,
                                     currency=account_ccy, amount=amount, executed_at=executed_at,
                                     instrument_id=symbol))
         else:
