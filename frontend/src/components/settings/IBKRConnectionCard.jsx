@@ -7,6 +7,8 @@ import { connectIBKR, disconnectIBKR, fetchIBKRStatus, setIBKRAutoSync, syncIBKR
 import { AsyncSection } from "../ui";
 import Toggle from "../ui/Toggle";
 import { getApiErrorMessage } from "../../lib/apiError";
+import { useBrokerPortfolio } from "../../hooks/useBrokerPortfolio";
+import { splitNote } from "../../lib/brokerPortfolio";
 
 import { IBKR_FLEX_SECTIONS } from "../../lib/ibkrFlex";
 
@@ -110,6 +112,7 @@ export function IBKRFlexGuide() {
 
 export default function IBKRConnectionCard({ portfolioId, portfolioName }) {
   const queryClient = useQueryClient();
+  const brokerPortfolio = useBrokerPortfolio();
   const [flexToken, setFlexToken] = useState("");
   const [queryId, setQueryId] = useState("");
   const [showToken, setShowToken] = useState(false);
@@ -133,12 +136,22 @@ export default function IBKRConnectionCard({ portfolioId, portfolioName }) {
   };
 
   const connectMutation = useMutation({
-    mutationFn: () => connectIBKR(flexToken.trim(), queryId.trim()),
-    onSuccess: () => {
+    mutationFn: async () => {
+      // A portfolio holding another broker's data gets IBKR in a new one.
+      const session = await brokerPortfolio.open("ibkr");
+      try {
+        await connectIBKR(flexToken.trim(), queryId.trim());
+      } catch (error) {
+        await brokerPortfolio.discard(session).catch(() => {});
+        throw error;
+      }
+      return session;
+    },
+    onSuccess: (session) => {
       setFlexToken("");
       setQueryId("");
       setSyncResult(null);
-      flash("Connected to IBKR. Run a sync to import your statement.");
+      flash(`Connected to IBKR. Run a sync to import your statement.${splitNote(session, "ibkr")}`);
       queryClient.invalidateQueries({ queryKey: ["ibkr-status"] });
     },
     onError: fail("Failed to connect"),

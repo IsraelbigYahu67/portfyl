@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
@@ -22,6 +22,8 @@ import BrokerGuides from "../components/import/BrokerGuides";
 import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/Toast";
 import { usePortfolio } from "../App";
+import { useBrokerPortfolio } from "../hooks/useBrokerPortfolio";
+import { brokerLabel, describeSplit } from "../lib/brokerPortfolio";
 import { TRACKER_HOME } from "../lib/routes";
 import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
 
@@ -112,6 +114,13 @@ export default function Import({ focused = false }) {
   const [error, setError] = useState(null);
   const [undoError, setUndoError] = useState(null);
   const [stage, setStage] = useState("select");
+  // A new portfolio opened for this file's broker (useBrokerPortfolio), until
+  // the import commits; keepCurrent = the user chose the original portfolio.
+  const [split, setSplit] = useState(null);
+  const keepCurrentRef = useRef(false);
+  const brokerPortfolio = useBrokerPortfolio();
+  const splitRef = useRef(null);
+  splitRef.current = split;
   const stageIndex = { select: 0, preview: 1, confirm: 2, result: 3 }[stage];
   const onboardingPending = current?.activation_state === "pending_import" || pendingImportPortfolio?.id === current?.id;
 
@@ -126,7 +135,21 @@ export default function Import({ focused = false }) {
   });
 
   const previewMutation = useMutation({
-    mutationFn: () => previewImportCSV(file, replace),
+    mutationFn: async () => {
+      let data = await previewImportCSV(file, replace);
+      if (!keepCurrentRef.current && !splitRef.current && data.broker) {
+        const session = await brokerPortfolio.open(data.broker);
+        if (session?.created) {
+          setSplit(session);
+          splitRef.current = session;
+          // The new portfolio is empty: append, nothing to replace.
+          data = await previewImportCSV(file, false);
+        } else if (session?.blocked) {
+          data = { ...data, split_blocked: session };
+        }
+      }
+      return data;
+    },
     onSuccess: (data) => {
       setPreview(data);
       setResult(null);
@@ -142,7 +165,9 @@ export default function Import({ focused = false }) {
   const commitMutation = useMutation({
     mutationFn: () => commitImportCSV(file, preview.preview_id, replace),
     onSuccess: (data) => {
-      setResult(data);
+      setResult({ ...data, portfolio_name: splitRef.current?.created?.name ?? null });
+      setSplit(null);
+      splitRef.current = null;
       setPreview(null);
       setError(null);
       setStage("result");
@@ -188,14 +213,28 @@ export default function Import({ focused = false }) {
     if (accepted) undoMutation.mutate();
   }
 
+  const discardSplit = useCallback(() => {
+    const session = splitRef.current;
+    setSplit(null);
+    splitRef.current = null;
+    if (session) brokerPortfolio.discard(session).catch(() => {});
+  }, [brokerPortfolio]);
+
+  // Leaving the page before committing must not leave an empty portfolio behind.
+  useEffect(() => () => {
+    if (splitRef.current) brokerPortfolio.discard(splitRef.current).catch(() => {});
+  }, [brokerPortfolio]);
+
   const onDrop = useCallback((accepted) => {
     if (!accepted[0]) return;
+    discardSplit();
+    keepCurrentRef.current = false;
     setFile(accepted[0]);
     setPreview(null);
     setResult(null);
     setError(null);
     setStage("select");
-  }, []);
+  }, [discardSplit]);
 
   useEffect(() => {
     if (!result) return;
@@ -203,9 +242,20 @@ export default function Import({ focused = false }) {
   }, [result, refetchPortfolios]);
 
   const cancelPreview = () => {
+    discardSplit();
     setPreview(null);
     setError(null);
     setStage("select");
+  };
+
+  const importIntoOriginal = async () => {
+    const session = splitRef.current;
+    setSplit(null);
+    splitRef.current = null;
+    keepCurrentRef.current = true;
+    setPreview(null);
+    if (session) await brokerPortfolio.discard(session).catch(() => {});
+    previewMutation.mutate();
   };
 
   const viewPortfolio = async () => {
@@ -362,6 +412,27 @@ export default function Import({ focused = false }) {
             <button onClick={cancelPreview} className="text-xs text-muted hover:text-ink">Cancel preview</button>
           </div>
 
+          {split?.created && (
+            <div role="status" aria-label="New portfolio" className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-brand/30 bg-brand/5 p-3 text-sm">
+              <div className="flex items-start gap-2">
+                <Info size={16} className="text-brand mt-0.5 shrink-0" />
+                <p>{describeSplit(split.previous, split.created, preview.broker)}</p>
+              </div>
+              <button type="button" onClick={importIntoOriginal} className="btn-ghost text-xs shrink-0">
+                Import into “{split.previous.name}” instead
+              </button>
+            </div>
+          )}
+          {preview.split_blocked && (
+            <div role="status" aria-label="New portfolio not available" className="flex items-start gap-2 rounded-lg border border-surface-border bg-surface-hover p-3 text-sm text-muted">
+              <Info size={16} className="text-brand mt-0.5 shrink-0" />
+              <p>
+                “{preview.split_blocked.previous.name}” already holds other data, and a separate {brokerLabel(preview.broker)} portfolio
+                could not be created ({preview.split_blocked.blocked}). This import goes into “{preview.split_blocked.previous.name}”.
+              </p>
+            </div>
+          )}
+
           {preview.mode === "replace" && (
             <div className="rounded-lg bg-loss/10 border border-red-500/30 p-3 text-sm">
               <p className="font-semibold text-loss">
@@ -446,7 +517,7 @@ export default function Import({ focused = false }) {
         <div className="card border border-green-500/40 bg-gain/10 flex items-start gap-3">
           <CheckCircle size={18} className="text-gain mt-0.5 shrink-0" />
           <div className="flex-1">
-            <p className="font-semibold text-gain">{plural(result.imported, "transaction")} imported</p>
+            <p className="font-semibold text-gain">{plural(result.imported, "transaction")} imported{result.portfolio_name && <> into the new portfolio “{result.portfolio_name}”</>}</p>
             {result.duplicates_skipped > 0 && <p className="text-xs text-muted mt-1">{plural(result.duplicates_skipped, "exact duplicate")} skipped.</p>}
             {result.removed > 0 && <p className="text-xs text-muted mt-1">{plural(result.removed, "previous transaction")} removed.</p>}
             {result.undo?.available && <p className="mt-1 text-xs text-muted">Undo available until {new Date(result.undo.expires_at).toLocaleString()}.</p>}

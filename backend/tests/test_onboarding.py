@@ -23,6 +23,7 @@ def test_demo_creation_is_atomic_scoped_and_clearly_labelled(
         "created_at": portfolio.created_at.isoformat(),
         "transaction_count": 6,
         "activation_state": "active",
+        "brokers": ["demo"],
         "demo": True,
     }
     assert len(transactions) == 6
