@@ -1,17 +1,23 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Briefcase, Check, ChevronDown, Pencil, Plus, Trash2, X } from "lucide-react";
 import { usePortfolio } from "../App";
 import { createPortfolio, deletePortfolio, updatePortfolio } from "../api";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 import { useConfirm } from "./ui/ConfirmDialog";
 import { useToast } from "./ui/Toast";
 
+// Rendered in a portal: the switcher sits inside the sidebar, whose
+// backdrop-filter/z-index stacking context would otherwise keep this
+// `position: fixed` overlay underneath the page's cards.
 function NameModal({ title, initial = "", confirmLabel, busy, onCancel, onSubmit }) {
   const [name, setName] = useState(initial);
   const inputRef = useRef(null);
+  const titleId = useId();
+  const panelRef = useFocusTrap({ active: true, onEscape: onCancel, initialFocusRef: inputRef });
 
   useEffect(() => {
-    inputRef.current?.focus();
     inputRef.current?.select();
   }, []);
 
@@ -22,12 +28,25 @@ function NameModal({ title, initial = "", confirmLabel, busy, onCancel, onSubmit
     onSubmit(trimmed);
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <form onSubmit={submit} className="card w-full max-w-sm space-y-4">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4"
+      style={{ backdropFilter: "blur(var(--blur-overlay))" }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
+    >
+      <form
+        ref={panelRef}
+        onSubmit={submit}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="card w-full max-w-sm space-y-4"
+      >
         <div className="flex items-center justify-between">
-          <h2 className="font-bold text-lg">{title}</h2>
-          <button type="button" onClick={onCancel} className="text-muted hover:text-ink">
+          <h2 id={titleId} className="font-bold text-lg">{title}</h2>
+          <button type="button" onClick={onCancel} aria-label="Close" className="text-muted hover:text-ink">
             <X size={18} />
           </button>
         </div>
@@ -35,6 +54,7 @@ function NameModal({ title, initial = "", confirmLabel, busy, onCancel, onSubmit
           ref={inputRef}
           className="input"
           placeholder="Portfolio name"
+          aria-label="Portfolio name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={64}
@@ -49,7 +69,8 @@ function NameModal({ title, initial = "", confirmLabel, busy, onCancel, onSubmit
           </button>
         </div>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
