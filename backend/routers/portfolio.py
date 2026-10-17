@@ -54,6 +54,7 @@ from portfolio_activation import clear_pending_portfolio
 from importers import registry as import_registry
 from importers.base import ImportFile, validate_rows
 from importers.openfigi import OpenFigiUnavailable
+from broker_sources import rows_broker
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -902,6 +903,9 @@ def preview_import_csv(
     preview["sample"] = _preview_sample(rows_to_insert)
     preview["sample_truncated"] = len(rows_to_insert) > IMPORT_SAMPLE_LIMIT
     preview["skipped_reasons"] = parsed.skipped_reasons
+    # The broker the file comes from (None for native CSV), so the frontend
+    # can put a second broker into its own portfolio.
+    preview["broker"] = rows_broker(parsed.rows)
     return preview
 
 

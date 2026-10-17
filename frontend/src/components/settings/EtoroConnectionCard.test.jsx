@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../api", () => mocks);
+vi.mock("../../hooks/useBrokerPortfolio", () => ({ useBrokerPortfolio: () => ({ open: async () => null, discard: async () => {} }) }));
 
 const CONNECTED = {
   connected: true,

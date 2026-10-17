@@ -6,6 +6,8 @@ import { connectEtoro, disconnectEtoro, fetchEtoroStatus, setEtoroAutoSync, sync
 import { AsyncSection } from "../ui";
 import Toggle from "../ui/Toggle";
 import { getApiErrorMessage } from "../../lib/apiError";
+import { useBrokerPortfolio } from "../../hooks/useBrokerPortfolio";
+import { splitNote } from "../../lib/brokerPortfolio";
 
 function plural(count, one, many = `${one}s`) {
   return `${count} ${count === 1 ? one : many}`;
@@ -69,6 +71,7 @@ function KeyGuide() {
 
 export default function EtoroConnectionCard({ portfolioId, portfolioName }) {
   const queryClient = useQueryClient();
+  const brokerPortfolio = useBrokerPortfolio();
   const [userKey, setUserKey] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -91,11 +94,21 @@ export default function EtoroConnectionCard({ portfolioId, portfolioName }) {
   };
 
   const connectMutation = useMutation({
-    mutationFn: () => connectEtoro(userKey.trim()),
-    onSuccess: () => {
+    mutationFn: async () => {
+      // A portfolio holding another broker's data gets eToro in a new one.
+      const session = await brokerPortfolio.open("etoro");
+      try {
+        await connectEtoro(userKey.trim());
+      } catch (error) {
+        await brokerPortfolio.discard(session).catch(() => {});
+        throw error;
+      }
+      return session;
+    },
+    onSuccess: (session) => {
       setUserKey("");
       setSyncResult(null);
-      flash("Connected to eToro. Run a sync to import your positions.");
+      flash(`Connected to eToro. Run a sync to import your positions.${splitNote(session, "etoro")}`);
       queryClient.invalidateQueries({ queryKey: ["etoro-status"] });
     },
     onError: fail("Failed to connect"),

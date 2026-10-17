@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   refetchPortfolios: vi.fn(),
   setCurrentId: vi.fn(),
   recordPortfolioDataImported: vi.fn(() => true),
+  createPortfolio: vi.fn(),
+  deletePortfolio: vi.fn(),
 }));
 
 vi.mock("../analytics/useRegisteredActivation", () => ({
@@ -31,6 +33,8 @@ vi.mock("../api", () => ({
   fetchImportUndo: mocks.fetchImportUndo,
   undoLastImport: mocks.undoLastImport,
   clearAllTransactions: mocks.clearAllTransactions,
+  createPortfolio: mocks.createPortfolio,
+  deletePortfolio: mocks.deletePortfolio,
 }));
 
 vi.mock("../components/ui/ConfirmDialog", () => ({
@@ -290,6 +294,96 @@ describe("Import preview and undo", () => {
     expect(screen.getByRole("heading", { name: "How to export from your broker" })).toBeInTheDocument();
     chooseCsv(container);
     await waitFor(() => expect(screen.queryByRole("heading", { name: "How to export from your broker" })).not.toBeInTheDocument());
+  });
+
+  describe("one broker per portfolio", () => {
+    const XTB_PREVIEW = {
+      preview_id: "xtb-1",
+      format: "XTB (xStation)",
+      broker: "xtb",
+      mode: "append",
+      mandatory_replace: false,
+      counts: {
+        source_events: 3, recognized_rows: 3, unique_rows: 3,
+        duplicates_in_file: 0, duplicates_existing: 0,
+        current: 0, added: 3, removed: 0, unchanged: 0, projected: 3, skipped: 0,
+      },
+      sample: [],
+      sample_truncated: false,
+      skipped_reasons: {},
+    };
+
+    function portfolios(brokers) {
+      mocks.refetchPortfolios.mockResolvedValue({ data: [{ id: "portfolio-id", name: "Main", brokers }] });
+    }
+
+    async function previewXtb() {
+      const { container } = mount();
+      fireEvent.change(container.querySelector('input[type="file"]'), {
+        target: { files: [new File(["PK"], "xtb.xlsx")] },
+      });
+      fireEvent.click(await screen.findByRole("button", { name: /preview import/i }));
+    }
+
+    it("opens a new portfolio when the selected one holds another broker", async () => {
+      portfolios(["trading212"]);
+      mocks.previewImportCSV.mockResolvedValue(XTB_PREVIEW);
+      mocks.createPortfolio.mockResolvedValue({ id: "new-id", name: "XTB" });
+      await previewXtb();
+
+      const notice = await screen.findByRole("status", { name: "New portfolio" });
+      expect(notice).toHaveTextContent("“Main” already holds Trading 212 data, so XTB goes into its own portfolio “XTB”.");
+      expect(mocks.createPortfolio).toHaveBeenCalledWith({ name: "XTB" });
+      expect(mocks.setCurrentId).toHaveBeenCalledWith("new-id");
+      expect(mocks.previewImportCSV).toHaveBeenCalledTimes(2);
+      expect(mocks.previewImportCSV.mock.calls[1][1]).toBe(false);
+    });
+
+    it("removes the new portfolio again when the preview is cancelled", async () => {
+      portfolios(["trading212"]);
+      mocks.previewImportCSV.mockResolvedValue(XTB_PREVIEW);
+      mocks.createPortfolio.mockResolvedValue({ id: "new-id", name: "XTB" });
+      mocks.deletePortfolio.mockResolvedValue({ deleted: "new-id" });
+      await previewXtb();
+
+      fireEvent.click(await screen.findByRole("button", { name: /cancel preview/i }));
+      await waitFor(() => expect(mocks.deletePortfolio).toHaveBeenCalledWith("new-id"));
+      expect(mocks.setCurrentId).toHaveBeenLastCalledWith("portfolio-id");
+    });
+
+    it("can import into the original portfolio instead", async () => {
+      portfolios(["trading212"]);
+      mocks.previewImportCSV.mockResolvedValue(XTB_PREVIEW);
+      mocks.createPortfolio.mockResolvedValue({ id: "new-id", name: "XTB" });
+      mocks.deletePortfolio.mockResolvedValue({ deleted: "new-id" });
+      await previewXtb();
+
+      fireEvent.click(await screen.findByRole("button", { name: /import into “main” instead/i }));
+      await waitFor(() => expect(mocks.previewImportCSV).toHaveBeenCalledTimes(3));
+      expect(mocks.deletePortfolio).toHaveBeenCalledWith("new-id");
+      expect(mocks.createPortfolio).toHaveBeenCalledTimes(1);
+      await screen.findByRole("button", { name: /continue to confirm/i });
+      expect(screen.queryByRole("status", { name: "New portfolio" })).not.toBeInTheDocument();
+    });
+
+    it("explains when the plan allows no further portfolio", async () => {
+      portfolios(["trading212"]);
+      mocks.previewImportCSV.mockResolvedValue(XTB_PREVIEW);
+      mocks.createPortfolio.mockRejectedValue({ response: { data: { detail: "Portfolio limit reached" } } });
+      await previewXtb();
+
+      expect(await screen.findByRole("status", { name: "New portfolio not available" })).toHaveTextContent("This import goes into “Main”");
+      expect(mocks.previewImportCSV).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps an empty portfolio or the same broker's portfolio", async () => {
+      portfolios(["xtb"]);
+      mocks.previewImportCSV.mockResolvedValue(XTB_PREVIEW);
+      await previewXtb();
+
+      await screen.findByRole("button", { name: /continue to confirm/i });
+      expect(mocks.createPortfolio).not.toHaveBeenCalled();
+    });
   });
 
   it("shows the four import stages in order", () => {

@@ -26,6 +26,7 @@ from ledger_mutation import acquire_workspace_ledger_lock
 from models import BrokerConnection, Portfolio, Transaction, Workspace
 from portfolio_activation import clear_pending_portfolio, pending_portfolio, set_pending_portfolio
 from audit import record_audit_event
+from broker_sources import portfolio_brokers
 from tenancy import (
     RequestContext,
     RequestContextError,
@@ -95,6 +96,7 @@ def _serialize(
     counts: dict[int, int] | None = None,
     *,
     activation_state: str = "active",
+    brokers: dict[int, list[str]] | None = None,
 ) -> dict:
     return {
         "id": str(p.public_id),
@@ -104,6 +106,9 @@ def _serialize(
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "transaction_count": counts.get(p.id, 0) if counts is not None else None,
         "activation_state": activation_state,
+        # Where its data comes from (broker_sources); the frontend opens a new
+        # portfolio rather than mixing a second broker into this one.
+        "brokers": (brokers or {}).get(p.id, []),
     }
 
 
@@ -147,6 +152,7 @@ def list_portfolios(
         )
     ).all()
     counts = _counts_by_portfolio(db, context.workspace.id)
+    brokers = portfolio_brokers(db, context.workspace.id)
     pending = pending_portfolio(db, context.workspace.id)
     pending_id = pending.id if pending is not None else None
     return [
@@ -154,6 +160,7 @@ def list_portfolios(
             portfolio,
             counts,
             activation_state="pending_import" if portfolio.id == pending_id else "active",
+            brokers=brokers,
         )
         for portfolio in rows
     ]

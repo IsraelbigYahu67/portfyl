@@ -17,6 +17,8 @@ import SyncScheduleSettings from "../components/SyncScheduleSettings";
 import { AsyncSection } from "../components/ui";
 import Toggle from "../components/ui/Toggle";
 import { getApiErrorMessage } from "../lib/apiError";
+import { useBrokerPortfolio } from "../hooks/useBrokerPortfolio";
+import { splitNote } from "../lib/brokerPortfolio";
 import { T212_HISTORY_ACTIVE_STATES, useT212Sync } from "../hooks/useT212Sync";
 
 const VALID_SECTIONS = new Set(SETTINGS_SECTIONS.map(({ value }) => value));
@@ -116,6 +118,7 @@ export function HistoryBackfillStatus({ run, onRetry, retryPending = false }) {
 function ConnectionsSettings({ headingRef }) {
   const queryClient = useQueryClient();
   const { current: currentPortfolio } = usePortfolio();
+  const brokerPortfolio = useBrokerPortfolio();
   const currency = useCurrency()?.currency ?? "USD";
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
@@ -127,12 +130,22 @@ function ConnectionsSettings({ headingRef }) {
   const { data: status, isLoading, error: statusError, refetch: refetchStatus } = t212.statusQuery;
 
   const connectMutation = useMutation({
-    mutationFn: () => connectT212(apiKey, apiSecret),
-    onSuccess: () => {
+    mutationFn: async () => {
+      // A portfolio holding another broker's data gets Trading 212 in a new one.
+      const session = await brokerPortfolio.open("trading212");
+      try {
+        await connectT212(apiKey, apiSecret);
+      } catch (error) {
+        await brokerPortfolio.discard(session).catch(() => {});
+        throw error;
+      }
+      return session;
+    },
+    onSuccess: (session) => {
       setApiKey("");
       setApiSecret("");
       setActionError(null);
-      setSuccess("Connected to Trading 212 successfully");
+      setSuccess(`Connected to Trading 212 successfully.${splitNote(session, "trading212")}`);
       // Connecting can also remove onboarding demo data (and demo portfolios),
       // which every portfolio-derived query may still be showing — including
       // long-cached ones such as insider buys, since the holdings changed.
