@@ -18,6 +18,7 @@ import {
   previewImportCSV,
   undoLastImport,
 } from "../api";
+import BrokerGuides from "../components/import/BrokerGuides";
 import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/Toast";
 import { usePortfolio } from "../App";
@@ -42,6 +43,9 @@ function downloadSample() {
   anchor.click();
   URL.revokeObjectURL(url);
 }
+
+// File formats from backend/importers/formats/ besides T212, Native and IBKR.
+const BROKER_FILE_FORMATS = ["Degiro", "XTB", "Charles Schwab", "Fidelity"];
 
 const FORMAT_BADGE_CLASS = {
   "Trading 212": "bg-blue-100 text-blue-700",
@@ -214,8 +218,13 @@ export default function Import({ focused = false }) {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    // .xml: Interactive Brokers Activity Flex statements.
-    accept: { "text/csv": [".csv"], "application/xml": [".xml"], "text/xml": [".xml"] },
+    // .xml: Interactive Brokers Activity Flex statements; .xlsx: XTB.
+    accept: {
+      "text/csv": [".csv"],
+      "application/xml": [".xml"],
+      "text/xml": [".xml"],
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+    },
     multiple: false,
   });
 
@@ -271,13 +280,15 @@ export default function Import({ focused = false }) {
           <FormatBadge format="Trading 212" />
           <FormatBadge format="Native" />
           <FormatBadge format="Interactive Brokers (Flex XML)" />
+          {BROKER_FILE_FORMATS.map((name) => <FormatBadge key={name} format={name} />)}
           <span className="text-xs text-muted">Auto-detected · maximum 5 MiB</span>
         </div>
         <div className="flex items-start gap-2 text-xs text-muted">
           <Info size={14} className="text-brand mt-0.5 shrink-0" />
           <p>
             Trading 212 exports include the full account history and therefore replace this portfolio.
-            Native CSV files can append new rows or replace the portfolio.
+            Native CSV files can append new rows or replace the portfolio. Exports from Degiro, XTB, Charles Schwab
+            and Fidelity add new rows; rows already in the portfolio are skipped.
           </p>
         </div>
         <div className="flex items-start gap-2 text-xs text-muted">
@@ -307,7 +318,7 @@ export default function Import({ focused = false }) {
           </div>
         ) : (
           <div className="text-center">
-            <p className="text-sm font-medium">Drop your CSV or IBKR XML file here or click to browse</p>
+            <p className="text-sm font-medium">Drop your broker export (CSV, XML or XLSX) here or click to browse</p>
             <p className="text-xs text-muted mt-1">Nothing is saved until you review and confirm.</p>
           </div>
         )}
@@ -337,6 +348,8 @@ export default function Import({ focused = false }) {
           </button>
         </div>
       )}
+
+      {!file && <BrokerGuides />}
       </>}
 
       {preview && stage === "preview" && (

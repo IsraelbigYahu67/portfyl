@@ -254,6 +254,44 @@ describe("Import preview and undo", () => {
     expect(container.querySelector('input[type="file"]').getAttribute("accept")).toContain(".xml");
   });
 
+  it("previews a Degiro export as an append with its skipped reasons", async () => {
+    mocks.previewImportCSV.mockResolvedValueOnce({
+      preview_id: "degiro-1",
+      format: "Degiro (Transactions)",
+      mode: "append",
+      mandatory_replace: false,
+      counts: {
+        source_events: 7, recognized_rows: 4, unique_rows: 4,
+        duplicates_in_file: 0, duplicates_existing: 0,
+        current: 2, added: 4, removed: 0, unchanged: 2, projected: 6, skipped: 3,
+      },
+      sample: [],
+      sample_truncated: false,
+      skipped_reasons: { "trade settlement (imported from Transactions.csv)": 3 },
+    });
+    const { container } = mount();
+    fireEvent.change(container.querySelector('input[type="file"]'), {
+      target: { files: [new File(["Datum,Tijd"], "Transactions.csv", { type: "text/csv" })] },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: /preview import/i }));
+
+    const skipped = await screen.findByRole("list", { name: "Skipped rows" });
+    expect(skipped).toHaveTextContent("trade settlement (imported from Transactions.csv) × 3");
+    expect(screen.getAllByText("Degiro (Transactions)").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/replaces the full portfolio/i)).not.toBeInTheDocument();
+  });
+
+  it("accepts XTB spreadsheets and shows the broker export guides until a file is picked", async () => {
+    const { container } = mount();
+    expect(container.querySelector('input[type="file"]').getAttribute("accept")).toContain(".xlsx");
+    for (const name of ["Degiro", "XTB", "Charles Schwab", "Fidelity"]) {
+      expect(screen.getAllByText(name).length).toBeGreaterThan(0);
+    }
+    expect(screen.getByRole("heading", { name: "How to export from your broker" })).toBeInTheDocument();
+    chooseCsv(container);
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "How to export from your broker" })).not.toBeInTheDocument());
+  });
+
   it("shows the four import stages in order", () => {
     mount();
     const steps = screen.getByRole("list", { name: "Import progress" });

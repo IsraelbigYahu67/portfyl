@@ -8,6 +8,7 @@ import { useCurrency, usePortfolio } from "../App";
 import BrokerPositionSnapshot from "../components/BrokerPositionSnapshot";
 import DataPrivacySettings from "../components/DataPrivacySettings";
 import DiscordSettings from "../components/DiscordSettings";
+import EtoroConnectionCard from "../components/settings/EtoroConnectionCard";
 import IBKRConnectionCard from "../components/settings/IBKRConnectionCard";
 import PreferencesSettings from "../components/settings/PreferencesSettings";
 import PortfolioDataManagement from "../components/settings/PortfolioDataManagement";
@@ -262,6 +263,8 @@ function ConnectionsSettings({ headingRef }) {
       </AsyncSection>
 
       <IBKRConnectionCard portfolioId={currentPortfolio?.id} portfolioName={currentPortfolio?.name} />
+
+      <EtoroConnectionCard portfolioId={currentPortfolio?.id} portfolioName={currentPortfolio?.name} />
 
       <SyncScheduleSettings />
     </section>

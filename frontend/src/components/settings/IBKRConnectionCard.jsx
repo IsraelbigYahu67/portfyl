@@ -8,16 +8,9 @@ import { AsyncSection } from "../ui";
 import Toggle from "../ui/Toggle";
 import { getApiErrorMessage } from "../../lib/apiError";
 
-// Sections the Activity Flex Query needs for the stock/ETF/dividend/cash
-// import (backend/importers/formats/ibkr_flex.py). Options only need Trades.
-export const IBKR_FLEX_SECTIONS = [
-  ["Trades", "Execution level"],
-  ["Cash Transactions", "Detail level"],
-  ["Corporate Actions", null],
-  ["Transfers", null],
-  ["Open Positions", null],
-  ["Account Information", null],
-];
+import { IBKR_FLEX_SECTIONS } from "../../lib/ibkrFlex";
+
+export { IBKR_FLEX_SECTIONS };
 
 function plural(count, one, many = `${one}s`) {
   return `${count} ${count === 1 ? one : many}`;

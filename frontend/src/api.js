@@ -377,6 +377,17 @@ export const syncIBKR = () => api.post("/broker/ibkr/sync").then((r) => r.data);
 export const setIBKRAutoSync = (enabled) =>
   api.post("/broker/ibkr/auto-sync", { enabled }).then((r) => r.data);
 
+// ----- eToro (Public API, personal Read key) -----------------------------------
+// Status carries `configured: false` when the server has no eToro app key.
+export const fetchEtoroStatus = () => api.get("/broker/etoro/status").then((r) => r.data);
+export const connectEtoro = (userKey) =>
+  api.post("/broker/etoro/connect", { user_key: userKey }).then((r) => r.data);
+// { status: "imported" | "needs_review", imported, already_present, errors, skipped_reasons }
+export const syncEtoro = () => api.post("/broker/etoro/sync").then((r) => r.data);
+export const setEtoroAutoSync = (enabled) =>
+  api.post("/broker/etoro/auto-sync", { enabled }).then((r) => r.data);
+export const disconnectEtoro = () => api.delete("/broker/etoro/connect").then((r) => r.data);
+
 // ----- Global settings (not portfolio-scoped) ---------------------------------
 
 export const fetchSyncSchedule = () => api.get("/settings/sync-schedule").then((r) => r.data);

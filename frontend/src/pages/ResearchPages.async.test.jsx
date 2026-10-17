@@ -57,6 +57,7 @@ vi.mock("../components/DiscordSettings", () => ({ default: () => null }));
 vi.mock("../components/SyncScheduleSettings", () => ({ default: () => null }));
 vi.mock("../components/DataPrivacySettings", () => ({ default: () => null }));
 vi.mock("../components/settings/IBKRConnectionCard", () => ({ default: () => null }));
+vi.mock("../components/settings/EtoroConnectionCard", () => ({ default: () => null }));
 vi.mock("../components/StockDetail", () => ({
   StockOverview: ({ data }) => <div>Overview for {data.ticker}</div>,
 }));
