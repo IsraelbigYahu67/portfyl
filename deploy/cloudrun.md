@@ -309,6 +309,27 @@ renders but nothing is ever sent.
 The command prints a **Service URL** (`https://portfyl-….a.run.app`) when
 done.
 
+**Broker integrations (optional secrets).** Both are read at runtime, so add
+them after the first deploy with `--update-secrets`; never commit or log the
+values.
+
+- `PORTFYL_ETORO_APP_KEY`: Portfyl's own eToro Public API app key
+  (`backend/routers/etoro.py`). Users still paste their personal Read key in
+  Settings; this key identifies Portfyl to eToro. Unset, `/api/broker/etoro/*`
+  reports "not configured" (status) and 503 (connect/sync); nothing else breaks.
+- `OPENFIGI_API_KEY`: raises the OpenFIGI rate limit for ISIN → ticker lookups
+  in broker imports (`backend/importers/openfigi.py`). Unset, imports still work
+  on the anonymous limit; when OpenFIGI throttles or is down, the import
+  preview returns 503 and the user retries later.
+
+```powershell
+gcloud secrets create portfyl-etoro-app-key --replication-policy=automatic
+gcloud secrets versions add portfyl-etoro-app-key --data-file=- # paste the key, then Ctrl+Z, Enter
+gcloud secrets add-iam-policy-binding portfyl-etoro-app-key --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+gcloud run services update $SERVICE --region $REGION --update-secrets="PORTFYL_ETORO_APP_KEY=portfyl-etoro-app-key:latest"
+# Same pattern for OpenFIGI: secret portfyl-openfigi-api-key -> OPENFIGI_API_KEY.
+```
+
 ## 7. Verify
 
 Open the Service URL → register or sign in with Firebase → the dashboard

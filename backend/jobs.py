@@ -290,6 +290,7 @@ async def broker_autosync_pass(
     # at module import time.
     from routers.broker import sync_transactions
     from routers.ibkr import _run_ibkr_sync
+    from routers.etoro import etoro_sync
 
     all_connections = db.query(BrokerConnection).filter(
         BrokerConnection.workspace_id == workspace_id,
@@ -349,6 +350,15 @@ async def broker_autosync_pass(
                 if ledger.get("status") == "needs_review":
                     # The sync succeeded but flagged the statement for the
                     # user; keep that flag (and its message) below.
+                    summary["needs_review"] = True
+            elif conn.broker == "etoro":
+                # A plain def with a blocking httpx client: keep it off the
+                # event loop, like the Trading 212 snapshot above.
+                r = await asyncio.to_thread(
+                    etoro_sync, db, workspace_id, conn.portfolio_id)
+                summary["imported"] = r.get("imported", 0)
+                detail = f"{summary['imported']} transaction(s)"
+                if r.get("status") == "needs_review":
                     summary["needs_review"] = True
             else:
                 continue  # unknown broker — nothing to do
