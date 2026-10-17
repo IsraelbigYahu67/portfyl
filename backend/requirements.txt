@@ -16,3 +16,4 @@ firebase-admin>=6.5
 cryptography>=43
 google-cloud-kms>=2.24
 sentry-sdk>=2.9
+openpyxl>=3.1
