@@ -116,3 +116,26 @@ def test_endpoint_uses_one_timestamp_and_excludes_review_income_from_rows(
     risky = next(item for item in rows if item["ticker"] == "RISK")
     assert risky["annual_income"] is None
     assert risky["income_status"] == "review"
+
+
+def test_endpoint_omits_holdings_that_pay_no_dividend(
+    db_session, pid, default_portfolio, monkeypatch
+):
+    for ticker in ("PAYER", "ZERO", "NONE"):
+        db_session.add(make_txn(ticker, "buy", 10, 100, portfolio_id=pid))
+    db_session.commit()
+    infos = {
+        "PAYER": {"shortName": "Payer", "dividendRate": 2, "dividendYield": 2,
+                  "regularMarketPrice": 100, "currency": "USD"},
+        "ZERO": {"shortName": "Zero", "dividendRate": 0, "dividendYield": 0,
+                 "regularMarketPrice": 100, "currency": "USD"},
+        "NONE": {"shortName": "None", "regularMarketPrice": 100, "currency": "USD"},
+    }
+    monkeypatch.setattr(portfolio.market_data, "get_infos", lambda _: infos)
+    monkeypatch.setattr(portfolio.market_data, "get_info", lambda ticker: infos[ticker])
+    monkeypatch.setattr(portfolio, "_pay_date_from_calendar", lambda _: None)
+    monkeypatch.setattr(portfolio.market_data, "ticker_attrs", lambda symbols, attr: {})
+
+    rows = portfolio.get_dividends(db=db_session, portfolio=default_portfolio)
+
+    assert [item["ticker"] for item in rows] == ["PAYER"]

@@ -1,22 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchDividends, fetchDividendForecast, fetchDividendGrowth } from "../api";
-import { AlertTriangle, CalendarDays, RefreshCw, TrendingUp, DollarSign } from "lucide-react";
+import { AlertTriangle, CalendarDays, RefreshCw, TrendingUp } from "lucide-react";
+import { useCurrency } from "../App";
 import { useStockDetail } from "../components/StockDetail";
 import MetricCard from "../components/MetricCard";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
-import { CATEGORICAL, GAIN_COLOR, AXIS_TICK, GRID_STROKE } from "../lib/chartTheme";
+import DividendBarsCard from "../components/dashboard/DividendBarsCard";
+import { splitDividendForecast } from "../lib/dashboardSummaries";
 import { formatMoney, formatQuantity, formatShortDate } from "../lib/format";
 import { getApiErrorMessage } from "../lib/apiError";
-import { AsyncSection } from "../components/ui";
+import { AsyncSection, Card, SkeletonChart } from "../components/ui";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -50,6 +42,7 @@ export default function Dividends() {
     data: forecast,
     isLoading: forecastLoading,
     isFetching: forecastFetching,
+    error: forecastError,
     refetch: refetchForecast,
   } = useQuery({
     queryKey: ["dividends-forecast"],
@@ -115,7 +108,12 @@ export default function Dividends() {
         </button>
       </div>
 
-      <ForecastChart forecast={forecast} loading={forecastLoading} />
+      <DividendBars
+        forecast={forecast}
+        loading={forecastLoading}
+        error={forecastError}
+        onRetry={() => refetchForecast()}
+      />
 
       <GrowthSection rows={growth} loading={growthLoading} />
 
@@ -189,113 +187,29 @@ export default function Dividends() {
   );
 }
 
-function ForecastChart({ forecast, loading }) {
-  if (loading) {
-    return (
-      <div className="rounded-xl border border-surface-border bg-surface-card p-4 text-sm text-muted">
-        Loading forecast…
-      </div>
-    );
-  }
-  if (!forecast?.months?.length) return null;
-
-  const hasAny = forecast.months.some((m) => m.paid > 0 || m.estimated > 0);
-  if (!hasAny) return null;
-
-  const tickFormatter = (v) =>
-    v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v.toFixed(0)}`;
+// Same received / upcoming bar cards as the dashboard's dividend row.
+function DividendBars({ forecast, loading, error, onRetry }) {
+  const { currency = "USD", rate } = useCurrency() ?? {};
+  // The forecast is in USD; `rate` is CZK per USD.
+  const usdRate = currency === "CZK" && rate ? rate : 1;
+  const { received, upcoming } = splitDividendForecast(forecast, {
+    monthIndex: new Date().getMonth(),
+    usdRate,
+  });
+  const year = forecast?.year ?? new Date().getFullYear();
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-2">
-        <DollarSign size={13} /> Dividend income {forecast.year}
-      </h2>
-      <div className="grid grid-cols-2 gap-4">
-        <MetricCard icon={DollarSign} label="Paid YTD" value={formatMoney(forecast.total_paid)} />
-        <MetricCard icon={TrendingUp} label="Estimated remaining" value={formatMoney(forecast.total_estimated)} />
-      </div>
-      <div className="rounded-xl border border-surface-border bg-surface-card p-4">
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={forecast.months} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
-            <XAxis dataKey="month" tick={AXIS_TICK} />
-            <YAxis tick={AXIS_TICK} tickFormatter={tickFormatter} width={56} />
-            <Tooltip content={<ForecastTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-            <Legend
-              formatter={(v) => (
-                <span className="text-xs text-muted">
-                  {v === "paid" ? "Paid" : "Estimated"}
-                </span>
-              )}
-            />
-            <Bar dataKey="paid" stackId="div" fill={GAIN_COLOR} radius={[0, 0, 0, 0]} />
-            <Bar dataKey="estimated" stackId="div" fill={CATEGORICAL[3]} radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </section>
-  );
-}
-
-function ForecastTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-  const row = payload[0]?.payload;
-  if (!row) return null;
-  const paid = row.paid ?? 0;
-  const est = row.estimated ?? 0;
-  const entries = row.entries ?? [];
-
-  return (
-    <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg max-w-[320px]">
-      <p className="text-muted mb-1.5">{label}</p>
-
-      {entries.length > 0 ? (
-        <div className="space-y-1 mb-2">
-          {entries.map((e) => (
-            <div key={`${e.ticker}-${e.status}`} className="flex justify-between gap-4 items-center">
-              <span className="flex items-center gap-2 min-w-0">
-                <span
-                  className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${
-                    e.status === "paid" ? "bg-gain" : "bg-brand"
-                  }`}
-                />
-                <span className="font-mono text-ink shrink-0">{e.ticker}</span>
-                <span className="text-muted truncate">{e.name}</span>
-              </span>
-              <span
-                className={`font-medium tabular-nums shrink-0 ${
-                  e.status === "paid" ? "text-gain" : "text-brand"
-                }`}
-                title={e.status === "paid" ? "Already paid" : "Estimated"}
-              >
-                {e.status === "paid" ? "" : "~"}
-                {formatMoney(e.amount)}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-muted mb-2">No dividends</p>
-      )}
-
-      <div className="space-y-1 pt-1.5 border-t border-surface-border">
-        {paid > 0 && (
-          <div className="flex justify-between gap-6">
-            <span className="text-muted">Paid</span>
-            <span className="font-medium text-gain">{formatMoney(paid)}</span>
-          </div>
-        )}
-        {est > 0 && (
-          <div className="flex justify-between gap-6">
-            <span className="text-muted">Estimated</span>
-            <span className="font-medium text-brand">{formatMoney(est)}</span>
-          </div>
-        )}
-        <div className="flex justify-between gap-6">
-          <span className="text-muted">Total</span>
-          <span className="font-medium text-ink">{formatMoney(paid + est)}</span>
-        </div>
-      </div>
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <Card className="h-full animate-fade-up">
+        <AsyncSection isLoading={loading} error={error} onRetry={onRetry} loading={<SkeletonChart height={220} />}>
+          <DividendBarsCard title="Dividends received" half={received} totalLabel={`${year} so far`} currency={currency} tone="accent" emptyHint="No dividends received this year yet." />
+        </AsyncSection>
+      </Card>
+      <Card className="h-full animate-fade-up">
+        <AsyncSection isLoading={loading} error={error} onRetry={onRetry} loading={<SkeletonChart height={220} />}>
+          <DividendBarsCard title="Upcoming payments" half={upcoming} totalLabel="Next 12 months" currency={currency} emptyHint="No dividends expected in the next 12 months." />
+        </AsyncSection>
+      </Card>
     </div>
   );
 }

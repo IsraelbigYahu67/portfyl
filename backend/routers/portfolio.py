@@ -12,6 +12,7 @@ import math
 import os
 import re
 import time
+from calendar import monthrange
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -1811,23 +1812,24 @@ def get_dividends(
             if not pay_date:
                 pay_date = _pay_date_from_calendar(calendars.get(yf_symbol(ticker)))
 
-            if div_rate is None and div_yield is None:
+            row = _normalize_dividend_row(
+                ticker=ticker,
+                name=name,
+                shares=shares,
+                currency=currency,
+                dividend_rate=div_rate,
+                provider_yield=div_yield,
+                price=info.get("currentPrice") or info.get("regularMarketPrice"),
+                ex_date=ex_date,
+                pay_date=pay_date,
+                as_of=as_of,
+            )
+            # Not paying a dividend now (missing, zero or negative rate and
+            # yield): keep it out of the dividend section entirely.
+            if row["dividend_rate"] is None and row["dividend_yield"] is None:
                 continue
 
-            result.append(
-                _normalize_dividend_row(
-                    ticker=ticker,
-                    name=name,
-                    shares=shares,
-                    currency=currency,
-                    dividend_rate=div_rate,
-                    provider_yield=div_yield,
-                    price=info.get("currentPrice") or info.get("regularMarketPrice"),
-                    ex_date=ex_date,
-                    pay_date=pay_date,
-                    as_of=as_of,
-                )
-            )
+            result.append(row)
         except Exception:
             continue
 
@@ -1849,18 +1851,116 @@ def _outlook_window(today: date) -> list[tuple[int, int]]:
     ]
 
 
-def _confirmed_payment_month(info: dict, today: date) -> tuple[int, int] | None:
-    """(year, month) of a dividend the provider already has dated in the future.
+# An ex-date and a pay date further apart than this belong to different payments.
+_MAX_PAY_LAG_DAYS = 60
+
+
+def _ex_to_pay_lag(info: dict, ex_dates: list[date], paid_dates: list[date]) -> int:
+    """Typical days between a ticker's ex-dividend date and its payment.
+
+    yfinance dates the dividend history by ex-date, while announcements and
+    broker credits carry the pay date (MSFT: ex ~20 Nov, paid ~10 Dec), so
+    history has to be shifted before it can be compared with either. The
+    provider's own ex/pay pair wins, then the user's credited dividends
+    matched to the ex-date before them; 0 when neither says anything.
+    """
+    ex = _ts_to_date_str(info.get("exDividendDate"))
+    pay = _ts_to_date_str(info.get("dividendDate"))
+    if ex and pay:
+        gap = (date.fromisoformat(pay) - date.fromisoformat(ex)).days
+        if 0 <= gap <= _MAX_PAY_LAG_DAYS:
+            return gap
+    samples = []
+    for paid in paid_dates:
+        prior = [e for e in ex_dates if e <= paid and (paid - e).days <= _MAX_PAY_LAG_DAYS]
+        if prior:
+            samples.append((paid - max(prior)).days)
+    return sorted(samples)[len(samples) // 2] if samples else 0
+
+
+def _announced_payment(info: dict, today: date, lag_days: int) -> date | None:
+    """Pay date of a dividend the provider already has dated in the future.
 
     Yahoo's dividendDate / exDividendDate hold the most recent *or* announced
     payment, so a date that is still ahead of today means it is announced.
-    The pay date wins; the ex-date stands in when no pay date is ahead.
+    The pay date wins; the ex-date plus the pay lag stands in when no pay
+    date is ahead.
     """
-    for raw in (info.get("dividendDate"), info.get("exDividendDate")):
-        day = _ts_to_date_str(raw)
-        if day and day >= today.isoformat():
-            return int(day[:4]), int(day[5:7])
+    pay = _ts_to_date_str(info.get("dividendDate"))
+    if pay and pay >= today.isoformat():
+        return date.fromisoformat(pay)
+    ex = _ts_to_date_str(info.get("exDividendDate"))
+    if ex and ex >= today.isoformat():
+        return date.fromisoformat(ex) + timedelta(days=lag_days)
     return None
+
+
+def _project_payments(
+    history: list[tuple[date, float]],
+    window: list[tuple[int, int]],
+    *,
+    lag_days: int,
+    announced: date | None,
+    paid_dates: list[date],
+) -> list[dict]:
+    """One ticker's expected payments inside the outlook window.
+
+    Each historical payment (ex-date, per-share amount) moves to its pay date
+    and then to the same month of the window. Payments are matched by date
+    with a tolerance of half the ticker's usual spacing, never by calendar
+    month, so one payment can't show up twice when it straddles a month
+    boundary (MSFT: forecast in November from the ex-date, announced for
+    December). Within that tolerance a credited dividend beats an announced
+    one, which beats a forecast; forecasts that close together are one
+    payment and are averaged.
+
+    Returns ``{"date", "per_share", "status"}`` dicts sorted by date, status
+    ``"confirmed"`` or ``"forecasted"``.
+    """
+    if not history:
+        return []
+    history = sorted(history)
+    gaps = sorted(
+        (b - a).days for (a, _), (b, _) in zip(history, history[1:]) if (b - a).days >= 5
+    )
+    cadence = gaps[len(gaps) // 2] if gaps else 365
+    tolerance = min(_MAX_PAY_LAG_DAYS, max(10, cadence // 2))
+
+    slot_year = {m: y for y, m in window}
+    projected = []
+    for ex, per_share in history:
+        pay = ex + timedelta(days=lag_days)
+        y = slot_year[pay.month]
+        projected.append((date(y, pay.month, min(pay.day, monthrange(y, pay.month)[1])), per_share))
+    projected.sort()
+
+    clusters: list[list[tuple[date, float]]] = []
+    for item in projected:
+        if clusters and (item[0] - clusters[-1][0][0]).days <= tolerance:
+            clusters[-1].append(item)
+        else:
+            clusters.append([item])
+    events = []
+    for cluster in clusters:
+        mid = sum(d.toordinal() for d, _ in cluster) / len(cluster)
+        events.append({
+            "date": date.fromordinal(round(mid)),
+            "per_share": sum(v for _, v in cluster) / len(cluster),
+            "status": "forecasted",
+        })
+
+    def near_credit(day: date) -> bool:
+        return any(abs((day - p).days) <= tolerance for p in paid_dates)
+
+    events = [e for e in events if not near_credit(e["date"])]
+
+    if announced and (announced.year, announced.month) in window and not near_credit(announced):
+        nearest = min(events, key=lambda e: abs((e["date"] - announced).days), default=None)
+        if nearest and abs((nearest["date"] - announced).days) <= tolerance:
+            events.remove(nearest)
+        events.append({"date": announced, "per_share": history[-1][1], "status": "confirmed"})
+
+    return sorted(events, key=lambda e: e["date"])
 
 
 def _build_outlook(window: list[tuple[int, int]], entries: dict[tuple[int, int], list[dict]]) -> dict:
@@ -1891,13 +1991,14 @@ def get_dividend_forecast(
     """Monthly paid (actual) and estimated (projected) dividends for the current
     calendar year, summed across the active portfolio and converted to USD.
 
-    Estimation: for each held ticker we look at its trailing ~13 months of
-    dividend history from yfinance, take the average per-share payment for each
-    calendar month it historically paid in, and project that into the same
-    month-of-year going forward — scaled by the user's current share count.
+    Estimation: for each held ticker we take its trailing ~13 months of
+    dividend history from yfinance, shift each payment from its ex-date to its
+    pay date and project it a year forward (see `_project_payments`), scaled
+    by the user's current share count.
 
     `outlook` adds a rolling 12 months starting this month: payments the
-    provider has already dated are "confirmed", the rest "forecasted".
+    provider has already dated are "confirmed", the rest "forecasted". The
+    calendar-year `months` show the same upcoming payments as "estimated".
     """
     transactions = _portfolio_txns(db, portfolio).all()
     year = datetime.now().year
@@ -1926,19 +2027,22 @@ def get_dividend_forecast(
     outlook_entries: dict[tuple[int, int], list[dict]] = {}
 
     # 1. Actual paid dividends (real transactions in current year), aggregated
-    #    per (ticker, month) so multiple lots collapse into one entry.
-    paid_keys: set[tuple[str, int]] = set()
+    #    per (ticker, month) so multiple lots collapse into one entry. Every
+    #    credit date, any year, is kept to cancel the projection it fulfils.
+    paid_dates: dict[str, list[date]] = {}
     paid_agg: dict[tuple[str, int], float] = {}
     paid_names: dict[str, str] = {}
     for txn in transactions:
-        if txn.type != "dividend" or not txn.date or txn.date.year != year:
+        if txn.type != "dividend" or not txn.date:
+            continue
+        paid_dates.setdefault(txn.ticker, []).append(txn.date)
+        if txn.date.year != year:
             continue
         paid_ccy, paid_amount = signed_cash(txn)
         amt_usd = paid_amount * _live_to_usd(paid_ccy)
         m_idx = txn.date.month - 1
         paid_by_month[m_idx] += amt_usd
         key = (txn.ticker, txn.date.month)
-        paid_keys.add(key)
         paid_agg[key] = paid_agg.get(key, 0.0) + amt_usd
         if txn.name and txn.ticker not in paid_names:
             paid_names[txn.ticker] = txn.name
@@ -1951,8 +2055,10 @@ def get_dividend_forecast(
             "status": "paid",
         })
 
-    # 2. Estimated future dividends per held ticker, projected from yfinance
-    #    history.
+    # 2. Upcoming dividends per held ticker, projected from yfinance history:
+    #    in the rolling 12-month outlook an announced payment is "confirmed"
+    #    (sized like the latest one) and the rest "forecasted"; the same
+    #    events within this calendar year feed the "estimated" chart.
     active = _build_holdings(transactions)
     market_data.get_infos(list(active.keys()))  # warm cache concurrently/bounded
     histories = market_data.ticker_attrs([yf_symbol(t) for t in active], "dividends")
@@ -1981,53 +2087,36 @@ def get_dividend_forecast(
             if recent.empty:
                 continue
 
-            by_month: dict[int, list[float]] = {}
-            for ts, amount in recent.items():
-                by_month.setdefault(ts.month, []).append(float(amount))
+            credited = paid_dates.get(ticker, [])
+            lag = _ex_to_pay_lag(info, [ts.date() for ts in div_history.index], credited)
+            events = _project_payments(
+                [(ts.date(), float(amount)) for ts, amount in recent.items()],
+                window,
+                lag_days=lag,
+                announced=_announced_payment(info, today, lag),
+                paid_dates=credited,
+            )
 
             # LSE quotes (and their dividends) are in pence, not pounds.
             usd_rate = _live_to_usd("GBP" if ccy == "GBp" else ccy) / (100.0 if ccy == "GBp" else 1.0)
-            for m in range(1, 13):
-                if m < today.month:
+            for event in events:
+                amount = shares * event["per_share"] * usd_rate
+                if amount <= 0:
                     continue
-                if (ticker, m) in paid_keys:
-                    continue
-                payments = by_month.get(m)
-                if not payments:
-                    continue
-                avg_per_share = sum(payments) / len(payments)
-                est_usd = shares * avg_per_share * usd_rate
-                if est_usd <= 0:
-                    continue
-                estimated_by_month[m - 1] += est_usd
-                entries_by_month[m - 1].append({
+                ym = (event["date"].year, event["date"].month)
+                outlook_entries.setdefault(ym, []).append({
                     "ticker": ticker,
                     "name": display_name,
-                    "amount": round(est_usd, 2),
-                    "status": "estimated",
+                    "amount": round(amount, 2),
+                    "status": event["status"],
                 })
-
-            # 3. Rolling 12-month outlook: one announced payment is "confirmed"
-            #    (sized like the latest one), every other month the ticker paid
-            #    in over the past ~13 months is "forecasted" from that history.
-            confirmed = _confirmed_payment_month(info, today)
-            for ym in window:
-                if ym[0] == year and (ticker, ym[1]) in paid_keys:
-                    continue
-                if confirmed == ym:
-                    per_share, status = float(recent.iloc[-1]), "confirmed"
-                else:
-                    payments = by_month.get(ym[1])
-                    if not payments:
-                        continue
-                    per_share, status = sum(payments) / len(payments), "forecasted"
-                amount = shares * per_share * usd_rate
-                if amount > 0:
-                    outlook_entries.setdefault(ym, []).append({
+                if ym[0] == year:
+                    estimated_by_month[ym[1] - 1] += amount
+                    entries_by_month[ym[1] - 1].append({
                         "ticker": ticker,
                         "name": display_name,
                         "amount": round(amount, 2),
-                        "status": status,
+                        "status": "estimated",
                     })
         except Exception:
             continue
@@ -2050,6 +2139,23 @@ def get_dividend_forecast(
         "total_estimated": round(sum(estimated_by_month), 2),
         "outlook": _build_outlook(window, outlook_entries),
     }
+
+
+# A payer keeps paying at least yearly; the slack covers a late annual payment.
+_CURRENT_PAYER_WINDOW_DAYS = 400
+
+
+def _is_current_payer(growth: dict, today: date | None = None) -> bool:
+    """True when the ticker paid a positive dividend within the last ~13 months.
+
+    Dividend history alone is not enough: a company that stopped paying years
+    ago still has a history, but must not show up as a dividend holding.
+    """
+    cutoff = ((today or date.today()) - timedelta(days=_CURRENT_PAYER_WINDOW_DAYS)).isoformat()
+    return any(
+        p.get("amount", 0) > 0 and p.get("ex_date", "") >= cutoff
+        for p in growth.get("payments") or []
+    )
 
 
 @router.get("/dividends/growth", dependencies=[Depends(require_capability("dividend_analysis"))])
@@ -2076,8 +2182,8 @@ def get_dividend_growth(
     rows = []
     for ticker in sorted(active.keys()):
         g = compute_dividend_growth(ticker)
-        if not g.get("annual"):
-            continue  # not a dividend payer — skip
+        if not _is_current_payer(g):
+            continue  # never paid, or stopped paying — skip
         rows.append({
             "ticker": ticker,
             "name": names.get(ticker, ticker),
@@ -2321,10 +2427,16 @@ def _rank_movers(results: list[dict]) -> dict:
     The money ranking uses ``period_pnl_czk`` so positions quoted in different
     currencies compare fairly; the %/$ toggle on the dashboard picks one of
     the two rankings instead of re-sorting the five rows it already has.
+
+    A holding only counts as a gainer when it actually rose and as a loser
+    when it actually fell: with three green stocks the gainers list has three
+    rows, not three plus two red ones padding it out to five.
     """
     def top(key):
         ordered = sorted(results, key=lambda x: x[key], reverse=True)
-        return ordered[:5], list(reversed(ordered[-5:]))
+        gainers = [r for r in ordered if r[key] > 0][:5]
+        losers = [r for r in reversed(ordered) if r[key] < 0][:5]
+        return gainers, losers
 
     gainers, losers = top("change_pct")
     value_gainers, value_losers = top("period_pnl_czk")

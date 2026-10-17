@@ -8,6 +8,10 @@ const TONES = {
   accent: { bar: "linear-gradient(180deg, var(--chart-2), var(--chart-6))" },
 };
 
+// Some themes use a translucent --surface-card; flatten it onto the opaque page
+// background so the tooltip never lets the bars underneath show through.
+const OPAQUE_CARD = "linear-gradient(var(--surface-card), var(--surface-card)), var(--bg)";
+
 const MAX_TOOLTIP_ROWS = 8;
 const STATUS_LABEL = { paid: "Received", confirmed: "Confirmed", forecasted: "Forecasted" };
 
@@ -29,7 +33,7 @@ function MonthTooltip({ month, index, count, currency }) {
       role="tooltip"
       data-testid="dividend-tooltip"
       className="absolute bottom-full mb-2 z-20 w-60 rounded-xl border border-line bg-surface-card px-3 py-2.5 shadow-lg pointer-events-none"
-      style={tooltipPlacement(index, count)}
+      style={{ ...tooltipPlacement(index, count), background: OPAQUE_CARD }}
     >
       <div className="flex items-baseline justify-between gap-3 mb-1.5">
         <span className="text-xs font-semibold text-ink">{title}</span>
@@ -109,7 +113,7 @@ export default function DividendBarsCard({ title, half, totalLabel, avgLabel = "
                     key={`${m.year ?? ""}${m.month}`}
                     data-testid={`column-${m.month}`}
                     tabIndex={0}
-                    className="flex-1 min-w-0 h-full flex flex-col items-center justify-end gap-1 cursor-default rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    className="bar-pop flex-1 min-w-0 h-full flex flex-col items-center justify-end gap-1 cursor-default rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand"
                     onMouseEnter={() => setActive(i)}
                     onFocus={() => setActive(i)}
                     onBlur={() => setActive(null)}
@@ -117,14 +121,20 @@ export default function DividendBarsCard({ title, half, totalLabel, avgLabel = "
                     {m.amount > 0 && <span className="text-xs font-semibold text-muted tabular-nums whitespace-nowrap">{formatCompact(m.amount, currency)}</span>}
                     <div
                       data-testid={`bar-${m.month}`}
-                      className="flex flex-col w-3/4 max-w-[26px] overflow-hidden rounded-t-lg rounded-b-md"
+                      className="bar-pop-bar flex flex-col w-3/4 max-w-[26px] overflow-hidden rounded-t-xl rounded-b-lg"
                       style={{ height: `${height}%`, minHeight: m.amount > 0 ? 4 : 0 }}
                     >
                       {stacked && confirmedShare < 100 && (
                         <i data-testid={`forecast-${m.month}`} className="block" style={{ height: `${100 - confirmedShare}%`, background: barBackground, opacity: 0.4 }} />
                       )}
                       {confirmedShare > 0 && (
-                        <i className="block" style={{ height: `${confirmedShare}%`, background: barBackground }} />
+                        confirmedShare < 100 ? (
+                          // Overlap the forecast segment by one corner radius so the
+                          // confirmed part's top corners are rounded over the lighter one.
+                          <i className="block relative shrink-0 rounded-t-lg" style={{ height: `calc(${confirmedShare}% + 8px)`, marginTop: -8, background: barBackground }} />
+                        ) : (
+                          <i className="block" style={{ height: "100%", background: barBackground }} />
+                        )
                       )}
                     </div>
                   </div>

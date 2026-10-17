@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
@@ -535,20 +535,30 @@ def test_dividends_growth_lists_only_payers(db_session, pid, default_portfolio, 
     db_session.add(make_txn("AAPL", "dividend", 10, 0.24, name="AAPL",
                             date=date(2024, 6, 1), portfolio_id=pid))
     db_session.add(make_txn("ZZZZ", "buy", 5, 20.0, portfolio_id=pid))
+    db_session.add(make_txn("OLDD", "buy", 5, 20.0, portfolio_id=pid))
     db_session.commit()
+
+    recent = (date.today() - timedelta(days=90)).isoformat()
+    stale = (date.today() - timedelta(days=1000)).isoformat()
 
     def fake_growth(symbol, _current_year=None):
         if symbol == "AAPL":
             return {"ticker": "AAPL", "streak_years": 3, "cagr_pct": 7.5,
                     "cagr_years_used": 5, "yoy_pct": 5.0, "payout_ratio_pct": 25.0,
-                    "annual": [{"year": 2023, "dps": 0.9}], "payments": []}
+                    "annual": [{"year": 2023, "dps": 0.9}],
+                    "payments": [{"ex_date": recent, "amount": 0.24}]}
+        if symbol == "OLDD":  # paid years ago, nothing since
+            return {"ticker": "OLDD", "streak_years": 0, "cagr_pct": None,
+                    "cagr_years_used": 0, "yoy_pct": None, "payout_ratio_pct": None,
+                    "annual": [{"year": 2020, "dps": 1.0}],
+                    "payments": [{"ex_date": stale, "amount": 1.0}]}
         return {"ticker": symbol, "streak_years": 0, "cagr_pct": None,
                 "cagr_years_used": 0, "yoy_pct": None, "payout_ratio_pct": None,
                 "annual": [], "payments": []}
 
     monkeypatch.setattr(dividend_growth, "compute_dividend_growth", fake_growth)
     rows = get_dividend_growth(db=db_session, portfolio=default_portfolio)
-    assert [r["ticker"] for r in rows] == ["AAPL"]      # ZZZZ (no history) filtered out
+    assert [r["ticker"] for r in rows] == ["AAPL"]      # ZZZZ (no history) and OLDD (stopped paying) filtered out
     assert rows[0]["name"] == "Apple Inc."              # first-wins real name, not later name=ticker dividend
     assert rows[0]["streak_years"] == 3
     assert "annual" not in rows[0] and "payments" not in rows[0]   # lightweight payload

@@ -36,7 +36,28 @@ def test_value_ranking_covers_all_holdings(db_session, pid, default_portfolio, m
     assert out["value_gainers"][0]["ticker"] == "BIG"
     assert out["value_gainers"][0]["period_pnl"] == 1000.0
     assert out["value_gainers"][0]["period_pnl_czk"] == 20000.0
-    assert len(out["value_gainers"]) == 5 and len(out["value_losers"]) == 5
+    # Everything rose, so there are no losers to list.
+    assert len(out["value_gainers"]) == 5 and out["value_losers"] == []
+
+
+def test_gainers_and_losers_only_list_real_movers(db_session, pid, default_portfolio, monkeypatch):
+    # Three green, two red, one flat: gainers must not be padded with red
+    # rows (nor losers with green ones) just to reach five.
+    _seed(db_session, pid, {"G1": 1, "G2": 1, "G3": 1, "R1": 1, "R2": 1, "FLAT": 1})
+    closes = {
+        "G1": (100.0, 103.0), "G2": (100.0, 102.0), "G3": (100.0, 101.0),
+        "R1": (100.0, 98.0), "R2": (100.0, 95.0), "FLAT": (100.0, 100.0),
+    }
+    monkeypatch.setattr(portfolio_router, "_two_day_closes", lambda tickers: closes)
+    monkeypatch.setattr(portfolio_router, "_fetch_price_and_info",
+                        lambda t: (closes[t][1], t, "USD"))
+    monkeypatch.setattr(portfolio_router, "_live_fx_to_czk", lambda c, cache: 20.0)
+
+    out = portfolio_router.get_movers(period="1d", db=db_session, portfolio=default_portfolio)
+
+    for gainers, losers in (("gainers", "losers"), ("value_gainers", "value_losers")):
+        assert [m["ticker"] for m in out[gainers]] == ["G1", "G2", "G3"]
+        assert [m["ticker"] for m in out[losers]] == ["R2", "R1"]
 
 
 def test_value_ranking_compares_in_czk(db_session, pid, default_portfolio, monkeypatch):
