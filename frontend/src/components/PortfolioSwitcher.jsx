@@ -170,7 +170,12 @@ export default function PortfolioSwitcher() {
       </button>
 
       {open && (
-        <div className="absolute z-40 left-0 right-0 mt-1 bg-surface-card border border-surface-border rounded-lg shadow-lg py-1 max-h-80 overflow-y-auto">
+        <div
+          className="absolute z-40 left-0 right-0 mt-1 border border-surface-border rounded-lg shadow-lg py-1 max-h-80 overflow-y-auto"
+          // Warm themes use a translucent card colour; lay it over the solid
+          // page background so the sidebar nav does not show through the menu.
+          style={{ background: "linear-gradient(var(--surface-card), var(--surface-card)), var(--bg)" }}
+        >
           {portfolios.map((p) => {
             const active = p.id === current?.id;
             return (
