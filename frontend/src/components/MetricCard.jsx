@@ -121,7 +121,7 @@ export default function MetricCard({ icon: Icon, label, value, sub, positive, ne
   const subColor = positive ? "text-gain" : negative ? "text-loss" : "text-muted";
 
   return (
-    <SpotlightCard className="card !bg-surface-card-elevated relative flex flex-col gap-1.5 min-w-0">
+    <SpotlightCard className="card pop-tile !bg-surface-card-elevated relative flex flex-col gap-1.5 min-w-0">
       {Icon && (
         <span className="absolute top-4 right-4 grid place-items-center w-7 h-7 rounded-lg bg-brand/10 text-brand">
           <Icon size={14} />

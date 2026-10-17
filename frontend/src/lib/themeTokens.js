@@ -46,7 +46,11 @@ export const NEU_TOKENS = {
   shadowAmbient: "7px 7px 18px rgba(190,172,146,0.5), -7px -7px 18px rgba(255,253,248,0.9)",
   shadowInset: "inset 3px 3px 8px rgba(190,172,146,0.45), inset -3px -3px 8px rgba(255,253,248,0.85)",
   radiusCard: "1.25rem",
-  chart: ["#A9AB88", "#DBAA89", "#D4C3A1", "#B7AFA3", "#7C8A5A", "#C08457", "#9E8E6E", "#8A8478"],
+  // Organic palette (leafy green, copper, sunshine, ocean, espresso, sand,
+  // evergreen) ordered so neighbouring slices never sit light-on-light or
+  // dark-on-dark; slot 8 stays the neutral used for Cash / Other. Sand is a
+  // touch deeper than the swatch so it still reads on the cream cards.
+  chart: ["#8C8639", "#8A4719", "#B08623", "#3F5F5E", "#282119", "#DCC892", "#2E2C10", "#8A8478"],
 };
 // "Clay" — the .stitch/mockups/clay-mockup.html look on live data: the same
 // warm Premium palette, but opaque-feeling clay depth (raised surfaces with a

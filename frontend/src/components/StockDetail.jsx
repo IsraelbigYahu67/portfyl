@@ -22,6 +22,7 @@ import useStockReportConfig, { ALL_SECTIONS } from "../hooks/useStockReportConfi
 import {
   CATEGORICAL, NEUTRAL_COLOR, GAIN_COLOR, LOSS_COLOR, AXIS_TICK, AXIS_TICK_STYLE, GRID_STROKE, TOOLTIP_STYLE,
 } from "../lib/chartTheme";
+import { withSliceCorners } from "../lib/pieCorners";
 import { KpiBox } from "./ui";
 import Pagination from "./ui/Pagination";
 import ShinyText from "./reactbits/ShinyText";
@@ -454,7 +455,7 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
                 component={(cp) => <TtmUnderlay {...cp} ttm={ttm} />}
               />
             )}
-            <Bar dataKey="value" radius={[3, 3, 0, 0]}>
+            <Bar dataKey="value" radius={[7, 7, 0, 0]}>
               {rows.map((d, i) => (
                 <Cell key={i} fill={isCount ? CATEGORICAL[3] : d.value >= 0 ? GAIN_COLOR : LOSS_COLOR} />
               ))}
@@ -863,7 +864,7 @@ export function DividendGrowthSection({ ticker, currency = "USD" }) {
               contentStyle={{ background: "var(--surface-card-elevated)", border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 13 }}
               formatter={(v) => [`${sym}${v}`, "Per share"]}
             />
-            <Bar dataKey="amount" fill={GAIN_COLOR} radius={[3, 3, 0, 0]} />
+            <Bar dataKey="amount" fill={GAIN_COLOR} radius={[7, 7, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -1705,7 +1706,7 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
                 component={(cp) => <TtmUnderlay {...cp} ttm={ttm} />}
               />
             )}
-            <Bar dataKey="value" radius={[3, 3, 0, 0]}>
+            <Bar dataKey="value" radius={[7, 7, 0, 0]}>
               {rows.map((d, i) => (
                 <Cell
                   key={i}
@@ -1887,16 +1888,16 @@ function OwnershipSection({ ownership, currencyCode }) {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={slices}
+                    data={withSliceCorners(slices, { valueKey: "pct", inner: 60, outer: 110, corner: 9 })}
                     dataKey="pct"
                     nameKey="name"
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
                     outerRadius={110}
-                    paddingAngle={1}
-                    stroke={GRID_STROKE}
-                    strokeWidth={1}
+                    paddingAngle={3}
+                    cornerRadius={9}
+                    stroke="none"
                     isAnimationActive={false}
                   >
                     {slices.map((s) => (
@@ -2828,7 +2829,7 @@ function EarningsRecapSection({ ticker, currencyCode }) {
               <XAxis dataKey="label" tick={AXIS_TICK_STYLE} minTickGap={16} />
               <YAxis tick={AXIS_TICK_STYLE} width={36} tickFormatter={(v) => `${v}%`} />
               <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v?.toFixed(1)}%`, "Surprise"]} />
-              <Bar dataKey="surprise" radius={[3, 3, 0, 0]}>
+              <Bar dataKey="surprise" radius={[7, 7, 0, 0]}>
                 {chartData.map((d, i) => (
                   <Cell key={i} fill={d.surprise >= 0 ? GAIN_COLOR : LOSS_COLOR} />
                 ))}

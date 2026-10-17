@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUpRight, ChartNoAxesCombined, PieChart, CalendarDays, Layers3, Check, Plus } from "lucide-react";
 import { COPY, LANGUAGES, LANGUAGE_KEY } from "./welcomeCopy";
 import { useAnalytics } from "../analytics/AnalyticsProvider";
+import SegmentedControl from "../components/ui/SegmentedControl";
+import { CLAY_TOKENS } from "../lib/themeTokens";
 import { ANALYTICS_COPY, getAnalyticsLanguage } from "../analytics/analyticsCopy";
 import { ANALYTICS_EVENTS } from "../analytics/eventContract";
 import { DEMO_SESSION_SCOPE } from "../analytics/useDemoAnalytics";
@@ -12,6 +14,29 @@ const images = ["allocation", "stock", "dashboard", "performance"];
 const imageSizes = [[1047, 365], [1047, 350], [1047, 345], [1004, 455]];
 const screenshotPath = (name) => `/landing/${name}-live-20260911.png`;
 const icons = [ChartNoAxesCombined, PieChart, CalendarDays];
+
+// The landing renders outside App.jsx, so applyAppearance() never runs here.
+// Scope the same Clay variables to the page root instead of retyping values;
+// the theme-clay class then resolves index.css's --clay-* shadows.
+const CLAY_STYLE = {
+  "--brand": CLAY_TOKENS.brand,
+  "--brand-hover": CLAY_TOKENS.brandHover,
+  "--brand-light": CLAY_TOKENS.brandLight,
+  "--bg": CLAY_TOKENS.bg,
+  "--bg-subtle": CLAY_TOKENS.bgSubtle,
+  "--surface-card": CLAY_TOKENS.surfaceCard,
+  "--surface-card-elevated": CLAY_TOKENS.surfaceCardElevated,
+  "--border": CLAY_TOKENS.border,
+  "--hairline": CLAY_TOKENS.hairline,
+  "--ink": CLAY_TOKENS.ink,
+  "--muted": CLAY_TOKENS.muted,
+  "--gain": CLAY_TOKENS.gain,
+  "--loss": CLAY_TOKENS.loss,
+  "--shadow-ambient": CLAY_TOKENS.shadowAmbient,
+  "--shadow-inset": CLAY_TOKENS.shadowInset,
+  "--radius-card": CLAY_TOKENS.radiusCard,
+  ...Object.fromEntries(CLAY_TOKENS.chart.map((color, i) => [`--chart-${i + 1}`, color])),
+};
 
 function savedLanguage() {
   try {
@@ -128,7 +153,7 @@ export default function Welcome() {
   }
 
   if (!copy) return (
-    <main className="welcome welcome-language-screen">
+    <main className="welcome theme-clay welcome-language-screen" style={CLAY_STYLE}>
       <div className="welcome-language-brand welcome-logo"><Brand /></div>
       <div className="welcome-language-intro">
         <p className="welcome-kicker">CZ / EN / DE</p>
@@ -149,14 +174,18 @@ export default function Welcome() {
   const preview = copy.previews[selected];
   const image = images[selected];
   return (
-    <div className="welcome" id="nahoru">
+    <div className="welcome theme-clay" id="nahoru" style={CLAY_STYLE}>
       <a className="welcome-skip" href="#obsah">{copy.skip}</a>
       <header className="welcome-header"><div className="welcome-nav welcome-container">
         <a className="welcome-logo" href="#nahoru" aria-label={copy.home}><Brand><span className="welcome-beta">{copy.badge}</span></Brand></a>
         <nav aria-label={copy.navigation}><a href="#funkce">{copy.nav[0]}</a><a href="#ukazky">{copy.nav[1]}</a><a href="#otazky">{copy.nav[2]} <ArrowUpRight size={14} /></a></nav>
-        <div className="welcome-language-switch" role="group" aria-label={copy.language}>
-          {LANGUAGES.map(({ code, label, name }) => <button type="button" key={code} lang={code} aria-label={name} aria-pressed={language === code} onClick={() => chooseLanguage(code)}>{label}</button>)}
-        </div>
+        <SegmentedControl
+          className="welcome-language-switch"
+          aria-label={copy.language}
+          value={language}
+          onChange={chooseLanguage}
+          options={LANGUAGES.map(({ code, label, name }) => ({ value: code, label: <span lang={code}>{label}</span>, title: name }))}
+        />
       </div></header>
       <main id="obsah">
         <section className="welcome-hero welcome-container" aria-labelledby="welcome-title">
@@ -190,7 +219,13 @@ export default function Welcome() {
             <div className="welcome-showcase-top"><p className="welcome-kicker">{copy.showcaseKicker}</p><span>{copy.showcaseNote}</span></div>
             <div className="welcome-showcase-grid">
               <div className="welcome-showcase-copy">
-                <div className="welcome-preview-switch" role="group" aria-label={copy.selectPreview}>{copy.previews.map((item, index) => <button key={images[index]} type="button" aria-pressed={selected === index} onClick={() => setSelected(index)}>{item.label}</button>)}</div>
+                <SegmentedControl
+                  className="welcome-preview-switch"
+                  aria-label={copy.selectPreview}
+                  value={selected}
+                  onChange={setSelected}
+                  options={copy.previews.map((item, index) => ({ value: index, label: item.label }))}
+                />
                 <h2 id="showcase-title">{preview.title}</h2><p>{preview.description}</p>
                 <div className="welcome-detail-note"><Layers3 size={18} /><span>{copy.detailNote}</span></div>
               </div>
@@ -201,7 +236,7 @@ export default function Welcome() {
         <section className="welcome-faq welcome-container" id="otazky" aria-labelledby="faq-title">
           <div><p className="welcome-kicker">{copy.faqKicker}</p><h2 id="faq-title"><Heading lines={copy.faqHeading} /></h2></div>
           <div className="welcome-questions">
-            {copy.questions.map(([question, answer], index) => <details key={index}><summary>{question}<Plus size={18} /></summary><p>{answer}</p></details>)}
+            {copy.questions.map(([question, answer], index) => <details key={index}><summary>{question}<span className="welcome-faq-icon" aria-hidden="true"><Plus size={18} /></span></summary><p>{answer}</p></details>)}
           </div>
         </section>
         <section className="welcome-closing welcome-container"><div className="welcome-eyebrow"><span />{copy.closingKicker}</div><h2><Heading lines={copy.closingHeading} /></h2><p>{copy.closingNote}</p><div className="welcome-closing-actions"><a className="welcome-cta" href="/demo" onClick={handleDemoCtaClick("landing_closing")}>{copy.demoCta} <ArrowUpRight size={17} /></a><a href="#nahoru">{copy.back} <ArrowUpRight size={16} /></a></div></section>

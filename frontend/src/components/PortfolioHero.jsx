@@ -7,7 +7,7 @@ import ShinyText from "./reactbits/ShinyText";
 function Chip({ label, value, positive, negative }) {
   const valueColor = positive ? "text-gain" : negative ? "text-loss" : "text-ink";
   return (
-    <div className="flex flex-col gap-0.5 rounded-lg bg-surface-card-elevated border border-hairline px-3 py-2.5 min-w-0">
+    <div className="pop-tile flex flex-col gap-0.5 rounded-lg bg-surface-card-elevated border border-hairline px-3 py-2.5 min-w-0">
       <span className="eyebrow truncate">{label}</span>
       <span className={`font-sans text-sm font-bold tabular-nums truncate ${valueColor}`}>{value}</span>
     </div>

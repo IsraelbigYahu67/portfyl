@@ -5,6 +5,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import SegmentedControl from "../ui/SegmentedControl";
 import { SectionHeader } from "../ui";
 import { CATEGORICAL } from "../../lib/chartTheme";
+import { withSliceCorners } from "../../lib/pieCorners";
 import { formatCompact, formatMoney } from "../../lib/format";
 import { buildCompositionRows } from "../../lib/dashboardSummaries";
 
@@ -33,6 +34,9 @@ export default function CompositionCard({ breakdown, targetGroups = [], currency
   // Sum the rows instead of using breakdown.total_value: the API folds cash
   // into the rows but leaves it out of total_value.
   const total = rows.reduce((sum, row) => sum + row.value, 0);
+  // The donut radii are percentages of its max radius (~140px at full size), so
+  // the 9px corner is ~6.5 in the same percent units.
+  const pieSlices = withSliceCorners(shown, { valueKey: "value", inner: 62, outer: 92, corner: 6.5 });
 
   return (
     <div className="flex flex-col h-full">
@@ -54,10 +58,10 @@ export default function CompositionCard({ breakdown, targetGroups = [], currency
         <p className="text-sm text-muted py-6 text-center">No holdings to group yet.</p>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,280px)_minmax(0,1fr)] items-center">
-          <div className="relative mx-auto w-full max-w-[280px] aspect-square">
+          <div className="pie-pop relative mx-auto w-full max-w-[280px] aspect-square">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={shown} dataKey="value" nameKey="name" innerRadius="62%" outerRadius="92%" paddingAngle={2} stroke="none" isAnimationActive={false}>
+                <Pie data={pieSlices} dataKey="value" nameKey="name" innerRadius="62%" outerRadius="92%" paddingAngle={3} cornerRadius={9} stroke="none" isAnimationActive={false}>
                   {shown.map((row, i) => <Cell key={row.name} fill={CATEGORICAL[i % CATEGORICAL.length]} />)}
                 </Pie>
               </PieChart>

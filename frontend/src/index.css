@@ -108,6 +108,91 @@
   .financial-meta { font-size: 0.75rem; line-height: 1.4; color: var(--muted); font-variant-numeric: tabular-nums; }
   .data-label { font-size: 0.75rem; line-height: 1.4; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; }
   .chart-label { font-size: 0.75rem; line-height: 1.4; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  /* Hover "pop" for pages that opt in with .hover-pop-zone (Dashboard,
+     Allocation): cards lift and grow a little with a springy ease, small tiles
+     (.pop-tile: KPIs, metric cards, hero chips) grow more, buttons nudge up.
+     Uses the standalone `translate`/`scale` properties rather than `transform`
+     so it composes with animate-fade-up, whose `both` fill would otherwise pin
+     transform and swallow the hover. Big cards only scale 1% so chart
+     tooltips stay aligned with the cursor. */
+  .hover-pop-zone .card,
+  .hover-pop-zone .pop-tile {
+    transition:
+      box-shadow 0.25s ease,
+      border-color 0.25s ease,
+      transform 0.18s ease,
+      translate 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
+      scale 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  /* A page can add .no-block-pop to keep the zone's donut/button hover but
+     leave cards and tiles still (Allocation). */
+  .hover-pop-zone:not(.no-block-pop) .card:hover {
+    translate: 0 -4px;
+    scale: 1.01;
+    border-color: color-mix(in srgb, var(--brand) 35%, var(--hairline));
+    box-shadow: 0 18px 36px -16px color-mix(in srgb, var(--brand) 45%, transparent), var(--shadow-ambient);
+  }
+  /* Cards holding a chart keep lift + shadow but never scale: a scaled card is
+     resampled by the compositor, which blurs the text inside it (chart labels,
+     the donut's centre total). */
+  .hover-pop-zone:not(.no-block-pop) .card:has(.recharts-wrapper):hover {
+    scale: none;
+  }
+  .hover-pop-zone:not(.no-block-pop) .pop-tile:hover {
+    translate: 0 -3px;
+    scale: 1.04;
+    border-color: color-mix(in srgb, var(--brand) 45%, var(--hairline));
+    box-shadow: 0 12px 24px -12px color-mix(in srgb, var(--brand) 55%, transparent), var(--shadow-ambient);
+  }
+  .hover-pop-zone button:not(:disabled):not(table button) {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform, translate, scale;
+    transition-duration: 0.2s;
+    transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .hover-pop-zone button:not(:disabled):not(table button):hover {
+    translate: 0 -1px;
+    scale: 1.06;
+  }
+  .hover-pop-zone button:not(:disabled):not(table button):active {
+    scale: 0.97;
+  }
+
+  /* Donut slices (.pie-pop on the chart wrapper) grow like a .pop-tile does.
+     The slice scales around the donut's centre: 50% horizontally, and
+     --pie-cy vertically (50% unless the chart reserves room for a legend). */
+  .hover-pop-zone .pie-pop .recharts-pie-sector {
+    transform-box: view-box;
+    transform-origin: 50% var(--pie-cy, 50%);
+    transition: scale 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+    cursor: pointer;
+  }
+  .hover-pop-zone .pie-pop .recharts-pie-sector:hover {
+    scale: 1.04;
+  }
+
+  /* Hand-drawn bar columns (.bar-pop on the column, .bar-pop-bar on the bar;
+     DividendBarsCard) pop like a .pop-tile does: the column lifts 3px, the bar
+     grows from its base and gets the same brand glow. Works on any page, not
+     only inside .hover-pop-zone, because the Dividends page does not opt in. */
+  .bar-pop {
+    transition: translate 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .bar-pop-bar {
+    transform-origin: 50% 100%;
+    transition:
+      scale 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.25s ease;
+  }
+  .bar-pop:hover,
+  .bar-pop:focus-visible {
+    translate: 0 -3px;
+  }
+  .bar-pop:hover .bar-pop-bar,
+  .bar-pop:focus-visible .bar-pop-bar {
+    scale: 1.1 1.02;
+    box-shadow: 0 12px 24px -12px color-mix(in srgb, var(--brand) 55%, transparent), var(--shadow-ambient);
+  }
 }
 
 @layer utilities {
@@ -175,6 +260,15 @@
     scroll-behavior: auto !important;
   }
   .shimmer::after { display: none; }
+  .hover-pop-zone .card:hover,
+  .hover-pop-zone .pop-tile:hover,
+  .hover-pop-zone .pie-pop .recharts-pie-sector:hover,
+  .bar-pop:hover,
+  .bar-pop:focus-visible,
+  .bar-pop:hover .bar-pop-bar,
+  .bar-pop:focus-visible .bar-pop-bar,
+  .hover-pop-zone button:not(:disabled):not(table button):hover,
+  .hover-pop-zone button:not(:disabled):not(table button):active { translate: none; scale: none; }
 }
 
 /* ----------------------------------------------------------------------------
@@ -243,7 +337,9 @@
   background: var(--bg-subtle);
   box-shadow: var(--clay-inset-sm);
 }
-.theme-clay .card-interactive:hover { box-shadow: var(--clay-raise-hover); border-color: transparent; }
+.theme-clay .card-interactive:hover,
+.theme-clay .hover-pop-zone:not(.no-block-pop) .card:hover,
+.theme-clay .hover-pop-zone:not(.no-block-pop) .pop-tile:hover { box-shadow: var(--clay-raise-hover); border-color: transparent; }
 .theme-clay .rounded-xl { border-radius: 20px; }
 .theme-clay .rounded-2xl { border-radius: 24px; }
 
@@ -272,7 +368,8 @@
   box-shadow: var(--clay-inset-sm);
 }
 .theme-clay .segmented > button { border-radius: 999px; padding-top: 0.3rem; padding-bottom: 0.3rem; }
-.theme-clay .segmented > button[aria-pressed="true"] { box-shadow: var(--clay-raise-sm); font-weight: 800; }
+.theme-clay .segmented > button[aria-pressed="true"] { font-weight: 800; }
+.theme-clay .segmented .segmented-thumb { border-radius: 999px; box-shadow: var(--clay-raise-sm); }
 
 /* Shell: floating clay sidebar, pill top bar and drawer (mockup layout). */
 .theme-clay .app-sidebar {

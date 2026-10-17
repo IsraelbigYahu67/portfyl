@@ -1,5 +1,18 @@
 # Portfyl agent instructions
 
+## Frontend changes: read `DESIGN.md` first
+
+Before making any frontend change (a new or edited page, component, chart,
+color, spacing, animation, theme token or CSS), read **`DESIGN.md`** in the
+repo root and follow it. It is the source of truth for the live look: the warm
+organic palette (including the exact chart series colors and their order),
+rounded shapes, Clay depth and shadows, typography floors, hover and motion
+rules (`hover-pop-zone`, `pie-pop`, the sliding `SegmentedControl`) and a
+checklist. Do not hardcode hex colors or invent new chart colors; use the
+tokens it names. If your change alters the look (palette, radii, motion),
+update `DESIGN.md` in the same change. `.stitch/DESIGN.md` is a historical
+mockup spec and does not override it.
+
 ## Database migration invariant
 
 Every Alembic migration change must keep the application's expected schema

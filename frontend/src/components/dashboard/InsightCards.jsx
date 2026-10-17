@@ -33,7 +33,7 @@ export default function InsightCards({ alerts = [] }) {
           return (
             <article
               key={alert.id}
-              className="card !p-4 flex flex-col gap-2 min-w-0"
+              className="card pop-tile !p-4 flex flex-col gap-2 min-w-0"
               style={{ boxShadow: `var(--shadow-ambient), inset 0 0 0 1.5px color-mix(in srgb, ${tone} 50%, transparent)` }}
             >
               <div className="flex items-center justify-between gap-2">

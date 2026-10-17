@@ -13,6 +13,7 @@ import PerformanceChart from "../components/PerformanceChart";
 import { RefreshCw, TrendingUp, TrendingDown, Calendar, LayoutGrid, Lock, PieChart, Activity, Coins } from "lucide-react";
 import { formatMoney, formatPercent, formatShortDate } from "../lib/format";
 import { AsyncSection, Card, SectionHeader, SkeletonRows, SkeletonChart, EmptyState, DeltaPill, KpiBox } from "../components/ui";
+import SegmentedControl from "../components/ui/SegmentedControl";
 import Heatmap from "../components/Heatmap";
 import { TickerLink } from "../components/TickerLink";
 import DashboardGrid from "../components/DashboardGrid";
@@ -248,7 +249,7 @@ export default function Dashboard() {
   const priceLine = priceFreshnessLine(summary);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 hover-pop-zone">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
         <div>
           <h1 className="text-xl font-bold" tabIndex={-1}>Dashboard</h1>
@@ -495,36 +496,19 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "350ms" }}>
                 <SectionHeader icon={Activity} action={!capabilitiesPending && !hasStandardResearch ? null : <div className="flex items-center gap-3">
-                    <div className="flex gap-0.5 bg-surface rounded-md p-0.5 border border-surface-border">
-                      {[{ key: "pct", label: "%" }, { key: "value", label: "$" }].map((s) => (
-                        <button
-                          key={s.key}
-                          onClick={() => setMoverSort(s.key)}
-                          className={`px-2 py-0.5 text-xs rounded font-medium transition-colors ${
-                            moverSort === s.key
-                              ? "bg-surface-card text-brand font-semibold shadow-sm"
-                              : "text-muted hover:text-ink"
-                          }`}
-                        >
-                          {s.label}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex gap-1">
-                      {MOVER_PERIODS.map((p) => (
-                        <button
-                          key={p.key}
-                          onClick={() => setMoverPeriod(p.key)}
-                          className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
-                            moverPeriod === p.key
-                              ? "bg-surface-card text-brand font-semibold shadow-sm"
-                              : "text-muted hover:text-ink"
-                          }`}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                    </div>
+                    <SegmentedControl
+                      aria-label="Sort movers by"
+                      size="sm"
+                      value={moverSort}
+                      onChange={setMoverSort}
+                      options={[{ value: "pct", label: "%" }, { value: "value", label: "$" }]}
+                    />
+                    <SegmentedControl
+                      aria-label="Movers period"
+                      value={moverPeriod}
+                      onChange={setMoverPeriod}
+                      options={MOVER_PERIODS.map((p) => ({ value: p.key, label: p.label }))}
+                    />
                   </div>}>Top Movers</SectionHeader>
                 {!capabilitiesPending && !hasStandardResearch ? (
                   <InvestorOnly icon={Activity} />
@@ -537,49 +521,38 @@ export default function Dashboard() {
                   isEmpty={!movers?.gainers?.length && !movers?.losers?.length}
                   empty={<EmptyState icon={Activity} title="No movers yet" hint="Import transactions to track daily gainers and losers." />}
                 >
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 gap-6">
-                    <div>
-                      <h3 className="text-xs font-medium text-gain mb-2 flex items-center gap-1">
-                        <TrendingUp size={12} /> Gainers
-                      </h3>
-                      <div className="space-y-1.5">
-                        {moverGainers.length === 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 gap-x-8 gap-y-6">
+                    {[
+                      { key: "gainers", label: "Gainers", Icon: TrendingUp, tone: "text-gain", rows: moverGainers },
+                      { key: "losers", label: "Losers", Icon: TrendingDown, tone: "text-loss", rows: moverLosers },
+                    ].map(({ key, label, Icon, tone, rows }) => (
+                      <div key={key} className="min-w-0">
+                        <h3 className={`eyebrow mb-3 flex items-center gap-1.5 ${tone}`}>
+                          <Icon size={14} /> {label}
+                        </h3>
+                        {rows.length === 0 ? (
                           <p className="text-muted text-xs">No data</p>
                         ) : (
-                          moverGainers.map((m) => (
-                            <div key={m.ticker} className="flex items-center gap-3 text-sm">
-                              <TickerLink ticker={m.ticker} className="w-14 font-mono font-semibold text-left" />
-                              <span className="flex-1 text-muted truncate">{m.name}</span>
-                              <span className={`tabular-nums font-medium w-24 text-right ${m.period_pnl >= 0 ? "text-gain" : "text-loss"}`}>
-                                {formatMoney(m.period_pnl, m.currency)}
-                              </span>
-                              <div className="w-16 flex justify-end"><DeltaPill pct={m.change_pct} value={null} size="sm" /></div>
-                            </div>
-                          ))
+                          <ul className="space-y-1">
+                            {rows.map((m) => (
+                              <li
+                                key={m.ticker}
+                                className="grid grid-cols-[3.25rem_minmax(0,1fr)_auto_5.75rem] items-center gap-x-3 rounded-xl px-2 py-1.5 text-sm hover:bg-surface-hover transition-colors"
+                              >
+                                <TickerLink ticker={m.ticker} className="font-mono font-semibold text-left truncate" />
+                                <span className="min-w-0 truncate text-muted" title={m.name}>{m.name}</span>
+                                <span className={`tabular-nums whitespace-nowrap text-right font-medium ${m.period_pnl >= 0 ? "text-gain" : "text-loss"}`}>
+                                  {formatMoney(m.period_pnl, m.currency)}
+                                </span>
+                                <span className="flex justify-end">
+                                  <DeltaPill pct={m.change_pct} value={null} size="sm" className="whitespace-nowrap" />
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
                         )}
                       </div>
-                    </div>
-                    <div>
-                      <h3 className="text-xs font-medium text-loss mb-2 flex items-center gap-1">
-                        <TrendingDown size={12} /> Losers
-                      </h3>
-                      <div className="space-y-1.5">
-                        {moverLosers.length === 0 ? (
-                          <p className="text-muted text-xs">No data</p>
-                        ) : (
-                          moverLosers.map((m) => (
-                            <div key={m.ticker} className="flex items-center gap-3 text-sm">
-                              <TickerLink ticker={m.ticker} className="w-14 font-mono font-semibold text-left" />
-                              <span className="flex-1 text-muted truncate">{m.name}</span>
-                              <span className={`tabular-nums font-medium w-24 text-right ${m.period_pnl >= 0 ? "text-gain" : "text-loss"}`}>
-                                {formatMoney(m.period_pnl, m.currency)}
-                              </span>
-                              <div className="w-16 flex justify-end"><DeltaPill pct={m.change_pct} value={null} size="sm" /></div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </AsyncSection>
                 )}

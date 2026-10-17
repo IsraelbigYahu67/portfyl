@@ -204,6 +204,8 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                   strokeDasharray={benchmarkDash(i)}
                   strokeWidth={1.5}
                   dot={false}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                   connectNulls
                 />
               ))}
@@ -244,7 +246,7 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                 }}
               />
               <Area yAxisId="value" type="monotone" dataKey="invested" stroke={NEUTRAL_COLOR} fill="url(#colorInvested)" strokeWidth={1.5} dot={false} />
-              <Area yAxisId="value" type="monotone" dataKey="value" stroke="var(--brand)" fill="url(#colorValue)" strokeWidth={2.5} dot={false} />
+              <Area yAxisId="value" type="monotone" dataKey="value" stroke="var(--brand)" fill="url(#colorValue)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" dot={false} />
               {benchmarkMeta.map((b, i) => (
                 <Line
                   key={b.key}
@@ -255,6 +257,8 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                   strokeDasharray={benchmarkDash(i)}
                   strokeWidth={1.5}
                   dot={false}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                   connectNulls
                 />
               ))}

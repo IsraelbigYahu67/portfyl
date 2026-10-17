@@ -54,6 +54,19 @@ before starting any auth, tenancy, database, or billing work.
   (historical reference — useful for *why* a given file looks the way it
   does, not a to-do list).
 
+## Frontend changes: read `DESIGN.md` first
+
+**Before making any frontend change** — new or edited page, component, chart,
+color, spacing, animation, theme token or CSS — read **`DESIGN.md`** in the
+repo root and follow it. It is the source of truth for the live look: the warm
+organic palette (including the exact chart series colors and their order),
+rounded shapes, Clay depth/shadows, typography floors, hover/motion rules
+(`hover-pop-zone`, `pie-pop`, the sliding `SegmentedControl`) and a checklist.
+Do not hardcode hex colors or invent new chart colors; use the tokens it names.
+If your change alters the look (palette, radii, motion), update `DESIGN.md` in
+the same change. The older `.stitch/DESIGN.md` is historical (periwinkle
+mockup) and does not override it.
+
 ## Stack
 
 - **Backend**: FastAPI + SQLAlchemy 2.0, **PostgreSQL (Neon in prod) via
@@ -64,9 +77,9 @@ before starting any auth, tenancy, database, or billing work.
   `pandas`/`numpy` for calcs; `httpx` for outbound calls.
 - **Frontend**: React 18 + Vite 6, TailwindCSS, `recharts`, `@tanstack/react-query`,
   `axios`, `react-router-dom` 7. SPA in `frontend/src` (pages + components).
-  Visual design follows the Stitch-derived dark-glassmorphism token system
-  (`docs/design/stitch/`) — see `frontend/src/index.css` `:root` and `App.jsx`
-  `PALETTES`/`DARK_SURFACES`/`LIGHT_TOKENS` for the token source of truth.
+  Visual design: see **`DESIGN.md`** (warm organic Premium/Clay palette plus
+  the Classic themes). Token source of truth is `frontend/src/lib/themeTokens.js`
+  (applied by `App.jsx`'s `applyAppearance`) and `frontend/src/index.css`.
 - **Deploy**: multi-stage `Dockerfile` → Cloud Run (multi-instance; PostgreSQL
   has no single-writer constraint). Database is Neon, reached via
   `DATABASE_URL` — nothing DB-related is baked into the image or mounted as a

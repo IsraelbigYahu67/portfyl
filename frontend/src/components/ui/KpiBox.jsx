@@ -29,7 +29,7 @@ export default function KpiBox({
   const dense = size === "sm";
   return (
     <SpotlightCard
-      className={`card !bg-surface-card-elevated flex flex-col gap-1 min-w-0 ${dense ? "!p-3" : ""} ${className}`}
+      className={`card pop-tile !bg-surface-card-elevated flex flex-col gap-1 min-w-0 ${dense ? "!p-3" : ""} ${className}`}
     >
       <div className="flex items-start justify-between gap-2">
         <span className="eyebrow flex items-center gap-1.5">

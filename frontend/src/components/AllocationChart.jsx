@@ -1,5 +1,6 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { CATEGORICAL, TOOLTIP_STYLE, LEGEND_TEXT_STYLE } from "../lib/chartTheme";
+import { withSliceCorners } from "../lib/pieCorners";
 
 export default function AllocationChart({ holdings, currency = "USD", rate = null }) {
   const convert = (n) => (currency === "CZK" && rate ? n * rate : n);
@@ -16,16 +17,19 @@ export default function AllocationChart({ holdings, currency = "USD", rate = nul
 
   if (!data.length) return <div className="text-muted text-sm">No holdings yet.</div>;
 
+  const slices = withSliceCorners(data, { valueKey: "value", inner: 70, outer: 110, corner: 7 });
+
   return (
     <ResponsiveContainer width="100%" height={280}>
       <PieChart>
         <Pie
-          data={data}
+          data={slices}
           cx="50%"
           cy="50%"
           innerRadius={70}
           outerRadius={110}
-          paddingAngle={2}
+          paddingAngle={3}
+          cornerRadius={7}
           dataKey="value"
         >
           {data.map((_, i) => (

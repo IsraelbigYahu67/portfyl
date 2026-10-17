@@ -1,5 +1,6 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { CATEGORICAL, NEUTRAL_COLOR } from "../lib/chartTheme";
+import { withSliceCorners } from "../lib/pieCorners";
 
 // Cash has no sector/country/asset-type of its own — give it a fixed neutral
 // slate color instead of whatever the palette-by-index lookup would assign,
@@ -23,24 +24,27 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
 
   if (!data || data.length === 0) return null;
 
+  const slices = withSliceCorners(data, { valueKey: "weight", inner: 40, outer: 75, corner: 7 });
+
   return (
     <div className="card">
       <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider">
         {title}
       </h2>
       <div className="flex flex-col items-stretch gap-6 sm:flex-row sm:items-start">
-        <div className="w-48 h-48 shrink-0 self-center sm:self-auto">
+        <div className="pie-pop w-48 h-48 shrink-0 self-center sm:self-auto">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
-                data={data}
+                data={slices}
                 dataKey="weight"
                 nameKey="name"
                 cx="50%"
                 cy="50%"
                 innerRadius={40}
                 outerRadius={75}
-                paddingAngle={2}
+                paddingAngle={3}
+                cornerRadius={7}
               >
                 {data.map((item, i) => (
                   <Cell key={i} fill={colorFor(item, i)} />

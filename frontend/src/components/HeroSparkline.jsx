@@ -15,7 +15,7 @@ export default function HeroSparkline({ data = [], positive = true }) {
             </linearGradient>
           </defs>
           <YAxis hide domain={["dataMin", "dataMax"]} />
-          <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill="url(#heroFill)" isAnimationActive={false} />
+          <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="url(#heroFill)" isAnimationActive={false} />
         </AreaChart>
       </ResponsiveContainer>
     </div>
