@@ -1,5 +1,10 @@
 # Broker integrace před public launchem: research
 
+> **Stav (2026-10-17):** Fáze 1 implementována podle plánu
+> `docs/superpowers/plans/2026-10-16-portfyl-broker-integrations.md` (IBKR Flex
+> sync + XML, Degiro, XTB, Schwab, Fidelity, eToro Public API). Otevřené: Task 0
+> (reálné vzorky exportů, eToro app key a mapování hotovosti/dividend).
+
 Datum: 2026-10-16. Stav kódu, ze kterého jsem vycházel: Trading 212 má vlastní API
 sync (`backend/t212_sync.py`, `backend/routers/broker.py`) a import T212 CSV. IBKR
 Flex Web Service je napojený (`backend/routers/ibkr.py`), ale parsuje jen opční

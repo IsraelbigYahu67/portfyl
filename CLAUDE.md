@@ -123,7 +123,23 @@ before starting any auth, tenancy, database, or billing work.
 
 - **All API routes are under `/api`** (mounted with that prefix in `main.py`).
   Routers live in `backend/routers/`: portfolio(s), market, analytics, broker,
-  ibkr, watchlists, benchmarks, options, polymarket, discord, notes, assistant.
+  ibkr, etoro, watchlists, benchmarks, options, polymarket, discord, notes, assistant.
+- **Broker file imports are plugins.** Each broker export format is one module
+  in `backend/importers/formats/` exposing `FORMAT` (detect + parse to ledger
+  row dicts); `importers/registry.py` discovers them, and
+  `/portfolio/import-csv/preview|commit` try them before the native/T212 CSV
+  path. Today: IBKR Flex XML, Degiro (Transactions + Account CSV), XTB XLSX,
+  Charles Schwab, Fidelity. Shared helpers: `numbers.py` (locale numbers),
+  `ids.py` (stable event ids), `dividends.py` (one net dividend row after
+  withholding tax), `instruments.py` + `openfigi.py` (ISIN/venue → Yahoo ticker;
+  unresolved = preview error, never an ISIN as ticker). These imports append
+  (only T212 CSV forces replace) and dedupe by `(source, source_event_stream,
+  source_event_id)`; `Transaction.source` is `ibkr`, `etoro`, `degiro`, `xtb`,
+  `schwab` or `fidelity`, shared by file upload and API sync of the same broker.
+  API syncs (IBKR Flex, eToro) write through `ledger_import.insert_new_provider_rows`.
+  eToro needs Portfyl's app key in `PORTFYL_ETORO_APP_KEY` (see `deploy/cloudrun.md`).
+  All broker fixtures are synthetic until real exports are collected (plan Task 0).
+  Plan: `docs/superpowers/plans/2026-10-16-portfyl-broker-integrations.md`.
 - **Portfolio scoping is implicit.** The axios interceptor in `frontend/src/api.js`
   auto-injects `portfolio_id` (a UUID `public_id`, not an integer) from the
   active portfolio into every request — call sites never pass it.
