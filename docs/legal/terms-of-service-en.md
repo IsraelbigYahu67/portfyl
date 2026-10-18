@@ -15,7 +15,7 @@ The Portfyl service available at `portfyl.com` and `app.portfyl.com` (the
 
 **Jakub Zoubek**, a sole trader under the Czech Trade Licensing Act
 Registered business address: Brusinková 1983, 252 28 Černošice, Czech Republic
-Company ID (IČO): `[[TODO]]`
+Company ID (IČO): 67772366
 `[[TODO: VAT registered / not VAT registered]]`
 E-mail: **support@portfyl.com**
 

@@ -14,7 +14,7 @@ jak dlouho, komu je předává a jaká máte práva. Řídí se nařízením (EU
 
 ## 1. Správce a kontakt
 
-**Jakub Zoubek**, IČO `[[DOPLNIT]]`, místo podnikání Brusinková 1983,
+**Jakub Zoubek**, IČO 67772366, místo podnikání Brusinková 1983,
 252 28 Černošice, Česká republika (dále jen „**my**“).
 
 Ve všech věcech ochrany osobních údajů nás kontaktujte na

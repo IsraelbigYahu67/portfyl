@@ -14,7 +14,7 @@ Službu Portfyl dostupnou na `portfyl.com` a `app.portfyl.com` (dále jen
 
 **Jakub Zoubek**, fyzická osoba podnikající podle živnostenského zákona
 místo podnikání: Brusinková 1983, 252 28 Černošice, Česká republika
-IČO: `[[DOPLNIT]]`
+IČO: 67772366
 `[[DOPLNIT: plátce / neplátce DPH]]`
 e-mail: **support@portfyl.com**
 

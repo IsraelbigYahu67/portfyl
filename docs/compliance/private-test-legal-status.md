@@ -115,7 +115,7 @@ legal routes are enabled:
 - [ ] Confirm the controller's full legal name, legal form, postal address,
       registration identifiers (if any), and service address. Partly done
       2026-10-18: Jakub Zoubek, sole trader (OSVČ), Brusinková 1983,
-      252 28 Černošice; the IČO and VAT status are still missing.
+      252 28 Černošice, IČO 67772366; the VAT status is still missing.
 - [x] Confirm a working privacy/support/security contact:
       `tom.zoubek@gmail.com` for the private test; `support@portfyl.com` for
       public legal pages (decided 2026-10-18).

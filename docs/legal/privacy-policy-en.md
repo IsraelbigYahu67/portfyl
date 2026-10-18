@@ -16,7 +16,7 @@ Regulation (EU) 2016/679 (GDPR) and Czech Act No. 110/2019 Coll.
 
 ## 1. Controller and contact
 
-**Jakub Zoubek**, Company ID (IČO) `[[TODO]]`, registered business address
+**Jakub Zoubek**, Company ID (IČO) 67772366, registered business address
 Brusinková 1983, 252 28 Černošice, Czech Republic ("**we**", "**us**").
 
 For anything related to personal data, contact **support@portfyl.com**. We
