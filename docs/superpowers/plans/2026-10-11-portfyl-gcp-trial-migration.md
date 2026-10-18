@@ -1,7 +1,7 @@
 # Portfyl → new Google Cloud account (free-trial credits) Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-> **Status: PLAN ONLY (written 2026-10-11). Nothing in here has been executed.**
+> **Status (2026-10-16): Waves 0–3 DONE — all production traffic (portfyl.com and app.portfyl.com) and the scheduler run from `portfyl-prod-f6shqb`. Open: Wave 4 decommission (not before 2026-10-18), day-75 checklist (upgrade to paid by 2026-12-26, `min-instances` back to 0), optional Wave 5 and Track S.**
 
 **Goal:** Run the production Portfyl cloud edition (portfyl.com / app.portfyl.com) from a brand-new Google Cloud account that holds the USD 300 / 90-day free-trial credit, and use the credit on one-off work that leaves no standing cost.
 
@@ -19,6 +19,15 @@
 4. Region stays europe-west1 (open: europe-west3 later).
 
 ## Progress log
+
+**2026-10-16 — Wave 3 step 3 (apex) done.**
+- Found `portfyl.com` returning 500: the old project's domain mapping still pointed at the old service, whose instances no longer start (Cloud Run: "instance could not start successfully", startup TCP probe failed). Most likely cause: its old image fails `assert_alembic_head()` now that the shared Neon database has newer migrations, so the apex has probably been down since shortly after the 2026-10-11 cutover.
+- Added the Worker route `portfyl.com/*` to `portfyl-beta-proxy` (version `43bc9c11-2719-4f69-9d4e-583ad4603d82`). The Worker now sends the edge token only for `app.portfyl.com`, so apex `/api` keeps failing closed exactly as before. No DNS change was needed (the apex records are proxied, so the Worker route takes precedence over the Google origin).
+- Checks: apex `/`, `/demo`, `/logo.png`, `/assets/*`, `/landing/*.png` → 200; apex `/api/*`, `/dashboard`, `/register` → 302 to the path-scoped Access app; `app.portfyl.com` unchanged (302 to Access). HTML is byte-identical to the origin.
+- The old domain mapping `portfyl.com` in `portfyl-cloud-fstxby` is now unused; delete it with the rest of Wave 4.
+- Not migration-related: the browser console shows the theme pre-paint inline script in `frontend/index.html` blocked by the CSP `script-src`.
+
+**2026-10-11 evening — Wave 3 Stage A done** (app.portfyl.com Worker repointed, old Scheduler jobs paused, new ones resumed; Firebase login and cross-project KMS verified). Since then the new service was redeployed several times from `main` and `portfyl-broker-backfill` was added; see `deploy/cloudrun.md` "Routine redeploy".
 
 **2026-10-11 — Waves 0–2 done, Wave 3 (cutover) NOT started. Production untouched.**
 - New project `portfyl-prod-f6shqb`, billing `01FE9A-51DB4B-1D4009` (CZK), credit 6436 CZK expires **2027-01-10**, upgrade-to-paid deadline **2026-12-26**; budget alert 600 CZK gross.
@@ -115,12 +124,12 @@
 
 ### Task 6: Flip traffic
 **Files:** Modify `deploy/cloudflare/portfyl-beta-proxy.js` / `wrangler.jsonc` (upstream URL only); Modify `deploy/cloudrun.md` header + "Routine redeploy" block (new project id); Modify `docs/operations/private-beta-access.md` (service URL mention).
-- [ ] **Step 1:** Pause the six **old** Scheduler jobs.
-- [ ] **Step 2:** Update the Worker's upstream to the new Cloud Run URL; deploy with wrangler (see `deploy/cloudflare/README.md`). Check `app.portfyl.com` → Access login → 200, unauthenticated `/api/auth/me` → 401 (expected).
-- [ ] **Step 3:** `portfyl.com` apex currently uses a Cloud Run **domain mapping** in the old project. Preferred: serve the apex through the same Worker (removes the Google-managed-cert + Search Console ownership dependency on the new Google account). Fallback: recreate the mapping in the new project (needs domain verification by the new account).
-- [ ] **Step 4:** Resume the six **new** Scheduler jobs; force-run one; confirm `/health` `checks.scheduler.status` = ok within the hour.
-- [ ] **Step 5:** Cloudflare cache purge for `/` and `/landing/*` if assets differ (see 2026-09-11 note in `docs/operations/2026-09-10-public-landing.md`).
-- [ ] **Step 6:** Commit only the three files above on branch `chore/gcp-new-account`; do not touch `database.py` or migrations.
+- [x] **Step 1:** Pause the six **old** Scheduler jobs.
+- [x] **Step 2:** Update the Worker's upstream to the new Cloud Run URL; deploy with wrangler (see `deploy/cloudflare/README.md`). Check `app.portfyl.com` → Access login → 200, unauthenticated `/api/auth/me` → 401 (expected).
+- [x] **Step 3:** `portfyl.com` apex currently uses a Cloud Run **domain mapping** in the old project. Preferred: serve the apex through the same Worker (removes the Google-managed-cert + Search Console ownership dependency on the new Google account). Fallback: recreate the mapping in the new project (needs domain verification by the new account).
+- [x] **Step 4:** Resume the six **new** Scheduler jobs; force-run one; confirm `/health` `checks.scheduler.status` = ok within the hour.
+- [x] **Step 5:** Cloudflare cache purge for `/` and `/landing/*` if assets differ (see 2026-09-11 note in `docs/operations/2026-09-10-public-landing.md`).
+- [x] **Step 6:** Commit only the three files above on branch `chore/gcp-new-account`; do not touch `database.py` or migrations.
 
 ### Rollback (any time before Task 8)
 Point the Worker back to the old URL, pause new jobs, resume old jobs. The old service is untouched until Task 8.

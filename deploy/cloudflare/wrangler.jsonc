@@ -12,6 +12,10 @@
     {
       "pattern": "app.portfyl.com/*",
       "zone_id": "229f36f4679011c026f59c805aea1c12"
+    },
+    {
+      "pattern": "portfyl.com/*",
+      "zone_id": "229f36f4679011c026f59c805aea1c12"
     }
   ],
   "observability": {
