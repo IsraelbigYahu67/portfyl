@@ -54,8 +54,6 @@ CAPABILITY_REGISTRY: Mapping[str, Capability] = MappingProxyType({
         _capability("alerts", CapabilityClass.CLOUD_FREE),
         _capability("advanced_research", CapabilityClass.CLOUD_PRO),
         _capability("custom_benchmarks", CapabilityClass.CLOUD_PRO),
-        _capability("assistant_byok", CapabilityClass.CLOUD_INVESTOR),
-        _capability("assistant_hosted", CapabilityClass.CLOUD_PRO),
         _capability("options", CapabilityClass.CLOUD_PRO),
         _capability("polymarket", CapabilityClass.CLOUD_PRO),
         _capability("tax_report", CapabilityClass.LOCAL_ONLY),

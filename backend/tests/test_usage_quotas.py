@@ -15,7 +15,7 @@ def _reserve(db, workspace_id, key, limit=2):
     return reserve_usage(
         db,
         workspace_id=workspace_id,
-        metric="hosted_ai_monthly",
+        metric="example_monthly",
         idempotency_key=key,
         limit=limit,
         period_start=START,

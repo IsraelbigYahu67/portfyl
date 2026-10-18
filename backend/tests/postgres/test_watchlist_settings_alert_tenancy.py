@@ -91,10 +91,10 @@ def bob_workspace(postgres_session: Session, bob: User) -> Workspace:
 
 
 def test_same_setting_key_has_independent_user_values(postgres_session, alice, bob):
-    set_user_setting(postgres_session, alice.id, "deepseek_model", "a")
-    set_user_setting(postgres_session, bob.id, "deepseek_model", "b")
-    assert get_user_setting(postgres_session, alice.id, "deepseek_model") == "a"
-    assert get_user_setting(postgres_session, bob.id, "deepseek_model") == "b"
+    set_user_setting(postgres_session, alice.id, "example_preference", "a")
+    set_user_setting(postgres_session, bob.id, "example_preference", "b")
+    assert get_user_setting(postgres_session, alice.id, "example_preference") == "a"
+    assert get_user_setting(postgres_session, bob.id, "example_preference") == "b"
 
 
 def test_same_sync_key_has_independent_workspace_values(postgres_session, alice_workspace, bob_workspace):
@@ -105,8 +105,8 @@ def test_same_sync_key_has_independent_workspace_values(postgres_session, alice_
 
 
 def test_missing_user_setting_is_none_not_another_users_value(postgres_session, alice, bob):
-    set_user_setting(postgres_session, bob.id, "deepseek_api_key", "bob-secret")
-    assert get_user_setting(postgres_session, alice.id, "deepseek_api_key") is None
+    set_user_setting(postgres_session, bob.id, "example_secret", "bob-secret")
+    assert get_user_setting(postgres_session, alice.id, "example_secret") is None
 
 
 def test_missing_workspace_setting_is_none_not_another_workspaces_value(postgres_session, alice_workspace, bob_workspace):

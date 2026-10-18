@@ -151,7 +151,7 @@ def test_export_contains_portable_workspace_data_without_cross_tenant_rows(
         exported_at=EXPORTED_AT,
     )
 
-    assert payload["schema_version"] == 5
+    assert payload["schema_version"] == 6
     assert payload["exported_at"] == "2026-09-07T12:30:00+00:00"
     assert payload["workspace"]["id"] == str(request_context.workspace.public_id)
     assert payload["membership"] == {
@@ -395,13 +395,13 @@ def test_export_v2_includes_remaining_user_data_but_not_secrets_or_internal_stat
     assert payload["cash_interest_rates"][0]["annual_rate"] == 0.03
     assert payload["dividend_notifications"][0]["ticker"] == "MSFT"
     assert payload["workspace_preferences"] == {"broker_sync_mode": "daily"}
-    assert payload["user_preferences"] == {"assistant_model": "deepseek-reasoner"}
+    assert "user_preferences" not in payload
 
     for forbidden in (
         "NEVER-EXPORT",
         "NEVER-EXPORT-AI-KEY",
         "webhook_url",
-        "deepseek_api_key",
+        "deepseek",
         "privacy.workspace_deletion",
         "onboarding_pending_portfolio",
         "requested_by_user_id",
@@ -458,7 +458,7 @@ def test_export_includes_corporate_actions_and_applications(db_session, request_
 
     payload = build_workspace_export(db_session, request_context, exported_at=EXPORTED_AT)
 
-    assert payload["schema_version"] == 5
+    assert payload["schema_version"] == 6
     [a] = payload["broker_corporate_actions"]
     assert a["action_type"] == "STOCK_SPLIT"
     assert float(a["ratio_numerator"]) == 10.0
@@ -483,7 +483,7 @@ def test_export_includes_allocation_targets_for_own_portfolios(db_session, reque
 
     payload = build_workspace_export(db_session, request_context, exported_at=EXPORTED_AT)
 
-    assert payload["schema_version"] == 5
+    assert payload["schema_version"] == 6
     [row] = payload["allocation_targets"]
     assert row["portfolio_id"] == str(portfolio.public_id)
     assert row["ticker"] == "VWCE.DE"

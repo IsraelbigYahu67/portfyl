@@ -12,7 +12,7 @@ before any other logger emits. It installs one root handler that:
   the logging system is ever told which live string is "the" secret to
   scrub, so redaction has to recognize secrets by their shape in whatever
   gets logged (an error message, a repr'd request, a stray debug print).
-  Broker API keys and the DeepSeek key have no recognizable shape of their
+  Broker API keys have no recognizable shape of their
   own, so the real defense for those is simply never logging the decrypted
   value in the first place (see secrets_crypto.py / models.py) -- this
   module is the second, belt-and-suspenders layer for the handful of

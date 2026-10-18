@@ -4,7 +4,7 @@ T212 snapshot-first sync plan (docs/superpowers/plans/2026-09-20-t212-snapshot-f
 §4.5: adding `Transaction.executed_at` alone is insufficient because
 legacy consumers ordered by `date` plus a fixed type-order fallback for
 same-day rows. This module is the single shared key used by holdings/FIFO,
-realized P/L, performance, analytics, and assistant context so those
+realized P/L, performance, and analytics so those
 accounting paths cannot drift apart.
 """
 

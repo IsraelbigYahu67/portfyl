@@ -100,7 +100,7 @@ def _local_entitlements() -> EffectiveEntitlements:
         in_grace=False,
         cancel_at_period_end=False,
         capabilities=tuple(CAPABILITY_REGISTRY),
-        limits=PlanLimits(*(None for _ in range(7)), hosted_ai_monthly=0, autosync_min_hours=None),
+        limits=PlanLimits(*(None for _ in range(7)), autosync_min_hours=None),
     )
 
 

@@ -476,18 +476,6 @@ def test_a_name_bob_already_uses_is_free_for_alice(
 # ---------------------------------------------------------------------------
 
 
-def test_personal_settings_never_surface_another_users_key(
-    matrix_client: TestClient, matrix_tenants: MatrixTenants,
-):
-    response = matrix_client.get("/api/assistant/config")
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["configured"] is True
-    assert "bob-secret-key" not in response.text
-    assert body["key_preview"] != ""
-
-
 def test_workspace_settings_never_surface_another_workspaces_value(
     matrix_client: TestClient, matrix_tenants: MatrixTenants,
 ):

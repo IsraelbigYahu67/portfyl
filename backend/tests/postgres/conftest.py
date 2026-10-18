@@ -275,7 +275,7 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
             workspace_id=workspace.id, portfolio_id=portfolio.id,
             webhook_url=f"https://discord.com/api/webhooks/{label}/token",
         ),
-        UserSetting(user_id=user.id, key="deepseek_model", value="deepseek-chat"),
+        UserSetting(user_id=user.id, key="example_preference", value="matrix"),
         WorkspaceSetting(workspace_id=workspace.id, key="broker_sync_mode", value="daily"),
         WorkspaceSetting(
             workspace_id=workspace.id, key="broker_sync_daily_time",
@@ -285,7 +285,7 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
         benchmark,
     ])
     db.flush()
-    set_user_secret(db, user.id, "deepseek_api_key", f"{label}-secret-key")
+    set_user_secret(db, user.id, "example_secret", f"{label}-secret-key")
 
     sync_run = BrokerSyncRun(
         workspace_id=workspace.id, portfolio_id=portfolio.id,
@@ -324,7 +324,7 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
     now = datetime(2026, 9, 4, tzinfo=timezone.utc)
     usage = UsageCounter(
         workspace_id=workspace.id,
-        metric="hosted_ai_monthly",
+        metric="example_monthly",
         period_start=now,
         period_end=now + timedelta(days=30),
         used=1,
@@ -334,7 +334,7 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
     reservation = UsageReservation(
         workspace_id=workspace.id,
         counter_id=usage.id,
-        metric="hosted_ai_monthly",
+        metric="example_monthly",
         idempotency_key=f"{label}-request",
         amount=1,
         status="finalized",
@@ -441,7 +441,6 @@ def _matrix_app(postgres_engine: Engine) -> FastAPI:
     from routers import (
         alerts,
         analytics,
-        assistant,
         benchmarks,
         broker,
         cash,
@@ -464,7 +463,7 @@ def _matrix_app(postgres_engine: Engine) -> FastAPI:
     app.add_exception_handler(RequestContextError, request_context_error_handler)
     for module in (
         portfolios, portfolio, analytics, benchmarks, cash, notes, allocation_targets,
-        watchlists, settings, alerts, assistant,
+        watchlists, settings, alerts,
         broker, ibkr, options, polymarket, discord,
     ):
         app.include_router(module.router, prefix="/api")

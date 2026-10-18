@@ -153,7 +153,7 @@ def test_personal_settings_are_scoped_to_the_user_not_the_workspace(
         {"user": matrix_tenants.bob.user_id},
     ).scalar_one()
 
-    assert own == 2       # deepseek_api_key + deepseek_model
+    assert own == 2       # example_secret + example_preference
     assert foreign == 0
 
 

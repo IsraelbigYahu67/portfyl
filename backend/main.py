@@ -36,7 +36,7 @@ from rate_limit import (
     rate_limit_exceeded_handler,
     rate_limit_unavailable_handler,
 )
-from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, etoro, options, polymarket, discord, notes, assistant, cash, alerts, settings, allocation_targets, capabilities, auth as auth_router
+from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, etoro, options, polymarket, discord, notes, cash, alerts, settings, allocation_targets, capabilities, auth as auth_router
 from tenancy import (
     RequestContextError,
     csrf_guard,
@@ -199,11 +199,6 @@ app.include_router(
 app.include_router(polymarket.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 app.include_router(discord.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 app.include_router(notes.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
-app.include_router(
-    assistant.router,
-    prefix="/api",
-    dependencies=[Depends(csrf_guard), Depends(get_request_context)],
-)
 app.include_router(cash.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 app.include_router(allocation_targets.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 app.include_router(alerts.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)

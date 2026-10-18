@@ -3,12 +3,11 @@ import { buildNavGroups, NAV_GROUPS } from "./navigation";
 import { TRACKER_HOME } from "../../lib/routes";
 
 describe("NAV_GROUPS", () => {
-  it("has exactly the five named groups in order", () => {
+  it("has exactly the four named groups in order", () => {
     expect(NAV_GROUPS.map((group) => group.id)).toEqual([
       "portfolio",
       "research",
       "insights",
-      "assistant",
       "system",
     ]);
   });

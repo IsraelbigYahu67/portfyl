@@ -1,8 +1,8 @@
 """Client for Alpha Vantage's free REST API -- used only for the on-demand
 Congress/political-trades feature (see PLAN.md, phase 1g). Unlike
 shibui_client.py, Alpha Vantage has a plain REST API (no MCP), so this
-follows the same httpx.AsyncClient pattern as routers/assistant.py's
-DeepSeek calls rather than shibui_client's MCP session dance.
+uses a plain httpx.AsyncClient rather than shibui_client's MCP session
+dance.
 
 Free tier is 25 requests/day, so callers must only ever invoke this on
 explicit user action (a button click), never from a background job or

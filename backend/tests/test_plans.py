@@ -9,11 +9,11 @@ def test_canonical_limits_and_plan_access_are_provider_neutral():
     limits = plan_limits({})
     assert limits[PlanTier.FREE].portfolios == 1
     assert limits[PlanTier.INVESTOR].broker_connections == 2
-    assert limits[PlanTier.PRO].hosted_ai_monthly == 100
+    assert limits[PlanTier.PRO].alerts == 100
     assert plan_allows(PlanTier.FREE, "alerts")
     assert not plan_allows(PlanTier.FREE, "portfolio_analytics")
-    assert plan_allows(PlanTier.INVESTOR, "assistant_byok")
-    assert not plan_allows(PlanTier.INVESTOR, "assistant_hosted")
+    assert "assistant_byok" not in MINIMUM_PLAN
+    assert "assistant_hosted" not in MINIMUM_PLAN
     assert MINIMUM_PLAN["advanced_research"] is PlanTier.PRO
 
 

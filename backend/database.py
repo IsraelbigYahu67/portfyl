@@ -79,7 +79,7 @@ class Base(DeclarativeBase):
     pass
 
 
-EXPECTED_ALEMBIC_HEAD = "0023_allocation_targets"
+EXPECTED_ALEMBIC_HEAD = "0024_remove_ai_assistant"
 
 
 def assert_alembic_head(

@@ -15,14 +15,12 @@ VALID_CLOUD_ENV = {
     "RATE_LIMIT_AUTH_SESSION_WINDOW_SECONDS": "60",
     "RATE_LIMIT_BROKER_SYNC_LIMIT": "5",
     "RATE_LIMIT_BROKER_SYNC_WINDOW_SECONDS": "60",
-    "RATE_LIMIT_ASSISTANT_CHAT_LIMIT": "20",
-    "RATE_LIMIT_ASSISTANT_CHAT_WINDOW_SECONDS": "60",
 }
 
 
-def test_load_rate_limit_rules_returns_all_four_rules_when_valid():
+def test_load_rate_limit_rules_returns_all_three_rules_when_valid():
     rules = load_rate_limit_rules(VALID_CLOUD_ENV)
-    assert set(rules) == {"global", "auth_session", "broker_sync", "assistant_chat"}
+    assert set(rules) == {"global", "auth_session", "broker_sync"}
     assert rules["global"] == RateLimitRule(name="global", limit=120, window_seconds=60)
     assert rules["broker_sync"] == RateLimitRule(name="broker_sync", limit=5, window_seconds=60)
 
@@ -36,8 +34,8 @@ def test_load_rate_limit_rules_rejects_bad_limit(bad_value):
 
 @pytest.mark.parametrize("bad_value", ["", "0", "-5", "soon"])
 def test_load_rate_limit_rules_rejects_bad_window(bad_value):
-    env = {**VALID_CLOUD_ENV, "RATE_LIMIT_ASSISTANT_CHAT_WINDOW_SECONDS": bad_value}
-    with pytest.raises(RuntimeError, match="RATE_LIMIT_ASSISTANT_CHAT_WINDOW_SECONDS"):
+    env = {**VALID_CLOUD_ENV, "RATE_LIMIT_BROKER_SYNC_WINDOW_SECONDS": bad_value}
+    with pytest.raises(RuntimeError, match="RATE_LIMIT_BROKER_SYNC_WINDOW_SECONDS"):
         load_rate_limit_rules(env)
 
 

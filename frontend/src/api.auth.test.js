@@ -1,6 +1,5 @@
 import {
   api,
-  sendAssistantMessage,
   fetchHistory,
   applyRequestInterceptors,
   configureRequestContext,
@@ -10,18 +9,12 @@ import {
   setActivePortfolioId,
 } from "./api";
 
-it('sends the explicit assistant mode and passes cancellation to stock history', async () => {
-  const post = vi.spyOn(api, 'post').mockResolvedValue({ data: {} });
+it('passes cancellation to stock history', async () => {
   const get = vi.spyOn(api, 'get').mockResolvedValue({ data: {} });
-  const messages = [{ role: 'user', content: 'Question' }];
-  await sendAssistantMessage(messages);
-  expect(post).toHaveBeenLastCalledWith('/assistant/chat', { messages, context_mode: 'none' });
-  await sendAssistantMessage(messages, 'portfolio_summary');
-  expect(post).toHaveBeenLastCalledWith('/assistant/chat', { messages, context_mode: 'portfolio_summary' });
   const signal = new AbortController().signal;
   await fetchHistory('AAPL', '1y', { signal, suppressEntitlementPrompt: true });
   expect(get).toHaveBeenLastCalledWith('/market/history/AAPL', { signal, suppressEntitlementPrompt: true, params: { period: '1y' } });
-  post.mockRestore(); get.mockRestore();
+  get.mockRestore();
 });
 
 describe("api request context (workspace + CSRF + UUID portfolio ids)", () => {

@@ -5,7 +5,7 @@ application that lets you track investments across multiple portfolios and
 **platforms** — Trading 212, Interactive Brokers (IBKR), and Polymarket — compute
 performance and risk metrics, handle tax reports (Czech §4 exemption rules), track
 options positions, dive into deep stock fundamentals, screen for ideas, project
-forward dividend income, and ask an AI assistant about your portfolio — all
+forward dividend income — all
 without sending your data to a third party.
 
 Each portfolio belongs to a **platform**. The active platform tailors the UI: a
@@ -90,8 +90,7 @@ portfyl/
 │   │   ├── options.py                 # Options positions, greeks, expiry tracking
 │   │   ├── polymarket.py             # Polymarket prediction-market positions
 │   │   ├── discord.py                # Discord webhook notifications
-│   │   ├── notes.py                   # Per-trade / per-ticker notes
-│   │   └── assistant.py               # AI portfolio assistant (LLM chat over your data)
+│   │   └── notes.py                   # Per-trade / per-ticker notes
 │   └── tests/                        # 54 tests across 7 modules (holdings, FIFO, tax,
 │                                     #   broker, cache, FX, screener)
 ├── frontend/                         # React 18 + Vite + Tailwind CSS + Recharts + React Query
@@ -121,7 +120,6 @@ portfyl/
 │   │       ├── Stock.jsx             # Full stock detail page (fundamentals, TTM charts, valuation)
 │   │       ├── Watchlists.jsx        # Watchlist management with live quotes
 │   │       ├── Screener.jsx          # **Stock screener with filters + sortable table**
-│   │       ├── Assistant.jsx         # AI portfolio assistant chat
 │   │       └── Settings.jsx          # Broker connection, theme, data management
 │   └── package.json
 ├── sample_portfolio.csv              # Example CSV for testing imports
@@ -242,7 +240,6 @@ is running. Key groups:
 | `/api/ibkr` | `ibkr.py` | Interactive Brokers Flex Query import/sync |
 | `/api/options` | `options.py` | Options positions, greeks, expiry tracking |
 | `/api/polymarket` | `polymarket.py` | Polymarket prediction-market positions |
-| `/api/assistant` | `assistant.py` | AI portfolio assistant (LLM chat) |
 | `/api/notes` | `notes.py` | Per-trade / per-ticker notes |
 | `/api/discord` | `discord.py` | Discord webhook notifications |
 | `/api/watchlists` | `watchlists.py` | Watchlist CRUD with live quotes |

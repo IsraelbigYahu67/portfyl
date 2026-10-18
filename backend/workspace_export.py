@@ -27,7 +27,6 @@ from models import (
     PriceAlert,
     TradeNote,
     Transaction,
-    UserSetting,
     Watchlist,
     WatchlistItem,
     WorkspaceSetting,
@@ -35,16 +34,13 @@ from models import (
 from tenancy import RequestContext
 
 
-EXPORT_SCHEMA_VERSION = 5
+EXPORT_SCHEMA_VERSION = 6
 
 _WORKSPACE_PREFERENCE_KEYS = (
     "broker_sync_daily_time",
     "broker_sync_interval_hours",
     "broker_sync_mode",
 )
-_USER_PREFERENCE_KEYS = {
-    "deepseek_model": "assistant_model",
-}
 
 
 def _iso(value: date | datetime | None) -> str | None:
@@ -237,14 +233,6 @@ def build_workspace_export(
             WorkspaceSetting.key.in_(_WORKSPACE_PREFERENCE_KEYS),
         )
         .order_by(WorkspaceSetting.key, WorkspaceSetting.id)
-    ).all()
-    user_preferences = db.scalars(
-        select(UserSetting)
-        .where(
-            UserSetting.user_id == context.user.id,
-            UserSetting.key.in_(tuple(_USER_PREFERENCE_KEYS)),
-        )
-        .order_by(UserSetting.key, UserSetting.id)
     ).all()
 
     return {
@@ -545,9 +533,5 @@ def build_workspace_export(
         ],
         "workspace_preferences": {
             preference.key: preference.value for preference in workspace_preferences
-        },
-        "user_preferences": {
-            _USER_PREFERENCE_KEYS[preference.key]: preference.value
-            for preference in user_preferences
         },
     }

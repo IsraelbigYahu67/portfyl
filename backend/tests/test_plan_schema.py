@@ -35,7 +35,7 @@ def test_payment_and_trial_models_are_not_mapped():
 
 
 def test_expected_alembic_head_adds_t212_account_binding():
-    assert EXPECTED_ALEMBIC_HEAD == "0023_allocation_targets"
+    assert EXPECTED_ALEMBIC_HEAD == "0024_remove_ai_assistant"
     assert models.AllocationTarget.__tablename__ == "allocation_targets"
     for column in (
         "cash_next_page_path", "cash_complete", "cash_loaded",

@@ -1,7 +1,6 @@
 import {
   Activity,
   ArrowLeftRight,
-  Bot,
   CalendarDays,
   LayoutDashboard,
   PieChart,
@@ -39,11 +38,6 @@ export const NAV_GROUPS = Object.freeze([
       { to: "/dividends", label: "Dividends", icon: CalendarDays },
       { to: "/analytics", label: "Analytics", icon: Activity },
     ],
-  },
-  {
-    id: "assistant",
-    label: "Assistant",
-    items: [{ to: "/assistant", label: "AI Assistant", icon: Bot }],
   },
   {
     id: "system",

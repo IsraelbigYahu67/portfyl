@@ -400,13 +400,6 @@ export const fetchOptionsByUnderlying = () => api.get("/options/by-underlying").
 export const fetchOptionsCalendar = (period) =>
   api.get("/options/calendar", { params: period ? { period } : {} }).then((r) => r.data);
 
-// ----- AI assistant (DeepSeek) ---------------------------------------------
-export const fetchAssistantConfig = () => api.get("/assistant/config").then((r) => r.data);
-export const saveAssistantConfig = (apiKey, model) =>
-  api.put("/assistant/config", { api_key: apiKey, model }).then((r) => r.data);
-export const deleteAssistantConfig = () => api.delete("/assistant/config").then((r) => r.data);
-export const sendAssistantMessage = (messages, contextMode = "none") =>
-  api.post("/assistant/chat", { messages, context_mode: contextMode }).then((r) => r.data);
 
 // ----- Discord Webhook -------------------------------------------------------
 export const fetchDiscordWebhook = () => api.get("/discord/webhook").then((r) => r.data);
