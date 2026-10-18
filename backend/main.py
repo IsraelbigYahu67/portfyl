@@ -439,6 +439,26 @@ async def _stop_background_pollers():
 _DIST = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "dist"))
 _ASSETS = os.path.join(_DIST, "assets")
 
+# Files outside /assets have no content hash in their name (index.html,
+# theme-init.js, logo.png), so browsers must revalidate them on every load or
+# they keep an old index.html pointing at the previous deploy's bundles.
+# The ETag FileResponse sets makes that revalidation a cheap 304.
+_SPA_NO_CACHE = {"Cache-Control": "no-cache"}
+
+
+def _spa_file_response(full_path: str, dist: str) -> FileResponse:
+    # Serve real files (favicon, logo, etc.) directly; everything else returns
+    # index.html so the client-side router can handle the route. normpath +
+    # containment check blocks path traversal out of dist/.
+    candidate = os.path.normpath(os.path.join(dist, full_path))
+    if full_path and candidate.startswith(dist + os.sep) and os.path.isfile(candidate):
+        return FileResponse(candidate, headers=_SPA_NO_CACHE)
+    index_html = os.path.join(dist, "index.html")
+    if os.path.isfile(index_html):
+        return FileResponse(index_html, headers=_SPA_NO_CACHE)
+    raise HTTPException(status_code=404)
+
+
 if os.path.isdir(_ASSETS):
     app.mount("/assets", StaticFiles(directory=_ASSETS), name="assets")
 
@@ -448,13 +468,4 @@ if os.path.isdir(_DIST):
         # Never shadow the API / auth / health routes (they match first anyway).
         if full_path == "api" or full_path.startswith("api/") or full_path == "health":
             raise HTTPException(status_code=404)
-        # Serve real files (favicon, logo, etc.) directly; everything else returns
-        # index.html so the client-side router can handle the route. normpath +
-        # containment check blocks path traversal out of dist/.
-        candidate = os.path.normpath(os.path.join(_DIST, full_path))
-        if full_path and candidate.startswith(_DIST + os.sep) and os.path.isfile(candidate):
-            return FileResponse(candidate)
-        index_html = os.path.join(_DIST, "index.html")
-        if os.path.isfile(index_html):
-            return FileResponse(index_html)
-        raise HTTPException(status_code=404)
+        return _spa_file_response(full_path, _DIST)

@@ -525,6 +525,8 @@ New-Item -ItemType Directory -Force $SRC | Out-Null
 git archive main | tar -x -C $SRC
 $fb = @{}
 Get-Content frontend/.env.local | Where-Object { $_ -match '^(VITE_FIREBASE_\w+)=(.*)$' } | ForEach-Object { $fb[$Matches[1]] = $Matches[2].Trim().Trim('"') }
+# A missing flag silently builds Google sign-in off; prod has it on, so require an explicit true/false.
+if ($fb.VITE_FIREBASE_GOOGLE_SIGN_IN -notin @("true", "false")) { throw "frontend/.env.local needs VITE_FIREBASE_GOOGLE_SIGN_IN=true (or =false to turn Google sign-in off)" }
 @"
 steps:
 - name: gcr.io/cloud-builders/docker
@@ -554,7 +556,8 @@ the new revision's Cloud Run logs, not with an anonymous `curl`.
 
 "Continue with Google" is off unless the image is built with
 `VITE_FIREBASE_GOOGLE_SIGN_IN=true`. The redeploy above passes whatever
-`frontend/.env.local` holds, and a missing value builds it off. See
+`frontend/.env.local` holds and stops if the line is missing, so the button
+can no longer disappear by accident. Prod has had it on since 2026-10-13. See
 `docs/superpowers/plans/2026-10-12-portfyl-google-sign-in.md`. To turn it on:
 
 1. Check that the Firebase console prerequisites are in place in
