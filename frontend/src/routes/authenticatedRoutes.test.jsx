@@ -3,7 +3,7 @@ import { buildNavGroups, preloadRoute } from '../components/layout/navigation';
 import { TRACKER_HOME } from '../lib/routes';
 
 it('gives every shared authenticated route a lazy component and stable loader', () => {
-  expect(SHARED_AUTHENTICATED_ROUTES.map(route => route.path)).toEqual([TRACKER_HOME, '/allocation', '/transactions', '/cash', '/import', '/dividends', '/analytics', '/search', '/stock/:ticker', '/watchlists', '/assistant', '/settings']);
+  expect(SHARED_AUTHENTICATED_ROUTES.map(route => route.path)).toEqual([TRACKER_HOME, '/allocation', '/transactions', '/cash', '/import', '/dividends', '/analytics', '/search', '/stock/:ticker', '/watchlists', '/settings']);
   for (const route of SHARED_AUTHENTICATED_ROUTES) {
     expect(route.Component.$$typeof).toBe(Symbol.for('react.lazy'));
     expect(route.preload).toBeTypeOf('function');

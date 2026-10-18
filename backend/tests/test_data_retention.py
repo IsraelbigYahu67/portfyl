@@ -105,7 +105,7 @@ def test_cleanup_removes_only_expired_operational_records(
     ])
     counter = UsageCounter(
         workspace_id=test_workspace.id,
-        metric="assistant_messages",
+        metric="example_monthly",
         period_start=old,
         period_end=old + timedelta(days=30),
         used=2,

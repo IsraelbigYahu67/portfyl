@@ -1,10 +1,7 @@
-"""The five targeted rate_limit(...) route dependencies: proves each route
+"""The targeted rate_limit(...) route dependencies: proves each route
 is actually gated by hitting it enough times to trip a deliberately tiny
-limit, using minimal mini-apps in the same style as
-tests/test_hosted_assistant.py."""
+limit, using minimal mini-apps."""
 from __future__ import annotations
-
-from unittest.mock import Mock, patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -23,7 +20,6 @@ from rate_limit import (
     rate_limit_exceeded_handler,
     rate_limit_unavailable_handler,
 )
-from routers.portfolios import require_portfolio
 from tenancy import get_request_context, require_csrf
 
 
@@ -198,39 +194,3 @@ class TestBrokerSyncRateLimit:
         assert first.status_code == 404
         assert second.status_code == 429  # same broker_sync bucket, intentionally shared
 
-
-class TestAssistantChatRateLimit:
-    def test_second_call_from_the_same_workspace_is_429(
-        self, monkeypatch, db_session, request_context, default_portfolio
-    ):
-        from routers import assistant
-        import entitlements
-
-        monkeypatch.setattr(entitlements, "ensure_capability", lambda *a, **k: None)
-        monkeypatch.setattr(
-            rate_limit, "RATE_LIMIT_RULES",
-            {"assistant_chat": RateLimitRule(name="assistant_chat", limit=1, window_seconds=60)},
-        )
-        monkeypatch.setattr(rate_limit, "KEY_SECRET", b"test-key-secret")
-        monkeypatch.setattr(rate_limit, "SessionLocal", lambda: _shared_limiter_session(db_session))
-
-        app = _rate_limited_app(cloud=True)
-        app.include_router(assistant.router, prefix="/api")
-        app.dependency_overrides[get_db] = lambda: db_session
-        app.dependency_overrides[get_request_context] = lambda: request_context
-        app.dependency_overrides[require_csrf] = lambda: request_context
-        app.dependency_overrides[require_portfolio] = lambda: default_portfolio
-
-        provider = Mock(return_value=("answer", {"total_tokens": 4}))
-        payload = {"messages": [{"role": "user", "content": "hi"}]}
-        with patch("routers.assistant._call_deepseek", provider), TestClient(app) as client:
-            first = client.post(
-                "/api/assistant/chat", json=payload, headers={"Idempotency-Key": "req-1"}
-            )
-            second = client.post(
-                "/api/assistant/chat", json=payload, headers={"Idempotency-Key": "req-2"}
-            )
-
-        assert first.status_code != 429  # capability check bypassed; limiter let it through
-        assert second.status_code == 429
-        assert second.json() == {"code": "rate_limit_exceeded", "rule": "assistant_chat"}

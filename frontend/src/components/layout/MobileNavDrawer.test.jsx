@@ -55,7 +55,8 @@ describe("MobileNavDrawer", () => {
   it("renders every nav item as a link", () => {
     renderDrawer();
     expect(screen.getByRole("link", { name: /dashboard/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /ai assistant/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /settings/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /assistant/i })).not.toBeInTheDocument();
   });
 
   it("keeps group headings at least 12px", () => {

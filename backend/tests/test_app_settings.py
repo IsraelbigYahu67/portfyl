@@ -17,9 +17,9 @@ def test_get_missing_user_key_returns_none(db_session, test_user):
 
 
 def test_user_set_then_get_roundtrip(db_session, test_user):
-    set_user_setting(db_session, test_user.id, "deepseek_model", "v1")
+    set_user_setting(db_session, test_user.id, "example_preference", "v1")
     db_session.commit()
-    assert get_user_setting(db_session, test_user.id, "deepseek_model") == "v1"
+    assert get_user_setting(db_session, test_user.id, "example_preference") == "v1"
 
 
 def test_user_set_updates_existing_row(db_session, test_user):
@@ -62,12 +62,12 @@ def test_same_key_isolated_across_users(db_session, test_user):
     from uuid import uuid4
     other_user_id = uuid4()
 
-    set_user_setting(db_session, test_user.id, "deepseek_model", "a")
-    set_user_setting(db_session, other_user_id, "deepseek_model", "b")
+    set_user_setting(db_session, test_user.id, "example_preference", "a")
+    set_user_setting(db_session, other_user_id, "example_preference", "b")
     db_session.commit()
 
-    assert get_user_setting(db_session, test_user.id, "deepseek_model") == "a"
-    assert get_user_setting(db_session, other_user_id, "deepseek_model") == "b"
+    assert get_user_setting(db_session, test_user.id, "example_preference") == "a"
+    assert get_user_setting(db_session, other_user_id, "example_preference") == "b"
 
 
 def test_same_key_isolated_across_workspaces(db_session, test_workspace):

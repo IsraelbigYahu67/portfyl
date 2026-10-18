@@ -1,8 +1,9 @@
 # Portfyl
 
 Portfolio analytics for a Trading 212 / IBKR investor. Import broker CSVs (or
-sync via API), then view performance, allocation, dividends, options, tax
-reports, and an AI assistant across one or more portfolios. Now multi-tenant
+sync via API), then view performance, allocation, dividends, options, and tax
+reports across one or more portfolios. (The DeepSeek AI assistant was removed
+on 2026-10-18; any future AI feature needs a new DPA/transfer review first.) Now multi-tenant
 (Firebase-verified identities, workspace-scoped PostgreSQL data) —
 **a multi-user SaaS conversion is in progress**, with tenant isolation and the
 edition boundary and first-run onboarding done, while paid checkout remains deferred; see below.
@@ -136,7 +137,7 @@ mockup) and does not override it.
 
 - **All API routes are under `/api`** (mounted with that prefix in `main.py`).
   Routers live in `backend/routers/`: portfolio(s), market, analytics, broker,
-  ibkr, etoro, watchlists, benchmarks, options, polymarket, discord, notes, assistant.
+  ibkr, etoro, watchlists, benchmarks, options, polymarket, discord, notes.
 - **Broker file imports are plugins.** Each broker export format is one module
   in `backend/importers/formats/` exposing `FORMAT` (detect + parse to ledger
   row dicts); `importers/registry.py` discovers them, and
@@ -219,7 +220,7 @@ mockup) and does not override it.
   and scrubbed on export; see `.gitignore`.)
 - Pages: `frontend/src/pages/` (Dashboard, Allocation, Analytics, Dividends,
   Options, Polymarket, Screener, TaxReport, Transactions,
-  Watchlists, Import, Settings, Stock, Search, Assistant, PlatformLanding).
+  Watchlists, Import, Settings, Stock, Search, PlatformLanding).
   Reusable charts/widgets in `frontend/src/components/`.
 - Sample import data: `sample_portfolio.csv` at the project root.
 

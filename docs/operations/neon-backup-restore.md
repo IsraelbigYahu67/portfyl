@@ -80,7 +80,7 @@ using the template at the bottom of this file.
    # Local drill-only values; never copy production edge/rate-limit secrets.
    $env:PORTFYL_EDGE_TOKEN = "local-restore-drill-edge-token"
    $env:RATE_LIMIT_KEY_SECRET = "local-restore-drill-rate-limit-secret"
-   foreach ($rule in @("GLOBAL", "AUTH_SESSION", "BROKER_SYNC", "ASSISTANT_CHAT")) {
+   foreach ($rule in @("GLOBAL", "AUTH_SESSION", "BROKER_SYNC")) {
        [Environment]::SetEnvironmentVariable("RATE_LIMIT_${rule}_LIMIT", "100", "Process")
        [Environment]::SetEnvironmentVariable("RATE_LIMIT_${rule}_WINDOW_SECONDS", "60", "Process")
    }

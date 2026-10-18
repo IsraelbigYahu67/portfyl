@@ -97,7 +97,7 @@ def test_migration_preserves_rows_and_assigns_one_workspace(
         "cash_interest_rates": 1,
         "dividend_notifications": 1,
         "price_alerts": 1,
-        "user_settings": 2,
+        "user_settings": 0,  # the removed AI assistant's two settings are dropped
         "workspace_settings": 4,
     }
     assert len(report.source_sha256) == 64
@@ -143,10 +143,7 @@ def test_migration_classifies_settings_and_records_owner_claim(
         assert owner.firebase_uid is None
         assert {
             row.key: row.value for row in db.scalars(select(UserSetting)).all()
-        } == {
-            "deepseek_api_key": "fixture-deepseek-key",
-            "deepseek_model": "deepseek-chat",
-        }
+        } == {}  # the removed AI assistant's settings are dropped on import
         assert {
             row.key: row.value for row in db.scalars(select(WorkspaceSetting)).all()
         } == {

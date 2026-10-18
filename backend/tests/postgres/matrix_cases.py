@@ -177,16 +177,6 @@ RESOURCE_CASES: tuple[ResourceCase, ...] = (
         params=ALICE_PORTFOLIO_PARAMS,
         foreign_params=BOB_PORTFOLIO_PARAMS,
     ),
-    # ---- Personal (user-scoped) settings ----------------------------------
-    ResourceCase(
-        resource="user-settings",
-        list_url="/api/assistant/config",
-        own_url="/api/assistant/config",
-        foreign_url=None,  # personal settings are keyed by the session's user
-        create_payload=None,
-        update_payload={"api_key": "matrix-personal-key", "model": "deepseek-chat"},
-        update_method="PUT",
-    ),
     # ---- Workspace-scoped settings ----------------------------------------
     ResourceCase(
         resource="workspace-settings",
@@ -330,7 +320,6 @@ OWN_DELETE_CASES: tuple[tuple[str, str, Mapping[str, str] | None, int], ...] = (
      "/api/watchlists/{alice_watchlist}/items/{alice_watchlist_item}", None, 200),
     ("watchlists", "/api/watchlists/{alice_watchlist}", None, 200),
     ("alerts", "/api/alerts/{alice_alert}", ALICE_PORTFOLIO_PARAMS, 200),
-    ("user-settings", "/api/assistant/config", None, 200),
     ("discord", "/api/discord/webhook", ALICE_PORTFOLIO_PARAMS, 200),
 )
 
@@ -363,9 +352,6 @@ CSRF_GATED: tuple[tuple[str, str, str, Any], ...] = (
     ("portfolios-activate", "POST", "/api/portfolios/{alice_portfolio}/activate", None),
     ("portfolios-update", "PATCH", "/api/portfolios/{alice_portfolio}", {"name": "csrf probe"}),
     ("portfolios-delete", "DELETE", "/api/portfolios/{alice_portfolio}", None),
-    ("assistant-key-set", "PUT", "/api/assistant/config",
-     {"api_key": "csrf-probe-key", "model": "deepseek-chat"}),
-    ("assistant-key-clear", "DELETE", "/api/assistant/config", None),
     ("discord-create", "POST", "/api/discord/webhook",
      {"webhook_url": "https://discord.com/api/webhooks/1003/probe"}),
     ("discord-update", "PATCH", "/api/discord/webhook", {"notify_trades": False}),

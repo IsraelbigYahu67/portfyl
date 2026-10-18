@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from audit import record_audit_event
 from models import AuditLog, User, Workspace
-from routers.assistant import ConfigPayload, delete_config, save_config
 from routers.broker import connect as connect_t212, disconnect as disconnect_t212
 from routers.discord import (
     WebhookCreate,
@@ -71,17 +70,6 @@ def test_personal_and_workspace_audit_rows_are_application_scoped(
     assert first_page["page"] == 1
     assert first_page["page_size"] == 1
     assert first_page["total"] == 2
-
-
-def test_ai_key_set_and_clear_each_write_one_audit_row(db_session, request_context):
-    save_config(ConfigPayload(api_key="sk-live-1234567890"), db_session, request_context)
-    delete_config(db_session, request_context)
-
-    actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at)]
-    assert actions == ["assistant.api_key.set", "assistant.api_key.cleared"]
-    assert "sk-live-1234567890" not in str(
-        [row.event_metadata for row in db_session.query(AuditLog)]
-    )
 
 
 def test_t212_connection_create_and_delete_are_audited(

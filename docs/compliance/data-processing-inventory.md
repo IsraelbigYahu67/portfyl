@@ -1,6 +1,6 @@
 # Portfyl Data Processing Inventory
 
-Last technical review: 2026-10-12 (Google sign-in)
+Last technical review: 2026-10-18 (AI assistant removed)
 
 This document describes the implemented Portfyl runtime. It is an engineering
 record for privacy review, incident response, export/deletion maintenance, and
@@ -40,8 +40,8 @@ legal bases on behalf of the service operator.
   the private Tax Report and Screener experiments.
 - **Tenant boundary:** `User -> Membership -> Workspace`; tenant tables carry a
   workspace key and use application predicates plus forced PostgreSQL RLS.
-- **Secrets:** broker credentials, Discord webhook URLs, and user-supplied AI
-  keys use envelope encryption. Production key operations use Google Cloud
+- **Secrets:** broker credentials and Discord webhook URLs use envelope
+  encryption. Production key operations use Google Cloud
   KMS; secret configuration uses Google Secret Manager.
 
 ## Data categories
@@ -73,7 +73,6 @@ legal bases on behalf of the service operator.
 | Trading 212 / IBKR | Optional user-requested broker import/sync | Provider selected by the user; role/terms require review | Credential-authenticated account/trade requests and returned broker data. |
 | Discord | Optional outbound notifications | Independent service selected by the user; role/terms require review | User-selected notification content sent to the configured webhook. |
 | Yahoo/yfinance, Shibui Finance, SEC EDGAR | Market/fundamental/research data retrieval | Commercial-rights and privacy role unresolved for cloud launch | Tickers, date ranges, and request metadata; no broker credential or full portfolio is intentionally sent. |
-| Hosted AI provider, when configured | Assistant responses | Processor/subprocessor and DPA/region review required before paid/public use | User prompt and the minimum context assembled for the request; exact provider/runtime configuration must be documented before enabling broadly. |
 | PostHog Cloud EU, implemented but not yet enabled in any deployed environment | Consent-gated product-analytics events measuring public-demo and registered-user activation funnels; see `docs/operations/posthog-activation-analytics.md` | Processor/subprocessor; consent basis (rejected traffic sends cookieless aggregate events by design) is subject to qualified Czech/EU legal review before the integration may be enabled | Only the frozen 12-event allow-list in `frontend/src/analytics/eventContract.js` with each event's own allow-listed properties (language/referrer/UTM-source class, demo page/symbol, source surface/type, creation path); for accepted consent only, an opaque Portfyl user id via `identify()`. Never e-mail, display name, workspace name/ID, portfolio ID, holdings, transactions, balances, free-text notes, or credentials. EU region (`eu.i.posthog.com`), one-year retention, session replay/surveys/feature-flags/exception-autocapture all disabled. |
 
 Public pricing or an accessible API is not evidence of commercial display or
@@ -119,7 +118,10 @@ JSON export schema version 2 includes workspace/membership, portfolios,
 transactions, watchlists/items, alerts, safe broker metadata and balances,
 custom benchmarks/components, options, Polymarket positions, trade notes,
 cash-interest settings, notification preferences/history, user-configured
-broker schedule values, and the non-secret assistant model preference.
+and broker schedule values. (Schema version 6, 2026-10-18, dropped the
+`user_preferences` block that only held the removed AI assistant's model
+preference; migration `0024_remove_ai_assistant` deleted the stored DeepSeek
+keys, model preferences, and hosted-AI quota rows.)
 
 Security/session data, audit/job/migration state, usage/rate-limit records,
 deletion workflow state, operational sync timestamps, third-party market-data

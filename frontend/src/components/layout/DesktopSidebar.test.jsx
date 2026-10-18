@@ -59,7 +59,8 @@ describe("DesktopSidebar", () => {
   it("renders every item as an accessible nav link", () => {
     renderSidebar();
     expect(screen.getByRole("link", { name: /dashboard/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /ai assistant/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /settings/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /assistant/i })).not.toBeInTheDocument();
   });
 
   it("does not render an Overview link", () => {

@@ -18,7 +18,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 
-PERSONAL_SETTING_KEYS = frozenset({"deepseek_api_key", "deepseek_model"})
+# Personal settings of the removed DeepSeek AI assistant: recognised so the
+# legacy import does not reject them, then deliberately dropped.
+OBSOLETE_SETTING_KEYS = frozenset({"deepseek_api_key", "deepseek_model"})
+PERSONAL_SETTING_KEYS: frozenset[str] = frozenset()
 WORKSPACE_SETTING_KEYS = frozenset({
     "broker_sync_mode",
     "broker_sync_daily_time",
@@ -442,7 +445,7 @@ def _copy_source(
     setting_rows = _rows(source, "app_settings")
     unknown_keys = {
         row["key"] for row in setting_rows
-        if row["key"] not in PERSONAL_SETTING_KEYS | WORKSPACE_SETTING_KEYS
+        if row["key"] not in PERSONAL_SETTING_KEYS | WORKSPACE_SETTING_KEYS | OBSOLETE_SETTING_KEYS
     }
     if unknown_keys:
         raise MigrationError(

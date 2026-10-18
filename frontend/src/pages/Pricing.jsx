@@ -18,14 +18,14 @@ const PLANS = [
     name: "Investor",
     monthly: 499,
     annual: 4900,
-    features: ["5 portfolios", "2 broker connections", "Complete analytics", "Daily sync", "BYOK AI"],
+    features: ["5 portfolios", "2 broker connections", "Complete analytics", "Daily sync"],
   },
   {
     id: "pro",
     name: "Pro",
     monthly: 799,
     annual: 7900,
-    features: ["15 portfolios", "5 broker connections", "Advanced options & Polymarket", "6-hour sync", "100 hosted AI messages/month"],
+    features: ["15 portfolios", "5 broker connections", "Advanced options & Polymarket", "6-hour sync", "Advanced research & custom benchmarks"],
   },
 ];
 

@@ -23,7 +23,6 @@ class PlanLimits:
     watchlists: int | None
     watchlist_symbols: int | None
     alerts: int | None
-    hosted_ai_monthly: int
     autosync_min_hours: int | None
 
 
@@ -41,7 +40,7 @@ def _positive_int(env: Mapping[str, str], name: str, default: int) -> int:
 def plan_limits(env: Mapping[str, str] | None = None) -> Mapping[PlanTier, PlanLimits]:
     env = env or {}
     return MappingProxyType({
-        PlanTier.FREE: PlanLimits(1, 15, 250, 0, 1, 15, 3, 0, None),
+        PlanTier.FREE: PlanLimits(1, 15, 250, 0, 1, 15, 3, None),
         PlanTier.INVESTOR: PlanLimits(
             5,
             None,
@@ -50,7 +49,6 @@ def plan_limits(env: Mapping[str, str] | None = None) -> Mapping[PlanTier, PlanL
             5,
             _positive_int(env, "PORTFYL_INVESTOR_WATCHLIST_SYMBOL_LIMIT", 100),
             20,
-            0,
             24,
         ),
         PlanTier.PRO: PlanLimits(
@@ -60,7 +58,6 @@ def plan_limits(env: Mapping[str, str] | None = None) -> Mapping[PlanTier, PlanL
             5,
             _positive_int(env, "PORTFYL_PRO_WATCHLIST_LIMIT", 50),
             _positive_int(env, "PORTFYL_PRO_WATCHLIST_SYMBOL_LIMIT", 500),
-            100,
             100,
             6,
         ),
@@ -84,10 +81,8 @@ MINIMUM_PLAN = MappingProxyType({
     "standard_research": PlanTier.INVESTOR,
     "notification_integrations": PlanTier.INVESTOR,
     "broker_sync": PlanTier.INVESTOR,
-    "assistant_byok": PlanTier.INVESTOR,
     "advanced_research": PlanTier.PRO,
     "custom_benchmarks": PlanTier.PRO,
-    "assistant_hosted": PlanTier.PRO,
     "options": PlanTier.PRO,
     "polymarket": PlanTier.PRO,
 })

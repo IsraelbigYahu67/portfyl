@@ -7,7 +7,6 @@ import { ToastProvider } from "../components/ui/Toast";
 import Search from "./Search";
 import Watchlists from "./Watchlists";
 import Settings from "./Settings";
-import Assistant from "./Assistant";
 import Stock from "./Stock";
 
 const api = vi.hoisted(() => ({
@@ -31,10 +30,6 @@ const api = vi.hoisted(() => ({
   syncT212: vi.fn(),
   retryT212History: vi.fn(),
   setT212AutoSync: vi.fn(),
-  fetchAssistantConfig: vi.fn(),
-  saveAssistantConfig: vi.fn(),
-  deleteAssistantConfig: vi.fn(),
-  sendAssistantMessage: vi.fn(),
   fetchStockView: vi.fn(),
   fetchHistory: vi.fn(),
   fetchHoldings: vi.fn(),
@@ -86,7 +81,6 @@ beforeEach(() => {
   api.fetchCapabilities.mockResolvedValue({ capabilities: ["notification_integrations"] });
   api.fetchDiscordWebhook.mockResolvedValue({ connected: true });
   api.fetchT212Status.mockResolvedValue({ connected: false });
-  api.fetchAssistantConfig.mockResolvedValue({ configured: false });
   api.fetchStockView.mockResolvedValue({ ticker: "AAPL", currency: "USD" });
   api.fetchHistory.mockResolvedValue({ data: [] });
   api.fetchHoldings.mockResolvedValue([]);
@@ -130,19 +124,6 @@ it("distinguishes a disconnected broker from status failure and retries", async 
   fireEvent.click(screen.getByRole("button", { name: /retry/i }));
   await waitFor(() => expect(api.fetchT212Status).toHaveBeenCalledTimes(2));
   expect(await screen.findByText("Not connected")).toBeInTheDocument();
-});
-
-it("distinguishes an unconfigured assistant from config failure and retries", async () => {
-  api.fetchAssistantConfig
-    .mockRejectedValueOnce({ response: { data: { detail: "Assistant config unavailable" } } })
-    .mockResolvedValue({ configured: false });
-  renderPage(Assistant);
-
-  expect(await screen.findByRole("alert")).toHaveTextContent("Assistant config unavailable");
-  expect(screen.queryByText(/add a deepseek api key/i)).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: /retry/i }));
-  await waitFor(() => expect(api.fetchAssistantConfig).toHaveBeenCalledTimes(2));
-  expect(await screen.findByText(/add a deepseek api key/i)).toBeInTheDocument();
 });
 
 it("shows a safe Stock provider error with Retry and recovers", async () => {
