@@ -1,6 +1,7 @@
 # dependencies / build artifacts
 node_modules/
 frontend/dist/
+.vite/
 __pycache__/
 *.pyc
 *.log
