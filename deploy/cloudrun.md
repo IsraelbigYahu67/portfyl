@@ -522,7 +522,11 @@ $SHA = git rev-parse --short main
 $REPO = "$REGION-docker.pkg.dev/$PROJECT/cloud-run-source-deploy/portfyl"
 $SRC = Join-Path $env:TEMP "portfyl-build-$SHA"
 New-Item -ItemType Directory -Force $SRC | Out-Null
-git archive main | tar -x -C $SRC
+# Windows PowerShell 5.1 pipes native output as text and corrupts a tar stream,
+# so write the archive to a file instead of piping `git archive | tar`.
+git archive --format=tar -o "$SRC.tar" main
+tar -x -f "$SRC.tar" -C $SRC
+Remove-Item "$SRC.tar"
 $fb = @{}
 Get-Content frontend/.env.local | Where-Object { $_ -match '^(VITE_FIREBASE_\w+)=(.*)$' } | ForEach-Object { $fb[$Matches[1]] = $Matches[2].Trim().Trim('"') }
 # A missing flag silently builds Google sign-in off; prod has it on, so require an explicit true/false.
