@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, FlaskConical, LoaderCircle } from "lucide-react";
+import { AlertTriangle, Check, FlaskConical, Gem, LoaderCircle, Sprout, TrendingUp } from "lucide-react";
 
 import { fetchTestPlan, updateTestPlan } from "../api";
 
@@ -9,6 +9,8 @@ const PLANS = [
   {
     id: "free",
     name: "Free",
+    icon: Sprout,
+    tagline: "Track one portfolio and get to know Portfyl.",
     monthly: 0,
     annual: 0,
     features: ["1 portfolio", "15 active positions", "250 transactions", "3 alerts"],
@@ -16,6 +18,8 @@ const PLANS = [
   {
     id: "investor",
     name: "Investor",
+    icon: TrendingUp,
+    tagline: "For long-term investors with several accounts.",
     monthly: 499,
     annual: 4900,
     features: ["5 portfolios", "2 broker connections", "Complete analytics", "Daily sync"],
@@ -23,15 +27,87 @@ const PLANS = [
   {
     id: "pro",
     name: "Pro",
+    icon: Gem,
+    tagline: "For active investors who trade options and research deeply.",
     monthly: 799,
     annual: 7900,
     features: ["15 portfolios", "5 broker connections", "Advanced options & Polymarket", "6-hour sync", "Advanced research & custom benchmarks"],
   },
 ];
 
+const PLAN_ORDER = PLANS.map((plan) => plan.id);
+
 
 function euro(cents) {
-  return new Intl.NumberFormat("en", { style: "currency", currency: "EUR" }).format(cents / 100);
+  return new Intl.NumberFormat("en", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: cents === 0 ? 0 : 2,
+  }).format(cents / 100);
+}
+
+
+function PlanCard({ plan, currentPlan, changingPlan, onSelect }) {
+  const Icon = plan.icon;
+  const isCurrent = currentPlan === plan.id;
+  const isChanging = changingPlan === plan.id;
+  const isUpgrade = currentPlan !== null && PLAN_ORDER.indexOf(plan.id) > PLAN_ORDER.indexOf(currentPlan);
+  const headingId = `plan-${plan.id}-name`;
+
+  return (
+    <section
+      aria-labelledby={headingId}
+      className={`card flex flex-col p-6 ${isCurrent ? "outline outline-2 outline-offset-4 outline-brand" : ""}`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-light text-brand">
+          <Icon size={20} aria-hidden="true" />
+        </span>
+        {isCurrent && (
+          <span className="rounded-full bg-brand-light px-3 py-1 text-xs font-semibold text-brand">
+            Current test plan
+          </span>
+        )}
+      </div>
+
+      <h2 id={headingId} className="mt-4 text-lg font-bold">{plan.name}</h2>
+      <p className="mt-1 text-sm text-muted md:min-h-[2.5rem]">{plan.tagline}</p>
+
+      <p className="mt-5 flex items-baseline gap-1.5">
+        <span className="font-display text-4xl font-extrabold tracking-tight text-ink tnum">{euro(plan.monthly)}</span>
+        <span className="text-sm text-muted">/ month</span>
+      </p>
+      {plan.annual > 0 ? (
+        <p className="financial-meta mt-1">Planned price: {euro(plan.annual)} annually</p>
+      ) : (
+        <p className="financial-meta mt-1" aria-hidden="true">&nbsp;</p>
+      )}
+
+      <div className="my-5 h-px bg-hairline" aria-hidden="true" />
+
+      <ul className="flex-1 space-y-2.5 text-sm">
+        {plan.features.map((feature) => (
+          <li key={feature} className="flex items-start gap-2.5">
+            <span className="mt-px grid h-5 w-5 shrink-0 place-items-center rounded-full bg-brand-light text-brand">
+              <Check size={12} strokeWidth={3} aria-hidden="true" />
+            </span>
+            {feature}
+          </li>
+        ))}
+      </ul>
+
+      <button
+        type="button"
+        disabled={currentPlan === null || isCurrent || changingPlan !== null}
+        onClick={() => onSelect(plan)}
+        className={`${isUpgrade ? "btn-primary" : "btn-ghost"} mt-6 flex min-h-11 w-full items-center justify-center gap-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60`}
+      >
+        {isChanging && <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />}
+        {isCurrent && <Check size={16} aria-hidden="true" />}
+        {isCurrent ? "Active for testing" : `Use ${plan.name} for testing`}
+      </button>
+    </section>
+  );
 }
 
 
@@ -74,16 +150,19 @@ export default function Pricing() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Plans</h1>
-        <p className="text-sm text-muted mt-1">
+    <div className="hover-pop-zone mx-auto max-w-5xl space-y-8 animate-fade-up">
+      <header className="space-y-2">
+        <p className="eyebrow">Portfyl plans</p>
+        <h1 className="text-2xl font-bold sm:text-3xl">Plans</h1>
+        <p className="max-w-2xl text-sm text-muted">
           Compare Portfyl tiers and choose which limits and features to test.
         </p>
-      </div>
+      </header>
 
-      <div className="flex gap-3 rounded-xl border border-brand/40 bg-brand/5 px-4 py-3">
-        <FlaskConical size={18} className="mt-0.5 shrink-0 text-brand" aria-hidden="true" />
+      <div className="flex items-start gap-3 rounded-2xl border border-hairline bg-surface-card-elevated px-5 py-4">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-light text-brand">
+          <FlaskConical size={17} aria-hidden="true" />
+        </span>
         <div>
           <p className="text-sm font-semibold">Free plan switching during private testing</p>
           <p className="mt-0.5 text-sm text-muted">
@@ -93,58 +172,26 @@ export default function Pricing() {
       </div>
 
       {error && (
-        <p role="alert" className="rounded-lg border border-loss/40 bg-loss/10 px-4 py-3 text-sm text-loss">
+        <p role="alert" className="flex items-center gap-2 rounded-2xl border border-loss bg-surface-card px-5 py-3 text-sm font-medium text-loss">
+          <AlertTriangle size={16} className="shrink-0" aria-hidden="true" />
           {error}
         </p>
       )}
       <p aria-live="polite" className="sr-only">{announcement}</p>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {PLANS.map((plan) => {
-          const isCurrent = currentPlan === plan.id;
-          const isChanging = changingPlan === plan.id;
-          return (
-            <section
-              key={plan.id}
-              className={`flex flex-col rounded-xl border bg-surface-card p-5 ${
-                isCurrent ? "border-brand ring-1 ring-brand/40" : "border-surface-border"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <h2 className="text-lg font-semibold">{plan.name}</h2>
-                {isCurrent && (
-                  <span className="pt-1 text-xs font-medium text-brand">Current test plan</span>
-                )}
-              </div>
-              <div className="mt-2 text-2xl font-bold">
-                {plan.id === "free" ? "€0" : `${euro(plan.monthly)} / month`}
-              </div>
-              {plan.id !== "free" && (
-                <p className="mt-1 text-xs text-muted">Planned price: {euro(plan.annual)} annually</p>
-              )}
-              <ul className="mt-5 flex-1 space-y-2 text-sm">
-                {plan.features.map((feature) => (
-                  <li key={feature} className="flex gap-2">
-                    <Check size={15} className="mt-0.5 shrink-0 text-gain" aria-hidden="true" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <button
-                type="button"
-                disabled={currentPlan === null || isCurrent || changingPlan !== null}
-                onClick={() => selectPlan(plan)}
-                className="mt-6 flex min-h-10 items-center justify-center gap-2 rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface-card"
-              >
-                {isChanging && <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />}
-                {isCurrent ? "Active for testing" : `Use ${plan.name} for testing`}
-              </button>
-            </section>
-          );
-        })}
+      <div className="grid gap-6 md:grid-cols-3">
+        {PLANS.map((plan) => (
+          <PlanCard
+            key={plan.id}
+            plan={plan}
+            currentPlan={currentPlan}
+            changingPlan={changingPlan}
+            onSelect={selectPlan}
+          />
+        ))}
       </div>
 
-      <p className="text-xs text-muted">
+      <p className="financial-meta text-center">
         Displayed prices are previews only. Variable-cost services remain subject to the displayed fair-use quotas.
       </p>
     </div>
