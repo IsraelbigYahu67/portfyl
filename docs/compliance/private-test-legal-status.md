@@ -113,9 +113,12 @@ All items below require evidence before Cloudflare Access is relaxed or public
 legal routes are enabled:
 
 - [ ] Confirm the controller's full legal name, legal form, postal address,
-      registration identifiers (if any), and service address.
+      registration identifiers (if any), and service address. Partly done
+      2026-10-18: Jakub Zoubek, sole trader (OSVČ), Brusinková 1983,
+      252 28 Černošice; the IČO and VAT status are still missing.
 - [x] Confirm a working privacy/support/security contact:
-      `tom.zoubek@gmail.com`.
+      `tom.zoubek@gmail.com` for the private test; `support@portfyl.com` for
+      public legal pages (decided 2026-10-18).
 - [x] Confirm the current service is a free private test with no payments.
 - [x] Confirm the operating country is the Czech Republic.
 - [ ] Approve legal bases per processing purpose and the final public retention
@@ -127,10 +130,17 @@ legal routes are enabled:
 - [ ] Resolve commercial market-data and broker-API rights for the intended
       public features.
 - [ ] Decide and implement the minor/child access model described above.
+      Decided 2026-10-18: the public service is 18+ only. Registration must
+      still collect and record an 18+ and terms acceptance before launch.
 - [ ] Approve consumer terms, complaints handling, withdrawal/cancellation
       behaviour, and mandatory Czech/EU disclosures before any paid offering.
+      Drafts (CZ/EN) exist in [../legal/](../legal/poznamky-pro-pravnika.md).
 - [ ] Obtain qualified Czech legal review of the public privacy notice and
-      terms.
+      terms. Open points for the reviewer are listed in
+      [../legal/poznamky-pro-pravnika.md](../legal/poznamky-pro-pravnika.md).
+- [x] Remove the hosted DeepSeek AI assistant (done 2026-10-18 on branch
+      `chore/remove-ai-assistant`; any future AI provider needs a DPA and an
+      EU/adequacy transfer basis before it is added).
 - [ ] Run and record a security/privacy tabletop exercise and a production-like
       restore drill.
 
