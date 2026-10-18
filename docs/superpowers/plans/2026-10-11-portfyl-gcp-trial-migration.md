@@ -1,7 +1,7 @@
 # Portfyl → new Google Cloud account (free-trial credits) Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-> **Status (2026-10-16): Waves 0–3 DONE — all production traffic (portfyl.com and app.portfyl.com) and the scheduler run from `portfyl-prod-f6shqb`. Open: Wave 4 decommission (not before 2026-10-18), day-75 checklist (upgrade to paid by 2026-12-26, `min-instances` back to 0), optional Wave 5 and Track S.**
+> **Status (2026-10-16): Waves 0–3 DONE — all production traffic (portfyl.com and app.portfyl.com) and the scheduler run from `portfyl-prod-f6shqb`. Wave 4 decommission DONE 2026-10-18 (see Task 8). Open: day-75 checklist (upgrade to paid by 2026-12-26, `min-instances` back to 0), optional Wave 5 and Track S.**
 
 **Goal:** Run the production Portfyl cloud edition (portfyl.com / app.portfyl.com) from a brand-new Google Cloud account that holds the USD 300 / 90-day free-trial credit, and use the credit on one-off work that leaves no standing cost.
 
@@ -140,7 +140,8 @@ Point the Worker back to the old URL, pause new jobs, resume old jobs. The old s
 - [ ] Daily: Cloud Run error logs, `/health`, Neon connection count, billing report of the new account (credit burn per day).
 
 ### Task 8: Shrink the old project
-- [ ] Delete old Cloud Run services (europe-west1 and europe-west3), old Scheduler jobs, old Artifact Registry repo (keep one rollback image tag for 14 days). **Keep** the project (Firebase Auth + KMS key still live there) and its billing account; set its budget alert to ~5 USD.
+**2026-10-18 DONE (owner OK):** monitoring recreated in the new project first (it had not been migrated: e-mail channel, uptime check `portfyl-dependency-health-NmUTTRmllrI`, the 3 policies from `deploy/monitoring-policies.json`). Then deleted in the old project: Cloud Run `portfyl` (europe-west1 + europe-west3), domain mapping `portfyl.com`, the 5 Scheduler jobs, Cloud Run jobs `portfyl-beta-admin` + `portfyl-migrate` (x2), the Artifact Registry repo (whole repo, no rollback tag kept: the new project holds its own images and the old service no longer exists to roll back to), the uptime check and its alert policy (the 5xx and scheduler policies are left disabled). Last real user traffic on the old service was 2026-10-16 16:34 UTC. `deploy/manage-beta-tester.ps1` now targets the new project. Still open: old project's budget alert (~5 USD).
+- [x] Delete old Cloud Run services (europe-west1 and europe-west3), old Scheduler jobs, old Artifact Registry repo (keep one rollback image tag for 14 days). **Keep** the project (Firebase Auth + KMS key still live there) and its billing account; set its budget alert to ~5 USD.
 
 ## Wave 5 — Phase 2 (optional, before trial day 75): fully leave the old project
 

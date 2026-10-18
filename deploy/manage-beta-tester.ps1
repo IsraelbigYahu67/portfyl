@@ -9,8 +9,11 @@ param(
     [ValidateRange(1, 365)]
     [int]$ExpiresDays = 30,
 
-    [string]$ProjectId = "portfyl-cloud-fstxby",
+    [string]$ProjectId = "portfyl-prod-f6shqb",
     [string]$Region = "europe-west1",
+    # Named gcloud configuration logged in to the prod project's account; the
+    # default configuration still points at the old project (see cloudrun.md).
+    [string]$GcloudConfiguration = "newgcp",
     [string]$Service = "portfyl",
     [string]$JobName = "portfyl-beta-admin",
 
@@ -122,7 +125,19 @@ function Remove-CloudflareBetaEmail {
 # ---------------------------------------------------------------------------
 
 $gcloud = "$env:LOCALAPPDATA\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd"
-$image = & $gcloud run services describe $Service `
+
+function Invoke-Gcloud {
+    # gcloud writes progress to stderr, which Windows PowerShell 5.1 turns into
+    # a terminating NativeCommandError under ErrorActionPreference=Stop. Show
+    # stderr on the console, return stdout, and let callers check $LASTEXITCODE.
+    $ErrorActionPreference = "Continue"
+    & $gcloud @args 2>&1 | ForEach-Object {
+        if ($_ -is [System.Management.Automation.ErrorRecord]) { Write-Host $_.Exception.Message } else { $_ }
+    }
+}
+
+$image = Invoke-Gcloud run services describe $Service `
+    --configuration=$GcloudConfiguration `
     --project=$ProjectId `
     --region=$Region `
     --format="value(spec.template.spec.containers[0].image)"
@@ -139,7 +154,8 @@ if ($Action -eq "invite") {
 }
 $encodedArgs = $jobArgs -join ","
 
-& $gcloud run jobs deploy $JobName `
+Invoke-Gcloud run jobs deploy $JobName `
+    --configuration=$GcloudConfiguration `
     --project=$ProjectId `
     --region=$Region `
     --image=$image `
@@ -153,7 +169,8 @@ if ($LASTEXITCODE -ne 0) {
     throw "Beta administration job deployment failed."
 }
 
-& $gcloud run jobs execute $JobName `
+Invoke-Gcloud run jobs execute $JobName `
+    --configuration=$GcloudConfiguration `
     --project=$ProjectId `
     --region=$Region `
     --wait
