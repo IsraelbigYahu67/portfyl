@@ -30,7 +30,6 @@ have not appointed a Data Protection Officer because we are not required to.
 | **Account data** | e-mail, name (if you sign in with Google), internal account ID, e-mail verification date | you at registration, or Google if you sign in with Google |
 | **Portfolio data** | portfolio names, transactions, tickers, quantities, prices, currencies, dates, cash, dividends, options, notes | you (manual entry, file import) or your broker if you connect it |
 | **Broker and service connections** | encrypted API keys, sync status, an anonymised fingerprint of your broker account number, encrypted Discord webhook URL | you |
-| **AI assistant conversations** | your questions and the assistant's answers | you |
 | **Subscription data** | plan, period, subscription status, customer and transaction IDs at the Payment Partner, country | the Payment Partner; **we never receive your card number** |
 | **Technical and security data** | IP address, browser type, hashed session tokens, last sign-in time, security records (audit log), feature usage counts | automatically when you use the Service |
 | **Support communication** | the content of e-mails you send us | you |
@@ -44,7 +43,7 @@ for people aged 18 or over.
 
 | Purpose | Legal basis (Art. 6 GDPR) |
 |---|---|
-| Creating and managing your account and providing the Service (calculations, imports, broker sync, AI assistant, notifications) | **performance of a contract** – Art. 6(1)(b) |
+| Creating and managing your account and providing the Service (calculations, imports, broker sync, notifications) | **performance of a contract** – Art. 6(1)(b) |
 | Managing your subscription and communicating about it | **performance of a contract** – Art. 6(1)(b) |
 | Securing the Service, preventing abuse, protecting the separation of users' data, handling incidents, error records | **legitimate interest** in secure operation – Art. 6(1)(f) |
 | Handling complaints, questions and requests to exercise your rights | **contract** / **legal obligation** – Art. 6(1)(b) and (c) |
@@ -70,7 +69,6 @@ data processing agreement:
 | Google Firebase Authentication | registration, sign-in, e-mail verification, Google sign-in | EU/US |
 | Neon Inc. | database (PostgreSQL) and backups | EU – Frankfurt `[[VERIFY]]` |
 | Cloudflare, Inc. | DNS, encrypted connections (TLS), attack protection | global network |
-| `[[TODO: AI provider – see notes, point 1]]` | generating AI assistant answers; receives your question and a short summary of the active portfolio | `[[TODO]]` |
 | PostHog Inc. (PostHog Cloud EU) | usage analytics – **only with your consent** | EU – Frankfurt |
 | Functional Software, Inc. (Sentry) | error reports without request content `[[VERIFY whether enabled in production]]` | `[[TODO]]` |
 

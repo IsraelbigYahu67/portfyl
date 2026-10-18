@@ -28,8 +28,8 @@ jste si podmínky přečetli a souhlasíte s nimi.
 
 2.1 Portfyl je softwarový nástroj pro **evidenci a analýzu vlastního
 investičního portfolia**. Umožňuje import transakcí od brokerů (soubory nebo
-připojení přes API), výpočty výkonnosti, alokace, dividend a dalších
-ukazatelů a volitelně AI asistenta.
+připojení přes API) a výpočty výkonnosti, alokace, dividend a dalších
+ukazatelů.
 
 2.2 **Portfyl není investiční poradce ani obchodník s cennými papíry.**
 Služba:
@@ -41,8 +41,8 @@ Služba:
 - nedrží vaše peníze ani investiční nástroje;
 - neposkytuje daňové ani účetní poradenství.
 
-2.3 Veškeré údaje, grafy, výpočty (např. ocenění, fair value, odhady dividend)
-a odpovědi AI asistenta mají **pouze informativní charakter**. Mohou být
+2.3 Veškeré údaje, grafy a výpočty (např. ocenění, fair value, odhady
+dividend) mají **pouze informativní charakter**. Mohou být
 neúplné, zpožděné nebo chybné. Každé investiční rozhodnutí děláte sami a na
 vlastní odpovědnost. Minulá výkonnost nezaručuje budoucí výnosy.
 
@@ -173,21 +173,7 @@ brokera pouze čte; obchody nezadává. Klíče ukládáme šifrovaně.
 9.3 Tržní data (ceny, kurzy, fundamentální údaje) přebíráme od třetích stran.
 Mohou být zpožděná, neúplná nebo chybná a nezaručujeme jejich dostupnost.
 
-## 10. AI asistent
-
-10.1 V některých tarifech je k dispozici AI asistent. **Odpovídá vám systém
-umělé inteligence, ne člověk.** Jeho odpovědi se generují automaticky, mohou
-být nepřesné nebo smyšlené a nejsou investičním, daňovým ani právním
-poradenstvím.
-
-10.2 Aby asistent mohl odpovídat k vašemu portfoliu, předává se
-poskytovateli AI váš dotaz a stručný souhrn aktivního portfolia. Podrobnosti
-jsou v Zásadách ochrany osobních údajů.
-
-10.3 Do asistenta nevkládejte hesla, API klíče, rodná čísla ani jiné
-citlivé údaje.
-
-## 11. Pravidla používání
+## 10. Pravidla používání
 
 Při používání Služby nesmíte:
 
@@ -198,60 +184,60 @@ Při používání Služby nesmíte:
 - nahrávat obsah, který je protiprávní nebo porušuje práva třetích osob;
 - používat Službu v rozporu s právními předpisy.
 
-## 12. Dostupnost a změny Služby
+## 11. Dostupnost a změny Služby
 
-12.1 Snažíme se, aby Služba byla dostupná nepřetržitě, ale **nezaručujeme**
+11.1 Snažíme se, aby Služba byla dostupná nepřetržitě, ale **nezaručujeme**
 konkrétní dostupnost. Služba může být dočasně nedostupná kvůli údržbě,
 aktualizacím nebo výpadkům u dodavatelů.
 
-12.2 Službu průběžně vyvíjíme. Funkce můžeme měnit, pokud tím podstatně
+11.2 Službu průběžně vyvíjíme. Funkce můžeme měnit, pokud tím podstatně
 nezhoršíme to, co máte zaplaceno. O podstatném zhoršení placených funkcí vás
 předem informujeme a můžete předplatné zrušit s vrácením poměrné části ceny.
 
-## 13. Odpovědnost
+## 12. Odpovědnost
 
-13.1 Neodpovídáme za investiční ani jiná rozhodnutí, která učiníte na základě
+12.1 Neodpovídáme za investiční ani jiná rozhodnutí, která učiníte na základě
 údajů ve Službě, ani za ztráty z nich vzniklé.
 
-13.2 Neodpovídáme za chyby, výpadky či neúplnost dat od brokerů a
+12.2 Neodpovídáme za chyby, výpadky či neúplnost dat od brokerů a
 poskytovatelů tržních dat.
 
-13.3 Naše celková odpovědnost za škodu je omezena částkou, kterou jste nám
+12.3 Naše celková odpovědnost za škodu je omezena částkou, kterou jste nám
 zaplatili za posledních 12 měsíců. Toto omezení se **nevztahuje** na škodu
 způsobenou úmyslně nebo z hrubé nedbalosti, na újmu na přirozených právech
 člověka ani na jiné případy, kdy zákon omezení odpovědnosti vůči spotřebiteli
 nepřipouští.
 
-## 14. Ukončení
+## 13. Ukončení
 
-14.1 Účet můžete kdykoli zrušit v nastavení účtu.
+13.1 Účet můžete kdykoli zrušit v nastavení účtu.
 
-14.2 Účet můžeme zablokovat nebo zrušit, pokud podstatně porušíte tyto
-podmínky (zejména čl. 11), případně je-li to nutné kvůli bezpečnosti nebo
+13.2 Účet můžeme zablokovat nebo zrušit, pokud podstatně porušíte tyto
+podmínky (zejména čl. 10), případně je-li to nutné kvůli bezpečnosti nebo
 zákonu. Kromě naléhavých případů vás předem upozorníme.
 
-14.3 Službu jako celek můžeme ukončit s výpovědní lhůtou nejméně **60 dní**.
+13.3 Službu jako celek můžeme ukončit s výpovědní lhůtou nejméně **60 dní**.
 Během ní si můžete data vyexportovat a nevyčerpanou část předplaceného
 období vám vrátíme.
 
-## 15. Změny podmínek
+## 14. Změny podmínek
 
 Podmínky můžeme měnit z důvodu změny Služby, právních předpisů nebo
 obchodních podmínek. O změně vás informujeme e-mailem nejméně **30 dní**
 před její účinností. Pokud se změnou nesouhlasíte, můžete smlouvu do dne
 účinnosti vypovědět; nevyčerpanou část předplatného vám vrátíme.
 
-## 16. Kontakt a spory
+## 15. Kontakt a spory
 
-16.1 Veškerou komunikaci, včetně kontaktního místa podle nařízení (EU)
+15.1 Veškerou komunikaci, včetně kontaktního místa podle nařízení (EU)
 2022/2065 (Akt o digitálních službách), vyřizujeme na **support@portfyl.com**
 v češtině nebo angličtině.
 
-16.2 Smlouva se řídí českým právem. Jste-li spotřebitel s bydlištěm v jiném
+15.2 Smlouva se řídí českým právem. Jste-li spotřebitel s bydlištěm v jiném
 státě EU, nepřicházíte o ochranu, kterou vám poskytují kogentní předpisy
 vašeho státu.
 
-16.3 Smlouva se uzavírá v českém nebo anglickém jazyce podle vaší volby.
+15.3 Smlouva se uzavírá v českém nebo anglickém jazyce podle vaší volby.
 Obě jazykové verze jsou rovnocenné. `[[PRÁVNÍK: ověřit]]`
 
 ---

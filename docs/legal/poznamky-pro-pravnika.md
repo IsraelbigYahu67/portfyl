@@ -25,16 +25,13 @@ nezkontroluje český advokát (viz brána ve
 
 ## Otevřené body
 
-### 1. BLOKUJE – Poskytovatel AI asistenta (DeepSeek)
+### 1. Vyřešeno – AI asistent odstraněn
 
-Hostovaný AI asistent dnes posílá dotaz uživatele a souhrn jeho portfolia
-(pozice, nákupní ceny, poslední transakce) na `api.deepseek.com`
-(`backend/routers/assistant.py`). DeepSeek je čínská společnost; pro Čínu
-neexistuje rozhodnutí o odpovídající ochraně a několik evropských dozorových
-úřadů vůči DeepSeeku zasáhlo. **Doporučení:** před veřejným spuštěním
-přepnout hostovaného asistenta na poskytovatele se smlouvou o zpracování (DPA)
-a zpracováním v EU nebo v USA v rámci Data Privacy Framework. Teprve pak lze
-doplnit řádek o AI do zásad.
+Hostovaný AI asistent (DeepSeek, Čína) byl 2026-10-18 z aplikace úplně
+odstraněn, včetně uložených klíčů v databázi (migrace `0024_remove_ai_assistant`).
+Podmínky ani zásady proto AI nezmiňují. Pokud se AI v budoucnu vrátí, je nutné
+nejdřív vybrat poskytovatele se smlouvou o zpracování (DPA) a zpracováním v EU
+nebo v rámci Data Privacy Framework a dokumenty doplnit.
 
 ### 2. Platební brána: Paddle, nebo Stripe
 
@@ -86,7 +83,7 @@ v oblasti informačních technologií…“).
 
 Ceny a fundamentální údaje dnes pocházejí z Yahoo/yfinance, jehož podmínky
 komerční použití nedovolují. Před placenou verzí je nutné vybrat licencovaného
-poskytovatele dat a podle jeho licence upravit čl. 9.3 a 11 podmínek.
+poskytovatele dat a podle jeho licence upravit čl. 9.3 a 10 podmínek.
 
 ### 8. Úpravy aplikace před spuštěním (technické úkoly)
 
@@ -96,17 +93,14 @@ poskytovatele dat a podle jeho licence upravit čl. 9.3 a 11 podmínek.
 - Veřejné stránky `/terms` a `/privacy` (CZ/EN) a odkazy v patičce webu i
   aplikace.
 - Pokladna: výslovná žádost o okamžité zahájení služby (k bodu 3).
-- Případná změna lhůty pro smazání účtu (k bodu 5) a výměna poskytovatele AI
-  (k bodu 1).
+- Případná změna lhůty pro smazání účtu (k bodu 5).
 
 ### 9. K ověření právníkem
 
 - Akt o digitálních službách (DSA): rozsah povinností pro malý podnik, který
-  ukládá data zadaná uživatelem (kontaktní místo je v čl. 16.1).
-- AI Act, čl. 50: dostatečnost informace, že uživatel komunikuje s AI
-  (čl. 10.1 podmínek).
-- Omezení odpovědnosti vůči spotřebiteli (čl. 13.3) a § 2898 OZ.
-- Rovnocennost české a anglické verze (čl. 16.3).
+  ukládá data zadaná uživatelem (kontaktní místo je v čl. 15.1).
+- Omezení odpovědnosti vůči spotřebiteli (čl. 12.3) a § 2898 OZ.
+- Rovnocennost české a anglické verze (čl. 15.3).
 - Zda smí PostHog odesílat bezcookiové souhrnné události bez souhlasu.
 - Ověření DPA, certifikací DPF a regionů u Google Cloud, Firebase, Neon,
   Cloudflare, PostHog a Sentry (a zda je Sentry v produkci zapnutý).

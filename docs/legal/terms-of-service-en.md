@@ -29,8 +29,8 @@ registering, you confirm that you have read and accept them.
 
 2.1 Portfyl is a software tool for **tracking and analysing your own
 investment portfolio**. It lets you import transactions from brokers (by file
-or API connection), calculate performance, allocation, dividends and other
-metrics, and optionally use an AI assistant.
+or API connection) and calculate performance, allocation, dividends and
+other metrics.
 
 2.2 **Portfyl is not an investment adviser or a securities dealer.** The
 Service:
@@ -42,8 +42,8 @@ Service:
 - does not hold your money or financial instruments;
 - does not provide tax or accounting advice.
 
-2.3 All data, charts, calculations (such as valuations, fair value, dividend
-forecasts) and AI assistant answers are **for information only**. They may be
+2.3 All data, charts and calculations (such as valuations, fair value,
+dividend forecasts) are **for information only**. They may be
 incomplete, delayed or wrong. You make every investment decision yourself and
 at your own risk. Past performance does not guarantee future returns.
 
@@ -178,21 +178,7 @@ your broker and never places trades. Keys are stored encrypted.
 parties. It may be delayed, incomplete or wrong, and we do not guarantee its
 availability.
 
-## 10. AI assistant
-
-10.1 Some plans include an AI assistant. **You are interacting with an
-artificial intelligence system, not a human.** Its answers are generated
-automatically, may be inaccurate or invented, and are not investment, tax or
-legal advice.
-
-10.2 To answer questions about your portfolio, your question and a short
-summary of the active portfolio are sent to the AI provider. Details are in
-the Privacy Policy.
-
-10.3 Do not enter passwords, API keys, national ID numbers or other sensitive
-data into the assistant.
-
-## 11. Acceptable use
+## 10. Acceptable use
 
 When using the Service you must not:
 
@@ -204,61 +190,61 @@ When using the Service you must not:
 - upload unlawful content or content that infringes third-party rights;
 - use the Service in breach of the law.
 
-## 12. Availability and changes
+## 11. Availability and changes
 
-12.1 We aim to keep the Service available at all times but **do not
+11.1 We aim to keep the Service available at all times but **do not
 guarantee** any particular availability. The Service may be temporarily
 unavailable because of maintenance, updates or supplier outages.
 
-12.2 We continuously develop the Service and may change features, provided we
+11.2 We continuously develop the Service and may change features, provided we
 do not materially reduce what you have paid for. If paid features are
 materially reduced, we will tell you in advance and you may cancel with a
 proportionate refund.
 
-## 13. Liability
+## 12. Liability
 
-13.1 We are not liable for investment or other decisions you make based on
+12.1 We are not liable for investment or other decisions you make based on
 data in the Service, or for losses resulting from them.
 
-13.2 We are not liable for errors, outages or incompleteness of data supplied
+12.2 We are not liable for errors, outages or incompleteness of data supplied
 by brokers or market-data providers.
 
-13.3 Our total liability for damage is limited to the amount you paid us in
+12.3 Our total liability for damage is limited to the amount you paid us in
 the previous 12 months. This limit **does not apply** to damage caused
 intentionally or by gross negligence, to harm to a person's natural rights,
 or to any other case where the law does not allow liability towards consumers
 to be limited.
 
-## 14. Termination
+## 13. Termination
 
-14.1 You can close your account at any time in your account settings.
+13.1 You can close your account at any time in your account settings.
 
-14.2 We may suspend or close your account if you materially breach these
-terms (especially Section 11) or where security or the law requires it.
+13.2 We may suspend or close your account if you materially breach these
+terms (especially Section 10) or where security or the law requires it.
 Except in urgent cases we will warn you first.
 
-14.3 We may discontinue the Service as a whole with at least **60 days'**
+13.3 We may discontinue the Service as a whole with at least **60 days'**
 notice. During that time you can export your data, and we will refund any
 unused prepaid period.
 
-## 15. Changes to these terms
+## 14. Changes to these terms
 
 We may change these terms because of changes to the Service, the law or our
 business terms. We will notify you by e-mail at least **30 days** before a
 change takes effect. If you disagree, you may terminate the contract before
 that date and we will refund any unused prepaid period.
 
-## 16. Contact and disputes
+## 15. Contact and disputes
 
-16.1 All communication, including the single point of contact under
+15.1 All communication, including the single point of contact under
 Regulation (EU) 2022/2065 (Digital Services Act), is handled at
 **support@portfyl.com** in Czech or English.
 
-16.2 The contract is governed by Czech law. If you are a consumer resident in
+15.2 The contract is governed by Czech law. If you are a consumer resident in
 another EU country, you keep the protection of the mandatory laws of your
 country.
 
-16.3 The contract is concluded in Czech or English at your choice. Both
+15.3 The contract is concluded in Czech or English at your choice. Both
 language versions are equally valid. `[[LAWYER: confirm]]`
 
 ---

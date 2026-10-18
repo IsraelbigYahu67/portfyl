@@ -138,8 +138,9 @@ legal routes are enabled:
 - [ ] Obtain qualified Czech legal review of the public privacy notice and
       terms. Open points for the reviewer are listed in
       [../legal/poznamky-pro-pravnika.md](../legal/poznamky-pro-pravnika.md).
-- [ ] Replace the hosted AI provider (currently DeepSeek) with one covered by
-      a DPA and an EU/adequacy transfer basis before public use.
+- [x] Remove the hosted DeepSeek AI assistant (done 2026-10-18 on branch
+      `chore/remove-ai-assistant`; any future AI provider needs a DPA and an
+      EU/adequacy transfer basis before it is added).
 - [ ] Run and record a security/privacy tabletop exercise and a production-like
       restore drill.
 

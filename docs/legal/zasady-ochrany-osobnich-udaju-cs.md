@@ -28,7 +28,6 @@ nejmenovali, protože nám tato povinnost nevzniká. `[[PRÁVNÍK: ověřit]]`
 | **Údaje o účtu** | e-mail, jméno (pokud se přihlásíte přes Google), interní identifikátor účtu, datum ověření e-mailu | od vás při registraci, případně od Googlu při přihlášení přes Google |
 | **Údaje o portfoliu** | názvy portfolií, transakce, tickery, počty kusů, ceny, měny, data, hotovost, dividendy, opce, poznámky | od vás (ruční zadání, import souboru) nebo od vašeho brokera, pokud ho připojíte |
 | **Připojení k brokerům a službám** | šifrované API klíče, stav synchronizace, anonymizovaný otisk čísla účtu u brokera, šifrovaná adresa Discord webhooku | od vás |
-| **Konverzace s AI asistentem** | vaše dotazy a odpovědi asistenta | od vás |
 | **Údaje o předplatném** | tarif, období, stav předplatného, identifikátor zákazníka a transakce u Platebního partnera, země | od Platebního partnera; **číslo karty nikdy nedostáváme** |
 | **Technické a bezpečnostní údaje** | IP adresa, typ prohlížeče, otisky (hashe) přihlašovacích relací, čas posledního přihlášení, bezpečnostní záznamy (audit log), počty použití funkcí | automaticky při používání Služby |
 | **Komunikace s podporou** | obsah e-mailů, které nám pošlete | od vás |
@@ -41,7 +40,7 @@ Nezpracováváme zvláštní kategorie údajů (např. o zdraví) a nežádáme 
 
 | Účel | Právní základ (čl. 6 GDPR) |
 |---|---|
-| Vytvoření a správa účtu, poskytování Služby (výpočty, importy, synchronizace s brokerem, AI asistent, upozornění) | **plnění smlouvy** – čl. 6 odst. 1 písm. b) |
+| Vytvoření a správa účtu, poskytování Služby (výpočty, importy, synchronizace s brokerem, upozornění) | **plnění smlouvy** – čl. 6 odst. 1 písm. b) |
 | Správa předplatného a komunikace o něm | **plnění smlouvy** – čl. 6 odst. 1 písm. b) |
 | Zabezpečení Služby, prevence zneužití, ochrana oddělení dat uživatelů, řešení incidentů, chybové záznamy | **oprávněný zájem** na bezpečném provozu – čl. 6 odst. 1 písm. f) |
 | Vyřizování reklamací, dotazů a uplatňování práv | **plnění smlouvy** / **právní povinnost** – čl. 6 odst. 1 písm. b) a c) |
@@ -67,7 +66,6 @@ základě smlouvy o zpracování osobních údajů:
 | Google Firebase Authentication | registrace, přihlášení, ověření e-mailu, přihlášení přes Google | EU/USA |
 | Neon Inc. | databáze (PostgreSQL) a zálohy | EU – Frankfurt `[[OVĚŘIT]]` |
 | Cloudflare, Inc. | DNS, šifrované spojení (TLS), ochrana proti útokům | globální síť |
-| `[[DOPLNIT: poskytovatel AI – viz poznámky, bod 1]]` | generování odpovědí AI asistenta; dostává váš dotaz a stručný souhrn aktivního portfolia | `[[DOPLNIT]]` |
 | PostHog Inc. (PostHog Cloud EU) | analytika používání – **jen pokud udělíte souhlas** | EU – Frankfurt |
 | Functional Software, Inc. (Sentry) | zachycení chybových hlášení bez obsahu požadavků `[[OVĚŘIT, zda je v produkci zapnuto]]` | `[[DOPLNIT]]` |
 
