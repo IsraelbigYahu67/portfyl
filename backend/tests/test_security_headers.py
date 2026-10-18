@@ -145,3 +145,34 @@ def test_middleware_stamps_the_auth_domain_policy():
     response = TestClient(_make_app(AUTH_ENV)).get("/html")
     assert response.headers["content-security-policy"] == build_content_security_policy(AUTH_ENV)
     assert "frame-src https://portfyl-prod.firebaseapp.com" in response.headers["content-security-policy"]
+
+
+def test_script_src_never_allows_inline_scripts():
+    for env in (NO_ENV, AUTH_ENV):
+        script_src = _directive(build_content_security_policy(env), "script-src")
+        assert "'unsafe-inline'" not in script_src
+
+
+def test_spa_shell_has_no_inline_scripts_the_policy_would_block():
+    # The policy above blocks inline <script> blocks, so the SPA shell must
+    # load everything (including the pre-paint theme snippet,
+    # frontend/public/theme-init.js) from same-origin files.
+    from html.parser import HTMLParser
+    from pathlib import Path
+
+    index_html = Path(__file__).resolve().parents[2] / "frontend" / "index.html"
+
+    class _ScriptCollector(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__()
+            self.scripts: list[dict[str, str | None]] = []
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "script":
+                self.scripts.append(dict(attrs))
+
+    collector = _ScriptCollector()
+    collector.feed(index_html.read_text(encoding="utf-8"))
+    assert collector.scripts, "expected index.html to load scripts"
+    assert all(attrs.get("src") for attrs in collector.scripts), collector.scripts
+    assert {"src": "/theme-init.js"} in collector.scripts
