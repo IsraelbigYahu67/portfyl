@@ -74,7 +74,8 @@ ihned po novém přihlášení a potvrzení. V zásadách je místo
 
 ### 6. Identifikační údaje provozovatele
 
-Chybí **IČO** a informace, zda je provozovatel **plátcem DPH**. Bez IČO nelze
+IČO je **67772366** (doplněno 2026-10-18). Chybí ještě informace, zda je
+provozovatel **plátcem DPH**. Bez ní nelze
 podmínky ani zásady zveřejnit. Ověřit také, že živnostenské oprávnění pokrývá
 poskytování softwaru (volná živnost, obor „Poskytování software, poradenství
 v oblasti informačních technologií…“).
