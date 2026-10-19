@@ -74,8 +74,23 @@ data processing agreement:
 
 **Independent controllers** – these process data under their own policies:
 
-- **Payment Partner** `[[TODO: Paddle.com Market Limited]]` – accepts
-  payments as the seller, issues receipts and handles VAT.
+- **Payment Partner – Sold through Link, LLC** (a Stripe group affiliate
+  providing the Stripe Managed Payments service under the Link brand) and the
+  other Stripe group companies that process payments for it (in the EU in
+  particular Stripe Technology Europe, Limited, Ireland) – sells the
+  subscription as the seller (*Merchant of Record*), accepts payments, issues
+  receipts and invoices, remits VAT, handles fraud, chargebacks and payment
+  support, and runs your Link account if you have one. The data you enter at
+  checkout (e.g. e-mail, name, payment and billing details, country) is
+  processed under its own privacy policy (https://stripe.com/privacy) and the
+  Link terms (https://link.com/terms). It shares with us only order and
+  subscription data (see the table in Section 2); we share with it your
+  e-mail and an internal account identifier so the payment is matched to the
+  right account. If you ask Link to delete your data, Link also cancels any
+  subscription bought through it.
+  `[[LAWYER: confirm the independent-controller role of Sold through Link,
+  LLC and Stripe and the legal basis for the transfer to the US (Sold through
+  Link, LLC is a US company); see notes, point 2.]]`
 - **Your broker** (e.g. Trading 212, Interactive Brokers, eToro) – only if you
   connect it; we send it your API credentials and receive your account data.
 - **Discord** – only if you set up Discord notifications.
@@ -86,8 +101,9 @@ We may also disclose data to public authorities where the law requires it.
 
 ## 5. Transfers outside the EU
 
-Some suppliers (Google, Cloudflare, Neon, PostHog, Sentry) are US companies or
-provide support from outside the EU. Transfers to the US rely on the European
+Some suppliers (Google, Cloudflare, Neon, PostHog, Sentry) and the Payment
+Partner (Sold through Link, LLC / Stripe) are US companies or provide
+support from outside the EU. Transfers to the US rely on the European
 Commission's adequacy decision (**EU-U.S. Data Privacy Framework**) where the
 supplier is certified, and otherwise on the Commission's **Standard
 Contractual Clauses**. `[[LAWYER: verify each supplier's certification and

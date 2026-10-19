@@ -69,8 +69,10 @@ terms.
 
 4.1 The Service is offered as a **Free** plan and the paid **Investor** and
 **Pro** plans. The current features, limits and prices are always shown on
-the Pricing page (`[[TODO: pricing URL]]`). Prices are final and include VAT
-where applicable.
+the Pricing page (`[[TODO: pricing URL]]`). The final price, including VAT
+for the country you are in and, where applicable, converted into your local
+currency, is shown at the Payment Partner's checkout before you pay
+(Section 5.1).
 
 4.2 Paid plans can be paid **monthly** or **annually**.
 
@@ -87,39 +89,70 @@ beyond the new plan simply become unavailable.
 
 ## 5. Payments and subscriptions
 
-5.1 Payments for paid plans are processed and accepted, as the seller
-(*Merchant of Record*), by `[[TODO: Paddle.com Market Limited, Judd House,
-18–29 Mora Street, London EC1V 8BT, United Kingdom]]` (the "**Payment
-Partner**"). The Payment Partner issues receipts, handles VAT and payment
-matters under its buyer terms, which you will see at checkout. The Operator
-never sees your card details. `[[DECIDE: Stripe variant – see lawyer notes,
-point 2.]]`
+5.1 Paid-plan subscriptions are not sold by the Operator directly. They are
+sold, and payments are accepted, by **Sold through Link, LLC**, a Stripe
+group affiliate that provides the Stripe Managed Payments service, acting as
+the seller (*Merchant of Record*) under the **Link** brand (the "**Payment
+Partner**"). `[[TODO: registered address of Sold through Link, LLC – not
+published on stripe.com or link.com; request it from Stripe support; see
+lawyer notes, point 2.]]` The checkout therefore shows the purchase as "Sold
+through Link", and your bank or card statement shows the charge as
+**LINK.COM\*** followed by Portfyl. Your order is governed by the Payment
+Partner's buyer terms (Link *Sold Through Link Terms* and *Purchase Terms*,
+https://link.com/terms), which you will see at checkout.
 
-5.2 Subscriptions **renew automatically** for another period (month or
+5.2 In particular, the Payment Partner calculates, collects and remits VAT
+or similar taxes for the country you are in, sends you payment receipts and
+invoices, handles fraud prevention and payment disputes with your bank
+(chargebacks), and provides first-line support for payments and
+subscriptions (https://support.link.com). For questions about how the
+Service works, contact the Operator (support@portfyl.com). The Operator never
+sees your card details.
+
+5.3 Subscriptions **renew automatically** for another period (month or
 year) until cancelled. The price for the next period is charged at its start.
 
-5.3 You can cancel at any time in your account settings. Cancellation takes
-effect at the end of the period already paid for; until then you keep paid
-features. The account then moves to the Free plan.
+5.4 You can cancel at any time in your account settings in the Service or in
+your Link account at https://link.com. Cancellation takes effect at the end
+of the period already paid for; until then you keep paid features. The
+account then moves to the Free plan. Deleting your Link account also cancels
+the subscription.
 
-5.4 We will notify you by e-mail of any price increase at least **30 days**
+5.5 We will notify you by e-mail of any price increase at least **30 days**
 in advance. The new price applies only from your next subscription period.
 If you disagree, you may cancel before then.
+
+5.6 Refunds of subscription payments are always made by the Payment
+Partner. In addition to the cases in Sections 6 and 7, the Payment Partner
+may decide to refund a payment on its own under its terms, generally within
+**60 days** of the payment; this does not affect your statutory rights.
+`[[LAWYER: check how the Payment Partner's terms (refunds "case-by-case", no
+refunds for unused subscription periods unless required by law) relate to
+Sections 6 and 7; see lawyer notes, point 2.]]`
 
 ## 6. Right of withdrawal (consumers)
 
 6.1 If you are a consumer, you may withdraw from a paid subscription contract
 **without giving a reason within 14 days** of concluding it (i.e. of the
 first payment). Simply send a clear statement to support@portfyl.com or use
-the model form attached to these terms.
+the model form attached to these terms. You may also withdraw directly with
+the Payment Partner's support (https://support.link.com), stating "cooling
+off period" as the reason.
 
 6.2 By ordering a subscription you expressly request that paid features start
-**immediately**, before the withdrawal period ends. If you withdraw, we will
-refund the price paid minus a **proportionate amount** for the time paid
-features were available (Section 1834 of the Czech Civil Code).
+**immediately**, before the withdrawal period ends. If you withdraw, you
+will be refunded the price paid minus a **proportionate amount** for the
+time paid features were available (Section 1834 of the Czech Civil Code).
 
-6.3 We will refund you within **14 days** of withdrawal using the same
-payment method (through the Payment Partner).
+6.3 The Payment Partner will refund you within **14 days** of withdrawal
+using the same payment method. If you send your withdrawal to us, we will
+pass it on to the Payment Partner without undue delay.
+
+`[[LAWYER: the consumer concludes the subscription purchase with the Payment
+Partner (Sold through Link, LLC), not with the Operator. Confirm who owes the
+consumer the withdrawal refund (Section 6) and defect remedies (Section 7),
+and whether Section 6 should instead just refer to the Payment Partner's
+terms; see lawyer notes, point 2.]]`
 
 `[[LAWYER: confirm whether a proportionate deduction is adequate for a
 monthly/annual digital service preceded by a free trial, or whether a full
@@ -225,14 +258,15 @@ Except in urgent cases we will warn you first.
 
 13.3 We may discontinue the Service as a whole with at least **60 days'**
 notice. During that time you can export your data, and we will refund any
-unused prepaid period.
+unused prepaid period (through the Payment Partner).
 
 ## 14. Changes to these terms
 
 We may change these terms because of changes to the Service, the law or our
 business terms. We will notify you by e-mail at least **30 days** before a
 change takes effect. If you disagree, you may terminate the contract before
-that date and we will refund any unused prepaid period.
+that date and we will refund any unused prepaid period (through the Payment
+Partner).
 
 ## 15. Contact and disputes
 

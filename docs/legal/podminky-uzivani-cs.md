@@ -67,8 +67,9 @@ něj důležitá oznámení o účtu a o změnách podmínek.
 
 4.1 Služba se nabízí v tarifu **Free** (zdarma) a v placených tarifech
 **Investor** a **Pro**. Aktuální rozsah funkcí, limity a ceny jsou vždy
-uvedeny na stránce Ceník (`[[DOPLNIT: URL ceníku]]`). Ceny jsou konečné,
-včetně DPH, pokud se uplatní.
+uvedeny na stránce Ceník (`[[DOPLNIT: URL ceníku]]`). Konečnou cenu včetně
+DPH podle země, ve které jste, a případně přepočtenou do vaší místní měny
+vám před zaplacením zobrazí pokladna Platebního partnera (čl. 5.1).
 
 4.2 Placené tarify lze platit **měsíčně** nebo **ročně**.
 
@@ -85,40 +86,69 @@ nad rámec nového tarifu pouze přestanou být dostupné.
 
 ## 5. Platby a předplatné
 
-5.1 Platby za placené tarify zpracovává a jako prodejce (tzv. *Merchant of
-Record*) je přijímá `[[DOPLNIT: Paddle.com Market Limited, Judd House, 18–29
-Mora Street, London EC1V 8BT, Spojené království]]` (dále jen „**Platební
-partner**“). Platební partner vystavuje doklady, odvádí DPH a vyřizuje
-platební záležitosti podle svých podmínek pro kupující, se kterými se
-seznámíte při platbě. Údaje o vaší platební kartě Provozovatel nikdy nevidí.
-`[[ROZHODNOUT: varianta se Stripe – viz poznámky pro právníka, bod 2.]]`
+5.1 Předplatné placených tarifů neprodává Provozovatel přímo. Prodává ho a
+platby přijímá jako prodejce (tzv. *Merchant of Record*) společnost
+**Sold through Link, LLC**, přidružená společnost skupiny Stripe, která
+poskytuje službu Stripe Managed Payments (značka **Link**; dále jen
+„**Platební partner**“). `[[DOPLNIT: sídlo / registrovaná adresa Sold through
+Link, LLC – na stripe.com ani link.com nezveřejněno, vyžádat od podpory
+Stripe; viz poznámky pro právníka, bod 2.]]` Pokladna proto uvádí, že nákup
+je „Sold through Link“ (prodáno přes Link), a na výpisu z účtu nebo karty
+uvidíte platbu jako **LINK.COM\*** s označením Portfyl. Objednávka se řídí
+podmínkami Platebního partnera pro kupující (Link – *Sold Through Link Terms*
+a *Purchase Terms*, https://link.com/terms), se kterými se seznámíte v
+pokladně.
 
-5.2 Předplatné se **automaticky obnovuje** na další období (měsíc nebo rok),
+5.2 Platební partner zejména vypočte, vybere a odvede DPH nebo obdobnou daň
+podle země, ve které jste, zašle vám potvrzení platby a daňový doklad, řeší
+ochranu proti podvodům a případné reklamace plateb u banky (chargebacky) a
+poskytuje první podporu k platbám a předplatnému (https://support.link.com).
+Na podporu k tomu, jak Služba funguje, se obracejte na Provozovatele
+(support@portfyl.com). Údaje o vaší platební kartě Provozovatel nikdy nevidí.
+
+5.3 Předplatné se **automaticky obnovuje** na další období (měsíc nebo rok),
 dokud ho nezrušíte. Cena za další období se strhne na začátku tohoto období.
 
-5.3 Předplatné můžete kdykoli zrušit v nastavení účtu. Zrušení se projeví ke
-konci již zaplaceného období; do té doby můžete placené funkce používat.
-Poté se účet přepne na tarif Free.
+5.4 Předplatné můžete kdykoli zrušit v nastavení účtu ve Službě nebo ve svém
+účtu Link na https://link.com. Zrušení se projeví ke konci již zaplaceného
+období; do té doby můžete placené funkce používat. Poté se účet přepne na
+tarif Free. Smazání účtu Link předplatné rovněž ukončí.
 
-5.4 O zvýšení ceny vás budeme informovat e-mailem nejméně **30 dní**
+5.5 O zvýšení ceny vás budeme informovat e-mailem nejméně **30 dní**
 předem. Nová cena platí až od následujícího období předplatného. Pokud s ní
 nesouhlasíte, můžete předplatné do té doby zrušit.
+
+5.6 Vrácení peněz za předplatné provádí vždy Platební partner. Kromě případů
+podle čl. 6 a 7 může Platební partner podle svých podmínek o vrácení platby
+rozhodnout i sám, zpravidla do **60 dnů** od platby; vaše zákonná práva tím
+nejsou dotčena. `[[PRÁVNÍK: ověřit, jak se podmínky Platebního partnera
+(vracení „case-by-case“, žádné vracení za nevyužité období, pokud to
+nevyžaduje zákon) poměřují s čl. 6 a 7; viz poznámky, bod 2.]]`
 
 ## 6. Odstoupení od smlouvy (pro spotřebitele)
 
 6.1 Jste-li spotřebitel, můžete od smlouvy o placeném předplatném odstoupit
 **bez udání důvodu do 14 dnů** od jejího uzavření (tj. od první platby).
 Stačí poslat jednoznačné prohlášení na support@portfyl.com, případně použít
-vzorový formulář v příloze těchto podmínek.
+vzorový formulář v příloze těchto podmínek. Odstoupení můžete uplatnit také
+přímo u podpory Platebního partnera (https://support.link.com) s uvedením
+důvodu „cooling off period“ (lhůta pro odstoupení).
 
 6.2 Objednáním předplatného výslovně žádáte, aby poskytování placených
 funkcí začalo **ihned**, tedy ještě před uplynutím lhůty pro odstoupení.
-Odstoupíte-li, vrátíme vám zaplacenou cenu sníženou o **poměrnou část**
+Odstoupíte-li, bude vám vrácena zaplacená cena snížená o **poměrnou část**
 odpovídající době, po kterou byly placené funkce k dispozici (§ 1834
 občanského zákoníku).
 
-6.3 Peníze vrátíme do **14 dnů** od odstoupení stejným způsobem, jakým byly
-zaplaceny (prostřednictvím Platebního partnera).
+6.3 Peníze vám do **14 dnů** od odstoupení vrátí Platební partner stejným
+způsobem, jakým byly zaplaceny. Pokud odstoupení pošlete nám, předáme ho
+Platebnímu partnerovi bez zbytečného odkladu.
+
+`[[PRÁVNÍK: kupní smlouvu o předplatném uzavírá spotřebitel s Platebním
+partnerem (Sold through Link, LLC), ne s Provozovatelem. Ověřit, kdo je vůči
+spotřebiteli povinný z odstoupení (čl. 6) a z vadného plnění (čl. 7) a zda
+čl. 6 nemá spíše jen odkazovat na podmínky Platebního partnera; viz poznámky,
+bod 2.]]`
 
 `[[PRÁVNÍK: ověřit, zda pro digitální službu s měsíčním/ročním předplatným a
 předchozím bezplatným zkušebním obdobím postačí poměrná náhrada, nebo zda
@@ -218,14 +248,15 @@ zákonu. Kromě naléhavých případů vás předem upozorníme.
 
 13.3 Službu jako celek můžeme ukončit s výpovědní lhůtou nejméně **60 dní**.
 Během ní si můžete data vyexportovat a nevyčerpanou část předplaceného
-období vám vrátíme.
+období vám vrátíme (prostřednictvím Platebního partnera).
 
 ## 14. Změny podmínek
 
 Podmínky můžeme měnit z důvodu změny Služby, právních předpisů nebo
 obchodních podmínek. O změně vás informujeme e-mailem nejméně **30 dní**
 před její účinností. Pokud se změnou nesouhlasíte, můžete smlouvu do dne
-účinnosti vypovědět; nevyčerpanou část předplatného vám vrátíme.
+účinnosti vypovědět; nevyčerpanou část předplatného vám vrátíme
+(prostřednictvím Platebního partnera).
 
 ## 15. Kontakt a spory
 

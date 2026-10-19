@@ -72,8 +72,22 @@ základě smlouvy o zpracování osobních údajů:
 **Samostatní správci** – tyto subjekty zpracovávají údaje podle vlastních
 zásad:
 
-- **Platební partner** `[[DOPLNIT: Paddle.com Market Limited]]` – přijímá
-  platby jako prodejce, vystavuje doklady a odvádí DPH.
+- **Platební partner – Sold through Link, LLC** (přidružená společnost
+  skupiny Stripe, služba Stripe Managed Payments, značka Link) a další
+  společnosti skupiny Stripe, které pro něj platby zpracovávají (v EU
+  zejména Stripe Technology Europe, Limited, Irsko) – prodává předplatné jako
+  prodejce (*Merchant of Record*), přijímá platby, vystavuje doklady, odvádí
+  DPH, řeší podvody, chargebacky a podporu k platbám a vede váš případný účet
+  Link. Údaje, které při platbě zadáte (např. e-mail, jméno, platební a
+  fakturační údaje, země), zpracovává podle vlastních zásad ochrany osobních
+  údajů (https://stripe.com/privacy) a podmínek Link (https://link.com/terms).
+  Nám předává jen údaje o objednávce a předplatném (viz tabulka v části 2);
+  my mu předáváme e-mail a interní identifikátor účtu, aby platbu přiřadil
+  ke správnému účtu. Pokud u Linku požádáte o smazání svých údajů, Link
+  zruší i předplatné zakoupené jeho prostřednictvím.
+  `[[PRÁVNÍK: potvrdit roli samostatného správce u Sold through Link, LLC a
+  Stripe a právní základ předání do USA (Sold through Link, LLC je americká
+  společnost); viz poznámky, bod 2.]]`
 - **Váš broker** (např. Trading 212, Interactive Brokers, eToro) – jen pokud
   ho sami připojíte; posíláme mu vaše API přihlášení a dostáváme od něj
   údaje o účtu.
@@ -85,8 +99,9 @@ zásad:
 
 ## 5. Předávání mimo EU
 
-Někteří dodavatelé (Google, Cloudflare, Neon, PostHog, Sentry) jsou
-společnosti z USA nebo mají podporu mimo EU. Předávání do USA se opírá o
+Někteří dodavatelé (Google, Cloudflare, Neon, PostHog, Sentry) a Platební
+partner (Sold through Link, LLC / Stripe) jsou společnosti z USA nebo mají
+podporu mimo EU. Předávání do USA se opírá o
 rozhodnutí Evropské komise o odpovídající ochraně (**EU-U.S. Data Privacy
 Framework**), pokud je dodavatel certifikován, jinak o **standardní smluvní
 doložky** schválené Evropskou komisí. `[[PRÁVNÍK: ověřit certifikace a DPA
