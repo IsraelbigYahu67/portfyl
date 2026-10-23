@@ -1891,7 +1891,10 @@ function OwnershipSection({ ownership, currencyCode }) {
             />
           </div>
           {slices.length > 0 ? (
-            <div className="h-72">
+            // Opt this donut alone into the slice pop (DESIGN.md §7); the rest
+            // of the stock page keeps still.
+            <div className="hover-pop-zone no-block-pop">
+            <div className="pie-pop h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -1941,6 +1944,7 @@ function OwnershipSection({ ownership, currencyCode }) {
                   />
                 </PieChart>
               </ResponsiveContainer>
+            </div>
             </div>
           ) : (
             <div className="h-72 flex items-center justify-center text-muted text-sm">
