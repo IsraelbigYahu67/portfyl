@@ -1,7 +1,9 @@
 import { readFile } from "node:fs/promises";
-import { render, screen } from "@testing-library/react";
+import { useState } from "react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { Calendar } from "lucide-react";
-import { Card, SectionHeader, Skeleton, EmptyState, DeltaPill } from "./index";
+import { Card, SectionHeader, Skeleton, EmptyState, DeltaPill, Badge, Modal } from "./index";
+import { legacyColorClassesIn } from "../../test/legacyClasses";
 import { sourcePath } from "../../test/sourcePath";
 
 describe("ui primitives", () => {
@@ -51,6 +53,60 @@ describe("ui primitives", () => {
   it("DeltaPill includes an explicit sign on the amount, not only color", () => {
     render(<DeltaPill value={-500} pct={-1.2} currency="USD" />);
     expect(screen.getByText(/−\$500\.00/)).toBeInTheDocument();
+  });
+});
+
+describe("Badge and Modal", () => {
+  it("Badge renders its tone", () => {
+    render(<Badge tone="warn">Stale</Badge>);
+    expect(screen.getByText("Stale")).toHaveAttribute("data-tone", "warn");
+  });
+
+  it("Modal closes on Escape and restores focus", () => {
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>Open</button>
+          <Modal open={open} onClose={() => setOpen(false)} titleId="t">
+            <h2 id="t">Add</h2>
+            <input aria-label="Name" />
+          </Modal>
+        </>
+      );
+    }
+    render(<Harness />);
+    const opener = screen.getByRole("button", { name: "Open" });
+    opener.focus();
+    fireEvent.click(opener);
+    const dialog = screen.getByRole("dialog", { name: "Add" });
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(opener).toHaveFocus();
+  });
+
+  it("Modal closes on a backdrop click but not a click inside the panel", () => {
+    const onClose = vi.fn();
+    render(
+      <Modal open onClose={onClose} titleId="t2">
+        <h2 id="t2">Panel</h2>
+      </Modal>,
+    );
+    fireEvent.mouseDown(screen.getByRole("dialog"));
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.mouseDown(screen.getByRole("dialog").parentElement);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("Modal renders nothing while closed", () => {
+    render(<Modal open={false} onClose={() => {}} titleId="t3"><h2 id="t3">x</h2></Modal>);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("Badge uses no legacy color classes", async () => {
+    expect(await legacyColorClassesIn(new URL("./Badge.jsx", import.meta.url))).toEqual([]);
   });
 });
 

@@ -171,6 +171,14 @@ cards and tiles still (Allocation does this: its data/text blocks do not move).
 - Segmented controls and period selectors sit in an inset trough with a
   raised active pill (brand-colored bold text).
 - Delta/gain-loss: tinted capsule or colored text, always with arrow or sign.
+- Badges and dialogs: status labels use `components/ui/Badge.jsx`, a pill with
+  five tones (`gain`, `loss`, `warn` = `--chart-3`, `neutral` = `--chart-8`,
+  `brand`) drawn as a 16% `color-mix` tint of the tone token with text in the
+  token, 12px semibold; never Tailwind palette classes. Dialogs use
+  `components/ui/Modal.jsx`: an overlay plus a `.card` panel with
+  `role="dialog"`, `aria-modal`, `aria-labelledby={titleId}`, focus trapped and
+  restored to the opener (`useFocusTrap`), closing on Escape or a backdrop
+  click, and no transform motion under reduced motion.
 - Keyboard focus: 3px brand outline with 2px offset (Clay), 2px elsewhere.
 - Touch targets at least 44px on mobile; right-align numbers in tables.
 

@@ -7,3 +7,5 @@ export { default as AsyncSection } from "./AsyncSection";
 export { DeltaPill } from "./DeltaPill";
 export { default as KpiBox } from "./KpiBox";
 export { UrlTabs } from "./UrlTabs";
+export { Badge } from "./Badge";
+export { Modal } from "./Modal";
