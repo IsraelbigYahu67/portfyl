@@ -148,6 +148,26 @@ describe("Czech row status", () => {
     expect(screen.getAllByText("Taxable")[0].closest("[data-tone]")).toHaveAttribute("data-tone", "warn");
   });
 
+  it("a single tax year card spans the row", async () => {
+    const base = await localApi.fetchTaxReport();
+    localApi.fetchTaxReport.mockResolvedValue({
+      ...base,
+      czech_tax: [{ tax_year: 2024, value_test_passed: false, trades: 1 }],
+    });
+    renderPage();
+
+    const heading = await screen.findByText(/Czech Tax — 2024/);
+    const grid = heading.closest(".card").parentElement;
+    expect(grid.className).not.toContain("xl:grid-cols-3");
+    expect(grid.className).not.toContain("sm:grid-cols-2");
+  });
+
+  it("keeps the Export CSV label on one line", async () => {
+    renderPage();
+    const button = await screen.findByRole("button", { name: /export csv/i });
+    expect(button.className).toContain("whitespace-nowrap");
+  });
+
   it("uses no legacy color classes", async () => {
     expect(await legacyColorClassesIn(new URL("./TaxReport.jsx", import.meta.url))).toEqual([]);
   });

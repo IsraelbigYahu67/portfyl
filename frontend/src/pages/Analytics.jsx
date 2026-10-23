@@ -14,6 +14,7 @@ import {
 import { Activity, RefreshCw, TrendingDown, TrendingUp, Shield, Wallet } from "lucide-react";
 import { TickerLink } from "../components/StockDetail";
 import { AsyncSection, Badge } from "../components/ui";
+import SegmentedControl from "../components/ui/SegmentedControl";
 import { formatMoney } from "../lib/format";
 import {
   CATEGORICAL, GAIN_COLOR, NEUTRAL_COLOR, AXIS_TICK_STYLE, GRID_STROKE, TOOLTIP_STYLE,
@@ -313,7 +314,7 @@ export default function Analytics() {
           <select
             value={benchmarkId ?? ""}
             onChange={(e) => setBenchmarkId(e.target.value || null)}
-            className="min-w-0 max-w-full text-xs bg-surface border border-surface-hover rounded-md px-2 py-1 text-ink hover:border-brand focus:outline-none focus:border-brand"
+            className="input min-w-0 max-w-full !w-auto text-xs"
             title="Benchmark for beta / alpha / tracking error"
           >
             {benchmarks?.map((b) => (
@@ -324,19 +325,13 @@ export default function Analytics() {
               </option>
             ))}
           </select>
-          <div className="flex gap-1">
-            {PERIODS.map((p) => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
-                  period === p ? "bg-surface-card text-brand font-semibold shadow-sm" : "text-muted hover:text-ink"
-                }`}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            size="sm"
+            aria-label="Analytics period"
+            value={period}
+            onChange={setPeriod}
+            options={PERIODS.map((p) => ({ value: p, label: p }))}
+          />
           <button onClick={() => refetchMetrics()} className="btn-ghost flex items-center gap-2 text-sm" disabled={isFetching}>
             <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
           </button>

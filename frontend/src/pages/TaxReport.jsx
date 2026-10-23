@@ -177,6 +177,12 @@ function CzechTaxPanel({ years, year }) {
   if (!years || years.length === 0) return null;
   const visible = year ? years.filter((y) => y.tax_year === year) : years;
   if (!visible.length) return null;
+  // A lone card must not sit at one-third width: size the grid to the card count.
+  const gridCols = visible.length >= 3
+    ? "sm:grid-cols-2 xl:grid-cols-3"
+    : visible.length === 2
+      ? "sm:grid-cols-2"
+      : "max-w-3xl";
 
   return (
     <section>
@@ -184,7 +190,7 @@ function CzechTaxPanel({ years, year }) {
         <ShieldCheck size={14} className="text-brand" />
         Czech §4 Exemption Analysis
       </h2>
-      <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+      <div className={`grid gap-6 ${gridCols}`}>
         {visible.map((y) => (
           <CzechTaxYearCard key={y.tax_year} y={y} />
         ))}
@@ -317,7 +323,7 @@ export default function TaxReport() {
           <button
             onClick={exportCSV}
             disabled={!gains.length && !dividendIncome.length}
-            className="btn-ghost flex items-center gap-2 text-sm disabled:opacity-30"
+            className="btn-ghost flex items-center gap-2 whitespace-nowrap text-sm disabled:opacity-30"
           >
             <Download size={14} />
             Export CSV

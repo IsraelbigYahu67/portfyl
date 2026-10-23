@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import Analytics from "./Analytics";
@@ -140,6 +140,20 @@ describe("Analytics decisions", () => {
       });
       fireEvent.blur(screen.getByRole("button", { name }));
     }
+  });
+
+  it("period selector is a segmented control", async () => {
+    renderPage();
+    await screen.findByText(/Time-Weighted/i);
+
+    const group = screen.getByLabelText("Analytics period");
+    for (const label of ["3M", "6M", "1Y", "2Y"]) {
+      expect(within(group).getByRole("button", { name: label })).toBeInTheDocument();
+    }
+    expect(within(group).getByRole("button", { name: "1Y" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(within(group).getByRole("button", { name: "6M" }));
+    expect(within(group).getByRole("button", { name: "6M" })).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(api.fetchRiskMetrics.mock.calls.some((call) => call[0] === "6m")).toBe(true));
   });
 
   it("uses no legacy color classes", async () => {
