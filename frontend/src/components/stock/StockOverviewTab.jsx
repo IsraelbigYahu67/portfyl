@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchHistory, fetchHoldings, fetchTransactionsPage } from "../../api";
 import { useCurrency } from "../../App";
@@ -76,6 +77,32 @@ function PositionSummary({ ticker, holding, latest, currency }) {
   );
 }
 
+// Roughly three lines of text on a desktop-width card; shorter text needs no toggle.
+const ABOUT_CLAMP_CHARS = 180;
+
+function AboutSection({ description }) {
+  const [expanded, setExpanded] = useState(false);
+  const clampable = description.length > ABOUT_CLAMP_CHARS;
+  return (
+    <section className="mx-4 mb-6 rounded-xl bg-surface p-4 sm:mx-6" aria-labelledby="company-description-heading">
+      <h3 id="company-description-heading" className="text-sm font-semibold uppercase tracking-wider text-muted">About</h3>
+      <p className={`mt-2 text-sm leading-relaxed text-muted ${clampable && !expanded ? "line-clamp-3" : ""}`}>
+        {description}
+      </p>
+      {clampable ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          aria-expanded={expanded}
+          className="mt-1 text-sm font-semibold text-brand hover:underline max-md:min-h-[44px]"
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
 export function StockOverviewTab({ ticker, overviewData }) {
   const currency = useCurrency()?.currency || "USD";
   const history = useQuery({
@@ -118,12 +145,7 @@ export function StockOverviewTab({ ticker, overviewData }) {
           <PositionSummary ticker={ticker} holding={holding} latest={latest.data?.items?.[0]} currency={currency} />
         </AsyncSection>
       </div>
-      {overviewData.description ? (
-        <section className="mx-4 mb-6 rounded-xl bg-surface p-4 sm:mx-6" aria-labelledby="company-description-heading">
-          <h3 id="company-description-heading" className="text-sm font-semibold uppercase tracking-wider text-muted">About</h3>
-          <p className="mt-2 text-sm leading-relaxed text-muted">{overviewData.description}</p>
-        </section>
-      ) : null}
+      {overviewData.description ? <AboutSection description={overviewData.description} /> : null}
     </div>
   );
 }

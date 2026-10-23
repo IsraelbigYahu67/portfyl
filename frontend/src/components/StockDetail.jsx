@@ -15,7 +15,7 @@ import {
   fetchShibuiEarningsRecap, fetchShibuiValuationHistory, fetchPoliticianTrades,
 } from "../api";
 import { columnChanges, ttmUnderlayRect } from "../lib/chartChanges";
-import { formatShortDate, humanizeCode } from "../lib/format";
+import { formatShortDate, formatTableDate, humanizeCode } from "../lib/format";
 import { buildWeeklyBuckets, assignTransactionsToWeeks, jitterOffsetPx } from "../lib/insiderWeekly";
 import { buildPriceAxis } from "../lib/chartPriceAxis";
 import useStockReportConfig, { ALL_SECTIONS } from "../hooks/useStockReportConfig";
@@ -748,7 +748,7 @@ function SectionCustomizer({ config, toggle, moveUp, moveDown, reset, isVisible 
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-base rounded-lg border border-surface-border text-muted hover:text-ink hover:border-slate-300 transition-colors"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-base rounded-lg border border-surface-border text-muted hover:text-ink hover:border-brand transition-colors"
         title="Customize report sections"
       >
         <Settings2 size={14} />
@@ -1167,21 +1167,19 @@ export function StockOverview({
               <span className="text-xs text-muted uppercase tracking-wider">{data.exchange}</span>
             )}
             {data.fundamentals_source && (
-              <span
+              <Badge
+                size="sm"
+                tone={data.fundamentals_source === "shibui" ? "brand" : "warn"}
                 title={
                   data.fundamentals_source === "shibui"
                     ? "Financials and ratios below are sourced from Shibui Finance (analyst rating/estimates are always from yfinance -- Shibui doesn't cover those)."
                     : "Shibui doesn't cover this ticker, or is unavailable right now (e.g. rate-limited) -- financials and ratios below fell back to yfinance."
                 }
-                className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full uppercase tracking-wider cursor-help ${
-                  data.fundamentals_source === "shibui"
-                    ? "bg-brand/10 text-brand"
-                    : "bg-amber-500/15 text-amber-500"
-                }`}
+                className="uppercase tracking-wider cursor-help"
               >
                 <Info size={10} />
                 {data.fundamentals_source === "shibui" ? "Shibui" : "yfinance fallback"}
-              </span>
+              </Badge>
             )}
           </div>
           <div className="flex items-center gap-2 mt-1 text-sm text-muted flex-wrap">
@@ -1786,7 +1784,9 @@ function TargetRangeBar({ low, high, mean, median, current, cs }) {
 // Distinct hues for the top-N institutional holders. "Other" + retail are
 // rendered with muted greys so the named holders pop.
 const OWNERSHIP_OTHER_COLOR = NEUTRAL_COLOR;
-const OWNERSHIP_RETAIL_COLOR = "#374151";
+const OWNERSHIP_RETAIL_COLOR = "color-mix(in srgb, var(--ink) 55%, var(--surface-card))";
+// Nested KPI tiles inside a card read as pressed wells (DESIGN.md section 4).
+const KPI_WELL_CLASS = "!bg-surface-hover ![box-shadow:var(--clay-inset-sm)]";
 
 function OwnershipSection({ ownership, currencyCode }) {
   if (!ownership) return null;
@@ -1859,20 +1859,23 @@ function OwnershipSection({ ownership, currencyCode }) {
         Ownership Breakdown
       </h3>
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div className="bg-surface rounded-lg p-4">
+        <div className="card !p-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
             <KpiBox
               size="sm"
+              className={KPI_WELL_CLASS}
               label="Institutions"
               value={instPct != null ? `${instPct.toFixed(1)}%` : "—"}
             />
             <KpiBox
               size="sm"
+              className={KPI_WELL_CLASS}
               label="Insiders"
               value={insiderPct != null ? `${insiderPct.toFixed(1)}%` : "—"}
             />
             <KpiBox
               size="sm"
+              className={KPI_WELL_CLASS}
               label="Top holders"
               value={
                 ownership.institutions_count != null
@@ -1882,6 +1885,7 @@ function OwnershipSection({ ownership, currencyCode }) {
             />
             <KpiBox
               size="sm"
+              className={KPI_WELL_CLASS}
               label="Short interest"
               value={shortPct != null ? `${(shortPct * 100).toFixed(2)}%` : "—"}
             />
@@ -1908,7 +1912,7 @@ function OwnershipSection({ ownership, currencyCode }) {
                     ))}
                   </Pie>
                   <Tooltip
-                    cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                    cursor={{ fill: "color-mix(in srgb, var(--ink) 5%, transparent)" }}
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
                       const row = payload[0].payload;
@@ -1945,7 +1949,7 @@ function OwnershipSection({ ownership, currencyCode }) {
           )}
         </div>
 
-        <div className="bg-surface rounded-lg p-4">
+        <div className="card !p-4">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5">
               <Users size={12} />
@@ -1994,26 +1998,17 @@ function OwnershipSection({ ownership, currencyCode }) {
 // silent no-ops for foreign/delisted/thinly-covered names.
 // ---------------------------------------------------------------------------
 
+const CHIP_TONE = { brand: "brand", warn: "warn", danger: "loss", neutral: "neutral" };
+
 function Chip({ children, title, tone = "neutral" }) {
-  const toneClass =
-    tone === "brand"
-      ? "bg-brand/15 text-brand border-brand/30"
-      : tone === "warn"
-        ? "bg-amber-500/20 text-amber-600 border-amber-500/40"
-        : tone === "danger"
-          ? "bg-red-500/20 text-red-700 border-red-500/40"
-          : "bg-slate-500/20 text-muted border-slate-500/40";
   return (
-    <span
-      title={title}
-      className={`text-xs uppercase px-1.5 py-0.5 rounded border shrink-0 ${toneClass}`}
-    >
+    <Badge size="sm" tone={CHIP_TONE[tone] ?? "neutral"} title={title} className="uppercase shrink-0">
       {children}
-    </span>
+    </Badge>
   );
 }
 
-const FORM_TYPE_LABELS = {
+export const FORM_TYPE_LABELS = {
   "10-K": "Annual report", "10-Q": "Quarterly report", "20-F": "Foreign annual report",
   "6-K": "Foreign current report", "8-K": "Current report", "DEF 14A": "Proxy statement",
   "DEF 14C": "Information statement", "SC 13G": "Passive stake (>5%)", "SC 13D": "Activist stake (>5%)",
@@ -2039,26 +2034,24 @@ export function toggleSetValue(active, value, totalCount) {
   return next.size === 0 || next.size === totalCount ? new Set() : next;
 }
 
-const FILTER_CHIP_TONE_ON = {
-  buy: "bg-green-500/25 text-green-700 border-green-500/40",
-  sell: "bg-red-500/25 text-red-700 border-red-500/40",
-  neutral: "bg-slate-500/30 text-ink border-slate-500/50",
-};
-const FILTER_CHIP_OFF =
-  "bg-surface-hover text-muted border-transparent hover:text-ink hover:bg-surface-card-elevated";
+// Pill toggles: active = raised with brand text, inactive = pressed trough.
+const FILTER_PILL =
+  "text-xs font-bold uppercase tracking-wider px-3 py-1 max-md:min-h-[44px] rounded-full transition-colors";
+const FILTER_PILL_ON = "bg-surface-card text-brand";
+const FILTER_PILL_OFF = "bg-surface-hover text-muted hover:text-ink";
 
 function TypeFilterChips({ options, active, onToggle, onReset, className = "" }) {
   if (!options || options.length <= 1) return null;
   const noFilter = active.size === 0;
+  const pillStyle = (on) => ({ boxShadow: on ? "var(--clay-raise-sm)" : "var(--clay-inset-sm)" });
   return (
     <div className={`flex items-center gap-1.5 flex-wrap ${className}`}>
       <button
         type="button"
         onClick={onReset}
         aria-pressed={noFilter}
-        className={`text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-full border transition-colors ${
-          noFilter ? "bg-brand/15 text-brand border-brand/30" : FILTER_CHIP_OFF
-        }`}
+        style={pillStyle(noFilter)}
+        className={`${FILTER_PILL} ${noFilter ? FILTER_PILL_ON : FILTER_PILL_OFF}`}
       >
         All
       </button>
@@ -2071,17 +2064,21 @@ function TypeFilterChips({ options, active, onToggle, onReset, className = "" })
             title={opt.description}
             aria-pressed={isOn}
             onClick={() => onToggle(opt.value)}
-            className={`text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-full border transition-colors ${
-              isOn ? FILTER_CHIP_TONE_ON[opt.tone] || FILTER_CHIP_TONE_ON.neutral : FILTER_CHIP_OFF
-            }`}
+            style={pillStyle(isOn)}
+            className={`${FILTER_PILL} ${isOn ? FILTER_PILL_ON : FILTER_PILL_OFF}`}
           >
             {opt.label}
-            <span className="ml-1 font-normal normal-case opacity-60">{opt.count}</span>
+            <span className="ml-1 font-normal normal-case opacity-70">{opt.count}</span>
           </button>
         );
       })}
     </div>
   );
+}
+
+// Newest filing first; ISO dates sort lexicographically.
+export function sortFilingsNewestFirst(filings) {
+  return [...(filings || [])].sort((a, b) => String(b.filing_date || "").localeCompare(String(a.filing_date || "")));
 }
 
 const YF_TYPE_META = {
@@ -2105,6 +2102,7 @@ export function ShibuiFilingsSection({ ticker }) {
   });
 
   if (isLoading || isError || !data?.filings?.length) return null;
+  const filings = sortFilingsNewestFirst(data.filings);
 
   return (
     <div>
@@ -2115,7 +2113,7 @@ export function ShibuiFilingsSection({ ticker }) {
         <h3 className="text-base font-semibold text-muted uppercase tracking-wider group-hover:text-ink transition-colors">
           SEC Filings
         </h3>
-        <span className="text-xs text-muted">({data.filings.length})</span>
+        <span className="text-xs text-muted">({filings.length})</span>
         {expanded ? (
           <ChevronUp size={14} className="text-muted group-hover:text-ink transition-colors" />
         ) : (
@@ -2123,19 +2121,19 @@ export function ShibuiFilingsSection({ ticker }) {
         )}
       </button>
       {expanded && (
-        <div className="bg-surface rounded-lg overflow-hidden">
-          <div className="grid grid-cols-[5.5rem_1fr_3.5rem] gap-3 px-4 py-2 border-b border-surface-border text-xs uppercase tracking-wider text-muted font-medium">
+        <div className="card !p-0 overflow-hidden">
+          <div className="grid grid-cols-[6.5rem_1fr_3.5rem] gap-3 px-4 py-2 border-b border-surface-border text-xs uppercase tracking-wider text-muted font-medium">
             <span>Date</span>
             <span>Type</span>
             <span className="text-right">Link</span>
           </div>
           <ul className="max-h-96 overflow-y-auto">
-            {data.filings.map((f, i) => (
+            {filings.map((f, i) => (
               <li
                 key={`${f.filing_url}-${i}`}
-                className="grid grid-cols-[5.5rem_1fr_3.5rem] gap-3 items-center px-4 py-2 text-sm border-b border-surface-border last:border-0 hover:bg-surface-hover"
+                className="grid grid-cols-[6.5rem_1fr_3.5rem] gap-3 items-center px-4 py-2 text-sm border-b border-surface-border last:border-0 hover:bg-surface-hover"
               >
-                <span className="tabular-nums text-muted">{f.filing_date}</span>
+                <time dateTime={f.filing_date} className="tabular-nums text-muted">{formatTableDate(f.filing_date)}</time>
                 <span className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-ink font-medium">{f.raw_form_type}</span>
                   <span className="text-muted">{FORM_TYPE_LABELS[f.form_type] || ""}</span>
@@ -2226,9 +2224,10 @@ function ShibuiInsiderActivitySection({ ticker, currencyCode }) {
           {clusters.map((c, i) => (
             <div
               key={i}
-              className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
+              className="flex items-start gap-2 rounded-xl px-3 py-2 text-sm"
+              style={{ background: "color-mix(in srgb, var(--chart-3) 14%, var(--surface-card))" }}
             >
-              <Flame size={14} className="text-amber-500 shrink-0 mt-0.5" />
+              <Flame size={14} className="shrink-0 mt-0.5" style={{ color: "var(--chart-3)" }} />
               <div>
                 <span className="font-semibold text-ink">Cluster buy detected</span>
                 <span className="text-muted">
@@ -2241,8 +2240,8 @@ function ShibuiInsiderActivitySection({ ticker, currencyCode }) {
         </div>
       )}
 
-      <div className="bg-surface rounded-lg overflow-hidden">
-        <div className="grid grid-cols-[1fr_4rem_5rem_6rem_5rem] gap-3 px-4 py-2 border-b border-surface-border text-xs uppercase tracking-wider text-muted font-medium">
+      <div className="card !p-0 overflow-hidden">
+        <div className="grid grid-cols-[1fr_4rem_5rem_6rem_6.5rem] gap-3 px-4 py-2 border-b border-surface-border text-xs uppercase tracking-wider text-muted font-medium">
           <span>Insider</span>
           <span className="text-center">Code</span>
           <span className="text-right">Shares</span>
@@ -2257,11 +2256,11 @@ function ShibuiInsiderActivitySection({ ticker, currencyCode }) {
           )}
           {visibleTransactions.map((t, i) => {
             const isBuy = t.direction === "buy";
-            const rowBg = isBuy ? "bg-green-500/10 hover:bg-green-500/15" : "bg-red-500/10 hover:bg-red-500/15";
+            const isSell = t.direction === "sell";
             return (
               <li
                 key={i}
-                className={`grid grid-cols-[1fr_4rem_5rem_6rem_5rem] gap-3 items-center px-4 py-2 text-sm ${rowBg}`}
+                className="grid grid-cols-[1fr_4rem_5rem_6rem_6.5rem] gap-3 items-center px-4 py-2 text-sm border-b border-surface-border last:border-0 hover:bg-surface-hover transition-colors"
               >
                 <div className="min-w-0">
                   <div className="truncate text-ink font-medium">{t.owner_canonical_name || "—"}</div>
@@ -2278,16 +2277,16 @@ function ShibuiInsiderActivitySection({ ticker, currencyCode }) {
                   </div>
                 </div>
                 <span className="text-center">
-                  <span
+                  <Badge
+                    size="sm"
+                    tone={isBuy ? "gain" : isSell ? "loss" : "neutral"}
                     title={TX_CODE_LABELS[t.tx_code] || t.tx_code}
-                    className={`text-xs font-semibold uppercase px-1.5 py-0.5 rounded border ${
-                      isBuy
-                        ? "bg-green-500/25 text-green-700 border-green-500/40"
-                        : "bg-red-500/25 text-red-700 border-red-500/40"
-                    }`}
+                    className="uppercase"
                   >
+                    {isBuy && <ArrowUpRight size={11} aria-hidden="true" />}
+                    {isSell && <ArrowDownRight size={11} aria-hidden="true" />}
                     {t.tx_code}
-                  </span>
+                  </Badge>
                 </span>
                 <span className="text-right tabular-nums text-ink">
                   {t.shares != null ? Math.round(t.shares).toLocaleString() : "—"}
@@ -2295,7 +2294,7 @@ function ShibuiInsiderActivitySection({ ticker, currencyCode }) {
                 <span className="text-right tabular-nums text-muted">
                   {t.value ? fmtCompact(t.value, cs) : "—"}
                 </span>
-                <span className="text-right tabular-nums text-muted">{t.tx_date}</span>
+                <span className="text-right tabular-nums text-muted">{formatTableDate(t.tx_date)}</span>
               </li>
             );
           })}
@@ -2380,7 +2379,7 @@ export function ShibuiOwnershipFilingsSection({ ticker }) {
       </h3>
 
       {investors.length > 0 && (
-        <div className="bg-surface rounded-lg p-4">
+        <div className="card !p-4">
           <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <Landmark size={12} /> Corporate strategic investors
           </h4>
@@ -2396,7 +2395,7 @@ export function ShibuiOwnershipFilingsSection({ ticker }) {
                 </span>
                 <span className="flex items-center gap-2 text-muted shrink-0">
                   <Chip>{inv.schedule_type}</Chip>
-                  <span className="tabular-nums">{inv.filing_date}</span>
+                  <span className="tabular-nums">{formatTableDate(inv.filing_date)}</span>
                 </span>
               </li>
             ))}
@@ -2405,7 +2404,7 @@ export function ShibuiOwnershipFilingsSection({ ticker }) {
       )}
 
       {stakes.length > 0 && (
-        <div className="bg-surface rounded-lg p-4">
+        <div className="card !p-4">
           <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">
             13D/13G filers (up to 50 most recent)
           </h4>
@@ -2417,7 +2416,7 @@ export function ShibuiOwnershipFilingsSection({ ticker }) {
                   <span className="flex items-center gap-2 text-muted shrink-0">
                     {s.filer_is_activist && <Chip tone="danger">Activist</Chip>}
                     <Chip tone={s.schedule_type === "13D" ? "warn" : "neutral"}>{s.schedule_type}</Chip>
-                    <span className="tabular-nums">{s.filing_date}</span>
+                    <span className="tabular-nums">{formatTableDate(s.filing_date)}</span>
                   </span>
                 </div>
                 <div className="mt-0.5">
@@ -2451,7 +2450,7 @@ function daysBetween(earlier, later) {
 // ReferenceDot annotations.
 function TradeMarker({ cx, cy, fill, isOption, onClick, tooltip }) {
   if (cx == null || cy == null) return null;
-  const common = { fill, stroke: "#fff", strokeWidth: 1, onClick, style: { cursor: "pointer" } };
+  const common = { fill, stroke: "var(--surface-card)", strokeWidth: 1, onClick, style: { cursor: "pointer" } };
   if (isOption) {
     const r = 6;
     return (
@@ -2522,7 +2521,7 @@ function PoliticalTradesChart({ ticker, trades, currencyCode, currentPrice, onSe
   if (!dots.length) return null;
 
   return (
-    <div className="bg-surface rounded-lg p-4 mb-3">
+    <div className="card !p-4 mb-3">
       <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">
         Trades on price chart
       </h4>
@@ -2567,7 +2566,7 @@ function TradeDetailCard({ trade, onClose }) {
   const reportLag = daysBetween(trade.transaction_date, trade.filed_date);
 
   return (
-    <div className="bg-surface rounded-lg p-4 mb-3 border border-brand/30">
+    <div className="card !p-4 mb-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-base font-semibold text-ink">
@@ -2579,15 +2578,23 @@ function TradeDetailCard({ trade, onClose }) {
             {trade.state_district ? ` (${trade.state_district})` : ""}
           </div>
         </div>
-        <button onClick={onClose} className="text-muted hover:text-ink text-sm">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close trade details"
+          className="text-muted hover:text-ink text-sm px-2 py-1 max-md:min-h-[44px] max-md:min-w-[44px]"
+        >
           ✕
         </button>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
         <div>
           <div className="text-xs text-muted uppercase tracking-wider">Type</div>
-          <div className={`text-sm font-semibold ${isBuy ? "text-gain" : "text-loss"}`}>
-            {isBuy ? "BUY" : "SELL"}
+          <div className="mt-0.5">
+            <Badge size="sm" tone={isBuy ? "gain" : "loss"} className="uppercase">
+              {isBuy ? <ArrowUpRight size={11} aria-hidden="true" /> : <ArrowDownRight size={11} aria-hidden="true" />}
+              {isBuy ? "BUY" : "SELL"}
+            </Badge>
           </div>
         </div>
         <div>
@@ -2602,12 +2609,12 @@ function TradeDetailCard({ trade, onClose }) {
         </div>
         <div>
           <div className="text-xs text-muted uppercase tracking-wider">Transaction date</div>
-          <div className="text-sm text-ink tabular-nums">{trade.transaction_date}</div>
+          <div className="text-sm text-ink tabular-nums">{formatTableDate(trade.transaction_date)}</div>
         </div>
       </div>
       {trade.filed_date && (
         <p className="text-xs text-muted mt-2">
-          Reported {trade.filed_date}
+          Reported {formatTableDate(trade.filed_date)}
           {reportLag != null && reportLag > 0 && ` — ${reportLag} day${reportLag === 1 ? "" : "s"} after the trade`}
         </p>
       )}
@@ -2681,8 +2688,8 @@ function PoliticalTradesSection({ ticker, currencyCode, currentPrice }) {
             onSelect={setSelected}
           />
           {selected && <TradeDetailCard trade={selected} onClose={() => setSelected(null)} />}
-          <div className="bg-surface rounded-lg overflow-hidden">
-            <div className="grid grid-cols-[1fr_3.5rem_3.5rem_9rem_5.5rem] gap-3 px-4 py-2 border-b border-surface-border text-xs uppercase tracking-wider text-muted font-medium">
+          <div className="card !p-0 overflow-hidden">
+            <div className="grid grid-cols-[1fr_3.5rem_5rem_9rem_6.5rem] gap-3 px-4 py-2 border-b border-surface-border text-xs uppercase tracking-wider text-muted font-medium">
               <span>Politician</span>
               <span className="text-center">Party</span>
               <span className="text-center">Type</span>
@@ -2696,7 +2703,7 @@ function PoliticalTradesSection({ ticker, currencyCode, currentPrice }) {
                   <li
                     key={i}
                     onClick={() => setSelected(t)}
-                    className="grid grid-cols-[1fr_3.5rem_3.5rem_9rem_5.5rem] gap-3 items-center px-4 py-2 text-sm border-b border-surface-border last:border-0 hover:bg-surface-hover cursor-pointer"
+                    className="grid grid-cols-[1fr_3.5rem_5rem_9rem_6.5rem] gap-3 items-center px-4 py-2 text-sm border-b border-surface-border last:border-0 hover:bg-surface-hover cursor-pointer"
                   >
                     <div className="min-w-0">
                       <div className="truncate text-ink font-medium">
@@ -2705,23 +2712,22 @@ function PoliticalTradesSection({ ticker, currencyCode, currentPrice }) {
                       <div className="text-xs text-muted truncate">
                         {t.chamber} · {t.state}
                         {t.state_district ? ` (${t.state_district})` : ""} · {t.owner_code}
-                        {t.is_likely_option && <span className="ml-1 text-amber-500">◆ Option</span>}
+                        {t.is_likely_option && (
+                          <span className="ml-1" style={{ color: "var(--chart-3)" }}>◆ Option</span>
+                        )}
                       </div>
                     </div>
                     <span className="text-center text-muted">{t.party}</span>
-                    <span
-                      className={`text-center text-xs font-semibold uppercase px-1.5 py-0.5 rounded border ${
-                        isBuy
-                          ? "bg-green-500/25 text-green-700 border-green-500/40"
-                          : "bg-red-500/25 text-red-700 border-red-500/40"
-                      }`}
-                    >
-                      {isBuy ? "BUY" : "SELL"}
+                    <span className="text-center">
+                      <Badge size="sm" tone={isBuy ? "gain" : "loss"} className="uppercase">
+                        {isBuy ? <ArrowUpRight size={11} aria-hidden="true" /> : <ArrowDownRight size={11} aria-hidden="true" />}
+                        {isBuy ? "BUY" : "SELL"}
+                      </Badge>
                     </span>
                     <span className="text-right tabular-nums text-muted">
                       ${Number(t.amount_min).toLocaleString()}–${Number(t.amount_max).toLocaleString()}
                     </span>
-                    <span className="text-right tabular-nums text-muted">{t.transaction_date}</span>
+                    <span className="text-right tabular-nums text-muted">{formatTableDate(t.transaction_date)}</span>
                   </li>
                 );
               })}
@@ -2761,22 +2767,17 @@ function EarningsRecapSection({ ticker, currencyCode }) {
     <div>
       <h3 className="text-base font-semibold text-muted uppercase tracking-wider mb-3">Earnings</h3>
 
-      <div className="bg-surface rounded-lg p-4 mb-3">
+      <div className="card !p-4 mb-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <div className="text-xs text-muted uppercase tracking-wider">
-              Latest report · Q{latest.quarter} {latest.year} · {latest.report_date}
+              Latest report · Q{latest.quarter} {latest.year} · {formatTableDate(latest.report_date)}
             </div>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <span
-                className={`text-sm font-semibold uppercase px-2 py-0.5 rounded border ${
-                  beat
-                    ? "bg-green-500/25 text-green-700 border-green-500/40"
-                    : "bg-red-500/25 text-red-700 border-red-500/40"
-                }`}
-              >
+              <Badge tone={beat ? "gain" : "loss"} className="uppercase">
+                {beat ? <ArrowUpRight size={12} aria-hidden="true" /> : <ArrowDownRight size={12} aria-hidden="true" />}
                 {beat ? "Beat" : "Miss"}
-              </span>
+              </Badge>
               <span className="text-base text-ink tabular-nums">
                 EPS {cs}
                 {latest.eps_actual?.toFixed(2)} vs {cs}
@@ -2821,7 +2822,7 @@ function EarningsRecapSection({ ticker, currencyCode }) {
         )}
       </div>
 
-      <div className="bg-surface rounded-lg p-4 mb-3">
+      <div className="card !p-4 mb-3">
         <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">
           EPS surprise history
         </h4>
@@ -2843,7 +2844,7 @@ function EarningsRecapSection({ ticker, currencyCode }) {
       </div>
 
       {recentBuyback && (
-        <div className="bg-surface rounded-lg p-4">
+        <div className="card !p-4">
           <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-1">
             Buyback trend
           </h4>
@@ -2903,19 +2904,12 @@ function ValuationHistorySection({ ticker }) {
             </span>
           )}
         </h3>
-        <div className="inline-flex bg-surface rounded-md p-0.5 text-sm">
-          {VALUATION_RANGES.map((r) => (
-            <button
-              key={r.label}
-              onClick={() => setRange(r)}
-              className={`px-2.5 py-1 rounded transition-colors ${
-                range.label === r.label ? "bg-brand text-white" : "text-muted hover:text-ink"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          aria-label="Valuation history range"
+          value={range.label}
+          onChange={(label) => setRange(VALUATION_RANGES.find((r) => r.label === label) ?? range)}
+          options={VALUATION_RANGES.map((r) => ({ value: r.label, label: r.label }))}
+        />
       </div>
 
       {isLoading && <p className="text-sm text-muted">Loading…</p>}
@@ -2966,7 +2960,7 @@ function ValuationSparkline({ multiple, points }) {
 
   if (!series.length) {
     return (
-      <div className="bg-surface rounded-lg p-3">
+      <div className="card !p-3">
         <div className="text-xs text-muted uppercase tracking-wider">{multiple.label}</div>
         <div className="text-sm text-muted mt-2">No data</div>
       </div>
@@ -2993,7 +2987,7 @@ function ValuationSparkline({ multiple, points }) {
 
   return (
     <div
-      className="bg-surface rounded-lg p-3 cursor-pointer transition-colors hover:bg-surface-hover"
+      className="card card-interactive !p-3 cursor-pointer"
       onClick={() => setExpanded(true)}
       title="Click to expand"
     >
@@ -3203,7 +3197,7 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
       <h3 className="text-base font-semibold text-muted uppercase tracking-wider mb-3">
         Insider Trading Volume
       </h3>
-      <div className="bg-surface rounded-lg p-4">
+      <div className="card !p-4">
         <ul className="flex flex-wrap gap-x-6 gap-y-2 mb-4 text-sm leading-5 text-ink" aria-label="Insider trading chart legend">
           {[
             { label: "Close Price", color: CATEGORICAL[0], line: true },
@@ -3346,7 +3340,7 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
           onReset={() => setActiveTypes(new Set())}
         />
       </div>
-      <div className="bg-surface rounded-lg overflow-x-auto">
+      <div className="card !p-0 overflow-x-auto">
         <div className={`grid ${gridCols} min-w-[700px] gap-3 px-4 py-2 border-b border-surface-border text-xs uppercase tracking-wider text-muted font-medium`}>
           <span>Insider</span>
           <span className="w-32 text-left">Type · Transaction</span>
@@ -3354,7 +3348,7 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
           <span className="w-20 text-right">Price</span>
           <span className="w-24 text-right">Value</span>
           <span className="w-24 text-right" title="Unrealized P&L vs current price">P&amp;L (vs now)</span>
-          <span className="w-20 text-right">Date</span>
+          <span className="w-24 text-right">Date</span>
         </div>
         <ul className="min-w-[700px]">
           {!pagedTransactions.length && (
@@ -3365,30 +3359,19 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
           {pagedTransactions.map((t, i) => {
             const isBuy = t.side === "buy";
             const isSell = t.side === "sell";
-            const rowBg = isBuy
-              ? "bg-green-500/10 hover:bg-green-500/15"
-              : isSell
-                ? "bg-red-500/10 hover:bg-red-500/15"
-                : "hover:bg-surface-hover";
-            const sideColor = isBuy
-              ? "text-green-700"
-              : isSell
-                ? "text-red-700"
-                : "text-muted";
+            // The badge carries buy/sell; rows are not tinted.
+            const sideColor = isBuy ? "text-gain" : isSell ? "text-loss" : "text-muted";
             const sideLabel = isBuy ? "BUY" : isSell ? "SELL" : "OTHER";
-            const sidePill = isBuy
-              ? "bg-green-500/25 text-green-700 border-green-500/40"
-              : isSell
-                ? "bg-red-500/25 text-red-700 border-red-500/40"
-                : "bg-slate-500/20 text-muted border-slate-500/40";
+            const sideTone = isBuy ? "gain" : isSell ? "loss" : "neutral";
             const Icon = isBuy ? ArrowUpRight : isSell ? ArrowDownRight : null;
 
             // Derive the executed price from value / shares. yfinance reports
             // both as positive magnitudes so this stays valid for either side.
             const shares = t.shares != null ? Math.abs(t.shares) : null;
             const value = t.value != null ? Math.abs(t.value) : null;
+            // A zero value (grants, gifts, option exercises) has no price: show a dash.
             const pricePerShare =
-              shares && shares > 0 && value != null ? value / shares : null;
+              shares && shares > 0 && value ? value / shares : null;
 
             // P&L on the position the insider still notionally holds — only
             // makes sense for buys (mark-to-market the entry vs. today). Sells
@@ -3418,7 +3401,7 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
             return (
               <li
                 key={i}
-                className={`grid ${gridCols} gap-3 items-center px-4 py-2 border-b border-surface-border last:border-0 text-sm transition-colors ${rowBg}`}
+                className={`grid ${gridCols} gap-3 items-center px-4 py-2 border-b border-surface-border last:border-0 text-sm transition-colors hover:bg-surface-hover`}
               >
                 <div className="min-w-0">
                   <div className="text-ink truncate" title={t.insider || ""}>
@@ -3431,11 +3414,9 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
                   )}
                 </div>
                 <div className="w-32 flex items-center gap-1.5">
-                  <span
-                    className={`text-xs font-bold tracking-wider px-1.5 py-0.5 rounded border ${sidePill}`}
-                  >
+                  <Badge size="sm" tone={sideTone} className="tracking-wider">
                     {sideLabel}
-                  </span>
+                  </Badge>
                   <span
                     className={`truncate text-xs ${sideColor}`}
                     title={t.transaction || ""}
@@ -3458,7 +3439,7 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
                   {pricePerShare != null ? `${cs}${pricePerShare.toFixed(2)}` : "—"}
                 </div>
                 <div className={`w-24 text-right tabular-nums font-medium ${sideColor}`}>
-                  {value != null ? fmtCompact(value, cs) : "—"}
+                  {value ? fmtCompact(value, cs) : "—"}
                 </div>
                 <div
                   className={`w-24 text-right tabular-nums font-medium ${pnlColor}`}
@@ -3483,8 +3464,8 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
                     </>
                   )}
                 </div>
-                <div className="w-20 text-right text-muted tabular-nums text-xs">
-                  {t.date || "—"}
+                <div className="w-24 text-right text-muted tabular-nums text-xs">
+                  {formatTableDate(t.date)}
                 </div>
               </li>
             );

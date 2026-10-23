@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { StockOverviewTab } from "./StockOverviewTab";
 
@@ -14,14 +14,16 @@ const state = vi.hoisted(() => ({ currency: "USD" }));
 vi.mock("../../App", () => ({ useCurrency: () => state }));
 vi.mock("../StockDetail", () => ({ StockOverview: () => <div>Overview KPIs</div> }));
 
-function renderTab() {
+const LONG_DESCRIPTION = "Apple designs consumer electronics, software and services. ".repeat(6).trim();
+
+function renderTab(description = "Apple description") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
         <StockOverviewTab
           ticker="AAPL"
-          overviewData={{ ticker: "AAPL", currency: "USD", description: "Apple description" }}
+          overviewData={{ ticker: "AAPL", currency: "USD", description }}
         />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -69,6 +71,25 @@ it("shows the complete owned position and exact latest transaction", async () =>
   expect(within(position).getByText(/January 2, 2024 · buy · 2 shares at \$100\.00/)).toBeInTheDocument();
   expect(within(position).getByText("Note: Starter lot")).toBeInTheDocument();
   expect(api.fetchTransactionsPage).toHaveBeenCalledWith({ ticker: "AAPL", sort: "-date", limit: 1 });
+});
+
+it("About is clamped with a toggle", async () => {
+  api.fetchHoldings.mockResolvedValue([]);
+  renderTab(LONG_DESCRIPTION);
+  const about = await screen.findByText(LONG_DESCRIPTION);
+  expect(about).toHaveClass("line-clamp-3");
+
+  fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+  expect(about).not.toHaveClass("line-clamp-3");
+  fireEvent.click(screen.getByRole("button", { name: "Show less" }));
+  expect(about).toHaveClass("line-clamp-3");
+});
+
+it("a short About needs no toggle", async () => {
+  api.fetchHoldings.mockResolvedValue([]);
+  renderTab();
+  expect(await screen.findByText("Apple description")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument();
 });
 
 it("states truthfully when the researched symbol is not owned", async () => {
