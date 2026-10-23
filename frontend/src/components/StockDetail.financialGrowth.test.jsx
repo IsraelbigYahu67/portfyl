@@ -14,7 +14,8 @@ vi.mock("recharts", () => ({
   Bar: ({ children }) => children,
   BarChart: ({ children }) => children,
   CartesianGrid: () => null,
-  Cell: () => null,
+  // Expose each bar's fill so the tests can check it uses theme series colors.
+  Cell: ({ fill }) => <i data-testid="bar-fill" data-fill={fill} />,
   ComposedChart: ({ children }) => children,
   Customized: () => null,
   Legend: () => null,
@@ -61,25 +62,61 @@ const longQuarterlyActuals = [
 ];
 
 describe("financial period axis layout", () => {
-  it("uses a smaller horizontal font when ten annual labels have enough room", () => {
+  it("never goes below 12px", () => {
     const layout = financialPeriodAxisLayout(
       Array.from({ length: 10 }, (_, index) => String(2017 + index)),
-      420,
+      300,
       false,
     );
 
-    expect(layout).toEqual({ fontSize: 9, angle: 0 });
+    expect(layout.fontSize).toBe(12);
+    expect(layout.angle).toBe(0);
+    expect(layout.short).toBe(true);
   });
 
-  it("rotates dense quarter labels instead of allowing them to overlap", () => {
+  it("thins labels when even short labels collide", () => {
     const layout = financialPeriodAxisLayout(
-      Array.from({ length: 12 }, (_, index) => `Q${index % 4 + 1} '${24 + Math.floor(index / 4)}`),
+      Array.from({ length: 40 }, (_, index) => `Q${index % 4 + 1} '${14 + Math.floor(index / 4)}`),
       300,
       true,
     );
 
-    expect(layout.fontSize).toBeLessThanOrEqual(8);
-    expect(layout.angle).toBeLessThan(0);
+    expect(layout.fontSize).toBe(12);
+    expect(layout.interval).toBeGreaterThanOrEqual(1);
+  });
+
+  it("keeps every label when they fit", () => {
+    const layout = financialPeriodAxisLayout(
+      Array.from({ length: 10 }, (_, index) => String(2017 + index)),
+      1200,
+      false,
+    );
+
+    expect(layout.interval).toBe(0);
+    expect(layout.short).toBe(false);
+  });
+});
+
+describe("financial bar fills", () => {
+  it("bars use theme series, not hex fills", () => {
+    render(
+      <MetricBarChart
+        metric={{
+          name: "Net Income",
+          years: ["2022", "2023", "2024"],
+          values: [100, -20, 140],
+          yoy: [null, -120, 800],
+          cagr: 18.3,
+        }}
+        currencyCode="USD"
+        period="annual"
+        ttm={150}
+      />,
+    );
+
+    const fills = screen.getAllByTestId("bar-fill").map((el) => el.getAttribute("data-fill"));
+    expect(fills.length).toBeGreaterThan(0);
+    fills.forEach((fill) => expect(fill.startsWith("#")).toBe(false));
   });
 });
 
