@@ -1,6 +1,6 @@
 ﻿import { formatMoney, formatPercent, formatCompact, formatNumber, formatShortDate, formatNumberSpaced, formatMoneySpaced } from "./format";
 
-import { formatLongDate, formatQuantity, formatDateTime } from "./format";
+import { formatLongDate, formatQuantity, formatDateTime, formatTableDate, humanizeCode, pluralize, displayLocale } from "./format";
 
 it('formats response timestamps with a timezone and rejects invalid dates', () => {
   expect(formatDateTime('2026-09-16T10:00:00Z')).toMatch(/2026/);
@@ -130,5 +130,43 @@ describe("formatMoneySpaced", () => {
   });
   it("returns an em dash for null", () => {
     expect(formatMoneySpaced(null)).toBe("—");
+  });
+});
+
+describe("locale-aware formatting", () => {
+  it("displayLocale maps the display currency to a locale", () => {
+    expect(displayLocale("CZK")).toBe("cs-CZ");
+    expect(displayLocale("USD")).toBe("en-US");
+    expect(displayLocale("EUR")).toBe("en-US");
+    expect(displayLocale(undefined)).toBe("en-US");
+  });
+  it("formatCompact uses a decimal comma for CZK and keeps USD", () => {
+    expect(formatCompact(63700, "CZK")).toBe("63,7K Kč");
+    expect(formatCompact(168.7, "CZK")).toBe("168,7 Kč");
+    expect(formatCompact(63700, "USD")).toBe("$63.7K");
+  });
+  it("formatQuantity follows the display currency", () => {
+    expect(formatQuantity(0.5, "CZK")).toBe("0,5");
+    // cs-CZ groups with a non-breaking space
+    expect(formatQuantity(1234.5, "CZK")).toMatch(/^1[\s ]234,5$/);
+    expect(formatQuantity(0.5, "USD")).toBe("0.5");
+    expect(formatQuantity(0.5)).toBe("0.5");
+  });
+  it("formatTableDate adds the year only outside the current year", () => {
+    const now = new Date(2026, 9, 23);
+    expect(formatTableDate("2026-10-15", now)).toBe("Oct 15");
+    expect(formatTableDate("2025-09-29", now)).toBe("Sep 29, 2025");
+    expect(formatTableDate("", now)).toBe("—");
+    expect(formatTableDate("garbage", now)).toBe("—");
+  });
+  it("humanizeCode turns enum codes into sentence case", () => {
+    expect(humanizeCode("INTEREST_ON_FREE_CASH")).toBe("Interest on free cash");
+    expect(humanizeCode("STRONG_BUY")).toBe("Strong buy");
+    expect(humanizeCode("deposit")).toBe("Deposit");
+    expect(humanizeCode(null)).toBe("—");
+  });
+  it("pluralize picks the singular only for exactly one", () => {
+    expect(pluralize(1, "share", "shares")).toBe("share");
+    expect(pluralize(0.4, "share", "shares")).toBe("shares");
   });
 });

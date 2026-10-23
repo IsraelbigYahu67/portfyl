@@ -58,9 +58,14 @@ export function formatMoney(value, currency = "USD") {
   }
 }
 
-export function formatQuantity(value) {
+// Number separators follow the display currency: CZK reads cs-CZ, the rest en-US.
+export function displayLocale(currency) {
+  return LOCALE_BY_CURRENCY[String(currency || "USD").toUpperCase()] || "en-US";
+}
+
+export function formatQuantity(value, currency = "USD") {
   if (value == null || !Number.isFinite(Number(value))) return DASH;
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat(displayLocale(currency), {
     maximumFractionDigits: 8,
     useGrouping: true,
   }).format(Number(value));
@@ -75,10 +80,12 @@ export function formatPercent(n, { sign = true, digits = 2 } = {}) {
 export function formatCompact(n, currency = "USD") {
   if (n == null || Number.isNaN(n)) return DASH;
   const sign = n < 0 ? "-" : "";
-  const str = Math.abs(n).toLocaleString("en-US", {
+  let str = Math.abs(n).toLocaleString("en-US", {
     notation: "compact",
     maximumFractionDigits: 1,
   });
+  // Keep the K/M/B suffixes but use the Czech decimal comma for CZK.
+  if (displayLocale(currency) === "cs-CZ") str = str.replace(".", ",");
   const { prefix = "", suffix = "" } = currencyParts(currency);
   return `${sign}${prefix}${str}${suffix}`;
 }
@@ -99,6 +106,27 @@ export function formatShortDate(iso, options = { month: "short", day: "numeric" 
   const [y, m, d] = String(iso).split("-").map(Number);
   if (!y || !m || !d) return DASH;
   return new Date(y, m - 1, d).toLocaleDateString("en-US", options);
+}
+
+// Table cells: "Oct 15" within the current year, "Oct 15, 2025" otherwise.
+export function formatTableDate(iso, now = new Date()) {
+  if (!iso) return DASH;
+  const [y, m, d] = String(iso).split("-").map(Number);
+  if (!y || !m || !d) return DASH;
+  const options = { month: "short", day: "numeric" };
+  if (y !== now.getFullYear()) options.year = "numeric";
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", options);
+}
+
+// "INTEREST_ON_FREE_CASH" -> "Interest on free cash"
+export function humanizeCode(code) {
+  if (code == null || String(code).trim() === "") return DASH;
+  const text = String(code).trim().replace(/_+/g, " ").toLowerCase();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+export function pluralize(n, one, many) {
+  return n === 1 ? one : many;
 }
 
 export function formatLongDate(iso) {
