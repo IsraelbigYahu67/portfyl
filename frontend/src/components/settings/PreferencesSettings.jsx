@@ -12,9 +12,10 @@ const PALETTE_OPTIONS = [
 export default function PreferencesSettings({ headingRef }) {
   const { currency, setCurrency, rate, rateLoading } = useCurrency();
   const { palette, setPalette, theme, setTheme, themeStyle, setThemeStyle } = usePalette();
-  // Premium and Clay each have one fixed light look, so Appearance and Accent
-  // palette only apply to Classic.
-  const fixedLook = themeStyle === "neu" || themeStyle === "clay";
+  // Premium has one fixed light look, so Appearance and Accent palette stay
+  // visible but disabled. Clay has its own palette, so they are not shown.
+  const clay = themeStyle === "clay";
+  const fixedLook = themeStyle === "neu";
   const czkUnavailable = !rateLoading && rate === null;
 
   return (
@@ -40,43 +41,49 @@ export default function PreferencesSettings({ headingRef }) {
           />
         </div>
 
-        <div className={fixedLook ? "opacity-50" : ""}>
-          <h3 className="mb-2 text-sm font-semibold">Appearance</h3>
-          <SegmentedControl
-            aria-label="Appearance"
-            block
-            value={theme}
-            onChange={setTheme}
-            options={[
-              { value: "light", label: <><Sun size={14} aria-hidden="true" /> <span>Light</span></>, title: "Light", disabled: fixedLook },
-              { value: "dark", label: <><Moon size={14} aria-hidden="true" /> <span>Dark</span></>, title: "Dark", disabled: fixedLook },
-              { value: "system", label: <><Monitor size={14} aria-hidden="true" /> <span>System</span></>, title: "System", disabled: fixedLook },
-            ]}
-          />
-          {fixedLook && <p className="mt-2 text-xs text-muted">{themeStyle === "clay" ? "Clay" : "Premium"} uses its own fixed light appearance.</p>}
-        </div>
-
-        <div className={fixedLook ? "opacity-50" : ""}>
-          <h3 className="mb-2 text-sm font-semibold">Accent palette</h3>
-          <div className="flex flex-wrap gap-2">
-            {PALETTE_OPTIONS.map(({ key, label, color }) => (
-              <button
-                key={key}
-                type="button"
-                aria-label={`Theme: ${label}`}
-                aria-pressed={palette === key}
-                disabled={fixedLook}
-                onClick={() => setPalette(key)}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm disabled:cursor-not-allowed ${
-                  palette === key ? "border-brand text-ink" : "border-surface-border text-muted"
-                }`}
-              >
-                <span aria-hidden="true" className="h-4 w-4 rounded-full" style={{ backgroundColor: color }} />
-                {label}
-              </button>
-            ))}
+        {clay ? (
+          <p className="text-sm text-muted">Clay uses its own light palette.</p>
+        ) : (
+          <>
+          <div className={fixedLook ? "opacity-50" : ""}>
+            <h3 className="mb-2 text-sm font-semibold">Appearance</h3>
+            <SegmentedControl
+              aria-label="Appearance"
+              block
+              value={theme}
+              onChange={setTheme}
+              options={[
+                { value: "light", label: <><Sun size={14} aria-hidden="true" /> <span>Light</span></>, title: "Light", disabled: fixedLook },
+                { value: "dark", label: <><Moon size={14} aria-hidden="true" /> <span>Dark</span></>, title: "Dark", disabled: fixedLook },
+                { value: "system", label: <><Monitor size={14} aria-hidden="true" /> <span>System</span></>, title: "System", disabled: fixedLook },
+              ]}
+            />
+            {fixedLook && <p className="mt-2 text-xs text-muted">Premium uses its own fixed light appearance.</p>}
           </div>
-        </div>
+
+          <div className={fixedLook ? "opacity-50" : ""}>
+            <h3 className="mb-2 text-sm font-semibold">Accent palette</h3>
+            <div className="flex flex-wrap gap-2">
+              {PALETTE_OPTIONS.map(({ key, label, color }) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-label={`Theme: ${label}`}
+                  aria-pressed={palette === key}
+                  disabled={fixedLook}
+                  onClick={() => setPalette(key)}
+                  className={`flex items-center gap-2 rounded-full border px-4 py-2 min-h-11 md:min-h-0 text-sm disabled:cursor-not-allowed ${
+                    palette === key ? "border-brand text-ink" : "border-surface-border text-muted"
+                  }`}
+                >
+                  <span aria-hidden="true" className="h-4 w-4 rounded-full" style={{ backgroundColor: color }} />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          </>
+        )}
 
         <div>
           <h3 className="mb-2 text-sm font-semibold">Display currency</h3>

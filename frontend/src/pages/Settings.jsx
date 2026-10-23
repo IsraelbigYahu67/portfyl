@@ -16,6 +16,7 @@ import SettingsSectionNav, { SETTINGS_SECTIONS } from "../components/settings/Se
 import SyncScheduleSettings from "../components/SyncScheduleSettings";
 import { AsyncSection } from "../components/ui";
 import Toggle from "../components/ui/Toggle";
+import { Badge } from "../components/ui/Badge";
 import { getApiErrorMessage } from "../lib/apiError";
 import { useBrokerPortfolio } from "../hooks/useBrokerPortfolio";
 import { splitNote } from "../lib/brokerPortfolio";
@@ -104,7 +105,7 @@ export function HistoryBackfillStatus({ run, onRetry, retryPending = false }) {
             type="button"
             onClick={onRetry}
             disabled={retryPending}
-            className="flex items-center gap-2 rounded-lg border border-surface-border px-5 py-2.5 text-sm font-semibold text-ink disabled:opacity-40"
+            className="btn-ghost flex items-center gap-2 text-sm font-semibold min-h-11 md:min-h-0 disabled:opacity-40"
           >
             {retryPending ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <RefreshCw size={16} aria-hidden="true" />}
             Retry history import
@@ -231,7 +232,7 @@ function ConnectionsSettings({ headingRef }) {
               <h3 className="text-lg font-semibold">Trading 212</h3>
               <p className="mt-0.5 text-sm text-muted">Connect your account to import transactions into <span className="text-ink">{currentPortfolio?.name ?? "this portfolio"}</span>.</p>
             </div>
-            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${connected ? "bg-gain/10 text-gain" : "bg-surface-hover text-muted"}`}>{connected ? "Connected" : "Not connected"}</span>
+            <Badge tone={connected ? "gain" : "neutral"} className="shrink-0">{connected ? "Connected" : "Not connected"}</Badge>
           </div>
 
           {actionError && <div role="alert" className="flex items-center gap-2 rounded-lg border border-loss/30 bg-loss/10 px-4 py-3 text-sm text-loss"><AlertCircle size={16} />{actionError}</div>}
@@ -242,16 +243,16 @@ function ConnectionsSettings({ headingRef }) {
               <div>
                 <label htmlFor="t212-api-key" className="mb-1.5 block text-sm text-muted">API Key</label>
                 <div className="relative">
-                  <input id="t212-api-key" type={showKey ? "text" : "password"} value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Paste your Trading 212 API key" className="w-full rounded-lg border border-surface-border bg-surface px-4 py-2.5 pr-10 text-sm" />
+                  <input id="t212-api-key" type={showKey ? "text" : "password"} value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Paste your Trading 212 API key" className="input pr-10 text-sm" />
                   <button type="button" aria-label={showKey ? "Hide API key" : "Show API key"} onClick={() => setShowKey((visible) => !visible)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink">{showKey ? <EyeOff size={16} /> : <Eye size={16} />}</button>
                 </div>
                 <p className="mt-1.5 text-xs text-muted">Generate an API key in Trading 212 → Settings → API (beta)</p>
               </div>
               <div>
                 <label htmlFor="t212-api-secret" className="mb-1.5 block text-sm text-muted">API Secret</label>
-                <input id="t212-api-secret" type="password" value={apiSecret} onChange={(event) => setApiSecret(event.target.value)} placeholder="Paste your Trading 212 API secret" className="w-full rounded-lg border border-surface-border bg-surface px-4 py-2.5 text-sm" />
+                <input id="t212-api-secret" type="password" value={apiSecret} onChange={(event) => setApiSecret(event.target.value)} placeholder="Paste your Trading 212 API secret" className="input text-sm" />
               </div>
-              <button type="button" onClick={() => connectMutation.mutate()} disabled={!apiKey.trim() || !apiSecret.trim() || busy} className="flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40">{connectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} />}Connect</button>
+              <button type="button" onClick={() => connectMutation.mutate()} disabled={!apiKey.trim() || !apiSecret.trim() || busy} className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40">{connectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} />}Connect</button>
             </div>
           )}
 
@@ -264,11 +265,11 @@ function ConnectionsSettings({ headingRef }) {
                 <div className="flex justify-between"><span className="text-muted">Connected since</span><span>{status.connected_at ? new Date(status.connected_at).toLocaleDateString() : "—"}</span></div>
                 <div className="flex items-center justify-between pt-1"><span className="text-muted">Auto-sync <span className="ml-2 text-xs">checks on the schedule below</span></span><Toggle checked={status.auto_sync} onChange={(value) => autoSyncMutation.mutate(value)} disabled={autoSyncMutation.isPending} aria-label="T212 auto-sync" /></div>
               </div>
-              <BrokerPositionSnapshot query={t212.positionsQuery} />
+              <BrokerPositionSnapshot query={t212.positionsQuery} variant="summary" />
               <HistoryBackfillStatus run={t212.historyRun} onRetry={handleRetry} retryPending={t212.retryPending} />
               <div className="flex gap-3">
-                <button type="button" onClick={handleSync} disabled={busy} className="flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40">{syncMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}Sync now</button>
-                <button type="button" onClick={() => disconnectMutation.mutate()} disabled={busy} className="flex items-center gap-2 rounded-lg border border-red-200 px-5 py-2.5 text-sm font-semibold text-red-600 disabled:opacity-40">{disconnectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Unlink size={16} />}Disconnect</button>
+                <button type="button" onClick={handleSync} disabled={busy} className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40">{syncMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}Sync now</button>
+                <button type="button" onClick={() => disconnectMutation.mutate()} disabled={busy} className="btn-ghost text-loss flex items-center gap-2 text-sm font-semibold min-h-11 md:min-h-0 disabled:opacity-40">{disconnectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Unlink size={16} />}Disconnect</button>
               </div>
             </div>
           )}

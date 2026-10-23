@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import DataPrivacySettings from "./DataPrivacySettings";
+import { legacyColorClassesIn } from "../test/legacyClasses";
+
+// The suite stubs the global URL for blob downloads; keep the real one for path lookups.
+const NativeURL = URL;
 import AnalyticsProvider from "../analytics/AnalyticsProvider";
 import { createMemoryAdapter } from "../analytics/analyticsClient";
 
@@ -89,6 +93,12 @@ describe("DataPrivacySettings", () => {
     mount();
     expect(await screen.findByRole("region", { name: "Analytics preferences" })).toBeInTheDocument();
     expect(screen.getByText("Analytics: awaiting your decision")).toBeInTheDocument();
+  });
+
+  it("shows analytics preferences in an inset well rather than a second raised card", async () => {
+    mount();
+    const region = await screen.findByRole("region", { name: "Analytics preferences" });
+    expect(region.parentElement).toHaveAttribute("data-surface", "inset");
   });
 
   it("downloads the active workspace JSON attachment", async () => {
@@ -228,5 +238,15 @@ describe("DataPrivacySettings", () => {
 
     await waitFor(() => expect(mocks.cancelWorkspaceDeletion).toHaveBeenCalledTimes(1));
     expect(await screen.findByRole("button", { name: /delete workspace/i })).toBeInTheDocument();
+  });
+
+  it("uses shared pill buttons and a destructive ghost for deleting the workspace", async () => {
+    mount();
+    expect(await screen.findByRole("button", { name: /download json export/i })).toHaveClass("btn-ghost");
+    expect(await screen.findByRole("button", { name: /delete workspace/i })).toHaveClass("btn-ghost", "text-loss");
+  });
+
+  it("uses no legacy color classes", async () => {
+    expect(await legacyColorClassesIn(new NativeURL("./DataPrivacySettings.jsx", import.meta.url))).toEqual([]);
   });
 });

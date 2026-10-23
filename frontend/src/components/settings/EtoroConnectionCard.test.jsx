@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import EtoroConnectionCard, { describeEtoroSync } from "./EtoroConnectionCard";
+import { legacyColorClassesIn } from "../../test/legacyClasses";
 
 const mocks = vi.hoisted(() => ({
   fetchEtoroStatus: vi.fn(),
@@ -40,12 +41,37 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-it("says when the server has no eToro integration configured", async () => {
+it("eToro card is hidden when unavailable", async () => {
   mocks.fetchEtoroStatus.mockResolvedValue({ connected: false, configured: false });
+  const { container } = mount();
+
+  await waitFor(() => expect(mocks.fetchEtoroStatus).toHaveBeenCalled());
+  await waitFor(() => expect(container.querySelector(".animate-pulse")).toBeNull());
+  expect(screen.queryByText("eToro")).not.toBeInTheDocument();
+  expect(screen.queryByText(/not available on this server yet/i)).not.toBeInTheDocument();
+  expect(container).toBeEmptyDOMElement();
+});
+
+it("shows the eToro heading and a neutral badge when it is available but not connected", async () => {
+  mocks.fetchEtoroStatus.mockResolvedValue({ connected: false, configured: true });
   mount();
 
-  expect(await screen.findByText(/not available on this server yet/i)).toBeInTheDocument();
-  expect(screen.queryByLabelText(/eToro API key/i)).not.toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "eToro" })).toBeInTheDocument();
+  expect(screen.getByText("Not connected")).toHaveAttribute("data-tone", "neutral");
+  expect(screen.getByRole("button", { name: /^connect$/i })).toHaveClass("btn-primary");
+});
+
+it("keeps the card for a connected account even if the server lost its app key", async () => {
+  mocks.fetchEtoroStatus.mockResolvedValue({ ...CONNECTED, configured: false });
+  mount();
+
+  expect(await screen.findByRole("heading", { name: "eToro" })).toBeInTheDocument();
+  expect(screen.getByText("Connected")).toHaveAttribute("data-tone", "gain");
+  expect(screen.getByRole("button", { name: /disconnect/i })).toHaveClass("btn-ghost", "text-loss");
+});
+
+it("uses no legacy color classes", async () => {
+  expect(await legacyColorClassesIn(new URL("./EtoroConnectionCard.jsx", import.meta.url))).toEqual([]);
 });
 
 it("connects with a personal key and explains how to create one", async () => {

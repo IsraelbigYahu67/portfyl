@@ -6,6 +6,7 @@ import { AlertCircle, CheckCircle2, Clock, Eye, EyeOff, Info, Link as LinkIcon, 
 import { connectIBKR, disconnectIBKR, fetchIBKRStatus, setIBKRAutoSync, syncIBKR } from "../../api";
 import { AsyncSection } from "../ui";
 import Toggle from "../ui/Toggle";
+import { Badge } from "../ui/Badge";
 import { getApiErrorMessage } from "../../lib/apiError";
 import { useBrokerPortfolio } from "../../hooks/useBrokerPortfolio";
 import { splitNote } from "../../lib/brokerPortfolio";
@@ -202,7 +203,7 @@ export default function IBKRConnectionCard({ portfolioId, portfolioName }) {
               The Flex Web Service sync imports stocks, ETFs, dividends and cash into <span className="text-ink">{portfolioName ?? "this portfolio"}</span>, alongside your options trades.
             </p>
           </div>
-          <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${connected ? "bg-gain/10 text-gain" : "bg-surface-hover text-muted"}`}>{connected ? "Connected" : "Not connected"}</span>
+          <Badge tone={connected ? "gain" : "neutral"} className="shrink-0">{connected ? "Connected" : "Not connected"}</Badge>
         </div>
 
         {actionError && <div role="alert" className="flex items-center gap-2 rounded-lg border border-loss/30 bg-loss/10 px-4 py-3 text-sm text-loss"><AlertCircle size={16} />{actionError}</div>}
@@ -213,15 +214,15 @@ export default function IBKRConnectionCard({ portfolioId, portfolioName }) {
             <div>
               <label htmlFor="ibkr-flex-token" className="mb-1.5 block text-sm text-muted">Flex Web Service token</label>
               <div className="relative">
-                <input id="ibkr-flex-token" type={showToken ? "text" : "password"} value={flexToken} onChange={(event) => setFlexToken(event.target.value)} placeholder="Paste your Flex Web Service token" autoComplete="off" className="w-full rounded-lg border border-surface-border bg-surface px-4 py-2.5 pr-10 text-sm" />
+                <input id="ibkr-flex-token" type={showToken ? "text" : "password"} value={flexToken} onChange={(event) => setFlexToken(event.target.value)} placeholder="Paste your Flex Web Service token" autoComplete="off" className="input pr-10 text-sm" />
                 <button type="button" aria-label={showToken ? "Hide token" : "Show token"} onClick={() => setShowToken((visible) => !visible)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink">{showToken ? <EyeOff size={16} /> : <Eye size={16} />}</button>
               </div>
             </div>
             <div>
               <label htmlFor="ibkr-query-id" className="mb-1.5 block text-sm text-muted">Flex Query ID</label>
-              <input id="ibkr-query-id" type="text" inputMode="numeric" value={queryId} onChange={(event) => setQueryId(event.target.value)} placeholder="e.g. 123456" autoComplete="off" className="w-full rounded-lg border border-surface-border bg-surface px-4 py-2.5 text-sm" />
+              <input id="ibkr-query-id" type="text" inputMode="numeric" value={queryId} onChange={(event) => setQueryId(event.target.value)} placeholder="e.g. 123456" autoComplete="off" className="input text-sm" />
             </div>
-            <button type="button" onClick={() => connectMutation.mutate()} disabled={!flexToken.trim() || !queryId.trim() || busy} className="flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40">{connectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} />}Connect</button>
+            <button type="button" onClick={() => connectMutation.mutate()} disabled={!flexToken.trim() || !queryId.trim() || busy} className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40">{connectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} />}Connect</button>
           </div>
         )}
 
@@ -241,8 +242,8 @@ export default function IBKRConnectionCard({ portfolioId, portfolioName }) {
             </div>
             <IBKRSyncOutcome result={syncResult} />
             <div className="flex flex-wrap gap-3">
-              <button type="button" onClick={() => syncMutation.mutate()} disabled={busy} className="flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40">{syncMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}{syncMutation.isPending ? "Syncing… (up to a minute)" : "Sync now"}</button>
-              <button type="button" onClick={() => disconnectMutation.mutate()} disabled={busy} className="flex items-center gap-2 rounded-lg border border-red-200 px-5 py-2.5 text-sm font-semibold text-red-600 disabled:opacity-40">{disconnectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Unlink size={16} />}Disconnect</button>
+              <button type="button" onClick={() => syncMutation.mutate()} disabled={busy} className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40">{syncMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}{syncMutation.isPending ? "Syncing… (up to a minute)" : "Sync now"}</button>
+              <button type="button" onClick={() => disconnectMutation.mutate()} disabled={busy} className="btn-ghost text-loss flex items-center gap-2 text-sm font-semibold min-h-11 md:min-h-0 disabled:opacity-40">{disconnectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Unlink size={16} />}Disconnect</button>
             </div>
           </div>
         )}

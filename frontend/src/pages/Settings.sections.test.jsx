@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 import Settings, { HistoryBackfillStatus } from "./Settings";
+import { legacyColorClassesIn } from "../test/legacyClasses";
 
 const mocks = vi.hoisted(() => ({
   fetchT212Status: vi.fn(),
@@ -85,6 +86,17 @@ it("mounts only the selected section and trusts the broker status for connection
   expect(screen.getByText("eToro card for Imported portfolio")).toBeInTheDocument();
   expect(mocks.discordMount).not.toHaveBeenCalled();
   expect(mocks.dataMount).not.toHaveBeenCalled();
+});
+
+it("shows Trading 212 connection state as a badge", async () => {
+  mount("/settings?section=connections");
+  expect(await screen.findByText("Not connected")).toHaveAttribute("data-tone", "neutral");
+  expect(screen.getByLabelText("API Key")).toHaveClass("input");
+  expect(screen.getByRole("button", { name: /^connect$/i })).toHaveClass("btn-primary");
+});
+
+it("uses no legacy color classes", async () => {
+  expect(await legacyColorClassesIn(new URL("./Settings.jsx", import.meta.url))).toEqual([]);
 });
 
 it("opens Preferences without firing section network queries", async () => {
@@ -370,9 +382,25 @@ describe("Trading 212 fast position snapshot", () => {
 
     mount("/settings?section=connections");
 
-    expect(await screen.findByText("Current positions")).toBeInTheDocument();
-    expect(screen.getByText("2 positions")).toBeInTheDocument();
+    expect(await screen.findByText("2 positions")).toBeInTheDocument();
     expect(screen.getByText("$150.00")).toBeInTheDocument();
-    expect(screen.getByText("Snapshot fresh")).toBeInTheDocument();
+    expect(screen.getByText(/updated/)).toBeInTheDocument();
+  });
+
+  it("shows the snapshot as a compact summary instead of the full list", async () => {
+    mocks.fetchT212Status.mockResolvedValue({ connected: true, auto_sync: false, api_key_preview: "1234" });
+    mocks.fetchT212Positions.mockResolvedValue({
+      connected: true,
+      status: "fresh",
+      as_of: "2026-09-21T10:05:00Z",
+      currency: "USD",
+      positions: [{ ticker: "AAPL", market_value: 100 }],
+    });
+
+    mount("/settings?section=connections");
+
+    expect(await screen.findByRole("button", { name: "Show positions" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Current positions" })).not.toBeInTheDocument();
+    expect(screen.queryByText("AAPL")).not.toBeInTheDocument();
   });
 });
