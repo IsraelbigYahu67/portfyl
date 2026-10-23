@@ -3,6 +3,7 @@ import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { Calendar } from "lucide-react";
 import { Card, SectionHeader, Skeleton, EmptyState, DeltaPill, Badge, Modal } from "./index";
+import Toggle from "./Toggle";
 import { legacyColorClassesIn } from "../../test/legacyClasses";
 import { sourcePath } from "../../test/sourcePath";
 
@@ -107,6 +108,19 @@ describe("Badge and Modal", () => {
 
   it("Badge uses no legacy color classes", async () => {
     expect(await legacyColorClassesIn(new URL("./Badge.jsx", import.meta.url))).toEqual([]);
+  });
+
+  it("Toggle uses no legacy color classes", async () => {
+    expect(await legacyColorClassesIn(new URL("./Toggle.jsx", import.meta.url))).toEqual([]);
+  });
+
+  it("Toggle keeps its switch semantics and flips on click", () => {
+    const onChange = vi.fn();
+    render(<Toggle checked={false} onChange={onChange} aria-label="Sync" />);
+    const toggle = screen.getByRole("switch", { name: "Sync" });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(toggle);
+    expect(onChange).toHaveBeenCalledWith(true);
   });
 });
 
