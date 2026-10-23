@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { legacyColorClassesIn } from "../test/legacyClasses";
 import { ConfirmProvider } from "../components/ui/ConfirmDialog";
 import { ToastProvider } from "../components/ui/Toast";
 import Watchlists from "./Watchlists";
@@ -137,4 +138,24 @@ it("explains capability-denied alerts even when Discord is connected", async () 
   renderPage();
   expect((await screen.findAllByText(/notification integrations are not available/i)).length).toBeGreaterThan(0);
   expect(screen.getByRole("button", { name: "Create price alert for AAPL" })).toBeDisabled();
+});
+
+it("price alerts render after the watchlists", async () => {
+  renderPage();
+  const firstList = await screen.findByRole("link", { name: /AAPL Apple/i });
+  const alertsTitle = screen.getByText("Price Alerts");
+  expect(firstList.compareDocumentPosition(alertsTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it("alert inputs and buttons use the shared Clay controls", async () => {
+  renderPage();
+  await screen.findByRole("link", { name: /AAPL Apple/i });
+  expect(screen.getByRole("textbox", { name: "Alert ticker" })).toHaveClass("input");
+  expect(screen.getByRole("spinbutton", { name: "Target price" })).toHaveClass("input");
+  expect(screen.getByRole("button", { name: "Add alert" })).toHaveClass("btn-primary");
+  expect(screen.getByRole("button", { name: "Create" })).toHaveClass("btn-primary");
+});
+
+it("uses no legacy color classes", async () => {
+  expect(await legacyColorClassesIn(new URL("./Watchlists.jsx", import.meta.url))).toEqual([]);
 });

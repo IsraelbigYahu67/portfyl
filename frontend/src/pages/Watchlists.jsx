@@ -15,7 +15,7 @@ import {
 } from "../api";
 import { WatchlistCard } from "../components/watchlists/WatchlistCard";
 import { WatchlistEmptyState } from "../components/watchlists/WatchlistEmptyState";
-import { AsyncSection } from "../components/ui";
+import { AsyncSection, Badge, SectionHeader } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
 import { getApiErrorMessage } from "../lib/apiError";
 
@@ -30,10 +30,10 @@ function NewWatchlistForm() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["watchlists"] }),
   });
   return (
-    <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); if (name.trim()) create.mutate(); }}>
+    <form className="flex flex-wrap items-center gap-2" onSubmit={(event) => { event.preventDefault(); if (name.trim()) create.mutate(); }}>
       <label className="sr-only" htmlFor="new-watchlist-name">New watchlist name</label>
-      <input id="new-watchlist-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="New watchlist name" className="rounded-md border border-surface-border bg-surface-card px-3 py-1.5 text-sm" />
-      <button type="submit" disabled={!name.trim() || create.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-black disabled:opacity-40"><Plus size={14} />Create</button>
+      <input id="new-watchlist-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="New watchlist name" className="input !w-auto min-h-[44px] text-sm md:min-h-0" />
+      <button type="submit" disabled={!name.trim() || create.isPending} className="btn-primary inline-flex min-h-[44px] items-center gap-1.5 text-sm disabled:opacity-40 md:min-h-0"><Plus size={14} />Create</button>
     </form>
   );
 }
@@ -69,23 +69,33 @@ function PriceAlertsPanel({ alerts, isLoading, disabledReason, prefillTicker, on
     add.mutate({ ticker, direction: form.direction, target_price: price });
   };
   return (
-    <section className="mb-6 rounded-xl border border-surface-border bg-surface-card">
-      <header className="flex flex-wrap items-center gap-3 border-b border-surface-border px-4 py-3">
-        <Bell size={16} className="text-brand" /><h2 className="text-lg font-bold">Price Alerts</h2><span className="mr-auto text-xs text-muted">Discord notification when a price is crossed</span>
-        <button type="button" onClick={() => check.mutate()} disabled={check.isPending || alerts.length === 0 || Boolean(disabledReason)} className="inline-flex items-center gap-1.5 text-xs text-muted disabled:opacity-40"><RefreshCw size={13} />Check now</button>
+    <section aria-label="Price Alerts" className="card mt-6 !p-0">
+      <header className="border-b border-surface-border px-4 pt-4">
+        <SectionHeader
+          icon={Bell}
+          className="!mb-3"
+          action={(
+            <>
+              <span className="text-xs text-muted">Discord notification when a price is crossed</span>
+              <button type="button" onClick={() => check.mutate()} disabled={check.isPending || alerts.length === 0 || Boolean(disabledReason)} className="btn-ghost inline-flex min-h-[44px] items-center gap-1.5 !px-3 !py-1.5 text-xs disabled:opacity-40 md:min-h-0"><RefreshCw size={13} />Check now</button>
+            </>
+          )}
+        >
+          Price Alerts
+        </SectionHeader>
       </header>
       {disabledReason && <p className="border-b border-surface-border px-4 py-2 text-sm text-muted" role="status">Alerts are unavailable: {disabledReason}. <Link className="text-brand hover:underline" to="/settings?section=notifications">Configure notifications</Link></p>}
       <form onSubmit={submit} className="flex flex-wrap items-center gap-2 border-b border-surface-border px-4 py-3">
-        <label className="sr-only" htmlFor="alert-ticker">Alert ticker</label><input id="alert-ticker" value={form.ticker} onChange={(event) => setForm({ ...form, ticker: event.target.value.toUpperCase() })} placeholder="Ticker" className="w-28 rounded-md border border-surface-border bg-surface px-2 py-1.5 text-sm font-mono" />
-        <label className="sr-only" htmlFor="alert-direction">Alert direction</label><select id="alert-direction" value={form.direction} onChange={(event) => setForm({ ...form, direction: event.target.value })} className="rounded-md border border-surface-border bg-surface px-2 py-1.5 text-sm"><option value="above">rises to / above</option><option value="below">falls to / below</option></select>
-        <label className="sr-only" htmlFor="alert-price">Target price</label><input id="alert-price" type="number" step="0.01" value={form.target_price} onChange={(event) => setForm({ ...form, target_price: event.target.value })} placeholder="Target price" className="w-32 rounded-md border border-surface-border bg-surface px-2 py-1.5 text-sm" />
-        <button type="submit" disabled={add.isPending || !form.ticker.trim() || !form.target_price || Boolean(disabledReason)} className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-black disabled:opacity-40"><Plus size={14} />Add alert</button>
+        <label className="sr-only" htmlFor="alert-ticker">Alert ticker</label><input id="alert-ticker" value={form.ticker} onChange={(event) => setForm({ ...form, ticker: event.target.value.toUpperCase() })} placeholder="Ticker" className="input !w-28 min-h-[44px] font-mono text-sm md:min-h-0" />
+        <label className="sr-only" htmlFor="alert-direction">Alert direction</label><select id="alert-direction" value={form.direction} onChange={(event) => setForm({ ...form, direction: event.target.value })} className="input !w-auto min-h-[44px] text-sm md:min-h-0"><option value="above">rises to / above</option><option value="below">falls to / below</option></select>
+        <label className="sr-only" htmlFor="alert-price">Target price</label><input id="alert-price" type="number" step="0.01" value={form.target_price} onChange={(event) => setForm({ ...form, target_price: event.target.value })} placeholder="Target price" className="input !w-32 min-h-[44px] text-sm md:min-h-0" />
+        <button type="submit" disabled={add.isPending || !form.ticker.trim() || !form.target_price || Boolean(disabledReason)} className="btn-primary inline-flex min-h-[44px] items-center gap-1.5 text-sm disabled:opacity-40 md:min-h-0"><Plus size={14} />Add alert</button>
       </form>
       {isLoading ? <p className="px-4 py-6 text-center text-sm text-muted">Loading alerts…</p> : alerts.length === 0 ? <p className="px-4 py-6 text-center text-sm text-muted">No alerts yet.</p> : (
         <ul className="divide-y divide-surface-border">
           {alerts.map((alert) => {
             const triggered = alert.status === "triggered";
-            return <li key={alert.id} className="flex items-center gap-3 px-4 py-3"><span className="w-20 font-mono font-bold">{alert.ticker}</span><span className="flex-1 text-sm text-muted">{alert.direction === "above" ? "≥" : "≤"} {alert.target_price}</span><span className="text-xs font-medium">{triggered ? "Triggered" : "Active"}</span>{triggered ? <button type="button" onClick={() => reset.mutate(alert.id)} aria-label={`Re-arm ${alert.ticker}`}><RotateCcw size={14} /></button> : <label className="text-xs text-muted"><input type="checkbox" checked={alert.enabled} onChange={(event) => toggle.mutate({ id: alert.id, enabled: event.target.checked })} /> Armed</label>}<button type="button" onClick={() => remove.mutate(alert.id)} aria-label={`Delete alert for ${alert.ticker}`}><Trash2 size={14} /></button>{triggered && <BellRing size={13} className="text-amber-500" />}</li>;
+            return <li key={alert.id} className="flex items-center gap-3 px-4 py-3"><span className="w-20 font-mono font-bold">{alert.ticker}</span><span className="flex-1 text-sm text-muted">{alert.direction === "above" ? "≥" : "≤"} {alert.target_price}</span><Badge tone={triggered ? "warn" : "gain"}>{triggered ? "Triggered" : "Active"}</Badge>{triggered ? <button type="button" className="grid min-h-[44px] min-w-[44px] place-items-center md:min-h-0 md:min-w-0" onClick={() => reset.mutate(alert.id)} aria-label={`Re-arm ${alert.ticker}`}><RotateCcw size={14} /></button> : <label className="inline-flex min-h-[44px] items-center gap-1 text-xs text-muted md:min-h-0"><input type="checkbox" checked={alert.enabled} onChange={(event) => toggle.mutate({ id: alert.id, enabled: event.target.checked })} /> Armed</label>}<button type="button" className="grid min-h-[44px] min-w-[44px] place-items-center md:min-h-0 md:min-w-0" onClick={() => remove.mutate(alert.id)} aria-label={`Delete alert for ${alert.ticker}`}><Trash2 size={14} /></button>{triggered && <BellRing size={13} className="text-[color:var(--chart-3)]" />}</li>;
           })}
         </ul>
       )}
@@ -111,10 +121,10 @@ export default function Watchlists() {
   return (
     <div className="mx-auto max-w-6xl py-6">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">Watchlists</h1><p className="mt-0.5 text-sm text-muted">Track researched stocks without adding them to a portfolio.</p></div><NewWatchlistForm /></div>
-      <PriceAlertsPanel alerts={alerts.data || []} isLoading={alerts.isLoading} disabledReason={alertDisabledReason} prefillTicker={prefillTicker} onConsumePrefill={() => setPrefillTicker("")} />
       <AsyncSection isLoading={watchlists.isLoading} error={watchlists.error} onRetry={() => watchlists.refetch()} loading={<div className="py-16 text-center text-sm text-muted">Loading watchlists…</div>} isEmpty={lists.length === 0} empty={<WatchlistEmptyState />}>
         <div className="space-y-6">{lists.map((list) => <WatchlistCard key={list.id} wl={list} onAlert={setPrefillTicker} alertsByTicker={alertsByTicker} alertDisabledReason={alertDisabledReason} />)}</div>
       </AsyncSection>
+      <PriceAlertsPanel alerts={alerts.data || []} isLoading={alerts.isLoading} disabledReason={alertDisabledReason} prefillTicker={prefillTicker} onConsumePrefill={() => setPrefillTicker("")} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { legacyColorClassesIn } from "../test/legacyClasses";
 import { ConfirmProvider } from "../components/ui/ConfirmDialog";
 import { ToastProvider } from "../components/ui/Toast";
 
@@ -11,6 +12,7 @@ import Stock from "./Stock";
 
 const api = vi.hoisted(() => ({
   searchTickers: vi.fn(),
+  fetchAllHoldings: vi.fn(),
   fetchWatchlists: vi.fn(),
   createWatchlist: vi.fn(),
   deleteWatchlist: vi.fn(),
@@ -76,6 +78,7 @@ function renderPage(Page, path = "/") {
 beforeEach(() => {
   vi.clearAllMocks();
   api.searchTickers.mockResolvedValue({ results: [] });
+  api.fetchAllHoldings.mockResolvedValue([]);
   api.fetchWatchlists.mockResolvedValue([]);
   api.fetchAlerts.mockResolvedValue([]);
   api.fetchCapabilities.mockResolvedValue({ capabilities: ["notification_integrations"] });
@@ -138,4 +141,34 @@ it("shows a safe Stock provider error with Retry and recovers", async () => {
   fireEvent.click(screen.getByRole("button", { name: /retry/i }));
   await waitFor(() => expect(api.fetchStockView).toHaveBeenCalledTimes(2));
   expect((await screen.findAllByText("Overview for AAPL")).length).toBeGreaterThan(0);
+});
+
+it("search shows your holdings before typing", async () => {
+  const holdings = [
+    ...Array.from({ length: 10 }, (_, i) => ({ ticker: `T${i}`, weight: i + 1, closed: false })),
+    { ticker: "GONE", weight: 99, closed: true },
+  ];
+  api.fetchAllHoldings.mockResolvedValue(holdings);
+  renderPage(Search);
+
+  expect(await screen.findByText("Your holdings")).toBeInTheDocument();
+  const links = screen.getAllByRole("link");
+  expect(links).toHaveLength(8);
+  expect(links.map((link) => link.textContent)).toEqual(["T9", "T8", "T7", "T6", "T5", "T4", "T3", "T2"]);
+  expect(links[0]).toHaveAttribute("href", "/stock/T9");
+  expect(screen.queryByText("GONE")).not.toBeInTheDocument();
+  expect(api.fetchAllHoldings).toHaveBeenCalledWith("USD");
+
+  fireEvent.change(screen.getByPlaceholderText(/search by ticker/i), { target: { value: "AAPL" } });
+  await waitFor(() => expect(screen.queryByText("Your holdings")).not.toBeInTheDocument());
+});
+
+it("search keeps the typing prompt when there are no holdings", async () => {
+  renderPage(Search);
+  expect(await screen.findByText(/start typing/i)).toBeInTheDocument();
+  expect(screen.queryByText("Your holdings")).not.toBeInTheDocument();
+});
+
+it("Search uses no legacy color classes", async () => {
+  expect(await legacyColorClassesIn(new URL("./Search.jsx", import.meta.url))).toEqual([]);
 });

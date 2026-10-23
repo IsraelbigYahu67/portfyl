@@ -74,6 +74,14 @@ function NameModal({ title, initial = "", confirmLabel, busy, onCancel, onSubmit
   );
 }
 
+// "Default · 759 transactions" on the second line of a row; non-default
+// portfolios show just the count.
+function transactionSummary(p) {
+  const count = p.transaction_count ?? 0;
+  const label = `${count} ${count === 1 ? "transaction" : "transactions"}`;
+  return p.is_default ? `Default · ${label}` : label;
+}
+
 export default function PortfolioSwitcher() {
   const { activePortfolios, portfolios: allPortfolios, current, setCurrentId, refetchPortfolios } = usePortfolio();
   const portfolios = activePortfolios || allPortfolios || [];
@@ -157,7 +165,7 @@ export default function PortfolioSwitcher() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Switch portfolio (current: ${current?.name ?? "none"})`}
-        className="w-full flex items-center gap-2 bg-surface border border-surface-border rounded-lg px-3 py-2 text-left hover:border-slate-300 transition-colors"
+        className="w-full flex items-center gap-2 bg-surface border border-surface-border rounded-lg px-3 py-2 text-left hover:border-brand transition-colors"
       >
         <Briefcase size={14} className="text-brand shrink-0" />
         <div className="flex-1 min-w-0">
@@ -181,27 +189,25 @@ export default function PortfolioSwitcher() {
             return (
               <div
                 key={p.id}
-                className={`flex items-center gap-2 px-2.5 py-1.5 text-sm group hover:bg-surface-hover ${
+                className={`relative flex items-center gap-2 px-2.5 py-1.5 text-sm group hover:bg-surface-hover ${
                   active ? "text-brand" : "text-ink"
                 }`}
               >
                 <button
                   onClick={() => onSelect(p.id)}
-                  className="flex-1 flex items-center gap-2 min-w-0 text-left"
+                  className="flex min-h-[44px] flex-1 items-center gap-2 min-w-0 text-left md:min-h-0"
                 >
                   <span className="w-3.5 shrink-0">
                     {active && <Check size={14} />}
                   </span>
-                  <span className="truncate">{p.name}</span>
-                  {p.is_default && (
-                    <span className="text-xs uppercase tracking-wider text-muted ml-1">
-                      default
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate font-medium">{p.name}</span>
+                    <span className="text-xs text-muted tabular-nums">
+                      {transactionSummary(p)}
                     </span>
-                  )}
-                  <span className="ml-auto text-xs text-muted tabular-nums">
-                    {p.transaction_count ?? 0}
                   </span>
                 </button>
+                <span className="flex shrink-0 items-center md:pointer-events-none md:absolute md:right-1.5 md:top-1/2 md:-translate-y-1/2 md:rounded-full md:bg-surface-card md:px-1 md:opacity-0 md:shadow-sm md:group-hover:pointer-events-auto md:group-hover:opacity-100 md:group-focus-within:pointer-events-auto md:group-focus-within:opacity-100">
                 <button
                   title="Rename"
                   aria-label={`Rename ${p.name}`}
@@ -211,7 +217,7 @@ export default function PortfolioSwitcher() {
                     setMode("rename");
                     setOpen(false);
                   }}
-                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted hover:text-ink"
+                  className="grid min-h-[44px] min-w-[44px] place-items-center text-muted hover:text-ink md:min-h-0 md:min-w-0 md:p-1.5"
                 >
                   <Pencil size={12} />
                 </button>
@@ -223,10 +229,11 @@ export default function PortfolioSwitcher() {
                     e.stopPropagation();
                     handleDelete(p);
                   }}
-                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                  className="grid min-h-[44px] min-w-[44px] place-items-center text-muted hover:text-loss disabled:opacity-20 disabled:cursor-not-allowed md:min-h-0 md:min-w-0 md:p-1.5"
                 >
                   <Trash2 size={12} />
                 </button>
+                </span>
               </div>
             );
           })}
@@ -271,7 +278,7 @@ export default function PortfolioSwitcher() {
       )}
 
       {(createMut.isError || renameMut.isError || deleteMut.isError) && (
-        <p className="text-xs text-red-500 mt-1 px-1">
+        <p className="text-xs text-loss mt-1 px-1">
           {createMut.error?.response?.data?.detail ||
             renameMut.error?.response?.data?.detail ||
             deleteMut.error?.response?.data?.detail ||

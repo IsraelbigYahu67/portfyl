@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { legacyColorClassesIn } from "../test/legacyClasses";
 import Screener from "./Screener";
 import * as localApi from "../editions/localApi";
 
@@ -79,5 +80,14 @@ describe("Screener page (job-based)", () => {
 
     fireEvent.change(screen.getByLabelText(/rows per page/i), { target: { value: "25" } });
     await waitFor(() => expect(localApi.fetchScreenerJob).toHaveBeenLastCalledWith("jp", { offset: 0, limit: 25 }));
+  });
+
+  it("screener filters are open on first visit", () => {
+    renderPage();
+    expect(screen.getByLabelText("Universe")).toBeVisible();
+  });
+
+  it("uses no legacy color classes", async () => {
+    expect(await legacyColorClassesIn(new URL("./Screener.jsx", import.meta.url))).toEqual([]);
   });
 });
