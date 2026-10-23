@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-import TaxReport from "./TaxReport";
+import TaxReport, { czRowStatus } from "./TaxReport";
+import { legacyColorClassesIn } from "../test/legacyClasses";
 
 
 const localApi = vi.hoisted(() => ({ fetchTaxReport: vi.fn() }));
@@ -65,8 +66,8 @@ beforeEach(() => {
 it("renders tiny realized lots without inventing a meaningful percentage", async () => {
   renderPage();
 
-  const row = (await screen.findByText("DUST")).closest("tr");
-  expect(within(row).getByText("0.00000002")).toBeInTheDocument();
+  const row = (await screen.findAllByText("DUST")).map((n) => n.closest("tr")).find(Boolean);
+  expect(within(row).getByText("0,00000002")).toBeInTheDocument();
   expect(within(row).getAllByText("<$0.01")).toHaveLength(3);
   expect(within(row).getByTitle("Percentage is not meaningful for a basis below one cent.")).toHaveTextContent("—");
 });
@@ -80,7 +81,7 @@ it("exports API precision and leaves a null gain percentage cell empty", async (
   vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
   vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
   renderPage();
-  await screen.findByText("DUST");
+  await screen.findAllByText("DUST");
 
   fireEvent.click(screen.getByRole("button", { name: /export csv/i }));
 
@@ -93,4 +94,61 @@ it("exports API precision and leaves a null gain percentage cell empty", async (
   expect(csv).toContain("Realized,DUST,2024-01-01,2024-02-01,0.00000002,0.000002,0.000004,0.000002");
   expect(csv).toContain("0.000040,0.000080,0.000040,,31,short");
   expect(csv).not.toContain("null%");
+});
+
+describe("Czech row status", () => {
+  const row = (patch = {}) => ({
+    cz_exempt_time_test: false,
+    sell_date: "2026-03-10",
+    ...patch,
+  });
+
+  it("marks rows exempt when the sell year passed the value test", () => {
+    expect(czRowStatus(row(), { 2026: { value_test_passed: true } })).toBe("exempt_value");
+  });
+
+  it("keeps Taxable when the sell year failed the value test", () => {
+    expect(czRowStatus(row(), { 2026: { value_test_passed: false } })).toBe("taxable");
+    expect(czRowStatus(row(), {})).toBe("taxable");
+    expect(czRowStatus(row(), undefined)).toBe("taxable");
+  });
+
+  it("lets the time test win whatever the year says", () => {
+    expect(czRowStatus(row({ cz_exempt_time_test: true }), { 2026: { value_test_passed: false } })).toBe("exempt_time");
+    expect(czRowStatus(row({ cz_exempt_time_test: true }), { 2026: { value_test_passed: true } })).toBe("exempt_time");
+  });
+
+  it("renders row badges Exempt · 3y, Exempt · value test and Taxable with the right tones", async () => {
+    const base = localApi.fetchTaxReport.getMockImplementation
+      ? await localApi.fetchTaxReport()
+      : null;
+    const gain = (ticker, sell_date, time) => ({
+      ...base.gains[0],
+      ticker,
+      sell_date,
+      cz_exempt_time_test: time,
+    });
+    localApi.fetchTaxReport.mockResolvedValue({
+      ...base,
+      gains: [
+        gain("TIME", "2026-02-01", true),
+        gain("VALUE", "2026-02-02", false),
+        gain("TAXED", "2025-02-03", false),
+      ],
+      czech_tax: [
+        { tax_year: 2026, value_test_passed: true, trades: 2 },
+        { tax_year: 2025, value_test_passed: false, trades: 1 },
+      ],
+    });
+    renderPage();
+    await screen.findAllByText("TIME");
+
+    expect(screen.getAllByText("Exempt · 3y")[0].closest("[data-tone]")).toHaveAttribute("data-tone", "gain");
+    expect(screen.getAllByText("Exempt · value test")[0].closest("[data-tone]")).toHaveAttribute("data-tone", "gain");
+    expect(screen.getAllByText("Taxable")[0].closest("[data-tone]")).toHaveAttribute("data-tone", "warn");
+  });
+
+  it("uses no legacy color classes", async () => {
+    expect(await legacyColorClassesIn(new URL("./TaxReport.jsx", import.meta.url))).toEqual([]);
+  });
 });

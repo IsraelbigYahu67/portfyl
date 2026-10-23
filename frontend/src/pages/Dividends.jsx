@@ -6,25 +6,21 @@ import { useStockDetail } from "../components/StockDetail";
 import MetricCard from "../components/MetricCard";
 import DividendBarsCard from "../components/dashboard/DividendBarsCard";
 import { splitDividendForecast } from "../lib/dashboardSummaries";
-import { formatMoney, formatQuantity, formatShortDate } from "../lib/format";
+import { formatMoney, formatQuantity, formatTableDate } from "../lib/format";
 import { getApiErrorMessage } from "../lib/apiError";
-import { AsyncSection, Card, SkeletonChart } from "../components/ui";
+import { AsyncSection, Badge, Card, SkeletonChart } from "../components/ui";
 
 const today = new Date().toISOString().slice(0, 10);
 
 function statusBadge(row) {
-  if (row.date_status === "inconsistent") {
-    return <span className="text-xs px-2 py-0.5 rounded-full bg-loss/20 text-loss">Needs review</span>;
-  }
-  if (!row.ex_date) {
-    return <span className="text-xs px-2 py-0.5 rounded-full bg-surface-hover text-muted">Date unavailable</span>;
-  }
+  if (row.date_status === "inconsistent") return <Badge tone="loss" size="sm">Needs review</Badge>;
+  if (!row.ex_date) return <Badge tone="neutral" size="sm">Date unavailable</Badge>;
   const diff = Math.ceil((new Date(row.ex_date) - new Date(today)) / 86400000);
-  if (diff < 0) return <span className="text-xs px-2 py-0.5 rounded-full bg-surface-hover text-muted">Past</span>;
-  if (diff === 0) return <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">Today</span>;
-  if (diff <= 7) return <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">In {diff}d</span>;
-  if (diff <= 30) return <span className="text-xs px-2 py-0.5 rounded-full bg-brand/20 text-brand">In {diff}d</span>;
-  return <span className="text-xs px-2 py-0.5 rounded-full bg-surface-hover text-muted">In {diff}d</span>;
+  if (diff < 0) return <Badge tone="neutral" size="sm">Past</Badge>;
+  if (diff === 0) return <Badge tone="warn" size="sm">Today</Badge>;
+  if (diff <= 7) return <Badge tone="warn" size="sm">In {diff}d</Badge>;
+  if (diff <= 30) return <Badge tone="brand" size="sm">In {diff}d</Badge>;
+  return <Badge tone="neutral" size="sm">In {diff}d</Badge>;
 }
 
 function isKnownUpcoming(row, currentDay) {
@@ -32,6 +28,7 @@ function isKnownUpcoming(row, currentDay) {
 }
 
 export default function Dividends() {
+  const { currency: displayCurrency = "USD", rate } = useCurrency() ?? {};
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["dividends"],
     queryFn: fetchDividends,
@@ -68,16 +65,22 @@ export default function Dividends() {
   const past = rows.filter(
     (row) => !needsReview.includes(row) && !knownUpcoming.includes(row),
   );
+  // USD estimates are folded into the display currency with the same rate the
+  // dividend charts use (`rate` is CZK per USD). Other currencies stay separate.
+  const usdRate = displayCurrency === "CZK" && rate ? rate : null;
   const estimatedByCurrency = rows.reduce((totals, row) => {
     if (row.income_status === "estimated" && row.annual_income != null) {
-      const currency = row.currency || "USD";
-      totals[currency] = (totals[currency] || 0) + Number(row.annual_income);
+      const rowCurrency = row.currency || "USD";
+      const converts = usdRate && rowCurrency === "USD";
+      const key = converts ? displayCurrency : rowCurrency;
+      const amount = Number(row.annual_income) * (converts ? usdRate : 1);
+      totals[key] = (totals[key] || 0) + amount;
     }
     return totals;
   }, {});
   const estimatedTotals = Object.entries(estimatedByCurrency);
   if (!estimatedTotals.length && rows.length) {
-    estimatedTotals.push([rows[0].currency || "USD", 0]);
+    estimatedTotals.push([usdRate ? displayCurrency : rows[0].currency || "USD", 0]);
   }
   const latestAsOf = rows.reduce(
     (latest, row) => (row.as_of && (!latest || row.as_of > latest) ? row.as_of : latest),
@@ -216,6 +219,7 @@ function DividendBars({ forecast, loading, error, onRetry }) {
 
 function Table({ rows }) {
   const { openStock } = useStockDetail();
+  const { currency: displayCurrency = "USD" } = useCurrency() ?? {};
   return (
     <table className="w-full text-sm">
       <thead>
@@ -236,9 +240,9 @@ function Table({ rows }) {
           >
             <td className="px-4 py-3 font-mono font-semibold text-ink">{row.ticker}</td>
             <td className="px-4 py-3 text-muted max-w-[180px] truncate">{row.name}</td>
-            <td className="px-4 py-3 text-muted tabular-nums">{formatQuantity(row.shares)}</td>
-            <td className="px-4 py-3 text-muted tabular-nums">{formatShortDate(row.ex_date)}</td>
-            <td className="px-4 py-3 text-muted tabular-nums">{formatShortDate(row.pay_date)}</td>
+            <td className="px-4 py-3 text-muted tabular-nums">{formatQuantity(row.shares, displayCurrency)}</td>
+            <td className="px-4 py-3 text-muted tabular-nums">{formatTableDate(row.ex_date)}</td>
+            <td className="px-4 py-3 text-muted tabular-nums">{formatTableDate(row.pay_date)}</td>
             <td className="px-4 py-3 text-muted tabular-nums">
               {row.dividend_rate != null ? (
                 formatMoney(row.dividend_rate, row.currency)
