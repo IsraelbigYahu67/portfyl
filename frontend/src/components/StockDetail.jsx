@@ -15,7 +15,7 @@ import {
   fetchShibuiEarningsRecap, fetchShibuiValuationHistory, fetchPoliticianTrades,
 } from "../api";
 import { columnChanges, ttmUnderlayRect } from "../lib/chartChanges";
-import { formatShortDate } from "../lib/format";
+import { formatShortDate, humanizeCode } from "../lib/format";
 import { buildWeeklyBuckets, assignTransactionsToWeeks, jitterOffsetPx } from "../lib/insiderWeekly";
 import { buildPriceAxis } from "../lib/chartPriceAxis";
 import useStockReportConfig, { ALL_SECTIONS } from "../hooks/useStockReportConfig";
@@ -23,7 +23,7 @@ import {
   CATEGORICAL, NEUTRAL_COLOR, GAIN_COLOR, LOSS_COLOR, AXIS_TICK, AXIS_TICK_STYLE, GRID_STROKE, TOOLTIP_STYLE,
 } from "../lib/chartTheme";
 import { withSliceCorners } from "../lib/pieCorners";
-import { KpiBox } from "./ui";
+import { Badge, KpiBox } from "./ui";
 import SegmentedControl from "./ui/SegmentedControl";
 import Pagination from "./ui/Pagination";
 import ShinyText from "./reactbits/ShinyText";
@@ -466,32 +466,31 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
   );
 }
 
-function RatingPill({ children, color = "text-muted bg-slate-600/10" }) {
-  return (
-    <span className={`text-xs font-bold uppercase px-1.5 py-0.5 rounded ${color}`}>
-      {children}
-    </span>
-  );
+// Consensus score (1 = strong buy ... 5 = strong sell) -> Badge tone.
+function ratingTone(score) {
+  if (score == null) return "neutral";
+  if (score <= 2.5) return "gain";
+  if (score <= 3.5) return "warn";
+  return "loss";
 }
 
-function ratingColor(score) {
-  if (score == null) return "text-muted bg-slate-500/10";
-  if (score <= 1.5) return "text-gain bg-gain/10";
-  if (score <= 2.5) return "text-green-600 bg-green-600/10";
-  if (score <= 3.5) return "text-yellow-600 bg-yellow-600/10";
-  if (score <= 4.5) return "text-orange-600 bg-orange-600/10";
-  return "text-loss bg-loss/10";
+function RatingPill({ children, tone = "neutral" }) {
+  return <Badge tone={tone}>{children}</Badge>;
 }
 
+// Inset track + rounded fill; `color` is a CSS color from the theme tokens.
 function AnalystBar({ label, count, total, color }) {
   const pct = total > 0 ? (count / total) * 100 : 0;
   return (
     <div className="flex items-center gap-2 text-sm">
-      <span className="w-20 text-muted">{label}</span>
-      <div className="flex-1 bg-surface rounded-full h-2 overflow-hidden">
+      <span className="w-24 text-muted">{label}</span>
+      <div
+        className="flex-1 rounded-full h-2.5 overflow-hidden"
+        style={{ background: "var(--bg-subtle, var(--surface-hover))", boxShadow: "var(--clay-inset-sm, none)" }}
+      >
         <div
-          className={`h-2 rounded-full transition-all ${color}`}
-          style={{ width: `${pct}%` }}
+          className="h-full rounded-full transition-all"
+          style={{ width: `${pct}%`, backgroundColor: color }}
         />
       </div>
       <span className="tabular-nums text-muted w-6 text-right font-medium">{count}</span>
@@ -505,24 +504,20 @@ function AnalystBar({ label, count, total, color }) {
 
 function upsideColor(u) {
   if (u == null) return "text-muted";
-  if (u >= 20) return "text-gain";
-  if (u >= 5) return "text-green-600";
-  if (u >= -5) return "text-yellow-600";
-  if (u >= -20) return "text-orange-600";
+  if (u >= 5) return "text-gain";
+  if (u > -5) return "text-muted";
   return "text-loss";
 }
 
-// Map a fair-value-vs-current pct into a heatmap bg color. Same scale as
-// upsideColor but rendered as a translucent fill suitable for a grid cell.
+const mixToken = (token, pct) => `color-mix(in srgb, ${token} ${pct}%, var(--surface-card))`;
+
+// Heatmap fill for a DCF cell: gain/loss token tint that deepens with the
+// distance from the current price (8% near fair value, up to 35% at +-40%).
 function sensitivityBg(u) {
-  if (u == null) return "bg-surface-hover/40";
-  if (u >= 30) return "bg-emerald-500/30";
-  if (u >= 15) return "bg-green-500/25";
-  if (u >= 5) return "bg-green-500/15";
-  if (u >= -5) return "bg-yellow-500/15";
-  if (u >= -15) return "bg-orange-500/20";
-  if (u >= -30) return "bg-red-500/25";
-  return "bg-red-500/35";
+  if (u == null) return "var(--surface-hover)";
+  if (Math.abs(u) < 5) return mixToken("var(--chart-3)", 14);
+  const strength = Math.min(Math.abs(u) / 40, 1);
+  return mixToken(u > 0 ? GAIN_COLOR : LOSS_COLOR, Math.round(8 + strength * 27));
 }
 
 function ValuationMethodRow({ row, currentPrice, cs }) {
@@ -579,7 +574,7 @@ function DcfSensitivityTable({ sensitivity, currentPrice, cs }) {
   const { wacc_pct, terminal_growth_pct, grid, base_wacc_pct, base_terminal_pct } = sensitivity;
 
   return (
-    <div className="bg-surface rounded-lg p-4">
+    <div className="bg-surface rounded-[var(--radius-card)] p-4">
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <div>
           <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
@@ -590,9 +585,9 @@ function DcfSensitivityTable({ sensitivity, currentPrice, cs }) {
           </div>
         </div>
         <div className="text-xs text-muted flex items-center gap-2">
-          <span className="inline-block w-3 h-3 rounded-sm bg-green-500/25" />Above price
-          <span className="inline-block w-3 h-3 rounded-sm bg-yellow-500/15 ml-1" />~Fair
-          <span className="inline-block w-3 h-3 rounded-sm bg-red-500/25 ml-1" />Below price
+          <span className="inline-block w-3 h-3 rounded-full" style={{ background: sensitivityBg(25) }} />Above price
+          <span className="inline-block w-3 h-3 rounded-full ml-1" style={{ background: sensitivityBg(0) }} />~Fair
+          <span className="inline-block w-3 h-3 rounded-full ml-1" style={{ background: sensitivityBg(-25) }} />Below price
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -634,9 +629,10 @@ function DcfSensitivityTable({ sensitivity, currentPrice, cs }) {
                     return (
                       <td
                         key={`${w}-${t}`}
-                        className={`text-right px-2 py-1.5 rounded ${sensitivityBg(upside)} ${
+                        className={`text-right px-2 py-1.5 rounded-lg ${
                           isBase ? "ring-1 ring-brand/70" : ""
                         }`}
+                        style={{ background: sensitivityBg(upside) }}
                         title={
                           fv == null
                             ? "Degenerate (WACC ≤ g∞)"
@@ -693,7 +689,7 @@ function ValuationSection({ valuation, currencyCode }) {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div className="bg-surface rounded-lg p-4">
+        <div className="bg-surface rounded-[var(--radius-card)] p-4">
           <div className="flex items-center justify-between text-xs uppercase tracking-wider text-muted mb-1 pb-1 border-b border-surface-border">
             <span>Method</span>
             <div className="flex items-center">
@@ -1061,7 +1057,7 @@ export function StockOverview({
                 Analyst Rating
               </h3>
               {analyst.rating && (
-                <RatingPill color={ratingColor(analyst.score)}>{analyst.rating}</RatingPill>
+                <RatingPill tone={ratingTone(analyst.score)}>{humanizeCode(analyst.rating)}</RatingPill>
               )}
             </div>
             {analyst.total > 0 ? (
@@ -1075,11 +1071,11 @@ export function StockOverview({
                   </span>
                 </div>
                 <div className="space-y-1.5">
-                  <AnalystBar label="Strong Buy" count={analyst.strong_buy || 0} total={analyst.total} color="bg-emerald-500" />
-                  <AnalystBar label="Buy" count={analyst.buy || 0} total={analyst.total} color="bg-green-500" />
-                  <AnalystBar label="Hold" count={analyst.hold || 0} total={analyst.total} color="bg-yellow-500" />
-                  <AnalystBar label="Sell" count={analyst.sell || 0} total={analyst.total} color="bg-orange-500" />
-                  <AnalystBar label="Strong Sell" count={analyst.strong_sell || 0} total={analyst.total} color="bg-red-500" />
+                  <AnalystBar label="Strong Buy" count={analyst.strong_buy || 0} total={analyst.total} color={GAIN_COLOR} />
+                  <AnalystBar label="Buy" count={analyst.buy || 0} total={analyst.total} color={GAIN_COLOR} />
+                  <AnalystBar label="Hold" count={analyst.hold || 0} total={analyst.total} color="var(--chart-3)" />
+                  <AnalystBar label="Sell" count={analyst.sell || 0} total={analyst.total} color={LOSS_COLOR} />
+                  <AnalystBar label="Strong Sell" count={analyst.strong_sell || 0} total={analyst.total} color={LOSS_COLOR} />
                 </div>
               </>
             ) : (
@@ -1087,7 +1083,7 @@ export function StockOverview({
             )}
           </div>
 
-          <div className="bg-surface rounded-lg p-4">
+          <div className="bg-surface rounded-[var(--radius-card)] p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
                 Price Targets
@@ -1111,16 +1107,6 @@ export function StockOverview({
             )}
           </div>
 
-          {data.description && (
-            <div className="bg-surface rounded-lg p-4">
-              <h3 className="text-base font-semibold text-muted uppercase tracking-wider mb-2">
-                About
-              </h3>
-              <p className="text-sm text-muted leading-relaxed line-clamp-6">
-                {data.description}
-              </p>
-            </div>
-          )}
         </div>
       </div>
     ),
@@ -1253,6 +1239,9 @@ const CONE_CHART_HEIGHT = 224; // matches h-56
 const CONE_MARGIN_TOP = 12;
 const CONE_MARGIN_BOTTOM = 20;
 const CONE_XAXIS_HEIGHT = 30; // Recharts default XAxis height
+// Right gutter that holds the target pills (each <= ~100px) beside the y axis.
+const CONE_MARGIN_RIGHT = 104;
+const EDGE_PILL_MIN_GAP = 22;
 
 function AnalystForecastCone({ low, high, mean, current, cs }) {
   if (low == null || high == null || mean == null || current == null) return null;
@@ -1280,13 +1269,8 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
   const upsideMax = ((high - current) / current) * 100;
   const upsideMin = ((low - current) / current) * 100;
 
-  // Each target is coloured by direction vs. current: above → green, below → red.
-  const colorFor = (v) =>
-    v > current
-      ? "bg-green-500 text-green-50"
-      : v < current
-        ? "bg-red-500 text-red-50"
-        : "bg-gray-500 text-gray-50";
+  // Each target is toned by direction vs. current: above gain, below loss.
+  const toneFor = (v) => (v > current ? "gain" : v < current ? "loss" : "neutral");
   const avgStroke = mean > current ? GAIN_COLOR : mean < current ? LOSS_COLOR : NEUTRAL_COLOR;
 
   const lo = Math.min(low, current, mean);
@@ -1303,7 +1287,7 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={data}
-            margin={{ top: CONE_MARGIN_TOP, right: 96, bottom: CONE_MARGIN_BOTTOM, left: 4 }}
+            margin={{ top: CONE_MARGIN_TOP, right: CONE_MARGIN_RIGHT, bottom: CONE_MARGIN_BOTTOM, left: 4 }}
           >
             <CartesianGrid strokeDasharray="2 4" stroke={GRID_STROKE} vertical={false} />
             <XAxis
@@ -1330,16 +1314,14 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
               type="linear"
               dataKey="lower"
               stroke="none"
-              fill="#ef4444"
-              fillOpacity={0.18}
+              fill={`color-mix(in srgb, ${LOSS_COLOR} 18%, transparent)`}
               isAnimationActive={false}
             />
             <Area
               type="linear"
               dataKey="upper"
               stroke="none"
-              fill="#10b981"
-              fillOpacity={0.18}
+              fill={`color-mix(in srgb, ${GAIN_COLOR} 18%, transparent)`}
               isAnimationActive={false}
             />
             {/* Mean-target trajectory — green if mean > current, red if below */}
@@ -1375,7 +1357,7 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
                     ) : (
                       <>
                         <div className="text-gain">Max {cs}{high.toFixed(2)} <span className="text-muted">({pct(upsideMax)})</span></div>
-                        <div className="text-green-600">Avg {cs}{mean.toFixed(2)} <span className="text-muted">({pct(upsideAvg)})</span></div>
+                        <div className="text-gain">Avg {cs}{mean.toFixed(2)} <span className="text-muted">({pct(upsideAvg)})</span></div>
                         <div className="text-loss">Min {cs}{low.toFixed(2)} <span className="text-muted">({pct(upsideMin)})</span></div>
                       </>
                     )}
@@ -1388,10 +1370,10 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
       </div>
       <RightEdgePills
         items={[
-          { value: high, color: colorFor(high), label: `Max ${pct(upsideMax)}` },
-          { value: mean, color: colorFor(mean), label: `Avg ${pct(upsideAvg)}` },
-          { value: current, color: "bg-blue-500 text-blue-50", label: "Current" },
-          { value: low, color: colorFor(low), label: `Min ${pct(upsideMin)}` },
+          { key: "max", value: high, tone: toneFor(high), label: "Max", detail: pct(upsideMax) },
+          { key: "avg", value: mean, tone: toneFor(mean), label: "Avg", detail: pct(upsideAvg) },
+          { key: "now", value: current, tone: "brand", label: "Now" },
+          { key: "min", value: low, tone: toneFor(low), label: "Min", detail: pct(upsideMin) },
         ]}
         yMin={yMin}
         yMax={yMax}
@@ -1404,33 +1386,64 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
   );
 }
 
+// Spread pill centres vertically so neighbours are >= minGap px apart and all
+// stay inside [top + minGap/2, bottom - minGap/2]. Input order is by y (stable
+// for ties); a stack that hits the bottom edge is pushed back up, not off the
+// plot. When there is not enough room for every pill the first ones are clamped
+// to the top edge (they overlap rather than leave the plot).
+export function layoutEdgePills(items, { top, bottom, minGap }) {
+  const lo = top + minGap / 2;
+  const hi = bottom - minGap / 2;
+  const out = items
+    .map((it, i) => ({ ...it, _i: i }))
+    .sort((a, b) => a.y - b.y || a._i - b._i)
+    .map(({ _i, ...it }) => ({ ...it, y: Math.min(Math.max(it.y, lo), hi) }));
+  for (let i = 1; i < out.length; i++) {
+    if (out[i].y - out[i - 1].y < minGap) out[i].y = out[i - 1].y + minGap;
+  }
+  for (let i = out.length - 1; i >= 0; i--) {
+    const ceiling = i === out.length - 1 ? hi : out[i + 1].y - minGap;
+    if (out[i].y > ceiling) out[i].y = ceiling;
+  }
+  return out.map((it) => ({ ...it, y: Math.max(it.y, lo) }));
+}
+
 function RightEdgePills({ items, yMin, yMax, cs }) {
   // Plot area = total height − top margin − (bottom margin + XAxis height).
-  // Pills are positioned proportionally on that band; nudge to avoid overlap.
+  // Pills are positioned proportionally on that band, then spread so they
+  // never overlap each other or leave the band.
   const plotTop = CONE_MARGIN_TOP;
   const plotBottom = CONE_MARGIN_BOTTOM + CONE_XAXIS_HEIGHT;
   const usable = CONE_CHART_HEIGHT - plotTop - plotBottom;
   const yFor = (v) => plotTop + ((yMax - v) / (yMax - yMin)) * usable;
 
-  const sorted = [...items]
-    .map((it) => ({ ...it, y: yFor(it.value) }))
-    .sort((a, b) => a.y - b.y);
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i].y - sorted[i - 1].y < 18) sorted[i].y = sorted[i - 1].y + 18;
-  }
+  const placed = layoutEdgePills(
+    items.map((it) => ({ key: it.key, y: yFor(it.value) })),
+    { top: plotTop, bottom: plotTop + usable, minGap: EDGE_PILL_MIN_GAP },
+  );
+  const byKey = new Map(items.map((it) => [it.key, it]));
 
   return (
     <div className="absolute inset-0 pointer-events-none">
-      {sorted.map((it, i) => (
-        <div
-          key={i}
-          className={`absolute right-1 flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold tabular-nums whitespace-nowrap ${it.color}`}
-          style={{ top: `${it.y - 9}px` }}
-        >
-          <span>{it.label}</span>
-          <span className="opacity-90">{cs}{it.value.toFixed(2)}</span>
-        </div>
-      ))}
+      {placed.map(({ key, y }) => {
+        const it = byKey.get(key);
+        return (
+          <div
+            key={key}
+            className="absolute right-1"
+            style={{ top: `${y}px`, transform: "translateY(-50%)" }}
+          >
+            <Badge
+              tone={it.tone}
+              size="sm"
+              className="tabular-nums"
+              title={it.detail ? `${it.label} ${cs}${it.value.toFixed(2)} (${it.detail})` : undefined}
+            >
+              {it.label} {cs}{it.value.toFixed(2)}
+            </Badge>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1726,13 +1739,17 @@ function TargetRangeBar({ low, high, mean, median, current, cs }) {
     <div>
       <div className="relative h-2 bg-surface-hover rounded-full">
         <div
-          className="absolute top-0 h-2 rounded-full bg-gradient-to-r from-red-500/30 via-yellow-500/30 to-green-500/30"
-          style={{ left: 0, right: 0 }}
+          className="absolute top-0 h-2 rounded-full "
+          style={{
+            left: 0,
+            right: 0,
+            background: `linear-gradient(to right, ${mixToken(LOSS_COLOR, 30)}, ${mixToken("var(--chart-3)", 30)}, ${mixToken(GAIN_COLOR, 30)})`,
+          }}
         />
         {medianPct != null && (
           <div
-            className="absolute top-[-2px] h-3 w-0.5 bg-slate-400"
-            style={{ left: `calc(${medianPct}% - 1px)` }}
+            className="absolute top-[-2px] h-3 w-0.5 rounded"
+            style={{ left: `calc(${medianPct}% - 1px)`, backgroundColor: NEUTRAL_COLOR }}
             title={`Median ${cs}${median.toFixed(2)}`}
           />
         )}
@@ -1742,8 +1759,8 @@ function TargetRangeBar({ low, high, mean, median, current, cs }) {
           title={`Mean ${cs}${mean.toFixed(2)}`}
         />
         <div
-          className="absolute top-[-4px] h-5 w-1 bg-slate-800 rounded"
-          style={{ left: `calc(${currentPct}% - 2px)` }}
+          className="absolute top-[-4px] h-5 w-1 rounded"
+          style={{ left: `calc(${currentPct}% - 2px)`, backgroundColor: "var(--ink)" }}
           title={`Current ${cs}${current.toFixed(2)}`}
         />
       </div>
@@ -1752,10 +1769,10 @@ function TargetRangeBar({ low, high, mean, median, current, cs }) {
         <span>High {cs}{high.toFixed(2)}</span>
       </div>
       <div className="flex items-center gap-3 text-xs text-muted mt-1">
-        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-slate-800 rounded-sm" />Current</span>
-        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-brand rounded-sm" />Mean</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: "var(--ink)" }} />Current</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-brand rounded-full" />Mean</span>
         {median != null && (
-          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-slate-400 rounded-sm" />Median {cs}{median.toFixed(2)}</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: NEUTRAL_COLOR }} />Median {cs}{median.toFixed(2)}</span>
         )}
       </div>
     </div>
