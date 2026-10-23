@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { TickerLink } from "../components/TickerLink";
 import { useQuery } from "@tanstack/react-query";
 import { Search as SearchIcon, Loader2, ArrowRight } from "lucide-react";
-import { searchTickers } from "../api";
-import { AsyncSection } from "../components/ui";
+import { fetchAllHoldings, searchTickers } from "../api";
+import { useCurrency } from "../App";
+import { AsyncSection, SectionHeader } from "../components/ui";
 
 // Light debounce so typing doesn't fire a query on every keystroke. 250ms is
 // short enough to feel instant but cuts request count by ~10x for fast typers.
@@ -36,6 +37,21 @@ export default function Search() {
 
   const results = useMemo(() => data?.results || [], [data]);
 
+  // Same query key and fetcher as the Allocation page, so the cache is shared
+  // and opening Search adds no request when holdings are already loaded.
+  const { currency } = useCurrency();
+  const holdingsQuery = useQuery({
+    queryKey: ["holdings-all", currency],
+    queryFn: () => fetchAllHoldings(currency),
+  });
+  const yourHoldings = useMemo(
+    () => (holdingsQuery.data || [])
+      .filter((h) => h.ticker && !h.closed)
+      .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
+      .slice(0, 8),
+    [holdingsQuery.data],
+  );
+
   return (
     <div className="max-w-4xl mx-auto py-6">
       <h1 className="text-2xl font-bold mb-1">Search Stocks</h1>
@@ -66,7 +82,25 @@ export default function Search() {
       </div>
 
       <div className="mt-6">
-        {!enabled && (
+        {!enabled && yourHoldings.length > 0 && (
+          <section aria-label="Your holdings">
+            <SectionHeader>Your holdings</SectionHeader>
+            <ul className="flex flex-wrap gap-2">
+              {yourHoldings.map((h) => (
+                <li key={h.ticker}>
+                  <TickerLink
+                    ticker={h.ticker}
+                    className="inline-flex min-h-[44px] items-center rounded-full border border-surface-border bg-surface-card px-4 font-mono text-sm font-semibold md:min-h-0 md:py-1.5"
+                  >
+                    {h.ticker}
+                  </TickerLink>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-6 text-center text-sm text-muted">Or start typing to look up any ticker.</p>
+          </section>
+        )}
+        {!enabled && yourHoldings.length === 0 && (
           <div className="text-center text-muted py-12 text-sm">
             Start typing to see suggestions.
           </div>

@@ -5,6 +5,7 @@ import { useStockDetail } from "../components/StockDetail";
 import { useScreenerJob } from "../hooks/useScreenerJob";
 import Pagination from "../components/ui/Pagination";
 import AsyncSection from "../components/ui/AsyncSection";
+import { Badge } from "../components/ui/Badge";
 import { SlidersHorizontal, RefreshCw, Play, X, RotateCcw } from "lucide-react";
 
 const UNIVERSE_OPTIONS = [
@@ -124,15 +125,18 @@ function ResultsTable({ results, shibuiMode, onRowClick }) {
                 {!shibuiMode && (
                   <td className="px-4 py-3">
                     {r.rating ? (
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        r.rating === "strong_buy" || r.rating === "buy"
-                          ? "bg-gain/20 text-gain"
-                          : r.rating === "hold"
-                          ? "bg-amber-500/20 text-amber-600"
-                          : "bg-loss/20 text-loss"
-                      }`}>
+                      <Badge
+                        size="sm"
+                        tone={
+                          r.rating === "strong_buy" || r.rating === "buy"
+                            ? "gain"
+                            : r.rating === "hold"
+                            ? "warn"
+                            : "loss"
+                        }
+                      >
                         {r.rating.replace("_", " ")}
-                      </span>
+                      </Badge>
                     ) : "—"}
                   </td>
                 )}
@@ -156,7 +160,7 @@ export default function Screener() {
   const [minOperatingMargin, setMinOperatingMargin] = useState("");
   const [minPiotroski, setMinPiotroski] = useState("");
   const [sortBy, setSortBy] = useState("market_cap");
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(true);
   const [offset, setOffset] = useState(0);
   const [limit, setLimit] = useState(50);
 
@@ -236,21 +240,18 @@ export default function Screener() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Stock Screener</h1>
           <p className="text-sm text-muted mt-0.5">
             Filter stocks by valuation and fundamental criteria
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm transition-colors ${
-              showFilters
-                ? "bg-brand text-white border-brand"
-                : "bg-surface-card border-surface-border text-muted hover:text-ink"
-            }`}
+            aria-pressed={showFilters}
+            className={`${showFilters ? "btn-primary" : "btn-ghost"} flex min-h-[44px] items-center gap-2 !px-3 !py-1.5 text-sm md:min-h-0`}
           >
             <SlidersHorizontal size={14} />
             Filters
@@ -287,7 +288,7 @@ export default function Screener() {
               <button
                 onClick={runScan}
                 disabled={isRunning}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand text-white border border-brand text-sm transition-colors disabled:opacity-50"
+                className="btn-primary flex min-h-[44px] items-center gap-2 !px-3 !py-1.5 text-sm disabled:opacity-50 md:min-h-0"
               >
                 <Play size={14} />
                 Run Scan
@@ -302,8 +303,9 @@ export default function Screener() {
         <div className="rounded-xl border border-surface-border bg-surface-card p-4 space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
-              <label className="text-xs text-muted mb-1 block">Universe</label>
+              <label htmlFor="screener-universe" className="text-xs text-muted mb-1 block">Universe</label>
               <select
+                id="screener-universe"
                 value={universe}
                 onChange={(e) => setUniverse(e.target.value)}
                 className="w-full rounded-lg border border-surface-border bg-surface-card px-3 py-2 text-sm"
