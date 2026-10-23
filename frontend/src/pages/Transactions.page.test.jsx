@@ -1,8 +1,9 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import Transactions from "./Transactions";
+import { legacyColorClassesIn } from "../test/legacyClasses";
 
 const api = vi.hoisted(() => ({
   fetchTransactionsPage: vi.fn(),
@@ -11,7 +12,10 @@ const api = vi.hoisted(() => ({
   fetchAllTradeNotes: vi.fn(),
 }));
 
+const currencyState = vi.hoisted(() => ({ currency: "USD" }));
+
 vi.mock("../api", () => api);
+vi.mock("../App", () => ({ useCurrency: () => ({ currency: currencyState.currency, rate: 22 }) }));
 vi.mock("../components/StockDetail", () => ({
   TickerLink: ({ ticker, children }) => <span>{children || ticker}</span>,
 }));
@@ -54,6 +58,7 @@ const page = (overrides = {}) => ({
 describe("Transactions (server-side pagination)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    currencyState.currency = "USD";
     api.fetchAllTradeNotes.mockResolvedValue([]);
   });
 
@@ -72,13 +77,13 @@ describe("Transactions (server-side pagination)", () => {
         expect.objectContaining({ offset: 0, limit: 50 })
       )
     );
-    expect(await screen.findByText("AAPL")).toBeInTheDocument();
+    expect((await screen.findAllByText("AAPL")).length).toBeGreaterThan(0);
   });
 
   it("resets offset to zero when the filter changes", async () => {
     api.fetchTransactionsPage.mockResolvedValue(page({ total: 200 }));
     renderPage();
-    await screen.findByText("AAPL");
+    await screen.findAllByText("AAPL");
 
     fireEvent.click(screen.getByRole("button", { name: /next/i }));
     await waitFor(() =>
@@ -100,7 +105,7 @@ describe("Transactions (server-side pagination)", () => {
   it("changing page size resets offset and refetches with the new limit", async () => {
     api.fetchTransactionsPage.mockResolvedValue(page({ total: 200 }));
     renderPage();
-    await screen.findByText("AAPL");
+    await screen.findAllByText("AAPL");
 
     fireEvent.click(screen.getByRole("button", { name: /next/i }));
     await waitFor(() =>
@@ -133,21 +138,21 @@ describe("Transactions (server-side pagination)", () => {
     async function openAndSubmit() {
       api.fetchTransactionsPage.mockResolvedValue(page());
       renderPage();
-      await screen.findByText("AAPL");
+      await screen.findAllByText("AAPL");
       fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
-      fireEvent.change(screen.getByPlaceholderText("AAPL"), { target: { value: "MSFT" } });
-      fireEvent.change(screen.getByPlaceholderText("10"), { target: { value: "5" } });
-      fireEvent.change(screen.getByPlaceholderText("185.50"), { target: { value: "100" } });
-      fireEvent.submit(screen.getByPlaceholderText("AAPL").closest("form"));
+      fireEvent.change(screen.getByPlaceholderText("e.g. AAPL"), { target: { value: "MSFT" } });
+      fireEvent.change(screen.getByPlaceholderText("e.g. 10"), { target: { value: "5" } });
+      fireEvent.change(screen.getByPlaceholderText("e.g. 185.50"), { target: { value: "100" } });
+      fireEvent.submit(screen.getByPlaceholderText("e.g. AAPL").closest("form"));
     }
 
     it("requires a positive quantity and price in the browser", async () => {
       api.fetchTransactionsPage.mockResolvedValue(page());
       renderPage();
-      await screen.findByText("AAPL");
+      await screen.findAllByText("AAPL");
       fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
 
-      for (const placeholder of ["10", "185.50"]) {
+      for (const placeholder of ["e.g. 10", "e.g. 185.50"]) {
         const input = screen.getByPlaceholderText(placeholder);
         fireEvent.change(input, { target: { value: "0" } });
         expect(input.validity.rangeUnderflow).toBe(true);
@@ -182,8 +187,108 @@ describe("Transactions (server-side pagination)", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent("Portfolio not found");
 
       api.createTransaction.mockRejectedValueOnce(new Error("Network Error"));
-      fireEvent.submit(screen.getByPlaceholderText("AAPL").closest("form"));
+      fireEvent.submit(screen.getByPlaceholderText("e.g. AAPL").closest("form"));
       await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Failed to add transaction"));
     });
+  });
+});
+
+describe("Transactions (Clay UI)", () => {
+  const mixed = () =>
+    page({
+      items: [
+        { id: "1", date: "2024-01-01", ticker: "AAPL", type: "buy", shares: 10, price: 150, currency: "USD", notes: null },
+        { id: "2", date: "2024-02-01", ticker: "MSFT", type: "sell", shares: 5, price: 300, currency: "USD", notes: null },
+        { id: "3", date: "2024-03-01", ticker: "KO", type: "dividend", shares: 20, price: 0.5, currency: "USD", notes: null },
+      ],
+      total: 3,
+    });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currencyState.currency = "USD";
+    api.fetchAllTradeNotes.mockResolvedValue([]);
+  });
+
+  it("Add Transaction opens as an accessible dialog", async () => {
+    api.fetchTransactionsPage.mockResolvedValue(page());
+    renderPage();
+    await screen.findAllByText("AAPL");
+
+    fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
+    const dialog = screen.getByRole("dialog", { name: "Add Transaction" });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByPlaceholderText("e.g. AAPL")).toHaveFocus();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("marks placeholders as examples", async () => {
+    api.fetchTransactionsPage.mockResolvedValue(page());
+    renderPage();
+    await screen.findAllByText("AAPL");
+    fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
+
+    expect(screen.getByPlaceholderText("e.g. AAPL")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("e.g. 10")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("e.g. 185.50")).toBeInTheDocument();
+  });
+
+  it("filters by transaction type", async () => {
+    api.fetchTransactionsPage.mockResolvedValue(mixed());
+    renderPage();
+    await screen.findAllByText("AAPL");
+
+    const control = screen.getByRole("group", { name: "Filter by type" });
+    fireEvent.click(within(control).getByRole("button", { name: "Dividend" }));
+
+    expect(screen.getAllByText("KO").length).toBeGreaterThan(0);
+    expect(screen.queryByText("AAPL")).not.toBeInTheDocument();
+    expect(screen.queryByText("MSFT")).not.toBeInTheDocument();
+
+    fireEvent.click(within(control).getByRole("button", { name: "All" }));
+    expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
+  });
+
+  it("renders the type as a badge", async () => {
+    api.fetchTransactionsPage.mockResolvedValue(mixed());
+    const { container } = renderPage();
+    await screen.findAllByText("AAPL");
+
+    const tone = (label) =>
+      Array.from(container.querySelectorAll("[data-tone]"))
+        .find((el) => el.textContent === label)
+        ?.getAttribute("data-tone");
+    expect(tone("Buy")).toBe("brand");
+    expect(tone("Sell")).toBe("neutral");
+    expect(tone("Dividend")).toBe("gain");
+  });
+
+  it("formats shares and dates with the display currency locale", async () => {
+    currencyState.currency = "CZK";
+    api.fetchTransactionsPage.mockResolvedValue(
+      page({ items: [{ id: "1", date: "2020-01-05", ticker: "AAPL", type: "buy", shares: 1234.5, price: 150, currency: "USD", notes: null }] })
+    );
+    renderPage();
+    await screen.findAllByText("AAPL");
+
+    expect(screen.getAllByText(/1[\s ]234,5/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Jan 5, 2020/).length).toBeGreaterThan(0);
+  });
+
+  it("renders mobile cards beside the table", async () => {
+    api.fetchTransactionsPage.mockResolvedValue(mixed());
+    const { container } = renderPage();
+    await screen.findAllByText("AAPL");
+
+    const cards = container.querySelector("ul.md\\:hidden");
+    expect(cards).not.toBeNull();
+    expect(cards.querySelectorAll("li")).toHaveLength(3);
+    expect(container.querySelector(".hidden.md\\:block table")).not.toBeNull();
+  });
+
+  it("uses no legacy color classes", async () => {
+    expect(await legacyColorClassesIn(new URL("./Transactions.jsx", import.meta.url))).toEqual([]);
   });
 });
