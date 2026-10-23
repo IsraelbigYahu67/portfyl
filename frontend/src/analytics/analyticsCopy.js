@@ -8,7 +8,7 @@ export { LANGUAGE_KEY };
 export const ANALYTICS_COPY = {
   cs: {
     bannerTitle: "Používáme volitelnou analytiku",
-    essential: "Nezbytné pro chod Portfylu vždy zůstává aktivní -- přihlášení, workspace a bezpečnost.",
+    essential: "Nezbytné pro chod Portfylu vždy zůstává aktivní — přihlášení, workspace a bezpečnost.",
     optional: "Volitelná analytika nám pomáhá měřit anonymní použití produktu. Odmítnutí nijak neomezí funkčnost.",
     changeLater: "Volbu můžete kdykoliv později změnit.",
     accept: "Přijmout analytiku",
@@ -21,7 +21,7 @@ export const ANALYTICS_COPY = {
   },
   en: {
     bannerTitle: "We use optional analytics",
-    essential: "Essential storage that keeps Portfyl working -- sign-in, workspace, and security -- always stays on.",
+    essential: "Essential storage that keeps Portfyl working — sign-in, workspace, and security — always stays on.",
     optional: "Optional analytics helps us measure anonymous product use. Rejecting it does not reduce functionality.",
     changeLater: "You can change this choice later.",
     accept: "Accept analytics",
@@ -34,7 +34,7 @@ export const ANALYTICS_COPY = {
   },
   de: {
     bannerTitle: "Wir verwenden optionale Analyse",
-    essential: "Essenzieller Speicher, der Portfyl am Laufen hält -- Anmeldung, Arbeitsbereich und Sicherheit -- bleibt immer aktiv.",
+    essential: "Essenzieller Speicher, der Portfyl am Laufen hält — Anmeldung, Arbeitsbereich und Sicherheit — bleibt immer aktiv.",
     optional: "Optionale Analyse hilft uns, die anonyme Produktnutzung zu messen. Eine Ablehnung schränkt die Funktionalität nicht ein.",
     changeLater: "Sie können diese Wahl später jederzeit ändern.",
     accept: "Analyse akzeptieren",
