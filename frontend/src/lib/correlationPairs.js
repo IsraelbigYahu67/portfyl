@@ -14,3 +14,12 @@ export function topAbsoluteCorrelationPairs(tickers, matrix, n = 10) {
   }
   return pairs.sort((p, q) => Math.abs(q.value) - Math.abs(p.value)).slice(0, n);
 }
+
+// Heatmap cell tint: copper (--chart-2) for positive correlation, the cool
+// chart hue (--chart-4) for negative, deeper with |v|. The caller paints the
+// diagonal (self-correlation) with --bg-subtle instead.
+export function correlationColor(v) {
+  const hue = v >= 0 ? "var(--chart-2)" : "var(--chart-4)";
+  const percent = Math.round(15 + 55 * Math.min(1, Math.abs(v)));
+  return `color-mix(in srgb, ${hue} ${percent}%, var(--surface-card))`;
+}

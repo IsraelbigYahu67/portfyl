@@ -13,11 +13,12 @@ import {
 } from "recharts";
 import { Activity, RefreshCw, TrendingDown, TrendingUp, Shield, Wallet } from "lucide-react";
 import { TickerLink } from "../components/StockDetail";
-import { AsyncSection } from "../components/ui";
+import { AsyncSection, Badge } from "../components/ui";
+import { formatMoney } from "../lib/format";
 import {
   CATEGORICAL, GAIN_COLOR, NEUTRAL_COLOR, AXIS_TICK_STYLE, GRID_STROKE, TOOLTIP_STYLE,
 } from "../lib/chartTheme";
-import { topAbsoluteCorrelationPairs } from "../lib/correlationPairs";
+import { topAbsoluteCorrelationPairs, correlationColor } from "../lib/correlationPairs";
 
 const PERIODS = ["3M", "6M", "1Y", "2Y"];
 
@@ -126,7 +127,7 @@ const INFO = {
   },
   simple_roi: {
     title: "Simple ROI (lifetime)",
-    what: "Money-weighted total return: total gains as a share of every dollar you ever put in. Matches the dashboard's Total P&L %. Captures the effect of your timing — DCAing more into a winning position boosts this.",
+    what: "Simple ROI is that net profit divided by everything you ever bought, so it also leaves out interest and fees and can differ from the Dashboard's Total profit %.",
     formula: "(Unrealized + Realized + Dividends) / Σ Buy Cost",
     note: "Sells with no matching prior buy in the DB are excluded.",
   },
@@ -138,7 +139,7 @@ const INFO = {
   },
   net_profit: {
     title: "Net Profit (lifetime)",
-    what: "Total dollar gain from everything: paper P&L on current holdings + realized P&L from closed positions + dividends.",
+    what: "Net profit is unrealized gains on open positions plus realized gains on sells plus dividends, without interest or fees, so it can differ from the Dashboard's Total profit, which also adds interest and subtracts fees.",
     formula: "Unrealized + Realized + Dividends",
   },
   total_invested: {
@@ -153,29 +154,26 @@ const INFO = {
   },
 };
 
+const RATING_TONES = ["loss", "warn", "brand", "gain"];
+
 function RatingBadge({ value, thresholds, labels }) {
   let level = 0;
   for (let i = 0; i < thresholds.length; i++) {
     if (value >= thresholds[i]) level = i + 1;
   }
-  const colors = ["text-loss bg-red-400/10", "text-yellow-400 bg-yellow-400/10", "text-gain bg-green-400/10", "text-emerald-400 bg-emerald-400/10"];
   return (
-    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${colors[Math.min(level, colors.length - 1)]}`}>
+    <Badge tone={RATING_TONES[Math.min(level, RATING_TONES.length - 1)]} size="sm">
       {labels[Math.min(level, labels.length - 1)]}
-    </span>
+    </Badge>
   );
+}
+
+function NetProfitSub({ text }) {
+  return <span className="block truncate" title={text}>{text}</span>;
 }
 
 function CorrelationMatrix({ tickers, matrix }) {
   if (!tickers?.length || !matrix?.length) return null;
-
-  const getColor = (v) => {
-    if (v >= 0.7) return "bg-red-500/60";
-    if (v >= 0.4) return "bg-orange-500/40";
-    if (v >= 0) return "bg-green-500/30";
-    if (v >= -0.4) return "bg-blue-500/30";
-    return "bg-blue-500/60";
-  };
 
   return (
     <div className="overflow-x-auto">
@@ -198,7 +196,10 @@ function CorrelationMatrix({ tickers, matrix }) {
               </td>
               {matrix[i].map((val, j) => (
                 <td key={j} className="px-1 py-1">
-                  <div className={`financial-data w-12 h-8 flex items-center justify-center rounded font-sans ${i === j ? "bg-surface-hover text-muted" : getColor(val) + " text-ink"}`}>
+                  <div
+                    className={`financial-data w-12 h-8 flex items-center justify-center rounded-[10px] font-sans ${i === j ? "text-muted" : "text-ink"}`}
+                    style={{ background: i === j ? "var(--bg-subtle)" : correlationColor(val) }}
+                  >
                     {val.toFixed(2)}
                   </div>
                 </td>
@@ -238,13 +239,12 @@ function CorrelationMatrixSelector({ allTickers, matrix }) {
               key={t}
               type="button"
               disabled={disabled}
+              aria-pressed={isSelected}
               onClick={() => toggle(t)}
               title={disabled ? `Up to ${MAX_SELECTED} holdings can be shown at once` : undefined}
-              className={`text-xs font-mono px-2 py-0.5 rounded border ${
-                isSelected ? "bg-brand text-white border-brand" : "border-surface-border text-muted"
-              } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+              className={`inline-flex items-center min-h-[44px] md:min-h-0 rounded-full ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
             >
-              {t}
+              <Badge tone={isSelected ? "brand" : "neutral"} className="font-mono">{t}</Badge>
             </button>
           );
         })}
@@ -260,12 +260,7 @@ export default function Analytics() {
   const [benchmarkId, setBenchmarkId] = useState(null);
 
   const convert = (n) => (currency === "CZK" && rate ? n * rate : n);
-  const fmt = (n) => {
-    if (n == null) return "—";
-    const str = Math.abs(convert(n)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const sign = n < 0 ? "-" : "";
-    return currency === "CZK" ? `${sign}${str} Kč` : `${sign}$${str}`;
-  };
+  const fmt = (n) => (n == null ? "—" : formatMoney(convert(n), currency));
   const { data: benchmarks } = useQuery({
     queryKey: ["benchmark-catalog"],
     queryFn: fetchBenchmarkCatalog,
@@ -379,7 +374,7 @@ export default function Analytics() {
                   value={`${metrics.lifetime.simple_roi >= 0 ? "+" : ""}${metrics.lifetime.simple_roi}%`}
                   positive={metrics.lifetime.simple_roi >= 0}
                   negative={metrics.lifetime.simple_roi < 0}
-                  sub="Matches dashboard Total P&L %"
+                  sub="Profit ÷ everything you bought"
                 />
                 <MetricCard
                   label="Annualized IRR (XIRR)"
@@ -395,7 +390,7 @@ export default function Analytics() {
                   value={fmt(metrics.lifetime.net_profit)}
                   positive={metrics.lifetime.net_profit >= 0}
                   negative={metrics.lifetime.net_profit < 0}
-                  sub={`Realized ${fmt(metrics.lifetime.realized_pnl)} · Div ${fmt(metrics.lifetime.dividends)}`}
+                  sub={<NetProfitSub text={`Realized ${fmt(metrics.lifetime.realized_pnl)} · Div ${fmt(metrics.lifetime.dividends)}`} />}
                 />
                 <MetricCard
                   label="Capital Invested"
@@ -471,8 +466,8 @@ export default function Analytics() {
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-xs uppercase tracking-wider text-muted">Cumulative Return</h3>
                     <div className="flex items-center gap-3 text-xs">
-                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-brand inline-block" />Portfolio</span>
-                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-500 inline-block" />{benchName}</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ background: GAIN_COLOR }} />Portfolio</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ background: NEUTRAL_COLOR }} />{benchName}</span>
                     </div>
                   </div>
                   <ResponsiveContainer width="100%" height={220}>
@@ -616,7 +611,10 @@ export default function Analytics() {
                   <span className="text-xs text-muted flex items-center gap-1.5 mb-1">
                     Current Drawdown <InfoIcon info={INFO.current_dd} />
                   </span>
-                  <span className={`text-xl font-bold tabular-nums ${metrics.current_drawdown < -5 ? "text-loss" : metrics.current_drawdown < 0 ? "text-yellow-400" : "text-gain"}`}>
+                  <span
+                    className={`text-xl font-bold tabular-nums ${metrics.current_drawdown < -5 ? "text-loss" : metrics.current_drawdown < 0 ? "" : "text-gain"}`}
+                    style={metrics.current_drawdown >= -5 && metrics.current_drawdown < 0 ? { color: "var(--chart-3)" } : undefined}
+                  >
                     {metrics.current_drawdown}%
                   </span>
                 </div>
@@ -645,7 +643,7 @@ export default function Analytics() {
           Strongest Correlations
         </h2>
         <p className="text-xs text-muted mb-3">
-          How your holdings move together. High correlation (red) means less diversification benefit.
+          How your holdings move together. High correlation (deep copper) means less diversification benefit.
         </p>
         <p className="text-xs text-muted mb-3">{dataContext(correlationUpdatedAt)}</p>
         <AsyncSection
@@ -663,7 +661,12 @@ export default function Analytics() {
                   <span className="font-mono">
                     <TickerLink ticker={p.a}>{p.a}</TickerLink> / <TickerLink ticker={p.b}>{p.b}</TickerLink>
                   </span>
-                  <span className={`tabular-nums font-medium ${p.value >= 0 ? "text-loss" : "text-gain"}`}>
+                  <span className="inline-flex items-center gap-2 tabular-nums font-medium text-ink">
+                    <span
+                      aria-hidden="true"
+                      className="w-2 h-2 rounded-full inline-block"
+                      style={{ background: p.value >= 0 ? "var(--chart-2)" : "var(--chart-4)" }}
+                    />
                     {p.value.toFixed(2)}
                   </span>
                 </li>
