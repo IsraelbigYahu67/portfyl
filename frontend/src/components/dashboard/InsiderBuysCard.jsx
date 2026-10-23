@@ -3,7 +3,7 @@ import { Maximize2, UserCheck, X } from "lucide-react";
 import { AsyncSection, EmptyState, SectionHeader, SkeletonRows } from "../ui";
 import ZoomDialog from "../ui/ZoomDialog";
 import { TickerLink } from "../TickerLink";
-import { formatMoney, formatShortDate } from "../../lib/format";
+import { formatCompact, formatMoney, formatTableDate } from "../../lib/format";
 
 // Rows shown before the card has been measured (and in jsdom, which has no layout).
 export const FALLBACK_ROWS = 8;
@@ -76,13 +76,13 @@ function CompactTable({ buys }) {
               {b.insider || "—"}
             </td>
             <td className="py-1.5 pr-3 text-right tabular-nums text-ink font-medium whitespace-nowrap">
-              {b.value != null ? formatMoney(Math.abs(b.value), b.currency) : "—"}
+              {b.value != null ? formatCompact(Math.abs(b.value), b.currency) : "—"}
             </td>
             <td className="py-1.5 pr-3 text-right tabular-nums font-medium whitespace-nowrap">
               <PnlPct buy={b} />
             </td>
             <td className="py-1.5 text-right tabular-nums text-muted text-xs whitespace-nowrap">
-              {formatShortDate(b.date)}
+              {formatTableDate(b.date)}
             </td>
           </tr>
         ))}
@@ -141,7 +141,7 @@ function FullTable({ buys, sort, onSort }) {
                 ) : "—"}
               </td>
               <td className="py-1.5 text-right tabular-nums text-muted text-xs whitespace-nowrap">
-                {b.date || "—"}
+                {formatTableDate(b.date)}
               </td>
             </tr>
           );

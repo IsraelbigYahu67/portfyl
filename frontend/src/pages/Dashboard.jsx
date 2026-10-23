@@ -286,13 +286,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {t212.connected && (
-        <div className="space-y-2">
-          <BrokerPositionSnapshot query={t212.positionsQuery} />
-          <p className="text-xs text-muted">Historical performance uses imported transactions and may lag behind this current snapshot.</p>
-        </div>
-      )}
-
       {/* Variant A: the Net Worth hero stays the anchor, with profit and
           passive income beside it. */}
       <div className="grid gap-6 xl:grid-cols-[minmax(0,2.1fr)_minmax(0,1fr)]">
@@ -322,6 +315,14 @@ export default function Dashboard() {
           />
         </div>
       </div>
+
+      {t212.connected && (
+        <div className="space-y-2">
+          <BrokerPositionSnapshot query={t212.positionsQuery} variant="summary" />
+          <p className="text-xs text-muted">Historical performance uses imported transactions and may lag behind this current snapshot.</p>
+        </div>
+      )}
+
       <DashboardGrid editing={editingLayout} onEditToggle={() => setEditingLayout(!editingLayout)}>
         {{
           attention: (
