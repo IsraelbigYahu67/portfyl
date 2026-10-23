@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import Analytics from "./Analytics";
+import { formatMoney } from "../lib/format";
+import { legacyColorClassesIn } from "../test/legacyClasses";
 
 const api = vi.hoisted(() => ({
   fetchRiskMetrics: vi.fn(),
@@ -12,7 +14,8 @@ const api = vi.hoisted(() => ({
 }));
 
 vi.mock("../api", () => api);
-vi.mock("../App", () => ({ useCurrency: () => ({ currency: "USD", rate: 22 }) }));
+const currencyState = vi.hoisted(() => ({ currency: "USD", rate: 22 }));
+vi.mock("../App", () => ({ useCurrency: () => currencyState }));
 vi.mock("../components/StockDetail", () => ({
   TickerLink: ({ ticker, children }) => <span>{children || ticker}</span>,
 }));
@@ -29,6 +32,8 @@ function renderPage() {
 describe("Analytics decisions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    currencyState.currency = "USD";
+    currencyState.rate = 22;
     api.fetchBenchmarkCatalog.mockResolvedValue([{ id: 1, name: "S&P 500", is_preset: true, is_default: true }]);
     api.fetchRiskMetrics.mockResolvedValue({
       benchmark: { name: "S&P 500" },
@@ -94,5 +99,50 @@ describe("Analytics decisions", () => {
     const matrixCells = container.querySelectorAll(".financial-data");
     const values = Array.from(matrixCells).map((el) => el.textContent);
     expect(values).toContain("-0.20");
+  });
+
+  it("Analytics money uses the display-currency formatter", async () => {
+    currencyState.currency = "CZK";
+    currencyState.rate = 21.71;
+    api.fetchRiskMetrics.mockResolvedValue({
+      ...(await api.fetchRiskMetrics()),
+      lifetime: {
+        simple_roi: 5,
+        xirr: 6,
+        net_profit: 24.25,
+        realized_pnl: 10,
+        dividends: 3,
+        total_invested: 100,
+        current_value: 120,
+      },
+    });
+    renderPage();
+    const expected = formatMoney(24.25 * 21.71, "CZK").replace(/\s/g, " ");
+    await waitFor(() => expect(screen.getByText(expected)).toBeInTheDocument());
+  });
+
+  it("explains what Net Profit and Simple ROI include", async () => {
+    api.fetchRiskMetrics.mockResolvedValue({
+      ...(await api.fetchRiskMetrics()),
+      lifetime: {
+        simple_roi: 5, xirr: 6, net_profit: 24.25, realized_pnl: 10,
+        dividends: 3, total_invested: 100, current_value: 120,
+      },
+    });
+    renderPage();
+    for (const [name, pattern] of [
+      [/What is Net Profit/i, /without interest or fees/i],
+      [/What is Simple ROI/i, /leaves out interest and fees/i],
+    ]) {
+      await waitFor(() => {
+        fireEvent.focus(screen.getByRole("button", { name }));
+        expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent(pattern);
+      });
+      fireEvent.blur(screen.getByRole("button", { name }));
+    }
+  });
+
+  it("uses no legacy color classes", async () => {
+    expect(await legacyColorClassesIn(new URL("./Analytics.jsx", import.meta.url))).toEqual([]);
   });
 });

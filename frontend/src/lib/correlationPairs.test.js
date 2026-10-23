@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { topAbsoluteCorrelationPairs } from "./correlationPairs";
+import { topAbsoluteCorrelationPairs, correlationColor } from "./correlationPairs";
 
 describe("topAbsoluteCorrelationPairs", () => {
   const tickers = ["A", "B", "C"];
@@ -41,5 +41,21 @@ describe("topAbsoluteCorrelationPairs", () => {
   it("returns an empty array for missing input", () => {
     expect(topAbsoluteCorrelationPairs(undefined, undefined, 10)).toEqual([]);
     expect(topAbsoluteCorrelationPairs(["A", "B"], undefined, 10)).toEqual([]);
+  });
+});
+
+describe("correlationColor", () => {
+  it("scales copper with positive correlation", () => {
+    expect(correlationColor(0.63)).toContain("var(--chart-2) 50%");
+    expect(correlationColor(0.63)).toContain("var(--surface-card)");
+  });
+
+  it("uses the second hue for negative correlation", () => {
+    expect(correlationColor(-0.2)).toContain("var(--chart-4) 26%");
+  });
+
+  it("is the faintest tint at zero and the strongest at 1", () => {
+    expect(correlationColor(0)).toContain("var(--chart-2) 15%");
+    expect(correlationColor(1)).toContain("var(--chart-2) 70%");
   });
 });
