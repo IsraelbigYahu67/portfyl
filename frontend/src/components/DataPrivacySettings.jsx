@@ -136,7 +136,15 @@ export default function DataPrivacySettings() {
         </p>
       </div>
 
-      <AnalyticsPreferences />
+      {/* An inset well, not a second raised card: the nested card's own
+          surface is flattened so only the pressed well shows. */}
+      <div
+        data-surface="inset"
+        className="rounded-2xl p-2 [&>.card]:!border-transparent [&>.card]:!bg-transparent [&>.card]:!bg-none [&>.card]:!shadow-none [&>.card]:!backdrop-blur-none"
+        style={{ background: "var(--bg-subtle)", boxShadow: "var(--clay-inset-sm, var(--shadow-inset, none))" }}
+      >
+        <AnalyticsPreferences />
+      </div>
 
       {error && (
         <div className="flex items-start gap-2 text-sm text-loss bg-loss/10 border border-loss/30 rounded-lg px-4 py-3" role="alert">
@@ -156,7 +164,7 @@ export default function DataPrivacySettings() {
           type="button"
           onClick={() => exportMutation.mutate()}
           disabled={exportMutation.isPending}
-          className="shrink-0 flex items-center justify-center gap-2 border border-surface-border rounded-lg px-4 py-2 text-sm font-medium text-ink hover:bg-surface-hover disabled:opacity-50"
+          className="btn-ghost shrink-0 flex items-center justify-center gap-2 text-sm font-medium min-h-11 md:min-h-0 disabled:opacity-50"
         >
           {exportMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
           Download JSON export
@@ -184,7 +192,7 @@ export default function DataPrivacySettings() {
             type="button"
             onClick={() => cancelMutation.mutate()}
             disabled={cancelMutation.isPending}
-            className="flex items-center gap-2 border border-surface-border rounded-lg px-4 py-2 text-sm font-medium text-ink hover:bg-surface-hover disabled:opacity-50"
+            className="btn-ghost flex items-center gap-2 text-sm font-medium min-h-11 md:min-h-0 disabled:opacity-50"
           >
             {cancelMutation.isPending && <Loader2 size={16} className="animate-spin" />}
             Cancel deletion
@@ -199,7 +207,7 @@ export default function DataPrivacySettings() {
               // click instead of being blocked after an async load.
               if (googleEnabled) prepareGoogleSignIn().catch(() => {});
             }}
-            className="flex items-center gap-2 border border-loss/40 rounded-lg px-4 py-2 text-sm font-medium text-loss hover:bg-loss/10"
+            className="btn-ghost text-loss flex items-center gap-2 text-sm font-medium min-h-11 md:min-h-0"
           >
             <Trash2 size={16} />
             Delete workspace
@@ -244,7 +252,7 @@ export default function DataPrivacySettings() {
                 value={confirmation}
                 onChange={(event) => setConfirmation(event.target.value)}
                 autoComplete="off"
-                className="mt-1.5 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-ink focus:outline-none focus:border-loss"
+                className="input mt-1.5 focus:border-loss"
               />
             </label>
             <label className="block text-sm text-muted">
@@ -254,14 +262,14 @@ export default function DataPrivacySettings() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 autoComplete="current-password"
-                className="mt-1.5 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-ink focus:outline-none focus:border-loss"
+                className="input mt-1.5 focus:border-loss"
               />
             </label>
             <button
               type="button"
               onClick={() => scheduleMutation.mutate("password")}
               disabled={!canSchedule}
-              className="w-full flex items-center justify-center gap-2 bg-loss text-white rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
+              className="btn-primary !bg-loss hover:!bg-loss/90 w-full flex items-center justify-center gap-2 min-h-11 md:min-h-0 text-sm disabled:opacity-40"
             >
               {pendingMethod === "password" && <Loader2 size={16} className="animate-spin" />}
               Schedule deletion
@@ -276,7 +284,7 @@ export default function DataPrivacySettings() {
                   type="button"
                   onClick={() => scheduleMutation.mutate("google")}
                   disabled={!canScheduleWithGoogle}
-                  className="w-full flex items-center justify-center gap-2 border border-loss/40 rounded-lg px-4 py-2.5 text-sm font-semibold text-loss hover:bg-loss/10 disabled:opacity-40"
+                  className="btn-ghost text-loss w-full flex items-center justify-center gap-2 min-h-11 md:min-h-0 text-sm font-semibold disabled:opacity-40"
                 >
                   {pendingMethod === "google" && <Loader2 size={16} className="animate-spin" />}
                   Confirm with Google

@@ -1,8 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import PreferencesSettings from "./PreferencesSettings";
+import { legacyColorClassesIn } from "../../test/legacyClasses";
 
 const context = vi.hoisted(() => ({
+  themeStyle: "glass",
   setCurrency: vi.fn(),
   setPalette: vi.fn(),
   setTheme: vi.fn(),
@@ -16,12 +18,15 @@ vi.mock("../../App", () => ({
     setPalette: context.setPalette,
     theme: "system",
     setTheme: context.setTheme,
-    themeStyle: "glass",
+    themeStyle: context.themeStyle,
     setThemeStyle: context.setThemeStyle,
   }),
 }));
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  context.themeStyle = "glass";
+});
 
 it("uses the existing context setters for every device preference", () => {
   render(<PreferencesSettings />);
@@ -44,4 +49,36 @@ it("offers Clay as a third theme style next to Premium", () => {
   fireEvent.click(screen.getByRole("button", { name: "Soft clay theme" }));
 
   expect(context.setThemeStyle).toHaveBeenCalledWith("clay");
+});
+
+it("Clay hides appearance and accent palette", () => {
+  context.themeStyle = "clay";
+  render(<PreferencesSettings />);
+
+  expect(screen.queryByRole("heading", { name: "Appearance" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Accent palette" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Theme: Soft Iris" })).not.toBeInTheDocument();
+  expect(screen.getByText("Clay uses its own light palette.")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Display currency" })).toBeInTheDocument();
+});
+
+it("keeps appearance and accent palette for Classic and Premium", () => {
+  for (const style of ["glass", "neu"]) {
+    context.themeStyle = style;
+    const { unmount } = render(<PreferencesSettings />);
+    expect(screen.getByRole("heading", { name: "Appearance" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Accent palette" })).toBeInTheDocument();
+    expect(screen.queryByText("Clay uses its own light palette.")).not.toBeInTheDocument();
+    unmount();
+  }
+});
+
+it("renders the accent palette choices as pills", () => {
+  render(<PreferencesSettings />);
+
+  expect(screen.getByRole("button", { name: "Theme: Soft Iris" })).toHaveClass("rounded-full");
+});
+
+it("uses no legacy color classes", async () => {
+  expect(await legacyColorClassesIn(new URL("./PreferencesSettings.jsx", import.meta.url))).toEqual([]);
 });

@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom";
 
 import IBKRConnectionCard, { describeLedger } from "./IBKRConnectionCard";
+import { legacyColorClassesIn } from "../../test/legacyClasses";
 
 const mocks = vi.hoisted(() => ({
   fetchIBKRStatus: vi.fn(),
@@ -135,4 +136,26 @@ it("toggles auto-sync", async () => {
 it("ignores a missing or unknown ledger", () => {
   expect(describeLedger(undefined)).toBeNull();
   expect(describeLedger({ status: "something_new" })).toBeNull();
+});
+
+it("shows the connection state as a badge with pill buttons", async () => {
+  mocks.fetchIBKRStatus.mockResolvedValue(CONNECTED);
+  mount();
+
+  expect(await screen.findByText("Connected")).toHaveAttribute("data-tone", "gain");
+  expect(screen.getByRole("button", { name: /sync now/i })).toHaveClass("btn-primary");
+  expect(screen.getByRole("button", { name: /disconnect/i })).toHaveClass("btn-ghost", "text-loss");
+});
+
+it("styles the credential fields with the shared input class", async () => {
+  mocks.fetchIBKRStatus.mockResolvedValue({ connected: false });
+  mount();
+
+  expect(await screen.findByLabelText("Flex Web Service token")).toHaveClass("input");
+  expect(screen.getByLabelText("Flex Query ID")).toHaveClass("input");
+  expect(screen.getByText("Not connected")).toHaveAttribute("data-tone", "neutral");
+});
+
+it("uses no legacy color classes", async () => {
+  expect(await legacyColorClassesIn(new URL("./IBKRConnectionCard.jsx", import.meta.url))).toEqual([]);
 });

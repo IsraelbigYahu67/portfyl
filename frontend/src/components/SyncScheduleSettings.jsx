@@ -2,6 +2,12 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 import { fetchSyncSchedule, updateSyncSchedule } from "../api";
+import SegmentedControl from "./ui/SegmentedControl";
+
+const MODE_OPTIONS = [
+  { value: "daily", label: "Daily at" },
+  { value: "interval", label: "Every N hours" },
+];
 
 // Global card on the Settings page: when do brokers with auto-sync enabled
 // check for new trades. Mirrors GET/PUT /api/settings/sync-schedule.
@@ -74,49 +80,37 @@ export default function SyncScheduleSettings() {
         <Loader2 size={18} className="animate-spin text-muted" />
       ) : (
         <div className="space-y-4">
-          <div className="space-y-3">
-            <label className="flex items-center gap-3 text-sm text-ink">
-              <input
-                type="radio"
-                name="sync-mode"
-                checked={mode === "daily"}
-                onChange={() => setMode("daily")}
-              />
-              <span>Daily at</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <SegmentedControl aria-label="Sync mode" value={mode} onChange={setMode} options={MODE_OPTIONS} />
+            {mode === "daily" ? (
               <input
                 type="time"
+                aria-label="Sync time"
                 value={dailyTime}
                 onChange={(e) => setDailyTime(e.target.value)}
-                disabled={mode !== "daily"}
-                className="bg-surface border border-surface-border rounded-lg px-3 py-1.5 text-sm text-ink focus:outline-none focus:border-brand disabled:opacity-40"
+                className="input w-auto min-h-11 md:min-h-0"
               />
-            </label>
-            <label className="flex items-center gap-3 text-sm text-ink">
-              <input
-                type="radio"
-                name="sync-mode"
-                checked={mode === "interval"}
-                onChange={() => setMode("interval")}
-              />
-              <span>Every</span>
-              <input
-                type="number"
-                min="1"
-                max="168"
-                value={intervalHours}
-                onChange={(e) => setIntervalHours(e.target.value)}
-                disabled={mode !== "interval"}
-                className="w-20 bg-surface border border-surface-border rounded-lg px-3 py-1.5 text-sm text-ink focus:outline-none focus:border-brand disabled:opacity-40"
-              />
-              <span>hours</span>
-            </label>
+            ) : (
+              <span className="flex items-center gap-2 text-sm text-ink">
+                <input
+                  type="number"
+                  min="1"
+                  max="168"
+                  aria-label="Hours between syncs"
+                  value={intervalHours}
+                  onChange={(e) => setIntervalHours(e.target.value)}
+                  className="input w-24 min-h-11 md:min-h-0"
+                />
+                <span>hours</span>
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-4">
             <button
               onClick={() => saveMutation.mutate()}
               disabled={saveMutation.isPending}
-              className="flex items-center gap-2 bg-brand text-black font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-brand/90 transition-colors disabled:bg-brand-light disabled:text-muted disabled:cursor-not-allowed"
+              className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {saveMutation.isPending ? (
                 <Loader2 size={16} className="animate-spin" />

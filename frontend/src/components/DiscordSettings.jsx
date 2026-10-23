@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchDiscordWebhook, createDiscordWebhook, updateDiscordWebhook, deleteDiscordWebhook, testDiscordWebhook } from "../api";
 import { Loader2, Unlink, CheckCircle2, AlertCircle, Send, Bell, BellOff } from "lucide-react";
+import { Badge } from "./ui/Badge";
 import Toggle from "./ui/Toggle";
 
 export default function DiscordSettings() {
@@ -84,9 +85,9 @@ export default function DiscordSettings() {
             Get notified in Discord when trades execute, dividends arrive, or you hit milestones
           </p>
         </div>
-        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${connected ? "bg-indigo-100 text-indigo-600" : "bg-surface-hover text-muted"}`}>
+        <Badge tone={invalidStored ? "loss" : connected ? "gain" : "neutral"}>
           {isLoading ? "..." : invalidStored ? "Needs attention" : connected ? "Active" : "Not configured"}
-        </span>
+        </Badge>
       </div>
 
       {error && (
@@ -120,7 +121,7 @@ export default function DiscordSettings() {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://discord.com/api/webhooks/..."
-              className="w-full bg-surface border border-surface-border rounded-lg px-4 py-2.5 text-sm text-ink placeholder-muted focus:outline-none focus:border-brand"
+              className="input text-sm"
             />
             <p className="text-xs text-muted mt-1.5">
               Create a webhook in Discord: Server Settings &rarr; Integrations &rarr; Webhooks &rarr; New Webhook
@@ -129,7 +130,7 @@ export default function DiscordSettings() {
           <button
             onClick={() => connectMut.mutate()}
             disabled={!url.trim() || busy}
-            className="flex items-center gap-2 bg-[#5865F2] text-white font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-[#4752C4] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {connectMut.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
             Connect
@@ -167,7 +168,6 @@ export default function DiscordSettings() {
                 <Toggle
                   checked={webhook[key]}
                   onChange={(v) => toggleMut.mutate({ [key]: v })}
-                  activeClassName="bg-[#5865F2]"
                   aria-label={label}
                 />
               </label>
@@ -178,7 +178,7 @@ export default function DiscordSettings() {
             <button
               onClick={() => testMut.mutate()}
               disabled={busy || invalidStored}
-              className="flex items-center gap-2 bg-[#5865F2] text-white font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-[#4752C4] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {testMut.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
               Send test
@@ -186,7 +186,7 @@ export default function DiscordSettings() {
             <button
               onClick={() => disconnectMut.mutate()}
               disabled={busy}
-              className="flex items-center gap-2 bg-transparent border border-red-200 text-red-600 font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="btn-ghost text-loss flex items-center gap-2 text-sm font-semibold min-h-11 md:min-h-0 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {disconnectMut.isPending ? <Loader2 size={16} className="animate-spin" /> : <Unlink size={16} />}
               Remove

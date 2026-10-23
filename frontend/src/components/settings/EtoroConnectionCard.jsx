@@ -5,6 +5,7 @@ import { AlertCircle, CheckCircle2, Eye, EyeOff, Info, Link as LinkIcon, Loader2
 import { connectEtoro, disconnectEtoro, fetchEtoroStatus, setEtoroAutoSync, syncEtoro } from "../../api";
 import { AsyncSection } from "../ui";
 import Toggle from "../ui/Toggle";
+import { Badge } from "../ui/Badge";
 import { getApiErrorMessage } from "../../lib/apiError";
 import { useBrokerPortfolio } from "../../hooks/useBrokerPortfolio";
 import { splitNote } from "../../lib/brokerPortfolio";
@@ -150,6 +151,10 @@ export default function EtoroConnectionCard({ portfolioId, portfolioName }) {
   const configured = status?.configured !== false;
   const busy = connectMutation.isPending || disconnectMutation.isPending || syncMutation.isPending;
 
+  // No app key on this server and nothing connected: there is nothing the user
+  // can do here, so the card (heading included) is not rendered at all.
+  if (!isLoading && !statusError && !connected && !configured) return null;
+
   return (
     <AsyncSection isLoading={isLoading} error={statusError} onRetry={() => refetch()} loading={<div className="h-52 animate-pulse rounded-xl border border-surface-border bg-surface-card" />}>
       <section aria-label="eToro connection" className="space-y-5 rounded-xl border border-surface-border bg-surface-card p-6">
@@ -160,7 +165,7 @@ export default function EtoroConnectionCard({ portfolioId, portfolioName }) {
               Imports buys and sells of US-listed stocks, ETFs and crypto into <span className="text-ink">{portfolioName ?? "this portfolio"}</span>.
             </p>
           </div>
-          <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${connected ? "bg-gain/10 text-gain" : "bg-surface-hover text-muted"}`}>{connected ? "Connected" : "Not connected"}</span>
+          <Badge tone={connected ? "gain" : "neutral"} className="shrink-0">{connected ? "Connected" : "Not connected"}</Badge>
         </div>
 
         <p className="flex items-start gap-2 text-xs text-muted">
@@ -171,22 +176,16 @@ export default function EtoroConnectionCard({ portfolioId, portfolioName }) {
         {actionError && <div role="alert" className="flex items-center gap-2 rounded-lg border border-loss/30 bg-loss/10 px-4 py-3 text-sm text-loss"><AlertCircle size={16} />{actionError}</div>}
         {success && <div role="status" className="flex items-center gap-2 rounded-lg border border-gain/30 bg-gain/10 px-4 py-3 text-sm text-gain"><CheckCircle2 size={16} />{success}</div>}
 
-        {!connected && !configured && (
-          <div className="rounded-lg bg-surface-hover px-4 py-3 text-sm text-muted">
-            The eToro connection is not available on this server yet.
-          </div>
-        )}
-
         {!connected && configured && (
           <div className="space-y-3">
             <div>
               <label htmlFor="etoro-user-key" className="mb-1.5 block text-sm text-muted">eToro API key</label>
               <div className="relative">
-                <input id="etoro-user-key" type={showKey ? "text" : "password"} value={userKey} onChange={(event) => setUserKey(event.target.value)} placeholder="Paste your eToro API key (Read, Real)" autoComplete="off" className="w-full rounded-lg border border-surface-border bg-surface px-4 py-2.5 pr-10 text-sm" />
+                <input id="etoro-user-key" type={showKey ? "text" : "password"} value={userKey} onChange={(event) => setUserKey(event.target.value)} placeholder="Paste your eToro API key (Read, Real)" autoComplete="off" className="input pr-10 text-sm" />
                 <button type="button" aria-label={showKey ? "Hide key" : "Show key"} onClick={() => setShowKey((visible) => !visible)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink">{showKey ? <EyeOff size={16} /> : <Eye size={16} />}</button>
               </div>
             </div>
-            <button type="button" onClick={() => connectMutation.mutate()} disabled={!userKey.trim() || busy} className="flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40">{connectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} />}Connect</button>
+            <button type="button" onClick={() => connectMutation.mutate()} disabled={!userKey.trim() || busy} className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40">{connectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} />}Connect</button>
             <KeyGuide />
           </div>
         )}
@@ -206,8 +205,8 @@ export default function EtoroConnectionCard({ portfolioId, portfolioName }) {
             </div>
             <SyncOutcome result={syncResult} />
             <div className="flex flex-wrap gap-3">
-              <button type="button" onClick={() => syncMutation.mutate()} disabled={busy || !configured} className="flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-black disabled:opacity-40">{syncMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}{syncMutation.isPending ? "Syncing…" : "Sync now"}</button>
-              <button type="button" onClick={() => disconnectMutation.mutate()} disabled={busy} className="flex items-center gap-2 rounded-lg border border-red-200 px-5 py-2.5 text-sm font-semibold text-red-600 disabled:opacity-40">{disconnectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Unlink size={16} />}Disconnect</button>
+              <button type="button" onClick={() => syncMutation.mutate()} disabled={busy || !configured} className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40">{syncMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}{syncMutation.isPending ? "Syncing…" : "Sync now"}</button>
+              <button type="button" onClick={() => disconnectMutation.mutate()} disabled={busy} className="btn-ghost text-loss flex items-center gap-2 text-sm font-semibold min-h-11 md:min-h-0 disabled:opacity-40">{disconnectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Unlink size={16} />}Disconnect</button>
             </div>
           </div>
         )}

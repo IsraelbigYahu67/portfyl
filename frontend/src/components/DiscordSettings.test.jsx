@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../api", () => mocks);
 
 import DiscordSettings from "./DiscordSettings";
+import { legacyColorClassesIn } from "../test/legacyClasses";
 
 function mount() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -82,5 +83,28 @@ describe("DiscordSettings", () => {
         webhook_url: "https://discord.com/api/webhooks/1/token",
       }),
     );
+  });
+
+  it("shows the status as a badge and uses the shared pill buttons", async () => {
+    mocks.fetchDiscordWebhook.mockResolvedValue(connected());
+    mount();
+
+    const badge = await screen.findByText("Active");
+    expect(badge).toHaveAttribute("data-tone", "gain");
+    expect(screen.getByRole("button", { name: /send test/i })).toHaveClass("btn-primary");
+    expect(screen.getByRole("button", { name: /remove/i })).toHaveClass("btn-ghost", "text-loss");
+    expect(screen.getByRole("switch", { name: "Trade executions" })).toHaveClass("bg-brand");
+  });
+
+  it("styles the webhook field and Connect button with the shared classes", async () => {
+    mocks.fetchDiscordWebhook.mockResolvedValue({ connected: false });
+    mount();
+
+    expect(await screen.findByPlaceholderText(/discord\.com\/api\/webhooks/)).toHaveClass("input");
+    expect(screen.getByRole("button", { name: /^connect$/i })).toHaveClass("btn-primary");
+  });
+
+  it("uses no legacy color classes", async () => {
+    expect(await legacyColorClassesIn(new URL("./DiscordSettings.jsx", import.meta.url))).toEqual([]);
   });
 });
