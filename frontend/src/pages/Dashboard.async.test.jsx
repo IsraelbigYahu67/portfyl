@@ -54,7 +54,12 @@ vi.mock("../components/DashboardGrid", () => ({
   },
 }));
 vi.mock("../components/PortfolioHero", () => ({
-  default: () => <div>Healthy portfolio hero</div>,
+  default: () => (
+    <div>
+      <span>Net worth</span>
+      <span>Healthy portfolio hero</span>
+    </div>
+  ),
 }));
 vi.mock("../components/PerformanceChart", () => ({
   default: () => <div>Healthy performance chart</div>,
@@ -113,9 +118,28 @@ it("shows current T212 quantities from the snapshot while historical dashboard w
   });
   renderPage();
 
-  expect(await screen.findByRole("region", { name: "Trading 212 current positions" })).toHaveTextContent("3 shares");
+  const snapshot = await screen.findByRole("region", { name: "Trading 212 current positions" });
+  // The snapshot is a one-line summary; the quantities sit behind the disclosure.
+  expect(snapshot).toHaveTextContent("1 position");
+  fireEvent.click(within(snapshot).getByRole("button", { name: "Show positions" }));
+  expect(snapshot).toHaveTextContent("3 shares");
   expect(screen.getByText(/historical performance uses imported transactions/i)).toBeInTheDocument();
   expect(screen.getByText("Healthy portfolio hero")).toBeInTheDocument();
+});
+
+it("renders net worth before the broker snapshot", async () => {
+  t212Mocks.useT212Sync.mockReturnValue({
+    connected: true,
+    positionsQuery: {
+      data: { status: "fresh", currency: "USD", positions: [{ ticker: "AAPL", quantity: 3, market_value: null }] },
+      isLoading: false, isError: false,
+    },
+  });
+  renderPage();
+
+  const snapshot = await screen.findByText(/Trading 212 snapshot/);
+  const netWorth = screen.getByText("Net worth");
+  expect(netWorth.compareDocumentPosition(snapshot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 
 it("keeps healthy dashboard widgets visible when Movers fails and retries only Movers", async () => {

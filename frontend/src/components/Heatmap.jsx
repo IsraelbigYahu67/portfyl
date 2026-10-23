@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchHeatmap } from "../api";
 import { useStockDetail } from "../hooks/useStockDetail";
 import { GAIN_COLOR, LOSS_COLOR } from "../lib/chartTheme";
+import SegmentedControl from "./ui/SegmentedControl";
 
 const PERIODS = [
   { key: "1d", label: "1D" },
@@ -34,15 +35,27 @@ function getColor(pct) {
   return (STOPS.find((s) => pct >= s.min) || STOPS[STOPS.length - 1]).color;
 }
 
+// Saturated tiles take the card surface as text color (light on a deep tile
+// in light themes, dark on a bright tile in dark themes); pale tiles use ink.
 function getTileTextColor(pct) {
-  if (pct >= 0.5 || pct <= -1.5) return "text-white";
-  return "text-ink";
+  if (pct >= 0.5 || pct <= -1.5) return "var(--surface-card)";
+  return "var(--ink)";
+}
+
+// Which text lines a tile of w x h CSS px can carry. Every line is 12px, so a
+// tile too small for a line drops it instead of shrinking the text; the
+// tile's title tooltip still names the ticker, change and weight.
+export function tileLabels(w, h) {
+  const ticker = w >= 36 && h >= 20;
+  const change = ticker && w >= 48 && h >= 36;
+  const weight = change && h >= 52;
+  return { ticker, change, weight };
 }
 
 // Squarified treemap (Bruls/Huijing/van Wijk).
 // Rows are laid along the SHORTER side. Tiles within a row stack along that
 // short side; the row thickness extends along the long side.
-function squarify(items, W, H) {
+export function squarify(items, W, H) {
   const sorted = [...items].sort((a, b) => {
     if (a.ticker === "__small__") return 1;
     if (b.ticker === "__small__") return -1;
@@ -150,26 +163,15 @@ export default function Heatmap() {
   const tiles = treeData.length ? squarify(treeData.map((d) => ({ ...d, weight: d.weight })), size.w, size.h) : [];
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
-          Heatmap
-        </h2>
-        <div className="flex gap-0.5 bg-surface-hover rounded-lg p-0.5">
-          {PERIODS.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => setPeriod(p.key)}
-              className={`px-2 py-1 text-xs rounded-md font-medium transition-colors ${
-                period === p.key
-                  ? "bg-surface-card text-brand font-semibold shadow-sm"
-                  : "text-muted hover:text-ink"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex justify-end mb-4">
+        <SegmentedControl
+          size="sm"
+          options={PERIODS.map((p) => ({ value: p.key, label: p.label }))}
+          value={period}
+          onChange={setPeriod}
+          aria-label="Heatmap period"
+        />
       </div>
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center min-h-[300px]">
@@ -180,8 +182,7 @@ export default function Heatmap() {
       ) : (
         <div
           ref={setContainerEl}
-          className="relative flex-1 w-full overflow-hidden"
-          style={{ minHeight: "400px" }}
+          className="relative flex-1 min-h-0 w-full overflow-hidden"
         >
           {tiles.map((t) => {
             if (t.item.ticker === "__small__") {
@@ -191,7 +192,7 @@ export default function Heatmap() {
                   ref={tooltipRef}
                   onMouseEnter={() => setShowSmallTooltip(true)}
                   onMouseLeave={() => setShowSmallTooltip(false)}
-                  className="absolute rounded cursor-default flex items-center justify-center overflow-visible"
+                  className="absolute rounded-[10px] cursor-default flex items-center justify-center overflow-visible"
                   style={{
                     left: `${t.x}px`,
                     top: `${t.y}px`,
@@ -229,13 +230,14 @@ export default function Heatmap() {
                 </div>
               );
             }
-            const area = t.w * t.h;
+            const labels = tileLabels(t.w - 2, t.h - 2);
             return (
               <div
                 key={t.item.ticker}
                 onClick={() => openStock(t.item.ticker)}
-                className={`absolute rounded transition-opacity hover:opacity-80 cursor-pointer flex flex-col items-center justify-center overflow-hidden ${getTileTextColor(t.item.change_pct)}`}
+                className={`absolute rounded-[10px] transition-opacity hover:opacity-80 cursor-pointer flex flex-col items-center justify-center overflow-hidden`}
                 style={{
+                  color: getTileTextColor(t.item.change_pct),
                   left: `${t.x}px`,
                   top: `${t.y}px`,
                   width: `${t.w - 2}px`,
@@ -244,30 +246,21 @@ export default function Heatmap() {
                 }}
                 title={`${t.item.ticker} | ${t.item.change_pct >= 0 ? "+" : ""}${t.item.change_pct}% | Weight: ${t.item.weight}%`}
               >
-                {/* Treemap tile text is inherently area-constrained -- a tile
-                    proportional to a sub-1% holding is only a few CSS px
-                    wide. We raise the floors as far as the tile can bear
-                    (was 8/8/9px) without labels overflowing their box; the
-                    exact ticker/change/weight remain available via the tile
-                    title tooltip and the click-through to stock detail. */}
-                <span
-                  className="font-mono font-bold leading-tight"
-                  style={{ fontSize: `${Math.max(10, Math.min(22, Math.sqrt(area) / 6))}px` }}
-                >
-                  {t.item.ticker}
-                </span>
-                <span
-                  className="font-medium leading-tight mt-0.5"
-                  style={{ fontSize: `${Math.max(9, Math.min(14, Math.sqrt(area) / 10))}px` }}
-                >
-                  {t.item.change_pct >= 0 ? "+" : ""}{t.item.change_pct}%
-                </span>
-                <span
-                  className="opacity-80 leading-tight mt-0.5 font-semibold"
-                  style={{ fontSize: `${Math.max(9, Math.min(13, Math.sqrt(area) / 12))}px` }}
-                >
-                  {t.item.weight}%
-                </span>
+                {/* All tile text is 12px. A tile too small for a line drops it
+                    (see tileLabels) rather than shrinking the text; the exact
+                    ticker/change/weight stay in the tile title tooltip and
+                    behind the click-through to stock detail. */}
+                {labels.ticker && (
+                  <span className="font-mono font-bold text-xs leading-tight">{t.item.ticker}</span>
+                )}
+                {labels.change && (
+                  <span className="font-medium text-xs leading-tight mt-0.5">
+                    {t.item.change_pct >= 0 ? "+" : ""}{t.item.change_pct}%
+                  </span>
+                )}
+                {labels.weight && (
+                  <span className="opacity-80 text-xs leading-tight mt-0.5 font-semibold">{t.item.weight}%</span>
+                )}
               </div>
             );
           })}
