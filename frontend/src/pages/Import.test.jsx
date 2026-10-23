@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 import Import from "./Import";
+import { legacyColorClassesIn } from "../test/legacyClasses";
 
 
 const mocks = vi.hoisted(() => ({
@@ -438,5 +439,17 @@ describe("Import preview and undo", () => {
 
     await waitFor(() => expect(mocks.undoLastImport).toHaveBeenCalledTimes(1));
     expect(mocks.success).toHaveBeenCalledWith("Last import undone");
+  });
+
+  it("uses no legacy color classes", async () => {
+    expect(await legacyColorClassesIn(new URL("./Import.jsx", import.meta.url))).toEqual([]);
+  });
+
+  it("the stepper marks the current step", () => {
+    mount();
+    const steps = screen.getByRole("list", { name: "Import progress" });
+    const current = steps.querySelectorAll('[aria-current="step"]');
+    expect(current).toHaveLength(1);
+    expect(current[0]).toHaveTextContent("Select source");
   });
 });

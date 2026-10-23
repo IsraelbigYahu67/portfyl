@@ -19,6 +19,7 @@ import {
   undoLastImport,
 } from "../api";
 import BrokerGuides from "../components/import/BrokerGuides";
+import { Badge } from "../components/ui/Badge";
 import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/Toast";
 import { usePortfolio } from "../App";
@@ -49,19 +50,8 @@ function downloadSample() {
 // File formats from backend/importers/formats/ besides T212, Native and IBKR.
 const BROKER_FILE_FORMATS = ["Degiro", "XTB", "Charles Schwab", "Fidelity"];
 
-const FORMAT_BADGE_CLASS = {
-  "Trading 212": "bg-blue-100 text-blue-700",
-  Native: "bg-green-100 text-green-700",
-};
-
 function FormatBadge({ format }) {
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-      FORMAT_BADGE_CLASS[format] ?? "bg-surface-hover text-ink"
-    }`}>
-      {format}
-    </span>
-  );
+  return <Badge tone={format === "Trading 212" ? "brand" : "neutral"}>{format}</Badge>;
 }
 
 // Rows the parser recognized but did not import, grouped by reason.
@@ -284,7 +274,7 @@ export default function Import({ focused = false }) {
     : 0;
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold">Import transactions</h1>
@@ -298,16 +288,30 @@ export default function Import({ focused = false }) {
         </div>
       </div>
 
-      <ol aria-label="Import progress" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {IMPORT_STEPS.map((label, index) => (
-          <li key={label} aria-current={index === stageIndex ? "step" : undefined} className={`rounded-lg border px-3 py-2 text-xs font-medium ${index === stageIndex ? "border-brand bg-brand/10 text-brand" : index < stageIndex ? "border-gain/30 text-gain" : "border-surface-border text-muted"}`}>
-            <span className="mr-1 tabular-nums">{index + 1}.</span>{label}
-          </li>
-        ))}
+      <ol
+        aria-label="Import progress"
+        className="grid grid-cols-2 gap-1 rounded-3xl p-1 sm:grid-cols-4 sm:rounded-full"
+        style={{ background: "var(--bg-subtle, var(--surface-hover))", boxShadow: "var(--clay-inset-sm, none)" }}
+      >
+        {IMPORT_STEPS.map((label, index) => {
+          const current = index === stageIndex;
+          return (
+            <li
+              key={label}
+              aria-current={current ? "step" : undefined}
+              className={`flex min-h-[44px] items-center justify-center rounded-full px-3 py-2 text-center text-xs md:min-h-0 ${
+                current ? "bg-surface-card-elevated font-semibold text-brand" : index < stageIndex ? "font-medium text-gain" : "font-medium text-muted"
+              }`}
+              style={current ? { boxShadow: "var(--clay-raise-sm, none)" } : undefined}
+            >
+              <span><span className="mr-1 tabular-nums">{index + 1}.</span>{label}</span>
+            </li>
+          );
+        })}
       </ol>
 
       {undo?.available && (
-        <section className="card border border-blue-500/30 bg-blue-500/5 flex items-start justify-between gap-4" aria-label="Import recovery">
+        <section className="card border border-brand/30 bg-brand/5 flex items-start justify-between gap-4" aria-label="Import recovery">
           <div className="flex items-start gap-3">
             <RotateCcw size={18} className="text-brand mt-0.5 shrink-0" />
             <div>
@@ -351,10 +355,12 @@ export default function Import({ focused = false }) {
         </div>
       </section>
 
+      <div className={`grid gap-6 xl:items-start ${file ? "" : "xl:grid-cols-2"}`}>
+      <div className="space-y-6">
       <div
         {...getRootProps()}
         className={`card border-2 border-dashed cursor-pointer transition-colors flex flex-col items-center justify-center py-10 gap-3 ${
-          isDragActive ? "border-brand bg-brand/5" : "border-surface-border hover:border-gray-500"
+          isDragActive ? "border-brand bg-brand/5" : "border-surface-border hover:border-brand"
         }`}
       >
         <input {...getInputProps()} />
@@ -386,7 +392,7 @@ export default function Import({ focused = false }) {
                 setStage("select");
                 setError(null);
               }}
-              className="mt-0.5 accent-red-500 w-4 h-4"
+              className="mt-0.5 accent-brand w-4 h-4"
             />
             <span>
               <span className="text-sm font-medium">Replace existing portfolio</span>
@@ -399,11 +405,14 @@ export default function Import({ focused = false }) {
         </div>
       )}
 
+      </div>
+
       {!file && <BrokerGuides />}
+      </div>
       </>}
 
       {preview && stage === "preview" && (
-        <section className={`card border space-y-4 ${preview.mode === "replace" ? "border-red-500/40" : "border-brand/30"}`} aria-label="Import preview">
+        <section className={`card border space-y-4 ${preview.mode === "replace" ? "border-loss/40" : "border-brand/30"}`} aria-label="Import preview">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <h2 className="font-semibold">Review changes</h2>
@@ -434,7 +443,7 @@ export default function Import({ focused = false }) {
           )}
 
           {preview.mode === "replace" && (
-            <div className="rounded-lg bg-loss/10 border border-red-500/30 p-3 text-sm">
+            <div className="rounded-lg bg-loss/10 border border-loss/30 p-3 text-sm">
               <p className="font-semibold text-loss">
                 {preview.format === "Trading 212"
                   ? "Trading 212 exports replace the full portfolio when detected."
@@ -492,14 +501,14 @@ export default function Import({ focused = false }) {
       )}
 
       {preview && stage === "confirm" && (
-        <section className={`card space-y-4 border ${preview.mode === "replace" ? "border-red-500/40" : "border-brand/30"}`} aria-label="Confirm import">
+        <section className={`card space-y-4 border ${preview.mode === "replace" ? "border-loss/40" : "border-brand/30"}`} aria-label="Confirm import">
           <div>
             <h2 className="font-semibold">Confirm import</h2>
             <p className="mt-1 text-sm text-muted">{preview.mode === "replace" ? "Replace" : "Append"} mode · {plural(preview.counts.added, "transaction")} added · {plural(preview.counts.removed, "transaction")} removed · {plural(duplicateCount, "duplicate")} skipped · {preview.counts.projected} total after import.</p>
           </div>
           <div className="flex gap-3">
             <button type="button" onClick={() => setStage("preview")} className="btn-ghost flex-1" disabled={commitMutation.isPending}>Back to preview</button>
-            <button type="button" onClick={() => commitMutation.mutate()} className={`flex-1 rounded-lg px-4 py-2 font-semibold ${preview.mode === "replace" ? "bg-red-600 text-white hover:bg-red-700" : "btn-primary"}`} disabled={commitMutation.isPending}>
+            <button type="button" onClick={() => commitMutation.mutate()} className={`flex-1 ${preview.mode === "replace" ? "btn-primary !bg-loss hover:!opacity-90" : "btn-primary"}`} disabled={commitMutation.isPending}>
               {commitMutation.isPending ? "Importing…" : preview.mode === "replace" ? `Replace portfolio with ${plural(preview.counts.projected, "transaction")}` : `Import ${plural(preview.counts.added, "transaction")}`}
             </button>
           </div>
@@ -507,14 +516,14 @@ export default function Import({ focused = false }) {
       )}
 
       {error && (
-        <div role="alert" className="card border border-red-500/40 bg-loss/10 flex items-start gap-3">
+        <div role="alert" className="card border border-loss/40 bg-loss/10 flex items-start gap-3">
           <AlertCircle size={18} className="text-loss mt-0.5 shrink-0" />
           <div><p className="font-semibold text-loss">Import not applied</p><p className="text-sm text-loss mt-1">{error}</p></div>
         </div>
       )}
 
       {result && stage === "result" && (
-        <div className="card border border-green-500/40 bg-gain/10 flex items-start gap-3">
+        <div className="card border border-gain/40 bg-gain/10 flex items-start gap-3">
           <CheckCircle size={18} className="text-gain mt-0.5 shrink-0" />
           <div className="flex-1">
             <p className="font-semibold text-gain">{plural(result.imported, "transaction")} imported{result.portfolio_name && <> into the new portfolio “{result.portfolio_name}”</>}</p>
