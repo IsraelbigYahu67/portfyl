@@ -48,10 +48,34 @@ describe("AllocationTargets", () => {
     expect(within(aapl).getByText("70.00%")).toBeInTheDocument();
     expect(within(aapl).getByText("+10.00%")).toBeInTheDocument();
     expect(within(screen.getByRole("row", { name: /MSFT/ })).getByText(/not held/i)).toBeInTheDocument();
+    expect(screen.queryByRole("row", { name: /TSLA/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "1 holding without a target" }));
     expect(within(screen.getByRole("row", { name: /TSLA/ })).getByText(/no target/i)).toBeInTheDocument();
     expect(screen.getByText(/90.00% of 100% assigned/i)).toBeInTheDocument();
     expect(screen.getByText(/10.00% not assigned/i)).toBeInTheDocument();
     expect(screen.getByRole("list", { name: /target groups/i })).toHaveTextContent("Core");
+  });
+
+  it("collapses rows without a target into one summary row", async () => {
+    const untargeted = Array.from({ length: 21 }, (_, i) => ({
+      ticker: `UT${i}`, name: null, group: null, held: true, target_pct: null,
+      current_pct: 1, drift_pct: null, market_value: 10, value_to_target: null,
+    }));
+    api.fetchAllocationTargetDrift.mockResolvedValue({
+      ...DRIFT, rows: [DRIFT.rows[0], ...untargeted], groups: [],
+    });
+    renderTargets();
+
+    const toggle = await screen.findByRole("button", { name: "21 holdings without a target" });
+    expect(screen.getByRole("row", { name: /AAPL/ })).toBeInTheDocument();
+    expect(screen.queryByRole("row", { name: /UT0/ })).not.toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    for (let i = 0; i < 21; i += 1) {
+      expect(screen.getByRole("row", { name: (accessibleName) => accessibleName.split(" ")[0] === `UT${i}` })).toBeInTheDocument();
+    }
   });
 
   it("shows an empty state when no targets are set", async () => {

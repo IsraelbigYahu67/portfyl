@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAllHoldings, fetchSectorBreakdown } from "../api";
 import { useCurrency, usePortfolio } from "../App";
-import { formatMoney } from "../lib/format";
+import { formatMoney, formatPercent } from "../lib/format";
 import { allocationRows, boundedAllocationRows } from "../lib/allocationBreakdown";
 import { TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { TickerLink, useStockDetail } from "../components/StockDetail";
@@ -15,7 +15,31 @@ import AllocationTargets from "../components/AllocationTargets";
 import { useT212Sync } from "../hooks/useT212Sync";
 import { hasPriceProblem, priceFreshnessTitle } from "../lib/priceFreshness";
 
-const fmtPct = (n) => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
+const fmtPct = (n) => formatPercent(n);
+
+// Right-edge fade shown while the table scrolls sideways and its end is not
+// yet in view, so a clipped column reads as "more this way".
+const SCROLL_FADE = "linear-gradient(to right, black 92%, transparent)";
+
+function useScrollCue(el, dependency) {
+  const [cue, setCue] = useState(false);
+  useEffect(() => {
+    if (!el) return undefined;
+    const measure = () => {
+      const overflowing = el.scrollWidth > el.clientWidth;
+      const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
+      setCue(overflowing && !atEnd);
+    };
+    measure();
+    el.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("resize", measure);
+    return () => {
+      el.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
+    };
+  }, [el, dependency]);
+  return cue;
+}
 
 export default function Allocation() {
   const { currency } = useCurrency();
@@ -84,7 +108,13 @@ export default function Allocation() {
 
   const [sort, setSort] = useState({ key: "market_value", dir: "desc" });
 
-  const sorted = [...holdings].sort((a, b) => {
+  // The Active view lists open positions only; sold ones belong to the Sold view.
+  const showSold = category === "position" && positionState === "sold";
+  const visibleHoldings = showSold ? holdings : holdings.filter((h) => !h.closed);
+  const [scroller, setScroller] = useState(null);
+  const scrollCue = useScrollCue(scroller, visibleHoldings.length);
+
+  const sorted = [...visibleHoldings].sort((a, b) => {
     const v = a[sort.key] > b[sort.key] ? 1 : -1;
     return sort.dir === "asc" ? v : -v;
   });
@@ -92,10 +122,10 @@ export default function Allocation() {
   const toggle = (key) =>
     setSort((s) => ({ key, dir: s.key === key && s.dir === "desc" ? "asc" : "desc" }));
 
-  const Th = ({ label, k }) => (
+  const Th = ({ label, k, pinned = false }) => (
     <th
       onClick={() => toggle(k)}
-      className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider cursor-pointer hover:text-ink select-none"
+      className={`text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider cursor-pointer hover:text-ink select-none ${pinned ? "sticky left-0 z-[1] bg-surface-card" : ""}`}
     >
       {label}
       {sort.key === k && <span className="ml-1">{sort.dir === "asc" ? "↑" : "↓"}</span>}
@@ -118,7 +148,7 @@ export default function Allocation() {
 
       {t212.connected && (
         <div className="space-y-2">
-          <BrokerPositionSnapshot query={t212.positionsQuery} limit={20} />
+          <BrokerPositionSnapshot query={t212.positionsQuery} variant="summary" />
           <p className="text-xs text-muted">Allocation charts use imported transactions and may lag behind this current snapshot.</p>
         </div>
       )}
@@ -237,11 +267,16 @@ export default function Allocation() {
           </div>
         ) : (
           <div className="card p-0 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <div
+              ref={setScroller}
+              className="overflow-x-auto"
+              data-scroll-cue={scrollCue ? "true" : "false"}
+              style={scrollCue ? { maskImage: SCROLL_FADE, WebkitMaskImage: SCROLL_FADE } : undefined}
+            >
+              <table className="w-full" aria-label="All holdings">
                 <thead className="border-b border-surface-border">
                   <tr>
-                    <Th label="Ticker" k="ticker" />
+                    <Th label="Ticker" k="ticker" pinned />
                     <Th label="Company" k="name" />
                     <Th label="Shares" k="shares" />
                     <Th label="Avg Cost" k="avg_cost" />
@@ -263,7 +298,7 @@ export default function Allocation() {
                         onClick={() => openStock(h.ticker)}
                         className={`hover:bg-surface-hover transition-colors cursor-pointer ${closed ? "bg-loss/10" : ""}`}
                       >
-                        <td className="px-4 py-3 font-mono font-bold text-sm">
+                        <td className="px-4 py-3 font-mono font-bold text-sm sticky left-0 z-[1] bg-surface-card">
                           <TickerLink ticker={h.ticker} className="text-left">{h.ticker}</TickerLink>
                           {closed && <span className="ml-1.5 financial-meta font-medium text-loss uppercase">Sold</span>}
                         </td>
@@ -278,7 +313,7 @@ export default function Allocation() {
                           </div>
                           {!closed && hasPriceProblem(h) && (
                             <div
-                              className={`financial-meta leading-tight ${h.price_status === "missing" ? "text-loss" : "text-amber-500"}`}
+                              className={`financial-meta leading-tight ${h.price_status === "missing" ? "text-loss" : "text-[color:var(--chart-3)]"}`}
                               title={priceFreshnessTitle(h)}
                             >
                               {h.price_status === "missing" ? "no price" : "out of date"}
@@ -325,7 +360,7 @@ export default function Allocation() {
                               <div className="w-16 bg-surface-hover rounded-full h-1.5">
                                 <div className="bg-brand rounded-full h-1.5" style={{ width: `${h.weight}%` }} />
                               </div>
-                              <span className="tabular-nums text-muted w-10">{h.weight}%</span>
+                              <span className="tabular-nums text-muted w-12 text-right">{formatPercent(h.weight, { sign: false, digits: 2 })}</span>
                             </div>
                           )}
                         </td>

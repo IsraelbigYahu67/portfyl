@@ -23,7 +23,7 @@ const INPUT = "input text-sm py-1";
 // a target is the user's plan, not advice (spec 2026-09-20 §4.2, §7).
 function driftClass(drift) {
   if (drift == null) return "text-muted";
-  return Math.abs(drift) >= 5 ? "text-amber-500 font-medium" : "text-ink";
+  return Math.abs(drift) >= 5 ? "text-[color:var(--chart-3)] font-medium" : "text-ink";
 }
 
 export default function AllocationTargets({ currency }) {
@@ -109,6 +109,10 @@ export default function AllocationTargets({ currency }) {
 }
 
 function TargetView({ drift, currency }) {
+  const [showUntargeted, setShowUntargeted] = useState(false);
+  const targetedRows = drift.rows.filter((r) => r.target_pct != null);
+  const untargetedRows = drift.rows.filter((r) => r.target_pct == null);
+  const shownRows = showUntargeted ? [...targetedRows, ...untargetedRows] : targetedRows;
   const remaining = Math.max(0, 100 - drift.target_total_pct);
   return (
     <div className="space-y-3">
@@ -117,12 +121,12 @@ function TargetView({ drift, currency }) {
         {drift.is_complete ? (
           " · complete"
         ) : (
-          <span className="text-amber-500"> · {pct(remaining)} not assigned</span>
+          <span className="text-[color:var(--chart-3)]"> · {pct(remaining)} not assigned</span>
         )}
         {" · "}Weights use imported transactions at the latest quotes; cash is not included.
       </p>
       {drift.missing_price_tickers.length > 0 && (
-        <p className="text-xs text-amber-500">
+        <p className="text-xs text-[color:var(--chart-3)]">
           No current price for {drift.missing_price_tickers.join(", ")}. These holdings are valued at 0,
           so their drift may be off.
         </p>
@@ -142,7 +146,7 @@ function TargetView({ drift, currency }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-border">
-            {drift.rows.map((r) => (
+            {shownRows.map((r) => (
               <tr key={r.ticker}>
                 <td className={`${TD} font-mono font-bold`}>
                   {r.ticker}
@@ -161,6 +165,20 @@ function TargetView({ drift, currency }) {
                 </td>
               </tr>
             ))}
+            {untargetedRows.length > 0 && (
+              <tr>
+                <td colSpan={6} className={TD}>
+                  <button
+                    type="button"
+                    className="min-h-11 text-brand hover:underline md:min-h-0"
+                    aria-expanded={showUntargeted}
+                    onClick={() => setShowUntargeted((v) => !v)}
+                  >
+                    {untargetedRows.length} {untargetedRows.length === 1 ? "holding" : "holdings"} without a target
+                  </button>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

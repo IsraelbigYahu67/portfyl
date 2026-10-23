@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Allocation from "./Allocation";
+import { legacyColorClassesIn } from "../test/legacyClasses";
 
 const api = vi.hoisted(() => ({
   fetchAllHoldings: vi.fn(),
@@ -69,7 +70,10 @@ describe("Allocation composition decisions", () => {
     });
     renderPage();
 
-    expect(await screen.findByRole("region", { name: "Trading 212 current positions" })).toHaveTextContent("TSLA");
+    const snapshot = await screen.findByRole("region", { name: "Trading 212 current positions" });
+    expect(snapshot).not.toHaveTextContent("TSLA");
+    fireEvent.click(screen.getByRole("button", { name: "Show positions" }));
+    expect(snapshot).toHaveTextContent("TSLA");
     expect(screen.getByText(/allocation charts use imported transactions/i)).toBeInTheDocument();
     expect(await screen.findByText(/Largest position/i)).toBeInTheDocument();
   });
@@ -151,5 +155,53 @@ describe("Allocation composition decisions", () => {
     expect(screen.getByText("Sold")).toHaveClass("financial-meta");
     expect(screen.getByText(/if held: \+\$5\.00/)).toHaveClass("financial-meta");
     expect(screen.getByText(/if held: \+2\.00%/)).toHaveClass("financial-meta");
+  });
+
+  it("All Holdings lists only active positions in the Active view", async () => {
+    renderPage();
+    await screen.findByText(/Largest position/i);
+
+    expect(screen.getByRole("columnheader", { name: /Ticker/ })).toBeInTheDocument();
+    expect(screen.getByText("Apple")).toBeInTheDocument();
+    expect(screen.queryByText("Old Co")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sold")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sold positions" }));
+    await screen.findByText("Value if held");
+    expect(screen.getByText("Sold")).toBeInTheDocument();
+  });
+
+  it("legend percentages share one precision", async () => {
+    api.fetchAllHoldings.mockResolvedValue([
+      { ticker: "AAA", name: "Aaa", shares: 1, avg_cost: 1, current_price: 1, currency: "USD", market_value: 60, weight: 6, closed: false, pnl: 1, pnl_percent: 1, dividends: 0 },
+      { ticker: "BBB", name: "Bbb", shares: 1, avg_cost: 1, current_price: 1, currency: "USD", market_value: 81, weight: 8.12, closed: false, pnl: 1, pnl_percent: 1, dividends: 0 },
+    ]);
+    renderPage();
+    await screen.findByText(/Largest position/i);
+
+    const table = screen.getByRole("table", { name: "All holdings" });
+    expect(within(table).getByText("6.00%")).toBeInTheDocument();
+    expect(within(table).getByText("8.12%")).toBeInTheDocument();
+  });
+
+  it("fades the table edge and pins the ticker column while the table scrolls sideways", async () => {
+    const widths = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(900);
+    const visible = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(400);
+    try {
+      renderPage();
+      await screen.findByText(/Largest position/i);
+
+      const scroller = screen.getByRole("table", { name: "All holdings" }).parentElement;
+      await waitFor(() => expect(scroller).toHaveAttribute("data-scroll-cue", "true"));
+      expect(scroller.style.maskImage || scroller.style.webkitMaskImage).toMatch(/linear-gradient/);
+      expect(screen.getByRole("columnheader", { name: /Ticker/ })).toHaveClass("sticky");
+    } finally {
+      widths.mockRestore();
+      visible.mockRestore();
+    }
+  });
+
+  it("uses no legacy Tailwind palette colors", async () => {
+    expect(await legacyColorClassesIn(new URL("./Allocation.jsx", import.meta.url))).toEqual([]);
   });
 });
