@@ -2,6 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 
 import Dividends from "./Dividends";
+import { formatMoney } from "../lib/format";
+import { legacyColorClassesIn } from "../test/legacyClasses";
 
 
 const api = vi.hoisted(() => ({
@@ -10,10 +12,16 @@ const api = vi.hoisted(() => ({
   fetchDividendGrowth: vi.fn(),
 }));
 
+const display = vi.hoisted(() => ({ value: { currency: "USD", rate: 1 } }));
+
 vi.mock("../api", () => api);
+vi.mock("../App", () => ({ useCurrency: () => display.value }));
 vi.mock("../components/StockDetail", () => ({
   useStockDetail: () => ({ openStock: vi.fn() }),
 }));
+
+// Intl uses non-breaking spaces; toHaveTextContent normalizes only the element text.
+const plain = (text) => text.replace(/\s/g, " ");
 
 function dividend(patch = {}) {
   return {
@@ -47,6 +55,7 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  display.value = { currency: "USD", rate: 1 };
   api.fetchDividends.mockReset().mockResolvedValue([]);
   api.fetchDividendForecast.mockReset().mockResolvedValue({
     months: [],
@@ -104,4 +113,48 @@ it("does not present a failed dividend request as an empty portfolio", async () 
 
   expect(await screen.findByRole("alert")).toHaveTextContent(/could not load dividend data/i);
   expect(screen.queryByText(/no holdings found/i)).not.toBeInTheDocument();
+});
+
+it("estimated annual income is shown in the display currency", async () => {
+  display.value = { currency: "CZK", rate: 21.71 };
+  api.fetchDividends.mockResolvedValue([
+    dividend({ ticker: "AAA", annual_income: 10.03 }),
+    dividend({ ticker: "BBB", annual_income: 8 }),
+  ]);
+
+  renderPage();
+
+  const heading = await screen.findByText(/Estimated annual income/i);
+  const section = heading.closest("section");
+  expect(section).toHaveTextContent(plain(formatMoney(18.03 * 21.71, "CZK")));
+  expect(screen.queryByText("USD")).not.toBeInTheDocument();
+});
+
+it("keeps USD estimates in USD when the display currency is USD", async () => {
+  api.fetchDividends.mockResolvedValue([dividend({ ticker: "AAA", annual_income: 12.5 })]);
+
+  renderPage();
+
+  const heading = await screen.findByText(/Estimated annual income/i);
+  expect(heading.closest("section")).toHaveTextContent(plain(formatMoney(12.5, "USD")));
+});
+
+it("keeps other currencies as separate tiles", async () => {
+  display.value = { currency: "CZK", rate: 21.71 };
+  api.fetchDividends.mockResolvedValue([
+    dividend({ ticker: "AAA", annual_income: 10 }),
+    dividend({ ticker: "BBB", currency: "EUR", annual_income: 5 }),
+  ]);
+
+  renderPage();
+
+  const heading = await screen.findByText(/Estimated annual income/i);
+  const section = heading.closest("section");
+  expect(section).toHaveTextContent(plain(formatMoney(10 * 21.71, "CZK")));
+  expect(section).toHaveTextContent(plain(formatMoney(5, "EUR")));
+  expect(screen.getByText("EUR")).toBeInTheDocument();
+});
+
+it("uses no legacy color classes", async () => {
+  expect(await legacyColorClassesIn(new URL("./Dividends.jsx", import.meta.url))).toEqual([]);
 });

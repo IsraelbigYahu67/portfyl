@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import TaxReport from "./TaxReport";
 
@@ -71,7 +71,9 @@ describe("TaxReport pagination", () => {
   it("renders at most 50 realized-gain rows per page", async () => {
     localApi.fetchTaxReport.mockResolvedValue(report());
     renderPage();
-    expect(await screen.findAllByTestId("tax-ticker")).toHaveLength(50);
+    await screen.findAllByTestId("tax-ticker");
+    // jsdom applies no CSS, so the desktop table and the mobile list both render.
+    expect(within(screen.getByRole("table")).getAllByTestId("tax-ticker")).toHaveLength(50);
   });
 
   it("advancing to page 2 shows the next 50 rows", async () => {
@@ -81,8 +83,8 @@ describe("TaxReport pagination", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /next/i }));
 
-    expect(await screen.findByText("T50")).toBeInTheDocument();
-    expect(screen.queryByText("T0")).not.toBeInTheDocument();
+    expect((await screen.findAllByText("T50")).length).toBeGreaterThan(0);
+    expect(screen.queryAllByText("T0")).toHaveLength(0);
   });
 
   it("switching tabs resets the page to 1", async () => {
@@ -93,7 +95,7 @@ describe("TaxReport pagination", () => {
     await screen.findAllByTestId("tax-ticker");
 
     fireEvent.click(screen.getByRole("button", { name: /next/i }));
-    expect(await screen.findByText("T50")).toBeInTheDocument();
+    expect((await screen.findAllByText("T50")).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: /unrealized gains/i }));
     expect(await screen.findByText("T0")).toBeInTheDocument();
