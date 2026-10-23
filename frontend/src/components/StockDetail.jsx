@@ -24,15 +24,21 @@ import {
 } from "../lib/chartTheme";
 import { withSliceCorners } from "../lib/pieCorners";
 import { KpiBox } from "./ui";
+import SegmentedControl from "./ui/SegmentedControl";
 import Pagination from "./ui/Pagination";
 import ShinyText from "./reactbits/ShinyText";
 import { TickerLink } from "./TickerLink";
 
-const TTM_COLOR = "#9b7bd1";
+const TTM_COLOR = CATEGORICAL[3];
 const TTM_SIDE_REVEAL = 2;
 const TTM_RADIUS = 4;
 const PERIOD_LABEL_MIN_GAP = 3;
-const PERIOD_LABEL_MIN_FONT_SIZE = 7;
+// Chart text never goes below the 12px floor (DESIGN.md). Dense charts shorten
+// or thin their period labels instead of shrinking them.
+const PERIOD_LABEL_FONT_SIZE = 12;
+// Fill colors for the financial bar charts (theme series, never hex).
+const BAR_ACTUAL_COLOR = CATEGORICAL[0];
+const BAR_ESTIMATE_COLOR = CATEGORICAL[5];
 const PERIOD_AXIS_RESERVED_WIDTH = 52;
 
 // ---------------------------------------------------------------------------
@@ -174,81 +180,74 @@ function useElementWidth(fallbackWidth = 360) {
   return [ref, width];
 }
 
-// Keep every period visible while guaranteeing a small visual gutter between
-// adjacent labels. Start with a smaller axis font, shrink it when that is
-// enough, and rotate only once a horizontal label would use the 3px gutter.
+// Period axis for the financials bar charts. The font is always 12px. When the
+// full labels do not fit horizontally the axis first switches to short labels
+// (years as '17, quarters as Q1'24), then shows only every (interval+1)-th one.
 export function financialPeriodAxisLayout(labels, containerWidth, isQuarterly = false) {
   const count = labels?.length || 0;
-  const maxFontSize = isQuarterly ? 8 : 9;
-  if (!count) return { fontSize: maxFontSize, angle: 0 };
+  const base = { fontSize: PERIOD_LABEL_FONT_SIZE, angle: 0, interval: 0, short: false };
+  if (!count) return base;
 
   const plotWidth = Math.max(1, containerWidth - PERIOD_AXIS_RESERVED_WIDTH);
-  const availableWidth = Math.max(1, plotWidth / count - PERIOD_LABEL_MIN_GAP);
-  const longestLabelLength = Math.max(...labels.map((label) => String(label ?? "").length), 1);
+  const slotWidth = Math.max(1, plotWidth / count);
   // 0.72em is intentionally conservative for tabular digits in the UI fonts.
-  const estimatedWidthAt = (fontSize) => longestLabelLength * fontSize * 0.72;
-  const horizontalFontSize = Math.floor(availableWidth / (longestLabelLength * 0.72));
+  const widthOf = (texts) =>
+    Math.max(...texts.map((text) => String(text ?? "").length), 1) * PERIOD_LABEL_FONT_SIZE * 0.72;
 
-  if (horizontalFontSize >= PERIOD_LABEL_MIN_FONT_SIZE) {
-    return { fontSize: Math.min(maxFontSize, horizontalFontSize), angle: 0 };
-  }
+  if (widthOf(labels) + PERIOD_LABEL_MIN_GAP <= slotWidth) return base;
 
-  const fontSize = PERIOD_LABEL_MIN_FONT_SIZE;
-  const textWidth = estimatedWidthAt(fontSize);
-  const textHeight = fontSize * 1.15;
-  const angles = [-45, -55, -65, -72, -78, -82, -90];
-  const angle = angles.find((candidate) => {
-    const radians = Math.abs(candidate) * Math.PI / 180;
-    const projectedWidth = textWidth * Math.cos(radians) + textHeight * Math.sin(radians);
-    return projectedWidth <= availableWidth;
-  }) ?? -90;
+  const shortWidth = widthOf(labels.map((label) => shortPeriodLabel(label))) + PERIOD_LABEL_MIN_GAP;
+  const interval = shortWidth <= slotWidth ? 0 : Math.ceil(shortWidth / slotWidth) - 1;
+  return { ...base, interval, short: true };
+}
 
-  // At -90 degrees the projected width is the text height. Extremely dense
-  // series therefore get one final font reduction instead of overlapping.
-  const rotatedFontSize = angle === -90 && textHeight > availableWidth
-    ? Math.max(5, Math.floor(availableWidth / 1.15))
-    : fontSize;
-  return { fontSize: rotatedFontSize, angle };
+// "2024" -> "'24", "Q1 '24" -> "Q1'24", "2025E" -> "'25E".
+export function shortPeriodLabel(label) {
+  const text = String(label ?? "");
+  const year = /^(\d{4})(\D*)$/.exec(text);
+  if (year) return `'${year[1].slice(2)}${year[2]}`;
+  const quarter = /^(Q[1-4])\s*'?(\d{2}|\d{4})(\D*)$/.exec(text);
+  if (quarter) return `${quarter[1]}'${quarter[2].slice(-2)}${quarter[3]}`;
+  return text;
 }
 
 // Two-line x-axis tick for the financials bar charts: period label on top,
 // vs-previous-column % change (see columnChanges) beneath it. Rendering the
 // change inside the tick keeps it centred under its column at any chart
-// width. The change line uses the darker 700-shade green/red plus a bold
-// weight so it stays readable at chart-axis size.
+// width. Both lines are 12px; the change line is dropped (its value stays in
+// the bar tooltip) whenever it could not be drawn at that size, and ticks
+// skipped by `interval` render nothing.
 function ChangeTick({
   x,
   y,
   payload,
   index,
   changes,
-  fontSize = 11,
-  changeFontSize = 11,
+  fontSize = PERIOD_LABEL_FONT_SIZE,
+  changeFontSize = PERIOD_LABEL_FONT_SIZE,
   changeDecimals = 1,
-  periodAngle = 0,
   changeAngle = -45,
   showChange = true,
+  short = false,
+  interval = 0,
 }) {
-  const change = changes?.[payload?.index ?? index] ?? null;
+  const position = payload?.index ?? index ?? 0;
+  if (position % (interval + 1) !== 0) return null;
+  const change = changes?.[position] ?? null;
   const periodY = 10;
-  const changeY = periodAngle ? 36 : 28;
+  const changeY = 28;
+  const label = short ? shortPeriodLabel(payload.value) : payload.value;
   return (
     <g transform={`translate(${x},${y})`}>
-      <text
-        y={periodY}
-        textAnchor={periodAngle ? "end" : "middle"}
-        transform={periodAngle ? `rotate(${periodAngle}, 0, ${periodY})` : undefined}
-        fill={AXIS_TICK.fill}
-        fontSize={fontSize}
-      >
-        {payload.value}
+      <text y={periodY} textAnchor="middle" fill={AXIS_TICK_STYLE.fill} fontSize={fontSize}>
+        {label}
       </text>
-      {showChange && change != null && (
+      {showChange && changeFontSize >= PERIOD_LABEL_FONT_SIZE && change != null && (
         <text
           y={changeY}
           textAnchor="end"
           transform={`rotate(${changeAngle}, 0, ${changeY})`}
-          fill={change >= 0 ? "#047857" : "#b91c1c"}
+          fill={change >= 0 ? GAIN_COLOR : LOSS_COLOR}
           fontSize={changeFontSize}
           fontWeight={700}
         >
@@ -383,7 +382,7 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
       <div
         ref={chartRef}
         className="mt-2"
-        style={{ height: periodAxis.angle ? 192 : 176 }}
+        style={{ height: 180 }}
       >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rowsWithChange} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
@@ -394,18 +393,18 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
                 <ChangeTick
                   changes={changes}
                   fontSize={periodAxis.fontSize}
-                  changeFontSize={rows.length > 7 ? 9 : 11}
                   changeDecimals={rows.length > 7 ? 0 : 1}
-                  periodAngle={periodAxis.angle}
                   changeAngle={changeAngle}
                   showChange={showChangeLine}
+                  short={periodAxis.short}
+                  interval={periodAxis.interval}
                 />
               }
               tickLine={false}
               axisLine={{ stroke: GRID_STROKE }}
               interval={0}
               minTickGap={PERIOD_LABEL_MIN_GAP}
-              height={showChangeLine ? (periodAxis.angle ? 76 : 62) : periodAxis.angle ? 50 : 20}
+              height={showChangeLine ? 66 : 24}
             />
             <YAxis
               tick={AXIS_TICK_STYLE}
@@ -457,7 +456,7 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
             )}
             <Bar dataKey="value" radius={[7, 7, 0, 0]}>
               {rows.map((d, i) => (
-                <Cell key={i} fill={isCount ? CATEGORICAL[3] : d.value >= 0 ? GAIN_COLOR : LOSS_COLOR} />
+                <Cell key={i} fill={d.value < 0 ? LOSS_COLOR : BAR_ACTUAL_COLOR} />
               ))}
             </Bar>
           </BarChart>
@@ -973,32 +972,20 @@ export function StockOverview({
               </span>
             )}
           </h3>
-          <div className="inline-flex bg-surface rounded-md p-0.5 text-sm">
-            <button
-              type="button"
-              onClick={() => setPeriod("annual")}
-              className={`px-3 py-1 rounded transition-colors ${
-                period === "annual"
-                  ? "bg-surface-card text-brand font-semibold shadow-sm"
-                  : "text-muted hover:text-ink"
-              }`}
-            >
-              Annual
-            </button>
-            <button
-              type="button"
-              onClick={() => setPeriod("quarterly")}
-              disabled={!hasQuarterly}
-              className={`px-3 py-1 rounded transition-colors ${
-                period === "quarterly"
-                  ? "bg-surface-card text-brand font-semibold shadow-sm"
-                  : "text-muted hover:text-ink"
-              } ${!hasQuarterly ? "opacity-40 cursor-not-allowed" : ""}`}
-              title={hasQuarterly ? "" : "No quarterly data available"}
-            >
-              Quarterly
-            </button>
-          </div>
+          <SegmentedControl
+            aria-label="Financials period"
+            value={period}
+            onChange={setPeriod}
+            options={[
+              { value: "annual", label: "Annual" },
+              {
+                value: "quarterly",
+                label: "Quarterly",
+                disabled: !hasQuarterly,
+                title: hasQuarterly ? undefined : "No quarterly data available",
+              },
+            ]}
+          />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           <MergedMetricBarChart
@@ -1616,7 +1603,7 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
       <div
         ref={chartRef}
         className="mt-2"
-        style={{ height: periodAxis.angle ? 192 : 176 }}
+        style={{ height: 180 }}
       >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rowsWithChange} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
@@ -1627,18 +1614,18 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
                 <ChangeTick
                   changes={changes}
                   fontSize={periodAxis.fontSize}
-                  changeFontSize={rows.length > 7 ? 9 : 11}
                   changeDecimals={rows.length > 7 ? 0 : 1}
-                  periodAngle={periodAxis.angle}
                   changeAngle={changeAngle}
                   showChange={showChangeLine}
+                  short={periodAxis.short}
+                  interval={periodAxis.interval}
                 />
               }
               tickLine={false}
               axisLine={{ stroke: GRID_STROKE }}
               interval={0}
               minTickGap={PERIOD_LABEL_MIN_GAP}
-              height={showChangeLine ? (periodAxis.angle ? 76 : 62) : periodAxis.angle ? 50 : 20}
+              height={showChangeLine ? 66 : 24}
             />
             <YAxis
               tick={AXIS_TICK_STYLE}
@@ -1710,8 +1697,7 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
               {rows.map((d, i) => (
                 <Cell
                   key={i}
-                  fill={d.isEstimate ? CATEGORICAL[0] : (d.value >= 0 ? GAIN_COLOR : LOSS_COLOR)}
-                  fillOpacity={d.isEstimate ? 0.75 : 1}
+                  fill={d.value < 0 ? LOSS_COLOR : d.isEstimate ? BAR_ESTIMATE_COLOR : BAR_ACTUAL_COLOR}
                 />
               ))}
             </Bar>
@@ -1719,11 +1705,11 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
         </ResponsiveContainer>
       </div>
       <div className="flex items-center gap-3 mt-2 text-xs text-muted">
-        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-gain rounded-sm" />Actual</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: BAR_ACTUAL_COLOR }} />Actual</span>
         {showTtm && (
-          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: TTM_COLOR }} />TTM</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: TTM_COLOR }} />TTM</span>
         )}
-        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm opacity-75" style={{ backgroundColor: CATEGORICAL[0] }} />Estimate</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: BAR_ESTIMATE_COLOR }} />Estimate</span>
       </div>
     </div>
   );
