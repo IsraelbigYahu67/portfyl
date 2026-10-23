@@ -1,13 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import Cash from "./Cash";
-import { fetchCashReconciliation, fetchT212HistoryStatus, fetchT212Status } from "../api";
+import { fetchCash, fetchCashReconciliation, fetchT212HistoryStatus, fetchT212Status } from "../api";
+import { legacyColorClassesIn } from "../test/legacyClasses";
 
 // Mock the API module so no network is hit. The App hooks below provide one
 // active portfolio and a stable display currency, matching Cash's normal shell.
 vi.mock("../api", () => ({
-  fetchCash: () => Promise.resolve([]),
+  fetchCash: vi.fn(),
   fetchCashBalance: () => Promise.resolve({ total: 0, total_accrued: 0, by_currency: {} }),
   fetchCashHistory: () => Promise.resolve({ currency: "USD", series: [] }),
   fetchCashReconciliation: vi.fn(),
@@ -51,7 +52,7 @@ const UNAVAILABLE_RECONCILIATION = {
 
 function renderCash() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
+  return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
         <Cash />
@@ -62,6 +63,7 @@ function renderCash() {
 
 describe("Cash", () => {
   beforeEach(() => {
+    fetchCash.mockReset().mockResolvedValue([]);
     fetchCashReconciliation.mockReset().mockResolvedValue(UNAVAILABLE_RECONCILIATION);
     fetchT212Status.mockReset().mockResolvedValue({ connected: false });
     fetchT212HistoryStatus.mockReset().mockResolvedValue({ connected: false, run: null });
@@ -153,5 +155,63 @@ describe("Cash", () => {
 
     expect(await screen.findByText(/Couldn't load your broker balance/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
+  });
+
+  describe("ledger", () => {
+    const makeRows = (n) =>
+      Array.from({ length: n }, (_, i) => ({
+        id: `row-${i}`,
+        date: `2024-03-${String((i % 28) + 1).padStart(2, "0")}`,
+        type: "deposit",
+        amount: 100 + i,
+        currency: "USD",
+        note: `Entry ${i}`,
+      }));
+
+    it("shows pagination only when rows exceed one page", async () => {
+      const { unmount } = renderCash();
+      expect(await screen.findByText(/No cash flows yet/i)).toBeInTheDocument();
+      expect(screen.queryByRole("navigation", { name: /cash ledger pages/i })).not.toBeInTheDocument();
+      unmount();
+
+      fetchCash.mockResolvedValue(makeRows(25));
+      const second = renderCash();
+      expect(await screen.findByText("Entry 24", { selector: "td" })).toBeInTheDocument();
+      expect(screen.queryByRole("navigation", { name: /cash ledger pages/i })).not.toBeInTheDocument();
+      second.unmount();
+
+      fetchCash.mockResolvedValue(makeRows(26));
+      renderCash();
+      expect(await screen.findByRole("navigation", { name: /cash ledger pages/i })).toBeInTheDocument();
+      const table = screen.getByRole("table");
+      expect(within(table).getAllByRole("row")).toHaveLength(1 + 25);
+      expect(screen.queryByText("Entry 25", { selector: "td" })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+      expect(await screen.findByText("Entry 25", { selector: "td" })).toBeInTheDocument();
+    });
+
+    it("ledger has a header row and separate amount and note cells", async () => {
+      fetchCash.mockResolvedValue([
+        { id: "a", date: "2024-03-05", type: "interest", amount: 1.5, currency: "USD", note: "T212 INTEREST_ON_FREE_CASH" },
+      ]);
+      renderCash();
+      const table = await screen.findByRole("table");
+      const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent.trim());
+      expect(headers.slice(0, 4)).toEqual(["Date", "Type", "Amount", "Note"]);
+      const note = within(table).getByText("T212 Interest on free cash");
+      expect(note.tagName).toBe("TD");
+      expect(within(table).queryByText(/INTEREST_ON_FREE_CASH/)).not.toBeInTheDocument();
+    });
+
+    it("cash type options are humanized", async () => {
+      renderCash();
+      await screen.findByText(/No cash flows yet/i);
+      const option = screen.getByRole("option", { name: "Deposit" });
+      expect(option).toHaveValue("deposit");
+    });
+  });
+
+  it("uses no legacy color classes", async () => {
+    expect(await legacyColorClassesIn(new URL("./Cash.jsx", import.meta.url))).toEqual([]);
   });
 });

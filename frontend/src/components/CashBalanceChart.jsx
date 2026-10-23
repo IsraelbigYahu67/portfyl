@@ -41,7 +41,8 @@ export default function CashBalanceChart({ data = [], currency = "USD" }) {
             tickFormatter={(iso) => formatShortDate(iso)}
             axisLine={false}
             tickLine={false}
-            minTickGap={32}
+            interval="preserveStartEnd"
+            minTickGap={24}
             tick={{ ...AXIS_TICK_STYLE, fontFamily: "JetBrains Mono Variable" }}
           />
           <YAxis

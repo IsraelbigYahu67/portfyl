@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, Percent, Plus, RefreshCw, TrendingUp, Trash2, Wallet } from "lucide-react";
-import { Card, SectionHeader, SkeletonRows, EmptyState, ErrorState } from "../components/ui";
+import { Badge, Card, SectionHeader, SkeletonRows, EmptyState, ErrorState } from "../components/ui";
+import Pagination from "../components/ui/Pagination";
 import MetricCard from "../components/MetricCard";
-import { formatDateTime, formatLongDate, formatMoney } from "../lib/format";
+import { formatDateTime, formatLongDate, formatMoney, formatTableDate, humanizeCode } from "../lib/format";
 import CashBalanceChart from "../components/CashBalanceChart";
 import {
   fetchCash,
@@ -40,16 +41,39 @@ const TYPE_LABEL = {
 const CASH_IN = new Set(["deposit", "interest", "cashback", "fx_in"]);
 
 function TypeBadge({ type }) {
-  const inflow = CASH_IN.has(type);
   return (
-    <span
-      className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
-        inflow ? "bg-gain/10 text-gain" : "bg-loss/10 text-loss"
-      }`}
-    >
-      {TYPE_LABEL[type] || type}
-    </span>
+    <Badge tone={CASH_IN.has(type) ? "gain" : "loss"}>
+      {TYPE_LABEL[type] || humanizeCode(type)}
+    </Badge>
   );
+}
+
+const LEDGER_PAGE_SIZE = 25;
+
+// Imported Trading 212 notes arrive as "T212 INTEREST_ON_FREE_CASH": keep the
+// source prefix and make the machine code readable. Free-text notes are left as typed.
+function formatNote(note) {
+  if (!note) return "—";
+  const match = /^(T212 )?([A-Z_]+)$/.exec(note.trim());
+  if (!match || (!match[1] && !match[2].includes("_"))) return note;
+  return `${match[1] ?? ""}${humanizeCode(match[2])}`;
+}
+
+function DeleteEntryButton({ row, onDelete }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onDelete(row)}
+      aria-label={`Delete ${row.type} on ${row.date}`}
+      className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 text-muted hover:text-loss transition-colors"
+    >
+      <Trash2 size={14} />
+    </button>
+  );
+}
+
+function signedAmount(row) {
+  return `${CASH_IN.has(row.type) ? "+" : "−"}${formatMoney(row.amount, row.currency)}`;
 }
 
 // Broker snapshot vs. recorded ledger history are shown side by side, never
@@ -246,6 +270,12 @@ export default function Cash() {
 
   const [form, setForm] = useState({ type: "deposit", amount: "", currency: "CZK", date: "", note: "" });
 
+  const [ledgerOffset, setLedgerOffset] = useState(0);
+  const ledgerRows = rows.data ?? [];
+  const lastPageStart = Math.max(0, Math.ceil(ledgerRows.length / LEDGER_PAGE_SIZE) - 1) * LEDGER_PAGE_SIZE;
+  const pageOffset = Math.min(ledgerOffset, lastPageStart);
+  const pageRows = ledgerRows.slice(pageOffset, pageOffset + LEDGER_PAGE_SIZE);
+
   const submit = (e) => {
     e.preventDefault();
     add.mutate({ ...form, amount: Number(form.amount) });
@@ -292,7 +322,7 @@ export default function Cash() {
             onChange={(e) => setForm({ ...form, type: e.target.value })}
           >
             {CASH_TYPES.map((t) => (
-              <option key={t} value={t}>{t}</option>
+              <option key={t} value={t}>{TYPE_LABEL[t]}</option>
             ))}
           </select>
           <input
@@ -340,29 +370,70 @@ export default function Cash() {
         ) : (rows.data?.length ?? 0) === 0 ? (
           <EmptyState icon={Wallet} title="No cash flows yet" hint="Add an opening balance deposit to start." />
         ) : (
-          <table className="w-full text-sm">
-            <tbody>
-              {rows.data.map((r) => (
-                <tr key={r.id} className="border-b border-hairline">
-                  <td className="py-2 text-muted">{r.date}</td>
-                  <td className="py-2"><TypeBadge type={r.type} /></td>
-                  <td className={`py-2 font-sans tabular-nums text-right ${CASH_IN.has(r.type) ? "text-gain" : "text-loss"}`}>
-                    {CASH_IN.has(r.type) ? "+" : "−"}{formatMoney(r.amount, r.currency)}
-                  </td>
-                  <td className="py-2 text-muted">{r.note}</td>
-                  <td className="py-2 text-right">
-                    <button
-                      onClick={() => handleDelete(r)}
-                      aria-label={`Delete ${r.type} on ${r.date}`}
-                      className="text-muted hover:text-red-600 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
-                </tr>
+          <>
+            <ul className="md:hidden divide-y divide-hairline">
+              {pageRows.map((r) => (
+                <li key={r.id} className="flex items-start justify-between gap-3 py-3">
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted tabular-nums">{formatTableDate(r.date)}</span>
+                      <TypeBadge type={r.type} />
+                    </div>
+                    {r.note && <p className="text-xs text-muted break-words">{formatNote(r.note)}</p>}
+                  </div>
+                  <div className="shrink-0 flex items-center gap-1">
+                    <span className={`font-sans tabular-nums text-sm ${CASH_IN.has(r.type) ? "text-gain" : "text-loss"}`}>
+                      {signedAmount(r)}
+                    </span>
+                    <DeleteEntryButton row={r} onDelete={handleDelete} />
+                  </div>
+                </li>
               ))}
-            </tbody>
-          </table>
+            </ul>
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-hairline">
+                  <tr>
+                    {[
+                      ["Date", "text-left"],
+                      ["Type", "text-left"],
+                      ["Amount", "text-right"],
+                      ["Note", "text-left pl-6"],
+                      ["", "text-right"],
+                    ].map(([h, cls], i) => (
+                      <th key={i} scope="col" className={`py-2 whitespace-nowrap text-xs font-medium text-muted uppercase tracking-wider ${cls}`}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map((r) => (
+                    <tr key={r.id} className="border-b border-hairline">
+                      <td className="py-2 text-muted whitespace-nowrap tabular-nums">{formatTableDate(r.date)}</td>
+                      <td className="py-2"><TypeBadge type={r.type} /></td>
+                      <td className={`py-2 font-sans tabular-nums text-right whitespace-nowrap ${CASH_IN.has(r.type) ? "text-gain" : "text-loss"}`}>
+                        {signedAmount(r)}
+                      </td>
+                      <td className="py-2 pl-6 text-muted">{formatNote(r.note)}</td>
+                      <td className="py-2 text-right">
+                        <DeleteEntryButton row={r} onDelete={handleDelete} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {ledgerRows.length > LEDGER_PAGE_SIZE && (
+              <Pagination
+                offset={pageOffset}
+                limit={LEDGER_PAGE_SIZE}
+                total={ledgerRows.length}
+                onOffsetChange={setLedgerOffset}
+                ariaLabel="Cash ledger pages"
+              />
+            )}
+          </>
         )}
       </Card>
 
