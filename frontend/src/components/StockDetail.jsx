@@ -23,6 +23,7 @@ import {
   CATEGORICAL, NEUTRAL_COLOR, GAIN_COLOR, LOSS_COLOR, AXIS_TICK, AXIS_TICK_STYLE, GRID_STROKE, TOOLTIP_STYLE,
 } from "../lib/chartTheme";
 import { withSliceCorners } from "../lib/pieCorners";
+import { buildFinancialAxis, formatFinancialTick, financialAxisWidth } from "../lib/chartFinancialAxis";
 import { Badge, KpiBox } from "./ui";
 import SegmentedControl from "./ui/SegmentedControl";
 import Pagination from "./ui/Pagination";
@@ -344,13 +345,14 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
   // Quarterly history is often longer than six periods. Keep its second line
   // visible; the adaptive tick layout makes room without dropping periods.
   const showChangeLine = isQuarterly || rows.length <= 10;
-  // Only widen the y-domain when the TTM level falls outside the bars' own
-  // range — a functional domain costs recharts its nice round ticks, so keep
-  // the default auto axis whenever the overlay already fits.
-  const vals = rows.map((r) => r.value).filter((v) => v != null);
-  const ttmOutside =
-    showTtmOverlay && vals.length > 0 &&
-    (ttm > Math.max(0, ...vals) || ttm < Math.min(0, ...vals));
+  // Round, evenly spaced y ticks that also cover the TTM overlay (it is not a
+  // bar, so recharts would not widen the domain for it on its own).
+  const yAxis = buildFinancialAxis([
+    ...rows.map((r) => r.value),
+    ...(showTtmOverlay ? [ttm] : []),
+  ]);
+  const yTickLabel = (v) => formatFinancialTick(v, { perShare: isPerShare });
+  const yAxisWidth = financialAxisWidth(yAxis.ticks.map(yTickLabel));
 
   const headlineChange = isQuarterly
     ? changes[changes.length - 1]
@@ -385,7 +387,7 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
         style={{ height: 180 }}
       >
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rowsWithChange} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
+          <BarChart data={rowsWithChange} margin={{ top: 8, right: 4, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="2 4" stroke={GRID_STROKE} vertical={false} />
             <XAxis
               dataKey="year"
@@ -408,20 +410,13 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
             />
             <YAxis
               tick={AXIS_TICK_STYLE}
-              tickFormatter={(v) =>
-                isPerShare ? v.toFixed(1) : fmtCompact(v, "", 0)
-              }
+              tickFormatter={yTickLabel}
               tickLine={false}
               axisLine={false}
-              width={48}
-              // The TTM overlay isn't a bar, so when it exceeds every bar the
-              // domain must be widened by hand (with 5% headroom) or the
-              // overlay would draw past the plot area.
-              domain={
-                ttmOutside
-                  ? [(dataMin) => Math.min(0, dataMin, ttm) * 1.05, (dataMax) => Math.max(0, dataMax, ttm) * 1.05]
-                  : undefined
-              }
+              width={yAxisWidth}
+              domain={yAxis.domain}
+              ticks={yAxis.ticks}
+              interval={0}
             />
             <Tooltip
               cursor={{ fill: "rgba(0,0,0,0.04)" }}
@@ -1572,13 +1567,13 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
   // labels in the same width-aware sizing used by the historical cards.
   const periodAxis = financialPeriodAxisLayout(rows.map((row) => row.label), chartWidth, isQuarterly);
   const changeAngle = rows.length > 12 ? -65 : rows.length > 7 ? -55 : -45;
-  // Only widen the y-domain when the TTM level falls outside the bars' own
-  // range — a functional domain costs recharts its nice round ticks, so keep
-  // the default auto axis whenever the overlay already fits.
-  const vals = rows.map((r) => r.value).filter((v) => v != null);
-  const ttmOutside =
-    showTtm && vals.length > 0 &&
-    (ttm > Math.max(0, ...vals) || ttm < Math.min(0, ...vals));
+  // Round, evenly spaced y ticks that also cover the TTM overlay.
+  const yAxis = buildFinancialAxis([
+    ...rows.map((r) => r.value),
+    ...(showTtm ? [ttm] : []),
+  ]);
+  const yTickLabel = (v) => formatFinancialTick(v, { perShare: isPerShare });
+  const yAxisWidth = financialAxisWidth(yAxis.ticks.map(yTickLabel));
 
   return (
     <div className="bg-surface rounded-lg p-4 flex flex-col">
@@ -1617,7 +1612,7 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
         style={{ height: 180 }}
       >
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rowsWithChange} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
+          <BarChart data={rowsWithChange} margin={{ top: 8, right: 4, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="2 4" stroke={GRID_STROKE} vertical={false} />
             <XAxis
               dataKey="label"
@@ -1640,18 +1635,13 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
             />
             <YAxis
               tick={AXIS_TICK_STYLE}
-              tickFormatter={(v) => (isPerShare ? v.toFixed(1) : fmtCompact(v, "", 0))}
+              tickFormatter={yTickLabel}
               tickLine={false}
               axisLine={false}
-              width={48}
-              // The TTM overlay isn't a bar, so when it exceeds every bar the
-              // domain must be widened by hand (with 5% headroom) or the
-              // overlay would draw past the plot area.
-              domain={
-                ttmOutside
-                  ? [(dataMin) => Math.min(0, dataMin, ttm) * 1.05, (dataMax) => Math.max(0, dataMax, ttm) * 1.05]
-                  : undefined
-              }
+              width={yAxisWidth}
+              domain={yAxis.domain}
+              ticks={yAxis.ticks}
+              interval={0}
             />
             <Tooltip
               cursor={{ fill: "rgba(0,0,0,0.04)" }}
