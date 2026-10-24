@@ -75,7 +75,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center p-6 bg-bg">
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center gap-2 text-center">
-          <img src="/portfyl-mark.png" alt="" className="w-12 h-12 object-contain" />
+          <img src="/portfyl-mark.svg" alt="" className="w-12 h-12 object-contain" />
           <h1 className="font-display font-bold text-xl text-ink">Log in to Portfyl</h1>
           <p className="text-sm text-muted">Track your portfolio, dividends, and taxes in one place.</p>
         </div>

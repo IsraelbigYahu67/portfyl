@@ -10,7 +10,7 @@ export default function DesktopSidebar({ groups }) {
       style={{ boxShadow: "1px 0 0 var(--glass-border-alpha)" }}
     >
       <div className="flex items-center gap-2.5 px-[18px] py-4 border-b border-hairline">
-        <img src="/portfyl-mark.png" alt="Portfyl" className="w-11 h-11 object-contain" />
+        <img src="/portfyl-mark.svg" alt="Portfyl" className="w-11 h-11 object-contain" />
         <span className="font-display font-bold text-[17px] tracking-tight text-ink leading-tight">Portfyl</span>
       </div>
 

@@ -64,7 +64,7 @@ function classifyReferrer(referrer) {
 }
 
 function Brand({ children }) {
-  return <><img src="/portfyl-mark.png" alt="" width="38" height="38" />Portfyl{children}</>;
+  return <><img src="/portfyl-mark.svg" alt="" width="38" height="38" />Portfyl{children}</>;
 }
 
 function Heading({ lines }) {

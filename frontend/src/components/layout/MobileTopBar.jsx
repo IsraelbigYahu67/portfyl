@@ -4,7 +4,7 @@ export default function MobileTopBar({ open = false, onOpenMenu }) {
   return (
     <header className="app-topbar lg:hidden flex items-center justify-between px-4 py-2 bg-surface-card border-b border-hairline">
       <div className="flex items-center gap-2">
-        <img src="/portfyl-mark.png" alt="Portfyl" className="w-8 h-8 object-contain" />
+        <img src="/portfyl-mark.svg" alt="Portfyl" className="w-8 h-8 object-contain" />
         <span className="font-display font-bold text-[15px] text-ink">Portfyl</span>
       </div>
       <button

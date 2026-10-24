@@ -107,7 +107,7 @@ export default function Onboarding() {
     <main className="min-h-screen bg-bg px-6 py-12 flex items-center justify-center">
       <div className="w-full max-w-4xl space-y-8">
         <div className="text-center space-y-3">
-          <img src="/portfyl-mark.png" alt="" className="w-14 h-14 object-contain mx-auto" />
+          <img src="/portfyl-mark.svg" alt="" className="w-14 h-14 object-contain mx-auto" />
           <p className="eyebrow text-brand">Your workspace is ready</p>
           <h1 className="font-display text-3xl font-bold text-ink">Add your first portfolio</h1>
           <p className="text-sm text-muted max-w-xl mx-auto">

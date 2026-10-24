@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 70" role="img" aria-label="Portfyl">
+  <defs>
+    <clipPath id="portfyl-logo-dark-clip"><rect width="70" height="70" rx="20"/></clipPath>
+  </defs>
+  <g clip-path="url(#portfyl-logo-dark-clip)">
+    <rect width="70" height="70" fill="#282119"/>
+    <path d="M0 0H70L0 70Z" fill="#6D7048"/>
+  </g>
+  <rect x="18" y="14" width="10" height="44" rx="5" fill="#F3E8DA"/>
+  <circle cx="36" cy="32" r="18" fill="#F3E8DA"/>
+  <path d="M38 30V12A18 18 0 0 1 56 30Z" fill="#B08623"/>
+  <text x="86" y="48" fill="#F3E8DA" font-family="'Plus Jakarta Sans', Inter, system-ui, sans-serif" font-size="40" font-weight="700" letter-spacing="-0.5">portfyl</text>
+</svg>
