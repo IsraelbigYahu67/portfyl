@@ -39,8 +39,11 @@ describe("buildFinancialAxis", () => {
   });
 
   it("handles empty and all-zero series", () => {
-    expect(buildFinancialAxis([]).ticks).toEqual([0, 1]);
-    expect(buildFinancialAxis([0, 0]).ticks).toEqual([0, 1]);
+    for (const vals of [[], [0, 0]]) {
+      const { domain, ticks } = buildFinancialAxis(vals);
+      expect(ticks).toEqual([0]);
+      expect(domain).toEqual([-1, 1]);
+    }
   });
 });
 

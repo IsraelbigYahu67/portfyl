@@ -25,7 +25,8 @@ export function buildFinancialAxis(values, { maxTicks = 5 } = {}) {
   const finite = (values || []).filter((v) => Number.isFinite(v));
   const lo = Math.min(0, ...finite);
   const hi = Math.max(0, ...finite);
-  if (lo === hi) return { domain: [0, 1], ticks: [0, 1] };
+  // Nothing but zeros (or no data): a lone "0" label in the middle of the plot.
+  if (lo === hi) return { domain: [-1, 1], ticks: [0] };
 
   let step = niceStep((hi - lo) / (maxTicks - 1));
   let first;
