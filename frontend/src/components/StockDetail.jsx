@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Customized, Legend,
-  Line, Pie, PieChart, ReferenceArea, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Line, Pie, PieChart, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
   ArrowDownRight, ArrowUpRight, Building2, ChevronDown, ChevronUp,
@@ -28,6 +29,8 @@ import { Badge, KpiBox } from "./ui";
 import SegmentedControl from "./ui/SegmentedControl";
 import Pagination from "./ui/Pagination";
 import ShinyText from "./reactbits/ShinyText";
+import SpotlightCard from "./reactbits/SpotlightCard";
+import { InfoIcon } from "./MetricCard";
 import { TickerLink } from "./TickerLink";
 
 const TTM_COLOR = CATEGORICAL[3];
@@ -86,16 +89,6 @@ function fmtPct(v, digits = 2) {
 function fmtRatio(v, digits = 2) {
   if (v == null) return "—";
   return v.toFixed(digits);
-}
-
-function fmtPctValue(v) {
-  if (v == null) return "—";
-  return `${v.toFixed(1)}%`;
-}
-
-function fmtSignedNumber(v, digits = 2) {
-  if (v == null) return "—";
-  return `${v >= 0 ? "+" : ""}${v.toFixed(digits)}`;
 }
 
 // Each row of the ratios table — value (focal stock), sector (median across
@@ -157,6 +150,55 @@ function currencySymbol(code) {
 // Sub-components
 // ---------------------------------------------------------------------------
 
+// Valuation & Quality tile: the stock's own value big on the left (vertically
+// centred), the sector median top-right and the deviation from it bottom-right.
+// Percent metrics carry "%" on all three numbers; plain multiples carry none.
+const RATIO_TONE = { gain: "text-gain", loss: "text-loss", muted: "text-muted" };
+
+// One row of the shared two-column grid: everything before the decimal point is
+// right-aligned and the rest left-aligned, so the points line up between rows.
+function DecimalRow({ text, className = "", title }) {
+  const dot = text.indexOf(".");
+  const whole = dot < 0 ? text : text.slice(0, dot);
+  const rest = dot < 0 ? "" : text.slice(dot);
+  return (
+    <>
+      <span className={`text-right ${className}`} title={title}>{whole}</span>
+      <span className={`text-left ${className}`} title={title}>{rest}</span>
+    </>
+  );
+}
+
+function RatioTile({ label, info, value, sectorVal, pct, lowerIsBetter, showSector }) {
+  const unit = pct ? "%" : "";
+  const digits = pct ? 1 : 2;
+  const fmt = (v) => (v == null ? "—" : `${v.toFixed(digits)}${unit}`);
+  const delta = value != null && sectorVal != null ? value - sectorVal : null;
+  const favourable = delta == null ? null : lowerIsBetter ? delta < 0 : delta > 0;
+  const tone = favourable == null ? "muted" : favourable ? "gain" : "loss";
+  const deltaText =
+    delta == null ? "—" : `${delta >= 0 ? "+" : "−"}${Math.abs(delta).toFixed(digits)}${unit}`;
+  return (
+    <SpotlightCard className="card pop-tile !bg-surface-card-elevated flex flex-col gap-1 min-w-0 !p-3">
+      <span className="eyebrow flex items-center gap-1.5">
+        {label}
+        <InfoIcon info={info} />
+      </span>
+      <div className="flex items-center gap-[18px]">
+        <span className="financial-data font-display font-bold tracking-tight text-2xl">
+          {fmt(value)}
+        </span>
+        {showSector && (
+          <div className="grid grid-cols-[auto_auto] shrink-0 leading-tight text-sm font-semibold tabular-nums">
+            <DecimalRow text={fmt(sectorVal)} className="text-muted" title="Sector median" />
+            <DecimalRow text={deltaText} className={RATIO_TONE[tone]} title="Deviation from sector median" />
+          </div>
+        )}
+      </div>
+    </SpotlightCard>
+  );
+}
+
 function useElementWidth(fallbackWidth = 360) {
   const [element, setElement] = useState(null);
   const [width, setWidth] = useState(fallbackWidth);
@@ -210,6 +252,19 @@ export function shortPeriodLabel(label) {
   const quarter = /^(Q[1-4])\s*'?(\d{2}|\d{4})(\D*)$/.exec(text);
   if (quarter) return `${quarter[1]}'${quarter[2].slice(-2)}${quarter[3]}`;
   return text;
+}
+
+// Height the x-axis needs so the longest rotated change label (e.g. "+1234%")
+// is drawn whole instead of being clipped at the bottom of the chart.
+function changeAxisHeight(changes, { decimals, angle, showChange }) {
+  if (!showChange) return 24;
+  const longest = Math.max(
+    0,
+    ...changes.filter((c) => c != null).map((c) => fmtPct(c, decimals).length),
+  );
+  const textWidth = longest * PERIOD_LABEL_FONT_SIZE * 0.65;
+  const drop = textWidth * Math.sin((Math.abs(angle) * Math.PI) / 180);
+  return Math.max(66, Math.ceil(28 + drop + 8));
 }
 
 // Two-line x-axis tick for the financials bar charts: period label on top,
@@ -406,7 +461,7 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
               axisLine={{ stroke: GRID_STROKE }}
               interval={0}
               minTickGap={PERIOD_LABEL_MIN_GAP}
-              height={showChangeLine ? 66 : 24}
+              height={changeAxisHeight(changes, { decimals: rows.length > 7 ? 0 : 1, angle: changeAngle, showChange: showChangeLine })}
             />
             <YAxis
               tick={AXIS_TICK_STYLE}
@@ -1024,21 +1079,17 @@ export function StockOverview({
                 r.labelYearSuffix && year != null
                   ? `${r.label} (${year})`
                   : r.label;
-              const fmt = r.pct ? fmtPctValue : fmtRatio;
-              const value = ratios[r.key];
-              const sectorVal = r.noSector ? null : sector[r.key];
-              const delta = value != null && sectorVal != null ? value - sectorVal : null;
-              const favourable = delta == null ? null : (r.lowerIsBetter ? delta < 0 : delta > 0);
               const direction = r.lowerIsBetter ? "Lower is better." : "Higher is better.";
               return (
-                <KpiBox
+                <RatioTile
                   key={r.key}
-                  size="sm"
                   label={label}
-                  value={fmt(value)}
                   info={r.tooltip ? { title: label, what: r.tooltip, note: direction } : { title: label, what: direction }}
-                  sub={r.noSector ? null : `Sector ${fmt(sectorVal)} · Δ ${delta == null ? "—" : fmtSignedNumber(delta, 2)}`}
-                  subTone={favourable == null ? "muted" : favourable ? "gain" : "loss"}
+                  value={ratios[r.key]}
+                  sectorVal={r.noSector ? null : sector[r.key]}
+                  pct={!!r.pct}
+                  lowerIsBetter={r.lowerIsBetter}
+                  showSector={!r.noSector}
                 />
               );
             })}
@@ -1631,7 +1682,7 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
               axisLine={{ stroke: GRID_STROKE }}
               interval={0}
               minTickGap={PERIOD_LABEL_MIN_GAP}
-              height={showChangeLine ? 66 : 24}
+              height={changeAxisHeight(changes, { decimals: rows.length > 7 ? 0 : 1, angle: changeAngle, showChange: showChangeLine })}
             />
             <YAxis
               tick={AXIS_TICK_STYLE}
@@ -2868,12 +2919,6 @@ const VALUATION_RANGES = [
   { label: "Max", years: 33 },
 ];
 
-function ordinal(n) {
-  const suffixes = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return `${n}${suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]}`;
-}
-
 function ValuationHistorySection({ ticker }) {
   const [range, setRange] = useState(VALUATION_RANGES[2]);
   const { data, isLoading, isError } = useQuery({
@@ -2948,6 +2993,7 @@ function estimateAxisWidth(labels, charWidth = 6.5, minWidth = 28, padding = 10)
 
 function ValuationSparkline({ multiple, points }) {
   const [expanded, setExpanded] = useState(false);
+  const [logScale, setLogScale] = useState(false);
   const series = points
     .map((p) => ({ bucket: p.bucket, value: p[multiple.key] }))
     .filter((p) => p.value != null);
@@ -2963,10 +3009,7 @@ function ValuationSparkline({ multiple, points }) {
 
   const last = points[points.length - 1];
   const currentValue = last?.[multiple.key];
-  const currentPctile = last?.[multiple.pctileKey];
   const sortedValues = series.map((p) => p.value).slice().sort((a, b) => a - b);
-  const bandLo = sortedValues[Math.max(0, Math.round(0.1 * (sortedValues.length - 1)))];
-  const bandHi = sortedValues[Math.max(0, Math.round(0.9 * (sortedValues.length - 1)))];
   const minValue = sortedValues[0];
   const maxValue = sortedValues[sortedValues.length - 1];
   // A few evenly-spaced labels between the extremes, in addition to the exact
@@ -2979,6 +3022,20 @@ function ValuationSparkline({ multiple, points }) {
   const yAxisWidth = estimateAxisWidth(yTicks.map((v) => multiple.fmt(v)));
   const expandedYAxisWidth = estimateAxisWidth([minValue, maxValue].map((v) => multiple.fmt(v)), 7, 44, 14);
 
+  // A log axis cannot plot zero or negative multiples (e.g. a negative P/E),
+  // so those points are left out while it is on.
+  const positiveSeries = series.filter((p) => p.value > 0);
+  const hiddenByLog = series.length - positiveSeries.length;
+  const logAvailable = positiveSeries.length > 1;
+  const useLog = logScale && logAvailable;
+  const expandedSeries = useLog ? positiveSeries : series;
+  const logMin = Math.min(...positiveSeries.map((p) => p.value));
+  const logMax = Math.max(...positiveSeries.map((p) => p.value));
+  const logTicks =
+    logMax > logMin
+      ? [0, 1, 2, 3, 4].map((i) => logMin * (logMax / logMin) ** (i / 4))
+      : [logMin];
+
   return (
     <div
       className="card card-interactive !p-3 cursor-pointer"
@@ -2989,12 +3046,7 @@ function ValuationSparkline({ multiple, points }) {
       <div className="text-xl font-bold tabular-nums text-ink">
         {currentValue != null ? multiple.fmt(currentValue) : "—"}
       </div>
-      <div className="text-xs text-muted mb-1">
-        {currentPctile != null
-          ? `${ordinal(Math.round(currentPctile * 100))} percentile`
-          : "—"}
-      </div>
-      <div className="h-16">
+      <div className="h-16 mt-1">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={series} margin={{ top: 6, right: 2, left: 0, bottom: 6 }}>
             <YAxis
@@ -3005,7 +3057,6 @@ function ValuationSparkline({ multiple, points }) {
               width={yAxisWidth}
               tickFormatter={(v) => multiple.fmt(v)}
             />
-            <ReferenceArea y1={bandLo} y2={bandHi} fill={NEUTRAL_COLOR} fillOpacity={0.15} strokeWidth={0} />
             <Area
               type="monotone"
               dataKey="value"
@@ -3020,7 +3071,10 @@ function ValuationSparkline({ multiple, points }) {
         </ResponsiveContainer>
       </div>
 
-      {expanded && (
+      {/* Portalled to <body>: .card has backdrop-filter/translate, which makes it
+          the containing block of `position: fixed` children, so the overlay
+          would otherwise be clipped to the card's own box. */}
+      {expanded && createPortal(
         <div
           className="fixed inset-0 z-50 bg-surface flex flex-col p-6 sm:p-10 cursor-default"
           onClick={(e) => e.stopPropagation()}
@@ -3037,16 +3091,25 @@ function ValuationSparkline({ multiple, points }) {
             </h3>
             <div className="text-3xl font-bold tabular-nums text-ink mt-1 text-center">
               {currentValue != null ? multiple.fmt(currentValue) : "—"}
-              {currentPctile != null && (
-                <span className="text-sm font-normal text-muted ml-2">
-                  {ordinal(Math.round(currentPctile * 100))} percentile
-                </span>
+            </div>
+            <div className="mt-3 flex items-center justify-center gap-3">
+              <SegmentedControl
+                aria-label="Valuation chart scale"
+                value={useLog ? "log" : "linear"}
+                onChange={(v) => setLogScale(v === "log")}
+                options={[
+                  { value: "linear", label: "Linear" },
+                  { value: "log", label: "Log", disabled: !logAvailable, title: logAvailable ? undefined : "Not enough positive values for a log scale" },
+                ]}
+              />
+              {useLog && hiddenByLog > 0 && (
+                <span className="text-xs text-muted">{hiddenByLog} non-positive value{hiddenByLog === 1 ? "" : "s"} hidden</span>
               )}
             </div>
           </div>
           <div className="flex-1 min-h-0">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={series} margin={{ top: 10, right: 24, left: 10, bottom: 10 }}>
+              <AreaChart data={expandedSeries} margin={{ top: 10, right: 24, left: 10, bottom: 10 }}>
                 <CartesianGrid stroke={GRID_STROKE} strokeDasharray="3 3" vertical={false} />
                 <XAxis
                   dataKey="bucket"
@@ -3055,12 +3118,15 @@ function ValuationSparkline({ multiple, points }) {
                   minTickGap={40}
                 />
                 <YAxis
-                  domain={[minValue, maxValue]}
+                  scale={useLog ? "log" : "auto"}
+                  domain={useLog ? [logMin, logMax] : [minValue, maxValue]}
+                  ticks={useLog ? logTicks : undefined}
+                  interval={useLog ? 0 : "preserveEnd"}
+                  allowDataOverflow={useLog}
                   tick={AXIS_TICK_STYLE}
                   width={expandedYAxisWidth}
                   tickFormatter={(v) => multiple.fmt(v)}
                 />
-                <ReferenceArea y1={bandLo} y2={bandHi} fill={NEUTRAL_COLOR} fillOpacity={0.15} strokeWidth={0} />
                 <Area
                   type="monotone"
                   dataKey="value"
@@ -3075,7 +3141,8 @@ function ValuationSparkline({ multiple, points }) {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
