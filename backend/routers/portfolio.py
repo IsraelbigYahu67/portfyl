@@ -2072,6 +2072,7 @@ def get_dividend_forecast(
                 for m in month_names
             ],
             "total_paid": 0.0,
+            "total_paid_all_time": 0.0,
             "total_estimated": 0.0,
             "outlook": _build_outlook(window, {}),
         }
@@ -2084,18 +2085,21 @@ def get_dividend_forecast(
 
     # 1. Actual paid dividends (real transactions in current year), aggregated
     #    per (ticker, month) so multiple lots collapse into one entry. Every
-    #    credit date, any year, is kept to cancel the projection it fulfils.
+    #    credit date, any year, is kept to cancel the projection it fulfils,
+    #    and every credit counts towards the all-time total.
     paid_dates: dict[str, list[date]] = {}
     paid_agg: dict[tuple[str, int], float] = {}
     paid_names: dict[str, str] = {}
+    paid_all_time = 0.0
     for txn in transactions:
         if txn.type != "dividend" or not txn.date:
             continue
         paid_dates.setdefault(txn.ticker, []).append(txn.date)
-        if txn.date.year != year:
-            continue
         paid_ccy, paid_amount = signed_cash(txn)
         amt_usd = paid_amount * _live_to_usd(paid_ccy)
+        paid_all_time += amt_usd
+        if txn.date.year != year:
+            continue
         m_idx = txn.date.month - 1
         paid_by_month[m_idx] += amt_usd
         key = (txn.ticker, txn.date.month)
@@ -2192,6 +2196,7 @@ def get_dividend_forecast(
         "currency": "USD",
         "months": months,
         "total_paid": round(sum(paid_by_month), 2),
+        "total_paid_all_time": round(paid_all_time, 2),
         "total_estimated": round(sum(estimated_by_month), 2),
         "outlook": _build_outlook(window, outlook_entries),
     }

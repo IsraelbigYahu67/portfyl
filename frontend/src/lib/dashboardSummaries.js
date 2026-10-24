@@ -74,12 +74,18 @@ function upcomingHalf(months, usdRate) {
 // dashboard shows received-so-far (calendar year, up to the current month)
 // beside the 12-month outlook. Older responses without `outlook` fall back to
 // the rest of the calendar year.
+// `allTime` is every dividend ever credited (null on older responses without
+// `total_paid_all_time`); `dailyAverage` is the monthly average spread over a
+// year's days.
 export function splitDividendForecast(forecast, { monthIndex, usdRate = 1 }) {
   if (!forecast?.months?.length) return { received: EMPTY_HALF, upcoming: EMPTY_HALF };
   const outlook = forecast.outlook?.months;
+  const received = receivedHalf(forecast.months.slice(0, monthIndex + 1), usdRate);
+  const upcoming = upcomingHalf(outlook?.length ? outlook : forecast.months.slice(monthIndex), usdRate);
+  const allTime = forecast.total_paid_all_time;
   return {
-    received: receivedHalf(forecast.months.slice(0, monthIndex + 1), usdRate),
-    upcoming: upcomingHalf(outlook?.length ? outlook : forecast.months.slice(monthIndex), usdRate),
+    received: { ...received, allTime: Number.isFinite(allTime) ? allTime * usdRate : null },
+    upcoming: { ...upcoming, dailyAverage: (upcoming.monthlyAverage * 12) / 365 },
   };
 }
 

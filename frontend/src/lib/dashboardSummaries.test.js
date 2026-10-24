@@ -79,6 +79,14 @@ describe("splitDividendForecast", () => {
     expect(upcoming.months.map((m) => m.month)).toEqual(["Oct", "Nov", "Dec"]);
     expect(upcoming.total).toBeCloseTo(300 * 23, 6);
     expect(upcoming.monthlyAverage).toBeCloseTo(100 * 23, 6);
+    expect(upcoming.dailyAverage).toBeCloseTo((100 * 23 * 12) / 365, 6);
+    // Older responses carry no all-time total.
+    expect(received.allTime).toBeNull();
+  });
+
+  it("converts the all-time paid total to the display rate", () => {
+    const { received } = splitDividendForecast({ ...forecast, total_paid_all_time: 900 }, { monthIndex: 9, usdRate: 23 });
+    expect(received.allTime).toBeCloseTo(900 * 23, 6);
   });
 
   it("keeps USD amounts untouched when no rate is given", () => {

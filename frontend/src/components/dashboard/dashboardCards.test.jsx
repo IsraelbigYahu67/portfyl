@@ -152,6 +152,18 @@ describe("DividendBarsCard", () => {
     expect(screen.queryByTestId("dividend-tooltip")).not.toBeInTheDocument();
   });
 
+  it("puts the lead tile first and the trail tile last, and hides a tile without an amount", () => {
+    const { container, rerender } = render(
+      <DividendBarsCard title="Dividends received" half={half} totalLabel="2026 so far" currency="USD"
+        leadStat={{ label: "All time", amount: 1234 }} trailStat={{ label: "Daily average", amount: 1.1 }} />,
+    );
+    const labels = [...container.querySelectorAll("span.data-label")].map((el) => el.textContent);
+    expect(labels.slice(-4)).toEqual(["All time", "2026 so far", "Monthly average", "Daily average"]);
+
+    rerender(<DividendBarsCard title="Dividends received" half={half} totalLabel="2026 so far" currency="USD" leadStat={{ label: "All time", amount: null }} />);
+    expect(screen.queryByText("All time")).not.toBeInTheDocument();
+  });
+
   it("shows an empty state when nothing is expected", () => {
     render(<DividendBarsCard title="Upcoming payments" half={{ months: [], total: 0, monthlyAverage: 0 }} totalLabel="Rest of 2026" currency="USD" emptyHint="No dividends expected." />);
     expect(screen.getByText("No dividends expected.")).toBeInTheDocument();

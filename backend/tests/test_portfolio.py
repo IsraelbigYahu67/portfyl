@@ -333,6 +333,23 @@ def test_dividend_forecast_paid_total_uses_received_cash(db_session, default_por
     assert forecast["total_paid"] == pytest.approx(8.5)
 
 
+def test_dividend_forecast_all_time_total_includes_earlier_years(db_session, default_portfolio, pid):
+    today = datetime.now().date()
+    for when, cash in ((today, 8.5), (datetime(today.year - 2, 6, 1).date(), 4.0)):
+        dividend = make_txn("AAPL", "dividend", 10, 1.0, currency="USD",
+                            date=when, portfolio_id=pid)
+        dividend.cash_amount = cash
+        dividend.cash_currency = "USD"
+        db_session.add(dividend)
+    db_session.commit()
+
+    with patch("routers.portfolio._live_to_usd", return_value=1.0):
+        forecast = get_dividend_forecast(db=db_session, portfolio=default_portfolio)
+
+    assert forecast["total_paid"] == pytest.approx(8.5)
+    assert forecast["total_paid_all_time"] == pytest.approx(12.5)
+
+
 def test_delete_transaction_rejects_broker_managed_rows(
     db_session, default_portfolio, pid
 ):

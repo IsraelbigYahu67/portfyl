@@ -66,12 +66,20 @@ function MonthTooltip({ month, index, count, currency }) {
 // entries? }], total, monthlyAverage } already in the display currency. Months
 // that carry a confirmed / forecasted split are stacked (forecasted lighter),
 // and hovering or focusing a column lists what each company pays.
-export default function DividendBarsCard({ title, half, totalLabel, avgLabel = "Monthly average", currency, tone = "brand", emptyHint = "No dividends in this period." }) {
+// `leadStat` / `trailStat` ({ label, amount }) add an extra tile before the
+// total or after the average; a null amount hides the tile.
+export default function DividendBarsCard({ title, half, totalLabel, avgLabel = "Monthly average", currency, tone = "brand", emptyHint = "No dividends in this period.", leadStat = null, trailStat = null }) {
   const [active, setActive] = useState(null);
   const max = Math.max(0, ...half.months.map((m) => m.amount));
   const label = `${title} by month: ${half.months.map((m) => `${m.month} ${formatCompact(m.amount, currency)}`).join(", ")}`;
   const stacked = half.months.some((m) => m.confirmed !== undefined || m.forecasted !== undefined);
   const barBackground = TONES[tone].bar;
+  const stats = [
+    leadStat,
+    { label: totalLabel, amount: half.total },
+    { label: avgLabel, amount: half.monthlyAverage },
+    trailStat,
+  ].filter((s) => s && Number.isFinite(s.amount));
 
   return (
     <div className="flex flex-col h-full">
@@ -80,15 +88,13 @@ export default function DividendBarsCard({ title, half, totalLabel, avgLabel = "
         <p className="text-sm text-muted py-6 text-center">{emptyHint}</p>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 mb-5">
-            <div className="rounded-xl bg-surface-hover px-3.5 py-2.5">
-              <span className="block data-label">{totalLabel}</span>
-              <span className="font-display text-lg font-bold tabular-nums text-ink">{formatMoney(half.total, currency)}</span>
-            </div>
-            <div className="rounded-xl bg-surface-hover px-3.5 py-2.5">
-              <span className="block data-label">{avgLabel}</span>
-              <span className="font-display text-lg font-bold tabular-nums text-ink">{formatMoney(half.monthlyAverage, currency)}</span>
-            </div>
+          <div className={`grid ${stats.length > 2 ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2"} gap-3 mb-5`}>
+            {stats.map((s) => (
+              <div key={s.label} className="min-w-0 rounded-xl bg-surface-hover px-3.5 py-2.5">
+                <span className="block data-label truncate">{s.label}</span>
+                <span className="block truncate font-display text-lg font-bold tabular-nums text-ink">{formatMoney(s.amount, currency)}</span>
+              </div>
+            ))}
           </div>
           {stacked && (
             <div className="flex gap-4 mb-2 text-xs text-muted" data-testid="dividend-legend">

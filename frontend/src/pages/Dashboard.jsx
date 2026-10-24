@@ -598,12 +598,12 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <Card className="h-full animate-fade-up">
                 <AsyncSection isLoading={fl} error={forecastError} onRetry={() => refetchForecast()} loading={<SkeletonChart height={220} />}>
-                  <DividendBarsCard title="Dividends received" half={dividendsReceived} totalLabel={`${forecastYear} so far`} currency={currency} tone="accent" emptyHint="No dividends received this year yet." />
+                  <DividendBarsCard title="Dividends received" half={dividendsReceived} totalLabel={`${forecastYear} so far`} currency={currency} tone="accent" emptyHint="No dividends received this year yet." leadStat={{ label: "All time", amount: dividendsReceived.allTime }} />
                 </AsyncSection>
               </Card>
               <Card className="h-full animate-fade-up">
                 <AsyncSection isLoading={fl} error={forecastError} onRetry={() => refetchForecast()} loading={<SkeletonChart height={220} />}>
-                  <DividendBarsCard title="Upcoming payments" half={dividendsUpcoming} totalLabel="Next 12 months" currency={currency} emptyHint="No dividends expected in the next 12 months." />
+                  <DividendBarsCard title="Upcoming payments" half={dividendsUpcoming} totalLabel="Next 12 months" currency={currency} emptyHint="No dividends expected in the next 12 months." trailStat={{ label: "Daily average", amount: dividendsUpcoming.dailyAverage }} />
                 </AsyncSection>
               </Card>
             </div>
