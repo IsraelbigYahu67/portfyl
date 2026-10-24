@@ -61,8 +61,10 @@ function CompactTable({ buys }) {
         <tr className="border-b border-surface-border">
           <th className={`${thBase} pr-3 text-left text-muted`}>Ticker</th>
           <th className={`${thBase} text-left text-muted`}>Insider</th>
-          <th className={`${thBase} text-right text-muted`}>Value</th>
-          <th className={`${thBase} text-right text-muted`}>P&L</th>
+          {/* Two header cells, like the body, so the "(" of the heading lines up with the rows' "(". */}
+          <th className={`${thBase} text-right text-muted whitespace-nowrap`}>Bought value</th>
+          <th className={`${thBase} pl-1 pr-3 text-left text-muted whitespace-nowrap`}>(P&L)</th>
+          <th className={`${thBase} pr-3 text-right text-muted`}>P&L</th>
           <th className={`${thBase} text-right text-muted`}>Date</th>
         </tr>
       </thead>
@@ -75,12 +77,13 @@ function CompactTable({ buys }) {
             <td className="py-1.5 pr-3 text-muted max-w-[140px] truncate" title={`${b.insider || ""}${b.position ? ` — ${b.position}` : ""}`}>
               {b.insider || "—"}
             </td>
-            <td className="py-1.5 pr-3 text-right tabular-nums text-ink font-medium whitespace-nowrap">
+            {/* Value and its P&L amount are two cells so every "(" lines up in one column. */}
+            <td className="py-1.5 pl-0 text-right tabular-nums text-ink font-medium whitespace-nowrap">
               {b.value != null ? formatCompact(Math.abs(b.value), b.currency) : "—"}
+            </td>
+            <td className={`py-1.5 pl-1 pr-3 text-left tabular-nums text-xs whitespace-nowrap ${b.pnl != null && b.pnl < 0 ? "text-loss" : "text-gain"}`}>
               {b.value != null && b.pnl != null && (
-                <span className={`ml-1 text-xs ${b.pnl >= 0 ? "text-gain" : "text-loss"}`}>
-                  ({b.pnl >= 0 ? "+" : "-"}{formatCompact(Math.abs(b.pnl), b.currency)})
-                </span>
+                <>({b.pnl >= 0 ? "+" : "-"}{formatCompact(Math.abs(b.pnl), b.currency)})</>
               )}
             </td>
             <td className="py-1.5 pr-3 text-right tabular-nums font-medium whitespace-nowrap">
