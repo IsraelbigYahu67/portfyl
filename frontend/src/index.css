@@ -368,7 +368,8 @@
   box-shadow: var(--clay-inset-sm);
 }
 .theme-clay .segmented > button { border-radius: 999px; padding-top: 0.3rem; padding-bottom: 0.3rem; }
-.theme-clay .segmented > button[aria-pressed="true"] { font-weight: 800; }
+.theme-clay .segmented > button[aria-pressed="true"],
+.theme-clay .segmented > button[aria-selected="true"] { font-weight: 800; }
 .theme-clay .segmented .segmented-thumb { border-radius: 999px; box-shadow: var(--clay-raise-sm); }
 
 /* Shell: floating clay sidebar, pill top bar and drawer (mockup layout). */
