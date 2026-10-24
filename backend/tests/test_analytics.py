@@ -334,6 +334,32 @@ def test_allocation_totals_returns_raw_values(db_session, pid, default_portfolio
     assert "Technology" in raw["sectors"]
 
 
+def test_allocation_profit_combines_realized_and_unrealized(db_session, pid, default_portfolio):
+    from routers.analytics import _allocation_totals, _weighted
+
+    db_session.add_all([
+        make_txn("AAPL", "buy", 10, 100.0, date=date(2024, 1, 1), portfolio_id=pid, fx_to_czk=1),
+        make_txn("AAPL", "sell", 4, 150.0, date=date(2024, 2, 1), portfolio_id=pid, fx_to_czk=1),
+        # Fully sold: its realized gain lands on the matching row, no row of its own.
+        make_txn("OLD", "buy", 5, 10.0, date=date(2024, 1, 1), portfolio_id=pid, fx_to_czk=1),
+        make_txn("OLD", "sell", 5, 20.0, date=date(2024, 3, 1), portfolio_id=pid, fx_to_czk=1),
+    ])
+    db_session.commit()
+
+    tech = {"currency": "USD", "sector": "Technology", "quoteType": "EQUITY"}
+    with patch("market_data.get_infos", return_value={
+        "AAPL": {**tech, "currentPrice": 180.0},
+        "OLD": {**tech, "currentPrice": 25.0},
+    }), patch("routers.portfolio._live_fx_to_czk", return_value=1.0):
+        raw = _allocation_totals(db_session, default_portfolio, "CZK")
+
+    # AAPL: realized 4*(150-100)=200, unrealized 6*(180-100)=480; OLD: realized 5*(20-10)=50
+    assert raw["profit"]["sectors"]["Technology"] == pytest.approx(730)
+    rows = _weighted(raw["sectors"], raw["profit"]["sectors"])
+    assert rows[0]["profit"] == pytest.approx(730)
+    assert _weighted({"Cash": 5.0}, raw["profit"]["sectors"])[0]["profit"] is None
+
+
 def test_weighted_is_module_level_and_percentizes():
     from routers.analytics import _weighted
     out = _weighted({"A": 30.0, "B": 10.0})

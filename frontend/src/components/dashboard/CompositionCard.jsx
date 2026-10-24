@@ -10,25 +10,31 @@ import { formatCompact, formatMoney } from "../../lib/format";
 import { buildCompositionRows } from "../../lib/dashboardSummaries";
 
 const DIMENSIONS = [
-  { value: "asset_types", label: "Categories" },
   { value: "sectors", label: "Sectors" },
   { value: "countries", label: "Countries" },
+  { value: "asset_types", label: "Categories" },
 ];
+// The Countries tab deliberately has no profit column.
+const NO_PROFIT = new Set(["countries"]);
 const MAX_ROWS = 8;
 
-function targetText(row) {
-  if (row.targetPct == null) return "No target";
-  const sign = row.driftPct >= 0 ? "+" : "−";
-  return `${row.targetPct}% · ${sign}${Math.abs(row.driftPct).toFixed(1)} pp`;
+// Realized + unrealized profit with its sign. A profit that rounds to zero
+// reads as neutral, never as a red "-0".
+function ProfitCell({ profit, currency }) {
+  if (profit == null) return <span className="text-muted">—</span>;
+  const rounded = Math.round(profit);
+  const tone = rounded > 0 ? "text-gain" : rounded < 0 ? "text-loss" : "text-muted";
+  return <span className={tone}>{rounded > 0 ? "+" : ""}{formatMoney(rounded, currency)}</span>;
 }
 
 // Portfolio composition (dashboard variant A): a donut plus a table of the
 // same rows, grouped by asset type, sector or country from
-// /analytics/sector-breakdown. Allocation-target groups whose name matches a
-// row add a target and drift column.
-export default function CompositionCard({ breakdown, targetGroups = [], currency }) {
-  const [dimension, setDimension] = useState("asset_types");
-  const rows = buildCompositionRows(breakdown?.[dimension] || [], targetGroups);
+// /analytics/sector-breakdown. Columns: weight, value, and total profit
+// (realized + unrealized).
+export default function CompositionCard({ breakdown, currency }) {
+  const [dimension, setDimension] = useState(DIMENSIONS[0].value);
+  const showProfit = !NO_PROFIT.has(dimension);
+  const rows = buildCompositionRows(breakdown?.[dimension] || []);
   const shown = rows.slice(0, MAX_ROWS);
   const hiddenCount = rows.length - shown.length;
   // Sum the rows instead of using breakdown.total_value: the API folds cash
@@ -77,9 +83,9 @@ export default function CompositionCard({ breakdown, targetGroups = [], currency
               <thead>
                 <tr className="text-left text-muted">
                   <th scope="col" className="pb-2 font-medium">Name</th>
-                  <th scope="col" className="pb-2 font-medium text-right">Value</th>
-                  <th scope="col" className="pb-2 font-medium text-right">Weight</th>
-                  <th scope="col" className="pb-2 font-medium text-right">Target · drift</th>
+                  <th scope="col" className="pb-2 pr-3 font-medium text-right">Weight</th>
+                  <th scope="col" className="pb-2 pr-3 font-medium text-right">Value</th>
+                  {showProfit && <th scope="col" className="pb-2 font-medium text-right" title="Realized + unrealized profit">Profit</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline">
@@ -91,11 +97,13 @@ export default function CompositionCard({ breakdown, targetGroups = [], currency
                         <span className="font-semibold text-ink truncate">{row.name}</span>
                       </span>
                     </td>
-                    <td className="py-2.5 pr-3 text-right tabular-nums text-ink whitespace-nowrap">{formatMoney(row.value, currency)}</td>
                     <td className="py-2.5 pr-3 text-right tabular-nums font-semibold text-ink">{row.weight.toFixed(1)}%</td>
-                    <td className={`py-2.5 text-right tabular-nums text-xs whitespace-nowrap ${row.driftPct != null && Math.abs(row.driftPct) >= 2 ? "font-semibold text-[#B45309]" : "text-muted"}`}>
-                      {targetText(row)}
-                    </td>
+                    <td className="py-2.5 pr-3 text-right tabular-nums text-ink whitespace-nowrap">{formatMoney(row.value, currency)}</td>
+                    {showProfit && (
+                      <td className="py-2.5 text-right tabular-nums font-medium whitespace-nowrap">
+                        <ProfitCell profit={row.profit} currency={currency} />
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery, useQueryClient, useIsFetching } from "@tanstack/react-query";
 import {
   fetchSummary, fetchHoldings, fetchPerformance, fetchBenchmarks, fetchMovers, fetchEarnings, fetchInsiderBuys, fetchDividends,
-  fetchCapabilities, fetchRiskMetrics, fetchSectorBreakdown, fetchAllocationTargetDrift, fetchDividendForecast,
+  fetchCapabilities, fetchRiskMetrics, fetchSectorBreakdown, fetchDividendForecast,
 } from "../api";
 import { useCurrency, usePortfolio } from "../App";
 import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
@@ -177,12 +177,6 @@ export default function Dashboard() {
     queryKey: ["sector-breakdown", currency],
     queryFn: () => fetchSectorBreakdown(currency),
     enabled: hasAnalytics,
-  });
-  const { data: targetDrift } = useQuery({
-    queryKey: ["allocation-target-drift", currency],
-    queryFn: () => fetchAllocationTargetDrift(currency),
-    enabled: hasAnalytics,
-    retry: false,
   });
   const { data: dividendForecast, isLoading: fl, error: forecastError, refetch: refetchForecast } = useQuery({
     queryKey: ["dividends-forecast"],
@@ -423,7 +417,7 @@ export default function Dashboard() {
                 onRetry={() => refetchSectors()}
                 loading={<SkeletonChart height={280} />}
               >
-                <CompositionCard breakdown={sectorBreakdown} targetGroups={targetDrift?.groups || []} currency={currency} />
+                <CompositionCard breakdown={sectorBreakdown} currency={currency} />
               </AsyncSection>
             </Card>
           ) : null,

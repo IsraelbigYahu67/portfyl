@@ -17,7 +17,6 @@ const api = vi.hoisted(() => ({
   fetchCapabilities: vi.fn(),
   fetchRiskMetrics: vi.fn(),
   fetchSectorBreakdown: vi.fn(),
-  fetchAllocationTargetDrift: vi.fn(),
   fetchDividendForecast: vi.fn(),
   fetchHeatmap: vi.fn(),
 }));
@@ -341,11 +340,10 @@ it("adds IRR, composition and dividend cards when the workspace has the analytic
   api.fetchRiskMetrics.mockResolvedValue({ lifetime: { xirr: 11.4 } });
   api.fetchSectorBreakdown.mockResolvedValue({
     total_value: 1000,
-    asset_types: [{ name: "Stocks", value: 1000, weight: 100 }],
-    sectors: [],
+    asset_types: [],
+    sectors: [{ name: "Stocks", value: 1000, weight: 100, profit: 123 }],
     countries: [],
   });
-  api.fetchAllocationTargetDrift.mockResolvedValue({ groups: [{ group: "Stocks", target_pct: 90 }] });
   api.fetchDividendForecast.mockResolvedValue({
     year: 2026,
     months: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((month) => ({ month, paid: 5, estimated: 5, entries: [] })),
@@ -354,7 +352,7 @@ it("adds IRR, composition and dividend cards when the workspace has the analytic
 
   expect(await screen.findByText(/^IRR \+11\.40% · /)).toBeInTheDocument();
   expect(await screen.findByText("Portfolio composition")).toBeInTheDocument();
-  expect(screen.getByText("90% · +10.0 pp")).toBeInTheDocument();
+  expect(within(screen.getByRole("row", { name: /Stocks/ })).getByText(/^\+.*123/)).toBeInTheDocument();
   const received = screen.getByText("Dividends received");
   const upcoming = screen.getByText("Upcoming payments");
   // Received sits to the left of upcoming (first in the two-column grid).

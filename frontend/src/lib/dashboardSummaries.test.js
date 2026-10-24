@@ -140,26 +140,21 @@ describe("splitDividendForecast", () => {
 
 describe("buildCompositionRows", () => {
   const breakdown = [
-    { name: "Stocks", value: 1168560, weight: 47.0 },
-    { name: "ETFs", value: 994520, weight: 40.0 },
-    { name: "Cash", value: 185190, weight: 7.4 },
+    { name: "Stocks", value: 1168560, weight: 47.0, profit: 210000.5 },
+    { name: "ETFs", value: 994520, weight: 40.0, profit: -5000 },
+    { name: "Cash", value: 185190, weight: 7.4, profit: null },
   ];
 
-  it("attaches target and drift from allocation-target groups with the same name", () => {
-    const rows = buildCompositionRows(breakdown, [
-      { group: "stocks", target_pct: 45, current_pct: 47.2, drift_pct: 2.2 },
-      { group: "ETFs", target_pct: 45, current_pct: 39.8, drift_pct: -5.2 },
-    ]);
-
-    expect(rows).toEqual([
-      { name: "Stocks", value: 1168560, weight: 47.0, targetPct: 45, driftPct: 2 },
-      { name: "ETFs", value: 994520, weight: 40.0, targetPct: 45, driftPct: -5 },
-      { name: "Cash", value: 185190, weight: 7.4, targetPct: null, driftPct: null },
+  it("carries weight, value and combined profit, with null where there is no profit", () => {
+    expect(buildCompositionRows(breakdown)).toEqual([
+      { name: "Stocks", value: 1168560, weight: 47.0, profit: 210000.5 },
+      { name: "ETFs", value: 994520, weight: 40.0, profit: -5000 },
+      { name: "Cash", value: 185190, weight: 7.4, profit: null },
     ]);
   });
 
-  it("works without any targets", () => {
-    expect(buildCompositionRows(breakdown, undefined).every((r) => r.targetPct === null)).toBe(true);
+  it("treats a missing profit field as null", () => {
+    expect(buildCompositionRows([{ name: "Stocks", value: 1, weight: 100 }])[0].profit).toBeNull();
   });
 });
 

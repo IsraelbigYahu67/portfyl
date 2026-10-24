@@ -1270,12 +1270,17 @@ def _classify_country(info: dict) -> str:
     return "Other"
 
 
-def _weighted(totals: dict) -> list:
-    """[{name, value, weight%}] sorted desc; weight base is the dict's own sum."""
+def _weighted(totals: dict, profit: dict | None = None) -> list:
+    """[{name, value, weight%, profit}] sorted desc; weight base is the dict's own sum.
+
+    `profit` maps a row name to its realized + unrealized profit; rows without
+    an entry (Cash) get None, which the dashboard renders as a dash."""
     denom = sum(totals.values())
+    profit = profit or {}
     return [
         {"name": name, "value": round(value, 2),
-         "weight": round(value / denom * 100, 2) if denom > 0 else 0}
+         "weight": round(value / denom * 100, 2) if denom > 0 else 0,
+         "profit": round(profit[name], 2) if name in profit else None}
         for name, value in sorted(totals.items(), key=lambda x: -x[1])
     ]
 
@@ -1348,19 +1353,29 @@ def _allocation_totals(db: Session, portfolio: Portfolio, display_ccy: str) -> d
         sectors = {"Cash": round(cash_total, 2)} if has_cash else {}
         return {"sectors": sectors, "countries": {}, "asset_types": dict(sectors),
                 "currencies": dict(cash_by_ccy_display) if has_cash else {},
-                "total_value": 0.0}
+                "total_value": 0.0, "profit": {}}
 
     from routers.portfolio import _build_holdings, _live_fx_to_czk, _live_to_usd
 
     active = _build_holdings(transactions)  # shares only; values converted live below
+    # Cost basis and realized P&L per ticker in the display currency, closed
+    # positions included so a fully sold name still counts its realized gain.
+    ledger = _build_holdings(transactions, include_closed=True, display_ccy=display_ccy)
 
     sector_totals: dict[str, float] = defaultdict(float)
     country_totals: dict[str, float] = defaultdict(float)
     type_totals: dict[str, float] = defaultdict(float)
     currency_totals: dict[str, float] = defaultdict(float)  # native trading ccy -> display value
+    # Realized + unrealized profit per dimension row, keyed like the *_totals.
+    # Countries are left out on purpose: the dashboard shows no profit there.
+    profit_totals: dict[str, dict[str, float]] = {
+        "sectors": defaultdict(float),
+        "asset_types": defaultdict(float), "currencies": defaultdict(float),
+    }
     total_value = 0.0
     fx_cache: dict[str, float] = {}
-    infos = market_data.get_infos(list(active.keys()))  # one bounded, concurrent batch
+    closed = [t for t in ledger if t not in active]
+    infos = market_data.get_infos(list(active.keys()) + closed)  # one bounded, concurrent batch
 
     for ticker, data in active.items():
         try:
@@ -1389,6 +1404,33 @@ def _allocation_totals(db: Session, portfolio: Portfolio, display_ccy: str) -> d
             type_totals[type_label] += market_value
             currency_totals[trade_ccy] += market_value
             total_value += market_value
+
+            held = ledger.get(ticker, {})
+            profit = held.get("realized_pnl", 0.0)
+            if price:  # no quote -> value is 0, so an "unrealized loss" would be fiction
+                profit += market_value - held.get("cost", 0.0)
+            for key, label in (("sectors", sector),
+                               ("asset_types", type_label), ("currencies", trade_ccy)):
+                profit_totals[key][label] += profit
+        except Exception:
+            continue
+
+    # Fully sold names add their realized gain to the row that classifies them,
+    # but never create a row of their own (the card lists current holdings).
+    for ticker in closed:
+        realized = ledger[ticker]["realized_pnl"]
+        if not realized:
+            continue
+        try:
+            info = infos.get(ticker, {})
+            quote_type = (info.get("quoteType") or "EQUITY").upper()
+            ticker_ccy = info.get("currency") or "USD"
+            for key, label in (
+                ("sectors", _classify_sector(info)),
+                ("asset_types", _QUOTE_TYPE_LABEL.get(quote_type, quote_type.title() if quote_type else "Other")),
+                ("currencies", "GBP" if ticker_ccy == "GBp" else ticker_ccy.upper()),
+            ):
+                profit_totals[key][label] += realized
         except Exception:
             continue
 
@@ -1408,6 +1450,7 @@ def _allocation_totals(db: Session, portfolio: Portfolio, display_ccy: str) -> d
         "asset_types": dict(type_totals),
         "currencies": dict(currency_totals),
         "total_value": total_value,
+        "profit": {key: dict(values) for key, values in profit_totals.items()},
     }
 
 
@@ -1421,10 +1464,10 @@ def sector_breakdown(
     raw = _allocation_totals(db, portfolio, display_ccy)
     return {
         "currency": display_ccy,
-        "sectors": _weighted(raw["sectors"]),
-        "countries": _weighted(raw["countries"]),
-        "asset_types": _weighted(raw["asset_types"]),
-        "currencies": _weighted(raw["currencies"]),
+        "sectors": _weighted(raw["sectors"], raw["profit"].get("sectors")),
+        "countries": _weighted(raw["countries"], raw["profit"].get("countries")),
+        "asset_types": _weighted(raw["asset_types"], raw["profit"].get("asset_types")),
+        "currencies": _weighted(raw["currencies"], raw["profit"].get("currencies")),
         "total_value": round(raw["total_value"], 2),
     }
 

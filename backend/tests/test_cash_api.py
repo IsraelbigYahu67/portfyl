@@ -551,7 +551,7 @@ def test_allocation_uses_current_broker_cash_without_csv_cash_rows(
 
     for key in ("sectors", "asset_types", "currencies"):
         assert result[key] == [{"name": "Cash" if key != "currencies" else "USD",
-                                "value": 2000.0, "weight": 100.0}]
+                                "value": 2000.0, "weight": 100.0, "profit": None}]
     assert result["countries"] == []
 
 

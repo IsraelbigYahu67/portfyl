@@ -55,43 +55,54 @@ describe("CompositionCard", () => {
     currency: "CZK",
     total_value: 2000,
     asset_types: [
-      { name: "Stocks", value: 1200, weight: 60 },
-      { name: "ETFs", value: 800, weight: 40 },
+      { name: "Stocks", value: 1200, weight: 60, profit: 350 },
+      { name: "ETFs", value: 800, weight: 40, profit: -120 },
+      { name: "Cash", value: 0, weight: 0, profit: null },
     ],
     sectors: [{ name: "Technology", value: 2000, weight: 100 }],
     countries: [{ name: "United States", value: 2000, weight: 100 }],
   };
 
-  it("lists categories with their weight and drift from a matching target group", () => {
-    renderWithRouter(
-      <CompositionCard breakdown={breakdown} targetGroups={[{ group: "Stocks", target_pct: 55 }]} currency="CZK" />
-    );
+  it("lists weight, then value, then combined profit, and no target column", () => {
+    renderWithRouter(<CompositionCard breakdown={breakdown} currency="CZK" />);
+    fireEvent.click(screen.getByRole("button", { name: "Categories" }));
 
+    const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
+    expect(headers).toEqual(["Name", "Weight", "Value", "Profit"]);
     const stocks = screen.getByRole("row", { name: /Stocks/ });
     expect(within(stocks).getByText("60.0%")).toBeInTheDocument();
-    expect(within(stocks).getByText("55% · +5.0 pp")).toBeInTheDocument();
-    const etfs = screen.getByRole("row", { name: /ETFs/ });
-    expect(within(etfs).getByText("No target")).toBeInTheDocument();
+    expect(within(stocks).getByText(/^\+/)).toHaveClass("text-gain");
+    expect(within(screen.getByRole("row", { name: /ETFs/ })).getByText(/120/)).toHaveClass("text-loss");
+    expect(within(screen.getByRole("row", { name: /Cash/ })).getByText("—")).toBeInTheDocument();
   });
 
   it("totals the donut from its own rows, because the API's total_value leaves cash out", () => {
     renderWithRouter(
       <CompositionCard
         breakdown={{ ...breakdown, total_value: 1200, asset_types: [{ name: "Stocks", value: 1200, weight: 60 }, { name: "Cash", value: 800, weight: 40 }] }}
-        targetGroups={[]}
         currency="USD"
       />
     );
+    fireEvent.click(screen.getByRole("button", { name: "Categories" }));
     expect(screen.getByText("$2K")).toBeInTheDocument();
   });
 
-  it("switches the grouping to sectors", () => {
-    renderWithRouter(<CompositionCard breakdown={breakdown} targetGroups={[]} currency="CZK" />);
+  it("opens on sectors, then countries, then categories, in that tab order", () => {
+    renderWithRouter(<CompositionCard breakdown={breakdown} currency="CZK" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Sectors" }));
-
+    const tabs = screen.getAllByRole("button").map((b) => b.textContent).filter((t) => ["Sectors", "Countries", "Categories"].includes(t));
+    expect(tabs).toEqual(["Sectors", "Countries", "Categories"]);
     expect(screen.getByRole("row", { name: /Technology/ })).toBeInTheDocument();
     expect(screen.queryByRole("row", { name: /Stocks/ })).not.toBeInTheDocument();
+  });
+
+  it("shows no profit column for countries", () => {
+    renderWithRouter(<CompositionCard breakdown={breakdown} currency="CZK" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Countries" }));
+
+    expect(screen.getByRole("row", { name: /United States/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Name", "Weight", "Value"]);
   });
 });
 

@@ -89,22 +89,15 @@ export function splitDividendForecast(forecast, { monthIndex, usdRate = 1 }) {
   };
 }
 
-// Allocation targets are optional and grouped by user-chosen names; a group
-// whose name matches a breakdown category (e.g. "Stocks") supplies its target.
-// Drift is measured against the weight shown in the same row so the numbers
-// on screen always add up.
-export function buildCompositionRows(breakdown = [], targetGroups = []) {
-  const targets = new Map((targetGroups || []).map((g) => [String(g.group).trim().toLowerCase(), g.target_pct]));
-  return breakdown.map((row) => {
-    const targetPct = targets.has(row.name.toLowerCase()) ? targets.get(row.name.toLowerCase()) : null;
-    return {
-      name: row.name,
-      value: row.value,
-      weight: row.weight,
-      targetPct,
-      driftPct: targetPct == null ? null : Math.round((row.weight - targetPct) * 100) / 100,
-    };
-  });
+// One table row per breakdown entry. `profit` is realized + unrealized profit
+// from the API; it is null for rows with no cost basis (Cash).
+export function buildCompositionRows(breakdown = []) {
+  return breakdown.map((row) => ({
+    name: row.name,
+    value: row.value,
+    weight: row.weight,
+    profit: Number.isFinite(row.profit) ? row.profit : null,
+  }));
 }
 
 // While a Trading 212 history backfill is still running, the transaction
