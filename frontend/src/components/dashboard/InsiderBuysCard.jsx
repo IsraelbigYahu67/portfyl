@@ -77,6 +77,11 @@ function CompactTable({ buys }) {
             </td>
             <td className="py-1.5 pr-3 text-right tabular-nums text-ink font-medium whitespace-nowrap">
               {b.value != null ? formatCompact(Math.abs(b.value), b.currency) : "—"}
+              {b.value != null && b.pnl != null && (
+                <span className={`ml-1 text-xs ${b.pnl >= 0 ? "text-gain" : "text-loss"}`}>
+                  ({b.pnl >= 0 ? "+" : "-"}{formatCompact(Math.abs(b.pnl), b.currency)})
+                </span>
+              )}
             </td>
             <td className="py-1.5 pr-3 text-right tabular-nums font-medium whitespace-nowrap">
               <PnlPct buy={b} />
