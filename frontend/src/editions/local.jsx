@@ -25,3 +25,7 @@ export const fetchEditionPlanCapabilities = async () => null;
 export function EditionShell() {
   return null;
 }
+
+// Mobile-layout preview on desktop is a local-only convenience; cloud's
+// manifest supplies pass-through no-ops so it never ships in that bundle.
+export { MobilePreviewFrame as EditionAppFrame, ViewModeSetting as EditionViewModeSetting } from "./viewMode";

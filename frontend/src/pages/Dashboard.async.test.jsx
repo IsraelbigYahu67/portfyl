@@ -231,9 +231,11 @@ it("shows a P&L that rounds to zero as a neutral 0.0%, not a red -0.0%", async (
   renderPage();
 
   const card = (await screen.findByText("Recent insider buys")).closest(".card");
-  const pct = await within(card).findByText("0.0%");
+  // The percent is split at its decimal point across two cells.
+  const pct = await within(card).findByText(".0%");
   expect(pct).toHaveClass("text-muted");
-  expect(within(card).queryByText("-0.0%")).not.toBeInTheDocument();
+  expect(pct.previousElementSibling).toHaveTextContent(/^0$/);
+  expect(within(card).queryByText("-0")).not.toBeInTheDocument();
 });
 
 it("replaces Top 10 Holdings with recent insider buys that open the full table in a dialog", async () => {

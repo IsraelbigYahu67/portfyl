@@ -271,14 +271,15 @@ export const searchTickers = (q, limit = 10) =>
   api.get(`/market/search`, { params: { q, limit } }).then((r) => r.data);
 
 // ----- Shibui-backed stock data (SEC filings, insiders, earnings, etc.) ----
+export const fetchShibuiInsiders = (ticker, months = 12) =>
+  api.get(`/market/shibui/insiders/${ticker}`, { params: { months } }).then((r) => r.data);
+
 export const fetchShibuiFilings = (ticker, formTypes, years = 2) =>
   api
     .get(`/market/shibui/filings/${ticker}`, {
       params: { years, ...(formTypes ? { form_types: formTypes } : {}) },
     })
     .then((r) => r.data);
-export const fetchShibuiInsiders = (ticker, months = 12) =>
-  api.get(`/market/shibui/insiders/${ticker}`, { params: { months } }).then((r) => r.data);
 export const fetchShibuiActivistStakes = (ticker) =>
   api.get(`/market/shibui/activist-stakes/${ticker}`).then((r) => r.data);
 export const fetchShibuiStrategicInvestors = (ticker) =>

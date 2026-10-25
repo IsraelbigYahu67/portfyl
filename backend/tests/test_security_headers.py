@@ -117,6 +117,12 @@ def test_auth_domain_enables_firebase_popup_hosts_only():
     assert "unsafe-eval" not in policy
 
 
+def test_only_the_local_edition_may_frame_itself():
+    assert _directive(build_content_security_policy({"PORTFYL_EDITION": "local"}), "frame-ancestors") == "frame-ancestors 'self'"
+    for env in (NO_ENV, {"PORTFYL_EDITION": "cloud"}, {"PORTFYL_EDITION": "preview"}):
+        assert _directive(build_content_security_policy(env), "frame-ancestors") == "frame-ancestors 'none'"
+
+
 def test_auth_domain_is_normalized():
     policy = build_content_security_policy(
         {"PORTFYL_FIREBASE_AUTH_DOMAIN": "  Portfyl-Prod.FirebaseApp.com "}

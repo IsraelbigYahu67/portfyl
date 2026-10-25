@@ -36,6 +36,12 @@ def firebase_auth_domain(env: Mapping[str, str] | None = None) -> str | None:
     return value if _HOSTNAME_RE.fullmatch(value) else None
 
 
+def _frame_ancestors(env: Mapping[str, str] | None) -> str:
+    source = os.environ if env is None else env
+    edition = (source.get("PORTFYL_EDITION") or "").strip().lower()
+    return "'self'" if edition == "local" else "'none'"
+
+
 def build_content_security_policy(env: Mapping[str, str] | None = None) -> str:
     auth_domain = firebase_auth_domain(env)
     script_src = "script-src 'self'"
@@ -56,7 +62,9 @@ def build_content_security_policy(env: Mapping[str, str] | None = None) -> str:
         "object-src 'none'",
         "base-uri 'self'",
         "form-action 'self'",
-        "frame-ancestors 'none'",
+        # The local edition frames itself for the desktop mobile-layout
+        # preview; anything but an explicit "local" edition stays unframeable.
+        f"frame-ancestors {_frame_ancestors(env)}",
     ]
     return "; ".join(directives)
 

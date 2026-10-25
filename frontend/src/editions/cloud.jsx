@@ -14,6 +14,10 @@ export const EDITION_NAVIGATION = Object.freeze([
 ]);
 export const EditionShell = UpgradePrompt;
 
+// The desktop-side mobile preview exists only in the local edition.
+export const EditionAppFrame = ({ children }) => children;
+export const EditionViewModeSetting = () => null;
+
 // Cloud has no Tax Report, so there is no local tax-completeness signal to
 // surface. Resolving null keeps the Dashboard's edition hook symmetric without
 // importing any local-only API module into the cloud bundle.

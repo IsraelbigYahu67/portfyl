@@ -58,6 +58,10 @@ describe("edition manifests", () => {
     }
     expect(cloudManifestSource).not.toMatch(/TaxReport|Screener/);
   });
+  it("keeps the mobile-preview frame out of the cloud manifest", () => {
+    expect(cloudManifestSource).not.toContain("viewMode");
+    expect(cloudManifestSource).not.toContain("iframe");
+  });
   it("keeps owner-only tools local and plan comparison cloud-only", () => {
     expect(LOCAL_ROUTES.map((entry) => entry.path)).toEqual(["/tax-report", "/screener"]);
     expect(LOCAL_NAVIGATION.map((entry) => entry.to)).toEqual(["/tax-report", "/screener"]);

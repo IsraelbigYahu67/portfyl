@@ -48,10 +48,26 @@ function signedPct(value) {
   return { tone, text: `${rounded > 0 ? "+" : ""}${rounded.toFixed(1)}%` };
 }
 
-function PnlPct({ buy }) {
-  if (buy.pnl_pct == null) return <span className="text-muted">—</span>;
+// The percent is split at its decimal point into two cells so the dot of every
+// row (and the "&" of the heading) lands on one vertical line.
+function PnlPctCells({ buy }) {
+  const cell = "py-1.5 tabular-nums font-medium whitespace-nowrap";
+  if (buy.pnl_pct == null) {
+    return (
+      <>
+        <td className={`${cell} text-right text-muted`}>—</td>
+        <td className={`${cell} pr-3`} />
+      </>
+    );
+  }
   const { tone, text } = signedPct(buy.pnl_pct);
-  return <span className={tone}>{text}</span>;
+  const dot = text.indexOf(".");
+  return (
+    <>
+      <td className={`${cell} text-right ${tone}`}>{text.slice(0, dot)}</td>
+      <td className={`${cell} pr-3 text-left ${tone}`}>{text.slice(dot)}</td>
+    </>
+  );
 }
 
 function CompactTable({ buys }) {
@@ -64,7 +80,17 @@ function CompactTable({ buys }) {
           {/* Two header cells, like the body, so the "(" of the heading lines up with the rows' "(". */}
           <th className={`${thBase} text-right text-muted whitespace-nowrap`}>Bought value</th>
           <th className={`${thBase} pl-1 pr-3 text-left text-muted whitespace-nowrap`}>(P&L)</th>
-          <th className={`${thBase} pr-3 text-right text-muted`}>P&L</th>
+          {/* One word "P&L": the "&" is centred on the split between the percent cells (over the decimal dot) and the P and L hang off it, touching, on either side. */}
+          <th className={`${thBase} text-right text-muted whitespace-nowrap`}>
+            <span className="inline-block w-0 overflow-visible">
+              <span className="relative inline-block translate-x-[calc(-50%+3px)]">
+                &amp;
+                <span className="absolute right-full top-0">P</span>
+                <span className="absolute left-full top-0">L</span>
+              </span>
+            </span>
+          </th>
+          <th className={`${thBase} pr-3`} aria-hidden="true" />
           <th className={`${thBase} text-right text-muted`}>Date</th>
         </tr>
       </thead>
@@ -86,9 +112,7 @@ function CompactTable({ buys }) {
                 <>({b.pnl >= 0 ? "+" : "-"}{formatCompact(Math.abs(b.pnl), b.currency)})</>
               )}
             </td>
-            <td className="py-1.5 pr-3 text-right tabular-nums font-medium whitespace-nowrap">
-              <PnlPct buy={b} />
-            </td>
+            <PnlPctCells buy={b} />
             <td className="py-1.5 text-right tabular-nums text-muted text-xs whitespace-nowrap">
               {formatTableDate(b.date)}
             </td>

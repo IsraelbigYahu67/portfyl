@@ -1166,7 +1166,8 @@ export function StockOverview({
     ),
 
     insiderTx: (
-      <InsiderTransactionsSection
+      <InsiderTransactionsWithSec
+        ticker={data.ticker}
         transactions={data.insider_transactions}
         currencyCode={data.currency}
         currentPrice={data.price}
@@ -1186,10 +1187,6 @@ export function StockOverview({
     valuationHistory: <ValuationHistorySection ticker={data.ticker} />,
 
     shibuiFilings: <ShibuiFilingsSection ticker={data.ticker} />,
-
-    shibuiInsiderActivity: (
-      <ShibuiInsiderActivitySection ticker={data.ticker} currencyCode={data.currency} />
-    ),
 
     politicalTrades: (
       <PoliticalTradesSection ticker={data.ticker} currencyCode={data.currency} currentPrice={data.price} />
@@ -2066,8 +2063,7 @@ const EIGHT_K_ITEM_LABELS = {
   "7.01": "Reg FD disclosure", "8.01": "Other events", "9.01": "Financial exhibits",
 };
 
-// Multi-select transaction-type filter, shared by the yfinance and Shibui
-// insider tables below. An empty `active` set means "no filter, show all" --
+// Multi-select transaction-type filter, used by the insider table below. An empty `active` set means "no filter, show all" --
 // clicking a chip while every type is showing isolates to just that one;
 // further clicks add/remove types; selecting everything (or clicking "All")
 // collapses back to the empty-set "show all" state.
@@ -2202,149 +2198,6 @@ export function ShibuiFilingsSection({ ticker }) {
           </ul>
         </div>
       )}
-    </div>
-  );
-}
-
-const TX_CODE_LABELS = {
-  P: "Open-market buy", S: "Open-market sale", A: "Grant/award", D: "Disposition to issuer",
-  F: "Tax-withholding disposition", M: "Option/derivative exercise", G: "Gift",
-  C: "Conversion of derivative", X: "In-the-money option exercise",
-};
-
-function ShibuiInsiderActivitySection({ ticker, currencyCode }) {
-  const cs = currencySymbol(currencyCode);
-  const [activeTypes, setActiveTypes] = useState(() => new Set());
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["shibui-insiders", ticker],
-    queryFn: () => fetchShibuiInsiders(ticker),
-    staleTime: 30 * 60 * 1000,
-    enabled: !!ticker,
-    retry: false,
-  });
-
-  if (isLoading || isError || !data?.transactions?.length) return null;
-  const clusters = data.cluster_buys || [];
-
-  const codeCounts = data.transactions.reduce((acc, t) => {
-    acc[t.tx_code] = (acc[t.tx_code] || 0) + 1;
-    return acc;
-  }, {});
-  const codeOrder = [...new Set([...Object.keys(TX_CODE_LABELS), ...Object.keys(codeCounts)])];
-  const typeOptions = codeOrder
-    .filter((code) => codeCounts[code])
-    .map((code) => ({
-      value: code,
-      label: code,
-      count: codeCounts[code],
-      description: TX_CODE_LABELS[code] || "SEC Form 4/5 transaction code",
-      tone: code === "P" ? "buy" : code === "S" ? "sell" : "neutral",
-    }));
-  const toggleType = (value) =>
-    setActiveTypes((prev) => toggleSetValue(prev, value, typeOptions.length));
-  const visibleTransactions =
-    activeTypes.size === 0
-      ? data.transactions
-      : data.transactions.filter((t) => activeTypes.has(t.tx_code));
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-        <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
-          Insider Activity (SEC)
-        </h3>
-        <span className="text-xs text-muted">Form 4/5 · last {data.months} months</span>
-      </div>
-
-      <TypeFilterChips
-        options={typeOptions}
-        active={activeTypes}
-        onToggle={toggleType}
-        onReset={() => setActiveTypes(new Set())}
-        className="mb-3"
-      />
-
-      {clusters.length > 0 && (
-        <div className="mb-3 space-y-2">
-          {clusters.map((c, i) => (
-            <div
-              key={i}
-              className="flex items-start gap-2 rounded-xl px-3 py-2 text-sm"
-              style={{ background: "color-mix(in srgb, var(--chart-3) 14%, var(--surface-card))" }}
-            >
-              <Flame size={14} className="shrink-0 mt-0.5" style={{ color: "var(--chart-3)" }} />
-              <div>
-                <span className="font-semibold text-ink">Cluster buy detected</span>
-                <span className="text-muted">
-                  {" "}— {c.buyers.length} insiders bought between {c.start} and {c.end}:{" "}
-                </span>
-                <span className="text-ink">{c.buyers.join(", ")}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="card !p-0 overflow-hidden">
-        <div className="grid grid-cols-[1fr_4rem_5rem_6rem_6.5rem] gap-3 px-4 py-2 border-b border-surface-border text-xs uppercase tracking-wider text-muted font-medium">
-          <span>Insider</span>
-          <span className="text-center">Code</span>
-          <span className="text-right">Shares</span>
-          <span className="text-right">Value</span>
-          <span className="text-right">Date</span>
-        </div>
-        <ul className="max-h-96 overflow-y-auto">
-          {!visibleTransactions.length && (
-            <li className="px-4 py-6 text-center text-sm text-muted">
-              No transactions match the selected filter.
-            </li>
-          )}
-          {visibleTransactions.map((t, i) => {
-            const isBuy = t.direction === "buy";
-            const isSell = t.direction === "sell";
-            return (
-              <li
-                key={i}
-                className="grid grid-cols-[1fr_4rem_5rem_6rem_6.5rem] gap-3 items-center px-4 py-2 text-sm border-b border-surface-border last:border-0 hover:bg-surface-hover transition-colors"
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-ink font-medium">{t.owner_canonical_name || "—"}</div>
-                  <div className="flex items-center gap-1 flex-wrap mt-0.5">
-                    {t.officer_title && <span className="text-xs text-muted">{t.officer_title}</span>}
-                    {t.is_director && <Chip>Director</Chip>}
-                    {t.is_officer && <Chip>Officer</Chip>}
-                    {t.is_ten_pct_owner && <Chip>10%+ owner</Chip>}
-                    {t.is_10b5_1 && <Chip title="Pre-scheduled 10b5-1 trading plan">10b5-1</Chip>}
-                    {t.is_gift && <Chip>Gift</Chip>}
-                    {t.is_tax_withholding && <Chip>Tax withholding</Chip>}
-                    {t.is_auto_plan && <Chip>Auto plan</Chip>}
-                    {t.is_avg_price && <Chip title="Executed at a volume-weighted average price">Avg price</Chip>}
-                  </div>
-                </div>
-                <span className="text-center">
-                  <Badge
-                    size="sm"
-                    tone={isBuy ? "gain" : isSell ? "loss" : "neutral"}
-                    title={TX_CODE_LABELS[t.tx_code] || t.tx_code}
-                    className="uppercase"
-                  >
-                    {isBuy && <ArrowUpRight size={11} aria-hidden="true" />}
-                    {isSell && <ArrowDownRight size={11} aria-hidden="true" />}
-                    {t.tx_code}
-                  </Badge>
-                </span>
-                <span className="text-right tabular-nums text-ink">
-                  {t.shares != null ? Math.round(t.shares).toLocaleString() : "—"}
-                </span>
-                <span className="text-right tabular-nums text-muted">
-                  {t.value ? fmtCompact(t.value, cs) : "—"}
-                </span>
-                <span className="text-right tabular-nums text-muted">{formatTableDate(t.tx_date)}</span>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
     </div>
   );
 }
@@ -3359,7 +3212,50 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
 
 const insiderTypeOf = (t) => (t.side === "buy" ? "buy" : t.side === "sell" ? "sell" : "other");
 
-export function InsiderTransactionsSection({ transactions, currencyCode, currentPrice }) {
+const TX_CODE_LABELS = {
+  P: "Open-market buy", S: "Open-market sale", A: "Grant/award", D: "Disposition to issuer",
+  F: "Tax-withholding disposition", M: "Option/derivative exercise", G: "Gift",
+  C: "Conversion of derivative", X: "In-the-money option exercise",
+};
+
+const secKey = (date, shares) =>
+  date && shares != null ? `${String(date).slice(0, 10)}|${Math.round(Math.abs(shares))}` : null;
+
+// Attaches the SEC Form 4 transaction code to the yfinance rows by matching
+// date + share count, and lets the code (not yfinance's text guess) decide
+// buy/sell. Rows with no SEC match are returned untouched.
+export function attachSecCodes(transactions, secRows) {
+  if (!transactions?.length || !secRows?.length) return transactions;
+  const byKey = new Map();
+  for (const r of secRows) {
+    const key = secKey(r.tx_date, r.shares);
+    if (key && !byKey.has(key)) byKey.set(key, r.tx_code);
+  }
+  return transactions.map((t) => {
+    const code = byKey.get(secKey(t.date, t.shares));
+    if (!code) return t;
+    return { ...t, code, side: code === "P" ? "buy" : code === "S" ? "sell" : "other" };
+  });
+}
+
+// Fetches the SEC-coded Form 4 data (Pro plan; silently absent otherwise) and
+// hands it to the yfinance-backed table as codes + cluster-buy banners.
+function InsiderTransactionsWithSec({ ticker, transactions, ...rest }) {
+  const { data } = useQuery({
+    queryKey: ["shibui-insiders", ticker],
+    queryFn: () => fetchShibuiInsiders(ticker),
+    staleTime: 30 * 60 * 1000,
+    enabled: !!ticker,
+    retry: false,
+  });
+  const enriched = useMemo(
+    () => attachSecCodes(transactions, data?.transactions),
+    [transactions, data],
+  );
+  return <InsiderTransactionsSection transactions={enriched} clusters={data?.cluster_buys} {...rest} />;
+}
+
+export function InsiderTransactionsSection({ transactions, currencyCode, currentPrice, clusters = [] }) {
   const [activeTypes, setActiveTypes] = useState(() => new Set());
   const INSIDER_ROWS_PER_PAGE = 25;
   const [insiderPage, setInsiderPage] = useState(0);
@@ -3401,6 +3297,26 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
           onReset={() => setActiveTypes(new Set())}
         />
       </div>
+      {clusters.length > 0 && (
+        <div className="mb-3 space-y-2">
+          {clusters.map((c, i) => (
+            <div
+              key={i}
+              className="flex items-start gap-2 rounded-xl px-3 py-2 text-sm"
+              style={{ background: "color-mix(in srgb, var(--chart-3) 14%, var(--surface-card))" }}
+            >
+              <Flame size={14} className="shrink-0 mt-0.5" style={{ color: "var(--chart-3)" }} />
+              <div>
+                <span className="font-semibold text-ink">Cluster buy detected</span>
+                <span className="text-muted">
+                  {" "}— {c.buyers.length} insiders bought between {c.start} and {c.end}:{" "}
+                </span>
+                <span className="text-ink">{c.buyers.join(", ")}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="card !p-0 overflow-x-auto">
         <div className={`grid ${gridCols} min-w-[700px] gap-3 px-4 py-2 border-b border-surface-border text-xs uppercase tracking-wider text-muted font-medium`}>
           <span>Insider</span>
@@ -3478,12 +3394,18 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
                   <Badge size="sm" tone={sideTone} className="tracking-wider">
                     {sideLabel}
                   </Badge>
-                  <span
-                    className={`truncate text-xs ${sideColor}`}
-                    title={t.transaction || ""}
-                  >
-                    {t.transaction || "—"}
-                  </span>
+                  {t.code ? (
+                    <Badge size="sm" tone="neutral" title={TX_CODE_LABELS[t.code] || "SEC Form 4 transaction code"} className="uppercase">
+                      {t.code}
+                    </Badge>
+                  ) : (
+                    <span
+                      className={`truncate text-xs ${sideColor}`}
+                      title={t.transaction || ""}
+                    >
+                      {t.transaction || "—"}
+                    </span>
+                  )}
                 </div>
                 <div className="w-20 text-right tabular-nums text-ink flex items-center justify-end gap-1">
                   {Icon && <Icon size={11} className={sideColor} />}
@@ -3543,8 +3465,8 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
         </div>
       </div>
       <div className="text-xs text-muted mt-2">
-        Source: yfinance · transaction types from Form 4 filings · P&amp;L shown
-        for buys only (held-to-now mark vs. current price).
+        Source: yfinance · SEC transaction codes and cluster buys from Form 4/5
+        (Pro) · P&amp;L shown for buys only (held-to-now mark vs. current price).
       </div>
     </div>
   );

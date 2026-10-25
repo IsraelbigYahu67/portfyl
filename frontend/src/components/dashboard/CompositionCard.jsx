@@ -6,7 +6,7 @@ import SegmentedControl from "../ui/SegmentedControl";
 import { SectionHeader } from "../ui";
 import { CATEGORICAL } from "../../lib/chartTheme";
 import { withSliceCorners } from "../../lib/pieCorners";
-import { formatCompact, formatMoney } from "../../lib/format";
+import { displayLocale, formatCompact, formatMoney } from "../../lib/format";
 import { buildCompositionRows } from "../../lib/dashboardSummaries";
 
 const DIMENSIONS = [
@@ -25,6 +25,14 @@ function ProfitCell({ profit, currency }) {
   const rounded = Math.round(profit);
   const tone = rounded > 0 ? "text-gain" : rounded < 0 ? "text-loss" : "text-muted";
   return <span className={tone}>{rounded > 0 ? "+" : ""}{formatMoney(rounded, currency)}</span>;
+}
+
+// Splits a formatted amount at its decimal separator so the value column can
+// sit in two cells (integer part right-aligned, fraction left-aligned) and the
+// separators of every row, and the "Value" heading, share one vertical line.
+function splitDecimal(text, currency) {
+  const at = text.lastIndexOf(displayLocale(currency) === "cs-CZ" ? "," : ".");
+  return at < 0 ? [text, ""] : [text.slice(0, at), text.slice(at)];
 }
 
 // Portfolio composition (dashboard variant A): a donut plus a table of the
@@ -84,7 +92,13 @@ export default function CompositionCard({ breakdown, currency }) {
                 <tr className="text-left text-muted">
                   <th scope="col" className="pb-2 font-medium">Name</th>
                   <th scope="col" className="pb-2 pr-3 font-medium text-right">Weight</th>
-                  <th scope="col" className="pb-2 pr-3 font-medium text-right">Value</th>
+                  {/* Two header cells like the body: the word is centred on the split, over the decimal separator. */}
+                  <th scope="col" className="pb-2 font-medium text-right">
+                    <span className="inline-block w-0 overflow-visible">
+                      <span className="inline-block translate-x-[calc(-50%+3px)]">Value</span>
+                    </span>
+                  </th>
+                  <th scope="col" className="pb-2 pr-3" aria-hidden="true" />
                   {showProfit && <th scope="col" className="pb-2 font-medium text-right" title="Realized + unrealized profit">Profit</th>}
                 </tr>
               </thead>
@@ -98,7 +112,12 @@ export default function CompositionCard({ breakdown, currency }) {
                       </span>
                     </td>
                     <td className="py-2.5 pr-3 text-right tabular-nums font-semibold text-ink">{row.weight.toFixed(1)}%</td>
-                    <td className="py-2.5 pr-3 text-right tabular-nums text-ink whitespace-nowrap">{formatMoney(row.value, currency)}</td>
+                    {(([whole, fraction]) => (
+                      <>
+                        <td className="py-2.5 text-right tabular-nums text-ink whitespace-nowrap">{whole}</td>
+                        <td className="py-2.5 pr-3 text-left tabular-nums text-ink whitespace-nowrap">{fraction}</td>
+                      </>
+                    ))(splitDecimal(formatMoney(row.value, currency), currency))}
                     {showProfit && (
                       <td className="py-2.5 text-right tabular-nums font-medium whitespace-nowrap">
                         <ProfitCell profit={row.profit} currency={currency} />
