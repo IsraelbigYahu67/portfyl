@@ -8,7 +8,7 @@
     ],
     "documentation": {
       "mimeType": "text/markdown",
-      "content": "Portfyl /health must return JSON status=ok. Inspect database and scheduler heartbeats; HTTP 200 alone is insufficient. Check Cloud Run logs and docs/operations/operational-verification-2026-09-09.md. Do not weaken the trusted-edge or tenant controls."
+      "content": "The uptime check calls /livez (process liveness only, no database access, so Neon can scale to zero). It does not cover the database or scheduler: open /health and inspect the database and scheduler heartbeats; HTTP 200 alone is insufficient. Check Cloud Run logs and docs/operations/operational-verification-2026-09-09.md. Do not weaken the trusted-edge or tenant controls."
     },
     "conditions": [
       {

@@ -446,13 +446,14 @@ enough to catch every configured per-workspace daily-time/interval
 schedule promptly without the wasted invocations a 1-minute cron would
 cost. `portfyl-broker-backfill` is the exception -- it drains T212
 `BrokerSyncRun` history backfills (docs/superpowers/plans/2026-09-20-t212-snapshot-first-sync.md,
-Task 3), independent of auto_sync/schedule, and stays on a 1-minute cron
-(Cloud Scheduler's finest resolution) so a freshly connected account's
-history keeps progressing promptly instead of waiting on the next hourly
-tick:
+Task 3), independent of auto_sync/schedule. Since 2026-10-27 it runs hourly
+like the rest: a 1-minute cron kept the Neon compute awake around the clock
+and exhausted the free 100 CU-hour quota (a freshly connected account's
+history now waits up to an hour between steps). `alerts` runs hourly for the
+same reason:
 
 ```powershell
-gcloud scheduler jobs create http portfyl-alerts --location=$REGION --schedule="0 */2 * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/alerts" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
+gcloud scheduler jobs create http portfyl-alerts --location=$REGION --schedule="0 * * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/alerts" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
 
 gcloud scheduler jobs create http portfyl-autosync --location=$REGION --schedule="0 * * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/autosync" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
 
@@ -462,7 +463,7 @@ gcloud scheduler jobs create http portfyl-rate-limit-cleanup --location=$REGION 
 
 gcloud scheduler jobs create http portfyl-account-deletion-cleanup --location=$REGION --schedule="17 3 * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/account_deletion_cleanup" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
 
-gcloud scheduler jobs create http portfyl-broker-backfill --location=$REGION --schedule="* * * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/broker_backfill" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
+gcloud scheduler jobs create http portfyl-broker-backfill --location=$REGION --schedule="0 * * * *" --uri="https://portfyl-xxxxx.a.run.app/internal/jobs/broker_backfill" --http-method=POST --oidc-service-account-email="portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://portfyl-xxxxx.a.run.app" --max-retry-attempts=3 --min-backoff=30s --max-backoff=300s
 ```
 
 Verify: `gcloud scheduler jobs run portfyl-alerts --location=$REGION` should

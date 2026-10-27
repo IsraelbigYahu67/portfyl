@@ -1,8 +1,8 @@
 {
   "scheduler": [
-    {"name": "alerts", "schedule": "0 */2 * * *"},
+    {"name": "alerts", "schedule": "0 * * * *"},
     {"name": "autosync", "schedule": "0 * * * *"},
-    {"name": "broker_backfill", "schedule": "* * * * *"},
+    {"name": "broker_backfill", "schedule": "0 * * * *"},
     {"name": "dividends", "schedule": "0 */12 * * *"},
     {"name": "rate_limit_cleanup", "schedule": "0 * * * *"},
     {"name": "account_deletion_cleanup", "schedule": "17 3 * * *"}
@@ -14,7 +14,7 @@
     "displayName": "Portfyl dependency health",
     "period": "300s",
     "timeout": "30s",
-    "httpCheck": {"requestMethod": "GET", "useSsl": true, "port": 443, "path": "/health", "validateSsl": true},
+    "httpCheck": {"requestMethod": "GET", "useSsl": true, "port": 443, "path": "/livez", "validateSsl": true},
     "contentMatchers": [{"content": "\"ok\"", "matcher": "MATCHES_JSON_PATH", "jsonPathMatcher": {"jsonPath": "$.status", "jsonMatcher": "EXACT_MATCH"}}]
   }
 }

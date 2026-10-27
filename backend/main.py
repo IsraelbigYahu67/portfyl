@@ -226,9 +226,11 @@ if PORTFYL_EDITION is Edition.CLOUD:
     # Cleanup jobs only ever run in cloud (internal_jobs.router is cloud-only);
     # local must never expect heartbeats for jobs it never schedules, or
     # /health would report permanently degraded there.
-    # Cloud Scheduler runs alerts every 2 hours (deploy/operations.json), so the
-    # local 15-minute poller's limit would report permanent degradation here.
+    # Cloud Scheduler runs alerts and broker_backfill hourly (deploy/operations.json),
+    # so the local 15-minute / 30-minute limits would report permanent
+    # degradation here.
     _JOB_MAX_AGES["alerts"] = timedelta(hours=4)
+    _JOB_MAX_AGES["broker_backfill"] = timedelta(hours=2)
     _JOB_MAX_AGES["rate_limit_cleanup"] = timedelta(hours=2)
     _JOB_MAX_AGES["account_deletion_cleanup"] = timedelta(hours=26)
 
@@ -237,6 +239,15 @@ def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+@app.get("/livez")
+def livez():
+    """Process liveness for the Cloud Monitoring uptime check. Deliberately
+    touches no database and sits outside /api (so the rate-limit gate skips
+    it): /health's SELECT 1 every 5 minutes kept Neon awake around the clock
+    and burned the compute quota. Dependency health stays on /health."""
+    return {"status": "ok"}
 
 
 @app.get("/health")

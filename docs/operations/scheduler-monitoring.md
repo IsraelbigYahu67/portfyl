@@ -10,14 +10,15 @@ resource name for `__NOTIFICATION_CHANNEL__` before submitting each policy
 to the Monitoring API. The health-check template additionally needs an
 `uptime_url` monitored resource with the actual project ID and origin host.
 
-- Alerts: every 2 hours (`0 */2 * * *`). The `/health` heartbeat limit for
+- Alerts: hourly (`0 * * * *`). The `/health` heartbeat limit for
   `alerts` in the cloud edition is 4 hours (`_JOB_MAX_AGES` in `backend/main.py`);
   change both together.
 - Autosync: hourly; existing plan gates and per-connection opt-in still apply.
-- T212 history backfill (`portfyl-broker-backfill`): every minute. It only
-  drains history runs that a sync already created, so without it a newly
-  connected account's history stays "Queued". `/health` reports it stale
-  after 30 minutes (`_JOB_MAX_AGES["broker_backfill"]`).
+- T212 history backfill (`portfyl-broker-backfill`): hourly (was every minute
+  until 2026-10-27, which kept Neon awake 24/7 and exhausted its free compute
+  quota). It only drains history runs that a sync already created, so without
+  it a newly connected account's history stays "Queued". `/health` reports it
+  stale after 2 hours in the cloud edition (`_JOB_MAX_AGES["broker_backfill"]`).
 - Dividends: every 12 hours; existing plan/notification preferences still apply.
 - Expired rate-limit buckets: hourly, using the existing bounded cleanup.
 - Due account deletion and technical retention cleanup: daily at 03:17 UTC.
@@ -45,10 +46,16 @@ token. Change environment with update flags so other settings are preserved.
 
 ## Monitoring semantics
 
-The dependency uptime check polls the already available origin `/health` over
-verified HTTPS every five minutes, with a 30-second timeout. It requires
-`$.status` to equal the JSON string `"ok"`. In the REST configuration, the
-`content` field must therefore contain `"\"ok\""`, not plain `"ok"`.
+The uptime check polls the origin `/livez` over verified HTTPS every five
+minutes, with a 30-second timeout. `/livez` touches no database, so the check
+does not keep Neon awake (the old `/health` target ran `SELECT 1` every five
+minutes and prevented scale-to-zero). It requires `$.status` to equal the JSON
+string `"ok"`. In the REST configuration, the `content` field must therefore
+contain `"\"ok\""`, not plain `"ok"`.
+
+Because of this, the check proves the web process is up but no longer proves
+the database or scheduler heartbeats are healthy: open `/health` for that, and
+rely on the 5xx and Cloud Scheduler error policies below for failures.
 
 The three policies cover:
 

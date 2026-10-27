@@ -59,7 +59,8 @@ def test_alerts_heartbeat_limit_follows_the_edition_schedule(monkeypatch):
     try:
         main = _reload_main(monkeypatch, "cloud")
         # Cloud Scheduler runs alerts every 2 hours (deploy/operations.json).
-        assert main._JOB_MAX_AGES["alerts"] > timedelta(hours=2)
+        assert main._JOB_MAX_AGES["alerts"] > timedelta(hours=1)
+        assert main._JOB_MAX_AGES["broker_backfill"] > timedelta(hours=1)
         main = _reload_main(monkeypatch, "local")
         # The local in-process poller still ticks every 15 minutes.
         assert main._JOB_MAX_AGES["alerts"] == timedelta(minutes=30)
