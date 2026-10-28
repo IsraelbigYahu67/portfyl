@@ -12,6 +12,7 @@ import hmac
 import json
 import time
 from typing import Any, Mapping, Protocol
+from urllib.parse import urlencode
 
 import httpx
 
@@ -94,7 +95,14 @@ class StripeClient:
             if method == "GET":
                 response = self._client.get(path, params=encoded, headers=headers)
             else:
-                response = self._client.request(method, path, data=encoded, headers=headers)
+                # httpx only form-encodes a dict, which cannot repeat or nest
+                # keys the way Stripe's `a[0][b]` parameters need.
+                response = self._client.request(
+                    method,
+                    path,
+                    content=urlencode(encoded).encode(),
+                    headers={**headers, "Content-Type": "application/x-www-form-urlencoded"},
+                )
         except httpx.HTTPError as exc:
             raise StripeError(f"Stripe request failed: {type(exc).__name__}", transient=True) from exc
         try:

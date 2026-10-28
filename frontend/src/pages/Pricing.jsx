@@ -350,10 +350,12 @@ export default function Pricing() {
   const [testPlan, setTestPlan] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  // Read once per mount: the effect below strips the Stripe return
+  // parameters from the URL, and a re-run (React StrictMode) must still see them.
+  const [{ outcome, sessionId }] = useState(checkoutReturn);
 
   useEffect(() => {
     let active = true;
-    const { outcome, sessionId } = checkoutReturn();
     if (outcome) {
       // Drop the Stripe return parameters so a reload does not repeat them.
       window.history.replaceState(null, "", window.location.pathname);
@@ -388,7 +390,7 @@ export default function Pricing() {
     return () => {
       active = false;
     };
-  }, [queryClient]);
+  }, [queryClient, outcome, sessionId]);
 
   const billing = status?.billing_enabled;
 

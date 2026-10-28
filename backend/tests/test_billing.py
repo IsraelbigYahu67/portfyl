@@ -153,6 +153,40 @@ def test_form_encoding_matches_stripe_nesting():
     ]
 
 
+def test_client_sends_nested_form_bodies_through_httpx():
+    import httpx
+    from stripe_client import StripeClient
+
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["content_type"] = request.headers["Content-Type"]
+        seen["body"] = request.content.decode()
+        seen["idempotency"] = request.headers.get("Idempotency-Key")
+        seen["version"] = request.headers["Stripe-Version"]
+        return httpx.Response(200, json={"id": "cs_1", "url": "https://checkout.stripe.test/cs_1"})
+
+    client = StripeClient("sk_test_unit", api_version="2026-09-30.endive")
+    client._client = httpx.Client(
+        base_url="https://api.stripe.test/v1",
+        headers={"Stripe-Version": "2026-09-30.endive"},
+        transport=httpx.MockTransport(handler),
+    )
+    result = client.create_checkout_session(
+        {"line_items": [{"price": "price_1", "quantity": 1}], "managed_payments": {"enabled": True}},
+        idempotency_key="checkout:1",
+    )
+
+    assert result["id"] == "cs_1"
+    assert seen["content_type"] == "application/x-www-form-urlencoded"
+    assert seen["body"] == (
+        "line_items%5B0%5D%5Bprice%5D=price_1&line_items%5B0%5D%5Bquantity%5D=1"
+        "&managed_payments%5Benabled%5D=true"
+    )
+    assert seen["idempotency"] == "checkout:1"
+    assert seen["version"] == "2026-09-30.endive"
+
+
 def _signature(payload: bytes, timestamp: int, secret: str = WEBHOOK_SECRET) -> str:
     digest = hmac.new(secret.encode(), f"{timestamp}.".encode() + payload, hashlib.sha256).hexdigest()
     return f"t={timestamp},v1={digest}"
