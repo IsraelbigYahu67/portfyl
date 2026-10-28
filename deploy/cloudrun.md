@@ -608,8 +608,19 @@ Live catalog (account `acct_1USLIhDx44VQOSF8`, EUR, VAT included, tax code
 | Investor €5.99 / month | `prod_VWaDqFn0Jghxz4` | `price_1UVX3XDx44VQOSF8UAJ2VYid` | `investor_monthly` |
 | Pro €9.99 / month | `prod_VWaPatDxMDu6B0` | `price_1UVXEJDx44VQOSF8UJys5WwI` | `pro_monthly` |
 
-Create the same two products and prices in a **sandbox** first and test the
-whole flow there (test card `4242 4242 4242 4242`, Link passcode `000000`).
+Test the whole flow in the **sandbox** first (test card
+`4242 4242 4242 4242`, Link passcode `000000`). The sandbox
+`acct_1USLItDkvgExbOX4` mirrors the live catalog (created 2026-10-28):
+
+| Plan | Product | Price | Lookup key |
+| --- | --- | --- | --- |
+| Investor €5.99 / month | `prod_VWcru0EFqvmRIG` | `price_1UVZbSDkvgExbOX4MFv16uvh` | `investor_monthly` |
+| Pro €9.99 / month | `prod_VWcr8xWYWsuIGA` | `price_1UVZbUDkvgExbOX4OERrUjGw` | `pro_monthly` |
+
+Its default Customer Portal configuration is `bpc_1UVZbrDkvgExbOX4ueVGRGYR`
+(same settings as live, step 3 below). Sandbox keys (`rk_test_...`) and the
+sandbox webhook secret go into their own Secret Manager secrets; never reuse
+the live ones for testing.
 
 1. **Restricted API key** (Dashboard → Developers → API keys → Create
    restricted key). Write access to *Customers*, *Checkout Sessions*,
