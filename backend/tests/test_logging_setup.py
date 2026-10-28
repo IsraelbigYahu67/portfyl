@@ -40,6 +40,13 @@ class TestRedactsKnownSecretShapes:
         redacted = redact(line)
         assert "super-secret-csrf-value-1234" not in redacted
 
+    def test_stripe_keys_and_webhook_secrets_are_redacted(self):
+        line = "key=sk_live_51AbCdEf restricted=rk_test_9xYz signing=whsec_Q1w2E3"
+        redacted = redact(line)
+        for secret in ("51AbCdEf", "9xYz", "Q1w2E3"):
+            assert secret not in redacted
+        assert "sk_live_[REDACTED]" in redacted
+
     def test_non_secret_context_is_preserved(self):
         line = "autosync pass: workspace=3f2c job=alerts status=ok items=4"
         assert redact(line) == line

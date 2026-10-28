@@ -53,6 +53,8 @@ RLS_TABLES = {
     "usage_counters",
     "usage_reservations",
     "notification_outbox",
+    "billing_customers",
+    "subscriptions",
 }
 
 

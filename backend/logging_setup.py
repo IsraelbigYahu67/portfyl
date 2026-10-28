@@ -38,6 +38,8 @@ _REDACTION_PATTERNS: list[tuple[re.Pattern, str]] = [
     # Portfyl session / CSRF cookie values.
     (re.compile(r"((?:__Host-)?portfyl_session=)[^;\s]+"), r"\1[REDACTED]"),
     (re.compile(r"(X-CSRF-Token[\"'\s:=]+)\S+", re.IGNORECASE), r"\1[REDACTED]"),
+    # Stripe secret / restricted API keys and webhook signing secrets.
+    (re.compile(r"\b((?:sk|rk)_(?:live|test)_|whsec_)[A-Za-z0-9]+"), r"\1[REDACTED]"),
 ]
 
 

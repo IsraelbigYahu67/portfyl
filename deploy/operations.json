@@ -5,7 +5,8 @@
     {"name": "broker_backfill", "schedule": "0 * * * *"},
     {"name": "dividends", "schedule": "0 */12 * * *"},
     {"name": "rate_limit_cleanup", "schedule": "0 * * * *"},
-    {"name": "account_deletion_cleanup", "schedule": "17 3 * * *"}
+    {"name": "account_deletion_cleanup", "schedule": "17 3 * * *"},
+    {"name": "billing_reconcile", "schedule": "43 4 * * *"}
   ],
   "timeZone": "Etc/UTC",
   "attemptDeadline": "300s",

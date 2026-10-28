@@ -587,6 +587,84 @@ can no longer disappear by accident. Prod has had it on since 2026-10-13. See
 To roll back, remove the line or set it to `false` and redeploy. No data
 changes are involved. Leaving `PORTFYL_FIREBASE_AUTH_DOMAIN` set is harmless.
 
+## Stripe Managed Payments (paid plans)
+
+Paid plans use **Stripe Managed Payments**: Stripe, under the Link brand, is
+the merchant of record. It handles VAT, receipts, refunds, disputes and
+payment support; customers manage orders on link.com or through the Stripe
+Customer Portal. Portfyl creates hosted Checkout / Portal sessions
+(`backend/routers/billing.py`), receives the signed webhook, re-fetches the
+Subscription from the Stripe API, and projects it into `subscriptions`
+(`backend/billing_sync.py`), from which `entitlements.resolve_entitlements`
+derives the plan. Billing is **off by default** (`PORTFYL_BILLING_ENABLED`
+unset): then the no-payment `/api/test-plans` switch is mounted instead. Once
+billing is on, that switch is unmounted and ignored.
+
+Live catalog (account `acct_1USLIhDx44VQOSF8`, EUR, VAT included, tax code
+`txcd_10103000`):
+
+| Plan | Product | Price | Lookup key |
+| --- | --- | --- | --- |
+| Investor €5.99 / month | `prod_VWaDqFn0Jghxz4` | `price_1UVX3XDx44VQOSF8UAJ2VYid` | `investor_monthly` |
+| Pro €9.99 / month | `prod_VWaPatDxMDu6B0` | `price_1UVXEJDx44VQOSF8UJys5WwI` | `pro_monthly` |
+
+Create the same two products and prices in a **sandbox** first and test the
+whole flow there (test card `4242 4242 4242 4242`, Link passcode `000000`).
+
+1. **Restricted API key** (Dashboard → Developers → API keys → Create
+   restricted key). Write access to *Customers*, *Checkout Sessions*,
+   *Customer portal*; read access to *Subscriptions*, *Prices*, *Products*.
+   Store it (never paste it into chat or a shell history):
+
+   ```powershell
+   gcloud secrets create portfyl-stripe-secret-key --replication-policy=automatic
+   gcloud secrets versions add portfyl-stripe-secret-key --data-file=- # paste rk_live_..., then Ctrl+Z, Enter
+   ```
+
+2. **Webhook endpoint** `https://portfyl.com/api/billing/webhook` (it goes
+   through Cloudflare, so the edge token rule above applies) with exactly
+   these events: `checkout.session.completed`,
+   `customer.subscription.created`, `customer.subscription.updated`,
+   `customer.subscription.deleted`, `customer.subscription.paused`,
+   `customer.subscription.resumed`, `invoice.paid`,
+   `invoice.payment_failed`. Store its signing secret:
+
+   ```powershell
+   gcloud secrets create portfyl-stripe-webhook-secret --replication-policy=automatic
+   gcloud secrets versions add portfyl-stripe-webhook-secret --data-file=- # paste whsec_..., then Ctrl+Z, Enter
+   ```
+
+   Grant `portfyl-runtime` `roles/secretmanager.secretAccessor` on both
+   secrets, like the others in step 4.
+
+3. **Customer Portal** (Dashboard → Settings → Billing → Customer portal):
+   allow cancelling at period end, switching between the two prices above
+   (prorate), updating the payment method and viewing invoices. Business
+   name, privacy and terms URLs as in Public details.
+
+4. **Deploy with billing on** (add to the `gcloud run deploy` in step 6):
+
+   ```powershell
+   --update-secrets="STRIPE_SECRET_KEY=portfyl-stripe-secret-key:latest,STRIPE_WEBHOOK_SECRET=portfyl-stripe-webhook-secret:latest" --update-env-vars="PORTFYL_BILLING_ENABLED=1,PORTFYL_APP_URL=https://portfyl.com,PORTFYL_STRIPE_PRICE_INVESTOR=price_1UVX3XDx44VQOSF8UAJ2VYid,PORTFYL_STRIPE_PRICE_PRO=price_1UVXEJDx44VQOSF8UJys5WwI"
+   ```
+
+   `BillingConfig.from_env` (`backend/billing_config.py`) refuses to start
+   with an incomplete configuration. `STRIPE_API_VERSION` optionally overrides
+   the pinned API version (`2026-09-30.endive`). Apply migration
+   `0025_stripe_billing` (step 5) first.
+
+5. **Scheduler**: `billing_reconcile` runs daily (`deploy/operations.json`)
+   and re-fetches every customer's subscriptions, the safety net for a lost
+   webhook. Events that cannot be applied automatically (unknown price, a
+   second live subscription, an unmapped customer) are marked `quarantined`
+   in `stripe_events` and logged as `stripe_webhook_quarantined`; resolve
+   them by hand in the Stripe Dashboard.
+
+Before the first paid customer: the checkout consent (immediate start and
+loss of the 14-day withdrawal right) is collected on Portfyl's pricing page
+because Managed Payments checkout cannot show custom text, and the audit log
+records it as `billing.checkout.created` with `consent_version`.
+
 ## Ongoing rules
 
 - Scheduler schedules, retry limits, and JSON health matching are versioned
@@ -615,8 +693,6 @@ changes are involved. Leaving `PORTFYL_FIREBASE_AUTH_DOMAIN` set is harmless.
   the Neon project in matching metros to minimize latency — `europe-west3`
   (GCP) + `eu-central-1` (Neon/AWS), both Frankfurt, is the pairing for a
   Central European audience.
-- This is Phase 1 of the cloud edition. Paid checkout, onboarding, and the
-  edition capability boundary are separate workstreams. Payments are currently
-  deferred; the pricing page is comparison-only and Paddle is the likely future
-  provider, not an implemented dependency —
-  see `docs/superpowers/plans/2026-09-01-portfyl-saas-monetization.md`.
+- Paid plans use Stripe Managed Payments (see "Stripe Managed Payments"
+  above); they stay off until `PORTFYL_BILLING_ENABLED=1` is deployed. The
+  product plan is `docs/superpowers/plans/2026-09-01-portfyl-saas-monetization.md`.

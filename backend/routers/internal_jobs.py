@@ -284,3 +284,11 @@ def run_account_deletion_cleanup_job(
     from jobs import account_deletion_cleanup_pass
 
     return _run_job("account_deletion_cleanup", account_deletion_cleanup_pass)
+
+
+@router.post("/billing_reconcile")
+def run_billing_reconcile_job(authorization: str | None = Header(default=None)) -> dict:
+    verify_scheduler_token(authorization)
+    from billing_sync import billing_reconcile_pass
+
+    return _run_job("billing_reconcile", billing_reconcile_pass)

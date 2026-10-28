@@ -28,7 +28,7 @@ def test_cloud_defaults_to_free(db_session, test_workspace):
     assert "portfolio_analytics" not in result.capabilities
 
 
-def test_cloud_free_resolution_only_reads_test_plan_setting(test_workspace, monkeypatch):
+def test_cloud_free_resolution_reads_subscription_then_test_plan_setting(test_workspace, monkeypatch):
     class DatabaseMustNotBeUsed:
         def __getattr__(self, name):
             raise AssertionError(f"cloud entitlement resolution touched db.{name}")
@@ -39,6 +39,12 @@ def test_cloud_free_resolution_only_reads_test_plan_setting(test_workspace, monk
         seen.update(db=db, workspace_id=workspace_id, key=key)
         return None
 
+    def no_subscription(db, workspace_id):
+        seen["subscription_workspace_id"] = workspace_id
+        return None
+
+    monkeypatch.delenv("PORTFYL_BILLING_ENABLED", raising=False)
+    monkeypatch.setattr(entitlements_module, "_live_subscription", no_subscription)
     monkeypatch.setattr(entitlements_module, "get_workspace_setting", get_test_setting)
     result = resolve_entitlements(
         DatabaseMustNotBeUsed(),
@@ -49,6 +55,7 @@ def test_cloud_free_resolution_only_reads_test_plan_setting(test_workspace, monk
 
     assert result.plan is PlanTier.FREE
     assert result.source == "free"
+    assert seen["subscription_workspace_id"] == test_workspace.id
     assert seen["workspace_id"] == test_workspace.id
     assert seen["key"] == PRIVATE_TEST_PLAN_SETTING_KEY
 

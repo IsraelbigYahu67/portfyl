@@ -36,7 +36,7 @@ export const api = axios.create({ baseURL: "/api" });
 
 // Endpoints that are NOT portfolio-scoped — these must not receive portfolio_id
 // or they'd 404 / mis-route.
-const PORTFOLIO_AGNOSTIC_PREFIXES = ["/portfolios", "/market", "/watchlists", "/settings", "/auth", "/capabilities", "/test-plans"];
+const PORTFOLIO_AGNOSTIC_PREFIXES = ["/portfolios", "/market", "/watchlists", "/settings", "/auth", "/capabilities", "/test-plans", "/billing"];
 
 function isPortfolioAgnostic(url) {
   if (!url) return false;
@@ -169,6 +169,15 @@ export const logoutAllSessions = () => api.post("/auth/logout-all").then((r) => 
 export const fetchCapabilities = () => api.get("/capabilities").then((r) => r.data);
 export const fetchTestPlan = () => api.get("/test-plans").then((r) => r.data);
 export const updateTestPlan = (plan) => api.put("/test-plans", { plan }).then((r) => r.data);
+
+// Stripe Managed Payments (cloud). Checkout and the portal answer with a
+// Stripe-hosted URL the browser navigates to.
+export const fetchBillingStatus = () => api.get("/billing/status").then((r) => r.data);
+export const startCheckout = (plan) =>
+  api.post("/billing/checkout", { plan, accept_immediate_start: true }).then((r) => r.data);
+export const confirmCheckout = (sessionId) =>
+  api.post("/billing/checkout/confirm", { session_id: sessionId }).then((r) => r.data);
+export const openBillingPortal = () => api.post("/billing/portal").then((r) => r.data);
 
 export const fetchDeletionStatus = () =>
   api.get("/settings/account/deletion").then((r) => r.data);

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app_settings import set_workspace_setting
 from audit import record_audit_event
 from firebase_identity import VerifiedIdentity
-from models import Membership, User, Workspace, WorkspaceSetting
+from models import Membership, Subscription, User, Workspace, WorkspaceSetting
 from tenancy import RequestContext, RequestContextError
 
 
@@ -130,6 +130,20 @@ def schedule_workspace_deletion(
     ) or 0
     if active_members != 1:
         raise RequestContextError(409, "workspace_has_other_members")
+
+    # Deleting the workspace does not stop Stripe from charging the card, so
+    # a renewing subscription must be cancelled (Customer Portal) first. One
+    # already set to end at period end, or past due, may proceed.
+    renewing = db.scalar(
+        select(Subscription.id).where(
+            Subscription.workspace_id == context.workspace.id,
+            Subscription.ended_at.is_(None),
+            Subscription.status.in_(("active", "trialing")),
+            Subscription.cancel_at_period_end.is_(False),
+        )
+    )
+    if renewing is not None:
+        raise RequestContextError(409, "active_subscription")
 
     existing = get_workspace_deletion(db, context.workspace.id)
     if existing is not None:

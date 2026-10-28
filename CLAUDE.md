@@ -6,7 +6,7 @@ reports across one or more portfolios. (The DeepSeek AI assistant was removed
 on 2026-10-18; any future AI feature needs a new DPA/transfer review first.) Now multi-tenant
 (Firebase-verified identities, workspace-scoped PostgreSQL data) —
 **a multi-user SaaS conversion is in progress**, with tenant isolation and the
-edition boundary and first-run onboarding done, while paid checkout remains deferred; see below.
+edition boundary, first-run onboarding and Stripe checkout done (payments stay off until enabled); see below.
 (Formerly "Snowball Analytics" — some internal identifiers still carry the
 `sb_` prefix for backwards compatibility; see the naming notes below.)
 
@@ -20,11 +20,18 @@ before starting any auth, tenancy, database, or billing work.
 
 - `PORTFYL_EDITION=local` — the owner's private instance. Keeps Tax Report and
   Screener. No billing.
-- `PORTFYL_EDITION=cloud` — multi-tenant SaaS with Free / Investor EUR 4.99 /
-  Pro EUR 7.99 plans. Paid checkout and trials are not active; the pricing page
-  lets authorized private testers switch workspace entitlements without
-  payment. This test selection creates no purchase or subscription. Paddle is
-  the likely future payment provider but is not implemented. Tax Report and
+- `PORTFYL_EDITION=cloud` — multi-tenant SaaS with Free / Investor EUR 5.99 /
+  Pro EUR 9.99 plans (monthly only, VAT included, no trials). Payments use
+  **Stripe Managed Payments** (Stripe/Link is the merchant of record):
+  `backend/routers/billing.py` (Checkout, Customer Portal, signed webhook),
+  `backend/billing_sync.py` (projects the re-fetched Stripe Subscription into
+  `subscriptions`; daily `billing_reconcile` job) and `entitlements.py`, which
+  lets a live subscription win. Billing is off until `PORTFYL_BILLING_ENABLED=1`
+  (see "Stripe Managed Payments" in `deploy/cloudrun.md`); until then the
+  pricing page's no-payment `/api/test-plans` switch is mounted, and once on it
+  is unmounted and ignored. Managed Payments checkout cannot show custom text,
+  so the immediate-start / 14-day-withdrawal consent is collected on the
+  pricing page and audited (`billing.checkout.created`). Tax Report and
   Screener are **permanently excluded from cloud** — not deferred, a deliberate
   product decision (see plan §2, §7, §12).
 - **Workstreams B (PostgreSQL/Alembic foundation), C (Firebase identity,
@@ -40,7 +47,7 @@ before starting any auth, tenancy, database, or billing work.
   **Everything in the rest of this file now describes
   that implemented state**, not the old single-user SQLite one. What's
   **still pending**: Workstream A's external product/data validation and
-  commercial market-data rights, and a future paid checkout. Empty workspaces
+  commercial market-data rights, and switching live payments on. Empty workspaces
   now receive unified demo/import/broker onboarding, and CSV imports require a
   duplicate-aware preview before commit with a guarded 24-hour undo point. Don't
   reintroduce single-user/`owner_id="default"`/SQLite-primary
@@ -159,7 +166,7 @@ mockup) and does not override it.
   active portfolio into every request — call sites never pass it.
   **Exceptions**: prefixes in `PORTFOLIO_AGNOSTIC_PREFIXES` (`/portfolios`,
   `/market`, `/watchlists`, `/settings`, `/auth`, `/capabilities`,
-  `/test-plans`) must NOT receive it. If you add a cross-portfolio endpoint,
+  `/test-plans`, `/billing`) must NOT receive it. If you add a cross-portfolio endpoint,
   add its prefix there or it will 404/mis-route.
   The same interceptor also attaches `X-Workspace-ID` (once a workspace is
   resolved) and `X-CSRF-Token` (on mutating methods) — see `AuthProvider`

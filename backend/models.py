@@ -20,6 +20,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Uuid,
+    text,
 )
 from sqlalchemy.sql import func
 
@@ -329,6 +330,99 @@ class NotificationOutbox(Base):
     sent_at = Column(DateTime(timezone=True), nullable=True)
     last_error = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class BillingCustomer(Base):
+    """The one Stripe Customer that pays for a workspace (cloud only)."""
+
+    __tablename__ = "billing_customers"
+
+    id = _uuid_primary_key()
+    workspace_id = Column(
+        Uuid(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    stripe_customer_id = Column(String, nullable=False, unique=True, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+SUBSCRIPTION_STATUSES = (
+    "incomplete",
+    "incomplete_expired",
+    "trialing",
+    "active",
+    "past_due",
+    "canceled",
+    "unpaid",
+    "paused",
+)
+
+
+class Subscription(Base):
+    """Local projection of a Stripe Subscription. Stripe stays canonical:
+    rows are only ever written from a Subscription retrieved from the Stripe
+    API, never from browser input or an unverified event payload."""
+
+    __tablename__ = "subscriptions"
+    __table_args__ = (
+        CheckConstraint("plan IN ('investor', 'pro')", name="ck_subscription_plan"),
+        CheckConstraint(
+            "status IN (" + ", ".join(f"'{status}'" for status in SUBSCRIPTION_STATUSES) + ")",
+            name="ck_subscription_status",
+        ),
+        # At most one subscription per workspace that has not ended.
+        Index(
+            "uq_subscription_live_workspace",
+            "workspace_id",
+            unique=True,
+            postgresql_where=text("ended_at IS NULL"),
+            sqlite_where=text("ended_at IS NULL"),
+        ),
+    )
+
+    id = _uuid_primary_key()
+    public_id = _public_id()
+    workspace_id = _workspace_id()
+    stripe_subscription_id = Column(String, nullable=False, unique=True, index=True)
+    stripe_customer_id = Column(String, nullable=False)
+    stripe_price_id = Column(String, nullable=False)
+    plan = Column(String, nullable=False)
+    status = Column(String, nullable=False)
+    current_period_end = Column(DateTime(timezone=True), nullable=True)
+    cancel_at_period_end = Column(Boolean, nullable=False, default=False, server_default="false")
+    grace_ends_at = Column(DateTime(timezone=True), nullable=True)
+    ended_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class StripeEvent(Base):
+    """Global, non-tenant webhook receipt log: deduplicates Stripe's
+    at-least-once deliveries and records what happened to each event. Holds
+    no payload and no customer data, only Stripe ids. Outside RLS like
+    job_runs (see docs/security/tenant-isolation-matrix.md)."""
+
+    __tablename__ = "stripe_events"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('received', 'processed', 'ignored', 'failed', 'quarantined')",
+            name="ck_stripe_event_status",
+        ),
+        CheckConstraint("attempts >= 0", name="ck_stripe_event_attempts"),
+    )
+
+    id = _uuid_primary_key()
+    stripe_event_id = Column(String, nullable=False, unique=True, index=True)
+    event_type = Column(String, nullable=False)
+    object_id = Column(String, nullable=True)
+    status = Column(String, nullable=False, default="received", server_default="received")
+    attempts = Column(Integer, nullable=False, default=0, server_default="0")
+    last_error = Column(String, nullable=True)
+    received_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    processed_at = Column(DateTime(timezone=True), nullable=True)
 
 
 # Transitional import compatibility until Task 7 replaces key-only settings

@@ -46,6 +46,7 @@ def test_slow_plan_check_does_not_freeze_other_requests(monkeypatch):
         return PlanTier.PRO.value
 
     monkeypatch.setattr(entitlements, "get_workspace_setting", slow_setting)
+    monkeypatch.setattr(entitlements, "_live_subscription", lambda *_: None)
 
     app = FastAPI()
     app.state.portfyl_edition = Edition.CLOUD
@@ -153,6 +154,7 @@ ASYNC_ENDPOINTS_WITHOUT_DB = {
 # loop (run_on_private_loop, or a job pass driven by one), never directly
 # from an async endpoint.
 ASYNC_HELPERS_RUN_OFF_LOOP = {
+    "billing_sync.billing_reconcile_pass",
     "jobs._advance_until_blocked",
     "jobs.account_deletion_cleanup_pass",
     "jobs.alert_check_all_workspaces",
@@ -288,6 +290,7 @@ def test_slow_database_work_in_an_endpoint_does_not_freeze_other_requests(monkey
 
     monkeypatch.setattr(alerts_router, "run_check", slow_run_check)
     monkeypatch.setattr(entitlements, "get_workspace_setting", lambda *_: PlanTier.PRO.value)
+    monkeypatch.setattr(entitlements, "_live_subscription", lambda *_: None)
 
     app = FastAPI()
     app.state.portfyl_edition = Edition.CLOUD

@@ -22,6 +22,7 @@ configure_logging()
 # data gracefully via empty/null checks; suppress the noise.
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
+from billing_config import BillingConfig
 from database import SessionLocal, assert_alembic_head, get_db
 from edition import Edition, edition_from_env
 from entitlements import EntitlementDenied, entitlement_denied_handler
@@ -48,6 +49,13 @@ PORTFYL_EDITION = edition_from_env(os.environ)
 configure_sentry(environment=PORTFYL_EDITION.value)
 app = FastAPI(title="Portfyl API", version="1.0.0")
 app.state.portfyl_edition = PORTFYL_EDITION
+# Payments exist only in the cloud edition; the local edition never reads the
+# Stripe variables. from_env fails closed on an incomplete cloud config.
+app.state.billing_config = (
+    BillingConfig.from_env(os.environ)
+    if PORTFYL_EDITION is Edition.CLOUD
+    else BillingConfig(enabled=False, app_url="")
+)
 app.add_exception_handler(
     auth_router.AuthAPIError,
     auth_router.auth_api_error_handler,
@@ -161,9 +169,19 @@ _CSRF_DEPENDENCIES = [Depends(csrf_guard)]
 app.include_router(auth_router.router, prefix="/api")
 app.include_router(capabilities.build_router(PORTFYL_EDITION), prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 if PORTFYL_EDITION is Edition.CLOUD:
-    from routers import test_plans
+    from routers import billing
 
-    app.include_router(test_plans.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
+    app.include_router(billing.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
+    # Stripe authenticates the webhook by signature and sends no session
+    # cookie, so it has no request context; csrf_guard lets cookie-less
+    # requests through and stays only to keep every mutating route covered.
+    app.include_router(billing.webhook_router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
+    if not app.state.billing_config.enabled:
+        # No-payment plan switching for the private test. Never mounted once
+        # real payments are on (entitlements also ignores it then).
+        from routers import test_plans
+
+        app.include_router(test_plans.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 app.include_router(portfolios.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 app.include_router(portfolio.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 app.include_router(
@@ -233,6 +251,7 @@ if PORTFYL_EDITION is Edition.CLOUD:
     _JOB_MAX_AGES["broker_backfill"] = timedelta(hours=2)
     _JOB_MAX_AGES["rate_limit_cleanup"] = timedelta(hours=2)
     _JOB_MAX_AGES["account_deletion_cleanup"] = timedelta(hours=26)
+    _JOB_MAX_AGES["billing_reconcile"] = timedelta(hours=26)
 
 
 def _as_utc(value: datetime) -> datetime:

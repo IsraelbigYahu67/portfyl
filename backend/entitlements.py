@@ -15,11 +15,12 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app_settings import get_workspace_setting
+from billing_config import billing_enabled
 from plans import MINIMUM_PLAN, PlanLimits, PlanTier, plan_allows, plan_limits
 from database import get_db, release_connection
 from edition import CAPABILITY_REGISTRY, CapabilityClass, Edition, edition_allows, edition_from_env
 from ledger_mutation import acquire_workspace_ledger_lock
-from models import BrokerConnection, Portfolio, UsageCounter, UsageReservation
+from models import BrokerConnection, Portfolio, Subscription, UsageCounter, UsageReservation
 from tenancy import RequestContext, RequestContextError, get_request_context, require_portfolio
 
 
@@ -115,6 +116,18 @@ def resolve_entitlements(
     if edition is Edition.LOCAL:
         return _local_entitlements()
 
+    now = now or utcnow()
+    subscription = _live_subscription(db, workspace_id)
+    if subscription is not None:
+        paid = _subscription_entitlements(subscription, edition=edition, now=now, env=env)
+        if paid is not None:
+            return paid
+
+    if billing_enabled(env if env is not None else os.environ):
+        # With real payments on, the no-payment test selection must never
+        # grant a paid plan.
+        return _tier_entitlements(PlanTier.FREE, source="free", edition=edition, env=env)
+
     raw_tier = get_workspace_setting(db, workspace_id, PRIVATE_TEST_PLAN_SETTING_KEY)
     try:
         tier = PlanTier(raw_tier) if raw_tier else PlanTier.FREE
@@ -122,19 +135,88 @@ def resolve_entitlements(
         # Fail closed if a stale or manually edited setting contains an
         # unsupported value.
         tier = PlanTier.FREE
+    return _tier_entitlements(
+        tier,
+        source="test_selection" if raw_tier == tier.value else "free",
+        edition=edition,
+        env=env,
+    )
+
+
+def _live_subscription(db: Session, workspace_id: UUID) -> Subscription | None:
+    return db.scalar(select(Subscription).where(
+        Subscription.workspace_id == workspace_id,
+        Subscription.ended_at.is_(None),
+    ))
+
+
+def _tier_entitlements(
+    tier: PlanTier,
+    *,
+    source: str,
+    edition: Edition,
+    env: dict[str, str] | None,
+    effective_until: datetime | None = None,
+    in_grace: bool = False,
+    cancel_at_period_end: bool = False,
+) -> EffectiveEntitlements:
     capabilities = tuple(
         key for key in CAPABILITY_REGISTRY
         if edition_allows(edition, key) and key in MINIMUM_PLAN and plan_allows(tier, key)
     )
     return EffectiveEntitlements(
         plan=tier,
-        source="test_selection" if raw_tier == tier.value else "free",
-        effective_until=None,
-        in_grace=False,
-        cancel_at_period_end=False,
+        source=source,
+        effective_until=effective_until,
+        in_grace=in_grace,
+        cancel_at_period_end=cancel_at_period_end,
         capabilities=capabilities,
         limits=plan_limits(env)[tier],
     )
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None or value.tzinfo is not None:
+        return value
+    return value.replace(tzinfo=timezone.utc)
+
+
+def _subscription_entitlements(
+    subscription: Subscription,
+    *,
+    edition: Edition,
+    now: datetime,
+    env: dict[str, str] | None,
+) -> EffectiveEntitlements | None:
+    """Paid access from a live Stripe subscription, or None when it grants
+    nothing (incomplete, paused, or past due beyond the grace window)."""
+    try:
+        tier = PlanTier(subscription.plan)
+    except ValueError:
+        return None
+    period_end = _as_utc(subscription.current_period_end)
+    effective_until = period_end if subscription.cancel_at_period_end else None
+    if subscription.status in ("active", "trialing"):
+        return _tier_entitlements(
+            tier,
+            source="subscription",
+            edition=edition,
+            env=env,
+            effective_until=effective_until,
+            cancel_at_period_end=bool(subscription.cancel_at_period_end),
+        )
+    grace_ends_at = _as_utc(subscription.grace_ends_at)
+    if subscription.status == "past_due" and grace_ends_at is not None and grace_ends_at > now:
+        return _tier_entitlements(
+            tier,
+            source="subscription",
+            edition=edition,
+            env=env,
+            effective_until=grace_ends_at,
+            in_grace=True,
+            cancel_at_period_end=bool(subscription.cancel_at_period_end),
+        )
+    return None
 
 
 def ensure_capability(

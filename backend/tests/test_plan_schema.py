@@ -13,29 +13,19 @@ def _constraint_names(model) -> set[str]:
     }
 
 
-def test_payment_and_trial_models_are_not_mapped():
-    for name in (
-        "BillingCustomer",
-        "Subscription",
-        "TrialGrant",
-        "StripeEvent",
-        "BillingAction",
-    ):
+def test_stripe_billing_models_are_mapped_without_trials():
+    # Migration 0025 re-adds a slimmer Stripe Managed Payments runtime; the
+    # automatic trials and billing-action idempotency table of 0010 stay gone.
+    for name in ("TrialGrant", "BillingAction"):
         assert not hasattr(models, name)
-
-    assert set(Base.metadata.tables).isdisjoint(
-        {
-            "billing_actions",
-            "billing_customers",
-            "stripe_events",
-            "subscriptions",
-            "trial_grants",
-        }
-    )
+    assert set(Base.metadata.tables).isdisjoint({"billing_actions", "trial_grants"})
+    assert {"billing_customers", "subscriptions", "stripe_events"} <= set(Base.metadata.tables)
+    assert {"ck_subscription_plan", "ck_subscription_status"} <= _constraint_names(models.Subscription)
+    assert {"ck_stripe_event_status", "ck_stripe_event_attempts"} <= _constraint_names(models.StripeEvent)
 
 
 def test_expected_alembic_head_adds_t212_account_binding():
-    assert EXPECTED_ALEMBIC_HEAD == "0024_remove_ai_assistant"
+    assert EXPECTED_ALEMBIC_HEAD == "0025_stripe_billing"
     assert models.AllocationTarget.__tablename__ == "allocation_targets"
     for column in (
         "cash_next_page_path", "cash_complete", "cash_loaded",
