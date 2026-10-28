@@ -637,10 +637,16 @@ whole flow there (test card `4242 4242 4242 4242`, Link passcode `000000`).
    Grant `portfyl-runtime` `roles/secretmanager.secretAccessor` on both
    secrets, like the others in step 4.
 
-3. **Customer Portal** (Dashboard → Settings → Billing → Customer portal):
-   allow cancelling at period end, switching between the two prices above
-   (prorate), updating the payment method and viewing invoices. Business
-   name, privacy and terms URLs as in Public details.
+3. **Customer Portal** (Dashboard → Settings → Billing → Customer portal).
+   Live default configuration `bpc_1UVZVgDx44VQOSF8IseOXs9Y` (created
+   2026-10-28): cancel at period end with an optional reason; switch between
+   the two prices above, upgrades charged at once with proration
+   (`always_invoice`) and downgrades scheduled for the period end; quantity
+   changes off; payment method, name and address updates and invoice
+   history on; return URL `https://portfyl.com/pricing`; terms and privacy
+   URLs `https://portfyl.com/terms` and `/privacy`. The app creates portal
+   sessions without a `configuration`, so whichever configuration is the
+   default is used; a sandbox needs its own copy.
 
 4. **Deploy with billing on** (add to the `gcloud run deploy` in step 6):
 
