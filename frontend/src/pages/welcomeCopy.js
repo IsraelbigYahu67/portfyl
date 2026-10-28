@@ -33,7 +33,7 @@ export const COPY = {
       ["Jaké brokery Portfyl podporuje?", "Portfyl pracuje s daty z Trading 212. Další brokeři již brzy. Součástí aplikace je také import transakcí z CSV souborů."],
       ["Můžu si už Portfyl vyzkoušet?", "Ano. Živé demo je syntetické, nevyžaduje účet a ukazuje, jak Portfyl funguje bez vašich investičních dat."],
     ],
-    closingKicker: "PŘIPRAVUJEME PRO VÁS", closingHeading: ["Více přehledu.", "Více klidu."], closingNote: "Nový pohled na vaše investice. Již brzy.", back: "Zpátky nahoru", footer: "Váš prostor pro investiční přehled.",
+    closingKicker: "PŘIPRAVUJEME PRO VÁS", closingHeading: ["Více přehledu.", "Více klidu."], closingNote: "Nový pohled na vaše investice. Již brzy.", back: "Zpátky nahoru", footer: "Váš prostor pro investiční přehled.", legal: [["terms", "Obchodní podmínky"], ["privacy", "Ochrana osobních údajů"]], legalLanguage: "cs", legalNavigation: "Právní dokumenty",
   },
   en: {
     title: "Portfyl — Your investments. Finally clear.", skip: "Skip to content", home: "Portfyl — home", navigation: "Main navigation", language: "Page language",
@@ -62,7 +62,7 @@ export const COPY = {
       ["Which brokers does Portfyl support?", "Portfyl works with data from Trading 212. More brokers coming soon. The app also supports importing transactions from CSV files."],
       ["Can I try Portfyl yet?", "Yes. The live demo is synthetic, account-free, and shows how Portfyl works without using your investment data."],
     ],
-    closingKicker: "ON THE WAY", closingHeading: ["More clarity.", "More peace of mind."], closingNote: "A fresh perspective on your investments. Coming soon.", back: "Back to top", footer: "Your space for a clearer investment picture.",
+    closingKicker: "ON THE WAY", closingHeading: ["More clarity.", "More peace of mind."], closingNote: "A fresh perspective on your investments. Coming soon.", back: "Back to top", footer: "Your space for a clearer investment picture.", legal: [["terms", "Terms of Service"], ["privacy", "Privacy Policy"]], legalLanguage: "en", legalNavigation: "Legal documents",
   },
   de: {
     title: "Portfyl — Deine Investments. Endlich übersichtlich.", skip: "Zum Inhalt springen", home: "Portfyl — Startseite", navigation: "Hauptnavigation", language: "Sprache der Seite",
@@ -91,6 +91,6 @@ export const COPY = {
       ["Welche Broker unterstützt Portfyl?", "Portfyl arbeitet mit Daten von Trading 212. Weitere Broker folgen bald. Außerdem lassen sich Transaktionen aus CSV-Dateien importieren."],
       ["Kann ich Portfyl schon ausprobieren?", "Ja. Die Live-Demo ist synthetisch, ohne Konto nutzbar und zeigt Portfyl ohne deine eigenen Investmentdaten."],
     ],
-    closingKicker: "WIR BEREITEN ALLES FÜR DICH VOR", closingHeading: ["Mehr Überblick.", "Mehr Gelassenheit."], closingNote: "Ein neuer Blick auf deine Investments. Demnächst.", back: "Nach oben", footer: "Dein Ort für den Überblick über deine Investments.",
+    closingKicker: "WIR BEREITEN ALLES FÜR DICH VOR", closingHeading: ["Mehr Überblick.", "Mehr Gelassenheit."], closingNote: "Ein neuer Blick auf deine Investments. Demnächst.", back: "Nach oben", footer: "Dein Ort für den Überblick über deine Investments.", legal: [["terms", "Nutzungsbedingungen (EN)"], ["privacy", "Datenschutz (EN)"]], legalLanguage: "en", legalNavigation: "Rechtliches",
   },
 };

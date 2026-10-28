@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { AlertCircle, Briefcase, CheckCircle2, Eye, EyeOff, History, Link as LinkIcon, Loader2, RefreshCw, Unlink } from "lucide-react";
+import { AlertCircle, Briefcase, CheckCircle2, ExternalLink, Eye, EyeOff, History, Link as LinkIcon, Loader2, RefreshCw, Unlink } from "lucide-react";
 
 import { connectT212, disconnectT212, setT212AutoSync } from "../api";
 import { useCurrency, usePortfolio } from "../App";
@@ -18,6 +18,7 @@ import { AsyncSection } from "../components/ui";
 import Toggle from "../components/ui/Toggle";
 import { Badge } from "../components/ui/Badge";
 import { getApiErrorMessage } from "../lib/apiError";
+import { HAS_PUBLIC_HOME } from "../lib/routes";
 import { useBrokerPortfolio } from "../hooks/useBrokerPortfolio";
 import { splitNote } from "../lib/brokerPortfolio";
 import { T212_HISTORY_ACTIVE_STATES, useT212Sync } from "../hooks/useT212Sync";
@@ -300,7 +301,31 @@ export function DataSettings({ headingRef, children }) {
       <SectionHeading id="settings-data-heading" headingRef={headingRef} description="Manage portfolio data, exports, and workspace privacy.">Data & Privacy</SectionHeading>
       {children}
       <DataPrivacySettings />
+      {HAS_PUBLIC_HOME && <LegalDocuments />}
     </section>
+  );
+}
+
+// Cloud only: the public /terms and /privacy pages render outside the app's
+// router (Root.jsx), so these are plain links that open a new tab.
+function LegalDocuments() {
+  const links = [["/terms?lang=en", "Terms of Service"], ["/privacy?lang=en", "Privacy Policy"], ["/terms?lang=cs", "Obchodní podmínky"], ["/privacy?lang=cs", "Zásady ochrany osobních údajů"]];
+  return (
+    <div className="bg-surface-card border border-surface-border rounded-xl p-6 space-y-3">
+      <div>
+        <h3 className="text-lg font-semibold">Legal documents</h3>
+        <p className="text-sm text-muted mt-0.5">The terms and privacy policy that apply to your Portfyl account.</p>
+      </div>
+      <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+        {links.map(([href, label]) => (
+          <li key={href}>
+            <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-brand hover:underline">
+              {label}<ExternalLink size={14} aria-hidden="true" />
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

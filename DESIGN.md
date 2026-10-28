@@ -209,3 +209,11 @@ inset trough with raised chips, raised 24px feature cards and 20px FAQ cards,
 an inset showcase panel, and the app's `SegmentedControl` for the language and
 preview switches (the preview trough is 24px, not a pill, because it wraps to
 two rows). Same motion rules as section 7, opt-in per element.
+
+The public legal pages `/terms` and `/privacy` (`pages/Legal.jsx` +
+`Legal.css`, cloud only) reuse the landing's Clay root (`lib/clayStyle.js`),
+pill header and footer. The text sits in one raised 24px card with a sticky
+contents list beside it (a collapsible inset well below 1024px). Tables are
+inset wells that stack into labelled cards on phones, so the page never
+scrolls sideways. An unfinished `[[TODO]]` placeholder from `docs/legal/`
+renders as a pending `mark`, tinted like Badge's `warn` tone (`--chart-3`).

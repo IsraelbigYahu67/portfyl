@@ -4,7 +4,7 @@
 > `[[DOPLNIT]]` a na kontrolu českým advokátem. Otevřené body jsou v
 > [poznamky-pro-pravnika.md](poznamky-pro-pravnika.md).
 
-Účinnost od: `[[DOPLNIT: datum zveřejnění]]`
+Účinnost od: `[[DOPLNIT: datum zveřejnění]]` \
 Verze: 0.1 (návrh)
 
 ## 1. Kdo službu provozuje
@@ -12,10 +12,10 @@ Verze: 0.1 (návrh)
 Službu Portfyl dostupnou na `portfyl.com` a `app.portfyl.com` (dále jen
 „**Služba**“) provozuje:
 
-**Jakub Zoubek**, fyzická osoba podnikající podle živnostenského zákona
-místo podnikání: Brusinková 1983, 252 28 Černošice, Česká republika
-IČO: 67772366
-`[[DOPLNIT: plátce / neplátce DPH]]`
+**Jakub Zoubek**, fyzická osoba podnikající podle živnostenského zákona \
+místo podnikání: Brusinková 1983, 252 28 Černošice, Česká republika \
+IČO: 67772366 \
+`[[DOPLNIT: plátce / neplátce DPH]]` \
 e-mail: **support@portfyl.com**
 
 (dále jen „**Provozovatel**“, „**my**“).
@@ -70,7 +70,7 @@ něj důležitá oznámení o účtu a o změnách podmínek.
 uvedeny na stránce Ceník (`[[DOPLNIT: URL ceníku]]`). Ceny jsou konečné,
 včetně DPH, pokud se uplatní.
 
-4.2 Placené tarify lze platit **měsíčně** nebo **ročně**.
+4.2 Placené tarify se platí **měsíčně**.
 
 4.3 Nový uživatel může placený tarif jednou vyzkoušet **zdarma na 10 dní**.
 Po skončení zkušebního období se účet **automaticky přepne na tarif Free**,
@@ -86,19 +86,22 @@ nad rámec nového tarifu pouze přestanou být dostupné.
 ## 5. Platby a předplatné
 
 5.1 Platby za placené tarify zpracovává a jako prodejce (tzv. *Merchant of
-Record*) je přijímá `[[DOPLNIT: Paddle.com Market Limited, Judd House, 18–29
-Mora Street, London EC1V 8BT, Spojené království]]` (dále jen „**Platební
-partner**“). Platební partner vystavuje doklady, odvádí DPH a vyřizuje
-platební záležitosti podle svých podmínek pro kupující, se kterými se
-seznámíte při platbě. Údaje o vaší platební kartě Provozovatel nikdy nevidí.
-`[[ROZHODNOUT: varianta se Stripe – viz poznámky pro právníka, bod 2.]]`
+Record*) je přijímá společnost ze skupiny Stripe, která vystupuje pod značkou
+**Link** (služba Stripe Managed Payments), `[[DOPLNIT: přesný název a sídlo
+prodávajícího subjektu Stripe/Link podle podmínek zobrazených na platební
+stránce]]` (dále jen „**Platební partner**“). Platební partner vystavuje
+doklady, odvádí DPH, vyřizuje dotazy k platbám, vracení peněz a reklamace
+plateb podle svých podmínek pro kupující, se kterými se seznámíte při platbě.
+Na výpisu z účtu se platba zobrazí jako `LINK.COM* PORTFYL`. Údaje o vaší
+platební kartě Provozovatel nikdy nevidí.
 
-5.2 Předplatné se **automaticky obnovuje** na další období (měsíc nebo rok),
-dokud ho nezrušíte. Cena za další období se strhne na začátku tohoto období.
+5.2 Předplatné se **automaticky obnovuje** na další měsíc, dokud ho
+nezrušíte. Cena za další měsíc se strhne na jeho začátku.
 
-5.3 Předplatné můžete kdykoli zrušit v nastavení účtu. Zrušení se projeví ke
-konci již zaplaceného období; do té doby můžete placené funkce používat.
-Poté se účet přepne na tarif Free.
+5.3 Předplatné můžete kdykoli zrušit v nastavení účtu nebo na webu Link
+(link.com), kde spravujete své objednávky; odkaz najdete i v potvrzení o
+platbě. Zrušení se projeví ke konci již zaplaceného období; do té doby můžete
+placené funkce používat. Poté se účet přepne na tarif Free.
 
 5.4 O zvýšení ceny vás budeme informovat e-mailem nejméně **30 dní**
 předem. Nová cena platí až od následujícího období předplatného. Pokud s ní
@@ -108,21 +111,29 @@ nesouhlasíte, můžete předplatné do té doby zrušit.
 
 6.1 Jste-li spotřebitel, můžete od smlouvy o placeném předplatném odstoupit
 **bez udání důvodu do 14 dnů** od jejího uzavření (tj. od první platby).
-Stačí poslat jednoznačné prohlášení na support@portfyl.com, případně použít
-vzorový formulář v příloze těchto podmínek.
+Stačí poslat jednoznačné prohlášení na support@portfyl.com nebo podpoře
+Platebního partnera, případně použít vzorový formulář v příloze těchto
+podmínek. Toto právo máte k jedné smlouvě o předplatném **jen jednou**;
+automatické obnovení předplatného na další měsíc novou lhůtu nezakládá.
 
 6.2 Objednáním předplatného výslovně žádáte, aby poskytování placených
 funkcí začalo **ihned**, tedy ještě před uplynutím lhůty pro odstoupení.
-Odstoupíte-li, vrátíme vám zaplacenou cenu sníženou o **poměrnou část**
+Odstoupíte-li, vrátí se vám zaplacená cena snížená o **poměrnou část**
 odpovídající době, po kterou byly placené funkce k dispozici (§ 1834
 občanského zákoníku).
 
-6.3 Peníze vrátíme do **14 dnů** od odstoupení stejným způsobem, jakým byly
-zaplaceny (prostřednictvím Platebního partnera).
+6.3 Peníze vrátí Platební partner do **14 dnů** od odstoupení stejným
+způsobem, jakým byly zaplaceny.
 
-`[[PRÁVNÍK: ověřit, zda pro digitální službu s měsíčním/ročním předplatným a
-předchozím bezplatným zkušebním obdobím postačí poměrná náhrada, nebo zda
-nabídnout plnou refundaci v 14denní lhůtě; viz poznámky, bod 3.]]`
+6.4 Nad rámec práva na odstoupení může Platební partner podle svých podmínek
+v odůvodněných případech (např. při technické chybě nebo zneužití platební
+karty) vrátit platbu do **60 dnů** od jejího provedení.
+
+`[[PRÁVNÍK: ověřit (a) vůči komu spotřebitel odstupuje, když je prodávajícím
+Platební partner (MoR), a zda je čl. 6 v souladu s jeho podmínkami pro
+kupující; (b) zda Provozovatel musí mít na webu vlastní funkci pro odstoupení
+podle směrnice (EU) 2023/2673; (c) zda postačí poměrná náhrada, nebo nabídnout
+plnou refundaci; viz poznámky, bod 3.]]`
 
 ## 7. Vady Služby a reklamace
 
@@ -252,6 +263,6 @@ support@portfyl.com
 Oznamuji, že tímto odstupuji od smlouvy o poskytování služby Portfyl
 (tarif: ……………, objednáno dne: ……………).
 
-Jméno a příjmení: ……………………………
-E-mail účtu: ……………………………
+Jméno a příjmení: …………………………… \
+E-mail účtu: …………………………… \
 Datum: ……………………………

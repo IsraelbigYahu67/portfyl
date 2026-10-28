@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUpRight, ChartNoAxesCombined, PieChart, CalendarDays, L
 import { COPY, LANGUAGES, LANGUAGE_KEY } from "./welcomeCopy";
 import { useAnalytics } from "../analytics/AnalyticsProvider";
 import SegmentedControl from "../components/ui/SegmentedControl";
-import { CLAY_TOKENS } from "../lib/themeTokens";
+import { CLAY_STYLE } from "../lib/clayStyle";
 import { ANALYTICS_COPY, getAnalyticsLanguage } from "../analytics/analyticsCopy";
 import { ANALYTICS_EVENTS } from "../analytics/eventContract";
 import { DEMO_SESSION_SCOPE } from "../analytics/useDemoAnalytics";
@@ -14,29 +14,6 @@ const images = ["allocation", "stock", "dashboard", "performance"];
 const imageSizes = [[1047, 365], [1047, 350], [1047, 345], [1004, 455]];
 const screenshotPath = (name) => `/landing/${name}-live-20260911.png`;
 const icons = [ChartNoAxesCombined, PieChart, CalendarDays];
-
-// The landing renders outside App.jsx, so applyAppearance() never runs here.
-// Scope the same Clay variables to the page root instead of retyping values;
-// the theme-clay class then resolves index.css's --clay-* shadows.
-const CLAY_STYLE = {
-  "--brand": CLAY_TOKENS.brand,
-  "--brand-hover": CLAY_TOKENS.brandHover,
-  "--brand-light": CLAY_TOKENS.brandLight,
-  "--bg": CLAY_TOKENS.bg,
-  "--bg-subtle": CLAY_TOKENS.bgSubtle,
-  "--surface-card": CLAY_TOKENS.surfaceCard,
-  "--surface-card-elevated": CLAY_TOKENS.surfaceCardElevated,
-  "--border": CLAY_TOKENS.border,
-  "--hairline": CLAY_TOKENS.hairline,
-  "--ink": CLAY_TOKENS.ink,
-  "--muted": CLAY_TOKENS.muted,
-  "--gain": CLAY_TOKENS.gain,
-  "--loss": CLAY_TOKENS.loss,
-  "--shadow-ambient": CLAY_TOKENS.shadowAmbient,
-  "--shadow-inset": CLAY_TOKENS.shadowInset,
-  "--radius-card": CLAY_TOKENS.radiusCard,
-  ...Object.fromEntries(CLAY_TOKENS.chart.map((color, i) => [`--chart-${i + 1}`, color])),
-};
 
 function savedLanguage() {
   try {
@@ -241,7 +218,7 @@ export default function Welcome() {
         </section>
         <section className="welcome-closing welcome-container"><div className="welcome-eyebrow"><span />{copy.closingKicker}</div><h2><Heading lines={copy.closingHeading} /></h2><p>{copy.closingNote}</p><div className="welcome-closing-actions"><a className="welcome-cta" href="/demo" onClick={handleDemoCtaClick("landing_closing")}>{copy.demoCta} <ArrowUpRight size={17} /></a><a href="#nahoru">{copy.back} <ArrowUpRight size={16} /></a></div></section>
       </main>
-      <footer className="welcome-footer welcome-container"><a className="welcome-logo" href="#nahoru"><Brand /></a><span>{copy.footer}</span><AnalyticsPreferencesLink /><small>© {new Date().getFullYear()} Portfyl</small></footer>
+      <footer className="welcome-footer welcome-container"><a className="welcome-logo" href="#nahoru"><Brand /></a><span>{copy.footer}</span><nav className="welcome-footer-legal" aria-label={copy.legalNavigation}>{copy.legal.map(([page, label]) => <a key={page} href={`/${page}?lang=${copy.legalLanguage}`}>{label}</a>)}</nav><AnalyticsPreferencesLink /><small>© {new Date().getFullYear()} Portfyl</small></footer>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import Welcome from "./Welcome";
 import { COPY, LANGUAGES, LANGUAGE_KEY } from "./welcomeCopy";
 import AnalyticsProvider from "../analytics/AnalyticsProvider";
@@ -31,12 +31,12 @@ function chooseCzech() {
   fireEvent.click(screen.getByRole("button", { name: /Pokračovat česky/ }));
 }
 
-it("keeps navigation links on-page while exposing the public demo as a normal link", () => {
+it("keeps navigation links on-page while exposing the public demo and legal pages as normal links", () => {
   renderWelcome();
   chooseCzech();
   for (const link of screen.getAllByRole("link")) {
     const href = link.getAttribute("href");
-    if (href === "/demo") continue;
+    if (href === "/demo" || href === "/terms?lang=cs" || href === "/privacy?lang=cs") continue;
     expect(href).toMatch(/^#/);
     expect(document.getElementById(href.slice(1))).not.toBeNull();
   }
@@ -73,6 +73,10 @@ it.each(LANGUAGES)("shows the full $name page and remembers the selection", ({ c
   expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
   expect(screen.getByText(COPY[code].questions[0][0])).toBeInTheDocument();
   expect(screen.getByText(COPY[code].footer)).toBeInTheDocument();
+  const legal = screen.getByRole("navigation", { name: COPY[code].legalNavigation });
+  expect(within(legal).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+    `/terms?lang=${COPY[code].legalLanguage}`, `/privacy?lang=${COPY[code].legalLanguage}`,
+  ]);
   expect(screen.getAllByRole("link", { name: COPY[code].demoCta })).toHaveLength(2);
   expect(document.documentElement.lang).toBe(code);
   expect(document.title).toBe(COPY[code].title);

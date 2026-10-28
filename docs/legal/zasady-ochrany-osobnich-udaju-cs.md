@@ -5,7 +5,7 @@
 > [../compliance/data-processing-inventory.md](../compliance/data-processing-inventory.md),
 > otevřené body v [poznamky-pro-pravnika.md](poznamky-pro-pravnika.md).
 
-Účinnost od: `[[DOPLNIT: datum zveřejnění]]`
+Účinnost od: `[[DOPLNIT: datum zveřejnění]]` \
 Verze: 0.1 (návrh)
 
 Tyto zásady vysvětlují, jaké osobní údaje služba Portfyl zpracovává, proč,
@@ -72,8 +72,11 @@ základě smlouvy o zpracování osobních údajů:
 **Samostatní správci** – tyto subjekty zpracovávají údaje podle vlastních
 zásad:
 
-- **Platební partner** `[[DOPLNIT: Paddle.com Market Limited]]` – přijímá
-  platby jako prodejce, vystavuje doklady a odvádí DPH.
+- **Platební partner** – společnost ze skupiny Stripe vystupující pod značkou
+  Link (Stripe Managed Payments) `[[DOPLNIT: přesný název a sídlo
+  prodávajícího subjektu]]` – přijímá platby jako prodejce, vystavuje doklady,
+  odvádí DPH a vyřizuje dotazy k platbám, vracení peněz a správu předplatného
+  na webu link.com.
 - **Váš broker** (např. Trading 212, Interactive Brokers, eToro) – jen pokud
   ho sami připojíte; posíláme mu vaše API přihlášení a dostáváme od něj
   údaje o účtu.
