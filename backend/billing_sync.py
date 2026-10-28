@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from billing_config import BillingConfig
 from database import set_rls_context
 from models import BillingCustomer, Subscription, Workspace
+from plans import PlanTier
 from stripe_client import StripeClient, StripeClientProtocol, StripeError
 
 
@@ -74,7 +75,7 @@ def subscription_id_from_event(event: dict) -> str | None:
     obj = _value(_value(event, "data", {}), "object", {}) or {}
     if event_type.startswith("customer.subscription."):
         return _value(obj, "id")
-    if event_type.startswith("checkout.session."):
+    if event_type.startswith(("checkout.session.", "subscription_schedule.")):
         return _id(_value(obj, "subscription"))
     if event_type.startswith("invoice."):
         direct = _id(_value(obj, "subscription"))
@@ -130,15 +131,54 @@ def live_subscription(db: Session, workspace_id: UUID) -> Subscription | None:
     ))
 
 
+LIVE_SCHEDULE_STATUSES = frozenset({"not_started", "active"})
+
+
+def fetch_subscription_state(client: StripeClientProtocol, subscription_id: str) -> tuple[dict, dict | None]:
+    """The Subscription plus, when a plan change is booked on it, its live
+    subscription schedule."""
+    remote = client.retrieve_subscription(subscription_id)
+    schedule_id = _id(_value(remote, "schedule"))
+    if not schedule_id:
+        return remote, None
+    schedule = client.retrieve_schedule(schedule_id)
+    if _value(schedule, "status") not in LIVE_SCHEDULE_STATUSES:
+        return remote, None
+    return remote, schedule
+
+
+def scheduled_change(schedule: dict | None, config: BillingConfig, *, current_plan: PlanTier):
+    """(plan, starts_at) of the next schedule phase when it switches plans,
+    else (None, None)."""
+    if not schedule:
+        return None, None
+    current_end = _value(_value(schedule, "current_phase", {}) or {}, "end_date")
+    if not current_end:
+        return None, None
+    for phase in _value(schedule, "phases", []) or []:
+        if int(_value(phase, "start_date", 0) or 0) < int(current_end):
+            continue
+        items = _value(phase, "items", []) or []
+        plan = config.plan_for_price(_id(_value(items[0], "price"))) if len(items) == 1 else None
+        if plan is None:
+            raise BillingDataError("scheduled phase uses a price that maps to no plan")
+        if plan is current_plan:
+            return None, None
+        return plan, _timestamp(_value(phase, "start_date"))
+    return None, None
+
+
 def apply_subscription(
     db: Session,
     *,
     workspace_id: UUID,
     remote: dict,
     config: BillingConfig,
+    schedule: dict | None = None,
     now: datetime | None = None,
 ) -> Subscription:
-    """Upsert the local projection of one retrieved Stripe Subscription.
+    """Upsert the local projection of one retrieved Stripe Subscription (and
+    its live schedule, if any).
 
     The caller must already have scoped `db` to `workspace_id` and commits.
     """
@@ -161,6 +201,7 @@ def apply_subscription(
         raise BillingDataError("subscription uses a price that maps to no plan")
     # Since API version 2025-03-31 the billing period lives on the item.
     period_end = _value(items[0], "current_period_end") or _value(remote, "current_period_end")
+    scheduled_plan, scheduled_change_at = scheduled_change(schedule, config, current_plan=plan)
 
     if _postgres(db):
         # Serialize concurrent webhook / checkout-confirm / reconcile writes
@@ -193,6 +234,8 @@ def apply_subscription(
     row.cancel_at_period_end = bool(
         _value(remote, "cancel_at_period_end", False) or _value(remote, "cancel_at")
     )
+    row.scheduled_plan = scheduled_plan.value if scheduled_plan else None
+    row.scheduled_change_at = scheduled_change_at
     if status == "past_due":
         if row.grace_ends_at is None:
             row.grace_ends_at = now + GRACE_PERIOD
@@ -229,12 +272,19 @@ async def billing_reconcile_pass(db: Session) -> list[dict]:
         except StripeError as exc:
             results.append({"workspace": str(workspace_id), "status": "retry", "error": exc.code or "stripe_error"})
             continue
+        states = []
+        try:
+            for remote in remotes:
+                if _value(remote, "status") in ENDED_STATUSES and _value(remote, "id") not in known:
+                    continue  # history from before Portfyl tracked it
+                states.append(fetch_subscription_state(client, _value(remote, "id")))
+        except StripeError as exc:
+            results.append({"workspace": str(workspace_id), "status": "retry", "error": exc.code or "stripe_error"})
+            continue
         _set_job_workspace_context(db, workspace_id)
-        for remote in remotes:
-            if _value(remote, "status") in ENDED_STATUSES and _value(remote, "id") not in known:
-                continue  # history from before Portfyl tracked it
+        for remote, schedule in states:
             try:
-                apply_subscription(db, workspace_id=workspace_id, remote=remote, config=config)
+                apply_subscription(db, workspace_id=workspace_id, remote=remote, config=config, schedule=schedule)
             except BillingDataError as exc:
                 log.error("billing_reconcile_quarantined subscription=%s reason=%s", _value(remote, "id"), exc)
                 results.append({"subscription": _value(remote, "id"), "status": "quarantined"})

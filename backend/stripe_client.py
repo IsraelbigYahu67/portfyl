@@ -70,6 +70,10 @@ class StripeClientProtocol(Protocol):
     def retrieve_subscription(self, subscription_id: str) -> dict: ...
     def list_subscriptions(self, customer_id: str) -> list[dict]: ...
     def create_portal_session(self, *, customer_id: str, return_url: str) -> dict: ...
+    def create_schedule_from_subscription(self, subscription_id: str, *, idempotency_key: str) -> dict: ...
+    def retrieve_schedule(self, schedule_id: str) -> dict: ...
+    def update_schedule(self, schedule_id: str, params: Mapping[str, Any]) -> dict: ...
+    def release_schedule(self, schedule_id: str) -> dict: ...
 
 
 class StripeClient:
@@ -150,6 +154,23 @@ class StripeClient:
             "/billing_portal/sessions",
             params={"customer": customer_id, "return_url": return_url},
         )
+
+    def create_schedule_from_subscription(self, subscription_id: str, *, idempotency_key: str) -> dict:
+        return self._request(
+            "POST",
+            "/subscription_schedules",
+            params={"from_subscription": subscription_id},
+            idempotency_key=idempotency_key,
+        )
+
+    def retrieve_schedule(self, schedule_id: str) -> dict:
+        return self._request("GET", f"/subscription_schedules/{schedule_id}")
+
+    def update_schedule(self, schedule_id: str, params: Mapping[str, Any]) -> dict:
+        return self._request("POST", f"/subscription_schedules/{schedule_id}", params=params)
+
+    def release_schedule(self, schedule_id: str) -> dict:
+        return self._request("POST", f"/subscription_schedules/{schedule_id}/release")
 
 
 def verify_webhook(

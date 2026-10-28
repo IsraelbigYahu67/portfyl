@@ -178,6 +178,9 @@ export const startCheckout = (plan) =>
 export const confirmCheckout = (sessionId) =>
   api.post("/billing/checkout/confirm", { session_id: sessionId }).then((r) => r.data);
 export const openBillingPortal = () => api.post("/billing/portal").then((r) => r.data);
+// Books a switch between paid plans for the end of the paid period (no
+// proration); choosing the current plan again withdraws a booked switch.
+export const changePlan = (plan) => api.post("/billing/change-plan", { plan }).then((r) => r.data);
 
 export const fetchDeletionStatus = () =>
   api.get("/settings/account/deletion").then((r) => r.data);

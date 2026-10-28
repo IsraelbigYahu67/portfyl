@@ -64,11 +64,17 @@ def upgrade() -> None:
         sa.Column("status", sa.String(), nullable=False),
         sa.Column("current_period_end", sa.DateTime(timezone=True), nullable=True),
         sa.Column("cancel_at_period_end", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("scheduled_plan", sa.String(), nullable=True),
+        sa.Column("scheduled_change_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("grace_ends_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.CheckConstraint("plan IN ('investor', 'pro')", name="ck_subscription_plan"),
+        sa.CheckConstraint(
+            "scheduled_plan IS NULL OR scheduled_plan IN ('investor', 'pro')",
+            name="ck_subscription_scheduled_plan",
+        ),
         sa.CheckConstraint(
             "status IN ('incomplete', 'incomplete_expired', 'trialing', 'active', "
             "'past_due', 'canceled', 'unpaid', 'paused')",

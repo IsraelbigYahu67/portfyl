@@ -84,6 +84,9 @@ class FakeStripe:
         self.checkout_idempotency_key = None
         self.customers_created = 0
         self.fail_retrieve: StripeError | None = None
+        self.schedules = {}
+        self.schedule_updates = []
+        self.released = []
 
     def create_customer(self, *, email, workspace_public_id, idempotency_key):
         self.customers_created += 1
@@ -107,6 +110,45 @@ class FakeStripe:
 
     def create_portal_session(self, *, customer_id, return_url):
         return {"url": f"https://billing.stripe.test/{customer_id}"}
+
+    # Subscription schedules, enough to model a booked plan change.
+    schedules: dict
+
+    def create_schedule_from_subscription(self, subscription_id, *, idempotency_key):
+        sub = self.subscriptions[subscription_id]
+        period_end = sub["items"]["data"][0]["current_period_end"]
+        schedule = {
+            "id": "sub_sched_1",
+            "status": "active",
+            "subscription": subscription_id,
+            "current_phase": {"start_date": period_end - 30 * 86400, "end_date": period_end},
+            "phases": [],
+        }
+        self.schedules["sub_sched_1"] = schedule
+        sub["schedule"] = "sub_sched_1"
+        return schedule
+
+    def retrieve_schedule(self, schedule_id):
+        return self.schedules[schedule_id]
+
+    def update_schedule(self, schedule_id, params):
+        self.schedule_updates.append(params)
+        schedule = self.schedules[schedule_id]
+        first, second = params["phases"]
+        schedule["phases"] = [
+            {"start_date": first["start_date"], "end_date": first["end_date"],
+             "items": [{"price": first["items"][0]["price"]}]},
+            {"start_date": first["end_date"], "end_date": first["end_date"] + 30 * 86400,
+             "items": [{"price": second["items"][0]["price"]}]},
+        ]
+        return schedule
+
+    def release_schedule(self, schedule_id):
+        self.released.append(schedule_id)
+        schedule = self.schedules[schedule_id]
+        schedule["status"] = "released"
+        self.subscriptions[schedule["subscription"]]["schedule"] = None
+        return schedule
 
 
 def _fake_request(config):
@@ -449,6 +491,80 @@ def test_confirm_checkout_rejects_another_workspaces_session(db_session, request
             db=db_session, context=request_context, config=config, client=stripe,
         )
     assert exc.value.status_code == 404
+
+
+def _subscribed(db, request_context, config, *, price="price_investor", **extra):
+    workspace = request_context.workspace
+    _add_customer(db, workspace)
+    remote = _remote(price=price, workspace_public_id=workspace.public_id, **extra)
+    apply_subscription(db, workspace_id=workspace.id, remote=remote, config=config)
+    db.commit()
+    return FakeStripe(subscriptions={"sub_1": remote})
+
+
+def test_plan_change_is_booked_for_the_period_end_without_proration(
+    db_session, request_context, config, monkeypatch,
+):
+    monkeypatch.setenv("PORTFYL_BILLING_ENABLED", "1")
+    stripe = _subscribed(db_session, request_context, config)
+
+    result = billing_router.change_plan(
+        billing_router.PlanChangePayload(plan=PlanTier.PRO),
+        _fake_request(config),
+        db=db_session, context=request_context, config=config, client=stripe,
+    )
+
+    update = stripe.schedule_updates[-1]
+    assert update["proration_behavior"] == "none"
+    assert update["end_behavior"] == "release"
+    current, upcoming = update["phases"]
+    assert current["items"] == [{"price": "price_investor", "quantity": 1}]
+    assert current["end_date"] == stripe.subscriptions["sub_1"]["items"]["data"][0]["current_period_end"]
+    assert upcoming["items"] == [{"price": "price_pro", "quantity": 1}]
+    assert upcoming["metadata"]["portfyl_workspace_id"] == str(request_context.workspace.public_id)
+    # The customer keeps Investor until the change date.
+    assert result["plan"] == "investor"
+    assert result["subscription"]["scheduled_plan"] == "pro"
+    assert result["subscription"]["scheduled_change_at"].startswith(str((NOW + timedelta(days=30)).date()))
+    audit = db_session.scalar(select(AuditLog).where(AuditLog.action == "billing.plan_change.scheduled"))
+    assert audit.event_metadata == {"from": "investor", "to": "pro"}
+
+
+def test_choosing_the_current_plan_withdraws_a_booked_change(
+    db_session, request_context, config, monkeypatch,
+):
+    monkeypatch.setenv("PORTFYL_BILLING_ENABLED", "1")
+    stripe = _subscribed(db_session, request_context, config)
+    billing_router.change_plan(
+        billing_router.PlanChangePayload(plan=PlanTier.PRO),
+        _fake_request(config), db=db_session, context=request_context, config=config, client=stripe,
+    )
+
+    result = billing_router.change_plan(
+        billing_router.PlanChangePayload(plan=PlanTier.INVESTOR),
+        _fake_request(config), db=db_session, context=request_context, config=config, client=stripe,
+    )
+
+    assert stripe.released == ["sub_sched_1"]
+    assert result["subscription"]["scheduled_plan"] is None
+    assert result["subscription"]["scheduled_change_at"] is None
+
+
+def test_plan_change_refuses_a_cancelling_subscription(db_session, request_context, config):
+    stripe = _subscribed(db_session, request_context, config, cancel_at_period_end=True)
+    with pytest.raises(HTTPException) as exc:
+        billing_router.change_plan(
+            billing_router.PlanChangePayload(plan=PlanTier.PRO),
+            _fake_request(config), db=db_session, context=request_context, config=config, client=stripe,
+        )
+    assert exc.value.detail == {"code": "subscription_canceling"}
+    assert stripe.schedule_updates == []
+
+
+def test_subscription_schedule_events_point_at_their_subscription():
+    assert subscription_id_from_event(
+        {"type": "subscription_schedule.updated", "data": {"object": {"id": "sub_sched_1", "subscription": "sub_d"}}}
+    ) == "sub_d"
 
 
 def test_portal_needs_a_billing_account(db_session, request_context, config):

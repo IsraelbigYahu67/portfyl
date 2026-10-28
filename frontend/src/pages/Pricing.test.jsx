@@ -3,6 +3,7 @@ import { fireEvent, render as rtlRender, screen, waitFor, within } from "@testin
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  changePlan,
   confirmCheckout,
   fetchBillingStatus,
   fetchTestPlan,
@@ -14,6 +15,7 @@ import Pricing from "./Pricing";
 
 
 vi.mock("../api", () => ({
+  changePlan: vi.fn(),
   confirmCheckout: vi.fn(),
   fetchBillingStatus: vi.fn(),
   fetchTestPlan: vi.fn(),
@@ -120,29 +122,62 @@ describe("Pricing with Stripe payments", () => {
     await waitFor(() => expect(window.location.assign).toHaveBeenCalledWith("https://checkout.stripe.test/cs_1"));
   });
 
-  it("sends subscribers to the billing portal for changes", async () => {
+  it("books a plan switch for the next period instead of charging now", async () => {
+    const subscription = {
+      plan: "investor",
+      status: "active",
+      current_period_end: "2026-11-28T12:00:00+00:00",
+      cancel_at_period_end: false,
+      grace_ends_at: null,
+      scheduled_plan: null,
+      scheduled_change_at: null,
+    };
     fetchBillingStatus.mockResolvedValue(billingStatus({
+      plan: "investor", source: "subscription", has_billing_account: true, subscription,
+    }));
+    changePlan.mockResolvedValue(billingStatus({
       plan: "investor",
       source: "subscription",
       has_billing_account: true,
-      subscription: {
-        plan: "investor",
-        status: "active",
-        current_period_end: "2026-11-28T12:00:00+00:00",
-        cancel_at_period_end: false,
-        grace_ends_at: null,
-      },
+      subscription: { ...subscription, scheduled_plan: "pro", scheduled_change_at: "2026-11-28T12:00:00+00:00" },
     }));
-    openBillingPortal.mockResolvedValue({ url: "https://billing.stripe.test/p" });
     render(<Pricing />);
 
     expect(await screen.findByText(/Renews automatically on November 28, 2026/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Current plan" })).toBeDisabled();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Switch to Pro" }));
+    fireEvent.click(screen.getByRole("button", { name: "Switch to Pro from November 28, 2026" }));
+
+    await waitFor(() => expect(changePlan).toHaveBeenCalledWith("pro"));
+    expect(await screen.findByText(/Pro starts on November 28, 2026\. Until then you keep Investor/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Keep Investor" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Starts next period" })).toBeDisabled();
+    expect(window.location.assign).not.toHaveBeenCalled();
+    expect(openBillingPortal).not.toHaveBeenCalled();
+  });
+
+  it("sends a cancelling subscriber to the portal to resume first", async () => {
+    fetchBillingStatus.mockResolvedValue(billingStatus({
+      plan: "pro",
+      source: "subscription",
+      has_billing_account: true,
+      subscription: {
+        plan: "pro",
+        status: "active",
+        current_period_end: "2026-11-28T12:00:00+00:00",
+        cancel_at_period_end: true,
+        scheduled_plan: null,
+        scheduled_change_at: null,
+      },
+    }));
+    openBillingPortal.mockResolvedValue({ url: "https://billing.stripe.test/p" });
+    render(<Pricing />);
+
+    expect(await screen.findByText(/Cancelled\. Your plan stays active until November 28, 2026/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Manage in billing portal" }));
     await waitFor(() => expect(window.location.assign).toHaveBeenCalledWith("https://billing.stripe.test/p"));
-    expect(startCheckout).not.toHaveBeenCalled();
+    expect(changePlan).not.toHaveBeenCalled();
   });
 
   it("confirms the checkout when Stripe redirects back", async () => {

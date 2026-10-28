@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, CreditCard, FlaskConical, Gem, LoaderCircle, Sprout, TrendingUp } from "lucide-react";
 
 import {
+  changePlan,
   confirmCheckout,
   fetchBillingStatus,
   fetchTestPlan,
@@ -203,8 +204,17 @@ function TestPlans({ currentPlan, onPlanChanged }) {
 }
 
 
+function planName(id) {
+  return PLANS.find((plan) => plan.id === id)?.name ?? id;
+}
+
+
 function subscriptionSummary(subscription) {
   if (!subscription) return null;
+  if (subscription.scheduled_plan && subscription.scheduled_change_at) {
+    return `${planName(subscription.scheduled_plan)} starts on ${longDate(subscription.scheduled_change_at)}. `
+      + `Until then you keep ${planName(subscription.plan)}, with nothing extra to pay now.`;
+  }
   if (subscription.status === "past_due") {
     return subscription.grace_ends_at
       ? `Your last payment failed. Update your payment method by ${longDate(subscription.grace_ends_at)} to keep your plan.`
@@ -217,15 +227,28 @@ function subscriptionSummary(subscription) {
 }
 
 
-function PaidPlans({ status }) {
+function PaidPlans({ status, onStatusChange }) {
   const [consented, setConsented] = useState(false);
   const [redirecting, setRedirecting] = useState(null);
+  const [changing, setChanging] = useState(null);
   const [error, setError] = useState("");
 
   const subscription = status.subscription;
   const canManage = status.can_manage_billing;
   const prices = status.prices?.monthly_cents ?? {};
-  const busy = redirecting !== null;
+  const busy = redirecting !== null || changing !== null;
+
+  const bookChange = async (plan) => {
+    setChanging(plan.id);
+    setError("");
+    try {
+      onStatusChange(await changePlan(plan.id));
+    } catch {
+      setError("The plan change could not be saved. Please try again.");
+    } finally {
+      setChanging(null);
+    }
+  };
 
   const goTo = async (target, request) => {
     setRedirecting(target);
@@ -254,9 +277,7 @@ function PaidPlans({ status }) {
       {subscription && (
         <div className="card flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold">
-              Your subscription: {PLANS.find((plan) => plan.id === subscription.plan)?.name ?? subscription.plan}
-            </p>
+            <p className="text-sm font-semibold">Your subscription: {planName(subscription.plan)}</p>
             {summary && <p className="mt-0.5 text-sm text-muted">{summary}</p>}
           </div>
           {canManage && (
@@ -297,14 +318,37 @@ function PaidPlans({ status }) {
         {PLANS.map((plan) => {
           const price = plan.id === "free" ? 0 : prices[plan.id] ?? plan.monthly;
           const isCurrent = status.plan === plan.id;
+          const isScheduled = subscription?.scheduled_plan === plan.id;
           let action;
-          if (isCurrent) {
-            action = <PlanButton disabled current>Current plan</PlanButton>;
-          } else if (subscription) {
-            // Upgrades, downgrades and cancellation live in the Stripe portal.
+          let badge = isCurrent && <Badge tone="brand">Current plan</Badge>;
+          if (isCurrent && subscription?.scheduled_plan) {
+            // A switch is booked: offer to stay on the current plan instead.
             action = (
-              <PlanButton disabled={!canManage || busy} onClick={openPortal}>
-                {plan.id === "free" ? "Cancel in billing portal" : `Switch to ${plan.name}`}
+              <PlanButton disabled={!canManage || busy} busy={changing === plan.id} onClick={() => bookChange(plan)}>
+                {`Keep ${plan.name}`}
+              </PlanButton>
+            );
+          } else if (isCurrent) {
+            action = <PlanButton disabled current>Current plan</PlanButton>;
+          } else if (isScheduled) {
+            badge = <Badge tone="neutral">From {longDate(subscription.scheduled_change_at)}</Badge>;
+            action = <PlanButton disabled current>Starts next period</PlanButton>;
+          } else if (subscription && plan.id === "free") {
+            // Moving to Free is a cancellation, handled in the Stripe portal.
+            action = (
+              <PlanButton disabled={!canManage || busy} onClick={openPortal}>Cancel in billing portal</PlanButton>
+            );
+          } else if (subscription?.cancel_at_period_end) {
+            // Resume the cancelled subscription in the portal before switching.
+            action = (
+              <PlanButton disabled={!canManage || busy} onClick={openPortal}>Manage in billing portal</PlanButton>
+            );
+          } else if (subscription) {
+            action = (
+              <PlanButton disabled={!canManage || busy} busy={changing === plan.id} onClick={() => bookChange(plan)}>
+                {subscription.current_period_end
+                  ? `Switch to ${plan.name} from ${longDate(subscription.current_period_end)}`
+                  : `Switch to ${plan.name} next period`}
               </PlanButton>
             );
           } else if (plan.id === "free") {
@@ -327,7 +371,7 @@ function PaidPlans({ status }) {
               plan={plan}
               price={price}
               isCurrent={isCurrent}
-              badge={isCurrent && <Badge tone="brand">Current plan</Badge>}
+              badge={badge}
               action={action}
             />
           );
@@ -413,7 +457,19 @@ export default function Pricing() {
         </p>
       )}
 
-      {status && billing && <PaidPlans status={status} />}
+      {status && billing && (
+        <PaidPlans
+          status={status}
+          onStatusChange={(next) => {
+            setStatus(next);
+            setMessage(
+              next.subscription?.scheduled_plan
+                ? `Booked: ${planName(next.subscription.scheduled_plan)} starts when your current period ends.`
+                : `You stay on ${planName(next.plan)}.`,
+            );
+          }}
+        />
+      )}
       {status && !billing && (
         <TestPlans
           currentPlan={testPlan}

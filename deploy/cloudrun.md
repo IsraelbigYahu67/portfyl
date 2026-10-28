@@ -624,7 +624,8 @@ the live ones for testing.
 
 1. **Restricted API key** (Dashboard → Developers → API keys → Create
    restricted key). Write access to *Customers*, *Checkout Sessions*,
-   *Customer portal*; read access to *Subscriptions*, *Prices*, *Products*.
+   *Customer portal*, *Subscription schedules* (plan changes booked for the
+   period end); read access to *Subscriptions*, *Prices*, *Products*.
    Store it (never paste it into chat or a shell history):
 
    ```powershell
@@ -638,7 +639,9 @@ the live ones for testing.
    `customer.subscription.created`, `customer.subscription.updated`,
    `customer.subscription.deleted`, `customer.subscription.paused`,
    `customer.subscription.resumed`, `invoice.paid`,
-   `invoice.payment_failed`. Store its signing secret:
+   `invoice.payment_failed`, `subscription_schedule.updated`,
+   `subscription_schedule.released`, `subscription_schedule.canceled`.
+   Store its signing secret:
 
    ```powershell
    gcloud secrets create portfyl-stripe-webhook-secret --replication-policy=automatic
@@ -650,11 +653,12 @@ the live ones for testing.
 
 3. **Customer Portal** (Dashboard → Settings → Billing → Customer portal).
    Live default configuration `bpc_1UVZVgDx44VQOSF8IseOXs9Y` (created
-   2026-10-28): cancel at period end with an optional reason; switch between
-   the two prices above, upgrades charged at once with proration
-   (`always_invoice`) and downgrades scheduled for the period end; quantity
-   changes off; payment method, name and address updates and invoice
-   history on; return URL `https://portfyl.com/pricing`; terms and privacy
+   2026-10-28): cancel at period end with an optional reason; **plan
+   switching off** (`subscription_update.enabled=false`) because the portal
+   can only defer downgrades, while Portfyl books every switch for the
+   period end with no proration through `POST /api/billing/change-plan`
+   (a two-phase subscription schedule); payment method, name and address
+   updates and invoice history on; return URL `https://portfyl.com/pricing`; terms and privacy
    URLs `https://portfyl.com/terms` and `/privacy`. The app creates portal
    sessions without a `configuration`, so whichever configuration is the
    default is used; a sandbox needs its own copy.

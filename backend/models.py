@@ -370,6 +370,10 @@ class Subscription(Base):
     __table_args__ = (
         CheckConstraint("plan IN ('investor', 'pro')", name="ck_subscription_plan"),
         CheckConstraint(
+            "scheduled_plan IS NULL OR scheduled_plan IN ('investor', 'pro')",
+            name="ck_subscription_scheduled_plan",
+        ),
+        CheckConstraint(
             "status IN (" + ", ".join(f"'{status}'" for status in SUBSCRIPTION_STATUSES) + ")",
             name="ck_subscription_status",
         ),
@@ -393,6 +397,10 @@ class Subscription(Base):
     status = Column(String, nullable=False)
     current_period_end = Column(DateTime(timezone=True), nullable=True)
     cancel_at_period_end = Column(Boolean, nullable=False, default=False, server_default="false")
+    # A plan change booked through a Stripe subscription schedule: the current
+    # plan runs to the end of the paid period, then `scheduled_plan` starts.
+    scheduled_plan = Column(String, nullable=True)
+    scheduled_change_at = Column(DateTime(timezone=True), nullable=True)
     grace_ends_at = Column(DateTime(timezone=True), nullable=True)
     ended_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

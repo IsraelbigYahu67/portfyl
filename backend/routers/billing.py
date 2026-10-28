@@ -22,8 +22,10 @@ from sqlalchemy.orm import Session
 from audit import record_audit_event
 from billing_config import CHECKOUT_CONSENT_VERSION, MONTHLY_PRICE_CENTS, BillingConfig
 from billing_sync import (
+    ENTITLED_STATUSES,
     BillingDataError,
     apply_subscription,
+    fetch_subscription_state,
     live_subscription,
     make_stripe_client,
     resolve_workspace_id,
@@ -46,7 +48,7 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 # not a session cookie, so this router needs no request context.
 webhook_router = APIRouter(prefix="/billing", tags=["billing"])
 
-RELEVANT_EVENT_PREFIXES = ("customer.subscription.", "invoice.", "checkout.session.")
+RELEVANT_EVENT_PREFIXES = ("customer.subscription.", "invoice.", "checkout.session.", "subscription_schedule.")
 
 
 class CheckoutPayload(BaseModel):
@@ -60,6 +62,10 @@ class CheckoutPayload(BaseModel):
 
 class CheckoutConfirmPayload(BaseModel):
     session_id: str = Field(min_length=1, max_length=255)
+
+
+class PlanChangePayload(BaseModel):
+    plan: PlanTier
 
 
 def get_billing_config(request: Request) -> BillingConfig:
@@ -107,6 +113,10 @@ def _status_payload(db: Session, request: Request, context: RequestContext) -> d
             ),
             "cancel_at_period_end": bool(subscription.cancel_at_period_end),
             "grace_ends_at": subscription.grace_ends_at.isoformat() if subscription.grace_ends_at else None,
+            "scheduled_plan": subscription.scheduled_plan,
+            "scheduled_change_at": (
+                subscription.scheduled_change_at.isoformat() if subscription.scheduled_change_at else None
+            ),
         },
     }
 
@@ -218,11 +228,13 @@ def confirm_checkout(
         subscription_id = subscription_id.get("id")
     if session.get("status") == "complete" and subscription_id:
         try:
-            remote = client.retrieve_subscription(subscription_id)
+            remote, schedule = fetch_subscription_state(client, subscription_id)
         except StripeError as exc:
             raise _stripe_unavailable(exc) from exc
         try:
-            apply_subscription(db, workspace_id=context.workspace.id, remote=remote, config=config)
+            apply_subscription(
+                db, workspace_id=context.workspace.id, remote=remote, config=config, schedule=schedule,
+            )
             db.commit()
         except BillingDataError as exc:
             db.rollback()
@@ -230,6 +242,94 @@ def confirm_checkout(
         except IntegrityError:
             db.rollback()  # the webhook stored it concurrently; the status below reflects it
     return {"checkout_status": session.get("status"), **_status_payload(db, request, context)}
+
+
+@router.post("/change-plan")
+def change_plan(
+    payload: PlanChangePayload,
+    request: Request,
+    db: Session = Depends(get_db),
+    context: RequestContext = Depends(require_csrf),
+    config: BillingConfig = Depends(get_billing_config),
+    client: StripeClientProtocol = Depends(get_stripe_client),
+):
+    """Book a switch between the paid plans for the end of the paid period.
+
+    No proration: the current plan runs until the period ends and the new
+    plan's price is charged from the next renewal. Choosing the current plan
+    again withdraws a booked change.
+    """
+    _require_owner(context)
+    if payload.plan is PlanTier.FREE:
+        # Moving to Free is a cancellation, done in the Customer Portal.
+        raise HTTPException(status_code=422, detail={"code": "paid_plan_required"})
+    subscription = live_subscription(db, context.workspace.id)
+    if subscription is None or subscription.status not in ENTITLED_STATUSES:
+        raise HTTPException(status_code=409, detail={"code": "no_active_subscription"})
+    if subscription.cancel_at_period_end:
+        raise HTTPException(status_code=409, detail={"code": "subscription_canceling"})
+    subscription_id = subscription.stripe_subscription_id
+    workspace_public_id = str(context.workspace.public_id)
+    release_connection(db, commit_pending=True)
+
+    try:
+        remote, schedule = fetch_subscription_state(client, subscription_id)
+        items = (remote.get("items") or {}).get("data") or []
+        current_price = items[0]["price"]["id"] if len(items) == 1 else None
+        current_plan = config.plan_for_price(current_price)
+        if current_plan is None:
+            raise HTTPException(status_code=409, detail={"code": "subscription_not_changeable"})
+        if payload.plan is current_plan:
+            if schedule is not None:
+                client.release_schedule(schedule["id"])
+        else:
+            if schedule is None:
+                schedule = client.create_schedule_from_subscription(
+                    subscription_id, idempotency_key=f"schedule:{subscription_id}",
+                )
+            phase = schedule.get("current_phase") or {}
+            metadata = {"portfyl_workspace_id": workspace_public_id}
+            client.update_schedule(schedule["id"], {
+                "end_behavior": "release",
+                "proration_behavior": "none",
+                "phases": [
+                    {
+                        "items": [{"price": current_price, "quantity": 1}],
+                        "start_date": phase["start_date"],
+                        "end_date": phase["end_date"],
+                        "proration_behavior": "none",
+                        "metadata": metadata,
+                    },
+                    {
+                        "items": [{"price": config.price_id(payload.plan), "quantity": 1}],
+                        "duration": {"interval": "month", "interval_count": 1},
+                        "proration_behavior": "none",
+                        "metadata": metadata,
+                    },
+                ],
+            })
+        remote, schedule = fetch_subscription_state(client, subscription_id)
+    except StripeError as exc:
+        raise _stripe_unavailable(exc) from exc
+
+    try:
+        apply_subscription(db, workspace_id=context.workspace.id, remote=remote, config=config, schedule=schedule)
+    except BillingDataError as exc:
+        db.rollback()
+        log.error("change_plan_quarantined subscription=%s reason=%s", subscription_id, exc)
+        raise HTTPException(status_code=409, detail={"code": "subscription_not_changeable"}) from exc
+    record_audit_event(
+        db,
+        actor_user_id=context.user.id,
+        workspace_id=context.workspace.id,
+        action="billing.plan_change.scheduled" if payload.plan is not current_plan else "billing.plan_change.withdrawn",
+        target_type="workspace",
+        target_id=workspace_public_id,
+        metadata={"from": current_plan.value, "to": payload.plan.value},
+    )
+    result = _status_payload(db, request, context)
+    db.commit()
+    return result
 
 
 @router.post("/portal")
@@ -306,7 +406,7 @@ def stripe_webhook(
     db.commit()
     release_connection(db)
     try:
-        remote = make_stripe_client(config).retrieve_subscription(subscription_id)
+        remote, schedule = fetch_subscription_state(make_stripe_client(config), subscription_id)
     except StripeError as exc:
         if exc.transient:
             _mark(db, row, "failed", exc.code or "stripe_unavailable")
@@ -324,7 +424,7 @@ def stripe_webhook(
 
     scope_to_workspace(db, workspace_id)
     try:
-        apply_subscription(db, workspace_id=workspace_id, remote=remote, config=config)
+        apply_subscription(db, workspace_id=workspace_id, remote=remote, config=config, schedule=schedule)
     except BillingDataError as exc:
         db.rollback()
         log.error("stripe_webhook_quarantined event=%s subscription=%s reason=%s", event_id, subscription_id, exc)
