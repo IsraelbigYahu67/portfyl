@@ -18,7 +18,7 @@ from sqlalchemy import select
 import routers.billing as billing_router
 from account_deletion import schedule_workspace_deletion
 from billing_config import BillingConfig
-from billing_sync import BillingDataError, apply_subscription, subscription_id_from_event
+from billing_sync import BillingDataError, apply_subscription, fetch_subscription_state, subscription_id_from_event
 from database import get_db
 from edition import Edition
 from entitlements import PRIVATE_TEST_PLAN_SETTING_KEY, resolve_entitlements
@@ -575,6 +575,30 @@ def test_plan_change_refuses_a_cancelling_subscription(db_session, request_conte
         )
     assert exc.value.detail == {"code": "subscription_canceling"}
     assert stripe.schedule_updates == []
+
+
+def test_portal_cancel_releases_the_booked_switch(db_session, request_context, config, monkeypatch):
+    # Cancelling in the Stripe portal releases the schedule and sets `cancel_at`
+    # (not `cancel_at_period_end`) to the period end.
+    monkeypatch.setenv("PORTFYL_BILLING_ENABLED", "1")
+    stripe = _subscribed(db_session, request_context, config)
+    billing_router.change_plan(
+        billing_router.PlanChangePayload(plan=PlanTier.PRO),
+        _fake_request(config), db=db_session, context=request_context, config=config, client=stripe,
+    )
+    period_end = stripe.subscriptions["sub_1"]["items"]["data"][0]["current_period_end"]
+    stripe.release_schedule(stripe.subscriptions["sub_1"]["schedule"])
+    stripe.subscriptions["sub_1"]["cancel_at"] = period_end
+
+    remote, schedule = fetch_subscription_state(stripe, "sub_1")
+    row = apply_subscription(
+        db_session, workspace_id=request_context.workspace.id, remote=remote, config=config, schedule=schedule,
+    )
+
+    assert row.cancel_at_period_end is True
+    assert row.scheduled_plan is None and row.scheduled_change_at is None
+    access = resolve_entitlements(db_session, edition=Edition.CLOUD, workspace_id=request_context.workspace.id)
+    assert access.plan is PlanTier.INVESTOR and access.cancel_at_period_end is True
 
 
 def test_subscription_schedule_events_point_at_their_subscription():
