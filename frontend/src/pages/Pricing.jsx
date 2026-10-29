@@ -382,13 +382,31 @@ function PaidPlans({ status, onStatusChange }) {
 }
 
 
+function ReferencePlans() {
+  return (
+    <>
+      <Notice icon={FlaskConical} title="Local edition: every feature is included">
+        These are the cloud plans for reference. Nothing here changes this installation.
+      </Notice>
+      <div className="grid gap-6 md:grid-cols-3">
+        {PLANS.map((plan) => (
+          <PlanCard key={plan.id} plan={plan} price={plan.monthly} isCurrent={false} />
+        ))}
+      </div>
+    </>
+  );
+}
+
+
 function checkoutReturn() {
   const params = new URLSearchParams(window.location.search);
   return { outcome: params.get("checkout"), sessionId: params.get("session_id") };
 }
 
 
-export default function Pricing() {
+// The local edition has no plans (it always resolves to Pro) and no billing or
+// /api/test-plans routes, so it renders the catalogue read-only.
+export default function Pricing({ planSwitching = true }) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState(null);
   const [testPlan, setTestPlan] = useState(null);
@@ -399,6 +417,7 @@ export default function Pricing() {
   const [{ outcome, sessionId }] = useState(checkoutReturn);
 
   useEffect(() => {
+    if (!planSwitching) return undefined;
     let active = true;
     if (outcome) {
       // Drop the Stripe return parameters so a reload does not repeat them.
@@ -434,7 +453,7 @@ export default function Pricing() {
     return () => {
       active = false;
     };
-  }, [queryClient, outcome, sessionId]);
+  }, [queryClient, outcome, sessionId, planSwitching]);
 
   const billing = status?.billing_enabled;
 
@@ -444,11 +463,15 @@ export default function Pricing() {
         <p className="eyebrow">Portfyl plans</p>
         <h1 className="text-2xl font-bold sm:text-3xl">Plans</h1>
         <p className="max-w-2xl text-sm text-muted">
-          {billing
-            ? "Choose the plan that fits how you invest. Prices include VAT."
-            : "Compare Portfyl tiers and choose which limits and features to test."}
+          {!planSwitching
+            ? "Compare the Portfyl cloud tiers."
+            : billing
+              ? "Choose the plan that fits how you invest. Prices include VAT."
+              : "Compare Portfyl tiers and choose which limits and features to test."}
         </p>
       </header>
+
+      {!planSwitching && <ReferencePlans />}
 
       <ErrorBanner message={error} />
       {message && (

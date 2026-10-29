@@ -59,6 +59,20 @@ afterEach(() => {
 });
 
 
+describe("Pricing read-only (local edition)", () => {
+  it("renders the catalogue without any billing or test-plan API call", () => {
+    render(<Pricing planSwitching={false} />);
+
+    expect(screen.getByText(/Local edition: every feature is included/i)).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Investor" })).getByText("€5.99")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Pro" })).getByText("€9.99")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(fetchBillingStatus).not.toHaveBeenCalled();
+    expect(fetchTestPlan).not.toHaveBeenCalled();
+  });
+});
+
+
 describe("Pricing in the no-payment test mode", () => {
   beforeEach(() => {
     fetchBillingStatus.mockResolvedValue(billingStatus({ billing_enabled: false }));
