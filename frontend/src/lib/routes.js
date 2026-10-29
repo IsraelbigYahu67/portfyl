@@ -11,11 +11,10 @@ export const isTrackerHost = (hostname) => hostname.toLowerCase() === "app.portf
 export const isDemoPath = (pathname) =>
   HAS_PUBLIC_HOME && (pathname === "/demo" || pathname.startsWith("/demo/"));
 
-// Public legal pages (cloud only). They render on every host, including
-// app.portfyl.com, because Stripe Checkout and signed-out visitors link to
-// them. Returns "terms", "privacy" or null.
+// Legal pages (both editions; Settings -> Data & Privacy links them). They
+// render on every host, including app.portfyl.com, because Stripe Checkout and
+// signed-out visitors link to them. Returns "terms", "privacy" or null.
 export const legalPage = (pathname) => {
-  if (!HAS_PUBLIC_HOME) return null;
   const match = /^\/(terms|privacy)\/?$/.exec(pathname);
   return match ? match[1] : null;
 };

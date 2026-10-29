@@ -72,14 +72,10 @@ it("never serves the public demo on the tracker host, even at /demo", async () =
 it.each([
   ["/terms", "portfyl.com", "Portfyl Terms of Service"],
   ["/privacy/", "app.portfyl.com", "Portfyl Privacy and Cookie Policy"],
-])("serves %s publicly on %s in cloud, without the tracker", async (pathname, hostname, title) => {
+])("serves %s publicly on %s in both editions, without the tracker", async (pathname, hostname, title) => {
   // jsdom's navigator.language is en-US, so the English text is served.
   setLocation({ pathname, hostname });
   render(<MemoryRouter initialEntries={[pathname]}><Root /></MemoryRouter>);
-  if (HAS_PUBLIC_HOME) {
-    expect(await screen.findByRole("heading", { level: 1, name: title })).toBeInTheDocument();
-    expect(screen.queryByText("Protected tracker")).not.toBeInTheDocument();
-  } else {
-    expect(await screen.findByText("Protected tracker")).toBeInTheDocument();
-  }
+  expect(await screen.findByRole("heading", { level: 1, name: title })).toBeInTheDocument();
+  expect(screen.queryByText("Protected tracker")).not.toBeInTheDocument();
 });

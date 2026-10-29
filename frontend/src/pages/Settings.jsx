@@ -18,7 +18,6 @@ import { AsyncSection } from "../components/ui";
 import Toggle from "../components/ui/Toggle";
 import { Badge } from "../components/ui/Badge";
 import { getApiErrorMessage } from "../lib/apiError";
-import { HAS_PUBLIC_HOME } from "../lib/routes";
 import { useBrokerPortfolio } from "../hooks/useBrokerPortfolio";
 import { splitNote } from "../lib/brokerPortfolio";
 import { T212_HISTORY_ACTIVE_STATES, useT212Sync } from "../hooks/useT212Sync";
@@ -299,9 +298,9 @@ export function DataSettings({ headingRef, children }) {
   return (
     <section aria-labelledby="settings-data-heading" className="space-y-6">
       <SectionHeading id="settings-data-heading" headingRef={headingRef} description="Manage portfolio data, exports, and workspace privacy.">Data & Privacy</SectionHeading>
+      <LegalDocuments />
       {children}
       <DataPrivacySettings />
-      {HAS_PUBLIC_HOME && <LegalDocuments />}
     </section>
   );
 }

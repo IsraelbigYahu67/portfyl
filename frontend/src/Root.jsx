@@ -8,7 +8,7 @@ import AnalyticsPreferences from "./analytics/AnalyticsPreferences";
 const Tracker = lazy(() => import("./TrackerBootstrap"));
 const Welcome = HAS_PUBLIC_HOME ? lazy(() => import("./pages/Welcome")) : null;
 const Demo = HAS_PUBLIC_HOME ? lazy(() => import("./demo/DemoBootstrap")) : null;
-const Legal = HAS_PUBLIC_HOME ? lazy(() => import("./pages/Legal")) : null;
+const Legal = lazy(() => import("./pages/Legal"));
 
 // Renders the pending-consent banner and a reopenable preferences panel.
 // Lives inside AnalyticsProvider so both can call useAnalytics(); rendered

@@ -138,9 +138,14 @@ export default function Heatmap() {
   const tooltipRef = useRef(null);
   const { openStock } = useStockDetail();
 
-  const { data = [], isLoading } = useQuery({
+  const { data = [], isLoading, isPlaceholderData } = useQuery({
     queryKey: ["heatmap", period],
     queryFn: () => fetchHeatmap(period),
+    // Keep the previous period's tiles mounted while the next one loads, so the
+    // treemap box keeps its size. Swapping it for the (taller) loading block
+    // grew the card and the insider-buys card beside it; the loading label is
+    // an absolute overlay instead (see isPlaceholderData below).
+    placeholderData: (previousData) => previousData,
   });
 
   useEffect(() => {
@@ -184,6 +189,15 @@ export default function Heatmap() {
           ref={setContainerEl}
           className="relative flex-1 min-h-0 w-full overflow-hidden"
         >
+          {isPlaceholderData && (
+            <div
+              role="status"
+              className="absolute inset-0 z-10 flex items-center justify-center rounded-[10px]"
+              style={{ backgroundColor: "color-mix(in srgb, var(--surface-card) 60%, transparent)" }}
+            >
+              <div className="text-muted text-sm animate-pulse">Loading heatmap...</div>
+            </div>
+          )}
           {tiles.map((t) => {
             if (t.item.ticker === "__small__") {
               return (
