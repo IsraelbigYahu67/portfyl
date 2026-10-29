@@ -1337,7 +1337,7 @@ class TestHistoryStatusReconciliation:
 # needs_review re-download loop breaker (plan 2026-09-24, Task A4)
 # ---------------------------------------------------------------------------
 
-_SPLIT_REVIEW = [{"fill_type": "SPIN_OFF", "ticker": "NVDA", "date": "2024-06-10"}]
+_SPLIT_REVIEW = [{"fill_type": "STOCK_DISTRIBUTION", "ticker": "NVDA", "date": "2024-06-10"}]
 
 
 class TestNeedsReviewLoopBreaker:

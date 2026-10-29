@@ -30,12 +30,26 @@ def _leg(event_id, side, qty, price, at="2024-06-10T04:00:00Z", ticker="NVDA_US_
     })
 
 
-def test_forward_split_pair_is_rejected_until_its_encoding_is_observed():
-    with pytest.raises(InvalidSplitPair, match="forward split"):
+def test_observed_forward_split_pair_collapses():
+    # Booking (PCLN_US_EQ) 25:1, 2026-04-06, as Trading 212 sent it.
+    [ev] = collapse_split_pairs([
+        _leg("fill:a", "SELL", 0.08, 4706.625, ticker="PCLN_US_EQ", net_value=7867.89),
+        _leg("fill:b", "BUY", 2.0, 188.265, ticker="PCLN_US_EQ", net_value=7867.89),
+    ])
+    assert ev.ratio == Fraction(25)
+
+
+def test_forward_split_with_disagreeing_price_ratio_is_rejected():
+    with pytest.raises(InvalidSplitPair, match="price ratio"):
         collapse_split_pairs([
             _leg("fill:a", "SELL", 9, 1200),
-            _leg("fill:b", "BUY", 90, 120),
+            _leg("fill:b", "BUY", 90, 200),
         ])
+
+
+def test_split_pair_that_keeps_the_share_count_is_rejected():
+    with pytest.raises(InvalidSplitPair, match="share count"):
+        collapse_split_pairs([_leg("fill:a", "SELL", 9, 120), _leg("fill:b", "BUY", 9, 120)])
 
 
 def test_reverse_split_ratio_is_fractional():
