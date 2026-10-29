@@ -496,7 +496,7 @@ export default function Dashboard() {
                       size="sm"
                       value={moverSort}
                       onChange={setMoverSort}
-                      options={[{ value: "pct", label: "%" }, { value: "value", label: "$" }]}
+                      options={[{ value: "pct", label: "%" }, { value: "value", label: currency === "CZK" ? "Kč" : "$" }]}
                     />
                     <SegmentedControl
                       aria-label="Movers period"
@@ -536,9 +536,17 @@ export default function Dashboard() {
                               >
                                 <TickerLink ticker={m.ticker} className="font-mono font-semibold text-left truncate" />
                                 <span className="min-w-0 truncate text-muted" title={m.name}>{m.name}</span>
-                                <span className={`tabular-nums whitespace-nowrap text-right font-medium ${m.period_pnl >= 0 ? "text-gain" : "text-loss"}`}>
-                                  {formatMoney(m.period_pnl, m.currency)}
-                                </span>
+                                {(() => {
+                                  // With CZK selected show the CZK P/L; older API
+                                  // responses lack period_pnl_czk, so fall back.
+                                  const inCzk = currency === "CZK" && Number.isFinite(m.period_pnl_czk);
+                                  const pnl = inCzk ? m.period_pnl_czk : m.period_pnl;
+                                  return (
+                                    <span className={`tabular-nums whitespace-nowrap text-right font-medium ${pnl >= 0 ? "text-gain" : "text-loss"}`}>
+                                      {formatMoney(pnl, inCzk ? "CZK" : m.currency)}
+                                    </span>
+                                  );
+                                })()}
                                 <span className="flex justify-end">
                                   <DeltaPill pct={m.change_pct} value={null} size="sm" className="whitespace-nowrap" />
                                 </span>

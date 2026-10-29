@@ -79,8 +79,37 @@ state `needs_review`; identifiers are redacted placeholders):
 ## Other non-TRADE types seen
 
 None in this capture. (The run staged 50 orders and 21 dividends; the only
-non-TRADE fills are the two above.) `STOCK_DISTRIBUTION`, `SPIN_OFF`,
-`STOCK_ACQUISITION` and `FOP*` remain `needs_review`.
+non-TRADE fills are the two above.) `STOCK_DISTRIBUTION`,
+`STOCK_ACQUISITION` and `FOP*` remain `needs_review`. `SPIN_OFF` and the
+forward split are covered below.
+
+## Addendum 2026-10-28: forward split and SPIN_OFF observed
+
+Both come from the owner's local `initial` run on 2026-10-28.
+
+**Forward split:** Booking (`PCLN_US_EQ`, ISIN US09857L1089), 25:1,
+`filledAt 2026-04-06T06:08:47Z`. It has the same shape as the reverse
+split above. The close leg is SELL `-0.08` @ 4706.625. The open leg is BUY
+`+2.0` @ 188.265. Both legs carry `walletImpact.netValue` 7867.89 CZK. The
+share ratio (25) and the price ratio (25.0) agree. With that, open item 2 above is closed:
+`collapse_split_pairs` now accepts forward splits through the same checks
+(equal wallet values, price ratio, small exact fraction).
+
+**SPIN_OFF:** Mobility Global (`MBGL_US_EQ`, ISIN US60744M1062),
+`filledAt 2026-07-02T12:42:17Z`.
+
+- **One fill only**: `order.side = "BUY"`, `fill.quantity = +1.0`,
+  `fill.price = 0`, `fill.walletImpact = {currency: CZK, netValue: 0,
+  fxRate: 1}`. There is no leg on the parent instrument and no cash moves.
+- Mapping (`t212_sync._is_mappable_spin_off`): a `buy` of the new shares at
+  price 0 with no cash. Total portfolio value and return stay correct. The
+  parent's cost basis is not split, so the parent shows less gain and the
+  spin-off shows its whole value as gain. This matches what Trading 212
+  shows.
+- Any other shape keeps the run in `needs_review` with
+  `HISTORY_SPIN_OFF_UNVERIFIED_ERROR`, which stays blocked until a CSV covers
+  the event. Other shapes are a SELL leg, a non-zero price or `netValue`, a
+  missing `walletImpact`, or a non-positive quantity.
 
 ## Decision (proposed, not approved)
 

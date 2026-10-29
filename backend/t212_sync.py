@@ -319,8 +319,9 @@ STREAMS = ("orders", "dividends", "cash")
 TERMINAL_RUN_STATES = ("completed", "failed", "cancelled", "needs_review")
 REVIEW_DETAILS_LIMIT = 50
 # fill.type values finalize_run can transform (gate G1 signed off 2026-09-30,
-# plan 2026-09-24 Task B3).
-SUPPORTED_CORPORATE_ACTION_TYPES: frozenset[str] = frozenset({"STOCK_SPLIT"})
+# plan 2026-09-24 Task B3; SPIN_OFF added 2026-10-28, see
+# docs/research/t212-corporate-action-encoding.md).
+SUPPORTED_CORPORATE_ACTION_TYPES: frozenset[str] = frozenset({"STOCK_SPLIT", "SPIN_OFF"})
 HISTORY_RETRY_ERROR = "Trading 212 history sync will retry automatically."
 
 # Trading 212 rejected the API key (401/403) while a history run was fetching.
@@ -362,6 +363,15 @@ HISTORY_SPLIT_UNVERIFIED_ERROR = (
     "Trading 212 reported a split that Portfyl could not verify automatically. "
     "No history was imported."
 )
+# Same idea for a SPIN_OFF fill outside the one observed encoding (see
+# _is_mappable_spin_off).
+HISTORY_SPIN_OFF_UNVERIFIED_ERROR = (
+    "Trading 212 reported a spin-off that Portfyl could not verify automatically. "
+    "No history was imported."
+)
+_UNVERIFIED_ACTION_ERRORS = frozenset({
+    HISTORY_SPLIT_UNVERIFIED_ERROR, HISTORY_SPIN_OFF_UNVERIFIED_ERROR,
+})
 
 # A cash transaction the signed-off encoding (docs/research/
 # t212-cash-transaction-encoding.md) does not cover: an unmapped type, a zero or
@@ -715,7 +725,7 @@ def review_resolution(run: BrokerSyncRun, connection: BrokerConnection, portfoli
     types = {d.get("fill_type") for d in details}
     mapper_supports_all = (
         bool(details) and types <= SUPPORTED_CORPORATE_ACTION_TYPES
-        and run.last_error != HISTORY_SPLIT_UNVERIFIED_ERROR
+        and run.last_error not in _UNVERIFIED_ACTION_ERRORS
     )
     return {"csv_covers_all": csv_covers_all, "csv_needed_through": needed,
             "mapper_supports_all": mapper_supports_all}
@@ -1078,11 +1088,12 @@ def advance_run(
 # worker after all required streams have been staged.
 #
 # Explicitly NOT covered by this function (left for a later increment):
-#   - corporate actions other than STOCK_SPLIT (plan §6). Same-instrument
-#     STOCK_SPLIT pairs are applied by t212_corporate_actions (gate G1, plan
-#     2026-09-24 Track B). Any other non-"TRADE" `fill.type` (spin-off,
-#     acquisition, distribution, FOP, ...), and a STOCK_SPLIT whose pair cannot
-#     be verified, that is not already covered by an authoritative CSV export
+#   - corporate actions other than STOCK_SPLIT and SPIN_OFF (plan §6).
+#     Same-instrument STOCK_SPLIT pairs are applied by t212_corporate_actions
+#     (gate G1, plan 2026-09-24 Track B); a SPIN_OFF in its observed encoding
+#     becomes a zero-cost buy of the new shares. Any other non-"TRADE"
+#     `fill.type` (acquisition, distribution, FOP, ...), and a STOCK_SPLIT or
+#     SPIN_OFF that cannot be verified, that is not already covered by an authoritative CSV export
 #     sends the run to terminal `needs_review` (plan §6.2.8): nothing is
 #     imported, no completion or sync marker is set, and the user is told why.
 #     This refuses both a mis-imported corporate-action-as-trade and an
@@ -1137,6 +1148,31 @@ def _corporate_action_type(event: BrokerSyncEvent) -> str | None:
     fill = (event.raw_payload or {}).get("fill") or {}
     fill_type = (fill.get("type") or "").upper()
     return fill_type if fill_type and fill_type != "TRADE" else None
+
+
+def _is_mappable_spin_off(event: BrokerSyncEvent) -> bool:
+    """True for a SPIN_OFF fill in the only encoding observed (MBGL, 2026-07-02):
+    a single BUY of the new shares at price 0 whose walletImpact.netValue is 0.
+    T212 credits the spun-off shares without touching cash or the parent
+    position, so it imports as a zero-cost buy. Anything else (a SELL leg, a
+    price, a cash value, no walletImpact) is not verified and stays in review."""
+    if _corporate_action_type(event) != "SPIN_OFF":
+        return False
+    payload = event.raw_payload or {}
+    order = payload.get("order") or {}
+    fill = payload.get("fill") or {}
+    if (order.get("side") or "").upper() != "BUY" or not (order.get("ticker") or "").strip():
+        return False
+    try:
+        quantity = float(fill.get("quantity"))
+        price = float(fill.get("price") or 0)
+        net_value = float((fill.get("walletImpact") or {})["netValue"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    return (
+        math.isfinite(quantity) and quantity > 0 and price == 0 and net_value == 0
+        and _staged_event_time(event) is not None
+    )
 
 
 def _is_csv_covered(event: BrokerSyncEvent, csv_covered_through: datetime | None) -> bool:
@@ -1279,7 +1315,8 @@ def _finalize_order_event(event: BrokerSyncEvent, run: BrokerSyncRun):
     fill_data = item.get("fill") or {}
 
     fill_type = (fill_data.get("type") or "").upper()
-    if _corporate_action_type(event) is not None:
+    spin_off = _is_mappable_spin_off(event)
+    if _corporate_action_type(event) is not None and not spin_off:
         return "non_trade", None
 
     # A cancelled or partially filled parent order can still contain a real
@@ -1307,7 +1344,7 @@ def _finalize_order_event(event: BrokerSyncEvent, run: BrokerSyncRun):
     except (TypeError, ValueError):
         return "invalid", None
     if not (math.isfinite(filled_qty) and filled_qty > 0
-            and math.isfinite(filled_price) and filled_price > 0):
+            and math.isfinite(filled_price) and (filled_price > 0 or spin_off)):
         return "invalid", None
 
     instrument = order_data.get("instrument") or {}
@@ -1342,7 +1379,7 @@ def _finalize_order_event(event: BrokerSyncEvent, run: BrokerSyncRun):
         price=filled_price,
         currency=currency,
         date=txn_date,
-        notes=f"T212 Order #{order_data.get('id', '')}",
+        notes="T212 Spin-off" if spin_off else f"T212 Order #{order_data.get('id', '')}",
         source="t212_api",
         source_event_id=event.provider_event_id,
         source_event_stream="orders",
@@ -1564,11 +1601,19 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
         unsupported_events = [
             event for event in events
             if (action := _corporate_action_type(event)) is not None
-            and action not in SUPPORTED_CORPORATE_ACTION_TYPES
+            and (action not in SUPPORTED_CORPORATE_ACTION_TYPES
+                 or (action == "SPIN_OFF" and not _is_mappable_spin_off(event)))
             and not _is_csv_covered(event, csv_covered_through)
         ]
         if unsupported_events:
-            return _send_run_to_needs_review(db, run, unsupported_events)
+            only_spin_offs = all(
+                _corporate_action_type(event) == "SPIN_OFF" for event in unsupported_events
+            )
+            return _send_run_to_needs_review(
+                db, run, unsupported_events,
+                last_error=(HISTORY_SPIN_OFF_UNVERIFIED_ERROR if only_spin_offs
+                            else HISTORY_NEEDS_REVIEW_ERROR),
+            )
         unsupported_cash = [
             event for event in events
             if event.stream == "cash"

@@ -1,5 +1,32 @@
-import { squarify, tileLabels } from "./Heatmap";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import Heatmap, { squarify, tileLabels } from "./Heatmap";
+import { fetchHeatmap } from "../api";
 import { legacyColorClassesIn } from "../test/legacyClasses";
+
+vi.mock("../api", () => ({ fetchHeatmap: vi.fn() }));
+vi.mock("../hooks/useStockDetail", () => ({ useStockDetail: () => ({ openStock: vi.fn() }) }));
+
+describe("Heatmap period change", () => {
+  it("shows the loading label over the old treemap while the next period loads, so the card does not resize", async () => {
+    fetchHeatmap.mockResolvedValueOnce([{ ticker: "AAPL", weight: 60, change_pct: 1 }]);
+    fetchHeatmap.mockReturnValueOnce(new Promise(() => {})); // 1W never resolves
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <Heatmap />
+      </QueryClientProvider>,
+    );
+    await vi.waitFor(() => expect(screen.queryByText("Loading heatmap...")).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "1W" }));
+
+    // Loading is shown, but as an overlay: the old tiles stay mounted, so the
+    // treemap box (and the card around it) keeps its size.
+    expect(screen.getByText("Loading heatmap...")).toBeInTheDocument();
+    expect(screen.getByTitle(/AAPL/)).toBeInTheDocument();
+  });
+});
 
 describe("tileLabels", () => {
   it("tileLabels hides labels that cannot fit at 12px", () => {

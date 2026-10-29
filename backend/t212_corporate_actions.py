@@ -135,12 +135,12 @@ def collapse_split_pairs(events: list[BrokerSyncEvent]) -> list[SplitEvidence]:
         new = abs(_decimal(open_.raw_payload["fill"].get("quantity")) or Decimal(0))
         if old <= 0 or new <= 0:
             raise InvalidSplitPair(f"{label}: non-positive leg quantity")
-        # Gate G1 only observed and owner-approved the Trading 212 reverse-split
-        # encoding.  A symmetric forward mapping is plausible, but applying it
-        # before observing a real payload would turn an assumption into a
-        # quantity-changing ledger write.
-        if new >= old:
-            raise InvalidSplitPair(f"{label}: forward split encoding is not verified")
+        # Gate G1 observed the reverse-split encoding (GNPX 1:22); the forward
+        # one was observed later with the same shape (Booking 25:1, 2026-04-06,
+        # docs/research/t212-corporate-action-encoding.md). Both go through the
+        # same wallet/price-ratio checks below.
+        if new == old:
+            raise InvalidSplitPair(f"{label}: split legs do not change the share count")
         _validate_pair(label, close, open_, old, new)
         ids = tuple(sorted((close.provider_event_id, open_.provider_event_id)))
         out.append(SplitEvidence(instrument, at, "|".join(ids), old, new, ids))

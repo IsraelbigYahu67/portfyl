@@ -97,6 +97,19 @@ def test_interest_tax_becomes_fee():
     assert sorted((r["type"], r["amount"]) for r in rows) == [("fee", 5.28), ("interest", 35.2)]
 
 
+def test_type_names_from_public_csv_sample():
+    # "Free funds interests" and "Profit/Loss (FX/CFD)" as XTB spells them in its export.
+    rows = [
+        [20, "Free funds interests", datetime(2025, 6, 30, 0, 0), "Free-funds Interest 2025-06", None, 35.2],
+        [21, "Free funds interests tax", datetime(2025, 6, 30, 0, 0), "Free-funds Interest Tax 2025-06", None, -5.28],
+        [22, "Profit/Loss (FX/CFD)", datetime(2025, 6, 30, 0, 0), "Profit of position #685669464", "GBPUSD", 0.13],
+    ]
+    result = xtb.FORMAT.parse(_workbook(rows), RESOLVER)
+    assert result.errors == []
+    assert sorted((r["type"], r["amount"]) for r in result.rows) == [("fee", 5.28), ("interest", 35.2)]
+    assert result.skipped_reasons == {"CFD trade": 1}
+
+
 def test_unknown_type_is_error():
     result = xtb.FORMAT.parse(_workbook([ROWS[8]]), RESOLVER)
     assert any("CEZ.CZ purchase" in e for e in result.errors)

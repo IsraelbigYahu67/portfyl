@@ -3,7 +3,6 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 import Settings, { HistoryBackfillStatus } from "./Settings";
-import { HAS_PUBLIC_HOME } from "../lib/routes";
 import { legacyColorClassesIn } from "../test/legacyClasses";
 
 const mocks = vi.hoisted(() => ({
@@ -72,16 +71,11 @@ it.each([
   expect(await screen.findByRole("heading", { level: 2, name: heading })).toBeInTheDocument();
 });
 
-it("links the public legal pages from Data & Privacy only in cloud", async () => {
+it("links the legal pages from Data & Privacy in both editions", async () => {
   mount("/settings?section=data");
   await screen.findByRole("heading", { level: 2, name: "Data & Privacy" });
-  const terms = screen.queryByRole("link", { name: "Terms of Service" });
-  if (HAS_PUBLIC_HOME) {
-    expect(terms).toHaveAttribute("href", "/terms?lang=en");
-    expect(screen.getByRole("link", { name: "Zásady ochrany osobních údajů" })).toHaveAttribute("href", "/privacy?lang=cs");
-  } else {
-    expect(terms).not.toBeInTheDocument();
-  }
+  expect(screen.getByRole("link", { name: "Terms of Service" })).toHaveAttribute("href", "/terms?lang=en");
+  expect(screen.getByRole("link", { name: "Zásady ochrany osobních údajů" })).toHaveAttribute("href", "/privacy?lang=cs");
 });
 
 it("replaces an invalid section with Connections and preserves unrelated parameters", async () => {

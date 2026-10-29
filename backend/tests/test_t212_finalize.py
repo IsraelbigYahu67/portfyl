@@ -883,7 +883,7 @@ class TestSplitFinalization:
         assert (buy.shares, buy.price) == (9, 1200)
         assert db_session.query(BrokerCorporateActionApplication).count() == 1
 
-    def test_unobserved_forward_split_goes_to_needs_review_without_ledger_writes(
+    def test_forward_split_adjusts_prior_api_trade(
         self, db_session, default_portfolio, completed_run
     ):
         _order_event(db_session, completed_run, event_id="fill:t1", ticker="NVDA_US_EQ",
@@ -892,11 +892,24 @@ class TestSplitFinalization:
 
         result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
 
+        assert result.needs_review is False
+        [buy] = db_session.query(Transaction).filter_by(ticker="NVDA").all()
+        assert (buy.shares, buy.price) == (90, 120)
+        assert db_session.query(BrokerCorporateActionApplication).count() == 1
+
+    def test_forward_split_with_wrong_price_ratio_goes_to_needs_review(
+        self, db_session, default_portfolio, completed_run
+    ):
+        _order_event(db_session, completed_run, event_id="fill:t1", ticker="NVDA_US_EQ",
+                     qty=9, price=1200, day="2024-05-01")
+        _stage_split(db_session, completed_run, old=9, new=90, old_px=1200, new_px=200)
+
+        result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
         assert result.needs_review is True
-        assert completed_run.state == "needs_review"
+        assert completed_run.last_error == t212_sync.HISTORY_SPLIT_UNVERIFIED_ERROR
         assert db_session.query(Transaction).count() == 0
         assert db_session.query(BrokerCorporateAction).count() == 0
-        assert db_session.query(BrokerCorporateActionApplication).count() == 0
 
     def test_split_legs_never_become_transactions(self, db_session, default_portfolio, completed_run):
         _stage_split(db_session, completed_run)
@@ -981,14 +994,93 @@ class TestSplitFinalization:
         assert db_session.query(Transaction).count() == 0
         assert completed_run.review_details[0]["fill_type"] == "STOCK_SPLIT"
 
-    def test_spin_off_still_needs_review_with_split_supported(self, db_session, default_portfolio, completed_run):
+    def test_unverified_spin_off_still_needs_review_with_split_supported(
+        self, db_session, default_portfolio, completed_run
+    ):
         _stage_split(db_session, completed_run)
         _order_event(db_session, completed_run, event_id="fill:so1", ticker="GE_US_EQ",
                      day="2024-04-02", fill_type="SPIN_OFF")
         result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
         assert result.needs_review is True
+        assert completed_run.last_error == t212_sync.HISTORY_SPIN_OFF_UNVERIFIED_ERROR
         assert [d["fill_type"] for d in completed_run.review_details] == ["SPIN_OFF"]
         assert db_session.query(BrokerCorporateAction).count() == 0
+
+
+# Observed encoding (owner's account, Mobility Global, 2026-07-02): one BUY
+# leg of the new shares at price 0 with a zero walletImpact.
+_SPIN_OFF_WALLET = {"currency": "CZK", "netValue": 0, "fxRate": 1, "taxes": []}
+
+
+class TestSpinOffFinalization:
+    @pytest.fixture(autouse=True)
+    def _no_fx_network(self):
+        with patch("t212_sync.bulk_fetch_fx", return_value={}):
+            yield
+
+    def test_observed_spin_off_imports_as_zero_cost_buy(
+        self, db_session, default_portfolio, completed_run
+    ):
+        _order_event(db_session, completed_run, event_id="fill:t1", day="2026-06-01")
+        _order_event(db_session, completed_run, event_id="fill:so", ticker="MBGL_US_EQ",
+                     qty=1.0, price=0, day="2026-07-02", fill_type="SPIN_OFF",
+                     wallet_impact=_SPIN_OFF_WALLET)
+
+        result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        assert result.needs_review is False
+        assert result.orders_imported == 2
+        assert completed_run.state == "completed"
+        spin = db_session.query(Transaction).filter_by(source_event_id="fill:so").one()
+        assert (spin.ticker, spin.type, spin.shares, spin.price) == ("MBGL", "buy", 1.0, 0.0)
+        assert spin.source_fill_type == "SPIN_OFF"
+        assert spin.notes == "T212 Spin-off"
+        assert not spin.cash_amount
+
+    def test_spin_off_is_idempotent(self, db_session, default_portfolio, completed_run):
+        _order_event(db_session, completed_run, event_id="fill:so", ticker="MBGL_US_EQ",
+                     qty=1.0, price=0, day="2026-07-02", fill_type="SPIN_OFF",
+                     wallet_impact=_SPIN_OFF_WALLET)
+        t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+        again = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+        assert again.orders_imported == 0
+        assert db_session.query(Transaction).count() == 1
+
+    @pytest.mark.parametrize("overrides", [
+        {"side": "SELL", "qty": -1.0},
+        {"price": 12.5},
+        {"wallet_impact": {"currency": "CZK", "netValue": 250.0}},
+        {"wallet_impact": None},
+        {"qty": 0},
+    ])
+    def test_spin_off_outside_observed_encoding_needs_review(
+        self, db_session, default_portfolio, connection, completed_run, overrides
+    ):
+        kwargs = {"ticker": "MBGL_US_EQ", "qty": 1.0, "price": 0, "day": "2026-07-02",
+                  "fill_type": "SPIN_OFF", "wallet_impact": _SPIN_OFF_WALLET, **overrides}
+        _order_event(db_session, completed_run, event_id="fill:so", **kwargs)
+
+        result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        assert result.needs_review is True
+        assert completed_run.last_error == t212_sync.HISTORY_SPIN_OFF_UNVERIFIED_ERROR
+        assert db_session.query(Transaction).count() == 0
+        resolution = t212_sync.review_resolution(completed_run, connection, default_portfolio)
+        assert resolution["mapper_supports_all"] is False
+
+    def test_spin_off_with_unsupported_action_keeps_generic_error(
+        self, db_session, default_portfolio, completed_run
+    ):
+        _order_event(db_session, completed_run, event_id="fill:so", ticker="MBGL_US_EQ",
+                     qty=1.0, price=0, day="2026-07-02", fill_type="SPIN_OFF",
+                     wallet_impact=_SPIN_OFF_WALLET)
+        _order_event(db_session, completed_run, event_id="fill:sd", fill_type="STOCK_DISTRIBUTION")
+
+        result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        assert result.unsupported_action_types == ("STOCK_DISTRIBUTION",)
+        assert completed_run.last_error == t212_sync.HISTORY_NEEDS_REVIEW_ERROR
+        assert db_session.query(Transaction).count() == 0
 
     def test_late_pre_split_fill_in_later_run_gets_adjusted(
         self, db_session, default_portfolio, completed_run

@@ -31,9 +31,12 @@ XTB_SUFFIX_VENUES = {"US": "US", "DE": "XETRA", "UK": "LSE", "NL": "AMSTERDAM", 
                      "BE": "BRUSSELS"}
 _PRICE_CCY = {"US": "USD", "DE": "EUR", "NL": "EUR", "FR": "EUR", "IT": "EUR", "ES": "EUR",
               "BE": "EUR", "UK": "GBX", "CH": "CHF", "CZ": "CZK", "PL": "PLN"}  # UK=GBX unverified
+# "free funds interests" (+ " tax") is the type name in the public CSV sample;
+# the hyphenated singular is the one the research doc described.
 _CASH = {"deposit": "deposit", "withdrawal": "withdrawal", "free-funds interest": "interest",
-         "free-funds interest tax": "fee", "sec fee": "fee", "commission": "fee"}
-_CFD = {"close trade", "profit/loss", "swap", "rollover"}
+         "free-funds interest tax": "fee", "free funds interests": "interest",
+         "free funds interests tax": "fee", "sec fee": "fee", "commission": "fee"}
+_CFD = {"close trade", "profit/loss", "profit/loss (fx/cfd)", "swap", "rollover"}
 _TRADES = {"stocks/etf purchase", "stocks/etf sale"}
 _DIVIDENDS = {"divident", "dividend", "withholding tax"}
 
