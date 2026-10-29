@@ -77,6 +77,41 @@ def test_older_export_without_autofx_column():
     assert [r["cash_amount"] for r in result.rows] == [1835.70, 239.0]
 
 
+def test_compact_layout_without_currency_columns():
+    # Public samples: "Value EUR" / "Total EUR", no currency column after them.
+    file = _file("transactions_compact_en.csv")
+    assert degiro_transactions.FORMAT.detect(file)
+    assert not degiro_account.FORMAT.detect(file)
+    assert registry.detect_format(file) is degiro_transactions.FORMAT
+    result = degiro_transactions.FORMAT.parse(file, RESOLVER)
+    assert result.errors == [] and validate_rows(result.rows) == []
+    wide = degiro_transactions.FORMAT.parse(_file("transactions_en.csv"), RESOLVER).rows
+    for compact_row, wide_row in zip(result.rows, wide):
+        for key in ("type", "ticker", "shares", "price", "currency", "cash_amount",
+                    "cash_currency", "source_event_id", "executed_at"):
+            assert compact_row[key] == wide_row[key]
+
+
+def test_compact_layout_order_id_in_trailing_column():
+    # Some exports leave "Order ID" empty and put the id one column to the right.
+    lines = (FIX / "transactions_compact_en.csv").read_text().splitlines()
+    moved = [lines[0]] + [line.replace(",0f1e2d3c-", ",,0f1e2d3c-", 1) for line in lines[1:]]
+    result = degiro_transactions.FORMAT.parse(_text_file("\n".join(moved)), RESOLVER)
+    assert result.errors == []
+    assert result.rows[0]["source_event_id"] == "0f1e2d3c-1111-2222-3333-444455556666:1"
+
+
+def test_compact_layout_without_autofx_column():
+    lines = (FIX / "transactions_compact_en.csv").read_text().splitlines()
+
+    def drop_autofx(line):
+        cells = line.split(",")
+        return ",".join(cells[:13] + cells[14:])
+    result = degiro_transactions.FORMAT.parse(_text_file("\n".join(map(drop_autofx, lines))), RESOLVER)
+    assert result.errors == []
+    assert [r["cash_amount"] for r in result.rows] == [1835.70, 239.0]
+
+
 def test_degiro_czech_locale_file():
     en = degiro_transactions.FORMAT.parse(_file("transactions_en.csv"), RESOLVER).rows[0]
     cz = degiro_transactions.FORMAT.parse(_file("transactions_cz.csv"), RESOLVER).rows[0]
