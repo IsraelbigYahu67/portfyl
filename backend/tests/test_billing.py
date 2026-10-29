@@ -85,6 +85,7 @@ class FakeStripe:
         self.customers_created = 0
         self.fail_retrieve: StripeError | None = None
         self.schedules = {}
+        self.schedule_keys = {}
         self.schedule_updates = []
         self.released = []
 
@@ -115,25 +116,32 @@ class FakeStripe:
     schedules: dict
 
     def create_schedule_from_subscription(self, subscription_id, *, idempotency_key):
+        # Like Stripe, a reused idempotency key replays the first response.
+        if idempotency_key in self.schedule_keys:
+            return self.schedules[self.schedule_keys[idempotency_key]]
         sub = self.subscriptions[subscription_id]
         period_end = sub["items"]["data"][0]["current_period_end"]
+        schedule_id = f"sub_sched_{len(self.schedules) + 1}"
+        self.schedule_keys[idempotency_key] = schedule_id
         schedule = {
-            "id": "sub_sched_1",
+            "id": schedule_id,
             "status": "active",
             "subscription": subscription_id,
             "current_phase": {"start_date": period_end - 30 * 86400, "end_date": period_end},
             "phases": [],
         }
-        self.schedules["sub_sched_1"] = schedule
-        sub["schedule"] = "sub_sched_1"
+        self.schedules[schedule_id] = schedule
+        sub["schedule"] = schedule_id
         return schedule
 
     def retrieve_schedule(self, schedule_id):
         return self.schedules[schedule_id]
 
     def update_schedule(self, schedule_id, params):
-        self.schedule_updates.append(params)
         schedule = self.schedules[schedule_id]
+        if schedule["status"] != "active":
+            raise StripeError("schedule is released", status=400)
+        self.schedule_updates.append(params)
         first, second = params["phases"]
         schedule["phases"] = [
             {"start_date": first["start_date"], "end_date": first["end_date"],
@@ -548,6 +556,14 @@ def test_choosing_the_current_plan_withdraws_a_booked_change(
     assert stripe.released == ["sub_sched_1"]
     assert result["subscription"]["scheduled_plan"] is None
     assert result["subscription"]["scheduled_change_at"] is None
+
+    # Booking again after a withdrawal needs a brand-new schedule.
+    result = billing_router.change_plan(
+        billing_router.PlanChangePayload(plan=PlanTier.PRO),
+        _fake_request(config), db=db_session, context=request_context, config=config, client=stripe,
+    )
+    assert result["subscription"]["scheduled_plan"] == "pro"
+    assert stripe.subscriptions["sub_1"]["schedule"] == "sub_sched_2"
 
 
 def test_plan_change_refuses_a_cancelling_subscription(db_session, request_context, config):

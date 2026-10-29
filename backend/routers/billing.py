@@ -10,6 +10,7 @@ entitlements.resolve_entitlements derives the plan.
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Annotated
 
@@ -284,8 +285,10 @@ def change_plan(
                 client.release_schedule(schedule["id"])
         else:
             if schedule is None:
+                # A fresh key per booking: Stripe replays a reused key's first
+                # response, which after a withdrawal is a released schedule.
                 schedule = client.create_schedule_from_subscription(
-                    subscription_id, idempotency_key=f"schedule:{subscription_id}",
+                    subscription_id, idempotency_key=f"schedule:{subscription_id}:{uuid.uuid4().hex}",
                 )
             phase = schedule.get("current_phase") or {}
             metadata = {"portfyl_workspace_id": workspace_public_id}
