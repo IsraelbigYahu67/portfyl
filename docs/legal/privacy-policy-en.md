@@ -7,7 +7,7 @@
 > English version mirrors
 > [zasady-ochrany-osobnich-udaju-cs.md](zasady-ochrany-osobnich-udaju-cs.md).
 
-Effective from: `[[TODO: publication date]]`
+Effective from: `[[TODO: publication date]]` \
 Version: 0.1 (draft)
 
 This policy explains what personal data the Portfyl service processes, why,
@@ -74,8 +74,11 @@ data processing agreement:
 
 **Independent controllers** – these process data under their own policies:
 
-- **Payment Partner** `[[TODO: Paddle.com Market Limited]]` – accepts
-  payments as the seller, issues receipts and handles VAT.
+- **Payment Partner** – a Stripe group company trading under the Link brand
+  (Stripe Managed Payments) `[[TODO: exact name and address of the selling
+  entity]]` – accepts payments as the seller, issues receipts, handles VAT and
+  deals with payment support, refunds and subscription management on
+  link.com.
 - **Your broker** (e.g. Trading 212, Interactive Brokers, eToro) – only if you
   connect it; we send it your API credentials and receive your account data.
 - **Discord** – only if you set up Discord notifications.

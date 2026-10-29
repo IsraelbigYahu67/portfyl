@@ -1,6 +1,6 @@
 # Právní dokumenty Portfyl – otevřené body a poznámky pro právníka
 
-Stav k 2026-10-18. Návrhy v této složce jsou **pracovní verze 0.1** a nesmí se
+Stav k 2026-10-28. Návrhy v této složce jsou **pracovní verze 0.1** a nesmí se
 zveřejnit, dokud nejsou vyřešeny body označené **BLOKUJE** a texty
 nezkontroluje český advokát (viz brána ve
 [../compliance/private-test-legal-status.md](../compliance/private-test-legal-status.md)).
@@ -19,7 +19,11 @@ nezkontroluje český advokát (viz brána ve
 - Kontakt pro podporu, ochranu osobních údajů a bezpečnost:
   **support@portfyl.com**.
 - Služba je jen pro osoby **18+**.
-- Placené tarify **měsíčně i ročně**, **zkušební období 10 dní**.
+- Placené tarify **jen měsíčně** (změna 2026-10-28): Investor **5,99 €**,
+  Pro **9,99 €** měsíčně vč. DPH; roční tarify zatím nejsou. **Zkušební
+  období 10 dní**.
+- Platby přes **Stripe Managed Payments** (Stripe/Link jako *Merchant of
+  Record*) – rozhodnuto 2026-10-28, viz bod 2.
 - Data po zrušení účtu smazat **co nejdříve**.
 - Dokumenty v **češtině i angličtině**.
 
@@ -33,28 +37,58 @@ Podmínky ani zásady proto AI nezmiňují. Pokud se AI v budoucnu vrátí, je n
 nejdřív vybrat poskytovatele se smlouvou o zpracování (DPA) a zpracováním v EU
 nebo v rámci Data Privacy Framework a dokumenty doplnit.
 
-### 2. Platební brána: Paddle, nebo Stripe
+### 2. Vyřešeno – Stripe Managed Payments (Merchant of Record)
 
-- **Paddle (doporučeno)** je *Merchant of Record*: formálně prodává zákazníkovi
-  on, sám odvádí DPH ve všech státech, vystavuje doklady a vyřizuje refundace
-  podle svých podmínek. Pro OSVČ to znamená nejméně daňové a administrativní
-  práce. Poplatek je vyšší (orientačně 5 % + 0,50 USD za transakci – ověřit
-  aktuální ceník).
-- **Stripe** je jen platební brána: prodávajícím je provozovatel. Musí sám
-  řešit DPH u prodeje spotřebitelům v jiných státech EU (režim OSS po
-  překročení limitu), vystavovat daňové doklady a vést evidenci. Pravidla
-  vracení peněz Stripe **neřeší** – určuje je provozovatel a platí pro ně
-  zákon (čl. 6 podmínek).
-- Návrh podmínek počítá s Paddle. Při volbě Stripe je nutné přepsat čl. 5 a
-  6 podmínek a část 4 zásad.
+Provozovatel zvolil **Stripe Managed Payments**. Prodávajícím vůči zákazníkovi
+je společnost ze skupiny Stripe pod značkou **Link** (zákazník vidí „Sold
+through Link“, na výpisu `LINK.COM* PORTFYL`). Stripe podle své dokumentace:
+
+- odvádí DPH ve všech státech, vystavuje doklady a posílá potvrzení;
+- vyřizuje platební podporu, spory (chargebacky) a správu předplatného na
+  webu link.com;
+- uplatňuje zákonné lhůty pro odstoupení („regional cooling off periods“);
+- smí v odůvodněných případech vrátit platbu **do 60 dnů**; pokud provozovatel
+  na dotaz Stripe neodpoví do **48 hodin**, může refundovat bez jeho souhlasu.
+
+Poplatek: 1,5 % (EEA karta) + 3,5 % za Managed Payments + 6,50 Kč za platbu.
+
+Podmínky (čl. 5 a 6) a zásady (část 4) jsou na tuto variantu přepsané.
+**K doplnění:** přesný název a sídlo prodávajícího subjektu Stripe/Link –
+uvádějí ho podmínky pro kupující na platební stránce.
+
+Zdroje: [How Managed Payments works](https://docs.stripe.com/payments/managed-payments/how-it-works),
+[Managed Payments eligibility](https://docs.stripe.com/payments/managed-payments/eligibility).
+
+**Daňová stránka:** provozovatel neprodává spotřebitelům, ale platformě Stripe
+(služba osobě v jiném státě EU) – vykazuje se v souhrnném hlášení a do obratu
+pro plátcovství se nepočítá. Kvůli přijímaným zahraničním službám (Google
+Cloud, Neon atd.) bude provozovatel identifikovanou osobou. Ověřit s daňovým
+poradcem.
 
 ### 3. Odstoupení od smlouvy a vracení peněz
 
-Návrh dává spotřebiteli zákonných 14 dní a při odstoupení vrací cenu sníženou
-o poměrnou část za dobu užívání (§ 1834 OZ). **K ověření:** zda je pro
-digitální službu s předplatným a předchozím bezplatným zkušebním obdobím
-správnější nabídnout plnou refundaci, a jak formulovat výslovnou žádost o
-okamžité zahájení plnění při objednávce (zaškrtávací pole v pokladně).
+Návrh (čl. 6) dává spotřebiteli zákonných 14 dní od první platby, výslovnou
+žádost o okamžité zahájení plnění (§ 1823 OZ) a při odstoupení vrací cenu
+sníženou o poměrnou část za dobu užívání (§ 1834 OZ). Doplněno:
+
+- Lhůta běží k jedné smlouvě **jen jednou**; měsíční obnovení novou lhůtu
+  nezakládá. Podle rozsudku SDEU C-565/22 (Sofatutor, 5. 10. 2023) to platí
+  i po bezplatném zkušebním období, je-li spotřebitel předem jasně informován
+  o ceně a o tom, že po zkušebním období začne platit
+  ([shrnutí](https://pravniprostor.cz/clanky/obcanske-pravo/dobra-zprava-pro-podnikatele-spatna-pro-spotrebitele-v-pripade-online-predplatnych-bezi-jen-jedna-lhuta-pro-odstoupeni-od-smlouvy)).
+- Bez řádného poučení se lhůta prodlužuje až o 12 měsíců.
+- Nový čl. 6.4 popisuje 60denní refundace Stripe.
+
+**K ověření:**
+
+- Vůči komu spotřebitel odstupuje, když je prodávajícím Stripe/Link (MoR), a
+  zda je čl. 6 v souladu s podmínkami Linku pro kupující.
+- Zda provozovatel musí mít na webu vlastní **funkci pro odstoupení** podle
+  směrnice (EU) 2023/2673 (podle sekundárních zdrojů od 19. 6. 2026 – ověřit
+  datum i transpozici v ČR), nebo ji za něj zajišťuje Stripe jako prodávající.
+- Zda postačí poměrná náhrada, nebo nabídnout plnou refundaci.
+- Jak formulovat výslovnou žádost o okamžité zahájení plnění na platební
+  stránce Stripe (vlastní text nebo zaškrtávací pole v nastavení Checkout).
 
 ### 4. Zkušební období bez karty
 
@@ -93,7 +127,12 @@ poskytovatele dat a podle jeho licence upravit čl. 9.3 a 10 podmínek.
   souhlasu.
 - Veřejné stránky `/terms` a `/privacy` (CZ/EN) a odkazy v patičce webu i
   aplikace.
-- Pokladna: výslovná žádost o okamžité zahájení služby (k bodu 3).
+- Pokladna (Stripe Checkout s Managed Payments): výslovná žádost o okamžité
+  zahájení služby (k bodu 3); URL obchodních podmínek a zásad nastavit ve
+  Stripe (Settings → Public details / Checkout), aby se na platební stránce
+  zobrazovaly.
+- Ve Stripe Dashboardu udržovat aktuální e-mail podpory (support@portfyl.com)
+  a odpovídat na dotazy Stripe do 48 hodin (k bodu 2).
 - Případná změna lhůty pro smazání účtu (k bodu 5).
 
 ### 9. K ověření právníkem

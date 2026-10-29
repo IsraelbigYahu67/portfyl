@@ -8,6 +8,7 @@ vi.mock("./demo/DemoBootstrap", () => ({ default: () => <div>Public demo</div> }
 // Cloud's Root lazy-loads Welcome; load it during collection (untimed) so the
 // first test doesn't spend its findBy window on the cold module graph.
 if (HAS_PUBLIC_HOME) await import("./pages/Welcome");
+if (HAS_PUBLIC_HOME) await import("./pages/Legal");
 beforeEach(() => { localStorage.clear(); window.history.replaceState({}, '', '/'); });
 afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -66,4 +67,19 @@ it("never serves the public demo on the tracker host, even at /demo", async () =
   render(<MemoryRouter initialEntries={["/demo"]}><Root /></MemoryRouter>);
   expect(await screen.findByText("Protected tracker")).toBeInTheDocument();
   expect(screen.queryByText("Public demo")).not.toBeInTheDocument();
+});
+
+it.each([
+  ["/terms", "portfyl.com", "Portfyl Terms of Service"],
+  ["/privacy/", "app.portfyl.com", "Portfyl Privacy and Cookie Policy"],
+])("serves %s publicly on %s in cloud, without the tracker", async (pathname, hostname, title) => {
+  // jsdom's navigator.language is en-US, so the English text is served.
+  setLocation({ pathname, hostname });
+  render(<MemoryRouter initialEntries={[pathname]}><Root /></MemoryRouter>);
+  if (HAS_PUBLIC_HOME) {
+    expect(await screen.findByRole("heading", { level: 1, name: title })).toBeInTheDocument();
+    expect(screen.queryByText("Protected tracker")).not.toBeInTheDocument();
+  } else {
+    expect(await screen.findByText("Protected tracker")).toBeInTheDocument();
+  }
 });

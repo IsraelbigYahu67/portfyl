@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 import Settings, { HistoryBackfillStatus } from "./Settings";
+import { HAS_PUBLIC_HOME } from "../lib/routes";
 import { legacyColorClassesIn } from "../test/legacyClasses";
 
 const mocks = vi.hoisted(() => ({
@@ -69,6 +70,18 @@ it.each([
 ])("restores the %s section from its direct URL", async (section, heading) => {
   mount(`/settings?section=${section}`);
   expect(await screen.findByRole("heading", { level: 2, name: heading })).toBeInTheDocument();
+});
+
+it("links the public legal pages from Data & Privacy only in cloud", async () => {
+  mount("/settings?section=data");
+  await screen.findByRole("heading", { level: 2, name: "Data & Privacy" });
+  const terms = screen.queryByRole("link", { name: "Terms of Service" });
+  if (HAS_PUBLIC_HOME) {
+    expect(terms).toHaveAttribute("href", "/terms?lang=en");
+    expect(screen.getByRole("link", { name: "Zásady ochrany osobních údajů" })).toHaveAttribute("href", "/privacy?lang=cs");
+  } else {
+    expect(terms).not.toBeInTheDocument();
+  }
 });
 
 it("replaces an invalid section with Connections and preserves unrelated parameters", async () => {

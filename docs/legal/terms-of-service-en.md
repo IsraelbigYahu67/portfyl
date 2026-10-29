@@ -5,7 +5,7 @@
 > [poznamky-pro-pravnika.md](poznamky-pro-pravnika.md). This English version
 > mirrors [podminky-uzivani-cs.md](podminky-uzivani-cs.md).
 
-Effective from: `[[TODO: publication date]]`
+Effective from: `[[TODO: publication date]]` \
 Version: 0.1 (draft)
 
 ## 1. Who operates the service
@@ -13,10 +13,10 @@ Version: 0.1 (draft)
 The Portfyl service available at `portfyl.com` and `app.portfyl.com` (the
 "**Service**") is operated by:
 
-**Jakub Zoubek**, a sole trader under the Czech Trade Licensing Act
-Registered business address: Brusinková 1983, 252 28 Černošice, Czech Republic
-Company ID (IČO): 67772366
-`[[TODO: VAT registered / not VAT registered]]`
+**Jakub Zoubek**, a sole trader under the Czech Trade Licensing Act \
+Registered business address: Brusinková 1983, 252 28 Černošice, Czech Republic \
+Company ID (IČO): 67772366 \
+`[[TODO: VAT registered / not VAT registered]]` \
 E-mail: **support@portfyl.com**
 
 (the "**Operator**", "**we**", "**us**").
@@ -72,7 +72,7 @@ terms.
 the Pricing page (`[[TODO: pricing URL]]`). Prices are final and include VAT
 where applicable.
 
-4.2 Paid plans can be paid **monthly** or **annually**.
+4.2 Paid plans are paid **monthly**.
 
 4.3 A new User may try a paid plan once **free of charge for 10 days**. When
 the trial ends, the account **automatically switches to the Free plan**
@@ -88,19 +88,22 @@ beyond the new plan simply become unavailable.
 ## 5. Payments and subscriptions
 
 5.1 Payments for paid plans are processed and accepted, as the seller
-(*Merchant of Record*), by `[[TODO: Paddle.com Market Limited, Judd House,
-18–29 Mora Street, London EC1V 8BT, United Kingdom]]` (the "**Payment
-Partner**"). The Payment Partner issues receipts, handles VAT and payment
-matters under its buyer terms, which you will see at checkout. The Operator
-never sees your card details. `[[DECIDE: Stripe variant – see lawyer notes,
-point 2.]]`
+(*Merchant of Record*), by a Stripe group company trading under the **Link**
+brand (the Stripe Managed Payments service), `[[TODO: exact name and address
+of the selling Stripe/Link entity as shown in the buyer terms at checkout]]`
+(the "**Payment Partner**"). The Payment Partner issues receipts, handles
+VAT, payment support, refunds and payment disputes under its buyer terms,
+which you will see at checkout. The charge appears on your statement as
+`LINK.COM* PORTFYL`. The Operator never sees your card details.
 
-5.2 Subscriptions **renew automatically** for another period (month or
-year) until cancelled. The price for the next period is charged at its start.
+5.2 Subscriptions **renew automatically** for another month until
+cancelled. The price for the next month is charged at its start.
 
-5.3 You can cancel at any time in your account settings. Cancellation takes
-effect at the end of the period already paid for; until then you keep paid
-features. The account then moves to the Free plan.
+5.3 You can cancel at any time in your account settings or on the Link
+website (link.com), where you manage your orders; the link is also in your
+payment receipt. Cancellation takes effect at the end of the period already
+paid for; until then you keep paid features. The account then moves to the
+Free plan.
 
 5.4 We will notify you by e-mail of any price increase at least **30 days**
 in advance. The new price applies only from your next subscription period.
@@ -110,20 +113,28 @@ If you disagree, you may cancel before then.
 
 6.1 If you are a consumer, you may withdraw from a paid subscription contract
 **without giving a reason within 14 days** of concluding it (i.e. of the
-first payment). Simply send a clear statement to support@portfyl.com or use
-the model form attached to these terms.
+first payment). Simply send a clear statement to support@portfyl.com or to
+the Payment Partner's support, or use the model form attached to these terms.
+You have this right **only once** per subscription contract; an automatic
+monthly renewal does not start a new withdrawal period.
 
 6.2 By ordering a subscription you expressly request that paid features start
-**immediately**, before the withdrawal period ends. If you withdraw, we will
-refund the price paid minus a **proportionate amount** for the time paid
+**immediately**, before the withdrawal period ends. If you withdraw, you will
+be refunded the price paid minus a **proportionate amount** for the time paid
 features were available (Section 1834 of the Czech Civil Code).
 
-6.3 We will refund you within **14 days** of withdrawal using the same
-payment method (through the Payment Partner).
+6.3 The Payment Partner will refund you within **14 days** of withdrawal
+using the same payment method.
 
-`[[LAWYER: confirm whether a proportionate deduction is adequate for a
-monthly/annual digital service preceded by a free trial, or whether a full
-refund within 14 days should be offered; see notes, point 3.]]`
+6.4 Beyond the right of withdrawal, the Payment Partner may, under its own
+terms and in justified cases (for example a technical error or card misuse),
+refund a payment within **60 days** of it being made.
+
+`[[LAWYER: confirm (a) against whom the consumer withdraws when the Payment
+Partner is the seller (MoR), and that Section 6 is consistent with its buyer
+terms; (b) whether the Operator needs its own withdrawal function on the
+website under Directive (EU) 2023/2673; (c) whether a proportionate deduction
+is adequate or a full refund should be offered; see notes, point 3.]]`
 
 ## 7. Defects and complaints
 
@@ -260,6 +271,6 @@ support@portfyl.com
 I hereby give notice that I withdraw from my contract for the Portfyl service
 (plan: ……………, ordered on: ……………).
 
-Name: ……………………………
-Account e-mail: ……………………………
+Name: …………………………… \
+Account e-mail: …………………………… \
 Date: ……………………………

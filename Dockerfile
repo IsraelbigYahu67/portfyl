@@ -27,6 +27,9 @@ ENV VITE_PORTFYL_EDITION=$VITE_PORTFYL_EDITION \
     VITE_FIREBASE_APP_ID=$VITE_FIREBASE_APP_ID \
     VITE_FIREBASE_GOOGLE_SIGN_IN=$VITE_FIREBASE_GOOGLE_SIGN_IN
 COPY frontend/ ./
+# The public /terms and /privacy pages import their text from docs/legal/
+# (frontend/src/pages/Legal.jsx), one level above the frontend root.
+COPY docs/legal/ /app/docs/legal/
 RUN npm run build:cloud
 
 # ---- Stage 2: Python backend + built SPA (runtime) ----------------------------
