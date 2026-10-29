@@ -62,9 +62,10 @@ describe("edition manifests", () => {
     expect(cloudManifestSource).not.toContain("viewMode");
     expect(cloudManifestSource).not.toContain("iframe");
   });
-  it("keeps owner-only tools local and plan comparison cloud-only", () => {
-    expect(LOCAL_ROUTES.map((entry) => entry.path)).toEqual(["/tax-report", "/screener"]);
-    expect(LOCAL_NAVIGATION.map((entry) => entry.to)).toEqual(["/tax-report", "/screener"]);
+  it("keeps owner-only tools local and plan switching cloud-only", () => {
+    expect(LOCAL_ROUTES.map((entry) => entry.path)).toEqual(["/tax-report", "/screener", "/pricing"]);
+    expect(LOCAL_NAVIGATION.map((entry) => entry.to)).toEqual(["/tax-report", "/screener", "/pricing"]);
+    expect(LOCAL_NAVIGATION.find((entry) => entry.to === "/pricing").label).toBe("Plans");
     expect(CLOUD_ROUTES.map((entry) => entry.path)).toEqual(["/pricing"]);
     expect(CLOUD_NAVIGATION.map((entry) => entry.to)).toEqual(["/pricing"]);
     expect(CLOUD_NAVIGATION.map((entry) => entry.label)).toEqual(["Plans"]);

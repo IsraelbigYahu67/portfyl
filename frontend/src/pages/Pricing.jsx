@@ -12,7 +12,6 @@ const PLANS = [
     icon: Sprout,
     tagline: "Track one portfolio and get to know Portfyl.",
     monthly: 0,
-    annual: 0,
     features: ["1 portfolio", "15 active positions", "250 transactions", "3 alerts"],
   },
   {
@@ -20,8 +19,7 @@ const PLANS = [
     name: "Investor",
     icon: TrendingUp,
     tagline: "For long-term investors with several accounts.",
-    monthly: 499,
-    annual: 4900,
+    monthly: 599,
     features: ["5 portfolios", "2 broker connections", "Complete analytics", "Daily sync"],
   },
   {
@@ -29,8 +27,7 @@ const PLANS = [
     name: "Pro",
     icon: Gem,
     tagline: "For active investors who trade options and research deeply.",
-    monthly: 799,
-    annual: 7900,
+    monthly: 999,
     features: ["15 portfolios", "5 broker connections", "Advanced options & Polymarket", "6-hour sync", "Advanced research & custom benchmarks"],
   },
 ];
@@ -47,7 +44,7 @@ function euro(cents) {
 }
 
 
-function PlanCard({ plan, currentPlan, changingPlan, onSelect }) {
+function PlanCard({ plan, currentPlan, changingPlan, onSelect, planSwitching }) {
   const Icon = plan.icon;
   const isCurrent = currentPlan === plan.id;
   const isChanging = changingPlan === plan.id;
@@ -77,11 +74,6 @@ function PlanCard({ plan, currentPlan, changingPlan, onSelect }) {
         <span className="font-display text-4xl font-extrabold tracking-tight text-ink tnum">{euro(plan.monthly)}</span>
         <span className="text-sm text-muted">/ month</span>
       </p>
-      {plan.annual > 0 ? (
-        <p className="financial-meta mt-1">Planned price: {euro(plan.annual)} annually</p>
-      ) : (
-        <p className="financial-meta mt-1" aria-hidden="true">&nbsp;</p>
-      )}
 
       <div className="my-5 h-px bg-hairline" aria-hidden="true" />
 
@@ -96,22 +88,26 @@ function PlanCard({ plan, currentPlan, changingPlan, onSelect }) {
         ))}
       </ul>
 
-      <button
-        type="button"
-        disabled={currentPlan === null || isCurrent || changingPlan !== null}
-        onClick={() => onSelect(plan)}
-        className={`${isUpgrade ? "btn-primary" : "btn-ghost"} mt-6 flex min-h-11 w-full items-center justify-center gap-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60`}
-      >
-        {isChanging && <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />}
-        {isCurrent && <Check size={16} aria-hidden="true" />}
-        {isCurrent ? "Active for testing" : `Use ${plan.name} for testing`}
-      </button>
+      {planSwitching && (
+        <button
+          type="button"
+          disabled={currentPlan === null || isCurrent || changingPlan !== null}
+          onClick={() => onSelect(plan)}
+          className={`${isUpgrade ? "btn-primary" : "btn-ghost"} mt-6 flex min-h-11 w-full items-center justify-center gap-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60`}
+        >
+          {isChanging && <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />}
+          {isCurrent && <Check size={16} aria-hidden="true" />}
+          {isCurrent ? "Active for testing" : `Use ${plan.name} for testing`}
+        </button>
+      )}
     </section>
   );
 }
 
 
-export default function Pricing() {
+// The local edition has no plans (it always resolves to Pro) and no
+// /api/test-plans route, so it renders the catalogue read-only.
+export default function Pricing({ planSwitching = true }) {
   const queryClient = useQueryClient();
   const [currentPlan, setCurrentPlan] = useState(null);
   const [changingPlan, setChangingPlan] = useState(null);
@@ -119,6 +115,7 @@ export default function Pricing() {
   const [announcement, setAnnouncement] = useState("");
 
   useEffect(() => {
+    if (!planSwitching) return undefined;
     let active = true;
     fetchTestPlan()
       .then((result) => {
@@ -130,7 +127,7 @@ export default function Pricing() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [planSwitching]);
 
   const selectPlan = async (plan) => {
     setChangingPlan(plan.id);
@@ -155,7 +152,9 @@ export default function Pricing() {
         <p className="eyebrow">Portfyl plans</p>
         <h1 className="text-2xl font-bold sm:text-3xl">Plans</h1>
         <p className="max-w-2xl text-sm text-muted">
-          Compare Portfyl tiers and choose which limits and features to test.
+          {planSwitching
+            ? "Compare Portfyl tiers and choose which limits and features to test."
+            : "Compare the Portfyl cloud tiers."}
         </p>
       </header>
 
@@ -163,12 +162,21 @@ export default function Pricing() {
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-light text-brand">
           <FlaskConical size={17} aria-hidden="true" />
         </span>
-        <div>
-          <p className="text-sm font-semibold">Free plan switching during private testing</p>
-          <p className="mt-0.5 text-sm text-muted">
-            Choose any plan below. No payment method, checkout, charge, or subscription will be created.
-          </p>
-        </div>
+        {planSwitching ? (
+          <div>
+            <p className="text-sm font-semibold">Free plan switching during private testing</p>
+            <p className="mt-0.5 text-sm text-muted">
+              Choose any plan below. No payment method, checkout, charge, or subscription will be created.
+            </p>
+          </div>
+        ) : (
+          <div>
+            <p className="text-sm font-semibold">Local edition: every feature is included</p>
+            <p className="mt-0.5 text-sm text-muted">
+              These are the cloud plans for reference. Nothing here changes this installation.
+            </p>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -187,6 +195,7 @@ export default function Pricing() {
             currentPlan={currentPlan}
             changingPlan={changingPlan}
             onSelect={selectPlan}
+            planSwitching={planSwitching}
           />
         ))}
       </div>

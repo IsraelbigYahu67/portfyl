@@ -3,8 +3,8 @@ import { lazy } from "react";
 import { fetchTestPlan } from "../api";
 import UpgradePrompt from "../components/UpgradePrompt";
 
-// Plan comparison is cloud-only. It is static until a payment provider is
-// deliberately implemented; the local edition does not advertise SaaS tiers.
+// Plan comparison with private-test plan switching. The local edition shows
+// the same page read-only (see editions/local.jsx).
 const loadPricing = () => import("../pages/Pricing");
 export const EDITION_ROUTES = Object.freeze([
   { path: "/pricing", capability: "settings", Component: lazy(loadPricing), preload: loadPricing },

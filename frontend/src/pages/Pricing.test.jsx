@@ -38,11 +38,10 @@ describe("Pricing", () => {
     const free = screen.getByRole("region", { name: "Free" });
     expect(within(free).getByText("€0")).toBeInTheDocument();
     const investor = screen.getByRole("region", { name: "Investor" });
-    expect(within(investor).getByText("€4.99")).toBeInTheDocument();
-    expect(within(investor).getByText("Planned price: €49.00 annually")).toBeInTheDocument();
+    expect(within(investor).getByText("€5.99")).toBeInTheDocument();
     const pro = screen.getByRole("region", { name: "Pro" });
-    expect(within(pro).getByText("€7.99")).toBeInTheDocument();
-    expect(within(pro).getByText("Planned price: €79.00 annually")).toBeInTheDocument();
+    expect(within(pro).getByText("€9.99")).toBeInTheDocument();
+    expect(screen.queryByText(/annually/i)).not.toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Active for testing" })).toBeDisabled();
     expect(screen.queryByText(/Manage billing|trial|Stripe/i)).not.toBeInTheDocument();
   });
@@ -59,6 +58,15 @@ describe("Pricing", () => {
     expect(await screen.findByText("Current test plan")).toBeInTheDocument();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["plan-capabilities"] });
     expect(screen.getByRole("button", { name: "Active for testing" })).toBeDisabled();
+  });
+
+  it("renders read-only without the test-plan API when switching is off", () => {
+    render(<Pricing planSwitching={false} />);
+
+    expect(screen.getByText(/Local edition: every feature is included/i)).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Pro" })).getByText("€9.99")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(fetchTestPlan).not.toHaveBeenCalled();
   });
 
   it("keeps the current plan and reports a failed change", async () => {
