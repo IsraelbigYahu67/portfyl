@@ -97,3 +97,35 @@ def test_event_time_parses_or_returns_none():
         2026, 3, 1, 10, 15, 30, 123000, tzinfo=timezone.utc
     )
     assert cash_event_time(_item("DEPOSIT", 5, when=None)) is None
+
+
+def test_currency_conversion_legs_are_recognised_by_their_shared_instant():
+    from t212_cash import fx_conversion_event_ids
+
+    when = "2026-06-03T11:13:59.410Z"
+    items = [
+        _item("FEE", -0.16, "fee", "CZK", when),
+        _item("DEPOSIT", 104.08, "in", "CZK", when),
+        _item("WITHDRAW", -5, "out", "USD", when),
+    ]
+    assert fx_conversion_event_ids(items) == {"cash:in", "cash:out"}
+
+
+@pytest.mark.parametrize(
+    "items",
+    [
+        # same currency: an ordinary deposit and withdrawal
+        [_item("DEPOSIT", 100, "a"), _item("WITHDRAW", -50, "b")],
+        # different instants
+        [_item("DEPOSIT", 100, "a", "CZK", "2026-06-03T11:00:00Z"),
+         _item("WITHDRAW", -5, "b", "USD", "2026-06-03T11:00:01Z")],
+        # ambiguous: two deposits at the same instant
+        [_item("DEPOSIT", 100, "a"), _item("DEPOSIT", 5, "c"), _item("WITHDRAW", -5, "b", "USD")],
+        # a lone withdrawal
+        [_item("WITHDRAW", -5, "b", "USD")],
+    ],
+)
+def test_unpaired_or_ambiguous_cash_events_are_not_conversions(items):
+    from t212_cash import fx_conversion_event_ids
+
+    assert fx_conversion_event_ids(items) == set()

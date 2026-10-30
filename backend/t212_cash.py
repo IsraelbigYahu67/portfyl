@@ -65,6 +65,34 @@ def cash_event_id(item: dict) -> str:
     return f"cash-fp:{hashlib.sha256(blob.encode()).hexdigest()[:32]}"
 
 
+def fx_conversion_event_ids(items: list[dict]) -> set[str]:
+    """Event ids of the two legs of a currency conversion.
+
+    The history endpoint has no conversion type: a conversion arrives as one
+    DEPOSIT and one WITHDRAW in different currencies carrying the identical
+    `dateTime` (plus a FEE in the same instant, which stays a plain fee). They
+    are moves between currency piles, not money entering or leaving the
+    account, so they map to fx_in/fx_out like the CSV importer's conversions.
+    Only an unambiguous pair (exactly one of each) is recognised."""
+    by_time: dict[str, list[dict]] = {}
+    for item in items:
+        kind = str(item.get("type") or "").upper()
+        if kind in {"DEPOSIT", "WITHDRAW"} and item.get("dateTime"):
+            by_time.setdefault(str(item["dateTime"]), []).append(item)
+    out: set[str] = set()
+    for group in by_time.values():
+        deposits = [i for i in group if str(i["type"]).upper() == "DEPOSIT"]
+        withdrawals = [i for i in group if str(i["type"]).upper() == "WITHDRAW"]
+        if len(deposits) != 1 or len(withdrawals) != 1:
+            continue
+        in_ccy = str(deposits[0].get("currency") or "").strip().upper()
+        out_ccy = str(withdrawals[0].get("currency") or "").strip().upper()
+        if in_ccy and out_ccy and in_ccy != out_ccy:
+            out.add(cash_event_id(deposits[0]))
+            out.add(cash_event_id(withdrawals[0]))
+    return out
+
+
 def map_cash_event(item: dict) -> CashRow | UnsupportedCash:
     source_type = item.get("type")
     kind = str(source_type).upper() if source_type else None

@@ -50,7 +50,10 @@ from models import (
     Transaction,
 )
 from ledger_mutation import acquire_workspace_ledger_lock
-from t212_cash import CashRow, UnsupportedCash, cash_event_id, cash_event_time, map_cash_event
+from t212_cash import (
+    CashRow, UnsupportedCash, cash_event_id, cash_event_time, fx_conversion_event_ids,
+    map_cash_event,
+)
 from t212_incremental import OVERLAP_PAGES, evaluate_page
 
 log = logging.getLogger("portfyl.t212_sync")
@@ -1462,20 +1465,28 @@ def _finalize_dividend_event(event: BrokerSyncEvent, run: BrokerSyncRun):
     return "imported", txn
 
 
-def _finalize_cash_event(event: BrokerSyncEvent, run: BrokerSyncRun):
+_FX_LEG_TYPE = {"deposit": "fx_in", "withdrawal": "fx_out"}
+
+
+def _finalize_cash_event(event: BrokerSyncEvent, run: BrokerSyncRun, fx_event_ids: frozenset = frozenset()):
     """Map one staged cash event to a ledger cash Transaction. Returns
     (outcome, transaction_or_none); outcome is "imported" or "unsupported"
-    (finalize_run sends an unsupported event's run to review before any write)."""
+    (finalize_run sends an unsupported event's run to review before any write).
+    `fx_event_ids` are the legs of currency conversions found in this run."""
     item = event.raw_payload or {}
     mapped = map_cash_event(item)
     if isinstance(mapped, UnsupportedCash):
         return "unsupported", None
+    ledger_type = (
+        _FX_LEG_TYPE.get(mapped.type, mapped.type)
+        if mapped.event_id in fx_event_ids else mapped.type
+    )
     txn = Transaction(
         workspace_id=run.workspace_id,
         portfolio_id=run.portfolio_id,
         ticker=None,
         name=None,
-        type=mapped.type,
+        type=ledger_type,
         shares=0.0,
         price=0.0,
         amount=mapped.amount,
@@ -1694,6 +1705,11 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
     # payload changed under the same event id.
     revisions: list[tuple[Transaction, Transaction]] = []
 
+    fx_event_ids = frozenset(fx_conversion_event_ids([
+        e.raw_payload or {} for e in events
+        if e.stream == "cash" and not _is_csv_covered(e, csv_covered_through)
+    ]))
+
     for event in events:
         if _is_csv_covered(event, csv_covered_through):
             if event.stream == "orders":
@@ -1712,7 +1728,7 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
                 orders_invalid += 1
                 continue
         elif event.stream == "cash":
-            outcome, txn = _finalize_cash_event(event, run)
+            outcome, txn = _finalize_cash_event(event, run, fx_event_ids)
             if outcome == "unsupported":
                 # A first finalization sent such a run to review above; this is
                 # only reachable when retrying an already-completed run.
