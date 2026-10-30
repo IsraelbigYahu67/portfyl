@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from bisect import bisect_left
 from datetime import date, timedelta
 from collections import defaultdict
+from typing import Callable
 from uuid import UUID
 import yfinance as yf
 import pandas as pd
@@ -25,14 +26,20 @@ RISK_FREE_RATE = 0.05
 TRADING_DAYS = 252
 
 
-def _load_close_panel(yf_tickers: list[str], start: date) -> pd.DataFrame:
+def _load_close_panel(
+    yf_tickers: list[str],
+    start: date,
+    keep_split: Callable[[str, date], bool] | None = None,
+) -> pd.DataFrame:
     """Download as-traded close prices for the given Yahoo symbols. Returns a
     DataFrame indexed by trading day, columns = yf_tickers (or fewer if Yahoo
     has no data for some). Dividends are represented by cash transactions, so
     dividend-adjusted closes would double-count them. Yahoo's Close still
     adjusts for splits with auto_adjust=False; undo that adjustment because
     broker transactions hold the share count applicable on each historical day.
-    Empty DataFrame on failure."""
+    keep_split(yf_ticker, split_day) returning True leaves that one split
+    adjusted, for a ledger that already holds post-split share counts (see
+    _ledger_normalized_splits). Empty DataFrame on failure."""
     if not yf_tickers:
         return pd.DataFrame()
     try:
@@ -65,11 +72,54 @@ def _load_close_panel(yf_tickers: list[str], start: date) -> pd.DataFrame:
         if ticker not in splits:
             continue
         ratios = splits[ticker].reindex(closes.index).fillna(0.0).replace(0.0, 1.0)
+        if keep_split is not None:
+            for day in ratios.index[ratios != 1.0]:
+                if keep_split(ticker, day.date()):
+                    ratios[day] = 1.0
         # A split changes the units from its effective date onwards. Only
         # later splits must be undone for a particular historical close.
         future_factor = ratios.iloc[::-1].cumprod().iloc[::-1].shift(-1, fill_value=1.0)
         closes[ticker] = closes[ticker] * future_factor
     return closes.ffill().dropna(how="all")
+
+
+# Brokers and Yahoo can date the same split a few days apart.
+_SPLIT_ROW_WINDOW = timedelta(days=5)
+
+
+def _ledger_normalized_splits(transactions: list) -> Callable[[str, date], bool]:
+    """Tell which Yahoo splits the ledger already holds in post-split units.
+
+    A ledger records a split one of two ways. CSV and Flex imports keep the
+    as-traded share counts and add split_close/split_open rows. The T212 API
+    sync instead rescales every earlier buy/sell to post-split units and adds
+    no rows (t212_corporate_actions.apply_splits). The first needs Yahoo's
+    split adjustment undone; the second needs it kept, or the rescaled shares
+    are valued at the pre-split price until the split day (BKNG 25:1).
+    A split counts as normalized when shares were held going into it and no
+    split row is near its date. A position closed before the split has
+    as-traded rows, so it still gets the undo."""
+    rows_by_symbol: dict[str, list] = defaultdict(list)
+    for t in sorted(transactions, key=chronological_key):
+        if t.ticker and t.type in ("buy", "sell", "split_open", "split_close"):
+            rows_by_symbol[yf_symbol(t.ticker)].append(t)
+
+    def normalized(yf_ticker: str, split_day: date) -> bool:
+        rows = rows_by_symbol.get(yf_ticker, [])
+        if any(t.type in ("split_open", "split_close")
+               and abs(t.date - split_day) <= _SPLIT_ROW_WINDOW for t in rows):
+            return False
+        held = 0.0
+        for t in rows:
+            if t.date >= split_day:
+                break
+            if t.type in ("buy", "split_open"):
+                held += t.shares or 0.0
+            else:
+                held = max(0.0, held - (t.shares or 0.0))
+        return held > 1e-9
+
+    return normalized
 
 
 def _ticker_currencies(originals: list[str]) -> dict[str, str]:
@@ -664,7 +714,9 @@ def _build_value_cashflow_series(
         yf_to_orig.setdefault(yf_symbol(t), t)
     yf_tickers = list(yf_to_orig.keys())
 
-    closes = _load_close_panel(yf_tickers, start_date)
+    closes = _load_close_panel(
+        yf_tickers, start_date, keep_split=_ledger_normalized_splits(transactions)
+    )
     if closes.empty:
         return None, None, None
     closes = closes.rename(columns=yf_to_orig)
@@ -877,7 +929,8 @@ def _basket_daily_returns(components: list[dict], start_date: date, target_index
     yf_to_orig: dict[str, str] = {}
     for c in components:
         yf_to_orig.setdefault(yf_symbol(c["ticker"]), c["ticker"])
-    closes = _load_close_panel(list(yf_to_orig.keys()), start_date)
+    # Returns need one continuous unit, so every split stays adjusted.
+    closes = _load_close_panel(list(yf_to_orig.keys()), start_date, keep_split=lambda *_: True)
     if closes.empty:
         return pd.Series(dtype=float)
     closes = closes.rename(columns=yf_to_orig)
@@ -1497,7 +1550,8 @@ def correlation_matrix(
         yf_to_orig.setdefault(yf_symbol(t), t)
     yf_tickers = list(yf_to_orig.keys())
 
-    closes = _load_close_panel(yf_tickers, start_date)
+    # Returns need one continuous unit, so every split stays adjusted.
+    closes = _load_close_panel(yf_tickers, start_date, keep_split=lambda *_: True)
     if closes.empty:
         return {"tickers": [], "matrix": []}
     closes = closes.rename(columns=yf_to_orig)

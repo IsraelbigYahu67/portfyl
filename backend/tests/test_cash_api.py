@@ -20,6 +20,7 @@ from routers.cash import (
 from routers.portfolio import get_summary, get_transactions, get_performance
 from routers.analytics import (
     sector_breakdown,
+    _basket_daily_returns,
     _build_value_cashflow_series,
     _lifetime_money_weighted,
     _modified_dietz_daily_returns,
@@ -868,6 +869,64 @@ def test_yahoo_split_adjusted_closes_do_not_create_historical_profit(
     assert V.tolist() == pytest.approx([1000, 1000, 1000])
     assert C.tolist() == pytest.approx([1000, 0, 0])
     assert daily.tolist() == pytest.approx([0, 0])
+
+
+def _split_panel(adjusted_closes, split_ratio):
+    idx = pd.date_range("2024-01-01", periods=len(adjusted_closes), freq="D")
+    splits = [0] * (len(adjusted_closes) - 1) + [split_ratio]
+    return pd.DataFrame({
+        "Close": adjusted_closes,
+        "Stock Splits": splits,
+        "Dividends": [0] * len(adjusted_closes),
+    }, index=idx)
+
+
+def test_split_already_normalized_in_ledger_keeps_yahoo_adjusted_closes():
+    """The T212 API sync rescales pre-split buys to post-split units and adds no
+    split rows (t212_corporate_actions.apply_splits). Undoing Yahoo's split
+    adjustment then values those shares at the pre-split price (BKNG 25:1)."""
+    txns = [
+        make_txn(ticker=None, type="deposit", shares=0, price=0, amount=1000,
+                 currency="USD", date=date(2024, 1, 1)),
+        # As traded: 10 shares at 2.4; stored after the 2:1 split as 20 at 1.2.
+        make_txn("BKNG", "buy", 20, 1.2, currency="USD", cash_amount=24,
+                 cash_currency="USD", date=date(2024, 1, 2)),
+    ]
+    with patch("routers.analytics.yf.download", return_value=_split_panel([1.2, 1.2, 1.2], 2)), \
+         patch("routers.analytics.market_data.get_infos", return_value={"BKNG": {"currency": "USD"}}):
+        V, C, _ = _build_value_cashflow_series(txns, date(2024, 1, 1))
+        daily = _modified_dietz_daily_returns(V, C, date(2024, 1, 1))
+
+    assert V.tolist() == pytest.approx([1000, 1000, 1000])
+    assert daily.tolist() == pytest.approx([0, 0])
+
+
+def test_position_closed_before_split_still_uses_as_traded_closes():
+    """No split rows, but nothing was held across the split: the rows are as
+    traded, so Yahoo's adjustment must still be undone."""
+    txns = [
+        make_txn(ticker=None, type="deposit", shares=0, price=0, amount=1000,
+                 currency="USD", date=date(2024, 1, 1)),
+        make_txn("BKNG", "buy", 10, 2.4, currency="USD", cash_amount=24,
+                 cash_currency="USD", date=date(2024, 1, 1)),
+        make_txn("BKNG", "sell", 10, 2.4, currency="USD", cash_amount=24,
+                 cash_currency="USD", date=date(2024, 1, 2)),
+    ]
+    with patch("routers.analytics.yf.download", return_value=_split_panel([1.2, 1.2, 1.2], 2)), \
+         patch("routers.analytics.market_data.get_infos", return_value={"BKNG": {"currency": "USD"}}):
+        V, C, _ = _build_value_cashflow_series(txns, date(2024, 1, 1))
+
+    assert V.tolist() == pytest.approx([1000, 1000, 1000])
+
+
+def test_basket_returns_do_not_show_a_split_as_a_crash():
+    with patch("routers.analytics.yf.download", return_value=_split_panel([1.2, 1.2, 1.2], 2)):
+        returns = _basket_daily_returns(
+            [{"ticker": "BKNG", "weight": 1}], date(2024, 1, 1),
+            pd.date_range("2024-01-01", periods=3, freq="D"),
+        )
+
+    assert returns.dropna().tolist() == pytest.approx([0, 0])
 
 
 def test_modified_dietz_weights_external_flow_and_geometrically_links_days():
