@@ -172,8 +172,8 @@ cards and tiles still (Allocation does this: its data/text blocks do not move).
   raised active pill (brand-colored bold text).
 - Delta/gain-loss: tinted capsule or colored text, always with arrow or sign.
 - Badges and dialogs: status labels use `components/ui/Badge.jsx`, a pill with
-  five tones (`gain`, `loss`, `warn` = `--chart-3`, `neutral` = `--chart-8`,
-  `brand`) drawn as a 16% `color-mix` tint of the tone token with text in the
+  six tones (`gain`, `loss`, `warn` = `--chart-3`, `info` = `--chart-4` blue,
+  `neutral` = `--chart-8`, `brand`) drawn as a 16% `color-mix` tint of the tone token with text in the
   token, 12px semibold; never Tailwind palette classes. Dialogs use
   `components/ui/Modal.jsx`: an overlay plus a `.card` panel with
   `role="dialog"`, `aria-modal`, `aria-labelledby={titleId}`, focus trapped and

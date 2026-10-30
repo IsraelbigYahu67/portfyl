@@ -4,6 +4,7 @@ const TONE_TOKEN = {
   gain: "var(--gain)",
   loss: "var(--loss)",
   warn: "var(--chart-3)",
+  info: "var(--chart-4)",
   neutral: "var(--chart-8)",
   brand: "var(--brand)",
 };

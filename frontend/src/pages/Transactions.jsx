@@ -14,7 +14,7 @@ import SegmentedControl from "../components/ui/SegmentedControl";
 import { formatMoney, formatQuantity, formatTableDate } from "../lib/format";
 import { formatValidationDetail, uiLanguage } from "../lib/validationDetail";
 
-const TYPE_TONES = { buy: "brand", sell: "neutral", dividend: "gain" };
+const TYPE_TONES = { buy: "gain", sell: "loss", dividend: "info" };
 const TYPE_LABELS = { buy: "Buy", sell: "Sell", dividend: "Dividend" };
 const TYPE_OPTIONS = [
   { value: "all", label: "All" },
@@ -282,8 +282,8 @@ export default function Transactions() {
             <table className="w-full">
               <thead className="border-b border-surface-border">
                 <tr>
-                  {["Date", "Ticker", "Type", "Shares", "Price", "Total", "Currency", "Notes", "Note", ""].map((h) => (
-                    <th key={h} scope="col" className="text-left px-4 py-3 whitespace-nowrap text-xs font-medium text-muted uppercase tracking-wider">
+                  {["Date", "Ticker", "Type", "Shares", "Price", "Total", "Currency", "Notes", "Note", ""].map((h, i) => (
+                    <th key={h || i} scope="col" className={`${[3, 4, 5, 9].includes(i) ? "text-right" : i === 8 ? "text-center" : "text-left"} px-4 py-3 whitespace-nowrap text-xs font-medium text-muted uppercase tracking-wider`}>
                       {h}
                     </th>
                   ))}

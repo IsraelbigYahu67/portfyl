@@ -11,7 +11,9 @@ const colorFor = (item, i) =>
 
 // legendColumns=2 flows the legend into two newspaper-style columns (read
 // down, then across) — used by the wide Positions card to halve its height.
-export default function BreakdownChart({ title, data, currencyLabel, legendColumns = 1, nameWidth = 70 }) {
+// stacked puts the legend in one column beneath the donut (narrow cards that
+// sit side by side) instead of beside it.
+export default function BreakdownChart({ title, data, currencyLabel, legendColumns = 1, nameWidth = 70, stacked = false }) {
   const fmt = (n) => {
     if (n == null) return "—";
     const sign = n < 0 ? "-" : "";
@@ -27,12 +29,12 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
   const slices = withSliceCorners(data, { valueKey: "weight", inner: 40, outer: 75, corner: 7 });
 
   return (
-    <div className="card">
+    <div className="card min-w-0">
       <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider">
         {title}
       </h2>
-      <div className="flex flex-col items-stretch gap-6 sm:flex-row sm:items-start">
-        <div className="pie-pop w-48 h-48 shrink-0 self-center sm:self-auto">
+      <div className={`flex flex-col items-stretch gap-6 ${stacked ? "" : "sm:flex-row sm:items-start"}`}>
+        <div className={`pie-pop w-48 h-48 shrink-0 self-center ${stacked ? "" : "sm:self-auto"}`}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
@@ -78,13 +80,15 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
           </ResponsiveContainer>
         </div>
         {(() => {
+          // Names are shown in full; the column is sized to the longest one.
+          const longestName = Math.max(...data.map((d) => String(d.name).length)) * 0.9;
           const renderRow = (item, i) => (
             <div key={item.name} className="flex items-center gap-2 text-sm">
               <div
                 className="w-2.5 h-2.5 rounded-full shrink-0"
                 style={{ backgroundColor: colorFor(item, i) }}
               />
-              <span className="text-ink truncate shrink-0" style={{ width: `${nameWidth}px` }}>{item.name}</span>
+              <span className="text-ink whitespace-nowrap shrink-0" style={{ minWidth: `${nameWidth}px`, width: `${longestName}ch` }}>{item.name}</span>
               <span className="flex items-baseline shrink-0">
                 <span className="tabular-nums text-muted w-14 text-right">{item.weight}%</span>
                 <span className="tabular-nums text-muted text-xs ml-[10px]">({fmt(item.value)})</span>

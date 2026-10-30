@@ -60,7 +60,7 @@ describe("Allocation composition decisions", () => {
     });
   });
 
-  it("shows a broker snapshot separately from ledger-derived allocation", async () => {
+  it("does not show the broker snapshot bar (it lives in Settings only)", async () => {
     t212Mocks.useT212Sync.mockReturnValue({
       connected: true,
       positionsQuery: {
@@ -70,12 +70,9 @@ describe("Allocation composition decisions", () => {
     });
     renderPage();
 
-    const snapshot = await screen.findByRole("region", { name: "Trading 212 current positions" });
-    expect(snapshot).not.toHaveTextContent("TSLA");
-    fireEvent.click(screen.getByRole("button", { name: "Show positions" }));
-    expect(snapshot).toHaveTextContent("TSLA");
-    expect(screen.getByText(/allocation charts use imported transactions/i)).toBeInTheDocument();
-    expect(await screen.findByText(/Largest position/i)).toBeInTheDocument();
+    expect(await screen.findByText("Positions")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Trading 212 current positions" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/allocation charts use imported transactions/i)).not.toBeInTheDocument();
   });
 
   it("shows the target allocation section", async () => {
@@ -102,19 +99,15 @@ describe("Allocation composition decisions", () => {
     );
   });
 
-  it("offers composition categories and switches the chart and list", async () => {
+  it("shows positions on top and sector, asset type and currency side by side", async () => {
     renderPage();
 
-    expect(await screen.findByText(/Largest position/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Position" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sector" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Asset type" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Currency" })).toBeInTheDocument();
-    expect(screen.getByText("Positions")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Sector" }));
-    expect(await screen.findByText("Sector Allocation")).toBeInTheDocument();
-    expect(screen.getAllByText("Technology").length).toBeGreaterThan(0);
+    expect(await screen.findByText("Positions")).toBeInTheDocument();
+    expect(screen.getByText("Sector Allocation")).toBeInTheDocument();
+    expect(screen.getByText("Asset Type")).toBeInTheDocument();
+    expect(screen.getByText("Currency Exposure")).toBeInTheDocument();
+    expect(screen.queryByText(/Largest position/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sector" })).not.toBeInTheDocument();
   });
 
   it("marks a holding whose price is out of date or missing", async () => {
@@ -132,43 +125,21 @@ describe("Allocation composition decisions", () => {
     );
   });
 
-  it("separates active and sold positions", async () => {
+  it("lists sold positions in their own section below All Holdings, before targets", async () => {
     renderPage();
-    await screen.findByText(/Largest position/i);
+    await screen.findByText("Positions");
 
-    expect(screen.getByRole("list", { name: "Full allocation breakdown" })).toBeInTheDocument();
+    expect(screen.queryByText("Full Breakdown")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sold positions" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Sold positions" }));
-    await waitFor(() =>
-      expect(screen.queryByRole("list", { name: "Full allocation breakdown" })).not.toBeInTheDocument()
-    );
-    expect(screen.getByText("Value if held")).toBeInTheDocument();
-    expect(screen.getAllByText("OLD").length).toBeGreaterThan(0);
-  });
-
-  it("sold-position badges and if-held notes use financial-meta, never text-[10px]", async () => {
-    renderPage();
-    await screen.findByText(/Largest position/i);
-    fireEvent.click(screen.getByRole("button", { name: "Sold positions" }));
-    await screen.findByText("Value if held");
-
-    expect(screen.getByText("Sold")).toHaveClass("financial-meta");
-    expect(screen.getByText(/if held: \+\$5\.00/)).toHaveClass("financial-meta");
-    expect(screen.getByText(/if held: \+2\.00%/)).toHaveClass("financial-meta");
-  });
-
-  it("All Holdings lists only active positions in the Active view", async () => {
-    renderPage();
-    await screen.findByText(/Largest position/i);
-
-    expect(screen.getByRole("columnheader", { name: /Ticker/ })).toBeInTheDocument();
-    expect(screen.getByText("Apple")).toBeInTheDocument();
-    expect(screen.queryByText("Old Co")).not.toBeInTheDocument();
-    expect(screen.queryByText("Sold")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Sold positions" }));
-    await screen.findByText("Value if held");
-    expect(screen.getByText("Sold")).toBeInTheDocument();
+    const holdings = screen.getByRole("table", { name: "All holdings" });
+    const sold = screen.getByRole("table", { name: "Sold positions" });
+    const targets = screen.getByRole("region", { name: "Target allocation" });
+    expect(within(holdings).queryByText("OLD")).not.toBeInTheDocument();
+    expect(within(sold).getByText("OLD")).toBeInTheDocument();
+    expect(within(sold).getByText("Sold")).toHaveClass("financial-meta");
+    expect(holdings.compareDocumentPosition(sold) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(sold.compareDocumentPosition(targets) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("legend percentages share one precision", async () => {
@@ -177,7 +148,7 @@ describe("Allocation composition decisions", () => {
       { ticker: "BBB", name: "Bbb", shares: 1, avg_cost: 1, current_price: 1, currency: "USD", market_value: 81, weight: 8.12, closed: false, pnl: 1, pnl_percent: 1, dividends: 0 },
     ]);
     renderPage();
-    await screen.findByText(/Largest position/i);
+    await screen.findByText("Positions");
 
     const table = screen.getByRole("table", { name: "All holdings" });
     expect(within(table).getByText("6.00%")).toBeInTheDocument();
@@ -189,12 +160,12 @@ describe("Allocation composition decisions", () => {
     const visible = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(400);
     try {
       renderPage();
-      await screen.findByText(/Largest position/i);
+      await screen.findByText("Positions");
 
       const scroller = screen.getByRole("table", { name: "All holdings" }).parentElement;
       await waitFor(() => expect(scroller).toHaveAttribute("data-scroll-cue", "true"));
       expect(scroller.style.maskImage || scroller.style.webkitMaskImage).toMatch(/linear-gradient/);
-      expect(screen.getByRole("columnheader", { name: /Ticker/ })).toHaveClass("sticky");
+      expect(within(screen.getByRole("table", { name: "All holdings" })).getByRole("columnheader", { name: /Ticker/ })).toHaveClass("sticky");
     } finally {
       widths.mockRestore();
       visible.mockRestore();

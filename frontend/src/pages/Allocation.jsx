@@ -7,12 +7,8 @@ import { allocationRows, boundedAllocationRows } from "../lib/allocationBreakdow
 import { TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { TickerLink, useStockDetail } from "../components/StockDetail";
 import BreakdownChart from "../components/BreakdownChart";
-import AllocationBreakdownList from "../components/AllocationBreakdownList";
-import SegmentedControl from "../components/ui/SegmentedControl";
 import { AsyncSection } from "../components/ui";
-import BrokerPositionSnapshot from "../components/BrokerPositionSnapshot";
 import AllocationTargets from "../components/AllocationTargets";
-import { useT212Sync } from "../hooks/useT212Sync";
 import { hasPriceProblem, priceFreshnessTitle } from "../lib/priceFreshness";
 
 const fmtPct = (n) => formatPercent(n);
@@ -44,13 +40,14 @@ function useScrollCue(el, dependency) {
 export default function Allocation() {
   const { currency } = useCurrency();
   const currentPortfolio = usePortfolio()?.current;
-  const t212 = useT212Sync({ portfolioId: currentPortfolio?.id, currency });
   const { openStock } = useStockDetail();
 
   // Portfolio-level money (value, P&L, dividends) is shown in the display
   // currency (CZK by default). Per-share prices (avg cost, current price) are
   // shown in each stock's *native* currency — a US stock's price is $, not Kč.
   const fmt = (n) => formatMoney(n, currency);
+  const missedOut = (h) => (h.pnl_if_held ?? 0) - (h.pnl ?? 0);
+  const fmtSigned = (n) => (n >= 0 ? `+${fmt(n)}` : fmt(n));
   const fmtNative = (n, code) => formatMoney(n, code || currency);
 
   const {
@@ -74,30 +71,47 @@ export default function Allocation() {
     queryFn: () => fetchSectorBreakdown(currency),
   });
 
-  const [category, setCategory] = useState("position");
-  const [positionState, setPositionState] = useState("active");
-
-  const categoryOptions = useMemo(() => {
-    const options = [
-      { value: "position", label: "Position" },
-      { value: "sector", label: "Sector" },
-      { value: "asset_type", label: "Asset type" },
-      { value: "currency", label: "Currency" },
-    ];
-    if (breakdown?.accounts?.length) options.push({ value: "account", label: "Account" });
-    return options;
-  }, [breakdown]);
-
-  const rows = useMemo(
-    () => allocationRows({ category, holdings, breakdown }),
-    [category, holdings, breakdown]
+  // Positions get a full-width card; the other breakdowns sit side by side
+  // beneath it (plus Account when the portfolio has several).
+  const positionRows = useMemo(
+    () => boundedAllocationRows(allocationRows({ category: "position", holdings, breakdown })),
+    [holdings, breakdown]
   );
-  const bounded = useMemo(() => boundedAllocationRows(rows), [rows]);
+  const sideCategories = useMemo(() => {
+    const list = ["sector", "asset_type", "currency"];
+    if (breakdown?.accounts?.length) list.push("account");
+    return list.map((category) => ({
+      category,
+      rows: boundedAllocationRows(allocationRows({ category, holdings, breakdown })),
+    }));
+  }, [holdings, breakdown]);
   const soldHoldings = useMemo(() => holdings.filter((h) => h.closed), [holdings]);
-  const top3Weight = useMemo(
-    () => Math.round(rows.slice(0, 3).reduce((sum, r) => sum + r.weight, 0) * 10) / 10,
-    [rows]
+  // Sold positions can be ordered by their last three columns; null sorts last.
+  const [soldSort, setSoldSort] = useState(null);
+  const SOLD_SORT_VALUE = {
+    pnl_if_held: (h) => h.pnl_if_held,
+    missed_out: (h) => (h.pnl != null && h.pnl_if_held != null ? h.pnl_if_held - h.pnl : null),
+    pnl_if_held_pct: (h) => h.pnl_if_held_pct,
+  };
+  const soldSorted = useMemo(() => {
+    if (!soldSort) return soldHoldings;
+    const value = SOLD_SORT_VALUE[soldSort.key];
+    const dir = soldSort.dir === "asc" ? 1 : -1;
+    return [...soldHoldings].sort((a, b) => {
+      const x = value(a);
+      const y = value(b);
+      if (x == null && y == null) return 0;
+      if (x == null) return 1;
+      if (y == null) return -1;
+      return (x - y) * dir;
+    });
+  }, [soldHoldings, soldSort]);
+  const missedOutTotal = useMemo(
+    () => soldHoldings.reduce((sum, h) => sum + (SOLD_SORT_VALUE.missed_out(h) ?? 0), 0),
+    [soldHoldings]
   );
+  const toggleSoldSort = (key) =>
+    setSoldSort((s) => (s?.key === key && s.dir === "desc" ? { key, dir: "asc" } : { key, dir: "desc" }));
   const CATEGORY_TITLE = {
     position: "Positions",
     sector: "Sector Allocation",
@@ -108,9 +122,8 @@ export default function Allocation() {
 
   const [sort, setSort] = useState({ key: "market_value", dir: "desc" });
 
-  // The Active view lists open positions only; sold ones belong to the Sold view.
-  const showSold = category === "position" && positionState === "sold";
-  const visibleHoldings = showSold ? holdings : holdings.filter((h) => !h.closed);
+  // All Holdings lists open positions only; sold ones have their own section.
+  const visibleHoldings = holdings.filter((h) => !h.closed);
   const [scroller, setScroller] = useState(null);
   const scrollCue = useScrollCue(scroller, visibleHoldings.length);
 
@@ -125,7 +138,7 @@ export default function Allocation() {
   const Th = ({ label, k, pinned = false }) => (
     <th
       onClick={() => toggle(k)}
-      className={`text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider cursor-pointer hover:text-ink select-none ${pinned ? "sticky left-0 z-[1] bg-surface-card" : ""}`}
+      className={`${label === "Company" || label === "Ticker" ? "text-left" : "text-center"} px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider cursor-pointer hover:text-ink select-none ${pinned ? "sticky left-0 z-[1] bg-surface-card" : ""}`}
     >
       {label}
       {sort.key === k && <span className="ml-1">{sort.dir === "asc" ? "↑" : "↓"}</span>}
@@ -146,13 +159,6 @@ export default function Allocation() {
         </button>
       </div>
 
-      {t212.connected && (
-        <div className="space-y-2">
-          <BrokerPositionSnapshot query={t212.positionsQuery} variant="summary" />
-          <p className="text-xs text-muted">Allocation charts use imported transactions and may lag behind this current snapshot.</p>
-        </div>
-      )}
-
       <AsyncSection
         isLoading={breakdownLoading || holdingsLoading}
         error={holdingsError || breakdownError}
@@ -170,88 +176,26 @@ export default function Allocation() {
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <SegmentedControl
-              aria-label="Allocation category"
-              value={category}
-              onChange={setCategory}
-              options={categoryOptions}
-            />
-            {category === "position" && (
-              <SegmentedControl
-                aria-label="Position state"
-                value={positionState}
-                onChange={setPositionState}
-                options={[
-                  { value: "active", label: "Active positions" },
-                  { value: "sold", label: "Sold positions" },
-                ]}
-              />
-            )}
-          </div>
-
-          {category === "position" && positionState === "sold" ? (
-            <div className="card p-0 overflow-hidden">
-              {soldHoldings.length === 0 ? (
-                <div className="text-muted text-sm text-center py-12">No sold positions.</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="border-b border-surface-border">
-                      <tr>
-                        {["Ticker", "Company", "Value if held", "P&L if held"].map((h) => (
-                          <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-surface-border">
-                      {soldHoldings.map((h) => (
-                        <tr key={h.ticker} onClick={() => openStock(h.ticker)} className="hover:bg-surface-hover transition-colors cursor-pointer bg-loss/10">
-                          <td className="px-4 py-3 font-mono font-bold text-sm">
-                            <TickerLink ticker={h.ticker} className="text-left">{h.ticker}</TickerLink>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-muted max-w-xs truncate">{h.name}</td>
-                          <td className="px-4 py-3 tabular-nums text-sm text-right text-muted">
-                            {h.pnl_if_held != null ? fmt(h.pnl_if_held) : "—"}
-                          </td>
-                          <td className={`px-4 py-3 tabular-nums text-sm text-right ${(h.pnl_if_held_pct ?? 0) >= 0 ? "text-gain" : "text-loss"}`}>
-                            {h.pnl_if_held_pct != null ? fmtPct(h.pnl_if_held_pct) : "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          ) : (
-            <>
-              <p className="text-xs text-muted">
-                Largest {category === "position" ? "position" : "category"}:{" "}
-                <span className="text-ink font-medium">{rows[0]?.name ?? "—"}</span>
-                {" · "}Top 3 combined: <span className="text-ink font-medium">{top3Weight}%</span>
-              </p>
+          <BreakdownChart
+            title={CATEGORY_TITLE.position}
+            data={positionRows}
+            currencyLabel={currency}
+            legendColumns={2}
+          />
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            {sideCategories.map(({ category, rows }) => (
               <BreakdownChart
+                key={category}
                 title={CATEGORY_TITLE[category]}
-                data={bounded}
+                data={rows}
                 currencyLabel={currency}
-                legendColumns={2}
-                nameWidth={category === "sector" ? 140 : 70}
+                stacked
+                nameWidth={category === "sector" ? 110 : 70}
               />
-              <div className="card">
-                <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider">
-                  Full Breakdown
-                </h2>
-                <AllocationBreakdownList rows={rows} currency={currency} />
-              </div>
-            </>
-          )}
+            ))}
+          </div>
         </>
       )}
-
-      {/* Keyed on the portfolio so an open target draft never survives a
-          portfolio switch and gets saved into the newly active portfolio. */}
-      <AllocationTargets key={currentPortfolio?.id ?? "none"} currency={currency} />
 
       <div>
         <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider">
@@ -302,12 +246,12 @@ export default function Allocation() {
                           <TickerLink ticker={h.ticker} className="text-left">{h.ticker}</TickerLink>
                           {closed && <span className="ml-1.5 financial-meta font-medium text-loss uppercase">Sold</span>}
                         </td>
-                        <td className={`px-4 py-3 text-sm max-w-xs truncate ${closed ? "text-muted" : "text-ink"}`}>{h.name}</td>
-                        <td className={`px-4 py-3 tabular-nums text-sm text-right ${closed ? "text-muted" : ""}`}>
+                        <td className={`px-4 py-3 text-sm max-w-xs truncate mx-auto ${closed ? "text-muted" : "text-ink"}`}>{h.name}</td>
+                        <td className={`px-4 py-3 tabular-nums text-sm text-center ${closed ? "text-muted" : ""}`}>
                           {closed ? "—" : h.shares.toLocaleString()}
                         </td>
-                        <td className={`px-4 py-3 tabular-nums text-sm text-right ${closed ? "text-muted" : ""}`}>{fmtNative(h.avg_cost, h.currency)}</td>
-                        <td className={`px-4 py-3 tabular-nums text-sm text-right font-medium ${closed ? "text-muted" : ""}`}>
+                        <td className={`px-4 py-3 tabular-nums text-sm text-center ${closed ? "text-muted" : ""}`}>{fmtNative(h.avg_cost, h.currency)}</td>
+                        <td className={`px-4 py-3 tabular-nums text-sm text-center font-medium ${closed ? "text-muted" : ""}`}>
                           <div title={closed ? undefined : priceFreshnessTitle(h) ?? undefined}>
                             {fmtNative(h.current_price, h.currency)}
                           </div>
@@ -325,13 +269,13 @@ export default function Allocation() {
                             </div>
                           )}
                         </td>
-                        <td className={`px-4 py-3 tabular-nums text-sm text-right font-semibold ${closed ? "text-muted" : ""}`}>
+                        <td className={`px-4 py-3 tabular-nums text-sm text-center font-semibold ${closed ? "text-muted" : ""}`}>
                           {closed ? "—" : fmt(h.market_value)}
                         </td>
-                        <td className={`px-4 py-3 tabular-nums text-sm text-right font-medium ${up ? "text-gain" : "text-loss"}`}>
-                          <span className="flex items-center justify-end gap-1">
+                        <td className={`px-4 py-3 tabular-nums text-sm text-center font-medium ${up ? "text-gain" : "text-loss"}`}>
+                          <span className="flex items-center justify-center gap-1">
                             {up ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
-                            {fmt(h.pnl)}
+                            {fmtSigned(h.pnl)}
                           </span>
                           {closed && h.pnl_if_held != null && (
                             <div
@@ -342,7 +286,7 @@ export default function Allocation() {
                             </div>
                           )}
                         </td>
-                        <td className={`px-4 py-3 tabular-nums text-sm text-right font-medium ${up ? "text-gain" : "text-loss"}`}>
+                        <td className={`px-4 py-3 tabular-nums text-sm text-center font-medium ${up ? "text-gain" : "text-loss"}`}>
                           {fmtPct(h.pnl_percent)}
                           {closed && h.pnl_if_held_pct != null && (
                             <div
@@ -352,19 +296,19 @@ export default function Allocation() {
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right">
+                        <td className="px-4 py-3 text-sm text-center">
                           {closed ? (
                             <span className="text-muted text-xs">—</span>
                           ) : (
-                            <div className="flex items-center justify-end gap-2">
+                            <div className="flex items-center justify-center gap-2">
                               <div className="w-16 bg-surface-hover rounded-full h-1.5">
                                 <div className="bg-brand rounded-full h-1.5" style={{ width: `${h.weight}%` }} />
                               </div>
-                              <span className="tabular-nums text-muted w-12 text-right">{formatPercent(h.weight, { sign: false, digits: 2 })}</span>
+                              <span className="tabular-nums text-muted w-12 text-center">{formatPercent(h.weight, { sign: false, digits: 2 })}</span>
                             </div>
                           )}
                         </td>
-                        <td className={`px-4 py-3 tabular-nums text-sm text-right ${closed ? "text-muted" : "text-muted"}`}>
+                        <td className={`px-4 py-3 tabular-nums text-sm text-center ${closed ? "text-muted" : "text-muted"}`}>
                           {fmt(h.dividends)}
                         </td>
                       </tr>
@@ -376,6 +320,75 @@ export default function Allocation() {
           </div>
         )}
       </div>
+      <div>
+        <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider">
+          Sold Positions
+        </h2>
+        <div className="card p-0 overflow-hidden">
+          {soldHoldings.length === 0 ? (
+            <div className="text-muted text-sm text-center py-12">No sold positions.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full" aria-label="Sold positions">
+                <thead className="border-b border-surface-border">
+                  <tr>
+                    {[
+                      ["Ticker"],
+                      ["Company"],
+                      ["Sold for"],
+                      ["Return if not sold", "pnl_if_held"],
+                      ["Missed out on", "missed_out"],
+                      ["P&L if held", "pnl_if_held_pct"],
+                    ].map(([label, key]) => (
+                      <th
+                        key={label}
+                        onClick={key ? () => toggleSoldSort(key) : undefined}
+                        aria-sort={key && soldSort?.key === key ? (soldSort.dir === "asc" ? "ascending" : "descending") : undefined}
+                        className={`relative ${label === "Company" || label === "Ticker" ? "text-left" : "text-center"} px-4 pt-3 pb-6 text-xs font-medium text-muted uppercase tracking-wider ${key ? "cursor-pointer hover:text-ink select-none" : ""}`}
+                      >
+                        {label}
+                        {key && soldSort?.key === key && <span className="ml-1">{soldSort.dir === "asc" ? "↑" : "↓"}</span>}
+                        {key === "missed_out" && (
+                          <div className={`financial-meta absolute inset-x-0 bottom-1.5 font-normal normal-case tracking-normal ${missedOutTotal >= 0 ? "text-gain" : "text-loss"}`}>
+                            Total: {fmtSigned(missedOutTotal)}
+                          </div>
+                        )}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-border">
+                  {soldSorted.map((h) => (
+                    <tr key={h.ticker} onClick={() => openStock(h.ticker)} className="hover:bg-surface-hover transition-colors cursor-pointer bg-loss/10">
+                      <td className="px-4 py-3 font-mono font-bold text-sm">
+                        <TickerLink ticker={h.ticker} className="text-left">{h.ticker}</TickerLink>
+                        <span className="ml-1.5 financial-meta font-medium text-loss uppercase">Sold</span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted max-w-xs truncate mx-auto">{h.name}</td>
+                      <td className={`px-4 py-3 tabular-nums text-sm text-center ${(h.pnl ?? 0) >= 0 ? "text-gain" : "text-loss"}`}>
+                        {h.pnl != null ? fmtSigned(h.pnl) : "—"}
+                      </td>
+                      <td className={`px-4 py-3 tabular-nums text-sm text-center ${(h.pnl_if_held ?? 0) >= 0 ? "text-gain" : "text-loss"}`}>
+                        {h.pnl_if_held != null ? fmtSigned(h.pnl_if_held) : "—"}
+                      </td>
+                      <td className={`px-4 py-3 tabular-nums text-sm text-center ${missedOut(h) >= 0 ? "text-gain" : "text-loss"}`}>
+                        {h.pnl != null && h.pnl_if_held != null ? fmtSigned(missedOut(h)) : "—"}
+                      </td>
+                      <td className={`px-4 py-3 tabular-nums text-sm text-center ${(h.pnl_if_held_pct ?? 0) >= 0 ? "text-gain" : "text-loss"}`}>
+                        {h.pnl_if_held_pct != null ? fmtPct(h.pnl_if_held_pct) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Keyed on the portfolio so an open target draft never survives a
+          portfolio switch and gets saved into the newly active portfolio. */}
+      <AllocationTargets key={currentPortfolio?.id ?? "none"} currency={currency} />
         </>
       </AsyncSection>
     </div>

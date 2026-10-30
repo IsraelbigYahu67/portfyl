@@ -448,8 +448,8 @@ export default function TaxReport() {
                   <table className="w-full">
                     <thead className="border-b border-surface-border">
                       <tr>
-                        {["Ticker", "Buy Date", "Sell Date", "Shares", "Cost Basis", "Proceeds", "Gain/Loss", "Gain %", "Days Held", "Term", "CZ Tax"].map((h) => (
-                          <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">{h}</th>
+                        {["Ticker", "Buy Date", "Sell Date", "Shares", "Cost Basis", "Proceeds", "Gain/Loss", "Gain %", "Days Held", "Term", "CZ Tax"].map((h, i) => (
+                          <th key={h} className={`${i >= 3 && i <= 8 ? "text-right" : "text-left"} px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider`}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -527,8 +527,8 @@ export default function TaxReport() {
                   <table className="w-full">
                     <thead className="border-b border-surface-border">
                       <tr>
-                        {["Ticker", "Buy Date", "Shares", "Cost Basis", "Market Value", "Unrealized G/L", "Gain %", "Days Held", "Term", "Tax-free In"].map((h) => (
-                          <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">{h}</th>
+                        {["Ticker", "Buy Date", "Shares", "Cost Basis", "Market Value", "Unrealized G/L", "Gain %", "Days Held", "Term", "Tax-free In"].map((h, i) => (
+                          <th key={h} className={`${i >= 2 && i <= 7 ? "text-right" : "text-left"} px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider`}>{h}</th>
                         ))}
                       </tr>
                     </thead>

@@ -260,9 +260,9 @@ describe("Transactions (Clay UI)", () => {
       Array.from(container.querySelectorAll("[data-tone]"))
         .find((el) => el.textContent === label)
         ?.getAttribute("data-tone");
-    expect(tone("Buy")).toBe("brand");
-    expect(tone("Sell")).toBe("neutral");
-    expect(tone("Dividend")).toBe("gain");
+    expect(tone("Buy")).toBe("gain");
+    expect(tone("Sell")).toBe("loss");
+    expect(tone("Dividend")).toBe("info");
   });
 
   it("formats shares and dates with the display currency locale", async () => {

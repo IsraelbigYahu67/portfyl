@@ -23,7 +23,6 @@ import CompositionCard from "../components/dashboard/CompositionCard";
 import DividendBarsCard from "../components/dashboard/DividendBarsCard";
 import InsiderBuysCard from "../components/dashboard/InsiderBuysCard";
 import { snapshotNetWorth, summarizePassiveIncome, splitDividendForecast } from "../lib/dashboardSummaries";
-import BrokerPositionSnapshot from "../components/BrokerPositionSnapshot";
 import { useT212Sync } from "../hooks/useT212Sync";
 import { derivePortfolioAlerts } from "../lib/portfolioAlerts";
 import { priceFreshnessLine } from "../lib/priceFreshness";
@@ -309,13 +308,6 @@ export default function Dashboard() {
           />
         </div>
       </div>
-
-      {t212.connected && (
-        <div className="space-y-2">
-          <BrokerPositionSnapshot query={t212.positionsQuery} variant="summary" />
-          <p className="text-xs text-muted">Historical performance uses imported transactions and may lag behind this current snapshot.</p>
-        </div>
-      )}
 
       <DashboardGrid editing={editingLayout} onEditToggle={() => setEditingLayout(!editingLayout)}>
         {{
