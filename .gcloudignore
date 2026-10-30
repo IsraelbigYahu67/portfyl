@@ -17,4 +17,7 @@
 
 # Docs and deploy notes are not part of the image.
 deploy/
-docs/
+docs/*
+# The public /terms and /privacy pages are built from docs/legal/ (Dockerfile).
+!docs/legal/
+!docs/legal/**
