@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portfyl onboarding preview</title>
+<!--
+  THROWAWAY PROTOTYPE. One file, no backend, no network calls, no localStorage/cookies.
+  Everything lives in the `state` object below and disappears on reload.
+  Visual tokens copied from DESIGN.md (Clay appearance). Not part of the app build.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F3E8DA; --bg-subtle:#ECE0CF; --surface-card:rgba(250,245,237,.86); --surface-elev:rgba(253,249,243,.94);
+  --ink:#3A352C; --muted:#6B6353; --hairline:rgba(120,105,84,.14);
+  --brand:#6D7048; --brand-hover:#5C5F3C; --brand-light:#E4E5D3;
+  --gain:#4A6A3C; --loss:#9E4129;
+  --c1:#8C8639; --c2:#8A4719; --c3:#B08623; --c4:#3F5F5E; --c5:#282119; --c6:#DCC892; --c7:#2E2C10; --c8:#8A8478;
+  --raise:8px 8px 20px rgba(190,172,146,.45), -6px -6px 16px rgba(255,253,248,.95), inset 1px 1px 2px rgba(255,253,248,.9), inset -2px -2px 5px rgba(190,172,146,.22);
+  --raise-hover:9px 9px 22px rgba(190,172,146,.5), -7px -7px 18px rgba(255,253,248,.95), inset 1px 1px 2px rgba(255,253,248,.9), inset -2px -2px 5px rgba(190,172,146,.22);
+  --raise-sm:3px 3px 8px rgba(190,172,146,.42), -3px -3px 8px rgba(255,253,248,.9), inset 1px 1px 2px rgba(255,253,248,.85);
+  --inset-sm:inset 2px 2px 5px rgba(190,172,146,.42), inset -2px -2px 5px rgba(255,253,248,.85);
+  --raise-brand:4px 5px 12px rgba(109,112,72,.34), -3px -3px 8px rgba(255,253,248,.9), inset 1px 1px 3px rgba(255,255,255,.28), inset -2px -2px 5px rgba(50,52,30,.3);
+  --spring:cubic-bezier(.34,1.56,.64,1);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font:400 14px/1.5 Inter,system-ui,sans-serif; color:var(--ink); min-height:100vh;
+  background:
+    radial-gradient(900px 600px at 8% 0%, rgba(176,134,35,.14), transparent 60%),
+    radial-gradient(800px 600px at 100% 10%, rgba(140,134,57,.16), transparent 60%),
+    radial-gradient(900px 700px at 50% 110%, rgba(63,95,94,.10), transparent 60%),
+    var(--bg);
+  background-attachment:fixed;
+}
+h1,h2,h3,.display{font-family:"Plus Jakarta Sans",Inter,sans-serif; margin:0}
+.eyebrow{font:700 12px/1 "Plus Jakarta Sans",Inter,sans-serif; text-transform:uppercase; letter-spacing:.05em; color:var(--muted)}
+.muted{color:var(--muted)} .tnum{font-variant-numeric:tabular-nums}
+a{color:var(--brand); cursor:pointer; text-decoration:none} a:hover{text-decoration:underline}
+
+.screen{display:none; min-height:100vh; padding:72px 24px 48px; align-items:center; justify-content:center}
+.screen.active{display:flex; animation:fadeup .45s var(--spring)}
+@keyframes fadeup{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
+.col{width:100%; max-width:384px; display:grid; gap:24px}
+.col.wide{max-width:900px}
+.center{text-align:center; display:grid; gap:8px; justify-items:center}
+.center img{width:48px; height:48px}
+
+.card{background:var(--surface-card); border-radius:24px; padding:24px; box-shadow:var(--raise)}
+.stack{display:grid; gap:16px} .stack-sm{display:grid; gap:6px}
+label.eyebrow{display:block}
+.input{
+  width:100%; font:inherit; color:var(--ink); border:0; outline:0; background:var(--bg-subtle);
+  border-radius:16px; padding:12px 16px; box-shadow:var(--inset-sm); min-height:44px;
+}
+.input:focus-visible{outline:3px solid var(--brand); outline-offset:2px}
+.btn{
+  font:600 14px/1 Inter,sans-serif; border:0; border-radius:999px; min-height:44px; padding:0 22px; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; gap:8px; transition:transform .25s var(--spring), box-shadow .25s;
+}
+.btn:hover{transform:translateY(-1px) scale(1.04)} .btn:active{transform:scale(.97)}
+.btn:focus-visible{outline:3px solid var(--brand); outline-offset:2px}
+.btn:disabled{opacity:.6; cursor:default; transform:none}
+.btn-primary{background:var(--brand); color:#FBF7EF; box-shadow:var(--raise-brand)} .btn-primary:hover{background:var(--brand-hover)}
+.btn-ghost{background:var(--surface-elev); color:var(--ink); box-shadow:var(--raise-sm)}
+.btn.full{width:100%}
+.err{color:var(--loss); font-size:12px; margin:0}
+.ok{color:var(--gain); font-size:12px; margin:0}
+.divider{display:flex; align-items:center; gap:12px; color:var(--muted); font-size:12px}
+.divider::before,.divider::after{content:""; flex:1; height:1px; background:var(--hairline)}
+.small{font-size:12px}
+
+.choices{display:grid; gap:20px; grid-template-columns:repeat(3,1fr)}
+@media (max-width:760px){.choices{grid-template-columns:1fr}}
+.choice{
+  text-align:left; border:0; font:inherit; color:inherit; cursor:pointer; display:grid; gap:16px; align-content:start;
+  transition:transform .3s var(--spring), box-shadow .3s;
+}
+.choice:hover{transform:translateY(-4px) scale(1.01); box-shadow:var(--raise-hover)}
+.choice.primary{outline:2px solid color-mix(in srgb,var(--brand) 35%,transparent)}
+.choice:disabled{opacity:.6; pointer-events:none}
+.ico{width:40px; height:40px; border-radius:14px; background:var(--brand-light); color:var(--brand); display:flex; align-items:center; justify-content:center; flex:none}
+.ico svg{width:20px; height:20px}
+.choice b{display:block; font-weight:600; margin-bottom:6px}
+
+/* app chrome */
+.topbar{
+  position:sticky; top:64px; z-index:5; margin:0 auto; max-width:1100px; display:flex; align-items:center; gap:16px;
+  background:var(--surface-elev); border-radius:999px; padding:8px 12px 8px 18px; box-shadow:var(--raise-sm);
+}
+.topbar img{width:28px; height:28px}
+.nav{display:flex; gap:4px; margin-left:8px; flex:1; overflow:auto}
+.nav span{padding:8px 14px; border-radius:999px; color:var(--muted); font-weight:500; white-space:nowrap}
+.nav span.on{background:var(--brand-light); color:var(--brand); font-weight:700}
+.avatar{width:32px; height:32px; border-radius:999px; background:var(--brand); color:#FBF7EF; display:flex; align-items:center; justify-content:center; font:700 13px "Plus Jakarta Sans"}
+.page{max-width:1100px; margin:24px auto 0; display:grid; gap:24px}
+.banner{display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap}
+.badge{display:inline-block; font-weight:600; font-size:12px; padding:3px 10px; border-radius:999px;
+  background:color-mix(in srgb,var(--c3) 16%,transparent); color:var(--c3)}
+.badge.gain{background:color-mix(in srgb,var(--gain) 16%,transparent); color:var(--gain)}
+.badge.loss{background:color-mix(in srgb,var(--loss) 16%,transparent); color:var(--loss)}
+.badge.neutral{background:color-mix(in srgb,var(--c8) 18%,transparent); color:var(--muted)}
+.kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:20px}
+@media (max-width:860px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--bg-subtle); border-radius:14px; padding:16px; box-shadow:var(--inset-sm); transition:transform .3s var(--spring)}
+.kpi:hover{transform:translateY(-3px) scale(1.04)}
+.kpi .v{font:800 24px/1.2 "Plus Jakarta Sans"; margin-top:8px}
+.grid2{display:grid; grid-template-columns:1.6fr 1fr; gap:24px} @media (max-width:860px){.grid2{grid-template-columns:1fr}}
+table{width:100%; border-collapse:collapse}
+th{font:700 12px "Plus Jakarta Sans"; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); text-align:left; padding:8px 10px}
+td{padding:11px 10px; border-top:1px solid var(--hairline)}
+.r{text-align:right} .tick{font:600 13px "JetBrains Mono",ui-monospace,monospace}
+.legend{display:grid; gap:8px; margin-top:12px}
+.legend div{display:flex; align-items:center; gap:10px}
+.dot{width:10px; height:10px; border-radius:999px}
+.empty{text-align:center; padding:48px 24px; display:grid; gap:12px; justify-items:center}
+.drop{border-radius:20px; box-shadow:var(--inset-sm); background:var(--bg-subtle); padding:32px; text-align:center; display:grid; gap:12px; justify-items:center}
+.rowline{display:flex; align-items:center; gap:14px; padding:14px 0; border-top:1px solid var(--hairline)}
+.rowline:first-of-type{border-top:0}
+.rowline .grow{flex:1}
+
+/* broker pick */
+.bgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:16px}
+.bcard{
+  text-align:left; border:0; font:inherit; color:inherit; cursor:pointer; display:flex; gap:12px; align-items:center;
+  background:var(--surface-card); border-radius:20px; padding:16px; box-shadow:var(--raise-sm);
+  transition:transform .3s var(--spring), box-shadow .3s;
+}
+.bcard:hover{transform:translateY(-3px) scale(1.02); box-shadow:var(--raise)}
+.bcard:focus-visible,.chip:focus-visible{outline:3px solid var(--brand); outline-offset:2px}
+.bcard b{display:block; font-weight:600}
+.bicon{width:44px; height:44px; border-radius:14px; flex:none; display:block; object-fit:cover; background:#fff; box-shadow:var(--raise-sm)}
+.chips{display:flex; gap:10px; flex-wrap:wrap}
+.chip{border:0; font:inherit; font-weight:500; color:var(--muted); cursor:pointer; background:var(--bg-subtle); box-shadow:var(--inset-sm); border-radius:999px; padding:10px 16px; min-height:44px}
+.chip:hover{color:var(--ink)}
+.choices.two{grid-template-columns:repeat(2,1fr); max-width:620px; margin:0 auto; width:100%}
+@media (max-width:760px){.choices.two{grid-template-columns:1fr}}
+
+/* prototype overlay */
+.proto{
+  position:fixed; z-index:50; top:12px; left:50%; translate:-50% 0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center;
+  background:#282119; color:#F3E8DA; border-radius:22px; padding:8px 14px; text-align:center; font-size:12px; box-shadow:0 6px 20px rgba(40,33,25,.35); max-width:calc(100vw - 16px);
+}
+.proto b{color:var(--c3)}
+.proto select,.proto button{font:inherit; font-size:12px; border:0; border-radius:999px; padding:6px 12px; cursor:pointer; background:#4a4234; color:#F3E8DA}
+.proto button:hover,.proto select:hover{background:#5d5342}
+.toast{position:fixed; bottom:20px; left:50%; translate:-50% 0; background:var(--ink); color:var(--bg); padding:10px 18px; border-radius:999px; font-size:13px; z-index:60; opacity:0; transition:opacity .25s; pointer-events:none}
+.toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}.btn:hover,.choice:hover,.kpi:hover{transform:none}}
+</style>
+</head>
+<body>
+
+<div class="proto" role="region" aria-label="Prototype controls">
+  <span><b>PROTOTYP</b> &middot; nic se neukládá, nic nejde na server</span>
+  <select id="jump" aria-label="Skočit na krok">
+    <option value="register">1 Registrace</option>
+    <option value="verify">2 Ověření e-mailu</option>
+    <option value="login">3 Přihlášení</option>
+    <option value="brokerpick">4 Výběr brokera</option>
+    <option value="unsupported">4b Nepodporovaný broker</option>
+    <option value="onboarding">5 Onboarding</option>
+    <option value="csv">6a Import souboru</option>
+    <option value="dashboard">6b Dashboard</option>
+    <option value="broker">6c Připojení API</option>
+  </select>
+  <button type="button" id="restart">Začít znovu</button>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<!-- 1 REGISTER -->
+<section class="screen active" id="s-register">
+  <div class="col">
+    <div class="center">
+      <img class="logo" alt="">
+      <h1 style="font-size:20px">Create your Portfyl account</h1>
+      <p class="muted" style="margin:0">Track your portfolio, dividends, and taxes in one place.</p>
+    </div>
+    <div class="stack">
+      <button type="button" class="btn btn-ghost full" id="google">
+        <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
+        Continue with Google
+      </button>
+      <div class="divider">or</div>
+    </div>
+    <form class="card stack" id="f-register" novalidate>
+      <div class="stack-sm"><label class="eyebrow" for="r-email">E-mail</label><input class="input" id="r-email" type="email" autocomplete="off" placeholder="you@example.com"></div>
+      <div class="stack-sm"><label class="eyebrow" for="r-pw">Password</label><input class="input" id="r-pw" type="password" autocomplete="new-password"></div>
+      <div class="stack-sm"><label class="eyebrow" for="r-pw2">Confirm password</label><input class="input" id="r-pw2" type="password" autocomplete="new-password"></div>
+      <p class="err" id="r-err" role="alert" hidden></p>
+      <button class="btn btn-primary full" type="submit" id="r-btn">Create account</button>
+      <p class="small muted" style="text-align:center;margin:0">Already have an account? <a data-go="login">Log in</a></p>
+    </form>
+  </div>
+</section>
+
+<!-- 2 VERIFY -->
+<section class="screen" id="s-verify">
+  <div class="col">
+    <div class="center">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h8"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/><path d="m16 19 2 2 4-4"/></svg>
+      <h1 style="font-size:20px">Verify your e-mail</h1>
+    </div>
+    <div class="card stack">
+      <p style="margin:0">We sent a verification link to <b id="v-email">your e-mail address</b>. Click the link, then come back and log in.</p>
+      <button class="btn btn-primary full" type="button" id="v-resend">Resend verification e-mail</button>
+      <p class="ok" id="v-sent" role="status" hidden>Check your inbox (and spam folder).</p>
+      <hr style="border:0;border-top:1px dashed var(--hairline);width:100%">
+      <p class="small muted" style="margin:0">Prototyp: ve skutečné aplikaci by teď uživatel šel do pošty a kliknul na odkaz.</p>
+      <button class="btn btn-ghost full" type="button" id="v-click">Simulovat klik na odkaz v e-mailu</button>
+      <p class="small muted" style="text-align:center;margin:0"><a data-go="login">Back to login</a></p>
+    </div>
+  </div>
+</section>
+
+<!-- 3 LOGIN -->
+<section class="screen" id="s-login">
+  <div class="col">
+    <div class="center">
+      <img class="logo" alt="">
+      <h1 style="font-size:20px">Log in to Portfyl</h1>
+      <p class="ok" id="l-verified" hidden>E-mail verified. You can log in now.</p>
+    </div>
+    <form class="card stack" id="f-login" novalidate>
+      <div class="stack-sm"><label class="eyebrow" for="l-email">E-mail</label><input class="input" id="l-email" type="email" autocomplete="off"></div>
+      <div class="stack-sm"><label class="eyebrow" for="l-pw">Password</label><input class="input" id="l-pw" type="password" autocomplete="off"></div>
+      <p class="err" id="l-err" role="alert" hidden></p>
+      <button class="btn btn-primary full" type="submit">Log in</button>
+      <p class="small muted" style="text-align:center;margin:0">New here? <a data-go="register">Create an account</a></p>
+    </form>
+  </div>
+</section>
+
+<!-- 4 BROKER PICK -->
+<section class="screen" id="s-brokerpick">
+  <div class="col wide" style="max-width:820px">
+    <div class="center" style="gap:12px">
+      <img class="logo" alt="" style="width:56px;height:56px">
+      <span class="eyebrow" style="color:var(--brand)">Step 1 of 2</span>
+      <h1 style="font-size:30px">Which broker do you use?</h1>
+      <p class="muted" style="margin:0;max-width:540px">Portfyl reads your trades from your broker, so we check first that yours is supported. Finding out costs nothing.</p>
+    </div>
+    <div class="stack-sm"><label class="eyebrow" for="bp-search">Search brokers</label>
+      <input class="input" id="bp-search" type="search" autocomplete="off" placeholder="e.g. Trading 212, Robinhood…"></div>
+    <div class="stack" id="bp-supported-wrap">
+      <span class="eyebrow">Supported</span>
+      <div class="bgrid" id="bp-supported"></div>
+    </div>
+    <div class="stack" id="bp-other-wrap">
+      <span class="eyebrow">Not supported yet</span>
+      <div class="chips" id="bp-other"></div>
+    </div>
+    <div class="card" id="bp-custom" hidden style="display:none;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+      <span id="bp-custom-text"></span>
+      <button class="btn btn-ghost" type="button" id="bp-custom-btn">Check this broker</button>
+    </div>
+  </div>
+</section>
+
+<!-- 4b UNSUPPORTED -->
+<section class="screen" id="s-unsupported">
+  <div class="col" style="max-width:480px">
+    <div class="center" style="gap:12px">
+      <span class="ico" style="width:56px;height:56px;border-radius:20px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg></span>
+      <h1 style="font-size:24px" id="un-title">Portfyl doesn't support this broker yet</h1>
+      <p class="muted" style="margin:0" id="un-text"></p>
+    </div>
+    <div class="card stack">
+      <button class="btn btn-ghost full" type="button" data-go="brokerpick">Choose another broker</button>
+      <button class="btn btn-ghost full" type="button" id="un-demo">Look around with sample data (free)</button>
+    </div>
+  </div>
+</section>
+
+<!-- 5 ONBOARDING (tailored to the chosen broker) -->
+<section class="screen" id="s-onboarding">
+  <div class="col wide">
+    <div class="center" style="gap:12px">
+      <img class="logo" alt="" style="width:56px;height:56px">
+      <span class="eyebrow" style="color:var(--brand)" id="ob-eyebrow">Step 2 of 2</span>
+      <h1 style="font-size:30px">Add your first portfolio</h1>
+      <p class="muted" style="margin:0;max-width:520px" id="ob-sub">Start with real data or look around safely.</p>
+    </div>
+    <div class="choices" id="ob-choices"></div>
+    <p class="small muted" style="text-align:center;margin:0">Sample data is marked as demo data and never mixed into a real import unless you choose to keep it.</p>
+    <div style="text-align:center;display:flex;gap:20px;justify-content:center;flex-wrap:wrap">
+      <a data-go="brokerpick" style="font-weight:500">Change broker</a>
+      <a data-choice="blank" style="font-weight:500;color:var(--muted);text-decoration:underline">Start with a blank portfolio</a>
+    </div>
+  </div>
+</section>
+
+<!-- 5a CSV -->
+<section class="screen" id="s-csv" style="align-items:flex-start">
+  <div class="col wide" style="max-width:820px">
+    <div class="stack-sm"><span class="eyebrow" style="color:var(--brand)">Import</span><h1 style="font-size:26px" id="csv-h1">Import a CSV</h1>
+      <p class="muted" style="margin:0" id="csv-sub">Nothing is saved until you confirm the preview.</p></div>
+    <div class="card stack" id="csv-pick">
+      <div class="drop">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
+        <b id="csv-drop-title">Drop a Trading 212 or Portfyl CSV here</b>
+        <span class="small muted" id="csv-hint"></span>
+        <span class="small muted">Prototyp: žádný soubor se nenahrává, použij ukázkový.</span>
+        <button class="btn btn-primary" type="button" id="csv-use">Use sample file</button>
+      </div>
+      <p class="small muted" style="text-align:center;margin:0"><a data-go="onboarding">Leave import</a></p>
+    </div>
+    <div class="card stack" id="csv-preview" hidden>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <b style="font-family:'Plus Jakarta Sans'" id="csv-fname">trading212_2025.csv</b><span class="badge neutral" id="csv-detected">Trading 212 detected</span>
+      </div>
+      <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+        <div class="kpi"><span class="eyebrow">New rows</span><div class="v tnum" style="color:var(--gain)">+ 42</div></div>
+        <div class="kpi"><span class="eyebrow">Duplicates skipped</span><div class="v tnum">0</div></div>
+        <div class="kpi"><span class="eyebrow">Rows with errors</span><div class="v tnum" style="color:var(--loss)">1</div></div>
+      </div>
+      <div style="overflow:auto"><table>
+        <thead><tr><th>Date</th><th>Action</th><th>Ticker</th><th class="r">Shares</th><th class="r">Price</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>2025-01-14</td><td>Market buy</td><td class="tick">VWCE</td><td class="r tnum">12</td><td class="r tnum">€118.40</td><td><span class="badge gain">New</span></td></tr>
+          <tr><td>2025-02-03</td><td>Market buy</td><td class="tick">AAPL</td><td class="r tnum">5</td><td class="r tnum">$227.10</td><td><span class="badge gain">New</span></td></tr>
+          <tr><td>2025-03-18</td><td>Dividend</td><td class="tick">KO</td><td class="r tnum">—</td><td class="r tnum">$3.84</td><td><span class="badge gain">New</span></td></tr>
+          <tr><td>2025-04-02</td><td>Market sell</td><td class="tick">???</td><td class="r tnum">2</td><td class="r tnum">—</td><td><span class="badge loss">Ticker not resolved</span></td></tr>
+        </tbody>
+      </table></div>
+      <p class="small muted" style="margin:0">Showing 4 of 43 rows. You can undo this import for 24 hours after confirming.</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end">
+        <button class="btn btn-ghost" type="button" id="csv-cancel">Cancel</button>
+        <button class="btn btn-primary" type="button" id="csv-commit">Import 42 rows</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5b DASHBOARD -->
+<section class="screen" id="s-dashboard" style="align-items:flex-start">
+  <div style="width:100%">
+    <header class="topbar">
+      <img class="logo" alt="">
+      <nav class="nav" aria-label="Main"><span class="on">Overview</span><span>Allocation</span><span>Dividends</span><span>Transactions</span><span>Settings</span></nav>
+      <span class="small muted" id="d-who"></span><span class="avatar" id="d-avatar">P</span>
+    </header>
+    <div class="page" id="page-data">
+      <div class="card banner" id="d-banner">
+        <div><span class="badge" id="d-badge">Sample data</span> <span id="d-banner-text" class="muted" style="margin-left:6px">You are looking at demo data.</span></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-ghost" type="button" data-go="onboarding">Replace with my data</button><button class="btn btn-ghost" type="button" id="d-clear">Clear sample data</button></div>
+      </div>
+      <div class="kpis">
+        <div class="card kpi"><span class="eyebrow">Total value</span><div class="v tnum" id="k-val">€48,320</div></div>
+        <div class="card kpi"><span class="eyebrow">Total return</span><div class="v tnum" style="color:var(--gain)" id="k-ret">▲ +18.4%</div></div>
+        <div class="card kpi"><span class="eyebrow">Dividends (12M)</span><div class="v tnum" id="k-div">€612</div></div>
+        <div class="card kpi"><span class="eyebrow">Positions</span><div class="v tnum" id="k-pos">8</div></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><h3 style="margin-bottom:12px">Holdings</h3>
+          <div style="overflow:auto"><table>
+            <thead><tr><th>Ticker</th><th class="r">Value</th><th class="r">Weight</th><th class="r">Return</th></tr></thead>
+            <tbody id="d-rows"></tbody>
+          </table></div>
+        </div>
+        <div class="card"><h3>Allocation</h3>
+          <div style="display:grid;place-items:center;margin-top:8px"><svg id="donut" viewBox="0 0 120 120" width="190" height="190" role="img" aria-label="Allocation donut"></svg></div>
+          <div class="legend small" id="d-legend"></div>
+        </div>
+      </div>
+    </div>
+    <div class="page" id="page-empty" hidden>
+      <div class="card empty">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></span>
+        <h2 style="font-size:20px">Your portfolio is empty</h2>
+        <p class="muted" style="margin:0;max-width:420px">Import a CSV or connect a broker to see performance, allocation and dividends here.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn btn-primary" type="button" data-choice="import">Import a CSV</button><button class="btn btn-ghost" type="button" data-choice="broker">Connect a broker</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5c BROKER -->
+<section class="screen" id="s-broker" style="align-items:flex-start">
+  <div class="col wide" style="max-width:720px">
+    <div class="stack-sm"><span class="eyebrow" style="color:var(--brand)">Settings · Connections</span><h1 style="font-size:26px" id="br-h1">Connect a broker</h1>
+      <p class="muted" style="margin:0" id="br-sub">Your empty portfolio is ready.</p></div>
+    <div class="card" id="broker-list"></div>
+    <div style="display:flex;gap:12px"><button class="btn btn-ghost" type="button" data-go="onboarding">Back</button><button class="btn btn-primary" type="button" id="broker-done">Continue to my portfolio</button></div>
+  </div>
+</section>
+
+<script>
+/* All state is in memory only. Reloading the page wipes it. No storage, no fetch, no cookies. */
+const state = { email:"", verified:false, portfolio:null /* 'demo' | 'csv' | 'blank' | 'broker' */, brokers:{}, broker:null /* key of BROKER_DB */, unsupportedName:"" };
+
+/* Supported brokers mirror CLAUDE.md: API sync = T212, IBKR, eToro; file import = T212 CSV, IBKR Flex XML, Degiro, XTB, Schwab, Fidelity. */
+const BROKER_DB = {
+  t212:   {name:"Trading 212",         mono:"T2", color:"var(--c4)", api:true,  cred:"API key + secret",       fileKind:"CSV",           fname:"trading212_2025.csv", hint:"In Trading 212: History → Export history (CSV)."},
+  ibkr:   {name:"Interactive Brokers", mono:"IB", color:"var(--c2)", api:true,  cred:"Flex Web Service token", fileKind:"Flex XML",      fname:"ibkr_flex_2025.xml",  hint:"In IBKR: Performance & Reports → Flex Queries → run as XML."},
+  etoro:  {name:"eToro",               mono:"eT", color:"var(--c1)", api:true,  cred:"eToro API key",          fileKind:null},
+  degiro: {name:"DEGIRO",              mono:"DG", color:"var(--c3)", api:false, fileKind:"CSV",           fname:"Transactions.csv",    hint:"In DEGIRO: Inbox → Transactions and Account Statement → Export CSV (both files)."},
+  xtb:    {name:"XTB",                 mono:"XT", color:"var(--c5)", api:false, fileKind:"XLSX",          fname:"xtb_report.xlsx",     hint:"In xStation: History → Export to XLSX."},
+  schwab: {name:"Charles Schwab",      mono:"CS", color:"var(--c7)", api:false, fileKind:"CSV",           fname:"schwab_transactions.csv", hint:"On schwab.com: Accounts → History → Export."},
+  fidelity:{name:"Fidelity",           mono:"Fi", color:"var(--c8)", api:false, fileKind:"CSV",           fname:"fidelity_activity.csv",   hint:"On fidelity.com: Activity & Orders → Download."}
+};
+/* Broker icons: 128px PNGs in broker-icons/, named after the BROKER_DB key. */
+function brokerIcon(k){
+  return `<img class="bicon" src="broker-icons/${k}.png" width="44" height="44" alt="${BROKER_DB[k].name}" loading="lazy">`;
+}
+const OTHER_BROKERS = ["Robinhood","Revolut","Coinbase","Webull","Trade Republic","Freetrade","Moomoo","E*TRADE"];
+const cur = () => BROKER_DB[state.broker] || BROKER_DB.t212;
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const MIN_PW = 8;
+
+const LOGO = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 70 70"><defs><clipPath id="c"><rect width="70" height="70" rx="20"/></clipPath></defs><g clip-path="url(#c)"><rect width="70" height="70" fill="#282119"/><path d="M0 0H70L0 70Z" fill="#6D7048"/></g><rect x="18" y="14" width="10" height="44" rx="5" fill="#F3E8DA"/><circle cx="36" cy="32" r="18" fill="#F3E8DA"/><path d="M38 30V12A18 18 0 0 1 56 30Z" fill="#B08623"/></svg>');
+$$("img.logo").forEach(i => i.src = LOGO);
+
+const HOLD = [
+  ["VWCE",18200,"▲ +21.3%",1],["AAPL",9400,"▲ +34.8%",1],["MSFT",7600,"▲ +16.2%",1],["KO",4900,"▲ +6.1%",1],
+  ["NESN",3800,"▼ −4.7%",0],["ASML",2600,"▲ +9.9%",1],["Cash",1220,"—",2],["Other",600,"▼ −1.2%",0]
+];
+const COLORS = ["var(--c1)","var(--c2)","var(--c3)","var(--c4)","var(--c5)","var(--c6)","var(--c7)","var(--c8)"];
+
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("show"),2400); }
+
+function show(name){
+  $$(".screen").forEach(s=>s.classList.remove("active"));
+  $("#s-"+name).classList.add("active");
+  const opt = $("#jump").querySelector(`[value="${name}"]`);
+  if(opt) $("#jump").value = name;
+  window.scrollTo(0,0);
+  if(name==="verify") $("#v-email").textContent = state.email || "your e-mail address";
+  if(name==="login"){ $("#l-email").value = state.email; $("#l-verified").hidden = !state.verified; }
+  if(name==="dashboard") renderDashboard();
+  if(name==="broker") renderBrokers();
+  if(name==="csv") renderCsv();
+  if(name==="brokerpick") renderBrokerPick();
+  if(name==="unsupported") renderUnsupported();
+  if(name==="onboarding") renderOnboarding();
+}
+
+/* 4 broker pick */
+function renderBrokerPick(){
+  const q=$("#bp-search").value.trim().toLowerCase();
+  const sup=Object.entries(BROKER_DB).filter(([,b])=>b.name.toLowerCase().includes(q));
+  $("#bp-supported").innerHTML = sup.map(([k,b])=>{
+    const how=[b.api?"API sync":null, b.fileKind?`${b.fileKind} import`:null].filter(Boolean).join(" · ");
+    return `<button type="button" class="bcard" data-broker="${k}">${brokerIcon(k)}<span><b>${b.name}</b><span class="small muted">${how}</span></span></button>`;
+  }).join("");
+  $("#bp-supported-wrap").hidden = !sup.length;
+  const oth=OTHER_BROKERS.filter(n=>n.toLowerCase().includes(q));
+  $("#bp-other").innerHTML = oth.map(n=>`<button type="button" class="chip" data-unsup="${n}">${n}</button>`).join("");
+  $("#bp-other-wrap").hidden = !oth.length;
+  const custom = q && !sup.length && !oth.length;
+  const box=$("#bp-custom"); box.hidden=!custom; box.style.display = custom ? "flex" : "none";
+  if(custom) $("#bp-custom-text").textContent = `"${$("#bp-search").value.trim()}" isn't in our list.`;
+}
+$("#bp-search").addEventListener("input", renderBrokerPick);
+$("#bp-custom-btn").addEventListener("click", ()=>{ state.unsupportedName=$("#bp-search").value.trim(); show("unsupported"); });
+
+/* 4b unsupported */
+function renderUnsupported(){
+  const n=state.unsupportedName || "your broker";
+  $("#un-title").textContent = `Portfyl doesn't support ${n} yet`;
+  $("#un-text").textContent = `We can only read trades from the brokers on our list, so there'd be nothing to show for ${n}. Better to know before you pay anything.`;
+}
+$("#un-demo").addEventListener("click", ()=>{ state.portfolio="demo"; show("dashboard"); });
+
+/* 5 onboarding, tailored to the chosen broker */
+const ICO = {
+  up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>',
+  bars:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>',
+  link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>'
+};
+function choiceCard(key, icon, title, desc, primary){
+  return `<button type="button" class="card choice${primary?" primary":""}" data-choice="${key}" aria-label="${title}"><span class="ico">${ICO[icon]}</span><span><b>${title}</b><span class="small muted">${desc}</span></span></button>`;
+}
+function renderOnboarding(){
+  const b=cur(), cards=[];
+  const demo=choiceCard("demo","bars","Explore sample portfolio","Use clearly labelled sample data. You can replace or clear it at any time.");
+  if(b.api){
+    cards.push(choiceCard("broker","link",`Connect ${b.name}`,`Sync automatically with your ${b.cred}. Read-only: Portfyl can't trade.`,true));
+    cards.push(b.fileKind
+      ? choiceCard("import","up",`Import a ${b.name} ${b.fileKind} file`,`${b.hint} You'll see a preview before anything is saved.`)
+      : choiceCard("import","up","Import a Portfyl CSV","Prefer a file? Preview a Portfyl CSV before anything is saved."));
+    cards.push(demo);
+  } else {
+    cards.push(choiceCard("import","up",`Import your ${b.name} file`,`${b.hint} You'll see a preview before anything is saved.`,true));
+    cards.push(demo);
+  }
+  const box=$("#ob-choices"); box.innerHTML=cards.join(""); box.classList.toggle("two", cards.length===2);
+  $("#ob-eyebrow").textContent = `Step 2 of 2 · ${b.name}`;
+  $("#ob-sub").textContent = `Good news, ${b.name} is supported. ` + (b.api ? "Connect it for automatic sync, or import a file." : "Import your export file to get started.");
+}
+
+/* 6a csv, per broker */
+function renderCsv(){
+  const b=cur(), kind=b.fileKind||"CSV", fname=b.fname||"portfyl_export.csv";
+  $("#csv-pick").hidden=false; $("#csv-preview").hidden=true;
+  $("#csv-h1").textContent = `Import your ${b.name} file`;
+  $("#csv-drop-title").textContent = b.fname ? `Drop your ${b.name} ${kind} file here` : "Drop a Portfyl CSV here";
+  $("#csv-hint").textContent = b.hint || "";
+  $("#csv-use").textContent = `Use sample file (${fname})`;
+  $("#csv-fname").textContent = fname;
+  $("#csv-detected").textContent = b.fname ? `${b.name} ${kind} detected` : "Portfyl CSV detected";
+}
+
+/* 1 register -- mirrors Register.jsx validation + wording */
+$("#f-register").addEventListener("submit", e=>{
+  e.preventDefault();
+  const email=$("#r-email").value.trim(), pw=$("#r-pw").value, pw2=$("#r-pw2").value, err=$("#r-err");
+  err.hidden=true;
+  const fail=m=>{ err.textContent=m; err.hidden=false; };
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail("Enter a valid e-mail address.");
+  if(pw.length<MIN_PW) return fail(`Choose a password with at least ${MIN_PW} characters.`);
+  if(pw!==pw2) return fail("Passwords don't match.");
+  const btn=$("#r-btn"); btn.disabled=true; btn.textContent="Creating account…";
+  setTimeout(()=>{ btn.disabled=false; btn.textContent="Create account"; state.email=email; state.verified=false; show("verify"); },700);
+});
+$("#google").addEventListener("click", ()=>{ state.email="you@gmail.com"; state.verified=true; toast("Prototyp: přihlášení přes Google přeskočí ověření e-mailu"); show("brokerpick"); });
+
+/* 2 verify */
+$("#v-resend").addEventListener("click", ()=>{ $("#v-sent").hidden=false; $("#v-resend").textContent="Verification e-mail sent"; });
+$("#v-click").addEventListener("click", ()=>{ state.verified=true; show("login"); });
+
+/* 3 login */
+$("#f-login").addEventListener("submit", e=>{
+  e.preventDefault();
+  const err=$("#l-err"); err.hidden=true;
+  const email=$("#l-email").value.trim();
+  if(!email || !$("#l-pw").value){ err.textContent="Enter your e-mail and password."; err.hidden=false; return; }
+  if(state.email && email===state.email && !state.verified){ err.textContent="Please verify your e-mail first."; err.hidden=false; return; }
+  state.email = email;
+  show("brokerpick");
+});
+
+/* 4 onboarding choices + navigation (event delegation: used from several screens) */
+document.addEventListener("click", e=>{
+  const go=e.target.closest("[data-go]"); if(go){ e.preventDefault(); show(go.dataset.go); return; }
+  const pick=e.target.closest("[data-broker]"); if(pick){ state.broker=pick.dataset.broker; return show("onboarding"); }
+  const un=e.target.closest("[data-unsup]"); if(un){ state.unsupportedName=un.dataset.unsup; return show("unsupported"); }
+  const ch=e.target.closest("[data-choice]"); if(!ch) return;
+  e.preventDefault();
+  const k=ch.dataset.choice;
+  if(k==="import") return show("csv");
+  if(k==="broker"){ state.portfolio="broker"; return show("broker"); }
+  if(k==="demo"){ state.portfolio="demo"; return withBusy(ch, ()=>show("dashboard")); }
+  if(k==="blank"){ state.portfolio="blank"; return show("dashboard"); }
+});
+function withBusy(btn, fn){ btn.disabled=true; setTimeout(()=>{ btn.disabled=false; fn(); },650); }
+
+/* 5a csv */
+$("#csv-use").addEventListener("click", ()=>{ $("#csv-pick").hidden=true; $("#csv-preview").hidden=false; });
+$("#csv-cancel").addEventListener("click", ()=>show("onboarding"));
+$("#csv-commit").addEventListener("click", ()=>{ state.portfolio="csv"; toast("Imported 42 rows · Undo available for 24 h"); show("dashboard"); });
+
+/* 5b dashboard */
+function renderDashboard(){
+  const empty = state.portfolio==="blank" || state.portfolio==="broker" || !state.portfolio;
+  $("#page-data").hidden = empty; $("#page-empty").hidden = !empty;
+  $("#d-who").textContent = state.email; $("#d-avatar").textContent = (state.email[0]||"P").toUpperCase();
+  const demo = state.portfolio==="demo";
+  $("#d-badge").textContent = demo ? "Sample data" : "Imported";
+  $("#d-badge").className = "badge" + (demo ? "" : " gain");
+  $("#d-banner-text").textContent = demo ? "You are looking at demo data. It never mixes with a real import unless you keep it." : `42 rows imported from ${cur().fname||"portfyl_export.csv"}. Undo is available for 24 hours.`;
+  $("#d-clear").textContent = demo ? "Clear sample data" : "Undo import";
+  const total = HOLD.reduce((a,h)=>a+h[1],0);
+  $("#d-rows").innerHTML = HOLD.map((h,i)=>`<tr><td><span class="dot" style="display:inline-block;background:${COLORS[i]};margin-right:8px"></span><span class="tick">${h[0]}</span></td><td class="r tnum">€${h[1].toLocaleString("en-US")}</td><td class="r tnum">${(h[1]/total*100).toFixed(1)}%</td><td class="r tnum" style="color:${h[3]===1?"var(--gain)":h[3]===0?"var(--loss)":"var(--muted)"}">${h[2]}</td></tr>`).join("");
+  $("#d-legend").innerHTML = HOLD.map((h,i)=>`<div><span class="dot" style="background:${COLORS[i]}"></span><span style="flex:1">${h[0]}</span><span class="tnum muted">${(h[1]/total*100).toFixed(1)}%</span></div>`).join("");
+  const R=44, C=2*Math.PI*R, gap=3; let off=0;
+  $("#donut").innerHTML = HOLD.map((h,i)=>{
+    const len=h[1]/total*C, seg=Math.max(len-gap,1);
+    const s=`<circle cx="60" cy="60" r="${R}" fill="none" stroke="${COLORS[i]}" stroke-width="16" stroke-linecap="round" stroke-dasharray="${seg} ${C-seg}" stroke-dashoffset="${-off}" transform="rotate(-90 60 60)"/>`;
+    off+=len; return s;
+  }).join("") + `<text x="60" y="58" text-anchor="middle" font-family="Plus Jakarta Sans" font-weight="800" font-size="11" fill="var(--ink)">€${(total/1000).toFixed(1)}k</text><text x="60" y="71" text-anchor="middle" font-size="7" fill="var(--muted)">total</text>`;
+}
+$("#d-clear").addEventListener("click", ()=>{ state.portfolio="blank"; toast("Cleared"); renderDashboard(); });
+
+/* 5c broker */
+const SYNC_DESC={t212:"Sync history, positions and dividends.",ibkr:"Sync via an IBKR Flex Query.",etoro:"Sync trades and dividends."};
+const LINK_ICO='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+function renderBrokers(){
+  const b=cur(), k=state.broker||"t212";
+  $("#br-h1").textContent = `Connect ${b.name}`;
+  $("#br-sub").innerHTML = `Your empty portfolio is ready. Connect ${b.name}` + (b.fileKind ? `, or <a data-choice="import">import a file</a> instead.` : `.`);
+  if(state.brokers[b.name]===undefined) state.brokers[b.name]="open";
+  $("#broker-list").innerHTML = [[b.name,b.cred,SYNC_DESC[k]||"Sync your trades."]].map(([n,f,d])=>{
+    const on=state.brokers[n];
+    return `<div class="rowline"><span class="ico">${LINK_ICO}</span>
+      <div class="grow"><b>${n}</b><div class="small muted">${d}</div>${on==="open"?`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><input class="input" style="max-width:280px" placeholder="${f}" aria-label="${f}" autocomplete="off"><button class="btn btn-primary" data-bconnect="${n}" type="button">Connect</button></div>`:""}</div>
+      ${on==="done"?'<span class="badge gain">Connected</span>':on==="open"?"":`<button class="btn btn-ghost" data-bopen="${n}" type="button">Connect</button>`}</div>`;
+  }).join("");
+}
+$("#broker-list").addEventListener("click", e=>{
+  const o=e.target.closest("[data-bopen]"), c=e.target.closest("[data-bconnect]");
+  if(o){ state.brokers[o.dataset.bopen]="open"; renderBrokers(); }
+  if(c){ state.brokers[c.dataset.bconnect]="done"; renderBrokers(); toast("Prototyp: nic se nepřipojilo, jen simulace"); }
+});
+$("#broker-done").addEventListener("click", ()=>show("dashboard"));
+
+/* prototype controls */
+$("#jump").addEventListener("change", e=>{
+  if(!state.email) state.email="you@example.com";
+  const v=e.target.value;
+  if(!state.broker) state.broker="t212";
+  if(v==="unsupported" && !state.unsupportedName) state.unsupportedName="Robinhood";
+  if(v==="dashboard" && !state.portfolio) state.portfolio="demo";
+  show(v);
+});
+$("#restart").addEventListener("click", ()=>{
+  state.email=""; state.portfolio=null; state.brokers={}; state.verified=false; state.broker=null; state.unsupportedName="";
+  $$("input").forEach(i=>i.value=""); $("#r-err").hidden=true; $("#l-err").hidden=true; $("#v-sent").hidden=true; $("#v-resend").textContent="Resend verification e-mail";
+  show("register");
+});
+</script>
+</body>
+</html>
