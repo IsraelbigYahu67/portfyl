@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
 import PreferencesSettings from "./PreferencesSettings";
 import { legacyColorClassesIn } from "../../test/legacyClasses";
@@ -23,13 +24,17 @@ vi.mock("../../App", () => ({
   }),
 }));
 
+function renderPreferences() {
+  return render(<MemoryRouter><PreferencesSettings /></MemoryRouter>);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   context.themeStyle = "glass";
 });
 
 it("uses the existing context setters for every device preference", () => {
-  render(<PreferencesSettings />);
+  renderPreferences();
 
   fireEvent.click(screen.getByRole("button", { name: "Warm glass-hybrid theme" }));
   fireEvent.click(screen.getByRole("button", { name: "Dark" }));
@@ -44,7 +49,7 @@ it("uses the existing context setters for every device preference", () => {
 });
 
 it("offers Clay as a third theme style next to Premium", () => {
-  render(<PreferencesSettings />);
+  renderPreferences();
 
   fireEvent.click(screen.getByRole("button", { name: "Soft clay theme" }));
 
@@ -53,7 +58,7 @@ it("offers Clay as a third theme style next to Premium", () => {
 
 it("Clay hides appearance and accent palette", () => {
   context.themeStyle = "clay";
-  render(<PreferencesSettings />);
+  renderPreferences();
 
   expect(screen.queryByRole("heading", { name: "Appearance" })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Accent palette" })).not.toBeInTheDocument();
@@ -65,7 +70,7 @@ it("Clay hides appearance and accent palette", () => {
 it("keeps appearance and accent palette for Classic and Premium", () => {
   for (const style of ["glass", "neu"]) {
     context.themeStyle = style;
-    const { unmount } = render(<PreferencesSettings />);
+    const { unmount } = renderPreferences();
     expect(screen.getByRole("heading", { name: "Appearance" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Accent palette" })).toBeInTheDocument();
     expect(screen.queryByText("Clay uses its own light palette.")).not.toBeInTheDocument();
@@ -74,9 +79,15 @@ it("keeps appearance and accent palette for Classic and Premium", () => {
 });
 
 it("renders the accent palette choices as pills", () => {
-  render(<PreferencesSettings />);
+  renderPreferences();
 
   expect(screen.getByRole("button", { name: "Theme: Soft Iris" })).toHaveClass("rounded-full");
+});
+
+it("links to the local-only onboarding preview", () => {
+  renderPreferences();
+
+  expect(screen.getByRole("link", { name: /replay onboarding/i })).toHaveAttribute("href", "/onboarding/preview");
 });
 
 it("uses no legacy color classes", async () => {

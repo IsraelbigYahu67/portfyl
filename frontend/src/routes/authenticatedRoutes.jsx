@@ -14,6 +14,11 @@ const loadWatchlists = () => import('../pages/Watchlists');
 const loadSettings = () => import('../pages/Settings');
 const loadOnboarding = () => import('../pages/Onboarding');
 export const LazyOnboarding = lazy(loadOnboarding);
+// Read-only replay of onboarding for users who already have a portfolio.
+// Rendered full-screen by App.jsx's AppLayout (outside the shell), never via
+// SHARED_AUTHENTICATED_ROUTES. It is pure frontend: no API, no analytics.
+export const ONBOARDING_PREVIEW_PATH = '/onboarding/preview';
+export const LazyOnboardingPreview = lazy(() => import('../pages/OnboardingPreview'));
 export const LazyImport = lazy(loadImport);
 
 export const SHARED_AUTHENTICATED_ROUTES = Object.freeze([

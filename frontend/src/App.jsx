@@ -5,7 +5,7 @@ import { TRACKER_HOME } from "./lib/routes";
 import { Loader2 } from "lucide-react";
 import AppShell from "./components/layout/AppShell";
 import { buildNavGroups } from "./components/layout/navigation";
-import { SHARED_AUTHENTICATED_ROUTES, LazyOnboarding, LazyImport } from "./routes/authenticatedRoutes";
+import { SHARED_AUTHENTICATED_ROUTES, LazyOnboarding, LazyOnboardingPreview, LazyImport, ONBOARDING_PREVIEW_PATH } from "./routes/authenticatedRoutes";
 import RouteFallback from "./components/layout/RouteFallback";
 import RouteBoundary from "./components/layout/RouteBoundary";
 import Login from "./pages/Login";
@@ -374,6 +374,12 @@ function AppLayout() {
 
   if (!activePortfolios.length) {
     return <RouteBoundary key={pathname}><Suspense fallback={<RouteFallback />}><LazyOnboarding /></Suspense></RouteBoundary>;
+  }
+
+  // Users with portfolios can replay onboarding as a full-screen, local-only
+  // preview (Settings -> Preferences). Users without one get the real flow above.
+  if (pathname === ONBOARDING_PREVIEW_PATH) {
+    return <RouteBoundary key={pathname}><Suspense fallback={<RouteFallback />}><LazyOnboardingPreview /></Suspense></RouteBoundary>;
   }
 
   return (

@@ -105,6 +105,23 @@ describe("authenticated routing", () => {
       .toBeInTheDocument();
   });
 
+  it("lets a portfolio user replay onboarding as a full-screen preview", async () => {
+    renderApp("/onboarding/preview");
+
+    expect(await screen.findByText(/onboarding preview/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /add your first portfolio/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /portfolio overview/i })).not.toBeInTheDocument();
+  });
+
+  it("gives users without a portfolio the real onboarding even on the preview URL", async () => {
+    mocks.fetchPortfolios.mockResolvedValue([]);
+    renderApp("/onboarding/preview");
+
+    expect(await screen.findByRole("heading", { name: /create your first portfolio/i }))
+      .toBeInTheDocument();
+    expect(screen.queryByText(/onboarding preview/i)).not.toBeInTheDocument();
+  });
+
   it("restores a pending onboarding import without mounting portfolio navigation", async () => {
     mocks.fetchPortfolios.mockResolvedValue([{
       id: PORTFOLIO_ID,

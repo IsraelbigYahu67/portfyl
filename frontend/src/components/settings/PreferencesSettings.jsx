@@ -1,8 +1,10 @@
-import { Loader2, Monitor, Moon, Sun } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Loader2, Monitor, Moon, PlayCircle, Sun } from "lucide-react";
 
 import { EditionViewModeSetting } from "@edition-manifest";
 import { useCurrency, usePalette } from "../../App";
 import SegmentedControl from "../ui/SegmentedControl";
+import { ONBOARDING_PREVIEW_PATH } from "../../routes/authenticatedRoutes";
 
 const PALETTE_OPTIONS = [
   { key: "blue", label: "Arctic Blue", color: "#2563EB" },
@@ -102,6 +104,20 @@ export default function PreferencesSettings({ headingRef }) {
         </div>
 
         <EditionViewModeSetting />
+      </div>
+
+      <div className="rounded-xl border border-surface-border bg-surface-card p-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold">Welcome tour</h3>
+          <p className="mt-0.5 text-sm text-muted">Replay the first-run onboarding. It is a preview only: nothing is created, saved or sent.</p>
+        </div>
+        <Link
+          to={ONBOARDING_PREVIEW_PATH}
+          className="inline-flex shrink-0 items-center justify-center gap-1.5 self-start rounded-full border border-surface-border px-4 py-2 min-h-11 md:min-h-0 text-sm font-medium hover:border-brand sm:self-auto"
+        >
+          <PlayCircle size={14} aria-hidden="true" />
+          Replay onboarding
+        </Link>
       </div>
     </section>
   );
