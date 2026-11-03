@@ -43,6 +43,14 @@ class UnsupportedCash:
     source_type: str | None = None
 
 
+@dataclass(frozen=True)
+class ZeroCash:
+    """An event that moved no money (seen in production: FEE 0 EUR/CZK next
+    to the real fee of the same trade). Nothing to import and nothing to
+    guess, so it is skipped instead of blocking the history import."""
+    source_type: str | None = None
+
+
 def _parse_time(value) -> datetime | None:
     if not value:
         return None
@@ -93,7 +101,7 @@ def fx_conversion_event_ids(items: list[dict]) -> set[str]:
     return out
 
 
-def map_cash_event(item: dict) -> CashRow | UnsupportedCash:
+def map_cash_event(item: dict) -> CashRow | ZeroCash | UnsupportedCash:
     source_type = item.get("type")
     kind = str(source_type).upper() if source_type else None
 
@@ -107,8 +115,10 @@ def map_cash_event(item: dict) -> CashRow | UnsupportedCash:
         amount = float(item.get("amount"))
     except (TypeError, ValueError):
         return UnsupportedCash("amount is not a number", kind)
-    if not math.isfinite(amount) or amount == 0:
-        return UnsupportedCash("amount is zero or not finite", kind)
+    if not math.isfinite(amount):
+        return UnsupportedCash("amount is not finite", kind)
+    if amount == 0:
+        return ZeroCash(kind)
 
     if kind == "TRANSFER":
         ledger_type = "deposit" if amount > 0 else "withdrawal"

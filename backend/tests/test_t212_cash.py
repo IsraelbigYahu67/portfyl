@@ -5,6 +5,7 @@ import pytest
 from t212_cash import (
     CashRow,
     UnsupportedCash,
+    ZeroCash,
     cash_event_id,
     cash_event_time,
     map_cash_event,
@@ -56,14 +57,12 @@ def test_transfer_keeps_its_source_subtype_in_the_notes():
 @pytest.mark.parametrize(
     "item",
     [
-        _item("DEPOSIT", 0),
         _item("DEPOSIT", None),
         _item("DEPOSIT", "abc"),
         _item("DEPOSIT", float("nan")),
         _item("DEPOSIT", 5, currency=""),
         _item("DEPOSIT", 5, when=None),
         _item("DEPOSIT", 5, when="not a date"),
-        _item("TRANSFER", 0),
         _item("CURRENCY_CONVERSION", 5),
         _item("MYSTERY", 5),
         _item(None, 5),
@@ -73,6 +72,15 @@ def test_anything_unproven_is_unsupported(item):
     verdict = map_cash_event(item)
     assert isinstance(verdict, UnsupportedCash)
     assert verdict.reason
+
+
+@pytest.mark.parametrize("kind", ["FEE", "DEPOSIT", "MYSTERY"])
+def test_a_zero_amount_moves_no_money_and_is_skipped(kind):
+    assert map_cash_event(_item(kind, 0)) == ZeroCash(kind)
+
+
+def test_a_non_finite_amount_is_still_unsupported():
+    assert isinstance(map_cash_event(_item("FEE", float("nan"))), UnsupportedCash)
 
 
 def test_a_sign_that_contradicts_the_proven_direction_is_unsupported():

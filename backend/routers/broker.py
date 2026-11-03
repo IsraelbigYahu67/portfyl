@@ -4,6 +4,7 @@ from datetime import date, datetime, timezone
 import httpx
 import json
 
+import backfill_trigger
 import t212_sync
 from account_identity import account_fingerprint
 from audit import record_audit_event
@@ -735,6 +736,11 @@ def sync_transactions(
     # foreground request must never walk the provider's full history or mark
     # the ledger as synchronized.
     db.commit()
+    history_state = history_run.state
+    if not blocked and history_state not in t212_sync.TERMINAL_RUN_STATES:
+        # Start the cloud backfill now, not at its next hourly tick.
+        release_connection(db)
+        backfill_trigger.request_backfill()
     snapshot_status = (
         "ready" if cash_updated and positions_updated
         else "partial" if cash_updated or positions_updated
@@ -751,7 +757,7 @@ def sync_transactions(
         },
         "history": {
             "run_id": str(history_run.public_id),
-            "status": history_run.state,
+            "status": history_state,
             "complete": False,
             "blocked": blocked,
         },
@@ -782,7 +788,11 @@ def retry_history(
         else t212_sync.claim_or_create_run(db, conn, portfolio, mode=decision.mode)
     )
     db.commit()
-    return {"run_id": str(run.public_id), "status": run.state, "complete": False, "blocked": False}
+    result = {"run_id": str(run.public_id), "status": run.state, "complete": False, "blocked": False}
+    if run.state not in t212_sync.TERMINAL_RUN_STATES:
+        release_connection(db)
+        backfill_trigger.request_backfill()
+    return result
 
 
 def _fetch_account_summary(base: str, headers: dict) -> dict:

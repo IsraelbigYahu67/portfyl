@@ -1325,6 +1325,18 @@ class TestFinalizeCash:
         assert second.cash_skipped_duplicate == 1
         assert len(_cash_rows(db_session)) == 1
 
+    def test_a_zero_amount_fee_is_skipped_without_blocking_the_run(
+        self, db_session, default_portfolio, completed_run
+    ):
+        # Production 2026-11-03: FEE 0 EUR next to the real fee of a trade.
+        _cash_event(db_session, completed_run, reference="real", kind="FEE", amount=-0.03)
+        _cash_event(db_session, completed_run, reference="zero", kind="FEE", amount=0)
+        with patch("t212_sync.bulk_fetch_fx", return_value={}):
+            result = t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        assert result.needs_review is False
+        assert [r.source_event_id for r in _cash_rows(db_session)] == ["cash:real"]
+
     def test_an_unmapped_type_sends_the_run_to_review_before_any_write(
         self, db_session, default_portfolio, completed_run, connection
     ):

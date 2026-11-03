@@ -741,12 +741,66 @@ async def broker_backfill_all_workspaces(
     only functions in this section are allowed to iterate every tenant).
     One drain deadline is shared by every workspace: the cloud job runs them
     all in a single request that must finish within the scheduler deadline."""
+    import backfill_trigger
+
     deadline = time.monotonic() + drain_seconds
     results: list[dict] = []
+    next_due: datetime | None = None
     for workspace_id in _active_workspace_ids(db):
         _set_job_workspace_context(db, workspace_id)
         results.extend(await broker_backfill_pass(db, workspace_id, deadline=deadline))
+        if backfill_trigger.enabled():
+            _set_job_workspace_context(db, workspace_id)
+            due = broker_backfill_next_due(db, workspace_id)
+            if due is not None and (next_due is None or due < next_due):
+                next_due = due
+    if next_due is not None:
+        # Cloud only (see backfill_trigger): wake this job again when the
+        # earliest unfinished run is due instead of at the next hourly tick.
+        db.commit()  # end the read transaction before the outbound call
+        now = datetime.now(timezone.utc)
+        at = max(next_due, now + timedelta(seconds=backfill_trigger.MIN_CONTINUATION_SECONDS))
+        if at <= now + timedelta(seconds=backfill_trigger.MAX_CONTINUATION_SECONDS):
+            await asyncio.to_thread(backfill_trigger.request_backfill, at=at)
     return results
+
+
+def broker_backfill_next_due(
+    db: Session, workspace_id: UUID, *, now: datetime | None = None,
+) -> datetime | None:
+    """When this workspace's earliest unfinished history run can next make
+    progress: its latest rate-limit reset while waiting on Trading 212, the
+    end of its retry backoff, otherwise `now`. None when no run is open.
+    Mirrors the due checks in broker_backfill_pass."""
+    now = now or datetime.now(timezone.utc)
+    runs = db.execute(
+        select(
+            BrokerSyncRun.state,
+            BrokerSyncRun.retry_count,
+            BrokerSyncRun.updated_at,
+            BrokerSyncRun.orders_rate_limit_reset_at,
+            BrokerSyncRun.dividends_rate_limit_reset_at,
+            BrokerSyncRun.cash_rate_limit_reset_at,
+        ).where(
+            BrokerSyncRun.workspace_id == workspace_id,
+            BrokerSyncRun.state.in_(("pending", "fetching", "waiting_rate_limit", "finalizing")),
+        )
+    ).all()
+    earliest: datetime | None = None
+    for state, retry_count, updated_at, *resets in runs:
+        due = now
+        delay = backfill_backoff_seconds(retry_count or 0)
+        if delay and updated_at is not None:
+            if updated_at.tzinfo is None:
+                updated_at = updated_at.replace(tzinfo=timezone.utc)
+            due = max(due, updated_at + timedelta(seconds=delay))
+        if state == "waiting_rate_limit":
+            resets = [r if r.tzinfo else r.replace(tzinfo=timezone.utc) for r in resets if r]
+            if resets:
+                due = max(due, max(resets))
+        if earliest is None or due < earliest:
+            earliest = due
+    return earliest
 
 
 async def autosync_tick(

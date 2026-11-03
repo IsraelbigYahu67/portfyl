@@ -1382,6 +1382,28 @@ class TestNeedsReviewLoopBreaker:
         assert result["history"]["blocked"] is False
         assert result["history"]["status"] == "pending"
 
+    def test_sync_wakes_the_backfill_job_immediately(
+        self, db_session, default_portfolio, connection
+    ):
+        with patch("backfill_trigger.request_backfill") as wake:
+            _run_sync(db_session, default_portfolio, [])
+        wake.assert_called_once_with()
+
+    def test_blocked_sync_does_not_wake_the_backfill_job(
+        self, db_session, default_portfolio, connection, review_run
+    ):
+        with patch("backfill_trigger.request_backfill") as wake:
+            result = _run_sync(db_session, default_portfolio, [])
+        assert result["history"]["blocked"] is True
+        wake.assert_not_called()
+
+    def test_retry_route_wakes_the_backfill_job(
+        self, db_session, default_portfolio, connection, review_run
+    ):
+        with patch("backfill_trigger.request_backfill") as wake:
+            retry_history(db=db_session, portfolio=default_portfolio, _context=None)
+        wake.assert_called_once_with()
+
     def test_retry_route_creates_new_run(
         self, db_session, default_portfolio, connection, review_run
     ):

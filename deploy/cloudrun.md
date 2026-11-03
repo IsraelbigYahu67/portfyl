@@ -493,6 +493,31 @@ by a `POST /api/broker/trading212/sync` call, not by this job), and that
 `GET /api/broker/trading212/history-status` eventually reports
 `"state": "completed"` across several ticks without the browser staying open.
 
+### Immediate broker backfill (Cloud Tasks)
+
+`portfyl-broker-backfill` runs only hourly (a minutely job kept Neon awake
+and exhausted its quota, 2026-10-19). So a Trading 212 history import does not
+wait for it, `backend/backfill_trigger.py` enqueues a Cloud Tasks task to the
+same `/internal/jobs/broker_backfill` endpoint, with the same
+`portfyl-scheduler` OIDC identity: right after `POST /api/broker/trading212/sync`
+or `/history/retry` creates a run, and after every pass that leaves a run
+unfinished (at its rate-limit reset, at least 20 s later). The chain stops
+when no run is open; the hourly job is the safety net. Without
+`PORTFYL_BACKFILL_TASKS_QUEUE` the trigger is a no-op.
+
+```
+gcloud services enable cloudtasks.googleapis.com
+gcloud tasks queues create portfyl-backfill --location=$REGION --max-concurrent-dispatches=1 --max-dispatches-per-second=1 --max-attempts=3 --min-backoff=30s --max-backoff=300s
+# The runtime SA enqueues, and may mint the scheduler SA's OIDC token for the task.
+gcloud tasks queues add-iam-policy-binding portfyl-backfill --location=$REGION --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/cloudtasks.enqueuer"
+gcloud iam service-accounts add-iam-policy-binding "portfyl-scheduler@$PROJECT_ID.iam.gserviceaccount.com" --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/iam.serviceAccountUser"
+gcloud run services update $SERVICE --region=$REGION --update-env-vars="PORTFYL_BACKFILL_TASKS_QUEUE=projects/$PROJECT_ID/locations/$REGION/queues/portfyl-backfill"
+```
+
+Verify: press Sync on a connected T212 portfolio; within seconds Cloud Run
+logs `POST /internal/jobs/broker_backfill` from a Cloud Tasks caller and the
+history-status card starts counting loaded orders.
+
 ---
 
 ## Routine redeploy (current production layout)

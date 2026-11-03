@@ -51,7 +51,7 @@ from models import (
 )
 from ledger_mutation import acquire_workspace_ledger_lock
 from t212_cash import (
-    CashRow, UnsupportedCash, cash_event_id, cash_event_time, fx_conversion_event_ids,
+    CashRow, UnsupportedCash, ZeroCash, cash_event_id, cash_event_time, fx_conversion_event_ids,
     map_cash_event,
 )
 from t212_incremental import OVERLAP_PAGES, evaluate_page
@@ -1477,6 +1477,8 @@ def _finalize_cash_event(event: BrokerSyncEvent, run: BrokerSyncRun, fx_event_id
     mapped = map_cash_event(item)
     if isinstance(mapped, UnsupportedCash):
         return "unsupported", None
+    if isinstance(mapped, ZeroCash):
+        return "zero", None
     ledger_type = (
         _FX_LEG_TYPE.get(mapped.type, mapped.type)
         if mapped.event_id in fx_event_ids else mapped.type
@@ -1734,6 +1736,8 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
                 # only reachable when retrying an already-completed run.
                 cash_invalid += 1
                 continue
+            if outcome == "zero":
+                continue  # moved no money: nothing to import
         else:
             try:
                 outcome, txn = _finalize_dividend_event(event, run)
