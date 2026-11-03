@@ -112,5 +112,34 @@
       },
       "autoClose": "1800s"
     }
+  },
+  {
+    "displayName": "T212 history import blocked",
+    "combiner": "OR",
+    "enabled": true,
+    "notificationChannels": [
+      "__NOTIFICATION_CHANNEL__"
+    ],
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "A user's Trading 212 history import stopped in needs_review: Trading 212 sent something Portfyl cannot import safely yet (unknown cash type, contradicting sign, unsupported corporate action, bad data). The `detail` label lists the stream, provider type, date, currency, sign and reason, never amounts. Teach the mapper in backend/t212_cash.py or t212_corporate_actions.py, deploy, then ask the user to press Retry history import. Find the full line in Cloud Run logs by searching for the run id."
+    },
+    "conditions": [
+      {
+        "displayName": "T212 history needs review log line",
+        "conditionMatchedLog": {
+          "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"portfyl\" AND textPayload:\"T212 history needs review\"",
+          "labelExtractors": {
+            "detail": "REGEXP_EXTRACT(textPayload, \"T212 history needs review: (.*)\")"
+          }
+        }
+      }
+    ],
+    "alertStrategy": {
+      "notificationRateLimit": {
+        "period": "300s"
+      },
+      "autoClose": "1800s"
+    }
   }
 ]

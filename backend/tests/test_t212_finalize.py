@@ -4,6 +4,7 @@ scoped slice). Not wired into any automatic path -- these call it directly.
 
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, timezone
 from unittest.mock import patch
 
@@ -1355,6 +1356,24 @@ class TestFinalizeCash:
             {"fill_type": None, "ticker": None, "date": "2026-03-01", "cash_type": "MYSTERY"}
         ]
         assert connection.history_complete_at is None
+
+    def test_a_blocked_run_logs_what_blocked_it_without_amounts(
+        self, db_session, default_portfolio, completed_run, caplog
+    ):
+        _cash_event(db_session, completed_run, reference="odd", kind="MYSTERY", amount=12.34)
+        _cash_event(db_session, completed_run, reference="bad", kind="FEE", amount=7.5,
+                    currency="EUR", when="2026-03-02T10:00:00.000Z")
+        with caplog.at_level(logging.WARNING, logger="portfyl.t212_sync"):
+            t212_sync.finalize_run(db_session, completed_run, default_portfolio)
+
+        [line] = [r.getMessage() for r in caplog.records
+                  if r.getMessage().startswith("T212 history needs review")]
+        assert f"run={completed_run.public_id}" in line
+        assert f"portfolio={default_portfolio.public_id}" in line
+        assert "cash MYSTERY 2026-03-01 CZK sign=+ (unmapped cash transaction type)" in line
+        assert "cash FEE 2026-03-02 EUR sign=+ (sign contradicts the proven direction)" in line
+        # Amounts are user financial data and never needed to diagnose the type.
+        assert "12.34" not in line and "7.5" not in line
 
     def test_events_covered_by_the_csv_export_are_not_imported(
         self, db_session, default_portfolio, completed_run

@@ -667,6 +667,7 @@ async def broker_backfill_pass(
         api_headers = t212_sync._t212_headers(connection.api_key, connection.api_secret or "")
         lease_token = run.lease_token
         public_id = str(run.public_id)
+        portfolio_public_id = str(portfolio.public_id)
         prior_retries = run.retry_count or 0
         try:
             if run.state == "finalizing":
@@ -693,9 +694,16 @@ async def broker_backfill_pass(
                     # Deterministic: the staged data itself cannot be imported.
                     db.rollback()
                     _park_run_for_review(db, workspace_id, run_id, exc)
+                    # Same prefix as t212_sync's blocked-run line: the operator
+                    # alert in deploy/monitoring-policies.json matches it.
+                    when = getattr(exc, "when", None)
                     log.warning(
-                        "broker_backfill run %s needs review (%s)",
-                        public_id, type(exc).__name__,
+                        "T212 history needs review: run=%s portfolio=%s data error "
+                        "%s in %s stream on %s",
+                        public_id, portfolio_public_id,
+                        getattr(exc, "error_type", type(exc).__name__),
+                        getattr(exc, "stream", None) or "?",
+                        when.date().isoformat() if when else "?",
                     )
                     results.append({
                         "run_id": public_id,

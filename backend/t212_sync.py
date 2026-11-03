@@ -1221,8 +1221,56 @@ def _review_details(events: list[BrokerSyncEvent]) -> list[dict]:
     return details[:REVIEW_DETAILS_LIMIT]
 
 
+REVIEW_LOG_ITEMS_LIMIT = 10
+
+
+def _amount_sign(value) -> str:
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return "?"
+    if amount != amount:  # NaN
+        return "?"
+    return "+" if amount > 0 else "-" if amount < 0 else "0"
+
+
+def _review_log_line(
+    run: BrokerSyncRun, portfolio: Portfolio, events: list[BrokerSyncEvent], last_error: str,
+) -> str:
+    """One greppable WARNING line per blocked run, for the operator alert
+    (deploy/monitoring-policies.json "T212 history import blocked"). It names
+    what blocked the run -- stream, provider type, date, currency, sign and
+    why -- but never an amount: the type and reason are what a mapper fix
+    needs, and amounts are the user's financial data."""
+    items: list[str] = []
+    for event in events[:REVIEW_LOG_ITEMS_LIMIT]:
+        payload = event.raw_payload or {}
+        when = _staged_event_time(event)
+        day = when.date().isoformat() if when else "?"
+        if event.stream == "cash":
+            mapped = map_cash_event(payload)
+            reason = mapped.reason if isinstance(mapped, UnsupportedCash) else "importable"
+            currency = str(payload.get("currency") or "?").upper()
+            items.append(
+                f"cash {str(payload.get('type') or '?').upper()} {day} {currency} "
+                f"sign={_amount_sign(payload.get('amount'))} ({reason})"
+            )
+        else:
+            order = payload.get("order") or {}
+            ticker = (order.get("ticker") or "").strip() or "?"
+            action = _corporate_action_type(event) or "ORDER"
+            items.append(f"{event.stream} {action} {ticker} {day}")
+    more = len(events) - len(items)
+    if more > 0:
+        items.append(f"+{more} more")
+    return (
+        f"T212 history needs review: run={run.public_id} portfolio={portfolio.public_id} "
+        f"blocking={len(events)} error={last_error!r} items: " + "; ".join(items)
+    )
+
+
 def _send_run_to_needs_review(
-    db: Session, run: BrokerSyncRun, events: list[BrokerSyncEvent],
+    db: Session, run: BrokerSyncRun, portfolio: Portfolio, events: list[BrokerSyncEvent],
     *, last_error: str = HISTORY_NEEDS_REVIEW_ERROR,
 ) -> FinalizeResult:
     """Terminal state for a run whose staged history holds corporate actions
@@ -1230,6 +1278,8 @@ def _send_run_to_needs_review(
     completion or sync marker is set, and the run is not retried: importing
     only the ordinary trades would leave pre-action share counts unadjusted.
     `events` are the blocking events; only a bounded summary is persisted."""
+    # Built before the commit, which drops the RLS context a lazy reload needs.
+    log_line = _review_log_line(run, portfolio, events, last_error)
     action_types = sorted({_corporate_action_type(e) for e in events} - {None})
     run.state = "needs_review"
     run.last_error = last_error
@@ -1241,6 +1291,7 @@ def _send_run_to_needs_review(
     except Exception:
         db.rollback()
         raise
+    log.warning("%s", log_line)
     return FinalizeResult(
         orders_imported=0,
         orders_skipped_duplicate=0,
@@ -1623,7 +1674,7 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
                 _corporate_action_type(event) == "SPIN_OFF" for event in unsupported_events
             )
             return _send_run_to_needs_review(
-                db, run, unsupported_events,
+                db, run, portfolio, unsupported_events,
                 last_error=(HISTORY_SPIN_OFF_UNVERIFIED_ERROR if only_spin_offs
                             else HISTORY_NEEDS_REVIEW_ERROR),
             )
@@ -1635,7 +1686,7 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
         ]
         if unsupported_cash:
             return _send_run_to_needs_review(
-                db, run, unsupported_cash, last_error=HISTORY_CASH_UNSUPPORTED_ERROR,
+                db, run, portfolio, unsupported_cash, last_error=HISTORY_CASH_UNSUPPORTED_ERROR,
             )
 
     # Imported here: t212_corporate_actions imports this module at load time.
@@ -1657,7 +1708,7 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
     except UnpairedSplitLeg:
         if run.state == "finalizing":
             return _send_run_to_needs_review(
-                db, run, split_events, last_error=HISTORY_SPLIT_UNVERIFIED_ERROR,
+                db, run, portfolio, split_events, last_error=HISTORY_SPLIT_UNVERIFIED_ERROR,
             )
         raise
 
