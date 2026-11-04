@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import OnboardingView, { choiceHandler } from "../components/onboarding/OnboardingView";
 import { activatePortfolio, createDemoPortfolio, createPendingImportPortfolio, createPortfolio } from "../api";
 import { usePortfolio } from "../App";
 import { TRACKER_HOME } from "../lib/routes";
+import { uniquePortfolioName } from "../lib/brokerPortfolio";
+import { findSupportedBroker } from "../lib/onboardingBrokers";
 import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
 
 
@@ -16,13 +18,15 @@ function errorMessage(error) {
 
 // One action per ONBOARDING_CHOICE_KEYS entry (Onboarding.test.jsx checks the
 // two match). Pure: it only builds the closures; nothing runs until a click.
-export function buildOnboardingActions({ beginImport, activate }) {
+// `broker` is the supported broker picked in step 1 (null before that).
+export function buildOnboardingActions({ beginImport, activate, broker = null, portfolios = [] }) {
   return {
     import: beginImport,
     demo: () => activate(createDemoPortfolio, TRACKER_HOME, "demo"),
     broker: () => activate(
-      () => createPortfolio({ name: "My portfolio" }),
-      "/settings?section=connections",
+      // One broker per portfolio: name it after the broker it will sync.
+      () => createPortfolio({ name: broker ? uniquePortfolioName(portfolios, broker.key) : "My portfolio" }),
+      broker ? `/settings?section=connections&broker=${broker.key}` : "/settings?section=connections",
       "broker",
     ),
   };
@@ -31,10 +35,28 @@ export function buildOnboardingActions({ beginImport, activate }) {
 
 export default function Onboarding() {
   const navigate = useNavigate();
-  const { pendingImportPortfolio, setCurrentId, refetchPortfolios } = usePortfolio();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { portfolios, pendingImportPortfolio, setCurrentId, refetchPortfolios } = usePortfolio();
   const { recordPortfolioCreated, recordPortfolioDataImported } = useRegisteredActivation();
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
+  // In memory, not the URL: it may be free text the user typed.
+  const [unsupportedName, setUnsupportedName] = useState(null);
+  // In the URL, so "Leave import" on the Import page can return to step 2.
+  const broker = findSupportedBroker(searchParams.get("broker"));
+
+  function changeBroker(key) {
+    setError(null);
+    const next = new URLSearchParams(searchParams);
+    if (key) next.set("broker", key);
+    else next.delete("broker");
+    setSearchParams(next);
+  }
+
+  function changeUnsupported(name) {
+    setError(null);
+    setUnsupportedName(name);
+  }
 
   async function activate(create, destination, kind) {
     setBusy(kind);
@@ -63,7 +85,7 @@ export default function Onboarding() {
       setCurrentId(portfolio.id);
       recordPortfolioCreated("csv");
       await refetchPortfolios();
-      navigate("/import");
+      navigate(broker ? `/import?broker=${broker.key}` : "/import");
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -88,10 +110,14 @@ export default function Onboarding() {
     }
   }
 
-  const actions = buildOnboardingActions({ beginImport, activate });
+  const actions = buildOnboardingActions({ beginImport, activate, broker, portfolios });
 
   return (
     <OnboardingView
+      brokerKey={broker?.key ?? null}
+      onBrokerChange={changeBroker}
+      unsupportedName={unsupportedName}
+      onUnsupportedChange={changeUnsupported}
       onChoose={(key) => choiceHandler(actions, key)()}
       onStartBlank={startBlank}
       busy={busy}

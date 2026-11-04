@@ -1,39 +1,26 @@
-import { BarChart3, Check, Link2, Upload, Loader2 } from "lucide-react";
+import { useId, useState } from "react";
+import { AlertCircle, BarChart3, Check, Link2, Loader2, Upload } from "lucide-react";
 
 import { Badge } from "../ui/Badge";
+import { brokerMethods, filterBrokers, findSupportedBroker } from "../../lib/onboardingBrokers";
 
-// Pure presentation of the first-run onboarding screen. It deliberately
-// imports nothing from the API client or analytics: the real Onboarding page
-// wires the actions to the server, and OnboardingPreview reuses this exact
-// view with local-only actions so signed-in users can walk through it again
-// safely.
-
-export const ONBOARDING_CHOICES = Object.freeze([
-  {
-    key: "import",
-    icon: Upload,
-    title: "Import a CSV",
-    description: "Preview a Trading 212 export or Portfyl CSV before anything is saved.",
-    primary: true,
-  },
-  {
-    key: "demo",
-    icon: BarChart3,
-    title: "Explore sample portfolio",
-    description: "Use clearly labelled sample data. You can replace or clear it at any time.",
-  },
-  {
-    key: "broker",
-    icon: Link2,
-    title: "Connect a broker",
-    description: "Create an empty portfolio, then review available connection options.",
-  },
-]);
+// Pure presentation of the first-run onboarding (docs/prototypes/
+// onboarding-preview.html). It deliberately imports nothing from the API
+// client or analytics: the real Onboarding page wires the actions to the
+// server, and OnboardingPreview reuses this exact view with local-only actions
+// so signed-in users can walk through it again safely.
+//
+// The flow is controlled by its parent:
+//   step 1  no brokerKey          -> "Which broker do you use?"
+//   step 1b unsupportedName set   -> "Portfyl doesn't support X yet"
+//   step 2  brokerKey supported   -> choices tailored to that broker
 
 // Every page that renders this view keys its handlers by these. The pages'
 // tests compare their handler maps with this list, so a new choice cannot ship
 // without wiring. "blank" is not a choice: it is the separate onStartBlank link.
-export const ONBOARDING_CHOICE_KEYS = Object.freeze(ONBOARDING_CHOICES.map(({ key }) => key));
+// "import" stays last: OnboardingPreview.test.jsx's import-graph guard reads a
+// quoted "import" followed by another quoted string as a side-effect import.
+export const ONBOARDING_CHOICE_KEYS = Object.freeze(["broker", "demo", "import"]);
 
 // The handler for a choice. A missing one is a wiring bug; it is logged and
 // does nothing instead of throwing a TypeError from inside a click handler,
@@ -44,7 +31,257 @@ export function choiceHandler(handlers, key) {
   return () => console.error(`Onboarding choice "${key}" has no handler.`);
 }
 
+// Step 2's cards for `broker`, most direct route first (the primary one).
+export function onboardingChoices(broker) {
+  const demo = {
+    key: "demo",
+    icon: BarChart3,
+    title: "Explore sample portfolio",
+    description: "Use clearly labelled sample data. You can replace or clear it at any time.",
+  };
+  const fileImport = broker.fileKind
+    ? {
+      key: "import",
+      icon: Upload,
+      title: broker.api ? `Import your ${broker.name} ${broker.fileKind}` : `Import your ${broker.name} file`,
+      description: `${broker.hint} You'll see a preview before anything is saved.`,
+    }
+    : {
+      key: "import",
+      icon: Upload,
+      title: "Import a Portfyl CSV",
+      description: "Prefer a file? Preview a Portfyl CSV before anything is saved.",
+    };
+  if (!broker.api) return [{ ...fileImport, primary: true }, demo];
+  return [
+    {
+      key: "broker",
+      icon: Link2,
+      title: `Connect ${broker.name}`,
+      description: `Sync automatically with your ${broker.credential}. Read-only: Portfyl can't trade.`,
+      primary: true,
+    },
+    fileImport,
+    demo,
+  ];
+}
+
+// The inset "well" used for chips, matching the Import progress trough.
+const WELL_STYLE = { background: "var(--bg-subtle, var(--surface-hover))", boxShadow: "var(--clay-inset-sm, none)" };
+// Marks the recommended choice. An outline, not a Tailwind ring: the ring is a
+// box-shadow and Clay cards replace box-shadow with their raised depth.
+const PRIMARY_OUTLINE = { outline: "2px solid color-mix(in srgb, var(--brand) 35%, transparent)" };
+
+
+function StepHeader({ eyebrow, title, children }) {
+  return (
+    <div className="text-center space-y-3">
+      <img src="/portfyl-mark.svg" alt="" className="w-14 h-14 object-contain mx-auto" />
+      {eyebrow && <p className="eyebrow text-brand">{eyebrow}</p>}
+      <h1 className="font-display text-3xl font-bold text-ink">{title}</h1>
+      {children && <p className="text-sm text-muted max-w-xl mx-auto">{children}</p>}
+    </div>
+  );
+}
+
+
+function BrokerIcon({ broker }) {
+  return (
+    <img
+      src={broker.icon}
+      alt=""
+      width={44}
+      height={44}
+      className="w-11 h-11 shrink-0 rounded-[14px] object-cover"
+      style={{ boxShadow: "var(--clay-raise-sm, none)" }}
+    />
+  );
+}
+
+
+// Step 1: which broker? Checks support before the user invests any effort.
+function BrokerPick({ onPick, onUnsupported }) {
+  const searchId = useId();
+  const [query, setQuery] = useState("");
+  const { supported, unsupported } = filterBrokers(query);
+  const typed = query.trim();
+  const unknown = typed && !supported.length && !unsupported.length;
+
+  return (
+    <div className="space-y-8">
+      <StepHeader eyebrow="Step 1 of 2" title="Which broker do you use?">
+        Portfyl reads your trades from your broker, so we check first that yours is supported. Finding out costs nothing.
+      </StepHeader>
+
+      <div className="space-y-1.5">
+        <label htmlFor={searchId} className="eyebrow">Search brokers</label>
+        <input
+          id={searchId}
+          type="search"
+          autoComplete="off"
+          placeholder="e.g. Trading 212, Robinhood…"
+          className="input min-h-[44px]"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </div>
+
+      {supported.length > 0 && (
+        <section aria-labelledby="onboarding-supported" className="space-y-4">
+          <h2 id="onboarding-supported" className="eyebrow">Supported</h2>
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {supported.map((broker) => (
+              <li key={broker.key}>
+                <button
+                  type="button"
+                  onClick={() => onPick(broker.key)}
+                  className="card card-interactive w-full h-full flex items-center gap-3 text-left !p-4"
+                >
+                  <BrokerIcon broker={broker} />
+                  <span className="min-w-0">
+                    <span className="block font-semibold text-ink">{broker.name}</span>
+                    <span className="block text-xs text-muted">{brokerMethods(broker)}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {unsupported.length > 0 && (
+        <section aria-labelledby="onboarding-unsupported" className="space-y-4">
+          <h2 id="onboarding-unsupported" className="eyebrow">Not supported yet</h2>
+          <ul className="flex flex-wrap gap-2.5">
+            {unsupported.map((name) => (
+              <li key={name}>
+                <button
+                  type="button"
+                  onClick={() => onUnsupported(name)}
+                  className="min-h-[44px] rounded-full px-4 text-sm font-medium text-muted hover:text-ink"
+                  style={WELL_STYLE}
+                >
+                  {name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {unknown && (
+        <div className="card flex flex-wrap items-center justify-between gap-3">
+          <span className="text-sm text-ink">“{typed}” isn't in our list.</span>
+          <button type="button" onClick={() => onUnsupported(typed)} className="btn-ghost text-sm">Check this broker</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// Step 1b: the broker can't be read. Say so before the user pays anything.
+function Unsupported({ name, busy, onBack, onDemo, notice }) {
+  return (
+    <div className="max-w-md mx-auto space-y-6">
+      <div className="text-center space-y-3">
+        <span className="w-14 h-14 rounded-[20px] bg-brand-light text-brand flex items-center justify-center mx-auto">
+          <AlertCircle size={26} aria-hidden="true" />
+        </span>
+        <h1 className="font-display text-2xl font-bold text-ink">Portfyl doesn't support {name} yet</h1>
+        <p className="text-sm text-muted">
+          We can only read trades from the brokers on our list, so there would be nothing to show for {name}. Better to know before you pay anything.
+        </p>
+      </div>
+      <div className="card space-y-3">
+        <button type="button" onClick={onBack} disabled={busy != null} className="btn-ghost w-full min-h-[44px]">Choose another broker</button>
+        <button type="button" onClick={onDemo} disabled={busy != null} className="btn-ghost w-full min-h-[44px] flex items-center justify-center gap-2">
+          {busy === "demo" && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
+          Look around with sample data (free)
+        </button>
+      </div>
+      {notice}
+    </div>
+  );
+}
+
+
+// Step 2: how to get this broker's data in.
+function Choices({ broker, busy, selected, onChoose, onChangeBroker, onStartBlank, notice }) {
+  const selectable = selected !== undefined;
+  const choices = onboardingChoices(broker);
+
+  return (
+    <div className="space-y-8">
+      <StepHeader eyebrow={`Step 2 of 2 · ${broker.name}`} title="Add your first portfolio">
+        Good news, {broker.name} is supported.{" "}
+        {broker.api ? "Connect it for automatic sync, or import a file." : "Import your export file to get started."}
+      </StepHeader>
+
+      <div className={`grid gap-5 ${choices.length === 2 ? "md:grid-cols-2 max-w-2xl mx-auto" : "md:grid-cols-3"}`}>
+        {choices.map(({ key, icon: Icon, title, description, primary }) => {
+          const isSelected = selectable && selected === key;
+          // The selected state is an outline plus a "Selected" badge: Clay
+          // hides card borders (.theme-clay .card) and owns the card
+          // box-shadow, so neither a border nor a ring would show there.
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onChoose(key)}
+              disabled={busy != null}
+              className={`card card-interactive flex flex-col items-start justify-start gap-4 text-left disabled:opacity-60 ${
+                isSelected ? "outline outline-2 outline-offset-4 outline-brand" : ""
+              }`}
+              style={primary && !isSelected ? PRIMARY_OUTLINE : undefined}
+              aria-label={title}
+              aria-pressed={selectable ? isSelected : undefined}
+            >
+              <span className="flex w-full items-start justify-between gap-3">
+                <span className="w-10 h-10 shrink-0 rounded-[14px] bg-brand-light text-brand flex items-center justify-center">
+                  {busy === key ? <Loader2 size={20} className="animate-spin" /> : <Icon size={20} />}
+                </span>
+                {isSelected && (
+                  <Badge tone="brand">
+                    <Check size={14} aria-hidden="true" />
+                    Selected
+                  </Badge>
+                )}
+              </span>
+              <span className="block space-y-1.5">
+                <span className="block font-semibold text-ink">{title}</span>
+                <span className="block text-xs leading-5 text-muted">{description}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {notice}
+
+      <p className="text-center text-xs text-muted">
+        Sample data is marked as demo data and never mixed into a real import unless you choose to keep it.
+      </p>
+      <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+        <button type="button" onClick={onChangeBroker} disabled={busy != null} className="min-h-[44px] text-sm font-medium text-brand hover:underline disabled:opacity-50">
+          Change broker
+        </button>
+        <button type="button" onClick={onStartBlank} disabled={busy != null} className="min-h-[44px] text-sm font-medium text-muted underline-offset-4 hover:text-ink hover:underline disabled:opacity-50">
+          {busy === "blank" ? "Preparing blank portfolio…" : "Start with a blank portfolio"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
 export default function OnboardingView({
+  // Step state, owned by the parent (the real page keeps brokerKey in the URL
+  // so "Leave import" can return to step 2).
+  brokerKey = null,
+  onBrokerChange,
+  unsupportedName = null,
+  onUnsupportedChange,
   onChoose,
   onStartBlank,
   busy = null,
@@ -59,7 +296,38 @@ export default function OnboardingView({
   // as a programmatic focus target (tabIndex -1, never a visible ring).
   mainRef = undefined,
 }) {
-  const selectable = selected !== undefined;
+  const broker = findSupportedBroker(brokerKey);
+  const pickBroker = (key) => {
+    onUnsupportedChange(null);
+    onBrokerChange(key);
+  };
+
+  let step;
+  if (unsupportedName) {
+    step = (
+      <Unsupported
+        name={unsupportedName}
+        busy={busy}
+        notice={notice}
+        onBack={() => pickBroker(null)}
+        onDemo={() => onChoose("demo")}
+      />
+    );
+  } else if (broker) {
+    step = (
+      <Choices
+        broker={broker}
+        busy={busy}
+        selected={selected}
+        notice={notice}
+        onChoose={onChoose}
+        onChangeBroker={() => pickBroker(null)}
+        onStartBlank={onStartBlank}
+      />
+    );
+  } else {
+    step = <BrokerPick onPick={pickBroker} onUnsupported={onUnsupportedChange} />;
+  }
 
   return (
     <main
@@ -67,17 +335,8 @@ export default function OnboardingView({
       tabIndex={mainRef ? -1 : undefined}
       className={`min-h-screen bg-bg px-6 py-12 flex items-center justify-center ${mainRef ? "!outline-none" : ""}`}
     >
-      <div className="w-full max-w-4xl space-y-8">
+      <div className={`w-full space-y-8 ${unsupportedName || broker ? "max-w-4xl" : "max-w-3xl"}`}>
         {banner}
-
-        <div className="text-center space-y-3">
-          <img src="/portfyl-mark.svg" alt="" className="w-14 h-14 object-contain mx-auto" />
-          <p className="eyebrow text-brand">Your workspace is ready</p>
-          <h1 className="font-display text-3xl font-bold text-ink">Add your first portfolio</h1>
-          <p className="text-sm text-muted max-w-xl mx-auto">
-            Start with real data or look around safely. Import remains available on every plan.
-          </p>
-        </div>
 
         {error && (
           <div role="alert" className="card border border-loss/40 bg-loss/10 text-sm text-loss">
@@ -85,54 +344,8 @@ export default function OnboardingView({
           </div>
         )}
 
-        <div className="grid gap-4 md:grid-cols-3">
-          {ONBOARDING_CHOICES.map(({ key, icon: Icon, title, description, primary }) => {
-            const isSelected = selectable && selected === key;
-            // The selected state is an outline plus a "Selected" badge: Clay
-            // hides card borders (.theme-clay .card) and owns the card
-            // box-shadow, so neither a border nor a ring would show there
-            // (same outline as the current plan on Pricing).
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => onChoose(key)}
-                disabled={busy != null}
-                className={`card text-left space-y-4 transition-all hover:-translate-y-0.5 hover:border-brand disabled:opacity-60 ${
-                  primary ? "ring-1 ring-brand/30" : ""
-                } ${isSelected ? "outline outline-2 outline-offset-4 outline-brand" : ""}`}
-                aria-label={title}
-                aria-pressed={selectable ? isSelected : undefined}
-              >
-                <span className="flex items-start justify-between gap-3">
-                  <span className="w-10 h-10 shrink-0 rounded-xl bg-brand/10 text-brand flex items-center justify-center">
-                    {busy === key ? <Loader2 size={20} className="animate-spin" /> : <Icon size={20} />}
-                  </span>
-                  {isSelected && (
-                    <Badge tone="brand">
-                      <Check size={14} aria-hidden="true" />
-                      Selected
-                    </Badge>
-                  )}
-                </span>
-                <span className="block space-y-1.5">
-                  <span className="block font-semibold text-ink">{title}</span>
-                  <span className="block text-xs leading-5 text-muted">{description}</span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {notice}
-
-        <p className="text-center text-xs text-muted">
-          Sample data is marked as demo data and never mixed into a real import unless you choose to keep it.
-        </p>
-        <div className="text-center">
-          <button type="button" onClick={onStartBlank} disabled={busy != null} className="text-sm font-medium text-muted underline-offset-4 hover:text-ink hover:underline disabled:opacity-50">
-            {busy === "blank" ? "Preparing blank portfolio…" : "Start with a blank portfolio"}
-          </button>
+        <div key={unsupportedName ? "unsupported" : broker?.key ?? "pick"} className="animate-fade-up">
+          {step}
         </div>
       </div>
     </main>

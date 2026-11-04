@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { AlertCircle, Briefcase, CheckCircle2, ExternalLink, Eye, EyeOff, History, Link as LinkIcon, Loader2, RefreshCw, Unlink } from "lucide-react";
@@ -116,7 +116,16 @@ export function HistoryBackfillStatus({ run, onRetry, retryPending = false }) {
   );
 }
 
+// Order of the broker cards; the broker picked during onboarding
+// (?broker=, see pages/Onboarding.jsx) moves to the top.
+const CONNECTION_ORDER = ["trading212", "ibkr", "etoro"];
+
 function ConnectionsSettings({ headingRef }) {
+  const [searchParams] = useSearchParams();
+  const requestedBroker = searchParams.get("broker");
+  const connectionOrder = CONNECTION_ORDER.includes(requestedBroker)
+    ? [requestedBroker, ...CONNECTION_ORDER.filter((key) => key !== requestedBroker)]
+    : CONNECTION_ORDER;
   const queryClient = useQueryClient();
   const { current: currentPortfolio } = usePortfolio();
   const brokerPortfolio = useBrokerPortfolio();
@@ -212,19 +221,7 @@ function ConnectionsSettings({ headingRef }) {
   const connected = status?.connected === true;
   const busy = connectMutation.isPending || disconnectMutation.isPending || syncMutation.isPending;
 
-  return (
-    <section aria-labelledby="settings-connections-heading" className="space-y-6">
-      <SectionHeading id="settings-connections-heading" headingRef={headingRef} description="Connect providers and control how portfolio data is synchronized.">Connections</SectionHeading>
-
-      {currentPortfolio && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-surface-border bg-surface-card px-4 py-2.5 text-sm text-muted">
-          <Briefcase size={14} className="text-brand" aria-hidden="true" />
-          <span>Managing connection for portfolio</span>
-          <span className="font-medium text-ink">{currentPortfolio.name}</span>
-          <span className="ml-auto text-xs">Each portfolio holds its own broker connections — data is never mixed.</span>
-        </div>
-      )}
-
+  const t212Card = (
       <AsyncSection isLoading={isLoading} error={statusError} onRetry={() => refetchStatus()} loading={<div className="h-52 animate-pulse rounded-xl border border-surface-border bg-surface-card" />}>
         <div className="space-y-5 rounded-xl border border-surface-border bg-surface-card p-6">
           <div className="flex items-center justify-between gap-4">
@@ -275,10 +272,27 @@ function ConnectionsSettings({ headingRef }) {
           )}
         </div>
       </AsyncSection>
+  );
+  const connectionCards = {
+    trading212: t212Card,
+    ibkr: <IBKRConnectionCard portfolioId={currentPortfolio?.id} portfolioName={currentPortfolio?.name} />,
+    etoro: <EtoroConnectionCard portfolioId={currentPortfolio?.id} portfolioName={currentPortfolio?.name} />,
+  };
 
-      <IBKRConnectionCard portfolioId={currentPortfolio?.id} portfolioName={currentPortfolio?.name} />
+  return (
+    <section aria-labelledby="settings-connections-heading" className="space-y-6">
+      <SectionHeading id="settings-connections-heading" headingRef={headingRef} description="Connect providers and control how portfolio data is synchronized.">Connections</SectionHeading>
 
-      <EtoroConnectionCard portfolioId={currentPortfolio?.id} portfolioName={currentPortfolio?.name} />
+      {currentPortfolio && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-surface-border bg-surface-card px-4 py-2.5 text-sm text-muted">
+          <Briefcase size={14} className="text-brand" aria-hidden="true" />
+          <span>Managing connection for portfolio</span>
+          <span className="font-medium text-ink">{currentPortfolio.name}</span>
+          <span className="ml-auto text-xs">Each portfolio holds its own broker connections — data is never mixed.</span>
+        </div>
+      )}
+
+      {connectionOrder.map((key) => <Fragment key={key}>{connectionCards[key]}</Fragment>)}
 
       <SyncScheduleSettings />
     </section>

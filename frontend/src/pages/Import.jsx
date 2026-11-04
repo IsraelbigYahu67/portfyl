@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   CheckCircle,
@@ -26,6 +26,7 @@ import { usePortfolio } from "../App";
 import { useBrokerPortfolio } from "../hooks/useBrokerPortfolio";
 import { brokerLabel, describeSplit } from "../lib/brokerPortfolio";
 import { TRACKER_HOME } from "../lib/routes";
+import { findSupportedBroker } from "../lib/onboardingBrokers";
 import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
 
 
@@ -95,6 +96,10 @@ export default function Import({ focused = false }) {
   const confirm = useConfirm();
   const toast = useToast();
   const navigate = useNavigate();
+  // ?broker= comes from onboarding: tailor the copy to the broker the user picked.
+  const [searchParams] = useSearchParams();
+  const broker = findSupportedBroker(searchParams.get("broker"));
+  const brokerFile = broker?.fileKind ? `${broker.name} ${broker.fileKind}` : null;
   const { current, pendingImportPortfolio, refetchPortfolios, setCurrentId } = usePortfolio();
   const { recordPortfolioDataImported } = useRegisteredActivation();
   const [file, setFile] = useState(null);
@@ -277,11 +282,12 @@ export default function Import({ focused = false }) {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold">Import transactions</h1>
+          <h1 className="text-xl font-bold">{broker ? (brokerFile ? `Import your ${broker.name} file` : "Import a Portfyl CSV") : "Import transactions"}</h1>
           <p className="text-xs text-muted mt-1">Preview every change before it reaches your portfolio.</p>
+          {broker?.hint && <p className="text-xs text-muted mt-1">{broker.hint}</p>}
         </div>
         <div className="flex gap-2">
-          {(focused || onboardingPending) && <button type="button" onClick={() => navigate("/onboarding")} className="btn-ghost text-sm">Leave import</button>}
+          {(focused || onboardingPending) && <button type="button" onClick={() => navigate(broker ? `/onboarding?broker=${broker.key}` : "/onboarding")} className="btn-ghost text-sm">Leave import</button>}
           <button onClick={downloadSample} className="btn-ghost flex items-center gap-2 text-sm">
             <Download size={14} /> Download sample
           </button>
@@ -374,7 +380,9 @@ export default function Import({ focused = false }) {
           </div>
         ) : (
           <div className="text-center">
-            <p className="text-sm font-medium">Drop your broker export (CSV, XML or XLSX) here or click to browse</p>
+            <p className="text-sm font-medium">
+              {brokerFile ? `Drop your ${brokerFile} file here or click to browse` : "Drop your broker export (CSV, XML or XLSX) here or click to browse"}
+            </p>
             <p className="text-xs text-muted mt-1">Nothing is saved until you review and confirm.</p>
           </div>
         )}
@@ -407,7 +415,7 @@ export default function Import({ focused = false }) {
 
       </div>
 
-      {!file && <BrokerGuides />}
+      {!file && <BrokerGuides initialOpen={broker?.key} />}
       </div>
       </>}
 

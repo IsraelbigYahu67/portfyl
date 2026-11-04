@@ -131,6 +131,7 @@ describe("OnboardingPreview import guard", () => {
       "pages/OnboardingPreview.jsx",
       "components/onboarding/OnboardingView.jsx",
       "components/ui/Badge.jsx",
+      "lib/onboardingBrokers.js",
       "hooks/useRouteFocusAnnouncer.js",
     ]));
   });
@@ -284,26 +285,34 @@ describe("OnboardingPreview", () => {
     expect(screen.queryByText(/tracked or sent/i)).not.toBeInTheDocument();
   });
 
-  it("walks every choice locally without any network request or stored state", () => {
+  it("walks every step and choice locally without any network request or stored state", () => {
     mount();
 
+    expect(screen.getByRole("heading", { name: "Which broker do you use?" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Trading 212/ }));
     expect(screen.getByRole("heading", { name: /add your first portfolio/i })).toBeInTheDocument();
     // The live region is mounted, and empty, before the first choice so that
     // choice is announced as a content change.
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
 
-    fireEvent.click(screen.getByRole("button", { name: "Import a CSV" }));
-    expect(screen.getByRole("status")).toHaveTextContent(/opens the csv import/i);
+    fireEvent.click(screen.getByRole("button", { name: "Import your Trading 212 CSV" }));
+    expect(screen.getByRole("status")).toHaveTextContent(/opens the import for your trading 212 csv file/i);
 
     fireEvent.click(screen.getByRole("button", { name: "Explore sample portfolio" }));
     expect(screen.getByRole("status")).toHaveTextContent(/sample portfolio/i);
 
-    fireEvent.click(screen.getByRole("button", { name: "Connect a broker" }));
-    expect(screen.getByRole("status")).toHaveTextContent(/settings → connections/i);
+    fireEvent.click(screen.getByRole("button", { name: "Connect Trading 212" }));
+    expect(screen.getByRole("status")).toHaveTextContent(/“Trading 212” and opens settings → connections/i);
 
     fireEvent.click(screen.getByRole("button", { name: /start with a blank portfolio/i }));
     expect(screen.getByRole("status")).toHaveTextContent(/empty portfolio/i);
     expect(screen.getByRole("status")).toHaveTextContent(/nothing was created/i);
+
+    fireEvent.click(screen.getByRole("button", { name: "Change broker" }));
+    fireEvent.click(screen.getByRole("button", { name: "Robinhood" }));
+    expect(screen.getByRole("heading", { name: "Portfyl doesn't support Robinhood yet" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /look around with sample data/i }));
+    expect(screen.getByRole("status")).toHaveTextContent(/sample portfolio/i);
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(xhrOpenSpy).not.toHaveBeenCalled();
@@ -313,10 +322,11 @@ describe("OnboardingPreview", () => {
 
   it("keeps a single live region and swaps only its content", () => {
     mount();
+    fireEvent.click(screen.getByRole("button", { name: /Interactive Brokers/ }));
     const status = screen.getByRole("status");
 
-    fireEvent.click(screen.getByRole("button", { name: "Import a CSV" }));
-    fireEvent.click(screen.getByRole("button", { name: "Connect a broker" }));
+    fireEvent.click(screen.getByRole("button", { name: "Import your Interactive Brokers Flex XML" }));
+    fireEvent.click(screen.getByRole("button", { name: "Connect Interactive Brokers" }));
 
     expect(screen.getAllByRole("status")).toEqual([status]);
     expect(status).toHaveTextContent(/settings → connections/i);
@@ -324,8 +334,9 @@ describe("OnboardingPreview", () => {
 
   it("marks the chosen card as pressed", () => {
     mount();
+    fireEvent.click(screen.getByRole("button", { name: /Trading 212/ }));
 
-    const buttons = ["Import a CSV", "Explore sample portfolio", "Connect a broker"]
+    const buttons = ["Import your Trading 212 CSV", "Explore sample portfolio", "Connect Trading 212"]
       .map((name) => screen.getByRole("button", { name }));
     for (const button of buttons) expect(button).toHaveAttribute("aria-pressed", "false");
 
@@ -343,7 +354,7 @@ describe("OnboardingPreview", () => {
 
     fireEvent.click(screen.getByRole("link", { name: /replay onboarding/i }));
 
-    const heading = await screen.findByRole("heading", { name: "Add your first portfolio" });
+    const heading = await screen.findByRole("heading", { name: "Which broker do you use?" });
     await waitFor(() => expect(heading).toHaveFocus());
   });
 
@@ -355,7 +366,7 @@ describe("OnboardingPreview", () => {
 
     // Back skips the replaced preview entry and lands on the page before it.
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.queryByRole("heading", { name: /add your first portfolio/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Which broker do you use?" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("location")).toHaveTextContent(PREVIEW_EXIT_PATH);
   });
 

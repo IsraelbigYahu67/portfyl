@@ -60,13 +60,13 @@ function LocationProbe() {
   return <output aria-label="location">{location.pathname}</output>;
 }
 
-function mount(props = {}) {
+function mount(props = {}, entry = "/import") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/import"]}><Import {...props} /><LocationProbe /></MemoryRouter>
+      <MemoryRouter initialEntries={[entry]}><Import {...props} /><LocationProbe /></MemoryRouter>
     </QueryClientProvider>
   );
 }
@@ -152,6 +152,16 @@ describe("Import preview and undo", () => {
     fireEvent.click(screen.getByRole("button", { name: /leave import/i }));
     expect(screen.getByLabelText("location")).toHaveTextContent("/onboarding");
     expect(mocks.commitImportCSV).not.toHaveBeenCalled();
+  });
+
+  it("tailors the copy to the broker picked during onboarding and returns to it", async () => {
+    mount({ focused: true }, "/import?broker=xtb");
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Import your XTB file" })).toBeInTheDocument();
+    expect(screen.getByText(/drop your xtb xlsx file here/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^XTB/ })).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(screen.getByRole("button", { name: /leave import/i }));
+    expect(screen.getByLabelText("location")).toHaveTextContent("/onboarding");
   });
 
   it("shows replacement removals before destructive commit", async () => {

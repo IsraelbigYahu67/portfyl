@@ -2,13 +2,27 @@ import { createRef } from "react";
 import { render, screen } from "@testing-library/react";
 
 import { legacyColorClassesIn } from "../../test/legacyClasses";
+import { SUPPORTED_BROKERS, findSupportedBroker } from "../../lib/onboardingBrokers";
 
-import OnboardingView, { ONBOARDING_CHOICES, ONBOARDING_CHOICE_KEYS, choiceHandler } from "./OnboardingView";
+import OnboardingView, { ONBOARDING_CHOICE_KEYS, choiceHandler, onboardingChoices } from "./OnboardingView";
 
 const noop = () => {};
+const IBKR = findSupportedBroker("ibkr");
 
-function choiceButtons() {
-  return ONBOARDING_CHOICES.map(({ title }) => screen.getByRole("button", { name: title }));
+function renderView(props = {}) {
+  return render(
+    <OnboardingView
+      onBrokerChange={noop}
+      onUnsupportedChange={noop}
+      onChoose={noop}
+      onStartBlank={noop}
+      {...props}
+    />
+  );
+}
+
+function choiceButtons(broker = IBKR) {
+  return onboardingChoices(broker).map(({ title }) => screen.getByRole("button", { name: title }));
 }
 
 describe("OnboardingView", () => {
@@ -20,14 +34,28 @@ describe("OnboardingView", () => {
     expect(await legacyColorClassesIn(new URL("./OnboardingView.jsx", import.meta.url))).toEqual([]);
   });
 
-  it("lists one unique key per choice", () => {
-    expect(ONBOARDING_CHOICE_KEYS).toEqual(ONBOARDING_CHOICES.map(({ key }) => key));
+  it("lists unique choice keys, without the blank link", () => {
     expect(new Set(ONBOARDING_CHOICE_KEYS).size).toBe(ONBOARDING_CHOICE_KEYS.length);
     expect(ONBOARDING_CHOICE_KEYS).not.toContain("blank");
   });
 
+  it("only offers choices that have a key, with exactly one primary per broker", () => {
+    for (const broker of SUPPORTED_BROKERS) {
+      const choices = onboardingChoices(broker);
+      for (const { key } of choices) expect(ONBOARDING_CHOICE_KEYS).toContain(key);
+      expect(choices.filter(({ primary }) => primary)).toHaveLength(1);
+      expect(choices.some(({ key }) => key === "broker")).toBe(broker.api);
+    }
+  });
+
+  it("starts with the broker pick when no broker is chosen", () => {
+    renderView();
+
+    expect(screen.getByRole("heading", { level: 1, name: "Which broker do you use?" })).toBeInTheDocument();
+  });
+
   it("renders plain action buttons when no selection is in use", () => {
-    render(<OnboardingView onChoose={noop} onStartBlank={noop} />);
+    renderView({ brokerKey: "ibkr" });
 
     for (const button of choiceButtons()) {
       expect(button).not.toHaveAttribute("aria-pressed");
@@ -38,12 +66,14 @@ describe("OnboardingView", () => {
   });
 
   it("marks the selected choice with aria-pressed, an outline and a badge", () => {
-    const { rerender } = render(<OnboardingView onChoose={noop} onStartBlank={noop} selected={null} />);
+    const { rerender } = renderView({ brokerKey: "ibkr", selected: null });
 
     for (const button of choiceButtons()) expect(button).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByText("Selected")).not.toBeInTheDocument();
 
-    rerender(<OnboardingView onChoose={noop} onStartBlank={noop} selected="demo" />);
+    rerender(
+      <OnboardingView brokerKey="ibkr" selected="demo" onBrokerChange={noop} onUnsupportedChange={noop} onChoose={noop} onStartBlank={noop} />
+    );
 
     const demo = screen.getByRole("button", { name: "Explore sample portfolio" });
     expect(demo).toHaveAttribute("aria-pressed", "true");
@@ -57,9 +87,16 @@ describe("OnboardingView", () => {
     }
   });
 
+  it("shows the unsupported screen and its notice", () => {
+    renderView({ unsupportedName: "Robinhood", notice: <p>Notice slot</p> });
+
+    expect(screen.getByRole("heading", { level: 1, name: "Portfyl doesn't support Robinhood yet" })).toBeInTheDocument();
+    expect(screen.getByText("Notice slot")).toBeInTheDocument();
+  });
+
   it("forwards mainRef to a programmatically focusable <main>", () => {
     const mainRef = createRef();
-    render(<OnboardingView onChoose={noop} onStartBlank={noop} mainRef={mainRef} />);
+    renderView({ mainRef });
 
     const main = screen.getByRole("main");
     expect(mainRef.current).toBe(main);

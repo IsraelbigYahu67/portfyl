@@ -75,8 +75,8 @@ const GUIDES = [
   },
 ];
 
-export default function BrokerGuides() {
-  const [open, setOpen] = useState(null);
+export default function BrokerGuides({ initialOpen = null }) {
+  const [open, setOpen] = useState(() => (GUIDES.some((guide) => guide.id === initialOpen) ? initialOpen : null));
   return (
     <section aria-labelledby="broker-guides-heading" className="card space-y-3">
       <div>

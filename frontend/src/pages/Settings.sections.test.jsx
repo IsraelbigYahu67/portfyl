@@ -95,6 +95,16 @@ it("mounts only the selected section and trusts the broker status for connection
   expect(mocks.dataMount).not.toHaveBeenCalled();
 });
 
+it("lists the broker picked during onboarding first", async () => {
+  mount("/settings?section=connections&broker=etoro");
+  await screen.findByText("Not connected");
+  const etoro = screen.getByText("eToro card for Imported portfolio");
+  const t212 = screen.getByRole("heading", { level: 3, name: "Trading 212" });
+  const ibkr = screen.getByText("IBKR card for Imported portfolio");
+  expect(etoro.compareDocumentPosition(t212) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(t212.compareDocumentPosition(ibkr) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
 it("shows Trading 212 connection state as a badge", async () => {
   mount("/settings?section=connections");
   expect(await screen.findByText("Not connected")).toHaveAttribute("data-tone", "neutral");
