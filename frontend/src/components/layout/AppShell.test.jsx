@@ -1,9 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import AppShell from "./AppShell";
+import { resetRouteFocusAnnouncerForTests } from "../../hooks/useRouteFocusAnnouncer";
 import { NAV_GROUPS } from "./navigation";
+
+// The focus announcer remembers the last path across mounts; start each test fresh.
+beforeEach(resetRouteFocusAnnouncerForTests);
 
 vi.mock("../../App", () => ({
   useCurrency: () => ({ currency: "USD", setCurrency: vi.fn(), rate: 21, rateLoading: false }),

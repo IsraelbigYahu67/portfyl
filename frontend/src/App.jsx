@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback, Suspense }
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { TRACKER_HOME, isOnboardingPreviewPath } from "./lib/routes";
-import { Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
 import AppShell from "./components/layout/AppShell";
 import { buildNavGroups } from "./components/layout/navigation";
 import { SHARED_AUTHENTICATED_ROUTES, LazyOnboarding, LazyOnboardingPreview, LazyImport } from "./routes/authenticatedRoutes";
@@ -172,11 +172,16 @@ function PortfolioProvider({ children }) {
     return null;
   });
 
-  const { data: portfolios = [], isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["portfolios"],
     queryFn: fetchPortfolios,
     staleTime: 60_000,
   });
+  const portfolios = data ?? [];
+  // The list never loaded (a failed background refetch keeps its stale data
+  // and does not count). `portfolios` is then an empty placeholder, not a
+  // workspace without portfolios, so it must not route anyone into onboarding.
+  const loadFailed = isError && data === undefined;
   const activePortfolios = portfolios.filter((portfolio) => portfolio.activation_state !== "pending_import");
   const pendingImportPortfolio = portfolios.find((portfolio) => portfolio.activation_state === "pending_import") || null;
 
@@ -189,7 +194,9 @@ function PortfolioProvider({ children }) {
     // resolves never gets a re-render to recompute `ready` — it only fixes the
     // module-level id, and `currentId`/`portfolios` staying the same after that
     // means nothing else re-triggers this effect, so `ready` stays stuck false.
-    if (isLoading) return;
+    // The same holds after a failed first fetch: keep the stored id so that,
+    // once a retry succeeds, the very first render already sees it as ready.
+    if (isLoading || loadFailed) return;
     if (!portfolios.length) {
       setActivePortfolioId(null);
       return;
@@ -206,7 +213,7 @@ function PortfolioProvider({ children }) {
       setCurrentIdState(fallback.id);
       localStorage.setItem("sb_portfolio_id", String(fallback.id));
     }
-  }, [portfolios, activePortfolios, pendingImportPortfolio, currentId, isLoading]);
+  }, [portfolios, activePortfolios, pendingImportPortfolio, currentId, isLoading, loadFailed]);
 
   const setCurrentId = useCallback(
     (id) => {
@@ -234,6 +241,7 @@ function PortfolioProvider({ children }) {
     setCurrentId,
     refetchPortfolios: refetch,
     isLoading,
+    loadFailed,
     ready: currentId != null && getActivePortfolioId() === currentId,
   };
 
@@ -312,6 +320,27 @@ function AuthSplash() {
   );
 }
 
+// Full-screen stand-in for the app when the portfolio list could not load at
+// all. Without it the empty placeholder list would send the visitor into the
+// real onboarding, whose choices create portfolios on the server.
+function PortfoliosLoadError({ onRetry }) {
+  return (
+    <main className="min-h-screen flex items-center justify-center bg-bg px-4 py-8">
+      <div role="alert" className="card w-full max-w-md space-y-3 text-center">
+        <AlertCircle className="mx-auto text-loss" size={24} aria-hidden="true" />
+        <h1 className="text-lg font-semibold">We couldn't load your portfolios</h1>
+        <p className="text-sm text-muted">
+          Portfyl could not load your portfolio list just now. Nothing in your account has changed. Check your connection and try again.
+        </p>
+        <button type="button" className="btn-primary min-h-11 inline-flex items-center gap-2" onClick={() => onRetry()}>
+          <RefreshCw size={16} aria-hidden="true" />
+          Retry
+        </button>
+      </div>
+    </main>
+  );
+}
+
 // Public auth routes are mounted outside every protected provider (portfolio,
 // currency, toast, and confirm) -- none of that state exists yet for a
 // visitor who hasn't authenticated. The full application only mounts once
@@ -348,7 +377,13 @@ function AuthGate() {
 }
 
 function AppLayout() {
-  const { activePortfolios, pendingImportPortfolio, isLoading: portfoliosLoading } = usePortfolio();
+  const {
+    activePortfolios,
+    pendingImportPortfolio,
+    isLoading: portfoliosLoading,
+    loadFailed: portfoliosLoadFailed,
+    refetchPortfolios,
+  } = usePortfolio();
   const { pathname } = useLocation();
   const { data: capabilityState } = useQuery({
     queryKey: ["capabilities"],
@@ -368,18 +403,26 @@ function AppLayout() {
     return <AuthSplash />;
   }
 
+  // Checked before every empty-list fallback below: a failed load is not an
+  // empty workspace, so it must never reach the real onboarding.
+  if (portfoliosLoadFailed) {
+    return <PortfoliosLoadError onRetry={refetchPortfolios} />;
+  }
+
+  // The full-screen, local-only replay of onboarding (Settings -> Preferences).
+  // It comes before the empty-list fallbacks so this URL can never serve the
+  // real flow, whose choices create portfolios. The preview is harmless for
+  // anyone; a user without a portfolio who exits it lands in real onboarding.
+  if (isOnboardingPreviewPath(pathname)) {
+    return <RouteBoundary key={pathname}><Suspense fallback={<RouteFallback />}><LazyOnboardingPreview /></Suspense></RouteBoundary>;
+  }
+
   if (!activePortfolios.length && pendingImportPortfolio && pathname === "/import") {
     return <main className="min-h-screen bg-bg px-4 py-8"><div className="mx-auto max-w-3xl"><RouteBoundary key={pathname}><Suspense fallback={<RouteFallback />}><LazyImport focused /></Suspense></RouteBoundary></div></main>;
   }
 
   if (!activePortfolios.length) {
     return <RouteBoundary key={pathname}><Suspense fallback={<RouteFallback />}><LazyOnboarding /></Suspense></RouteBoundary>;
-  }
-
-  // Users with portfolios can replay onboarding as a full-screen, local-only
-  // preview (Settings -> Preferences). Users without one get the real flow above.
-  if (isOnboardingPreviewPath(pathname)) {
-    return <RouteBoundary key={pathname}><Suspense fallback={<RouteFallback />}><LazyOnboardingPreview /></Suspense></RouteBoundary>;
   }
 
   return (

@@ -4,6 +4,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import App, { usePortfolio } from "./App";
+import { resetRouteFocusAnnouncerForTests } from "./hooks/useRouteFocusAnnouncer";
 import { TRACKER_HOME } from "./lib/routes";
 
 const PORTFOLIO_ID = "11111111-1111-4111-8111-111111111111";
@@ -41,7 +42,12 @@ vi.mock("./pages/Dashboard", () => ({
   default: () => <h1>Portfolio overview</h1>,
 }));
 vi.mock("./pages/Onboarding", () => ({
-  default: () => <h1>Create your first portfolio</h1>,
+  default: () => (
+    <>
+      <h1>Create your first portfolio</h1>
+      <button type="button">Explore sample portfolio</button>
+    </>
+  ),
 }));
 vi.mock("./pages/Import", () => ({
   default: ({ focused = false }) => <h1>{focused ? "Focused pending import" : "Portfolio import"}</h1>,
@@ -57,7 +63,7 @@ function renderApp(path = TRACKER_HOME) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[path]}>
         <LocationProbe />
@@ -65,10 +71,16 @@ function renderApp(path = TRACKER_HOME) {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...view, queryClient };
 }
+
+// Every path a failed portfolio load must cover; Set drops TRACKER_HOME's
+// duplicate in the cloud edition, where it is "/dashboard".
+const LOAD_FAILURE_PATHS = [...new Set([TRACKER_HOME, "/dashboard", "/onboarding/preview", "/import"])];
 
 describe("authenticated routing", () => {
   beforeEach(() => {
+    resetRouteFocusAnnouncerForTests();
     localStorage.clear();
     localStorage.setItem("sb_portfolio_id", PORTFOLIO_ID);
     localStorage.setItem("sb_theme", "light");
@@ -113,13 +125,66 @@ describe("authenticated routing", () => {
     expect(screen.queryByRole("heading", { name: /portfolio overview/i })).not.toBeInTheDocument();
   });
 
-  it("gives users without a portfolio the real onboarding even on the preview URL", async () => {
+  it("serves the preview, not the real onboarding, to a user without a portfolio", async () => {
     mocks.fetchPortfolios.mockResolvedValue([]);
     renderApp("/onboarding/preview");
 
-    expect(await screen.findByRole("heading", { name: /create your first portfolio/i }))
-      .toBeInTheDocument();
+    expect(await screen.findByText(/onboarding preview/i)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /create your first portfolio/i }))
+      .not.toBeInTheDocument();
+  });
+
+  it("serves the preview on its trailing-slash URL", async () => {
+    renderApp("/onboarding/preview/");
+
+    expect(await screen.findByText(/onboarding preview/i)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /portfolio overview/i })).not.toBeInTheDocument();
+  });
+
+  it.each(LOAD_FAILURE_PATHS)("shows a retry state instead of onboarding when portfolios fail to load on %s", async (path) => {
+    mocks.fetchPortfolios.mockRejectedValue(new Error("Request failed with status code 503"));
+    renderApp(path);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/couldn't load your portfolios/i);
+    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /create your first portfolio/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /explore sample portfolio/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/onboarding preview/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /portfolio overview/i })).not.toBeInTheDocument();
+  });
+
+  it("loads the app with the stored portfolio ready once Retry succeeds", async () => {
+    mocks.fetchPortfolios.mockRejectedValueOnce(new Error("Request failed with status code 503"));
+    renderApp();
+
+    fireEvent.click(await screen.findByRole("button", { name: /retry/i }));
+
+    expect(await screen.findByRole("heading", { name: /portfolio overview/i })).toBeInTheDocument();
+    expect(mocks.fetchPortfolios).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("portfolio-ready")).toHaveTextContent(PORTFOLIO_ID);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps the loaded portfolios when only a background refresh fails", async () => {
+    const secondId = "33333333-3333-4333-8333-333333333333";
+    mocks.fetchPortfolios
+      .mockResolvedValueOnce([
+        { id: PORTFOLIO_ID, name: "First portfolio", is_default: true, transaction_count: 1 },
+        { id: secondId, name: "Second portfolio", is_default: false, transaction_count: 0 },
+      ])
+      .mockRejectedValue(new Error("Request failed with status code 503"));
+    const { queryClient } = renderApp();
+    await screen.findByRole("heading", { name: /portfolio overview/i });
+
+    // Switching portfolios refetches the list; that refetch fails.
+    fireEvent.click(screen.getByRole("button", { name: /switch portfolio/i }));
+    fireEvent.click(screen.getByText("Second portfolio").closest("button"));
+    await waitFor(() => expect(queryClient.getQueryState(["portfolios"])?.status).toBe("error"));
+
+    expect(screen.getByRole("heading", { name: /portfolio overview/i })).toBeInTheDocument();
+    expect(screen.queryByText(/couldn't load your portfolios/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /create your first portfolio/i })).not.toBeInTheDocument();
   });
 
   it("restores a pending onboarding import without mounting portfolio navigation", async () => {
