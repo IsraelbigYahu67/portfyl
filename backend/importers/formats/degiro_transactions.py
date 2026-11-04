@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import re
 from zoneinfo import ZoneInfo
 
+from currency_codes import normalize_currency
 from importers.base import ImportFile, ImportFormat, ParseResult
 from importers.formats._degiro_common import (
     DATE, DEGIRO_VENUES, ISIN, numeric_cells, parse_degiro_date, read_degiro_csv,
@@ -107,8 +108,8 @@ def _parse(file: ImportFile, resolver) -> ParseResult:
         result.rows.append({
             "date": day, "type": "buy" if quantity > 0 else "sell", "ticker": ticker,
             "name": row[2].strip(), "shares": abs(quantity), "price": price,
-            "currency": row[8].strip().upper(), "cash_amount": abs(total_value),
-            "cash_currency": (row[total_ccy].strip().upper() if total_ccy is not None
+            "currency": normalize_currency(row[8]), "cash_amount": abs(total_value),
+            "cash_currency": (normalize_currency(row[total_ccy]) if total_ccy is not None
                               else _total_currency(header, total)), "notes": "Degiro",
             "source": SOURCE, "source_event_stream": "trades", "source_event_id": event_id,
             "source_instrument_id": ref.isin, "executed_at": executed_at,

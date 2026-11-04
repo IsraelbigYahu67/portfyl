@@ -77,6 +77,24 @@ def test_value_ranking_compares_in_czk(db_session, pid, default_portfolio, monke
     assert out["value_gainers"][0]["ticker"] == "EU"  # bigger CZK move
 
 
+def test_lse_pence_move_converts_at_the_pound_rate_over_100(
+        db_session, pid, default_portfolio, monkeypatch):
+    # Yahoo quotes LSE stocks in 'GBp' (pence). A 100p move on 10 shares is
+    # £10 = 290 Kč, not 1,000 pence x 29 Kč/£ = 29,000 Kč.
+    _seed(db_session, pid, {"IITU.L": 10})
+    closes = {"IITU.L": (3600.0, 3700.0)}
+    monkeypatch.setattr(portfolio_router, "_two_day_closes", lambda tickers: closes)
+    monkeypatch.setattr(portfolio_router, "_fetch_price_and_info",
+                        lambda t: (closes[t][1], t, "GBp"))
+    monkeypatch.setattr(portfolio_router, "_LAST_GOOD_FX", {})
+    monkeypatch.setattr(portfolio_router.market_data, "get_info",
+                        lambda symbol: {"regularMarketPrice": {"GBPCZK=X": 29.0}[symbol]})
+
+    out = portfolio_router.get_movers(period="1d", db=db_session, portfolio=default_portfolio)
+
+    assert out["value_gainers"][0]["period_pnl_czk"] == 290.0
+
+
 def test_empty_portfolio_has_all_keys(db_session, default_portfolio):
     out = portfolio_router.get_movers(period="1d", db=db_session, portfolio=default_portfolio)
     assert out == {"gainers": [], "losers": [], "value_gainers": [], "value_losers": []}

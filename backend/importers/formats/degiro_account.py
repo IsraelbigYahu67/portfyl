@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from currency_codes import normalize_currency
 from importers.base import ImportFile, ImportFormat, ParseResult
 from importers.dividends import DividendLeg, net_dividend_rows
 from importers.formats._degiro_common import (
@@ -72,7 +73,7 @@ def _parse(file: ImportFile, resolver) -> ParseResult:
             result.skip("informational row")
             continue
         kind = classify_description(description)
-        currency = row[7].strip().upper()
+        currency = normalize_currency(row[7], default="")
         if not currency:
             result.errors.append(f"{label}: currency is missing for {description!r}")
             continue

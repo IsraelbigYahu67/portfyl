@@ -40,7 +40,7 @@ from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from fx import bulk_fetch_fx
+from fx import bulk_fetch_fx, normalize_currency
 from models import (
     BrokerConnection,
     BrokerPosition,
@@ -1402,7 +1402,7 @@ def _finalize_order_event(event: BrokerSyncEvent, run: BrokerSyncRun):
         return "invalid", None
 
     instrument = order_data.get("instrument") or {}
-    currency = (instrument.get("currency") or "USD").upper()
+    currency = normalize_currency(instrument.get("currency"))
     name = instrument.get("name") or ticker
 
     raw_date = fill_data.get("filledAt") or order_data.get("createdAt")
@@ -1416,7 +1416,7 @@ def _finalize_order_event(event: BrokerSyncEvent, run: BrokerSyncRun):
     # `walletImpact` is only ever an optional enhancement here.
     wallet_impact = fill_data.get("walletImpact") or {}
     native_amount = wallet_impact.get("netValue")
-    native_currency = (wallet_impact.get("currency") or currency).upper()
+    native_currency = normalize_currency(wallet_impact.get("currency") or currency)
     if native_amount is None:
         native_amount = filled_qty * filled_price
         native_currency = currency
@@ -1469,8 +1469,8 @@ def _finalize_dividend_event(event: BrokerSyncEvent, run: BrokerSyncRun):
         return "invalid", None
 
     instrument = item.get("instrument") or {}
-    currency = (instrument.get("currency") or "USD").upper()
-    account_currency = (item.get("currency") or "").upper()
+    currency = normalize_currency(instrument.get("currency"))
+    account_currency = normalize_currency(item.get("currency"), default="")
     if not account_currency:
         raise ValueError("Trading 212 dividend paid amount currency is unavailable")
 
@@ -1857,13 +1857,13 @@ def finalize_run(db: Session, run: BrokerSyncRun, portfolio: Portfolio) -> Final
     revised_copies = [mapped for _, mapped in revisions]
     fx_needed = {
         (ccy, t.date) for t in (*new_txns, *revised_copies)
-        for ccy in ((t.currency or "USD").upper(), t._native_cash_currency)
+        for ccy in (normalize_currency(t.currency), t._native_cash_currency)
         if ccy != "CZK"
     }
     fx_map = bulk_fetch_fx(fx_needed)
     for t in (*new_txns, *revised_copies):
         ccy = t._native_cash_currency
-        price_ccy = (t.currency or "USD").upper()
+        price_ccy = normalize_currency(t.currency)
         price_fx = 1.0 if price_ccy == "CZK" else fx_map.get((price_ccy, t.date))
         cash_fx = 1.0 if ccy == "CZK" else fx_map.get((ccy, t.date))
         if price_fx:

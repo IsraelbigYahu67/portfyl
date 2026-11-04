@@ -12,6 +12,7 @@ import re
 import xml.etree.ElementTree as ET
 from zoneinfo import ZoneInfo
 
+from currency_codes import normalize_currency
 from importers.base import ImportFile, ImportFormat, ParseResult
 from importers.dividends import DividendLeg, net_dividend_rows
 from importers.instruments import InstrumentRef, InstrumentResolver, unresolved_errors
@@ -204,11 +205,11 @@ def _trade(el, base, ticker, result):
     if event_id is None or day is None:
         result.errors.append(f"IBKR trade {el.get('symbol')}: missing transactionID or date")
         return
-    currency = (el.get("currency") or "").upper()
+    currency = normalize_currency(el.get("currency"), default="")
     quantity = _num(el.get("quantity")) or 0.0
     price = _num(el.get("tradePrice")) or 0.0
     commission = abs(_num(el.get("ibCommission")) or 0.0)
-    commission_ccy = (el.get("ibCommissionCurrency") or currency).upper()
+    commission_ccy = normalize_currency(el.get("ibCommissionCurrency") or currency, default="")
     common = {"date": day, "executed_at": executed_at, "source": SOURCE,
               "source_event_stream": "trades", "fx_to_czk": _fx(el, base)}
 
@@ -248,7 +249,7 @@ def _cash(el, base, ticker, legs, result):
     day, executed_at = _when(el.get("dateTime") or el.get("settleDate"))
     amount = _num(el.get("amount"))
     event_id = _event_id(el)
-    currency = (el.get("currency") or "").upper()
+    currency = normalize_currency(el.get("currency"), default="")
     if day is None or amount is None or not currency:
         result.errors.append(f"IBKR cash transaction {kind}: missing date, amount or currency")
         return
@@ -309,7 +310,7 @@ def _corporate_action(el, ticker, result):
     result.rows.append({
         "date": day, "type": "split_open" if quantity > 0 else "split_close",
         "ticker": symbol, "name": el.get("description"), "shares": abs(quantity), "price": 0.0,
-        "currency": (el.get("currency") or "USD").upper(), "notes": el.get("description"),
+        "currency": normalize_currency(el.get("currency")), "notes": el.get("description"),
         "source": SOURCE, "source_event_stream": "corporate_actions", "source_event_id": event_id,
         "executed_at": executed_at, "source_instrument_id": el.get("isin") or el.get("conid"),
     })
@@ -332,7 +333,7 @@ def _transfer(el, base, ticker, result):
     symbol = ticker(el)
     if symbol is None:
         return
-    currency = (el.get("currency") or "USD").upper()
+    currency = normalize_currency(el.get("currency"))
     value = quantity * price
     trade_type, cash_type = ("buy", "deposit") if direction == "IN" else ("sell", "withdrawal")
     common = {"date": day, "currency": currency, "source": SOURCE, "source_event_stream": "transfers",

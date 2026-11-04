@@ -31,7 +31,7 @@ from entitlements import (
 from models import BrokerConnection, BrokerSyncRun, Portfolio, TradeNote, Transaction
 from cash_ledger import TRADE_TYPES, POSITION_TYPES, signed_cash
 from schemas import TransactionCreate, TransactionResponse
-from fx import fetch_fx_to_czk, bulk_fetch_fx
+from fx import fetch_fx_to_czk, bulk_fetch_fx, normalize_currency, subunit
 from routers.portfolios import require_portfolio
 from ticker_map import yf_symbol
 from transaction_ordering import chronological_key
@@ -169,7 +169,7 @@ def _normalize_t212_detailed(df: pd.DataFrame) -> tuple[list[dict], int, list[st
             price = _t212_num(row, "price / share") or 0.0
             amount = abs(total) if total else abs(shares * price)
             currency = total_ccy if total and total_ccy else \
-                _t212_str(row, "currency (price / share)", "USD").upper()
+                normalize_currency(_t212_str(row, "currency (price / share)", "USD"))
             if amount <= 0:
                 skipped += 1
                 errors.append(f"Row {row_num} ({action_label}): ADR fee amount is missing")
@@ -199,7 +199,7 @@ def _normalize_t212_detailed(df: pd.DataFrame) -> tuple[list[dict], int, list[st
             leg = "open" if action_lc.endswith("open") else "close"
             event[leg] += 1
             event["rows"].append(row_num)
-            currency = _t212_str(row, "currency (price / share)", "USD").upper()
+            currency = normalize_currency(_t212_str(row, "currency (price / share)", "USD"))
             rate = _t212_num(row, "exchange rate")
             fx_to_czk = 1.0 if currency == "CZK" else (1.0 / rate if rate else None)
             rows.append({
@@ -286,7 +286,7 @@ def _normalize_t212_detailed(df: pd.DataFrame) -> tuple[list[dict], int, list[st
             skipped += 1
             errors.append(f"Row {row_num} ({action_label}): non-zero Total is required")
             continue
-        currency = _t212_str(row, "currency (price / share)", "USD").upper()
+        currency = normalize_currency(_t212_str(row, "currency (price / share)", "USD"))
         rate = _t212_num(row, "exchange rate")
 
         # fx_to_czk: exact from the export rather than a yfinance lookup.
@@ -436,7 +436,7 @@ def _parse_native_row(row) -> dict:
 
     currency = "USD"
     if pd.notna(row.get("currency")):
-        currency = str(row["currency"]).upper().strip()
+        currency = normalize_currency(row["currency"])
         if not re.fullmatch(r"[A-Z]{3}", currency):
             raise ValueError(f"currency must be a 3-letter code, got {currency!r}")
 
@@ -667,9 +667,13 @@ _LAST_GOOD_FX: dict[str, float] = {}
 
 
 def _live_fx_to_czk(currency: str, cache: dict) -> float:
-    c = (currency or "USD").upper()
+    c = normalize_currency(currency)
     if c == "CZK":
         return 1.0
+    base, divisor = subunit(c)
+    if divisor != 1.0:
+        # GBX pence: the pound rate / 100 (Yahoo's GBXCZK=X is per pound).
+        return _live_fx_to_czk(base, cache) / divisor
     if c in cache:
         return cache[c]
     try:
@@ -922,7 +926,7 @@ def _prepare_import_transactions(rows: list[dict], portfolio: Portfolio) -> list
     for row in prepared_rows:
         try:
             if not row.get("fx_to_czk"):
-                currency = row["currency"].upper()
+                currency = normalize_currency(row["currency"])
                 row["fx_to_czk"] = (
                     1.0 if currency == "CZK" else fx_map.get((currency, row["date"]))
                 )
@@ -1256,7 +1260,7 @@ def import_csv(
                     type=str(row["type"]).lower().strip(),
                     shares=float(row["shares"]),
                     price=float(row["price"]),
-                    currency=str(row.get("currency", "USD")).upper().strip()
+                    currency=normalize_currency(row.get("currency"))
                     if pd.notna(row.get("currency")) else "USD",
                     date=pd.to_datetime(row["date"]).date(),
                     notes=str(row["notes"])
@@ -1280,7 +1284,7 @@ def import_csv(
     for r in new_rows:
         try:
             if not r.get("fx_to_czk"):
-                ccy = r["currency"].upper()
+                ccy = normalize_currency(r["currency"])
                 r["fx_to_czk"] = 1.0 if ccy == "CZK" else fx_map.get((ccy, r["date"]))
             r["source"] = "t212_csv" if fmt == "Trading 212" else "csv"
             prepared.append(Transaction(
@@ -1776,9 +1780,13 @@ def _live_to_usd(ccy: str) -> float:
     return 1.0, and then it logs a warning and caches nothing so the next
     call retries. A silent 1.0 once made CZK dividends count as USD (~23x).
     """
-    c = (ccy or "USD").upper()
+    c = normalize_currency(ccy)
     if c == "USD":
         return 1.0
+    base, divisor = subunit(c)
+    if divisor != 1.0:
+        # GBX pence: the pound rate / 100 (Yahoo's GBXUSD=X is per pound).
+        return _live_to_usd(base) / divisor
     cached = _USD_FX_CACHE.get(c)
     if cached is not None and _usd_fx_clock() - cached[1] < _USD_FX_TTL_SECONDS:
         return cached[0]

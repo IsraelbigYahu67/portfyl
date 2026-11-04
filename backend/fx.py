@@ -13,6 +13,7 @@ import yfinance as yf
 
 import market_data
 from cache import BoundedTTLCache
+from currency_codes import SUBUNITS, normalize_currency, subunit  # noqa: F401 (re-exported)
 
 
 # Keys embed the requested date window, which varies per transaction date, so
@@ -21,13 +22,21 @@ _DAILY_CACHE: BoundedTTLCache = BoundedTTLCache(512, ttl=6 * 3600.0)
 
 
 def _pair(currency: str) -> str | None:
-    c = (currency or "USD").upper()
+    c, _ = subunit(currency)
     if c == "CZK":
         return None
     return f"{c}CZK=X"
 
 
 def _load_series(currency: str, start: date, end: date) -> pd.Series | None:
+    series = _load_pair_series(currency, start, end)
+    _, divisor = subunit(currency)
+    if series is None or divisor == 1.0:
+        return series
+    return series / divisor
+
+
+def _load_pair_series(currency: str, start: date, end: date) -> pd.Series | None:
     pair = _pair(currency)
     if pair is None:
         return None
@@ -138,7 +147,7 @@ def bulk_fetch_fx(pairs: Iterable[tuple[str, date]]) -> dict[tuple[str, date], f
 
     by_ccy: dict[str, list[date]] = {}
     for ccy, d in pairs:
-        by_ccy.setdefault((ccy or "USD").upper(), []).append(d)
+        by_ccy.setdefault(normalize_currency(ccy), []).append(d)
 
     out: dict[tuple[str, date], float] = {}
     for ccy, dates in by_ccy.items():

@@ -871,6 +871,18 @@ def _import_errors(csv: str, *, db_session, default_portfolio, request_context) 
     return detail["errors"]
 
 
+@pytest.mark.parametrize("raw", ["GBp", "GBX", "gbx"])
+def test_native_csv_pence_currency_is_stored_as_gbx(raw):
+    """A native CSV row priced in pence ('GBp') must not upper-case into
+    'GBP' (pounds) -- that values the trade 100x too high."""
+    import pandas as pd
+    from routers.portfolio import _parse_native_row
+
+    row = pd.Series({"date": "2025-01-10", "ticker": "iitu.l", "type": "buy",
+                     "shares": 2, "price": 2712, "currency": raw})
+    assert _parse_native_row(row)["currency"] == "GBX"
+
+
 def test_empty_price_beyond_the_preview_sample_is_rejected_with_its_row_number(
     db_session, default_portfolio, request_context,
 ):

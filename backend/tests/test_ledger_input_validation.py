@@ -161,6 +161,20 @@ def test_live_to_usd_uses_the_direct_quote_and_caches_it(fx, monkeypatch):
     assert calls == ["EURUSD=X"]
 
 
+def test_pence_rates_are_the_pound_rate_divided_by_100(fx, monkeypatch):
+    """GBX amounts are pence. Yahoo's GBXCZK=X/GBXUSD=X answer the per-POUND
+    rate, so using them priced an LSE pence trade 100x too high (a sold
+    IITU.L showed ~+7,400 Kč realized and -98 % "return if not sold")."""
+    calls = _quotes(monkeypatch, {
+        "GBPCZK=X": 29.0, "GBXCZK=X": 29.0,
+        "GBPUSD=X": 1.3, "GBXUSD=X": 1.3,
+    })
+
+    assert portfolio._live_fx_to_czk("GBX", {}) == pytest.approx(0.29)
+    assert portfolio._live_to_usd("GBX") == pytest.approx(0.013)
+    assert "GBXCZK=X" not in calls and "GBXUSD=X" not in calls
+
+
 def test_live_to_usd_cache_expires(fx, monkeypatch):
     quotes = {"EURUSD=X": 1.1}
     calls = _quotes(monkeypatch, quotes)
