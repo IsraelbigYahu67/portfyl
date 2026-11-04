@@ -1,8 +1,10 @@
+import { readFileSync } from "node:fs";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import PreferencesSettings from "./PreferencesSettings";
 import { legacyColorClassesIn } from "../../test/legacyClasses";
+import { sourcePath } from "../../test/sourcePath";
 
 const context = vi.hoisted(() => ({
   themeStyle: "glass",
@@ -87,7 +89,15 @@ it("renders the accent palette choices as pills", () => {
 it("links to the local-only onboarding preview", () => {
   renderPreferences();
 
-  expect(screen.getByRole("link", { name: /replay onboarding/i })).toHaveAttribute("href", "/onboarding/preview");
+  const link = screen.getByRole("link", { name: /replay onboarding/i });
+  expect(link).toHaveAttribute("href", "/onboarding/preview");
+  // Secondary action: the shared ghost pill (raised in Clay), not a hand-built one.
+  expect(link).toHaveClass("btn-ghost");
+});
+
+it("takes the preview path from lib/routes, not the lazy route registry that loads Settings", () => {
+  const source = readFileSync(sourcePath(new URL("./PreferencesSettings.jsx", import.meta.url)), "utf8");
+  expect(source).not.toMatch(/routes\/authenticatedRoutes/);
 });
 
 it("uses no legacy color classes", async () => {

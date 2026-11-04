@@ -38,6 +38,10 @@ never flat-and-sharp, never glass-blur on Clay.
 
 Use the Tailwind aliases or `var(--token)`; charts take colors from
 `CATEGORICAL` / the `--chart-N` variables so they follow the active theme.
+Opacity modifiers work on every alias (`bg-loss/10`, `border-brand/30`,
+`ring-brand/30`): `tailwind.config.js` wraps each token in a `color-mix`
+with an `<alpha-value>` slot. Keep that wrapper for any new color alias, or
+Tailwind silently emits no CSS for its `/NN` classes.
 
 ## 3. Warm palette (Premium + Clay)
 
@@ -168,6 +172,10 @@ cards and tiles still (Allocation does this: its data/text blocks do not move).
   24px between raised Clay cards so shadows do not collide.
 - Primary action = brand pill; secondary = ghost pill (raised); icon buttons
   are circular.
+- A selected choice card gets `outline outline-2 outline-offset-4
+  outline-brand` plus a brand `Badge` ("Selected", with a check) and
+  `aria-pressed`. Never signal selection with a border or ring alone: Clay
+  hides card borders and owns the card box-shadow.
 - Segmented controls and period selectors sit in an inset trough with a
   raised active pill (brand-colored bold text).
 - Delta/gain-loss: tinted capsule or colored text, always with arrow or sign.

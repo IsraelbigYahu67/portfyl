@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
-import Onboarding from "./Onboarding";
+import Onboarding, { buildOnboardingActions } from "./Onboarding";
+import { ONBOARDING_CHOICES, ONBOARDING_CHOICE_KEYS } from "../components/onboarding/OnboardingView";
 import { TRACKER_HOME } from "../lib/routes";
 
 
@@ -128,6 +129,27 @@ describe("Onboarding", () => {
     await waitFor(() => expect(mocks.setCurrentId).toHaveBeenCalledWith("portfolio-id"));
     expect(await screen.findByText("Settings destination")).toBeInTheDocument();
     finishRefetch({});
+  });
+
+  it("wires exactly one action to every onboarding choice", () => {
+    const actions = buildOnboardingActions({ beginImport: vi.fn(), activate: vi.fn() });
+
+    // A choice without an action would render a button that does nothing.
+    expect(new Set(Object.keys(actions))).toEqual(new Set(ONBOARDING_CHOICE_KEYS));
+    for (const action of Object.values(actions)) expect(action).toBeTypeOf("function");
+    // Building the map is pure: nothing is created until a choice is clicked.
+    expect(mocks.createPortfolio).not.toHaveBeenCalled();
+    expect(mocks.createDemoPortfolio).not.toHaveBeenCalled();
+    expect(mocks.createPendingImportPortfolio).not.toHaveBeenCalled();
+  });
+
+  it("renders the choices as plain action buttons, not preview toggles", () => {
+    mount();
+
+    for (const { title } of ONBOARDING_CHOICES) {
+      expect(screen.getByRole("button", { name: title })).not.toHaveAttribute("aria-pressed");
+    }
+    expect(screen.getByRole("main")).not.toHaveAttribute("tabindex");
   });
 
   it("shows an actionable API error without navigating", async () => {

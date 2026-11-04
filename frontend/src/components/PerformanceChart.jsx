@@ -86,7 +86,7 @@ function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }
         })}
       </div>
       {(pnlPct != null || totalPnlPct != null) && (
-        <p className="text-muted mt-1.5 pt-1.5 border-t border-hairline text-[10px]">
+        <p className="financial-meta mt-1.5 pt-1.5 border-t border-hairline">
           % = time-weighted return, excludes deposits/withdrawals
         </p>
       )}
