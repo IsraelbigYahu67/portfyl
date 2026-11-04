@@ -47,7 +47,7 @@ function MonthTooltip({ month, index, count, currency }) {
             <li key={`${e.ticker}-${e.status}`} className="flex items-center gap-2 text-xs">
               <span className="font-mono font-semibold text-ink">{e.ticker}</span>
               {e.status && (
-                <span className={`rounded px-1 text-[10px] uppercase tracking-wide ${e.status === "forecasted" ? "bg-surface-hover text-muted" : "bg-surface-hover text-gain"}`}>
+                <span className={`rounded px-1 text-xs uppercase tracking-wide ${e.status === "forecasted" ? "bg-surface-hover text-muted" : "bg-surface-hover text-gain"}`}>
                   {STATUS_LABEL[e.status] ?? e.status}
                 </span>
               )}
@@ -56,7 +56,7 @@ function MonthTooltip({ month, index, count, currency }) {
           ))}
         </ul>
       )}
-      {hidden > 0 && <p className="mt-1.5 text-[11px] text-muted">+{hidden} more</p>}
+      {hidden > 0 && <p className="financial-meta mt-1.5">+{hidden} more</p>}
     </div>
   );
 }
