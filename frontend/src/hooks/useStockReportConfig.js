@@ -6,7 +6,7 @@ const TAB_STORAGE_KEY = "sb_stock_report_tabs";
 export const STOCK_TAB_SECTIONS = {
   overview: ["quickStats", "weekRange"],
   financials: ["financials", "dividendGrowth", "earningsRecap"],
-  valuation: ["ratiosAnalyst", "valuationHistory", "valuation"],
+  valuation: ["ratiosAnalyst", "valuationHistory"],
   ownership: [
     "ownership",
     "insiderVolume",
@@ -29,7 +29,6 @@ export const ALL_SECTIONS = [
   { id: "insiderVolume", label: "Insider Volume" },
   { id: "insiderTx", label: "Insider Transactions" },
   { id: "politicalTrades", label: "Political Trades" },
-  { id: "valuation", label: "Valuation Models" },
   { id: "ownership", label: "Ownership" },
   { id: "shibuiOwnershipFilings", label: "Beneficial Ownership (13D/13G)" },
 ];
@@ -73,7 +72,8 @@ export default function useStockReportConfig() {
   const [config, setConfig] = useState(() => {
     const stored = load();
     const hiddenTabs = migrateHiddenSectionsToTabs(stored);
-    const storedOrder = stored?.order;
+    // Drop section ids that no longer exist (e.g. the removed "valuation" models).
+    const storedOrder = stored?.order?.filter((id) => DEFAULT_ORDER.includes(id));
     const order = storedOrder
       ? [...storedOrder, ...DEFAULT_ORDER.filter((id) => !storedOrder.includes(id))]
       : DEFAULT_ORDER;

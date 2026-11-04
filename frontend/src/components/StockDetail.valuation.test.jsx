@@ -70,32 +70,6 @@ describe("analyst rating", () => {
   });
 });
 
-describe("DCF sensitivity", () => {
-  it("colors cells with color-mix tokens", () => {
-    const valuation = {
-      price: 100,
-      methods: [],
-      sensitivity: {
-        wacc_pct: [8, 9], terminal_growth_pct: [2, 3],
-        base_wacc_pct: 8, base_terminal_pct: 2,
-        growth_pct: 5, years: 5,
-        grid: [[140, 100], [70, null]],
-      },
-    };
-    const { container } = renderOverview(
-      { ticker: "AAPL", currency: "USD", valuation },
-      ["valuation"],
-    );
-    const cells = [...container.querySelectorAll("td[title^='FV']")];
-    expect(cells.length).toBe(3);
-    const style = (el) => el.getAttribute("style");
-    expect(style(cells[0])).toContain("color-mix");
-    expect(style(cells[0])).toContain("var(--gain");
-    expect(style(cells[2])).toContain("var(--loss");
-    expect(container.innerHTML).not.toMatch(/\b(?:bg|text)-(?:emerald|green|yellow|orange|red)-\d/);
-  });
-});
-
 describe("price target pills", () => {
   it("never overlap when targets are close together", () => {
     const analyst = { rating: "BUY", score: 2, total: 5, target_low: 99, target_mean: 101, target_high: 102, upside: 1 };
