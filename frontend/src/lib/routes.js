@@ -18,3 +18,12 @@ export const legalPage = (pathname) => {
   const match = /^\/(terms|privacy)\/?$/.exec(pathname);
   return match ? match[1] : null;
 };
+
+// Read-only replay of onboarding for signed-in users (Settings -> Preferences).
+// Rendered full-screen by App.jsx's AppLayout, outside the shell. It is pure
+// frontend: no API, no analytics. Lives here, not in routes/authenticatedRoutes,
+// so components inside lazily loaded pages can link to it without importing
+// the lazy route registry that loads them.
+export const ONBOARDING_PREVIEW_PATH = "/onboarding/preview";
+// Like React Router and legalPage(), accept one trailing slash.
+export const isOnboardingPreviewPath = (pathname) => /^\/onboarding\/preview\/?$/.test(pathname);
