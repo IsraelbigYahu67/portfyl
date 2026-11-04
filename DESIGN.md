@@ -38,6 +38,10 @@ never flat-and-sharp, never glass-blur on Clay.
 
 Use the Tailwind aliases or `var(--token)`; charts take colors from
 `CATEGORICAL` / the `--chart-N` variables so they follow the active theme.
+Opacity modifiers work on every alias (`bg-loss/10`, `border-brand/30`,
+`ring-brand/30`): `tailwind.config.js` wraps each token in a `color-mix`
+with an `<alpha-value>` slot. Keep that wrapper for any new color alias, or
+Tailwind silently emits no CSS for its `/NN` classes.
 
 ## 3. Warm palette (Premium + Clay)
 

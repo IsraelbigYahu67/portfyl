@@ -1,6 +1,15 @@
 /** @type {import('tailwindcss').Config} */
 import defaultTheme from "tailwindcss/defaultTheme";
 
+// Theme colors are CSS variables (lib/themeTokens.js, index.css), which
+// Tailwind cannot split into channels. Given a bare var(--x) it silently
+// drops every opacity modifier, so bg-loss/10, border-brand/30, ring-brand/30
+// and the like produced no CSS at all. Mixing the token with transparent gives
+// Tailwind an <alpha-value> slot: "/10" becomes 10%, and a class without a
+// modifier gets alpha 1, i.e. exactly the token color. Token values are sRGB
+// (hex/rgba), so mixing in srgb loses nothing. src/tailwindTokens.test.js guards it.
+const token = (name) => `color-mix(in srgb, var(${name}) calc(<alpha-value> * 100%), transparent)`;
+
 export default {
   content: ["./index.html", "./src/**/*.{js,jsx}"],
   darkMode: "class",
@@ -13,22 +22,22 @@ export default {
       },
       colors: {
         surface: {
-          DEFAULT: "var(--bg)",
-          card: "var(--surface-card)",
-          "card-elevated": "var(--surface-card-elevated)",
-          hover: "var(--bg-subtle)",
-          border: "var(--border)",
+          DEFAULT: token("--bg"),
+          card: token("--surface-card"),
+          "card-elevated": token("--surface-card-elevated"),
+          hover: token("--bg-subtle"),
+          border: token("--border"),
         },
         brand: {
-          DEFAULT: "var(--brand)",
-          dim: "var(--brand-hover)",
-          light: "var(--brand-light)",
+          DEFAULT: token("--brand"),
+          dim: token("--brand-hover"),
+          light: token("--brand-light"),
         },
-        ink: "var(--ink)",
-        muted: "var(--muted)",
-        hairline: "var(--hairline)",
-        gain: "var(--gain)",
-        loss: "var(--loss)",
+        ink: token("--ink"),
+        muted: token("--muted"),
+        hairline: token("--hairline"),
+        gain: token("--gain"),
+        loss: token("--loss"),
       },
       boxShadow: {
         card: "0 1px 2px rgba(11,18,32,0.04), 0 1px 3px rgba(11,18,32,0.06)",
