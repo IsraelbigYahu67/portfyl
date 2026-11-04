@@ -108,7 +108,11 @@ it("lists the broker picked during onboarding first", async () => {
 it("shows Trading 212 connection state as a badge", async () => {
   mount("/settings?section=connections");
   expect(await screen.findByText("Not connected")).toHaveAttribute("data-tone", "neutral");
-  expect(screen.getByLabelText("API Key")).toHaveClass("input");
+  expect(screen.getByLabelText("API key ID")).toHaveClass("input");
+  expect(screen.getByPlaceholderText("Paste API key ID here")).toBeInTheDocument();
+  expect(screen.getByPlaceholderText("Paste Secret Key here")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "How to connect Trading 212" })).toBeInTheDocument();
+  expect(screen.getByText("API (Beta)")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /^connect$/i })).toHaveClass("btn-primary");
 });
 

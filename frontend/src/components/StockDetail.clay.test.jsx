@@ -4,18 +4,10 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { formatTableDate } from "../lib/format";
 import { legacyColorClassesIn } from "../test/legacyClasses";
-import { InsiderTransactionsSection, ShibuiFilingsSection } from "./StockDetail";
-import { StockFilingsTab } from "./stock/StockFilingsTab";
+import { InsiderTransactionsSection } from "./StockDetail";
 
-const api = vi.hoisted(() => ({ fetchShibuiFilings: vi.fn() }));
+const api = vi.hoisted(() => ({}));
 vi.mock("../api", () => api);
-
-const FILINGS = [
-  { filing_date: "2025-02-01", raw_form_type: "10-Q", form_type: "10-Q", filing_url: "https://sec.example/a" },
-  { filing_date: "2026-03-05", raw_form_type: "10-K", form_type: "10-K", filing_url: "https://sec.example/b" },
-  { filing_date: "2025-11-20", raw_form_type: "8-K", form_type: "8-K", filing_url: "https://sec.example/c" },
-  { filing_date: "2025-06-30", raw_form_type: "4", form_type: "4", filing_url: "https://sec.example/d" },
-];
 
 function withClient(ui) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -56,39 +48,6 @@ describe("insider transactions", () => {
     const row = screen.getByText("Sam Seller").closest("li");
     expect(row.className).not.toMatch(/bg-(red|loss)/);
     expect(within(row).getByText("SELL").dataset.tone).toBe("loss");
-  });
-});
-
-describe("filings", () => {
-  it("filings are sorted newest first and explain form types", async () => {
-    api.fetchShibuiFilings.mockResolvedValue({ filings: FILINGS });
-    withClient(<StockFilingsTab ticker="AAPL" />);
-
-    const rows = await screen.findAllByRole("listitem");
-    expect(rows.map((row) => row.querySelector("time").textContent)).toEqual([
-      formatTableDate("2026-03-05"),
-      formatTableDate("2025-11-20"),
-      formatTableDate("2025-06-30"),
-      formatTableDate("2025-02-01"),
-    ]);
-    expect(within(rows[0]).getByText("Annual report")).toBeInTheDocument();
-    expect(within(rows[1]).getByText("Current report")).toBeInTheDocument();
-    expect(within(rows[2]).getByText("Insider transaction")).toBeInTheDocument();
-    expect(within(rows[3]).getByText("Quarterly report")).toBeInTheDocument();
-  });
-
-  it("the expandable SEC filings list is also newest first", async () => {
-    api.fetchShibuiFilings.mockResolvedValue({ filings: FILINGS });
-    withClient(<ShibuiFilingsSection ticker="AAPL" />);
-
-    fireEvent.click(await screen.findByRole("button", { name: /SEC Filings/i }));
-    const dates = screen.getAllByRole("listitem").map((row) => row.querySelector("time").textContent);
-    expect(dates).toEqual([
-      formatTableDate("2026-03-05"),
-      formatTableDate("2025-11-20"),
-      formatTableDate("2025-06-30"),
-      formatTableDate("2025-02-01"),
-    ]);
   });
 });
 

@@ -32,6 +32,32 @@ def test_history_drops_non_finite_yfinance_closes(monkeypatch):
     }
 
 
+def test_ratios_from_info_derives_growth_cash_and_leverage_metrics():
+    import routers.market as market
+
+    ratios = market._ratios_from_info({
+        "marketCap": 1000.0,
+        "freeCashflow": 50.0,
+        "totalRevenue": 500.0,
+        "totalDebt": 300.0,
+        "totalCash": 100.0,
+        "ebitda": 100.0,
+    })
+
+    assert ratios["fcf_yield"] == 5.0
+    assert ratios["fcf_margin"] == 10.0
+    assert ratios["net_debt_ebitda"] == 2.0
+
+
+def test_ratios_from_info_leaves_new_metrics_empty_without_inputs():
+    import routers.market as market
+
+    ratios = market._ratios_from_info({"ebitda": -10.0})
+
+    for key in ("fcf_yield", "fcf_margin", "net_debt_ebitda"):
+        assert ratios[key] is None
+
+
 class TestStockScreener:
     """Unit tests for the stock screener."""
 

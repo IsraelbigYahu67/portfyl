@@ -7,6 +7,7 @@ const api = vi.hoisted(() => ({
   fetchHistory: vi.fn(),
   fetchHoldings: vi.fn(),
   fetchTransactionsPage: vi.fn(),
+  fetchStockView: vi.fn(),
 }));
 
 vi.mock("../../api", () => api);
@@ -33,6 +34,7 @@ function renderTab(description = "Apple description") {
 beforeEach(() => {
   vi.clearAllMocks();
   state.currency = "USD";
+  api.fetchStockView.mockResolvedValue({ ttm: { revenue: 400e9, fcf: 100e9 } });
   api.fetchHistory.mockResolvedValue({ data: [{ date: "2024-01-01", close: 100 }, { date: "2024-12-31", close: 120 }] });
   api.fetchTransactionsPage.mockResolvedValue({
     items: [{ date: "2024-01-02", type: "buy", shares: 2, price: 100, currency: "USD", notes: "Starter lot" }],

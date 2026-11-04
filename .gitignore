@@ -31,3 +31,6 @@ stitch_portfyl_desktop.zip
 
 # Playwright MCP screenshots / page snapshots (local debugging only)
 .playwright-mcp/
+
+# Office lock files
+~$*

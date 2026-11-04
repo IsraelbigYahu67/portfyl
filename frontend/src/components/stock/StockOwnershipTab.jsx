@@ -4,7 +4,6 @@ const SECTIONS = [
   "ownership",
   "insiderVolume",
   "insiderTx",
-  "shibuiOwnershipFilings",
   "politicalTrades",
 ];
 

@@ -12,6 +12,7 @@ import EtoroConnectionCard from "../components/settings/EtoroConnectionCard";
 import IBKRConnectionCard from "../components/settings/IBKRConnectionCard";
 import PreferencesSettings from "../components/settings/PreferencesSettings";
 import PortfolioDataManagement from "../components/settings/PortfolioDataManagement";
+import T212ApiGuide from "../components/settings/T212ApiGuide";
 import SettingsSectionNav, { SETTINGS_SECTIONS } from "../components/settings/SettingsSectionNav";
 import SyncScheduleSettings from "../components/SyncScheduleSettings";
 import { AsyncSection } from "../components/ui";
@@ -237,17 +238,17 @@ function ConnectionsSettings({ headingRef }) {
 
           {!connected && (
             <div className="space-y-3">
+              <T212ApiGuide />
               <div>
-                <label htmlFor="t212-api-key" className="mb-1.5 block text-sm text-muted">API Key</label>
+                <label htmlFor="t212-api-key" className="mb-1.5 block text-sm text-muted">API key ID</label>
                 <div className="relative">
-                  <input id="t212-api-key" type={showKey ? "text" : "password"} value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Paste your Trading 212 API key" className="input pr-10 text-sm" />
+                  <input id="t212-api-key" type={showKey ? "text" : "password"} value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Paste API key ID here" className="input pr-10 text-sm" />
                   <button type="button" aria-label={showKey ? "Hide API key" : "Show API key"} onClick={() => setShowKey((visible) => !visible)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink">{showKey ? <EyeOff size={16} /> : <Eye size={16} />}</button>
                 </div>
-                <p className="mt-1.5 text-xs text-muted">Generate an API key in Trading 212 → Settings → API (beta)</p>
               </div>
               <div>
-                <label htmlFor="t212-api-secret" className="mb-1.5 block text-sm text-muted">API Secret</label>
-                <input id="t212-api-secret" type="password" value={apiSecret} onChange={(event) => setApiSecret(event.target.value)} placeholder="Paste your Trading 212 API secret" className="input text-sm" />
+                <label htmlFor="t212-api-secret" className="mb-1.5 block text-sm text-muted">Secret key</label>
+                <input id="t212-api-secret" type="password" value={apiSecret} onChange={(event) => setApiSecret(event.target.value)} placeholder="Paste Secret Key here" className="input text-sm" />
               </div>
               <button type="button" onClick={() => connectMutation.mutate()} disabled={!apiKey.trim() || !apiSecret.trim() || busy} className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40">{connectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} />}Connect</button>
             </div>

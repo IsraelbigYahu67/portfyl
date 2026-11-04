@@ -19,7 +19,8 @@ rollout plan:
 before starting any auth, tenancy, database, or billing work.
 
 - `PORTFYL_EDITION=local` — the owner's private instance. Keeps Tax Report and
-  Screener. No billing.
+  Screener (the Screener page is out of the frontend for now, 2026-11-04;
+  its backend stays and git history has the page). No billing.
 - `PORTFYL_EDITION=cloud` — multi-tenant SaaS with Free / Investor EUR 5.99 /
   Pro EUR 9.99 plans (monthly only, VAT included, no trials). Payments use
   **Stripe Managed Payments** (Stripe/Link is the merchant of record):
@@ -226,8 +227,8 @@ mockup) and does not override it.
   are **git-ignored** — don't commit them. (They were tracked in an earlier import
   and scrubbed on export; see `.gitignore`.)
 - Pages: `frontend/src/pages/` (Dashboard, Allocation, Analytics, Dividends,
-  Options, Polymarket, Screener, TaxReport, Transactions,
-  Watchlists, Import, Settings, Stock, Search, PlatformLanding).
+  Cash, TaxReport, Transactions, Watchlists, Import, Settings, Stock,
+  Search, Pricing, Welcome, Onboarding).
   Reusable charts/widgets in `frontend/src/components/`.
 - Sample import data: `sample_portfolio.csv` at the project root.
 

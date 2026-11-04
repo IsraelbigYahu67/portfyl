@@ -4,7 +4,7 @@ const STORAGE_KEY = "sb_stock_report_sections";
 const TAB_STORAGE_KEY = "sb_stock_report_tabs";
 
 export const STOCK_TAB_SECTIONS = {
-  overview: ["quickStats", "weekRange"],
+  overview: ["quickStats"],
   financials: ["financials", "dividendGrowth", "earningsRecap"],
   valuation: ["ratiosAnalyst", "valuationHistory"],
   ownership: [
@@ -12,25 +12,20 @@ export const STOCK_TAB_SECTIONS = {
     "insiderVolume",
     "insiderTx",
     "politicalTrades",
-    "shibuiOwnershipFilings",
   ],
-  filings: ["shibuiFilings"],
 };
 
 export const ALL_SECTIONS = [
   { id: "quickStats", label: "Quick Stats" },
-  { id: "weekRange", label: "52-Week Range" },
   { id: "dividendGrowth", label: "Dividend History" },
   { id: "financials", label: "Financials" },
   { id: "earningsRecap", label: "Earnings" },
   { id: "ratiosAnalyst", label: "Ratios & Analyst" },
   { id: "valuationHistory", label: "Valuation History" },
-  { id: "shibuiFilings", label: "SEC Filings" },
   { id: "insiderVolume", label: "Insider Volume" },
   { id: "insiderTx", label: "Insider Transactions" },
   { id: "politicalTrades", label: "Political Trades" },
   { id: "ownership", label: "Ownership" },
-  { id: "shibuiOwnershipFilings", label: "Beneficial Ownership (13D/13G)" },
 ];
 
 const DEFAULT_ORDER = ALL_SECTIONS.map((s) => s.id);

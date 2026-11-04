@@ -16,14 +16,12 @@ const STOCK_AND_RESEARCH_FILES = [
   "../StockDetail.jsx",
   "./StockHeader.jsx",
   "./StockDataTab.jsx",
-  "./StockFilingsTab.jsx",
   "./StockFinancialsTab.jsx",
   "./StockOverviewTab.jsx",
   "./StockOwnershipTab.jsx",
   "./StockValuationTab.jsx",
   "../../pages/Stock.jsx",
   "../../pages/Search.jsx",
-  "../../pages/Screener.jsx",
   "../../pages/TaxReport.jsx",
 ];
 
@@ -70,14 +68,15 @@ beforeEach(() => {
   api.fetchTransactionsPage.mockResolvedValue({ items: [] });
 });
 
-it("loads overview first and only the selected heavy view, retaining fresh cached tabs", async () => {
+it("loads overview first, then only the financials view its TTM stats need, retaining fresh cached tabs", async () => {
   renderStock();
   await waitFor(() => expect(api.fetchStockView).toHaveBeenCalledWith("AAPL", "overview"));
-  await screen.findByRole("tab", { name: "Financials" });
-  expect(api.fetchStockView).toHaveBeenCalledTimes(1);
+  expect(api.fetchStockView.mock.calls[0]).toEqual(["AAPL", "overview"]);
+  // The overview tab reads TTM revenue/FCF from the financials view, which
+  // the Financials tab then reuses from the cache.
+  await waitFor(() => expect(api.fetchStockView).toHaveBeenCalledWith("AAPL", "financials"));
 
   fireEvent.click(screen.getByRole("tab", { name: "Financials" }));
-  await waitFor(() => expect(api.fetchStockView).toHaveBeenCalledWith("AAPL", "financials"));
   expect(api.fetchStockView).not.toHaveBeenCalledWith("AAPL", "valuation");
   expect(api.fetchStockView).not.toHaveBeenCalledWith("AAPL", "ownership");
 

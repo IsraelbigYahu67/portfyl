@@ -6,13 +6,12 @@ import {
   Line, Pie, PieChart, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
-  ArrowDownRight, ArrowUpRight, Building2, ChevronDown, ChevronUp,
+  ArrowDown, ArrowDownRight, ArrowUpRight, Building2, ChevronDown, ChevronUp,
   ExternalLink, Eye, EyeOff, Flame, Globe, Info, Landmark, RotateCcw, Settings2,
   TrendingDown, TrendingUp, Users, X,
 } from "lucide-react";
 import {
-  fetchHistory, fetchStockDividendGrowth, fetchShibuiFilings, fetchShibuiInsiders,
-  fetchShibuiActivistStakes, fetchShibuiStrategicInvestors, fetchShibuiOwnershipDetail,
+  fetchHistory, fetchStockDividendGrowth, fetchShibuiInsiders,
   fetchShibuiEarningsRecap, fetchShibuiValuationHistory, fetchPoliticianTrades,
 } from "../api";
 import { columnChanges, ttmUnderlayRect } from "../lib/chartChanges";
@@ -96,34 +95,16 @@ function fmtRatio(v, digits = 2) {
 // valuation multiples (cheaper = greener) and leverage; false for quality
 // metrics (margins, ROE, ROA, yield, liquidity).
 const RATIO_ROWS = [
-  { key: "pe", label: "P/E (TTM)", lowerIsBetter: true,
-    tooltip: `Price to Earnings, Trailing Twelve Months. Share price ÷ EPS over the last 12 reported months — how much you pay for one unit of the company's annual profit. High P/E = the market expects growth, or the stock is expensive; low P/E = cheaper or low growth expectations. "Trailing" means it's based on actual, already-reported results (not forecasts).` },
   { key: "forward_pe", label: "Forward P/E", lowerIsBetter: true, yearKey: "forward_pe_fy1_year", labelYearSuffix: true,
     tooltip: `Forward Price to Earnings. Like P/E, but the denominator is analysts' estimated EPS for a future fiscal year. Current share price ÷ estimated future EPS. Because earnings are usually expected to grow, forward P/E is typically lower than trailing P/E. Reliability drops the further out the projected year, since estimates get less accurate.` },
-  { key: "forward_pe_2y", label: "Forward P/E", lowerIsBetter: true, yearKey: "forward_pe_fy2_year", labelYearSuffix: true, noSector: true,
-    tooltip: `Forward Price to Earnings (the fiscal year after next). Current share price ÷ analysts' estimated EPS two years out. Same idea as forward P/E but projected further ahead, so it's the least reliable of the P/E variants — estimates get less accurate the further out they go.` },
-  { key: "ps", label: "P/S", lowerIsBetter: true,
-    tooltip: `Price to Sales. Market capitalization ÷ annual revenue (or share price ÷ revenue per share). Measures how much you pay for each unit of the company's sales, regardless of whether those sales are profitable. Useful for comparing companies with thin or negative earnings. Very high P/S is typical only of high-margin, high-growth businesses.` },
-  { key: "pb", label: "P/B", lowerIsBetter: true,
-    tooltip: `Price to Book. Market cap ÷ book value of equity (or share price ÷ book value per share), where book value = total assets − total liabilities (the accounting net worth). Shows how much you pay relative to the company's net assets on the balance sheet. A very high P/B usually signals heavy intangible value (brand, IP) or a small/depleted equity base — often from large share buybacks.` },
-  { key: "pfcf", label: "P/FCF", lowerIsBetter: true,
-    tooltip: `Price to Free Cash Flow. Market cap ÷ free cash flow (or share price ÷ FCF per share), where FCF = operating cash flow − capital expenditures — the cash the business actually generates and can return to shareholders. Many investors prefer this to P/E because cash flow is harder to manipulate than accounting earnings.` },
   { key: "peg", label: "PEG", lowerIsBetter: true,
     tooltip: `Price/Earnings to Growth. P/E ÷ the expected annual earnings growth rate (in %). Contextualizes P/E by accounting for growth. Rule of thumb: ≈1 is fairly valued, below 1 may be undervalued relative to growth, above 1 may be overvalued. Only as good as the growth estimate plugged in.` },
-  { key: "ev_ebitda", label: "EV/EBITDA", lowerIsBetter: true,
-    tooltip: `Enterprise Value to EBITDA. EV (= market cap + total debt − cash, the theoretical cost to acquire the whole business) ÷ EBITDA (Earnings Before Interest, Taxes, Depreciation & Amortization, a proxy for core operating profitability). Capital-structure-neutral — it ignores how the firm is financed — making it ideal for comparing companies with different debt levels.` },
-  { key: "ev_revenue", label: "EV/Revenue", lowerIsBetter: true,
-    tooltip: `Enterprise Value to Revenue. EV ÷ annual revenue. Like P/S, but uses EV (which adds debt and subtracts cash) instead of just market cap, giving a more complete picture for leveraged companies. Useful when earnings are negative or volatile.` },
   { key: "de", label: "D/E", lowerIsBetter: true,
     tooltip: `Debt to Equity. Total debt ÷ shareholders' equity. Measures financial leverage — how much the company is funded by borrowing versus owners' capital. A high D/E indicates heavy reliance on debt. Nuance: aggressive buybacks shrink the equity base and can inflate D/E, overstating true financial risk for cash-rich firms.` },
   { key: "current_ratio", label: "Current Ratio", lowerIsBetter: false,
     tooltip: `Current assets ÷ current liabilities. A short-term liquidity test: can the company cover obligations due within one year using assets convertible to cash within one year? Above 1.0 means current assets exceed current liabilities; higher indicates a more comfortable liquidity cushion.` },
-  { key: "quick_ratio", label: "Quick Ratio", lowerIsBetter: false,
-    tooltip: `Quick Ratio (acid-test). (Current assets − inventory) ÷ current liabilities. A stricter version of the current ratio that excludes inventory, since inventory can be hard to convert to cash quickly. For asset-light businesses with little inventory, it's usually close to the current ratio.` },
   { key: "roe", label: "ROE", pct: true, lowerIsBetter: false,
     tooltip: `Return on Equity. Net income ÷ shareholders' equity. Measures how efficiently the company generates profit from owners' capital. A very high ROE can be inflated by a small equity base (from buybacks) or by heavy leverage, so interpret it alongside ROIC.` },
-  { key: "roa", label: "ROA", pct: true, lowerIsBetter: false,
-    tooltip: `Return on Assets. Net income ÷ total assets. Shows how efficiently the company turns its entire asset base into profit, independent of financing. Because it includes debt-funded assets, it's less flattered by leverage than ROE — and lower than ROE by definition when the firm uses debt.` },
   { key: "roic", label: "ROIC", pct: true, lowerIsBetter: false,
     tooltip: `Return on Invested Capital. NOPAT (Net Operating Profit After Tax) ÷ invested capital, where invested capital = total debt + equity − cash (the total capital actually deployed in the business). Measures how efficiently the company generates profit from all capital invested, regardless of how it's financed. Generally considered the highest-quality profitability metric because — unlike ROE — it is not distorted by leverage or buybacks. The key test: ROIC should exceed the company's cost of capital (WACC); if it does, the business is creating value.` },
   { key: "gross_margin", label: "Gross Margin", pct: true, lowerIsBetter: false,
@@ -136,7 +117,22 @@ const RATIO_ROWS = [
     tooltip: `Dividend Yield. Annual dividend per share ÷ share price, as a %. The cash return you receive in dividends relative to the stock's price. A low yield is typical of a growth company that reinvests profits rather than paying them out; a high yield suits income-focused stocks (though a very high yield can also signal risk).` },
   { key: "payout_ratio", label: "Payout Ratio", pct: true, lowerIsBetter: true,
     tooltip: `Dividends paid ÷ net income, as a %. The share of profits returned to shareholders as dividends. A low ratio means the company retains most earnings to fund growth or buybacks (leaving room to sustain or raise the dividend); a high ratio means most profit is paid out, which can be harder to sustain.` },
+  { key: "fcf_margin", label: "FCF Margin", pct: true, lowerIsBetter: false,
+    tooltip: `Free cash flow ÷ revenue, as a %. How much of every sales dollar ends up as real cash after capital expenditure. Compare it with net margin: a FCF margin at or above net margin means profits are backed by cash.` },
+  { key: "fcf_yield", label: "FCF Yield", pct: true, lowerIsBetter: false,
+    tooltip: `Free cash flow ÷ market cap, as a %. The cash return the business generates relative to its price, before any of it is paid out — the inverse of P/FCF. A broader measure of shareholder capacity than the dividend yield alone.` },
+  { key: "net_debt_ebitda", label: "Net Debt/EBITDA", lowerIsBetter: true,
+    tooltip: `(Total debt − cash) ÷ EBITDA. How many years of operating profit it would take to repay net debt. Below 0 means net cash; under ~2 is comfortable, above ~4 is heavy. Unlike D/E it is not distorted by buybacks shrinking equity.` },
 ];
+
+// The tiles are shown in rows of three, each row answering one question.
+const RATIO_GROUPS = [
+  { title: "Valuation", keys: ["forward_pe", "peg"], moreMultiples: true },
+  { title: "Margins", keys: ["gross_margin", "operating_margin", "net_margin"] },
+  { title: "Returns & cash conversion", keys: ["roe", "roic", "fcf_margin"] },
+  { title: "Balance sheet", keys: ["de", "net_debt_ebitda", "current_ratio"] },
+  { title: "Shareholder payout", keys: ["div_yield", "payout_ratio", "fcf_yield"] },
+].map((g) => ({ ...g, rows: g.keys.map((k) => RATIO_ROWS.find((r) => r.key === k)) }));
 
 function currencySymbol(code) {
   if (code === "EUR") return "€";
@@ -196,6 +192,32 @@ function RatioTile({ label, info, value, sectorVal, pct, lowerIsBetter, showSect
         )}
       </div>
     </SpotlightCard>
+  );
+}
+
+// Fills the empty slot of the Valuation row: the multiples removed from the
+// tiles live in the Valuation History chart, so this tile points there and
+// scrolls to it on click.
+const VALUATION_HISTORY_ID = "valuation-history";
+
+function MoreMultiplesTile() {
+  const goToChart = () => {
+    const target = document.getElementById(VALUATION_HISTORY_ID);
+    if (!target) return;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+  };
+  return (
+    <button
+      type="button"
+      onClick={goToChart}
+      className="card pop-tile !bg-surface-card-elevated flex flex-col gap-1 min-w-0 !p-3 text-left cursor-pointer"
+    >
+      <span className="eyebrow">More multiples</span>
+      <span className="h-8 inline-flex items-center gap-1.5 text-base font-semibold text-brand">
+        Show chart <ArrowDown size={16} aria-hidden="true" />
+      </span>
+    </button>
   );
 }
 
@@ -683,6 +705,7 @@ export function StockOverview({
   showHeader = true,
   showCustomizer = true,
   headerHeadingLevel = 2,
+  ttmLoading = false,
 }) {
   const [period, setPeriod] = useState("annual");
   const reportConfig = useStockReportConfig();
@@ -719,48 +742,15 @@ export function StockOverview({
   const priceChange = data.change_percent;
   const priceUp = priceChange != null && priceChange >= 0;
 
-  // 52w range progress
-  const range = (() => {
-    if (!data.fifty_two_week_low || !data.fifty_two_week_high || !data.price) return null;
-    const lo = data.fifty_two_week_low;
-    const hi = data.fifty_two_week_high;
-    const p = Math.max(0, Math.min(100, ((data.price - lo) / (hi - lo)) * 100));
-    return { lo, hi, pct: p };
-  })();
-
   const sections = {
     quickStats: (
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiBox size="sm" label="Market Cap" value={fmtCompact(data.market_cap, cs)} />
-        <KpiBox size="sm" label="P/E (TTM)" value={fmtRatio(ratios.pe)} />
-        <KpiBox size="sm" label="EPS (TTM)" value={ttm.eps != null ? `${cs}${ttm.eps.toFixed(2)}` : "—"} />
+        <KpiBox size="sm" label="Revenue (TTM)" loading={ttmLoading} value={fmtCompact(ttm.revenue, cs)} />
+        <KpiBox size="sm" label="Free Cash Flow (TTM)" loading={ttmLoading} value={fmtCompact(ttm.fcf, cs)} />
         <KpiBox size="sm" label="Div Yield" value={ratios.div_yield != null ? `${ratios.div_yield.toFixed(2)}%` : "—"} />
-        <KpiBox size="sm" label="Beta" value={fmtRatio(data.beta)} />
-        <KpiBox size="sm" label="EV/EBITDA" value={fmtRatio(ratios.ev_ebitda)} />
       </div>
     ),
-
-    weekRange: range ? (
-      <div className="bg-surface rounded-[var(--radius-card)] px-4 py-3">
-        <div className="flex items-center justify-between text-xs text-muted uppercase tracking-wider mb-2">
-          <span>52-Week Range</span>
-          {data.fifty_day_avg != null && (
-            <span>50D Avg {cs}{data.fifty_day_avg.toFixed(2)} · 200D Avg {cs}{data.two_hundred_day_avg?.toFixed(2) ?? "—"}</span>
-          )}
-        </div>
-        <div className="relative h-2 bg-surface-hover rounded-full">
-          <div
-            className="absolute top-0 h-2 w-1 bg-brand rounded"
-            style={{ left: `calc(${range.pct}% - 2px)` }}
-          />
-        </div>
-        <div className="flex items-center justify-between text-sm mt-1.5 tabular-nums">
-          <span className="text-loss">{cs}{range.lo.toFixed(2)}</span>
-          <span className="text-muted">Current {cs}{data.price.toFixed(2)}</span>
-          <span className="text-gain">{cs}{range.hi.toFixed(2)}</span>
-        </div>
-      </div>
-    ) : null,
 
     dividendGrowth: <DividendGrowthSection ticker={data.ticker} currency={data.currency} />,
 
@@ -829,27 +819,35 @@ export function StockOverview({
               </span>
             )}
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {RATIO_ROWS.map((r) => {
-              const year = r.yearKey ? ratios[r.yearKey] : null;
-              const label =
-                r.labelYearSuffix && year != null
-                  ? `${r.label} (${year})`
-                  : r.label;
-              const direction = r.lowerIsBetter ? "Lower is better." : "Higher is better.";
-              return (
-                <RatioTile
-                  key={r.key}
-                  label={label}
-                  info={r.tooltip ? { title: label, what: r.tooltip, note: direction } : { title: label, what: direction }}
-                  value={ratios[r.key]}
-                  sectorVal={r.noSector ? null : sector[r.key]}
-                  pct={!!r.pct}
-                  lowerIsBetter={r.lowerIsBetter}
-                  showSector={!r.noSector}
-                />
-              );
-            })}
+          <div className="flex flex-col gap-4">
+            {RATIO_GROUPS.map((group) => (
+              <section key={group.title} aria-label={group.title}>
+                <h4 className="eyebrow mb-1.5">{group.title}</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {group.rows.map((r) => {
+                    const year = r.yearKey ? ratios[r.yearKey] : null;
+                    const label =
+                      r.labelYearSuffix && year != null
+                        ? `${r.label} (${year})`
+                        : r.label;
+                    const direction = r.lowerIsBetter ? "Lower is better." : "Higher is better.";
+                    return (
+                      <RatioTile
+                        key={r.key}
+                        label={label}
+                        info={r.tooltip ? { title: label, what: r.tooltip, note: direction } : { title: label, what: direction }}
+                        value={ratios[r.key]}
+                        sectorVal={r.noSector ? null : sector[r.key]}
+                        pct={!!r.pct}
+                        lowerIsBetter={r.lowerIsBetter}
+                        showSector={!r.noSector}
+                      />
+                    );
+                  })}
+                  {group.moreMultiples && <MoreMultiplesTile />}
+                </div>
+              </section>
+            ))}
           </div>
         </div>
 
@@ -939,13 +937,9 @@ export function StockOverview({
 
     valuationHistory: <ValuationHistorySection ticker={data.ticker} />,
 
-    shibuiFilings: <ShibuiFilingsSection ticker={data.ticker} />,
-
     politicalTrades: (
       <PoliticalTradesSection ticker={data.ticker} currencyCode={data.currency} currentPrice={data.price} />
     ),
-
-    shibuiOwnershipFilings: <ShibuiOwnershipFilingsSection ticker={data.ticker} />,
   };
 
   const renderedSectionIds = sectionIds || reportConfig.config.order;
@@ -1785,9 +1779,8 @@ function OwnershipSection({ ownership, currencyCode }) {
 }
 
 // ---------------------------------------------------------------------------
-// Shibui-backed sections: SEC filings, structured insider activity + cluster
-// buys, beneficial ownership (13D/13G), earnings recap, historical
-// valuation multiples, and (button-gated) political trades. Each fetches
+// Shibui-backed sections: structured insider activity + cluster buys,
+// earnings recap, historical valuation multiples, and (button-gated) political trades. Each fetches
 // its own data independently (same pattern as DividendGrowthSection above)
 // and renders nothing when Shibui doesn't cover the ticker, so these are
 // silent no-ops for foreign/delisted/thinly-covered names.
@@ -1802,19 +1795,6 @@ function Chip({ children, title, tone = "neutral" }) {
     </Badge>
   );
 }
-
-export const FORM_TYPE_LABELS = {
-  "10-K": "Annual report", "10-Q": "Quarterly report", "20-F": "Foreign annual report",
-  "6-K": "Foreign current report", "8-K": "Current report", "DEF 14A": "Proxy statement",
-  "DEF 14C": "Information statement", "SC 13G": "Passive stake (>5%)", "SC 13D": "Activist stake (>5%)",
-  "S-1": "IPO registration", "S-3": "Shelf registration", "S-8": "Employee stock plan",
-  "4": "Insider transaction", "3": "Initial insider ownership", "5": "Annual insider ownership",
-};
-
-const EIGHT_K_ITEM_LABELS = {
-  "1.01": "Entry into agreement", "2.02": "Results of operations", "5.02": "Officer/director change",
-  "7.01": "Reg FD disclosure", "8.01": "Other events", "9.01": "Financial exhibits",
-};
 
 // Multi-select transaction-type filter, used by the insider table below. An empty `active` set means "no filter, show all" --
 // clicking a chip while every type is showing isolates to just that one;
@@ -1871,10 +1851,6 @@ function TypeFilterChips({ options, active, onToggle, onReset, className = "" })
 }
 
 // Newest filing first; ISO dates sort lexicographically.
-export function sortFilingsNewestFirst(filings) {
-  return [...(filings || [])].sort((a, b) => String(b.filing_date || "").localeCompare(String(a.filing_date || "")));
-}
-
 const YF_TYPE_META = {
   buy: { label: "Buy", tone: "buy", description: "Insider purchased shares in the open market." },
   sell: { label: "Sell", tone: "sell", description: "Insider sold shares in the open market." },
@@ -1884,203 +1860,6 @@ const YF_TYPE_META = {
     description: "Grants, option exercises, gifts, and other non-market Form 4 transactions.",
   },
 };
-
-export function ShibuiFilingsSection({ ticker }) {
-  const [expanded, setExpanded] = useState(false);
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["shibui-filings", ticker],
-    queryFn: () => fetchShibuiFilings(ticker),
-    staleTime: 60 * 60 * 1000,
-    enabled: !!ticker,
-    retry: false,
-  });
-
-  if (isLoading || isError || !data?.filings?.length) return null;
-  const filings = sortFilingsNewestFirst(data.filings);
-
-  return (
-    <div>
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        className="flex items-center gap-2 mb-3 group"
-      >
-        <h3 className="text-base font-semibold text-muted uppercase tracking-wider group-hover:text-ink transition-colors">
-          SEC Filings
-        </h3>
-        <span className="text-xs text-muted">({filings.length})</span>
-        {expanded ? (
-          <ChevronUp size={14} className="text-muted group-hover:text-ink transition-colors" />
-        ) : (
-          <ChevronDown size={14} className="text-muted group-hover:text-ink transition-colors" />
-        )}
-      </button>
-      {expanded && (
-        <div className="card !p-0 overflow-hidden">
-          <div className="grid grid-cols-[6.5rem_1fr_3.5rem] gap-3 px-4 py-2 border-b border-surface-border text-xs uppercase tracking-wider text-muted font-medium">
-            <span>Date</span>
-            <span>Type</span>
-            <span className="text-right">Link</span>
-          </div>
-          <ul className="max-h-96 overflow-y-auto">
-            {filings.map((f, i) => (
-              <li
-                key={`${f.filing_url}-${i}`}
-                className="grid grid-cols-[6.5rem_1fr_3.5rem] gap-3 items-center px-4 py-2 text-sm border-b border-surface-border last:border-0 hover:bg-surface-hover"
-              >
-                <time dateTime={f.filing_date} className="tabular-nums text-muted">{formatTableDate(f.filing_date)}</time>
-                <span className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-ink font-medium">{f.raw_form_type}</span>
-                  <span className="text-muted">{FORM_TYPE_LABELS[f.form_type] || ""}</span>
-                  {f.is_amendment && <Chip>Amended</Chip>}
-                  {(f.items || []).map((code) => (
-                    <Chip key={code} tone="brand" title={EIGHT_K_ITEM_LABELS[code] || code}>
-                      {code}
-                    </Chip>
-                  ))}
-                </span>
-                <a
-                  href={f.filing_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-right text-brand hover:underline inline-flex items-center justify-end gap-0.5"
-                >
-                  View <ExternalLink size={10} />
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Shows the shares-owned/%-of-class pair once known (either attached eagerly
-// by the backend for the 10 most recent filings, or fetched lazily below).
-function OwnershipStat({ sharesOwned, percentOfClass }) {
-  if (sharesOwned == null && percentOfClass == null) {
-    return <span className="financial-meta">Podíl nedostupný</span>;
-  }
-  return (
-    <span className="financial-data">
-      {sharesOwned != null ? `${Math.round(sharesOwned).toLocaleString()} ks` : "—"}
-      {percentOfClass != null ? ` · ${percentOfClass.toFixed(1)} %` : ""}
-    </span>
-  );
-}
-
-// Filings past the backend's eager top-10 cutoff carry accession_number/
-// filer_cik/primary_document but not shares_owned/percent_of_class -- this
-// fetches that detail from EDGAR on click rather than up front for all 50.
-function OwnershipDetail({ stake }) {
-  const hasEagerData = stake.shares_owned !== undefined || stake.percent_of_class !== undefined;
-  const canFetch = !!(stake.accession_number && stake.filer_cik && stake.primary_document);
-  const detailQ = useQuery({
-    queryKey: ["shibui-ownership-detail", stake.accession_number],
-    queryFn: () => fetchShibuiOwnershipDetail(stake.filer_cik, stake.accession_number, stake.primary_document),
-    enabled: false,
-    staleTime: Infinity,
-  });
-
-  if (hasEagerData) {
-    return <OwnershipStat sharesOwned={stake.shares_owned} percentOfClass={stake.percent_of_class} />;
-  }
-  if (!canFetch) return null;
-  if (detailQ.data) {
-    return <OwnershipStat sharesOwned={detailQ.data.shares_owned} percentOfClass={detailQ.data.percent_of_class} />;
-  }
-  if (detailQ.isFetching) {
-    return <span className="text-xs text-muted">Načítám…</span>;
-  }
-  return (
-    <button
-      type="button"
-      onClick={() => detailQ.refetch()}
-      className="text-xs text-brand hover:underline"
-    >
-      Zobrazit podíl
-    </button>
-  );
-}
-
-export function ShibuiOwnershipFilingsSection({ ticker }) {
-  const stakesQ = useQuery({
-    queryKey: ["shibui-activist-stakes", ticker],
-    queryFn: () => fetchShibuiActivistStakes(ticker),
-    staleTime: 60 * 60 * 1000,
-    enabled: !!ticker,
-    retry: false,
-  });
-  const investorsQ = useQuery({
-    queryKey: ["shibui-strategic-investors", ticker],
-    queryFn: () => fetchShibuiStrategicInvestors(ticker),
-    staleTime: 60 * 60 * 1000,
-    enabled: !!ticker,
-    retry: false,
-  });
-
-  const stakes = stakesQ.data?.stakes || [];
-  const investors = investorsQ.data?.investors || [];
-  if (!stakes.length && !investors.length) return null;
-
-  return (
-    <div className="space-y-4">
-      <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
-        Beneficial Ownership (13D/13G)
-      </h3>
-
-      {investors.length > 0 && (
-        <div className="card !p-4">
-          <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5">
-            <Landmark size={12} /> Corporate strategic investors
-          </h4>
-          <ul className="space-y-1.5">
-            {investors.map((inv, i) => (
-              <li
-                key={i}
-                className="flex items-center justify-between gap-3 text-sm py-1 border-b border-surface-border last:border-0"
-              >
-                <span className="text-ink truncate">
-                  {inv.filer_name}{" "}
-                  <TickerLink ticker={inv.filer_ticker} className="text-brand font-mono text-xs" />
-                </span>
-                <span className="flex items-center gap-2 text-muted shrink-0">
-                  <Chip>{inv.schedule_type}</Chip>
-                  <span className="tabular-nums">{formatTableDate(inv.filing_date)}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {stakes.length > 0 && (
-        <div className="card !p-4">
-          <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">
-            13D/13G filers (up to 50 most recent)
-          </h4>
-          <ul className="max-h-64 overflow-y-auto space-y-1">
-            {stakes.map((s, i) => (
-              <li key={i} className="py-1 border-b border-surface-border last:border-0">
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-ink truncate">{s.filer_canonical_name || s.filer_name}</span>
-                  <span className="flex items-center gap-2 text-muted shrink-0">
-                    {s.filer_is_activist && <Chip tone="danger">Activist</Chip>}
-                    <Chip tone={s.schedule_type === "13D" ? "warn" : "neutral"}>{s.schedule_type}</Chip>
-                    <span className="tabular-nums">{formatTableDate(s.filing_date)}</span>
-                  </span>
-                </div>
-                <div className="mt-0.5">
-                  <OwnershipDetail stake={s} />
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function isPoliticalTradeBuy(t) {
   const type = (t.transaction_type || "").toUpperCase();
@@ -2539,7 +2318,7 @@ function ValuationHistorySection({ ticker }) {
   const points = data?.points || [];
 
   return (
-    <div>
+    <div id={VALUATION_HISTORY_ID}>
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
           Valuation History

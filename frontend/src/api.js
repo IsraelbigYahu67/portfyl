@@ -282,22 +282,10 @@ export const fetchStockView = (ticker, view, requestConfig = {}) =>
 export const searchTickers = (q, limit = 10) =>
   api.get(`/market/search`, { params: { q, limit } }).then((r) => r.data);
 
-// ----- Shibui-backed stock data (SEC filings, insiders, earnings, etc.) ----
+// ----- Shibui-backed stock data (insiders, earnings, etc.) -----------------
 export const fetchShibuiInsiders = (ticker, months = 12) =>
   api.get(`/market/shibui/insiders/${ticker}`, { params: { months } }).then((r) => r.data);
 
-export const fetchShibuiFilings = (ticker, formTypes, years = 2) =>
-  api
-    .get(`/market/shibui/filings/${ticker}`, {
-      params: { years, ...(formTypes ? { form_types: formTypes } : {}) },
-    })
-    .then((r) => r.data);
-export const fetchShibuiActivistStakes = (ticker) =>
-  api.get(`/market/shibui/activist-stakes/${ticker}`).then((r) => r.data);
-export const fetchShibuiStrategicInvestors = (ticker) =>
-  api.get(`/market/shibui/strategic-investors/${ticker}`).then((r) => r.data);
-export const fetchShibuiOwnershipDetail = (cik, accession, doc) =>
-  api.get(`/market/shibui/ownership-detail`, { params: { cik, accession, doc } }).then((r) => r.data);
 export const fetchShibuiEarningsRecap = (ticker) =>
   api.get(`/market/shibui/earnings-recap/${ticker}`).then((r) => r.data);
 export const fetchShibuiValuationHistory = (ticker, years = 10) =>
@@ -348,8 +336,6 @@ export const fetchBenchmarkComparison = (period = "1y", benchmarkId = null, requ
     .then((r) => r.data);
 export const fetchSectorBreakdown = (currency = "USD", requestConfig = {}) =>
   api.get(`/analytics/sector-breakdown`, { ...requestConfig, params: { currency } }).then((r) => r.data);
-export const fetchCorrelation = (period = "1y", requestConfig = {}) =>
-  api.get(`/analytics/correlation`, { ...requestConfig, params: { period } }).then((r) => r.data);
 export const fetchMovers = (period = "1d", requestConfig = {}) =>
   api.get(`/portfolio/movers`, { ...requestConfig, params: { period } }).then((r) => r.data);
 export const fetchEarnings = (requestConfig = {}) =>
@@ -377,8 +363,6 @@ export const fetchCombinedSummary = (currency = "USD") =>
   api.get(`/portfolio/combined-summary`, { params: { currency } }).then((r) => r.data);
 
 // ----- IBKR (Flex Web Service) ---------------------------------------------
-// fetchIBKRBalance is used by pages/Options.jsx (disconnected from routing/nav).
-export const fetchIBKRBalance = () => api.get("/broker/ibkr/balance").then((r) => r.data);
 export const fetchIBKRStatus = () => api.get("/broker/ibkr/status").then((r) => r.data);
 export const connectIBKR = (flexToken, queryId) =>
   api.post("/broker/ibkr/connect", { flex_token: flexToken, query_id: queryId }).then((r) => r.data);
@@ -406,12 +390,6 @@ export const disconnectEtoro = () => api.delete("/broker/etoro/connect").then((r
 export const fetchSyncSchedule = () => api.get("/settings/sync-schedule").then((r) => r.data);
 export const updateSyncSchedule = (data) => api.put("/settings/sync-schedule", data).then((r) => r.data);
 
-// ----- Options (portfolio-scoped) -----------------------------------------
-export const fetchOptionsTrades = () => api.get("/options/trades").then((r) => r.data);
-export const fetchOptionsSummary = () => api.get("/options/summary").then((r) => r.data);
-export const fetchOptionsByUnderlying = () => api.get("/options/by-underlying").then((r) => r.data);
-export const fetchOptionsCalendar = (period) =>
-  api.get("/options/calendar", { params: period ? { period } : {} }).then((r) => r.data);
 
 
 // ----- Discord Webhook -------------------------------------------------------

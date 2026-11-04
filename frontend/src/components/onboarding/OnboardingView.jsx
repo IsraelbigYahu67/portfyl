@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { AlertCircle, BarChart3, Check, Link2, Loader2, Upload } from "lucide-react";
 
+import T212ApiGuide from "../settings/T212ApiGuide";
 import { Badge } from "../ui/Badge";
 import { brokerMethods, filterBrokers, findSupportedBroker } from "../../lib/onboardingBrokers";
 
@@ -258,6 +259,8 @@ function Choices({ broker, busy, selected, onChoose, onChangeBroker, onStartBlan
       </div>
 
       {notice}
+
+      {broker.key === "trading212" && <T212ApiGuide className="max-w-2xl mx-auto" />}
 
       <p className="text-center text-xs text-muted">
         Sample data is marked as demo data and never mixed into a real import unless you choose to keep it.

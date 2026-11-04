@@ -40,7 +40,6 @@ const PERIODS = ["7D", "MTD", "1M", "3M", "YTD", "1Y", "All"];
 const BENCHMARKS = [
   { key: "sp500", label: "S&P 500", color: CATEGORICAL[0] },
   { key: "nasdaq100", label: "NASDAQ 100", color: CATEGORICAL[1] },
-  { key: "dowjones", label: "Dow Jones", color: CATEGORICAL[2] },
   { key: "stoxx50", label: "STOXX 50", color: CATEGORICAL[3] },
   { key: "bitcoin", label: "Bitcoin", color: CATEGORICAL[4] },
 ];

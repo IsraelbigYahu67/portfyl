@@ -14,14 +14,12 @@ import { StockOverviewTab } from "../components/stock/StockOverviewTab";
 import { StockFinancialsTab } from "../components/stock/StockFinancialsTab";
 import { StockValuationTab } from "../components/stock/StockValuationTab";
 import { StockOwnershipTab } from "../components/stock/StockOwnershipTab";
-import { StockFilingsTab } from "../components/stock/StockFilingsTab";
 
 const STOCK_TABS = [
   { value: "overview", label: "Overview", panelId: "stock-overview-panel" },
   { value: "financials", label: "Financials", panelId: "stock-financials-panel" },
   { value: "valuation", label: "Valuation", panelId: "stock-valuation-panel" },
   { value: "ownership", label: "Ownership", panelId: "stock-ownership-panel" },
-  { value: "filings", label: "Filings", panelId: "stock-filings-panel" },
 ];
 const VALID_TABS = new Set(STOCK_TABS.map((tab) => tab.value));
 
@@ -227,7 +225,6 @@ export default function Stock() {
                 {activeTab === "financials" && <StockFinancialsTab ticker={ticker} overviewData={data} />}
                 {activeTab === "valuation" && <StockValuationTab ticker={ticker} overviewData={data} />}
                 {activeTab === "ownership" && <StockOwnershipTab ticker={ticker} overviewData={data} />}
-                {activeTab === "filings" && <StockFilingsTab ticker={ticker} overviewData={data} />}
               </div>
             </>
           ) : null}

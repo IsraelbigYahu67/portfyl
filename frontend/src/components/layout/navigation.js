@@ -51,7 +51,6 @@ export const NAV_GROUPS = Object.freeze([
 
 export const EDITION_ENTRY_GROUP = Object.freeze({
   "/tax-report": "insights",
-  "/screener": "research",
 });
 
 export const DEFAULT_EDITION_GROUP = "system";

@@ -9,7 +9,6 @@ import { legacyColorClassesIn } from "../test/legacyClasses";
 const api = vi.hoisted(() => ({
   fetchRiskMetrics: vi.fn(),
   fetchBenchmarkComparison: vi.fn(),
-  fetchCorrelation: vi.fn(),
   fetchBenchmarkCatalog: vi.fn(),
 }));
 
@@ -56,14 +55,6 @@ describe("Analytics decisions", () => {
         { date: "2026-02-01", portfolio_pct: 3, benchmark_pct: 2, active_pct: 1 },
       ],
     });
-    api.fetchCorrelation.mockResolvedValue({
-      tickers: ["AAPL", "MSFT", "TSLA"],
-      matrix: [
-        [1, 0.9, -0.2],
-        [0.9, 1, 0.1],
-        [-0.2, 0.1, 1],
-      ],
-    });
   });
 
   it("is risk-first and drops the allocation duplicates", async () => {
@@ -71,13 +62,9 @@ describe("Analytics decisions", () => {
 
     const risk = await screen.findByText(/Time-Weighted/i);
     const comparison = await screen.findByText(/Active Performance/i);
-    const correlations = await screen.findByText("Strongest Correlations");
 
     expect(
       risk.compareDocumentPosition(comparison) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
-    expect(
-      comparison.compareDocumentPosition(correlations) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
 
     expect(screen.queryByText("Sector Allocation")).not.toBeInTheDocument();
@@ -89,16 +76,19 @@ describe("Analytics decisions", () => {
     renderPage();
     await screen.findByText(/Time-Weighted/i);
 
-    expect(screen.getAllByText(/Period: 1Y · Data loaded/).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/Period: 1Y · Data loaded/)).length).toBeGreaterThan(0);
   });
 
-  it("correlation matrix cells use the financial-data semantic class, not sub-12px text", async () => {
-    const { container } = renderPage();
-    await screen.findByText(/Time-Weighted/i);
-    await screen.findAllByText("-0.20");
-    const matrixCells = container.querySelectorAll(".financial-data");
-    const values = Array.from(matrixCells).map((el) => el.textContent);
-    expect(values).toContain("-0.20");
+  it("leaves out the advanced metrics a typical investor does not use", async () => {
+    renderPage();
+    await screen.findByText("Active Return");
+
+    for (const label of [
+      "Win Rate", "Sortino Ratio", "Tracking Error", "Info Ratio",
+      "Correlation", "Up Capture", "Down Capture", "Strongest Correlations",
+    ]) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
+    }
   });
 
   it("Analytics money uses the display-currency formatter", async () => {

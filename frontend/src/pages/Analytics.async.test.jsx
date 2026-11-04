@@ -6,7 +6,6 @@ import Analytics from "./Analytics";
 const api = vi.hoisted(() => ({
   fetchRiskMetrics: vi.fn(),
   fetchSectorBreakdown: vi.fn(),
-  fetchCorrelation: vi.fn(),
   fetchBenchmarkCatalog: vi.fn(),
   fetchBenchmarkComparison: vi.fn(),
 }));
@@ -45,22 +44,20 @@ beforeEach(() => {
     best_day: 2,
     worst_day: -2,
   });
-  api.fetchBenchmarkComparison.mockResolvedValue({ series: [] });
-  api.fetchCorrelation
-    .mockRejectedValueOnce({ response: { data: { detail: "Correlation unavailable" } } })
-    .mockResolvedValue({ tickers: [], matrix: [] });
+  api.fetchBenchmarkComparison
+    .mockRejectedValueOnce({ response: { data: { detail: "Comparison unavailable" } } })
+    .mockResolvedValue({ series: [] });
 });
 
-it("keeps analytics metrics visible when correlation fails and retries only correlation", async () => {
+it("keeps analytics metrics visible when the benchmark comparison fails and retries only it", async () => {
   renderPage();
 
   expect(await screen.findByRole("heading", { name: /portfolio analytics/i })).toBeInTheDocument();
   expect(await screen.findByText("Sharpe Ratio")).toBeInTheDocument();
-  const correlationCard = screen.getByRole("heading", { name: /strongest correlations/i }).closest(".card");
-  expect(within(correlationCard).getByRole("alert")).toHaveTextContent("Correlation unavailable");
+  const comparisonSection = screen.getByRole("heading", { name: /active performance/i }).closest("section");
+  expect(await within(comparisonSection).findByRole("alert")).toHaveTextContent("Comparison unavailable");
 
-  fireEvent.click(within(correlationCard).getByRole("button", { name: /retry/i }));
-  await waitFor(() => expect(api.fetchCorrelation).toHaveBeenCalledTimes(2));
+  fireEvent.click(within(comparisonSection).getByRole("button", { name: /retry/i }));
+  await waitFor(() => expect(api.fetchBenchmarkComparison).toHaveBeenCalledTimes(2));
   expect(api.fetchRiskMetrics).toHaveBeenCalledTimes(1);
-  expect(api.fetchBenchmarkComparison).toHaveBeenCalledTimes(1);
 });

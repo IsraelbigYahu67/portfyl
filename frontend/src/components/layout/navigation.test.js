@@ -30,18 +30,12 @@ describe("NAV_GROUPS", () => {
 
 describe("buildNavGroups", () => {
   const taxReportEntry = { to: "/tax-report", label: "Tax Report", icon: () => null, capability: "tax_report" };
-  const screenerEntry = { to: "/screener", label: "Screener", icon: () => null, capability: "screener" };
   const pricingEntry = { to: "/pricing", label: "Plans", icon: () => null, capability: "settings" };
 
-  it("merges Tax Report into Insights and Screener into Research when capabilities enable them", () => {
-    const groups = buildNavGroups(
-      [taxReportEntry, screenerEntry],
-      ["tax_report", "screener"],
-    );
+  it("merges Tax Report into Insights when its capability is enabled", () => {
+    const groups = buildNavGroups([taxReportEntry], ["tax_report"]);
     const insights = groups.find((group) => group.id === "insights");
-    const research = groups.find((group) => group.id === "research");
     expect(insights.items.some((item) => item.to === "/tax-report")).toBe(true);
-    expect(research.items.some((item) => item.to === "/screener")).toBe(true);
   });
 
   it("omits an edition entry whose capability is not enabled", () => {

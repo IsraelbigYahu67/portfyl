@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchHistory, fetchHoldings, fetchTransactionsPage } from "../../api";
+import { fetchHistory, fetchHoldings, fetchStockView, fetchTransactionsPage } from "../../api";
 import { useCurrency } from "../../App";
 import { formatLongDate, formatMoney, formatPercent, formatQuantity } from "../../lib/format";
 import { StockOverview } from "../StockDetail";
@@ -123,13 +123,24 @@ export function StockOverviewTab({ ticker, overviewData }) {
     staleTime: 30_000,
     retry: false,
   });
+  // TTM revenue and FCF come from the financials view (the same query, and
+  // cache entry, as the Financials tab), so the headline figures match the
+  // sum of the last four quarterly bars shown there.
+  const financials = useQuery({
+    queryKey: ["stock-view", ticker, "financials"],
+    queryFn: () => fetchStockView(ticker, "financials"),
+    enabled: Boolean(ticker),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
   const holding = (holdings.data || []).find((row) => row.ticker?.toUpperCase() === ticker);
 
   return (
     <div>
       <StockOverview
-        data={overviewData}
-        sectionIds={["quickStats", "weekRange"]}
+        data={{ ...overviewData, ttm: { ...overviewData.ttm, ...financials.data?.ttm } }}
+        ttmLoading={financials.isLoading}
+        sectionIds={["quickStats"]}
         showHeader={false}
         showCustomizer={false}
       />

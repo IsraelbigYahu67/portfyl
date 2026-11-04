@@ -102,6 +102,9 @@ _RATIO_BOUNDS = {
     "net_margin": (-100, 100),
     "div_yield": (0, 30),
     "payout_ratio": (0, 200),
+    "fcf_yield": (-50, 50),
+    "fcf_margin": (-100, 100),
+    "net_debt_ebitda": (-20, 30),
 }
 
 
@@ -269,9 +272,25 @@ def _ratios_from_info(info: dict) -> dict[str, Optional[float]]:
         _invested = (_f(info.get("totalDebt")) or 0.0) + _equity_bv - (_f(info.get("totalCash")) or 0.0)
         if _invested > 0:
             roic = round(_op_margin * _revenue * (1 - 0.21) / _invested * 100, 2)
+    # Cash-flow and leverage metrics derived from summary fields, computed the
+    # same way for the focal stock and every sector peer so the sector median
+    # is like-for-like.
+    fcf_yield = fcf_margin = net_debt_ebitda = None
+    if fcf is not None and market_cap:
+        fcf_yield = round(fcf / market_cap * 100, 2)
+    if fcf is not None and _revenue and _revenue > 0:
+        fcf_margin = round(fcf / _revenue * 100, 2)
+    _ebitda = _f(info.get("ebitda"))
+    if _ebitda and _ebitda > 0:
+        net_debt_ebitda = round(
+            ((_f(info.get("totalDebt")) or 0.0) - (_f(info.get("totalCash")) or 0.0)) / _ebitda, 2
+        )
     return {
         "pe": _f(info.get("trailingPE")),
         "forward_pe": _f(info.get("forwardPE")),
+        "fcf_yield": fcf_yield,
+        "fcf_margin": fcf_margin,
+        "net_debt_ebitda": net_debt_ebitda,
         "ps": _f(info.get("priceToSalesTrailing12Months")),
         "pb": _f(info.get("priceToBook")),
         "pfcf": pfcf,
@@ -332,6 +351,7 @@ def _sector_avg(sector: Optional[str]) -> dict[str, Any]:
         "de", "current_ratio", "quick_ratio",
         "roe", "roa", "roic", "gross_margin", "operating_margin", "net_margin",
         "div_yield", "payout_ratio",
+        "fcf_yield", "fcf_margin", "net_debt_ebitda",
     ]
     result: dict[str, Any] = {
         "method": "median",

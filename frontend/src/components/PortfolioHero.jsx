@@ -60,23 +60,16 @@ export default function PortfolioHero({ summary, snapshot = null, loading, curre
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl">
+        {/* Invested and all-time P&L live in the Total profit card beside
+            the hero, so the chips only carry what that card does not. */}
+        <div className="mt-6 grid grid-cols-2 gap-3 max-w-sm">
           {loading || summary == null ? (
             <>
-              <div className="rounded-lg bg-surface-card-elevated border border-hairline px-3 py-2.5"><SkeletonMetric /></div>
-              <div className="rounded-lg bg-surface-card-elevated border border-hairline px-3 py-2.5"><SkeletonMetric /></div>
               <div className="rounded-lg bg-surface-card-elevated border border-hairline px-3 py-2.5"><SkeletonMetric /></div>
               <div className="rounded-lg bg-surface-card-elevated border border-hairline px-3 py-2.5"><SkeletonMetric /></div>
             </>
           ) : (
             <>
-              <Chip label="Invested" value={formatCompact(summary.total_invested, currency)} />
-              <Chip
-                label="All-time P&L"
-                value={`${summary.total_pnl >= 0 ? "+" : ""}${formatCompact(summary.total_pnl, currency)}`}
-                positive={summary.total_pnl >= 0}
-                negative={summary.total_pnl < 0}
-              />
               <Chip label="Dividends" value={formatCompact(summary.total_dividends, currency)} />
               <Chip label="Holdings" value={formatNumber(summary.holdings_count)} />
             </>

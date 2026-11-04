@@ -282,8 +282,8 @@ export default function Transactions() {
             <table className="w-full">
               <thead className="border-b border-surface-border">
                 <tr>
-                  {["Date", "Ticker", "Type", "Shares", "Price", "Total", "Currency", "Notes", "Note", ""].map((h, i) => (
-                    <th key={h || i} scope="col" className={`${[3, 4, 5, 9].includes(i) ? "text-right" : i === 8 ? "text-center" : "text-left"} px-4 py-3 whitespace-nowrap text-xs font-medium text-muted uppercase tracking-wider`}>
+                  {["Date", "Ticker", "Type", "Shares", "Price", "Total", "Currency", "Notes", ""].map((h, i) => (
+                    <th key={h || i} scope="col" className={`${[3, 4, 5, 8].includes(i) ? "text-right" : "text-left"} px-4 py-3 whitespace-nowrap text-xs font-medium text-muted uppercase tracking-wider`}>
                       {h}
                     </th>
                   ))}
@@ -305,8 +305,14 @@ export default function Transactions() {
                       {formatMoney(t.shares * t.price, t.currency)}
                     </td>
                     <td className="px-4 py-3 text-sm text-muted">{t.currency}</td>
-                    <td className="px-4 py-3 text-sm text-muted max-w-xs truncate">{t.notes || "—"}</td>
-                    <td className="px-4 py-3 text-center">{noteButton(t)}</td>
+                    {/* One Notes column: the imported note text, then the
+                        button for the user's own trade note. */}
+                    <td className="px-4 py-3 text-sm text-muted">
+                      <div className="flex items-center gap-1">
+                        {noteButton(t, "shrink-0")}
+                        <span className="max-w-xs truncate">{t.notes || ""}</span>
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-right">{deleteButton(t)}</td>
                   </tr>
                 ))}

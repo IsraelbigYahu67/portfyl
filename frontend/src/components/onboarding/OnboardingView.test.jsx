@@ -54,6 +54,17 @@ describe("OnboardingView", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Which broker do you use?" })).toBeInTheDocument();
   });
 
+  it("shows the Trading 212 API key guide only for Trading 212", () => {
+    const { unmount } = renderView({ brokerKey: "trading212" });
+    expect(screen.getByRole("heading", { name: "How to connect Trading 212" })).toBeInTheDocument();
+    expect(screen.getByText("API (Beta)")).toBeInTheDocument();
+    expect(screen.getByText("Orders - Read")).toBeInTheDocument();
+    unmount();
+
+    renderView({ brokerKey: "ibkr" });
+    expect(screen.queryByRole("heading", { name: "How to connect Trading 212" })).not.toBeInTheDocument();
+  });
+
   it("renders plain action buttons when no selection is in use", () => {
     renderView({ brokerKey: "ibkr" });
 

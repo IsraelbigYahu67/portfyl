@@ -63,8 +63,9 @@ describe("edition manifests", () => {
     expect(cloudManifestSource).not.toContain("iframe");
   });
   it("keeps owner-only tools local and plan switching cloud-only", () => {
-    expect(LOCAL_ROUTES.map((entry) => entry.path)).toEqual(["/tax-report", "/screener", "/pricing"]);
-    expect(LOCAL_NAVIGATION.map((entry) => entry.to)).toEqual(["/tax-report", "/screener", "/pricing"]);
+    // The Screener page is out of the frontend for now (its backend stays).
+    expect(LOCAL_ROUTES.map((entry) => entry.path)).toEqual(["/tax-report", "/pricing"]);
+    expect(LOCAL_NAVIGATION.map((entry) => entry.to)).toEqual(["/tax-report", "/pricing"]);
     expect(LOCAL_NAVIGATION.find((entry) => entry.to === "/pricing").label).toBe("Plans");
     expect(CLOUD_ROUTES.map((entry) => entry.path)).toEqual(["/pricing"]);
     expect(CLOUD_NAVIGATION.map((entry) => entry.to)).toEqual(["/pricing"]);

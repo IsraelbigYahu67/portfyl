@@ -27,9 +27,6 @@ vi.mock("../components/stock/StockValuationTab", () => ({
 vi.mock("../components/stock/StockOwnershipTab", () => ({
   StockOwnershipTab: () => <div>Ownership content</div>,
 }));
-vi.mock("../components/stock/StockFilingsTab", () => ({
-  StockFilingsTab: () => <div>Filings content</div>,
-}));
 
 function LocationProbe() {
   const location = useLocation();
@@ -85,6 +82,6 @@ it("supports keyboard tab selection with wrapping focus", async () => {
   const overview = screen.getByRole("tab", { name: "Overview" });
   overview.focus();
   fireEvent.keyDown(overview, { key: "ArrowLeft" });
-  expect(screen.getByRole("tab", { name: "Filings" })).toHaveFocus();
-  expect(await screen.findByText("Filings content")).toBeInTheDocument();
+  expect(screen.getByRole("tab", { name: "Ownership" })).toHaveFocus();
+  expect(await screen.findByText("Ownership content")).toBeInTheDocument();
 });
