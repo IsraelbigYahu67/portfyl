@@ -33,8 +33,12 @@ REM First run: create an isolated Python environment with uv (https://docs.astra
 if not exist ".venv\Scripts\python.exe" (
     echo Setting up backend Python environment with uv...
     uv venv .venv --python 3.12 || goto :no_uv
-    uv pip install --python ".venv\Scripts\python.exe" --require-hashes -r requirements.lock || goto :no_uv
 )
+
+REM Every run: bring the venv in line with the hashed lock, so a dependency added
+REM since the venv was created (e.g. openpyxl) is installed. A no-op when current.
+echo Syncing backend dependencies...
+uv pip install --quiet --python ".venv\Scripts\python.exe" --require-hashes -r requirements.lock || goto :sync_failed
 
 start "Portfyl Backend" cmd /k ".venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000"
 
@@ -79,5 +83,14 @@ goto :eof
 echo.
 echo  ERROR: could not create the backend Python environment.
 echo  Install uv from https://docs.astral.sh/uv/ then run start.bat again.
+echo.
+pause
+goto :eof
+
+:sync_failed
+echo.
+echo  ERROR: could not install the backend dependencies from requirements.lock.
+echo  If a "Portfyl Backend" window is still open, close it (it locks files in .venv)
+echo  and run start.bat again. Otherwise check that uv is installed: https://docs.astral.sh/uv/
 echo.
 pause
