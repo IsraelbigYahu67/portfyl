@@ -168,6 +168,10 @@ cards and tiles still (Allocation does this: its data/text blocks do not move).
   24px between raised Clay cards so shadows do not collide.
 - Primary action = brand pill; secondary = ghost pill (raised); icon buttons
   are circular.
+- A selected choice card gets `outline outline-2 outline-offset-4
+  outline-brand` plus a brand `Badge` ("Selected", with a check) and
+  `aria-pressed`. Never signal selection with a border or ring alone: Clay
+  hides card borders and owns the card box-shadow.
 - Segmented controls and period selectors sit in an inset trough with a
   raised active pill (brand-colored bold text).
 - Delta/gain-loss: tinted capsule or colored text, always with arrow or sign.

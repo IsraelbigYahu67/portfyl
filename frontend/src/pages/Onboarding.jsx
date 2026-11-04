@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import OnboardingView from "../components/onboarding/OnboardingView";
+import OnboardingView, { choiceHandler } from "../components/onboarding/OnboardingView";
 import { activatePortfolio, createDemoPortfolio, createPendingImportPortfolio, createPortfolio } from "../api";
 import { usePortfolio } from "../App";
 import { TRACKER_HOME } from "../lib/routes";
@@ -11,6 +11,21 @@ function errorMessage(error) {
   const detail = error?.response?.data?.detail;
   if (typeof detail === "string") return detail;
   return detail?.message || "We couldn't prepare your portfolio. Please try again.";
+}
+
+
+// One action per ONBOARDING_CHOICE_KEYS entry (Onboarding.test.jsx checks the
+// two match). Pure: it only builds the closures; nothing runs until a click.
+export function buildOnboardingActions({ beginImport, activate }) {
+  return {
+    import: beginImport,
+    demo: () => activate(createDemoPortfolio, TRACKER_HOME, "demo"),
+    broker: () => activate(
+      () => createPortfolio({ name: "My portfolio" }),
+      "/settings?section=connections",
+      "broker",
+    ),
+  };
 }
 
 
@@ -73,19 +88,11 @@ export default function Onboarding() {
     }
   }
 
-  const actions = {
-    import: beginImport,
-    demo: () => activate(createDemoPortfolio, TRACKER_HOME, "demo"),
-    broker: () => activate(
-      () => createPortfolio({ name: "My portfolio" }),
-      "/settings?section=connections",
-      "broker",
-    ),
-  };
+  const actions = buildOnboardingActions({ beginImport, activate });
 
   return (
     <OnboardingView
-      onChoose={(key) => actions[key]()}
+      onChoose={(key) => choiceHandler(actions, key)()}
       onStartBlank={startBlank}
       busy={busy}
       error={error}
