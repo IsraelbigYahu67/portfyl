@@ -52,12 +52,48 @@ export const NAV_GROUPS = Object.freeze([
 // Phone bottom bar (MobileBottomNav): the pages used most, in thumb reach.
 // "Positions" is the Allocation page, which holds the holdings list. Every path
 // also lives in NAV_GROUPS, so the drawer ("More") still lists the full set.
+// This is the DEFAULT bar; users pick their own in Settings > Preferences
+// (see lib/bottomNavPrefs.js and resolveBottomNavItems below).
 export const BOTTOM_NAV_ITEMS = Object.freeze([
   { to: TRACKER_HOME, label: "Dashboard", icon: LayoutDashboard },
   { to: "/allocation", label: "Positions", icon: PieChart },
   { to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { to: "/dividends", label: "Dividends", icon: CalendarDays },
 ]);
+
+// The bar calls the Allocation page "Positions"; everywhere else it is
+// "Allocation".
+const BAR_LABELS = Object.freeze({ "/allocation": "Positions" });
+
+// Every page that may sit in the bar: the whole (edition-aware) navigation,
+// flattened in sidebar order, with the bar's own labels.
+export function bottomNavChoices(groups = NAV_GROUPS) {
+  return groups
+    .flatMap((group) => group.items)
+    .map((item) => ({ ...item, label: BAR_LABELS[item.to] ?? item.label }));
+}
+
+// The items to draw in the bar for a stored list of paths, in navigation order
+// so the bar looks the same wherever it is rendered. Unknown paths (a page this
+// edition does not have) are dropped; if fewer than `min` remain, the default
+// bar is used so the bar can never end up empty.
+export function resolveBottomNavItems(groups, paths, { min = 2 } = {}) {
+  const choices = bottomNavChoices(groups);
+  const wanted = new Set(Array.isArray(paths) ? paths : []);
+  const picked = choices.filter(({ to }) => wanted.has(to));
+  if (picked.length >= min) return picked;
+  const fallback = new Set(BOTTOM_NAV_ITEMS.map(({ to }) => to));
+  return choices.filter(({ to }) => fallback.has(to));
+}
+
+// What "More" lists: the full nav minus the pages already in the bottom bar, so
+// nothing appears twice on a phone. Groups left empty are dropped.
+export function groupsWithoutBottomNav(groups, barItems = BOTTOM_NAV_ITEMS) {
+  const inBar = new Set(barItems.map(({ to }) => to));
+  return groups
+    .map((group) => ({ ...group, items: group.items.filter(({ to }) => !inBar.has(to)) }))
+    .filter((group) => group.items.length > 0);
+}
 
 export const EDITION_ENTRY_GROUP = Object.freeze({
   "/tax-report": "insights",

@@ -69,12 +69,13 @@ describe("AppShell", () => {
     renderShell(
       <Routes>
         <Route path="/" element={<h1>Test Page</h1>} />
-        <Route path="/allocation" element={<h1>Allocation Page</h1>} />
+        <Route path="/cash" element={<h1>Cash Page</h1>} />
       </Routes>,
     );
     fireEvent.click(screen.getByRole("button", { name: /open navigation menu/i }));
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("link", { name: /allocation/i }));
-    expect(screen.getByRole("heading", { name: "Allocation Page" })).toHaveFocus();
+    // Cash is not in the default bottom bar, so it is listed under More.
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("link", { name: /cash/i }));
+    expect(screen.getByRole("heading", { name: "Cash Page" })).toHaveFocus();
   });
 
   it("does not render fixed viewport-height classes anywhere in the shell", () => {

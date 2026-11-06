@@ -5,6 +5,7 @@ import { Loader2, Monitor, Moon, PlayCircle, Sun } from "lucide-react";
 import { EditionViewModeSetting } from "@edition-manifest";
 import { useCurrency, usePalette } from "../../App";
 import SegmentedControl from "../ui/SegmentedControl";
+import BottomNavSetting from "./BottomNavSetting";
 import { ONBOARDING_PREVIEW_PATH } from "../../lib/routes";
 import { useI18n } from "../../i18n/I18nProvider";
 import { APP_LANGUAGES } from "../../i18n/languages";
@@ -127,6 +128,8 @@ export default function PreferencesSettings({ headingRef }) {
           {currency === "CZK" && rate != null && <p className="mt-2 text-xs text-muted tabular-nums">1 USD = {rate.toFixed(2)} Kc</p>}
           {czkUnavailable && <p className="mt-2 text-xs text-loss">{t("CZK rate unavailable. USD remains available.")}</p>}
         </div>
+
+        <BottomNavSetting />
 
         <EditionViewModeSetting />
       </div>

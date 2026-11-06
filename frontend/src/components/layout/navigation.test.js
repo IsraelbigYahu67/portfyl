@@ -1,6 +1,43 @@
 import { describe, expect, it } from "vitest";
-import { buildNavGroups, NAV_GROUPS } from "./navigation";
+import {
+  BOTTOM_NAV_ITEMS,
+  bottomNavChoices,
+  buildNavGroups,
+  groupsWithoutBottomNav,
+  NAV_GROUPS,
+  resolveBottomNavItems,
+} from "./navigation";
 import { TRACKER_HOME } from "../../lib/routes";
+
+describe("bottom bar choices", () => {
+  it("offers every page in sidebar order, with the bar's own label for Allocation", () => {
+    const choices = bottomNavChoices(NAV_GROUPS);
+    expect(choices.map((c) => c.to)).toEqual(NAV_GROUPS.flatMap((g) => g.items.map((i) => i.to)));
+    expect(choices.find((c) => c.to === "/allocation").label).toBe("Positions");
+    expect(choices.find((c) => c.to === "/cash").label).toBe("Cash");
+  });
+
+  it("resolves a stored pick in navigation order and drops unknown pages", () => {
+    const items = resolveBottomNavItems(NAV_GROUPS, ["/settings", "/nope", "/cash", TRACKER_HOME]);
+    expect(items.map((i) => i.to)).toEqual([TRACKER_HOME, "/cash", "/settings"]);
+  });
+
+  it("falls back to the default bar when fewer than two known pages remain", () => {
+    const defaults = BOTTOM_NAV_ITEMS.map((i) => i.to);
+    expect(resolveBottomNavItems(NAV_GROUPS, ["/cash"]).map((i) => i.to)).toEqual(defaults);
+    expect(resolveBottomNavItems(NAV_GROUPS, null).map((i) => i.to)).toEqual(defaults);
+    expect(resolveBottomNavItems(NAV_GROUPS, ["/cash"], { min: 1 }).map((i) => i.to)).toEqual(["/cash"]);
+  });
+
+  it("More lists everything the bar does not, dropping emptied groups", () => {
+    const bar = resolveBottomNavItems(NAV_GROUPS, ["/search", "/watchlists"]);
+    const rest = groupsWithoutBottomNav(NAV_GROUPS, bar);
+    expect(rest.map((g) => g.id)).toEqual(["portfolio", "insights", "system"]);
+    expect(rest.flatMap((g) => g.items.map((i) => i.to))).not.toContain("/search");
+    // Default bar: the portfolio group keeps only Cash.
+    expect(groupsWithoutBottomNav(NAV_GROUPS)[0].items.map((i) => i.to)).toEqual(["/cash"]);
+  });
+});
 
 describe("NAV_GROUPS", () => {
   it("has exactly the four named groups in order", () => {

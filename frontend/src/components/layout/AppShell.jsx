@@ -4,6 +4,7 @@ import MobileNavDrawer from "./MobileNavDrawer";
 import MobileBottomNav from "./MobileBottomNav";
 import MobileTopBar from "./MobileTopBar";
 import { useRouteFocusAnnouncer } from "../../hooks/useRouteFocusAnnouncer";
+import { NavGroupsContext } from "./NavGroupsContext";
 
 export default function AppShell({ groups, children }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -13,6 +14,7 @@ export default function AppShell({ groups, children }) {
   useRouteFocusAnnouncer(mainRef);
 
   return (
+    <NavGroupsContext.Provider value={groups}>
     <div className="flex min-h-dvh bg-bg">
       <a href="#main-content" className="skip-link">
         Skip to main content
@@ -38,5 +40,6 @@ export default function AppShell({ groups, children }) {
         <MobileBottomNav open={drawerOpen} onOpenMenu={() => setDrawerOpen(true)} />
       </div>
     </div>
+    </NavGroupsContext.Provider>
   );
 }

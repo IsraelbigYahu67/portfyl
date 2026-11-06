@@ -178,6 +178,16 @@ cards and tiles still (Allocation does this: its data/text blocks do not move).
   liquid pouring across. No animation on first render. Keep spring overshoot
   small (`cubic-bezier(0.34, 1.1, 0.64, 1)`) so the pill never pokes out of
   the trough.
+- **Phone bottom bar** (`components/layout/BottomNavBar.jsx`) uses the same
+  liquid pill (`--sidebar-active`; Clay: `--brand-light` + inset shadow via
+  `.bottomnav-pill`). Adding or removing a page grows / collapses its slot
+  (`flex-grow` + opacity + scale, about 0.38s) while the neighbours flow over and
+  the pill follows frame by frame; a removed page stays mounted (inert) until
+  it has collapsed. The user picks the pages (2-5, default four) in Settings >
+  Preferences > Phone navigation bar, which shows the same bar as a live preview
+  (the real one is hidden from `lg` up). Stored per device in
+  `sb_bottom_nav_items`; "More" is always last and lists every page not in the
+  bar.
 - `prefers-reduced-motion` turns the hover scale/translate off and shortens
   transitions to ~0; any new motion must respect it.
 
@@ -206,9 +216,10 @@ cards and tiles still (Allocation does this: its data/text blocks do not move).
 - Touch targets at least 44px on mobile; right-align numbers in tables.
 - **Phone shell (below `lg`)**: a sticky top bar (`MobileTopBar`: logo, compact
   `PortfolioSwitcher`, compact `AccountMenu` - the only phone log-out besides
-  the drawer) and a fixed bottom bar (`MobileBottomNav`: Dashboard, Positions =
-  Allocation, Transactions, Dividends, More). "More" opens the drawer, which
-  also holds the account menu. Top bar, drawer and bottom bar share one rule in
+  the drawer) and a fixed bottom bar (`MobileBottomNav`: by default Dashboard,
+  Positions = Allocation, Transactions, Dividends, then More; the user can
+  choose the pages in Preferences). "More" opens the drawer, which lists the
+  pages not in the bar and holds the account menu. Top bar, drawer and bottom bar share one rule in
   `index.css` that lays the translucent `--surface-card-elevated` over the solid
   `--bg` and blurs it, so page text never shows through; Clay floats the bottom
   bar as a raised pill. `AppShell` adds a spacer so content clears the bar.
