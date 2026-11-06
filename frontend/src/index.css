@@ -252,6 +252,43 @@
   .reveal-visible { opacity: 1; transform: translateY(0); }
 }
 
+/* Compact phone density (DESIGN.md §5 "Phone scale"). Below Tailwind's `sm`
+   breakpoint the app content (#main-content only: not the landing page, auth
+   screens or dialogs) uses a tighter type scale, card padding and stack gaps
+   so a 390px phone shows more per screen. Unlayered and scoped by id, so it
+   outranks the plain utilities it retunes; `sm:` and larger variants never
+   apply here. Nothing drops below the 12px floor (text-xs and the semantic
+   label classes are untouched) and form controls keep their size. Line
+   heights yield to an explicit `leading-*` utility. */
+@media (max-width: 639px) {
+  /* First, so a size utility on the same element (KPI figures pair
+     .financial-data with text-3xl) still wins at equal specificity. */
+  #main-content .financial-data { font-size: 0.8125rem; }
+  #main-content .text-4xl { font-size: 1.625rem; }
+  #main-content .text-3xl { font-size: 1.375rem; }
+  #main-content .text-2xl { font-size: 1.1875rem; }
+  #main-content .text-xl { font-size: 1.0625rem; }
+  #main-content .text-lg { font-size: 1rem; }
+  #main-content .text-sm:not(input, select, textarea) { font-size: 0.8125rem; }
+
+  #main-content .text-4xl:not([class*="leading-"]) { line-height: 1.9rem; }
+  #main-content .text-3xl:not([class*="leading-"]) { line-height: 1.7rem; }
+  #main-content .text-2xl:not([class*="leading-"]) { line-height: 1.5rem; }
+  #main-content .text-xl:not([class*="leading-"]),
+  #main-content .text-lg:not([class*="leading-"]) { line-height: 1.375rem; }
+  #main-content .text-sm:not([class*="leading-"]):not(input, select, textarea) { line-height: 1.15rem; }
+
+  /* Cards that chose a tight or zero padding (tables, tiles) keep it. */
+  #main-content .card:not(.p-0, .px-0, .py-0, .p-1, .p-2, .p-3) { padding: 0.875rem; }
+
+  #main-content .space-y-6 > :not([hidden]) ~ :not([hidden]),
+  #main-content .space-y-5 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.75rem; }
+  #main-content .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.625rem; }
+  #main-content .gap-6, #main-content .gap-5 { gap: 0.75rem; }
+  #main-content .gap-4 { gap: 0.625rem; }
+  #main-content .mb-6 { margin-bottom: 0.875rem; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;

@@ -38,7 +38,7 @@ export default function PortfolioHero({ summary, snapshot = null, loading, curre
             ) : (
               <>
                 <div className="flex items-baseline gap-3 flex-wrap mt-1">
-                  <span className="financial-headline font-display text-[clamp(2.25rem,5vw,3.25rem)] tracking-tight leading-none">
+                  <span className="financial-headline font-display text-[clamp(1.625rem,5vw,3.25rem)] tracking-tight leading-none">
                     {formatMoney(animatedValue, currency)}
                   </span>
                   {!snapshot && (
