@@ -116,6 +116,21 @@ Classic themes keep `GLASS_CHART` (vivid blue/mint/amber/violet/sky/rose).
   classes `.financial-headline`, `.financial-data`, `.financial-meta`,
   `.data-label`, `.chart-label`, `.eyebrow` instead of arbitrary sizes.
 - Eyebrow: 12px, 600-700, uppercase, +0.05em tracking.
+- **Phone scale** (below 640px, app content `#main-content` only; the
+  landing page, auth screens and dialogs keep the normal scale). One block in
+  `index.css` retunes the plain utilities, so components keep writing the
+  normal classes:
+
+  | Class | Desktop | Phone |
+  |---|---|---|
+  | `text-4xl` / `text-3xl` (KPI figures) | 36 / 30px | 26 / 22px |
+  | `text-2xl` / `text-xl` / `text-lg` | 24 / 20 / 18px | 19 / 17 / 16px |
+  | `text-sm`, `.financial-data` | 14px | 13px (form controls stay 14px) |
+  | `text-xs`, labels, chart ticks | 12px | 12px (the floor) |
+  | Portfolio hero figure | up to 52px | 26px |
+  | `.card` padding | 20-24px | 14px (cards with `p-0`..`p-3` keep theirs) |
+  | Page padding | 24px | 12px |
+  | `space-y-6`/`gap-6` · `space-y-4`/`gap-4` | 24 · 16px | 12 · 10px |
 
 ## 6. Charts
 

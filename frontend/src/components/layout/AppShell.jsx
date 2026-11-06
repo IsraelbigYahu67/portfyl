@@ -28,7 +28,7 @@ export default function AppShell({ groups, children }) {
           id="main-content"
           ref={mainRef}
           tabIndex={-1}
-          className="min-w-0 flex-1 p-4 sm:p-6"
+          className="min-w-0 flex-1 p-3 sm:p-6"
         >
           {children}
         </main>
