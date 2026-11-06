@@ -1,6 +1,6 @@
 # Portfyl app languages
 
-Date: 2026-11-06. Branch: `feat/app-languages` (worktree `../portfyl-app-languages`).
+Date: 2026-11-06. Wave 1 merged to `main` on 2026-11-06 (not deployed).
 
 ## Goal
 
@@ -52,14 +52,14 @@ Each wave touches its own files, so waves can run in parallel sessions; the
 eight dictionaries are the shared hotspot, so **one wave at a time adds keys
 to them** (or each wave appends its block and the later one rebases).
 
-1. **Done (this branch):** i18n core (`src/i18n/`), onboarding language step
+1. **Done (on main):** i18n core (`src/i18n/`), onboarding language step
    (OnboardingView, Onboarding, OnboardingPreview, onboardingBrokers,
    T212ApiGuide), Settings shell + Preferences language picker,
    SettingsSectionNav, App.jsx loading/error screens.
 2. App shell: `components/layout/*` (navigation labels, drawer, top/bottom
    bar), AccountMenu, PortfolioSwitcher, RouteFallback/RouteBoundary, Toast,
-   ConfirmDialog. **Blocked until** the uncommitted mobile-nav work in the
-   main worktree (navigation.js, MobileNavDrawer.jsx) lands.
+   ConfirmDialog, BottomNavBar and the Preferences BottomNavSetting (the
+   bottom-nav work landed in 23ebeaa, so these files are free now).
 3. Auth pages (Login, Register, VerifyEmail, ForgotPassword), Pricing,
    UpgradePrompt.
 4. Dashboard and `components/dashboard/*`, PortfolioHero, MetricCard, KpiBox.
@@ -78,7 +78,8 @@ tests passing, run `npm test`, `npm run test:cloud`, `npm run build`,
 
 ## Verification of wave 1
 
-- `npm test` 1119 passed / 1 skipped, `npm run test:cloud` 1119 passed.
+- After merging main (bottom-nav prefs): `npm test` 1153 passed / 1 skipped,
+  `npm run test:cloud` 1153 passed.
 - `npm run build` and `npm run build:cloud` succeed; one chunk per language.
 - Browser check still to do: both browser automation profiles were held by
   other sessions on 2026-11-06.
