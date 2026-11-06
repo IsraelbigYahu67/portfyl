@@ -3,7 +3,8 @@ import { X } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 import AccountMenu from "../AccountMenu";
-import { preloadRoute } from "./navigation";
+import { useBottomNavItems } from "./MobileBottomNav";
+import { groupsWithoutBottomNav, preloadRoute } from "./navigation";
 
 function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia
@@ -16,6 +17,7 @@ export default function MobileNavDrawer({ groups, open, onClose }) {
   const previousPathnameRef = useRef(pathname);
   const restoreFocusRef = useRef(true);
   const containerRef = useFocusTrap({ active: open, onEscape: onClose, restoreFocusRef });
+  const barItems = useBottomNavItems();
 
   useEffect(() => {
     if (open) restoreFocusRef.current = true;
@@ -64,7 +66,7 @@ export default function MobileNavDrawer({ groups, open, onClose }) {
           </button>
         </div>
         <nav aria-label="Primary" className="flex-1 px-2.5 py-3 space-y-4">
-          {groups.map((group) => {
+          {groupsWithoutBottomNav(groups, barItems).map((group) => {
             const headingId = `mobile-nav-${group.id}`;
             return (
               <section key={group.id} aria-labelledby={headingId}>

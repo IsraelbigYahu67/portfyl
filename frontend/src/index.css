@@ -421,6 +421,8 @@
   backdrop-filter: blur(14px);
 }
 .app-bottomnav { padding-bottom: env(safe-area-inset-bottom); }
+/* The bar's sliding highlight (BottomNavBar): Clay presses it into the bar. */
+.theme-clay .bottomnav-pill { background: var(--brand-light); box-shadow: var(--clay-inset-sm); }
 
 /* Shell: floating clay sidebar, pill top bar and drawer (mockup layout). */
 .theme-clay .app-sidebar {
