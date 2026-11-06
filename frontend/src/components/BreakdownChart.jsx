@@ -1,7 +1,9 @@
+import { Fragment } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { CATEGORICAL, NEUTRAL_COLOR } from "../lib/chartTheme";
 import { withSliceCorners } from "../lib/pieCorners";
-import { formatMoney } from "../lib/format";
+import { formatCompact, formatMoney } from "../lib/format";
+import { useIsPhone } from "../hooks/useMediaQuery";
 
 // Cash has no sector/country/asset-type of its own — give it a fixed neutral
 // slate color instead of whatever the palette-by-index lookup would assign,
@@ -18,6 +20,7 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
   // Same formatter as the rest of the app, so separators follow the display
   // currency (CZK reads "5 224,05 Kč", not "5,224.05 Kč").
   const fmt = (n) => formatMoney(n, currencyLabel);
+  const isPhone = useIsPhone();
 
   if (!data || data.length === 0) return null;
 
@@ -95,15 +98,31 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
             return <div className="flex-1 min-w-0 flex flex-col gap-1.5">{data.map(renderRow)}</div>;
           }
 
+          // Two legend columns. Each is a 3-column grid (ticker, %, value), so a
+          // column is as wide as its longest ticker / longest % and the gap
+          // between ticker and %, and between % and (value), is the same 10px.
+          // On a phone both legend columns sit side by side, so the value is
+          // abbreviated (41K Kč) to make them fit.
           const half = Math.ceil(data.length / 2);
+          const value = (n) => (isPhone ? formatCompact(n, currencyLabel) : fmt(n));
+          const legendColumn = (items, offset) => (
+            <div className="grid min-w-0 grid-cols-[auto_auto_auto] content-start items-baseline justify-start gap-x-2.5 gap-y-1.5 text-sm">
+              {items.map((item, i) => (
+                <Fragment key={item.name}>
+                  <span className="inline-flex items-center gap-2 whitespace-nowrap text-ink">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: colorFor(item, i + offset) }} />
+                    {item.name}
+                  </span>
+                  <span className="tabular-nums text-right text-muted">{item.weight}%</span>
+                  <span className="tabular-nums whitespace-nowrap text-xs text-muted">({value(item.value)})</span>
+                </Fragment>
+              ))}
+            </div>
+          );
           return (
-            <div className="flex-1 min-w-0 flex flex-wrap gap-x-[100px] gap-y-1.5">
-              <div className="flex flex-col gap-1.5">
-                {data.slice(0, half).map((item, i) => renderRow(item, i))}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                {data.slice(half).map((item, i) => renderRow(item, i + half))}
-              </div>
+            <div className="grid flex-1 min-w-0 grid-cols-2 gap-x-3 sm:flex sm:flex-wrap sm:gap-x-[100px] sm:gap-y-1.5">
+              {legendColumn(data.slice(0, half), 0)}
+              {legendColumn(data.slice(half), half)}
             </div>
           );
         })()}
