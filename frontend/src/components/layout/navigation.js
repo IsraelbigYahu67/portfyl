@@ -49,6 +49,16 @@ export const NAV_GROUPS = Object.freeze([
   },
 ]);
 
+// Phone bottom bar (MobileBottomNav): the pages used most, in thumb reach.
+// "Positions" is the Allocation page, which holds the holdings list. Every path
+// also lives in NAV_GROUPS, so the drawer ("More") still lists the full set.
+export const BOTTOM_NAV_ITEMS = Object.freeze([
+  { to: TRACKER_HOME, label: "Dashboard", icon: LayoutDashboard },
+  { to: "/allocation", label: "Positions", icon: PieChart },
+  { to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+  { to: "/dividends", label: "Dividends", icon: CalendarDays },
+]);
+
 export const EDITION_ENTRY_GROUP = Object.freeze({
   "/tax-report": "insights",
 });

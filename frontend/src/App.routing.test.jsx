@@ -178,7 +178,7 @@ describe("authenticated routing", () => {
     await screen.findByRole("heading", { name: /portfolio overview/i });
 
     // Switching portfolios refetches the list; that refetch fails.
-    fireEvent.click(screen.getByRole("button", { name: /switch portfolio/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /switch portfolio/i })[0]);
     fireEvent.click(screen.getByText("Second portfolio").closest("button"));
     await waitFor(() => expect(queryClient.getQueryState(["portfolios"])?.status).toBe("error"));
 
@@ -208,7 +208,7 @@ describe("authenticated routing", () => {
     ]);
     renderApp();
     await screen.findByRole("heading", { name: /portfolio overview/i });
-    fireEvent.click(screen.getByRole("button", { name: /switch portfolio/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /switch portfolio/i })[0]);
     expect(screen.getAllByText("Active portfolio").length).toBeGreaterThan(0);
     expect(screen.queryByText("Pending import")).not.toBeInTheDocument();
   });
@@ -231,7 +231,7 @@ describe("authenticated routing", () => {
     renderApp();
 
     await screen.findByRole("heading", { name: /portfolio overview/i });
-    expect(screen.getByRole("link", { name: /dashboard/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /dashboard/i }).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /trading 212|change platform/i }))
       .not.toBeInTheDocument();
   });
@@ -256,7 +256,7 @@ describe("authenticated routing", () => {
     const setItem = vi.spyOn(Storage.prototype, "setItem");
     const removeItem = vi.spyOn(Storage.prototype, "removeItem");
 
-    fireEvent.click(screen.getByRole("button", { name: /switch portfolio/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /switch portfolio/i })[0]);
     fireEvent.click(screen.getByText("Second portfolio").closest("button"));
 
     expect(setItem.mock.calls.some(([key]) => key === "sb_platform")).toBe(false);
@@ -282,7 +282,7 @@ describe("authenticated routing", () => {
     );
     renderApp();
     await screen.findByRole("heading", { name: /portfolio overview/i });
-    fireEvent.click(screen.getByRole("button", { name: /switch portfolio/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /switch portfolio/i })[0]);
     fireEvent.click(screen.getByText("Second portfolio").closest("button"));
     await waitFor(() => expect(mocks.fetchPortfolios).toHaveBeenCalledTimes(2));
     expect(screen.getByTestId("portfolio-ready")).toHaveTextContent(secondId);

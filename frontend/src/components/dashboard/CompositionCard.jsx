@@ -8,6 +8,7 @@ import { CATEGORICAL } from "../../lib/chartTheme";
 import { withSliceCorners } from "../../lib/pieCorners";
 import { displayLocale, formatCompact, formatMoney } from "../../lib/format";
 import { buildCompositionRows } from "../../lib/dashboardSummaries";
+import { useIsPhone } from "../../hooks/useMediaQuery";
 
 const DIMENSIONS = [
   { value: "sectors", label: "Sectors" },
@@ -41,6 +42,7 @@ function splitDecimal(text, currency) {
 // (realized + unrealized).
 export default function CompositionCard({ breakdown, currency }) {
   const [dimension, setDimension] = useState(DIMENSIONS[0].value);
+  const isPhone = useIsPhone();
   const showProfit = !NO_PROFIT.has(dimension);
   const rows = buildCompositionRows(breakdown?.[dimension] || []);
   const shown = rows.slice(0, MAX_ROWS);
@@ -87,6 +89,27 @@ export default function CompositionCard({ breakdown, currency }) {
           </div>
 
           <div className="min-w-0 overflow-x-auto">
+            {isPhone ? (
+              // A phone shows each row as a card line (name + profit left, value + weight right):
+              // the 5-column table cut off its Value and Profit columns.
+              <ul className="divide-y divide-hairline" aria-label="Composition">
+                {shown.map((row, i) => (
+                  <li key={row.name} className="flex items-center gap-3 py-2.5">
+                    <span aria-hidden="true" className="h-9 w-1.5 shrink-0 rounded-full" style={{ background: CATEGORICAL[i % CATEGORICAL.length] }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-semibold text-ink">{row.name}</div>
+                      {showProfit && (
+                        <div className="text-xs tabular-nums"><ProfitCell profit={row.profit} currency={currency} /></div>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-right tabular-nums">
+                      <div className="font-semibold text-ink">{formatMoney(row.value, currency)}</div>
+                      <div className="text-xs text-muted">{row.weight.toFixed(1)}%</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-muted">
@@ -127,6 +150,7 @@ export default function CompositionCard({ breakdown, currency }) {
                 ))}
               </tbody>
             </table>
+            )}
             {hiddenCount > 0 && (
               <Link to="/allocation" className="mt-2 inline-block text-xs font-semibold text-brand hover:text-brand-dim">
                 +{hiddenCount} more in Allocation

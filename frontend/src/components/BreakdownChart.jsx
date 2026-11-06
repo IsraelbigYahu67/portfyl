@@ -1,6 +1,7 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { CATEGORICAL, NEUTRAL_COLOR } from "../lib/chartTheme";
 import { withSliceCorners } from "../lib/pieCorners";
+import { formatMoney } from "../lib/format";
 
 // Cash has no sector/country/asset-type of its own — give it a fixed neutral
 // slate color instead of whatever the palette-by-index lookup would assign,
@@ -14,15 +15,9 @@ const colorFor = (item, i) =>
 // stacked puts the legend in one column beneath the donut (narrow cards that
 // sit side by side) instead of beside it.
 export default function BreakdownChart({ title, data, currencyLabel, legendColumns = 1, nameWidth = 70, stacked = false }) {
-  const fmt = (n) => {
-    if (n == null) return "—";
-    const sign = n < 0 ? "-" : "";
-    const str = Math.abs(n).toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    return currencyLabel === "CZK" ? `${sign}${str} Kč` : `${sign}$${str}`;
-  };
+  // Same formatter as the rest of the app, so separators follow the display
+  // currency (CZK reads "5 224,05 Kč", not "5,224.05 Kč").
+  const fmt = (n) => formatMoney(n, currencyLabel);
 
   if (!data || data.length === 0) return null;
 

@@ -327,13 +327,13 @@ export default function Dashboard() {
           performance: (
             <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "100ms" }}>
               <SectionHeader icon={TrendingUp} action={<div className="flex flex-wrap items-center gap-3">
-                  <div className="flex gap-0.5 bg-surface-hover rounded-lg p-0.5">
+                  <div className="flex shrink-0 gap-0.5 bg-surface-hover rounded-lg p-0.5">
                     {["value", "growth"].map((m) => (
                       <button
                         key={m}
                         onClick={() => setChartMode(m)}
                         aria-pressed={chartMode === m}
-                        className={`px-3 py-2 text-xs rounded-md font-medium transition-colors md:px-2.5 md:py-1 ${
+                        className={`min-h-10 px-3 py-2 text-xs rounded-md md:min-h-0 font-medium transition-colors md:px-2.5 md:py-1 ${
                           chartMode === m
                             ? "bg-surface-card text-brand font-semibold shadow-sm"
                             : "text-muted hover:text-ink"
@@ -343,13 +343,14 @@ export default function Dashboard() {
                       </button>
                     ))}
                   </div>
-                  <div className="flex flex-wrap gap-1">
+                  {/* One row that scrolls sideways on a phone instead of dropping "All" onto a second line. */}
+                  <div className="flex max-w-full gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {PERIODS.map((p) => (
                       <button
                         key={p}
                         onClick={() => setPeriod(p)}
                         aria-pressed={period === p}
-                        className={`px-3 py-2 text-xs rounded-md font-medium transition-colors md:px-2.5 md:py-1 ${
+                        className={`min-h-10 shrink-0 px-3 py-2 text-xs rounded-md md:min-h-0 font-medium transition-colors md:px-2.5 md:py-1 ${
                           period === p
                             ? "bg-surface-card text-brand font-semibold shadow-sm"
                             : "text-muted hover:text-ink"
@@ -362,13 +363,13 @@ export default function Dashboard() {
                 </div>}>
                 Portfolio Performance
               </SectionHeader>
-              <div className="flex flex-wrap gap-1.5 mb-4">
+              <div className="flex gap-1.5 mb-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-wrap">
                 {BENCHMARKS.map((b) => (
                   <button
                     key={b.key}
                     onClick={() => toggleBenchmark(b.key)}
                     aria-pressed={activeBenchmarks.includes(b.key)}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors border md:py-1 ${
+                    className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors border md:min-h-0 md:py-1 ${
                       activeBenchmarks.includes(b.key)
                         ? "border-hairline bg-surface-card text-ink shadow-sm"
                         : "border-transparent text-muted hover:text-ink"

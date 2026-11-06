@@ -270,7 +270,8 @@ export default function Transactions() {
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="tabular-nums text-sm font-medium">{formatMoney(t.shares * t.price, t.currency)}</p>
-                  <div className="flex justify-end">
+                  {/* Wide gap: the destructive button must not sit next to the note one. */}
+                  <div className="flex justify-end gap-5">
                     {noteButton(t)}
                     {deleteButton(t)}
                   </div>

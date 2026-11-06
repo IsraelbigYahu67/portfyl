@@ -66,6 +66,14 @@ export default function SegmentedControl({
     measure(previousIndex.current !== -1);
     previousIndex.current = activeIndex;
 
+    // On a phone the row scrolls sideways instead of wrapping; keep the chosen
+    // option in view (scroll the row itself, never the page).
+    if (root.scrollWidth > root.clientWidth) {
+      const edge = button.offsetLeft + button.offsetWidth;
+      if (button.offsetLeft < root.scrollLeft) root.scrollLeft = button.offsetLeft - 4;
+      else if (edge > root.scrollLeft + root.clientWidth) root.scrollLeft = edge - root.clientWidth + 4;
+    }
+
     if (typeof ResizeObserver === "undefined") return undefined;
     const observer = new ResizeObserver(() => measure(false));
     observer.observe(root);
@@ -87,7 +95,7 @@ export default function SegmentedControl({
       ref={rootRef}
       role="group"
       aria-label={ariaLabel}
-      className={`segmented relative ${block ? "flex w-full" : "inline-flex"} gap-0.5 rounded-[var(--radius-card)] bg-surface-hover p-0.5 ${className}`}
+      className={`segmented relative ${block ? "flex w-full" : "inline-flex"} max-w-full max-sm:overflow-x-auto max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden gap-0.5 rounded-[var(--radius-card)] bg-surface-hover p-0.5 ${className}`}
     >
       {thumb && (
         <span
@@ -111,7 +119,7 @@ export default function SegmentedControl({
             disabled={opt.disabled}
             title={opt.title}
             onClick={() => onChange(opt.value)}
-            className={`relative z-10 rounded-[var(--radius-card)] font-medium transition-colors ${block ? "flex-1 flex items-center justify-center" : ""} ${SIZES[size]} ${
+            className={`relative z-10 shrink-0 whitespace-nowrap max-sm:inline-flex max-sm:min-h-10 max-sm:items-center max-sm:justify-center rounded-[var(--radius-card)] font-medium transition-colors ${block ? "flex-1 flex items-center justify-center" : ""} ${SIZES[size]} ${
               active
                 ? `font-semibold text-brand${thumb ? "" : " bg-surface-card-elevated"}`
                 : "text-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-muted"

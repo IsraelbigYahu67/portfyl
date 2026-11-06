@@ -54,7 +54,7 @@ describe("AppShell", () => {
     expect(screen.getByRole("heading", { name: "Test Page" })).toBeInTheDocument();
   });
 
-  it("opens and closes the mobile drawer from the top bar button", () => {
+  it("opens and closes the mobile drawer from the bottom bar More button", () => {
     renderShell();
     const trigger = screen.getByRole("button", { name: /open navigation menu/i });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

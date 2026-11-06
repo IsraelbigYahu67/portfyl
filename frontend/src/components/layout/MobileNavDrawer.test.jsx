@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import MobileNavDrawer from "./MobileNavDrawer";
-import MobileTopBar from "./MobileTopBar";
 import { NAV_GROUPS } from "./navigation";
+
+vi.mock("../AccountMenu", () => ({ default: () => <div>Account menu</div> }));
 
 function renderDrawer(open = true, onClose = vi.fn()) {
   return render(
@@ -73,11 +74,14 @@ describe("MobileNavDrawer", () => {
   });
 });
 
-describe("MobileTopBar", () => {
-  it("exposes the drawer's current expanded state", () => {
-    const { rerender } = render(<MobileTopBar open={false} onOpenMenu={vi.fn()} />);
-    expect(screen.getByRole("button", { name: /open navigation menu/i })).toHaveAttribute("aria-expanded", "false");
-    rerender(<MobileTopBar open onOpenMenu={vi.fn()} />);
-    expect(screen.getByRole("button", { name: /open navigation menu/i })).toHaveAttribute("aria-expanded", "true");
+describe("MobileNavDrawer surface", () => {
+  it("is fully opaque over the page and keeps log out reachable", () => {
+    renderDrawer();
+    // Opacity lives in the .app-drawer rule (a solid page colour under the
+    // translucent card token); the panel must not set its own see-through fill.
+    const dialog = screen.getByRole("dialog", { name: /navigation/i });
+    expect(dialog).toHaveClass("app-drawer");
+    expect(dialog.className).not.toMatch(/bg-surface-card/);
+    expect(within(dialog).getByText("Account menu")).toBeInTheDocument();
   });
 });

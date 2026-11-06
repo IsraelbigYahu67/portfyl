@@ -6,6 +6,16 @@ import { AXIS_TICK_STYLE, LEGEND_TEXT_STYLE, GRID_STROKE, NEUTRAL_COLOR, SERIES_
 import { buildPercentAxis } from "../lib/chartPercentAxis";
 import { splitGrowthLineSegments } from "../lib/growthLineSegments";
 
+// One scrollable row: with a few benchmark indexes the legend used to wrap to a
+// second line on a phone and shove the plot down.
+const LEGEND_WRAPPER_STYLE = {
+  paddingBottom: "20px",
+  width: "100%",
+  overflowX: "auto",
+  whiteSpace: "nowrap",
+  scrollbarWidth: "none",
+};
+
 const GROWTH_GAIN_STROKE = "#5B8567";
 const GROWTH_LOSS_STROKE = "#A7655C";
 const benchmarkDash = (i) => SERIES_STYLES[(i % (SERIES_STYLES.length - 1)) + 1].strokeDasharray;
@@ -175,7 +185,7 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
               <Legend
                 verticalAlign="top"
                 align="right"
-                wrapperStyle={{ paddingBottom: '20px' }}
+                wrapperStyle={LEGEND_WRAPPER_STYLE}
                 formatter={(v) => {
                   if (v === "pnl_pct") return <span style={LEGEND_TEXT_STYLE}>Portfolio Growth</span>;
                   const bm = benchmarkMeta.find((b) => `bench_${b.key}` === v);
@@ -236,7 +246,7 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
               <Legend
                 verticalAlign="top"
                 align="right"
-                wrapperStyle={{ paddingBottom: '20px' }}
+                wrapperStyle={LEGEND_WRAPPER_STYLE}
                 formatter={(v) => {
                   if (v === "value") return <span style={LEGEND_TEXT_STYLE}>Portfolio Value</span>;
                   if (v === "invested") return <span style={LEGEND_TEXT_STYLE}>Deposited</span>;

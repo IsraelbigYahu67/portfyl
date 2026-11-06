@@ -3,10 +3,13 @@ import { Maximize2, UserCheck, X } from "lucide-react";
 import { AsyncSection, EmptyState, SectionHeader, SkeletonRows } from "../ui";
 import ZoomDialog from "../ui/ZoomDialog";
 import { TickerLink } from "../TickerLink";
-import { formatCompact, formatMoney, formatTableDate } from "../../lib/format";
+import { useIsPhone } from "../../hooks/useMediaQuery";
+import { formatCompact, formatMoney, formatQuantity, formatTableDate } from "../../lib/format";
 
 // Rows shown before the card has been measured (and in jsdom, which has no layout).
 export const FALLBACK_ROWS = 8;
+// Cards are taller than table rows, so a phone shows fewer before "view all".
+const PHONE_ROWS = 5;
 
 const thBase = "text-xs font-medium uppercase tracking-wider pb-2";
 
@@ -123,6 +126,36 @@ function CompactTable({ buys }) {
   );
 }
 
+// Phone layout: one card line per purchase instead of a 7-column table whose
+// Insider and Value columns were cut off.
+function BuyCards({ buys }) {
+  return (
+    <ul className="divide-y divide-hairline" aria-label="Insider buys">
+      {buys.map((b, i) => {
+        const { tone, text } = b.pnl_pct != null ? signedPct(b.pnl_pct) : { tone: "text-muted", text: "—" };
+        return (
+          <li key={i} className="py-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <TickerLink ticker={b.ticker} className="inline-flex min-h-11 items-center font-mono font-semibold" />
+              <span className="text-xs tabular-nums text-muted">{formatTableDate(b.date)}</span>
+            </div>
+            <div className="-mt-2 flex items-end justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm text-ink">{b.insider || "—"}</p>
+                {b.position && <p className="truncate text-xs text-muted">{b.position}</p>}
+              </div>
+              <div className="shrink-0 text-right tabular-nums">
+                <p className="text-sm font-medium text-ink">{b.value != null ? formatCompact(Math.abs(b.value), b.currency) : "—"}</p>
+                <p className={`text-xs font-medium ${tone}`}>{text}</p>
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function FullTable({ buys, sort, onSort }) {
   // Sticky header cells need an opaque background to hide rows scrolling under them.
   // Cell radii only render with separated borders, so the row dividers live
@@ -156,7 +189,7 @@ function FullTable({ buys, sort, onSort }) {
                 {b.position && <span className="text-muted text-xs ml-1">({b.position})</span>}
               </td>
               <td className="py-1.5 pr-3 text-right tabular-nums text-ink">
-                {b.shares != null ? Math.abs(b.shares).toLocaleString() : "—"}
+                {b.shares != null ? formatQuantity(Math.abs(b.shares), b.currency) : "—"}
               </td>
               <td className="py-1.5 pr-3 text-right tabular-nums text-ink">
                 {b.buy_price != null ? formatMoney(b.buy_price, b.currency) : "—"}
@@ -189,6 +222,7 @@ function FullTable({ buys, sort, onSort }) {
 export default function InsiderBuysCard({ buys = [], isLoading, error, onRetry }) {
   const [open, setOpen] = useState(false);
   const [sort, setSort] = useState("date");
+  const isPhone = useIsPhone();
   const rootRef = useRef(null);
   const boxRef = useRef(null);
   const hasRows = !isLoading && !error && buys.length > 0;
@@ -222,15 +256,21 @@ export default function InsiderBuysCard({ buys = [], isLoading, error, onRetry }
         {/* The table is absolutely positioned so it never sets the card's
             height — the box takes whatever the row gives it, and the hook
             fills it with as many rows as fit. */}
-        <div ref={boxRef} className="relative flex-1 min-h-[240px]">
-          <div className="absolute inset-0 overflow-hidden">
-            <CompactTable buys={shown} />
+        {isPhone ? (
+          <div ref={boxRef}>
+            <BuyCards buys={newest.slice(0, PHONE_ROWS)} />
           </div>
-        </div>
+        ) : (
+          <div ref={boxRef} className="relative flex-1 min-h-[240px]">
+            <div className="absolute inset-0 overflow-hidden">
+              <CompactTable buys={shown} />
+            </div>
+          </div>
+        )}
         <p className="mt-2 text-xs text-muted">
-          {shown.length < buys.length ? (
-            <button type="button" onClick={() => setOpen(true)} className="text-brand hover:text-brand/80 font-medium transition-colors">
-              {shown.length} of {buys.length} buys · view all
+          {(isPhone ? Math.min(PHONE_ROWS, buys.length) : shown.length) < buys.length ? (
+            <button type="button" onClick={() => setOpen(true)} className="inline-flex min-h-11 items-center text-brand hover:text-brand/80 font-medium transition-colors">
+              {isPhone ? Math.min(PHONE_ROWS, buys.length) : shown.length} of {buys.length} buys · view all
             </button>
           ) : (
             `All ${buys.length} buys from the last 12 months`
@@ -265,7 +305,23 @@ export default function InsiderBuysCard({ buys = [], isLoading, error, onRetry }
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-auto">
-          <FullTable buys={sortBuys(buys, sort)} sort={sort} onSort={setSort} />
+          {isPhone ? (
+            <>
+              <select
+                aria-label="Sort insider buys"
+                value={sort}
+                onChange={(e) => setSort(e.target.value)}
+                className="input mb-2 min-h-11"
+              >
+                <option value="date">Sort: Newest</option>
+                <option value="value">Sort: Value</option>
+                <option value="pnl">Sort: P&amp;L</option>
+              </select>
+              <BuyCards buys={sortBuys(buys, sort)} />
+            </>
+          ) : (
+            <FullTable buys={sortBuys(buys, sort)} sort={sort} onSort={setSort} />
+          )}
         </div>
       </ZoomDialog>
     </div>

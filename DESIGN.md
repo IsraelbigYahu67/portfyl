@@ -189,6 +189,29 @@ cards and tiles still (Allocation does this: its data/text blocks do not move).
   click, and no transform motion under reduced motion.
 - Keyboard focus: 3px brand outline with 2px offset (Clay), 2px elsewhere.
 - Touch targets at least 44px on mobile; right-align numbers in tables.
+- **Phone shell (below `lg`)**: a sticky top bar (`MobileTopBar`: logo, compact
+  `PortfolioSwitcher`, compact `AccountMenu` - the only phone log-out besides
+  the drawer) and a fixed bottom bar (`MobileBottomNav`: Dashboard, Positions =
+  Allocation, Transactions, Dividends, More). "More" opens the drawer, which
+  also holds the account menu. Top bar, drawer and bottom bar share one rule in
+  `index.css` that lays the translucent `--surface-card-elevated` over the solid
+  `--bg` and blurs it, so page text never shows through; Clay floats the bottom
+  bar as a raised pill. `AppShell` adds a spacer so content clears the bar.
+- **Tables become cards on phones** (`useIsPhone()`, below 768px, renders only
+  one layout): Allocation holdings and sold positions (`HoldingCards`, with a
+  `CardSortBar`), insider buys and composition. Ticker and value on top, P&L and
+  weight below, no sideways scrolling. Charts keep working; do not squeeze a
+  10-column table into 390px.
+- **Phone Dashboard**: `DashboardGrid` shows Top movers open and every other
+  widget as a collapsed row (remembered in `sb_dashboard_phone_open_v1`);
+  "Customize" still edits order and visibility.
+- **Control rows scroll, they do not wrap** on phones: `SegmentedControl`,
+  `UrlTabs` (right-edge fade while more tabs follow), the Dashboard period and
+  benchmark chips and the chart legend. Buttons in them are 40px tall.
+- Form controls are 16px on phones (iOS zooms the page for anything smaller);
+  info icons and other tiny glyphs get a 44px hit area via `before:-inset-4`.
+- Numbers follow the display currency everywhere (`formatMoney`,
+  `formatQuantity`): CZK reads `5 224,05 Kč`, never `5,224.05 Kč`.
 
 ## 9. Checklist for a frontend change
 
