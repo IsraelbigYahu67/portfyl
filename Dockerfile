@@ -20,6 +20,14 @@ ARG VITE_FIREBASE_APP_ID
 # CSP admits Firebase's popup; see deploy/cloudrun.md.
 ARG VITE_FIREBASE_GOOGLE_SIGN_IN=false
 ARG VITE_PORTFYL_EDITION=cloud
+# PostHog Cloud EU activation analytics. Both stay EMPTY until the public
+# privacy notice covering PostHog is legally reviewed and published (see
+# docs/operations/posthog-activation-analytics.md); empty = no-op adapter, so
+# nothing is ever sent. The host must be exactly https://eu.i.posthog.com.
+ARG VITE_POSTHOG_KEY=
+ARG VITE_POSTHOG_HOST=
+ENV VITE_POSTHOG_KEY=$VITE_POSTHOG_KEY \
+    VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST
 ENV VITE_PORTFYL_EDITION=$VITE_PORTFYL_EDITION \
     VITE_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY \
     VITE_FIREBASE_AUTH_DOMAIN=$VITE_FIREBASE_AUTH_DOMAIN \

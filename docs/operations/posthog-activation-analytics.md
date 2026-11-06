@@ -95,9 +95,11 @@ a card reactively.
 
 Both are **Vite build-time variables**, not backend runtime secrets — they
 are compiled into the static frontend bundle by `npm run build:cloud` and
-are not read from `backend/`'s environment at any point. See
-`deploy/cloudrun.md` for where these are (not yet) wired into the Cloud Run
-build, and note there that changing a Cloud Run *service's* runtime
+are not read from `backend/`'s environment at any point. The
+`Dockerfile` takes both as build args (default empty) and the documented
+Cloud Build step in `deploy/cloudrun.md` reads them from the gitignored
+`frontend/.env.local`, so enabling is only adding the two lines there once
+the production blocker is lifted. Note that changing a Cloud Run *service's* runtime
 environment variables has **no effect** on these two values, since Vite has
 already baked them into the built JS by the time the container runs.
 
