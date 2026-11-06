@@ -1,7 +1,7 @@
 # Portfyl
 
 Portfolio analytics for a Trading 212 / IBKR investor. Import broker CSVs (or
-sync via API), then view performance, allocation, dividends, options, and tax
+sync via API), then view performance, allocation, dividends, and tax
 reports across one or more portfolios. (The DeepSeek AI assistant was removed
 on 2026-10-18; any future AI feature needs a new DPA/transfer review first.) Now multi-tenant
 (Firebase-verified identities, workspace-scoped PostgreSQL data) —
@@ -18,9 +18,9 @@ rollout plan:
 **`docs/superpowers/plans/2026-09-01-portfyl-saas-monetization.md`** — read it
 before starting any auth, tenancy, database, or billing work.
 
-- `PORTFYL_EDITION=local` — the owner's private instance. Keeps Tax Report and
-  Screener (the Screener page is out of the frontend for now, 2026-11-04;
-  its backend stays and git history has the page). No billing.
+- `PORTFYL_EDITION=local` — the owner's private instance. Keeps Tax Report. No billing.
+  The Screener and Options pages were removed from the frontend on 2026-11-04
+  (git history has them); the Screener backend and the `options` router remain.
 - `PORTFYL_EDITION=cloud` — multi-tenant SaaS with Free / Investor EUR 5.99 /
   Pro EUR 9.99 plans (monthly only, VAT included, no trials). Payments use
   **Stripe Managed Payments** (Stripe/Link is the merchant of record):
@@ -44,7 +44,7 @@ before starting any auth, tenancy, database, or billing work.
   B/C record and `docs/superpowers/plans/2026-09-04-portfyl-secrets-jobs.md`
   for D. The **technical edition/capability boundary is also
   DONE** — see `docs/superpowers/plans/2026-09-03-portfyl-edition-boundary.md`.
-  Cloud does not register or bundle Tax Report/Screener; local keeps both.
+  Cloud does not register or bundle Tax Report/Screener; local keeps Tax Report.
   **Everything in the rest of this file now describes
   that implemented state**, not the old single-user SQLite one. What's
   **still pending**: Workstream A's external product/data validation and

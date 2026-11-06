@@ -12,7 +12,9 @@ Version: 0.1 (draft)
 
 This policy explains what personal data the Portfyl service processes, why,
 for how long, who receives it and what rights you have. It follows
-Regulation (EU) 2016/679 (GDPR) and Czech Act No. 110/2019 Coll.
+Regulation (EU) 2016/679 (GDPR), Czech Act No. 110/2019 Coll. and, for
+cookies and browser storage, Section 89(3) of Czech Act No. 127/2005 Coll. on
+Electronic Communications.
 
 ## 1. Controller and contact
 
@@ -33,11 +35,17 @@ have not appointed a Data Protection Officer because we are not required to.
 | **Subscription data** | plan, period, subscription status, customer and transaction IDs at the Payment Partner, country | the Payment Partner; **we never receive your card number** |
 | **Technical and security data** | IP address, browser type, hashed session tokens, last sign-in time, security records (audit log), feature usage counts | automatically when you use the Service |
 | **Support communication** | the content of e-mails you send us | you |
-| **Analytics (consent only)** | anonymous app-usage events, see Section 8 | automatically, only if you consent |
+| **Analytics (consent only)** | pseudonymous app-usage events – after sign-in we link them to an internal account identifier, not to your e-mail or name; see Section 8 | automatically, only if you consent |
 
 We do not process special categories of data (such as health data) and we do
 not ask for national ID numbers or identity documents. The Service is only
 for people aged 18 or over.
+
+**Providing data.** An e-mail address is required to create an account –
+without it we cannot provide the Service. Portfolio data, broker connections
+and Discord are optional; without them only the related features are
+unavailable. Consent to analytics is entirely voluntary and has no effect on
+how the Service works.
 
 ## 3. Why we process data and on what legal basis
 
@@ -65,12 +73,11 @@ data processing agreement:
 
 | Supplier | Role | Where data is processed |
 |---|---|---|
-| Google Cloud (Google Cloud EMEA Ltd. / Google LLC) | application hosting (Cloud Run), encryption keys, operational logs, scheduled jobs | EU – Belgium (`europe-west1`) `[[VERIFY]]`; support may access from the US |
+| Google Cloud (Google Cloud EMEA Ltd. / Google LLC) | application hosting (Cloud Run), encryption keys, operational logs, scheduled jobs | EU – Belgium (`europe-west1`); support may access from the US |
 | Google Firebase Authentication | registration, sign-in, e-mail verification, Google sign-in | EU/US |
 | Neon Inc. | database (PostgreSQL) and backups | EU – Frankfurt `[[VERIFY]]` |
 | Cloudflare, Inc. | DNS, encrypted connections (TLS), attack protection | global network |
 | PostHog Inc. (PostHog Cloud EU) | usage analytics – **only with your consent** | EU – Frankfurt |
-| Functional Software, Inc. (Sentry) | error reports without request content `[[VERIFY whether enabled in production]]` | `[[TODO]]` |
 
 **Independent controllers** – these process data under their own policies:
 
@@ -89,12 +96,14 @@ We may also disclose data to public authorities where the law requires it.
 
 ## 5. Transfers outside the EU
 
-Some suppliers (Google, Cloudflare, Neon, PostHog, Sentry) are US companies or
+Some suppliers (Google, Cloudflare, Neon, PostHog) are US companies or
 provide support from outside the EU. Transfers to the US rely on the European
 Commission's adequacy decision (**EU-U.S. Data Privacy Framework**) where the
 supplier is certified, and otherwise on the Commission's **Standard
 Contractual Clauses**. `[[LAWYER: verify each supplier's certification and
-DPA]]`
+DPA]]` We will provide a copy of the Standard Contractual Clauses on request
+at support@portfyl.com; the list of EU-U.S. Data Privacy Framework certified
+companies is at https://www.dataprivacyframework.gov.
 
 ## 6. How long we keep data
 
@@ -110,8 +119,7 @@ DPA]]`
 | Analytics data (with consent) | at most 1 year |
 
 **Deleting your account:** go to Settings → Data & privacy. For security, we
-first ask you to sign in again. Deletion takes place `[[DECIDE: after a
-30-day period during which you can cancel it / immediately]]`; all account
+first ask you to sign in again. Deletion takes place after a 30-day period during which you can cancel it; all account
 data is then removed from the database and disappears from backups no later
 than the period stated above.
 
@@ -128,7 +136,6 @@ You have the right to:
   yourself in the app;
 - **restrict** processing;
 - **data portability** – you can download your data as JSON in Settings;
-- **object** to processing based on legitimate interest;
 - **withdraw consent** (e.g. to analytics) at any time in cookie settings,
   without affecting earlier processing;
 - **lodge a complaint** with the Czech Office for Personal Data Protection
@@ -136,28 +143,45 @@ You have the right to:
   `https://uoou.gov.cz`, or with the supervisory authority in your EU
   country.
 
-Send requests to **support@portfyl.com**. We will reply within one month. To
+**Right to object.** You may object at any time, at support@portfyl.com, to
+processing we carry out on the basis of legitimate interest (security,
+protection of legal claims). We will stop that processing unless we show
+compelling legitimate grounds that override your interests.
+
+Send requests to **support@portfyl.com**. We will reply within one month; in
+justified cases we may extend this by a further two months and will tell you
+in advance. To
 protect your account, we may ask you to confirm that the request comes from
 your account's e-mail address.
 
 ## 8. Cookies and browser storage
 
-**Strictly necessary (no consent needed)** – the Service does not work
-without them:
+**Necessary or requested by you (no consent needed, Section 89(3) of Act
+No. 127/2005 Coll.)** – the Service does not work without them, or would not
+remember your settings:
 
-| Name | Purpose | Duration |
-|---|---|---|
-| `__Host-portfyl_session` | keeps you signed in (random session identifier) | up to 30 days |
-| `sb_theme`, `sb_theme_style`, `sb_palette`, `sb_currency`, `sb_portfolio_id` (localStorage) | remembers appearance, currency and the selected portfolio | until you clear them |
-| analytics consent choice (localStorage) | remembers your choice | until you change it |
-| Cloudflare cookies (e.g. `__cf_bm`) | bot and attack protection | up to 30 minutes |
+| Name | Type | Purpose | Duration |
+|---|---|---|---|
+| `__Host-portfyl_session` | cookie | keeps you signed in (random session identifier) | up to 30 days |
+| `portfyl_analytics_consent` | first-party cookie shared by `portfyl.com` and subdomains | remembers your analytics consent choice | 180 days |
+| `sb_theme`, `sb_theme_style`, `sb_palette`, `sb_currency`, `sb_portfolio_id`, `sb_view_mode`, `portfyl_landing_language` | localStorage | appearance, currency, selected portfolio, view mode and landing-page language | until you clear them |
+| `sb_dashboard_layout_v3`, `sb_dashboard_widget_order_v4`, `sb_dashboard_widgets_hidden`, `sb_stock_report_sections`, `sb_stock_report_tabs` | localStorage | dashboard layout and stock-detail settings | until you clear them |
+| `__cf_bm` and other Cloudflare cookies | cookie | bot and attack protection | up to 30 minutes |
 
-**Analytics (consent only)** – PostHog Cloud EU. We measure only a fixed list
-of events (e.g. "opened the demo", "created a portfolio"). We never collect
-your e-mail, name, portfolio contents, transactions, amounts or notes. Session
-recording is disabled. Without consent, no analytics cookies are stored.
-`[[LAWYER: confirm whether cookieless aggregate events may be sent without
-consent – see data-processing-inventory.md]]`
+**Analytics (consent only)** – PostHog Cloud EU. These are stored only after
+you accept analytics:
+
+| Name | Type | Purpose | Duration |
+|---|---|---|---|
+| `ph_<project>_posthog` | cookie and localStorage | visitor and session identifier for analytics | as set by PostHog, typically 1 year |
+| `portfyl_captured_once:*`, `portfyl_activation_v1:*` | localStorage | so one-time events are not sent twice and activation state is remembered | until you clear them |
+
+We measure only a fixed list of events (e.g. "opened the demo", "created a
+portfolio"). After sign-in we link them to an internal account identifier (a
+pseudonym), not to your e-mail or name. We never collect your e-mail, name,
+portfolio contents, transactions, amounts or notes. Session recording is
+disabled. **If you reject analytics or have not yet decided, we send nothing
+to PostHog**, and no analytics cookies or storage are created.
 
 We do not use advertising or third-party tracking cookies.
 
@@ -173,4 +197,4 @@ operational logs.
 
 We may update this policy. We will tell you about material changes in advance
 by e-mail or in the app. The current version is always at
-`[[TODO: URL]]`.
+https://portfyl.com/privacy.

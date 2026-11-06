@@ -26,7 +26,7 @@ function GoogleMark() {
  * signup_completed itself. Google has already verified the address, so there
  * is no /verify-email step.
  */
-export default function GoogleSignInButton({ sourceSurface = "direct" }) {
+export default function GoogleSignInButton({ sourceSurface = "direct", disabled = false }) {
   const navigate = useNavigate();
   const { loginWithIdToken } = useAuth();
   const { capture } = useAnalytics();
@@ -65,7 +65,7 @@ export default function GoogleSignInButton({ sourceSurface = "direct" }) {
       <button
         type="button"
         onClick={handleClick}
-        disabled={pending}
+        disabled={pending || disabled}
         aria-busy={pending}
         className="btn-ghost w-full min-h-11 flex items-center justify-center gap-2.5 bg-surface text-ink font-medium disabled:opacity-60"
       >

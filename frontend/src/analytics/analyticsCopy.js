@@ -9,8 +9,9 @@ export const ANALYTICS_COPY = {
   cs: {
     bannerTitle: "Používáme volitelnou analytiku",
     essential: "Nezbytné pro chod Portfylu vždy zůstává aktivní — přihlášení, workspace a bezpečnost.",
-    optional: "Volitelná analytika nám pomáhá měřit anonymní použití produktu. Odmítnutí nijak neomezí funkčnost.",
+    optional: "Volitelná analytika nám pomáhá měřit používání produktu pod pseudonymem — po přihlášení události spojujeme s interním identifikátorem účtu, ne s e-mailem ani jménem. Při odmítnutí se nic neodesílá a funkčnost se neomezí.",
     changeLater: "Volbu můžete kdykoliv později změnit.",
+    details: "Podrobnosti",
     accept: "Přijmout analytiku",
     reject: "Odmítnout",
     manage: "Nastavení analytiky",
@@ -22,8 +23,9 @@ export const ANALYTICS_COPY = {
   en: {
     bannerTitle: "We use optional analytics",
     essential: "Essential storage that keeps Portfyl working — sign-in, workspace, and security — always stays on.",
-    optional: "Optional analytics helps us measure anonymous product use. Rejecting it does not reduce functionality.",
+    optional: "Optional analytics helps us measure product use under a pseudonym — after sign-in, events are linked to an internal account identifier, not to your e-mail or name. If you reject, nothing is sent and functionality is not reduced.",
     changeLater: "You can change this choice later.",
+    details: "Details",
     accept: "Accept analytics",
     reject: "Reject",
     manage: "Analytics preferences",
@@ -35,8 +37,9 @@ export const ANALYTICS_COPY = {
   de: {
     bannerTitle: "Wir verwenden optionale Analyse",
     essential: "Essenzieller Speicher, der Portfyl am Laufen hält — Anmeldung, Arbeitsbereich und Sicherheit — bleibt immer aktiv.",
-    optional: "Optionale Analyse hilft uns, die anonyme Produktnutzung zu messen. Eine Ablehnung schränkt die Funktionalität nicht ein.",
+    optional: "Optionale Analyse hilft uns, die Produktnutzung unter einem Pseudonym zu messen — nach der Anmeldung verknüpfen wir Ereignisse mit einer internen Konto-ID, nicht mit Ihrer E-Mail oder Ihrem Namen. Bei Ablehnung wird nichts gesendet, und die Funktionalität bleibt unverändert.",
     changeLater: "Sie können diese Wahl später jederzeit ändern.",
+    details: "Details",
     accept: "Analyse akzeptieren",
     reject: "Ablehnen",
     manage: "Analyse-Einstellungen",

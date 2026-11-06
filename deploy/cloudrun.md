@@ -290,16 +290,19 @@ optional overrides. The frontend side is separate: bake `VITE_SENTRY_DSN`
 into the build (`frontend/src/errorMonitoring.js`, lazy-loaded, same no-op
 default) since Vite env vars are compiled in, not read at Cloud Run runtime.
 
-**Activation analytics (PostHog Cloud EU) — currently withheld, do not set
-yet.** Like `VITE_SENTRY_DSN`, `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST`
-(must be exactly `https://eu.i.posthog.com`) are Vite build-time variables
-baked into the frontend bundle by `npm run build:cloud`
+**Activation analytics (PostHog Cloud EU) — wired, but withheld: leave both
+variables out of `frontend/.env.local` for now.** Like `VITE_SENTRY_DSN`,
+`VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST` (must be exactly
+`https://eu.i.posthog.com`) are Vite build-time variables baked into the
+frontend bundle by `npm run build:cloud`
 (`frontend/src/analytics/AnalyticsProvider.jsx`'s `defaultAdapterFactory`) —
 setting or changing a Cloud Run *service's* runtime `--set-env-vars` has no
 effect on them at all, since Vite has already compiled them into static JS
 by the time the container starts; they can only be changed by rebuilding
-and redeploying the image. **Do not pass either variable as a build arg
-yet**: per `docs/compliance/data-processing-inventory.md`'s analytics
+and redeploying the image. The `Dockerfile` accepts both as build args
+(default empty) and the build command below reads them from
+`frontend/.env.local`; **while they are absent from that file the build is a
+no-op for PostHog. Do not add them to that file yet**: per `docs/compliance/data-processing-inventory.md`'s analytics
 baseline and `docs/operations/posthog-activation-analytics.md`'s production
 blocker, both must stay unset in every deployed environment until the
 public privacy notice/subprocessor disclosure for PostHog Cloud EU has
@@ -554,7 +557,7 @@ git archive --format=tar -o "$SRC.tar" main
 tar -x -f "$SRC.tar" -C $SRC
 Remove-Item "$SRC.tar"
 $fb = @{}
-Get-Content frontend/.env.local | Where-Object { $_ -match '^(VITE_FIREBASE_\w+)=(.*)$' } | ForEach-Object { $fb[$Matches[1]] = $Matches[2].Trim().Trim('"') }
+Get-Content frontend/.env.local | Where-Object { $_ -match '^(VITE_(?:FIREBASE|POSTHOG)_\w+)=(.*)$' } | ForEach-Object { $fb[$Matches[1]] = $Matches[2].Trim().Trim('"') }
 # A missing flag silently builds Google sign-in off; prod has it on, so require an explicit true/false.
 if ($fb.VITE_FIREBASE_GOOGLE_SIGN_IN -notin @("true", "false")) { throw "frontend/.env.local needs VITE_FIREBASE_GOOGLE_SIGN_IN=true (or =false to turn Google sign-in off)" }
 @"
@@ -566,6 +569,8 @@ steps:
          '--build-arg', 'VITE_FIREBASE_PROJECT_ID=$($fb.VITE_FIREBASE_PROJECT_ID)',
          '--build-arg', 'VITE_FIREBASE_APP_ID=$($fb.VITE_FIREBASE_APP_ID)',
          '--build-arg', 'VITE_FIREBASE_GOOGLE_SIGN_IN=$($fb.VITE_FIREBASE_GOOGLE_SIGN_IN)',
+         '--build-arg', 'VITE_POSTHOG_KEY=$($fb.VITE_POSTHOG_KEY)',
+         '--build-arg', 'VITE_POSTHOG_HOST=$($fb.VITE_POSTHOG_HOST)',
          '.']
 images: ['${REPO}:$SHA']
 "@ | Set-Content -Encoding ascii (Join-Path $SRC "cloudbuild.yaml")

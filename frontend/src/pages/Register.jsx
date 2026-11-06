@@ -37,6 +37,12 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  // Art. 13 GDPR: the privacy information is given at the moment the data is
+  // collected. Registration (password or Google) needs this 18+ and
+  // Terms/Privacy confirmation first (privacy review B5).
+  const [agreed, setAgreed] = useState(false);
+  const agreeId = useId();
+  const legalLang = language === "cs" ? "cs" : "en";
 
   useEffect(() => {
     capture(ANALYTICS_EVENTS.SIGNUP_STARTED, { source_surface: sourceSurface, language });
@@ -49,6 +55,10 @@ export default function Register() {
     e.preventDefault();
     setError(null);
 
+    if (!agreed) {
+      setError("Please confirm that you are 18 or older and accept the Terms of Service and Privacy Policy.");
+      return;
+    }
     if (password.length < MIN_PASSWORD_LENGTH) {
       setError(`Choose a password with at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
@@ -86,9 +96,30 @@ export default function Register() {
           </p>
         </div>
 
+        <div className="flex items-start gap-2">
+          <input
+            id={agreeId}
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 shrink-0"
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+          />
+          <label htmlFor={agreeId} className="text-xs text-muted">
+            I am 18 or older and I accept the{" "}
+            <a href={`/terms?lang=${legalLang}`} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+              Terms of Service
+            </a>{" "}
+            and have read the{" "}
+            <a href={`/privacy?lang=${legalLang}`} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+              Privacy Policy
+            </a>
+            .
+          </label>
+        </div>
+
         {isGoogleSignInEnabled() && (
           <div className="space-y-4">
-            <GoogleSignInButton sourceSurface={sourceSurface} />
+            <GoogleSignInButton sourceSurface={sourceSurface} disabled={!agreed} />
             <AuthMethodDivider />
           </div>
         )}
@@ -138,7 +169,7 @@ export default function Register() {
             </p>
           )}
 
-          <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2" disabled={submitting}>
+          <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2" disabled={submitting || !agreed}>
             <UserPlus size={15} />
             {submitting ? "Creating account…" : "Create account"}
           </button>
