@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
+import AccountMenu from "../AccountMenu";
 import { preloadRoute } from "./navigation";
 
 function prefersReducedMotion() {
@@ -38,7 +39,7 @@ export default function MobileNavDrawer({ groups, open, onClose }) {
   return (
     <div
       data-testid="mobile-nav-backdrop"
-      className="lg:hidden fixed inset-0 z-[70] bg-black/30"
+      className="lg:hidden fixed inset-0 z-[70] bg-black/30 backdrop-blur-sm"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -49,7 +50,7 @@ export default function MobileNavDrawer({ groups, open, onClose }) {
         role="dialog"
         aria-modal="true"
         aria-label="Navigation"
-        className={`app-drawer h-full w-[280px] max-w-[85vw] bg-surface-card border-r border-hairline overflow-y-auto ${transitionClass}`}
+        className={`app-drawer flex h-full w-[280px] max-w-[85vw] flex-col border-r border-hairline overflow-y-auto ${transitionClass}`}
       >
         <div className="flex items-center justify-between px-4 py-2 border-b border-hairline">
           <span className="font-display font-bold text-[15px] text-ink">Navigation</span>
@@ -62,7 +63,7 @@ export default function MobileNavDrawer({ groups, open, onClose }) {
             <X size={20} aria-hidden="true" />
           </button>
         </div>
-        <nav aria-label="Primary" className="px-2.5 py-3 space-y-4">
+        <nav aria-label="Primary" className="flex-1 px-2.5 py-3 space-y-4">
           {groups.map((group) => {
             const headingId = `mobile-nav-${group.id}`;
             return (
@@ -95,6 +96,9 @@ export default function MobileNavDrawer({ groups, open, onClose }) {
             );
           })}
         </nav>
+        <div className="px-3 pb-4 pt-2">
+          <AccountMenu />
+        </div>
       </div>
     </div>
   );

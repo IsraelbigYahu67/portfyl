@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 function toIdPart(value) {
   return String(value).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
@@ -8,11 +8,15 @@ function toIdPart(value) {
 const LEADING = "0.28s cubic-bezier(0.34, 1.1, 0.64, 1)";
 const TRAILING = "0.45s cubic-bezier(0.34, 1.1, 0.64, 1) 0.05s";
 
+const SCROLL_FADE = "linear-gradient(to right, black 88%, transparent)";
+
 export function UrlTabs({ ariaLabel, idPrefix = "url-tabs", items, value, onChange, className = "" }) {
   const rootRef = useRef(null);
   const refs = useRef(new Map());
   const previousIndex = useRef(-1);
   const [thumb, setThumb] = useState(null);
+  // True while more tabs sit past the right edge of the scrolling row.
+  const [moreRight, setMoreRight] = useState(false);
   const enabledItems = items.filter((item) => !item.disabled);
   const activeIndex = items.findIndex((item) => item.value === value);
 
@@ -38,8 +42,11 @@ export function UrlTabs({ ariaLabel, idPrefix = "url-tabs", items, value, onChan
           ? prev
           : next
       );
-      // Keep the selected tab visible when the row scrolls horizontally.
-      if (animate) button.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+      // Keep the selected tab visible when the row scrolls horizontally. The
+      // row itself scrolls, never the page (also on first render, for deep links).
+      const edge = button.offsetLeft + button.offsetWidth;
+      if (button.offsetLeft < root.scrollLeft) root.scrollLeft = Math.max(0, button.offsetLeft - 8);
+      else if (edge > root.scrollLeft + root.clientWidth) root.scrollLeft = edge - root.clientWidth + 8;
     };
 
     measure(previousIndex.current !== -1);
@@ -50,6 +57,21 @@ export function UrlTabs({ ariaLabel, idPrefix = "url-tabs", items, value, onChan
     observer.observe(root);
     return () => observer.disconnect();
   }, [value, activeIndex, items]);
+
+  // A fade on the right edge tells the user the last tab ("Ownership") is not
+  // cut off, just further along the row.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return undefined;
+    const update = () => setMoreRight(root.scrollWidth > root.clientWidth + 1 && root.scrollLeft + root.clientWidth < root.scrollWidth - 1);
+    update();
+    root.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      root.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [items]);
 
   const selectAndFocus = (item) => {
     if (!item || item.disabled) return;
@@ -94,6 +116,8 @@ export function UrlTabs({ ariaLabel, idPrefix = "url-tabs", items, value, onChan
       aria-label={ariaLabel}
       className={`segmented relative flex max-w-full min-w-0 gap-0.5 overflow-x-auto rounded-[var(--radius-card)] bg-surface-hover p-0.5 sm:inline-flex ${className}`.trim()}
       role="tablist"
+      data-more-right={moreRight ? "true" : "false"}
+      style={moreRight ? { maskImage: SCROLL_FADE, WebkitMaskImage: SCROLL_FADE } : undefined}
     >
       {thumb && (
         <span
@@ -121,7 +145,7 @@ export function UrlTabs({ ariaLabel, idPrefix = "url-tabs", items, value, onChan
             tabIndex={selected && !item.disabled ? 0 : -1}
             onClick={() => selectAndFocus(item)}
             onKeyDown={(event) => handleKeyDown(event, item.value)}
-            className={`relative z-10 shrink-0 rounded-[var(--radius-card)] px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+            className={`relative z-10 shrink-0 whitespace-nowrap rounded-[var(--radius-card)] px-3 py-1.5 max-sm:min-h-10 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
               selected
                 ? `font-semibold text-brand${thumb ? "" : " bg-surface-card-elevated"}`
                 : "text-muted hover:text-ink"

@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import DesktopSidebar from "./DesktopSidebar";
 import MobileNavDrawer from "./MobileNavDrawer";
+import MobileBottomNav from "./MobileBottomNav";
 import MobileTopBar from "./MobileTopBar";
 import { useRouteFocusAnnouncer } from "../../hooks/useRouteFocusAnnouncer";
 
@@ -22,7 +23,7 @@ export default function AppShell({ groups, children }) {
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <MobileTopBar open={drawerOpen} onOpenMenu={() => setDrawerOpen(true)} />
+        <MobileTopBar />
         <MobileNavDrawer groups={groups} open={drawerOpen} onClose={closeDrawer} />
         <main
           id="main-content"
@@ -32,6 +33,9 @@ export default function AppShell({ groups, children }) {
         >
           {children}
         </main>
+        {/* Keeps the last line of the page clear of the fixed bottom bar. */}
+        <div aria-hidden="true" className="h-[calc(4.75rem+env(safe-area-inset-bottom))] shrink-0 lg:hidden" />
+        <MobileBottomNav open={drawerOpen} onOpenMenu={() => setDrawerOpen(true)} />
       </div>
     </div>
   );

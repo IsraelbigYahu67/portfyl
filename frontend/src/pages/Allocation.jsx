@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAllHoldings, fetchSectorBreakdown } from "../api";
 import { useCurrency, usePortfolio } from "../App";
-import { formatMoney, formatPercent } from "../lib/format";
+import { formatMoney, formatPercent, formatQuantity } from "../lib/format";
 import { allocationRows, boundedAllocationRows } from "../lib/allocationBreakdown";
 import { TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { TickerLink, useStockDetail } from "../components/StockDetail";
@@ -10,6 +10,8 @@ import BreakdownChart from "../components/BreakdownChart";
 import { AsyncSection } from "../components/ui";
 import AllocationTargets from "../components/AllocationTargets";
 import { hasPriceProblem, priceFreshnessTitle } from "../lib/priceFreshness";
+import { useIsPhone } from "../hooks/useMediaQuery";
+import { CardSortBar, HoldingCards, SoldCards, SORT_OPTIONS, SOLD_SORT_OPTIONS } from "../components/HoldingCards";
 
 const fmtPct = (n) => formatPercent(n);
 
@@ -41,6 +43,8 @@ export default function Allocation() {
   const { currency } = useCurrency();
   const currentPortfolio = usePortfolio()?.current;
   const { openStock } = useStockDetail();
+  // Phones get a card per position instead of the 10-column tables.
+  const isPhone = useIsPhone();
 
   // Portfolio-level money (value, P&L, dividends) is shown in the display
   // currency (CZK by default). Per-share prices (avg cost, current price) are
@@ -209,6 +213,18 @@ export default function Allocation() {
           <div className="card text-muted text-sm text-center py-12">
             No holdings yet. Import a CSV or add transactions to get started.
           </div>
+        ) : isPhone ? (
+          <>
+            <CardSortBar sort={sort} onSort={toggle} options={SORT_OPTIONS} />
+            <HoldingCards
+              holdings={sorted}
+              currency={currency}
+              fmt={fmt}
+              fmtSigned={fmtSigned}
+              fmtNative={fmtNative}
+              onOpen={openStock}
+            />
+          </>
         ) : (
           <div className="card p-0 overflow-hidden">
             <div
@@ -248,7 +264,7 @@ export default function Allocation() {
                         </td>
                         <td className={`px-4 py-3 text-sm max-w-xs truncate mx-auto ${closed ? "text-muted" : "text-ink"}`}>{h.name}</td>
                         <td className={`px-4 py-3 tabular-nums text-sm text-center ${closed ? "text-muted" : ""}`}>
-                          {closed ? "—" : h.shares.toLocaleString()}
+                          {closed ? "—" : formatQuantity(h.shares, currency)}
                         </td>
                         <td className={`px-4 py-3 tabular-nums text-sm text-center ${closed ? "text-muted" : ""}`}>{fmtNative(h.avg_cost, h.currency)}</td>
                         <td className={`px-4 py-3 tabular-nums text-sm text-center font-medium ${closed ? "text-muted" : ""}`}>
@@ -324,6 +340,20 @@ export default function Allocation() {
         <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider">
           Sold Positions
         </h2>
+        {isPhone && soldHoldings.length > 0 ? (
+          <>
+            <CardSortBar
+              sort={soldSort ?? { key: SOLD_SORT_OPTIONS[0].key, dir: "desc" }}
+              onSort={toggleSoldSort}
+              options={SOLD_SORT_OPTIONS}
+              label="Sort sold positions"
+            />
+            <p className={`financial-meta mb-3 ${missedOutTotal >= 0 ? "text-gain" : "text-loss"}`}>
+              Missed out on, total: {fmtSigned(missedOutTotal)}
+            </p>
+            <SoldCards holdings={soldSorted} fmtSigned={fmtSigned} fmtPct={fmtPct} missedOut={missedOut} onOpen={openStock} />
+          </>
+        ) : (
         <div className="card p-0 overflow-hidden">
           {soldHoldings.length === 0 ? (
             <div className="text-muted text-sm text-center py-12">No sold positions.</div>
@@ -384,6 +414,7 @@ export default function Allocation() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* Keyed on the portfolio so an open target draft never survives a

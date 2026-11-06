@@ -187,7 +187,7 @@ export default function Heatmap() {
       ) : (
         <div
           ref={setContainerEl}
-          className="relative flex-1 min-h-0 w-full overflow-hidden"
+          className="relative flex-1 min-h-[280px] w-full overflow-hidden"
         >
           {isPlaceholderData && (
             <div

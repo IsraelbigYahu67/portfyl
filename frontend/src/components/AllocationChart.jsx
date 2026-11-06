@@ -1,13 +1,14 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { CATEGORICAL, TOOLTIP_STYLE, LEGEND_TEXT_STYLE } from "../lib/chartTheme";
 import { withSliceCorners } from "../lib/pieCorners";
+import { displayLocale } from "../lib/format";
 
 export default function AllocationChart({ holdings, currency = "USD", rate = null }) {
   const convert = (n) => (currency === "CZK" && rate ? n * rate : n);
 
   const fmtVal = (v) => {
     const converted = convert(v);
-    const str = converted.toLocaleString("en-US", { maximumFractionDigits: 0 });
+    const str = converted.toLocaleString(displayLocale(currency), { maximumFractionDigits: 0 });
     return currency === "CZK" ? `${str} Kč` : `$${str}`;
   };
 

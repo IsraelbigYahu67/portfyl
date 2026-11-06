@@ -124,7 +124,14 @@ export default function DividendBarsCard({ title, half, totalLabel, avgLabel = "
                     onFocus={() => setActive(i)}
                     onBlur={() => setActive(null)}
                   >
-                    {m.amount > 0 && <span className="text-xs font-semibold text-muted tabular-nums whitespace-nowrap">{formatCompact(m.amount, currency)}</span>}
+                    {m.amount > 0 && (
+                      // 12 columns on a phone are ~29px wide, so neighbouring value
+                      // labels collide: show every second one there. The hover/focus
+                      // tooltip still lists every month.
+                      <span className={`text-xs font-semibold text-muted tabular-nums whitespace-nowrap ${half.months.length > 6 && i % 2 === 1 ? "hidden sm:inline" : ""}`}>
+                        {formatCompact(m.amount, currency)}
+                      </span>
+                    )}
                     <div
                       data-testid={`bar-${m.month}`}
                       className="bar-pop-bar flex flex-col w-3/4 max-w-[26px] overflow-hidden rounded-t-xl rounded-b-lg"

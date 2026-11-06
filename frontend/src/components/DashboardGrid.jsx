@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { Responsive, WidthProvider } from "react-grid-layout/legacy";
 import { GripVertical, X, Plus, RotateCcw, ChevronUp, ChevronDown } from "lucide-react";
 import "react-grid-layout/css/styles.css";
+import { useIsPhone } from "../hooks/useMediaQuery";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -16,6 +17,10 @@ const STORAGE_KEY = "sb_dashboard_layout_v3";
 // desktop drag/resize coordinates are an optional decoration on top of it.
 const ORDER_KEY = "sb_dashboard_widget_order_v4";
 const HIDDEN_KEY = "sb_dashboard_widgets_hidden";
+// Phones: only the core widgets start open, everything else is a collapsed row
+// so the page is a few screens, not a dozen. What the user opens is remembered.
+const PHONE_OPEN_KEY = "sb_dashboard_phone_open_v1";
+const PHONE_CORE = ["movers"];
 
 const ALL_WIDGETS = [
   { id: "attention", label: "Attention signals", minW: 3, minH: 3 },
@@ -95,7 +100,50 @@ function getStoredLayouts() {
   }
 }
 
+function getPhoneOpen() {
+  try {
+    const stored = localStorage.getItem(PHONE_OPEN_KEY);
+    const ids = stored ? JSON.parse(stored) : null;
+    return Array.isArray(ids) ? ids.filter((id) => KNOWN_IDS.includes(id)) : PHONE_CORE;
+  } catch {
+    return PHONE_CORE;
+  }
+}
+
+// One widget as a collapsible row. Content mounts only while open, so a
+// collapsed widget costs no extra rendering or requests.
+function PhoneWidget({ widget, open, onToggle, children }) {
+  const panelId = `phone-widget-${widget.id}`;
+  return (
+    <section>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={panelId}
+        className="card flex min-h-14 w-full items-center justify-between gap-3 text-left font-display font-semibold text-ink"
+      >
+        {widget.label}
+        <ChevronDown size={18} aria-hidden="true" className={`shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div id={panelId} className="mt-3 animate-fade-up">
+          {children}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function DashboardGrid({ children, editing, onEditToggle }) {
+  const isPhone = useIsPhone();
+  const [phoneOpen, setPhoneOpen] = useState(getPhoneOpen);
+  const togglePhoneWidget = (id) =>
+    setPhoneOpen((current) => {
+      const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
+      try { localStorage.setItem(PHONE_OPEN_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+      return next;
+    });
   const [order, setOrder] = useState(getStoredOrder);
   const [hidden, setHidden] = useState(getHidden);
   const [layouts, setLayouts] = useState(() => getStoredLayouts() || DEFAULT_LAYOUTS);
@@ -257,6 +305,19 @@ export default function DashboardGrid({ children, editing, onEditToggle }) {
             );
           })}
         </ResponsiveGridLayout>
+      ) : isPhone ? (
+        <div className="space-y-3">
+          {[...visibleList.filter((id) => PHONE_CORE.includes(id)), ...visibleList.filter((id) => !PHONE_CORE.includes(id))].map((id) => (
+            <PhoneWidget
+              key={id}
+              widget={ALL_WIDGETS.find((w) => w.id === id)}
+              open={phoneOpen.includes(id)}
+              onToggle={() => togglePhoneWidget(id)}
+            >
+              {children[id]}
+            </PhoneWidget>
+          ))}
+        </div>
       ) : (
         <div className="space-y-6">
           {visibleList.map((id, i) => (

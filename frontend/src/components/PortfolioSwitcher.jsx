@@ -82,7 +82,10 @@ function transactionSummary(p) {
   return p.is_default ? `Default · ${label}` : label;
 }
 
-export default function PortfolioSwitcher() {
+// `compact` is the phone top-bar variant: the root is not positioned, so the
+// menu anchors to the (relative) header and spans its width instead of the
+// narrow slot the button sits in; the button is a 44px-tall pill.
+export default function PortfolioSwitcher({ compact = false }) {
   const { activePortfolios, portfolios: allPortfolios, current, setCurrentId, refetchPortfolios } = usePortfolio();
   const portfolios = activePortfolios || allPortfolios || [];
   const queryClient = useQueryClient();
@@ -158,14 +161,14 @@ export default function PortfolioSwitcher() {
   };
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className={compact ? "static" : "relative"}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Switch portfolio (current: ${current?.name ?? "none"})`}
-        className="w-full flex items-center gap-2 bg-surface border border-surface-border rounded-lg px-3 py-2 text-left hover:border-brand transition-colors"
+        className={`w-full flex items-center gap-2 bg-surface border border-surface-border rounded-lg px-3 py-2 text-left hover:border-brand transition-colors ${compact ? "min-h-11" : ""}`}
       >
         <Briefcase size={14} className="text-brand shrink-0" />
         <div className="flex-1 min-w-0">
@@ -179,7 +182,7 @@ export default function PortfolioSwitcher() {
 
       {open && (
         <div
-          className="absolute z-40 left-0 right-0 mt-1 border border-surface-border rounded-lg shadow-lg py-1 max-h-80 overflow-y-auto"
+          className={`absolute z-40 border border-surface-border rounded-lg shadow-lg py-1 max-h-80 overflow-y-auto ${compact ? "left-3 right-3 top-full mt-1" : "left-0 right-0 mt-1"}`}
           // Warm themes use a translucent card colour; lay it over the solid
           // page background so the sidebar nav does not show through the menu.
           style={{ background: "linear-gradient(var(--surface-card), var(--surface-card)), var(--bg)" }}

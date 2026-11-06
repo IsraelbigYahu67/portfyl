@@ -71,7 +71,7 @@ function InfoIcon({ info }) {
         aria-describedby={visible ? tooltipId : undefined}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        className="inline-flex text-muted hover:text-ink cursor-help transition-colors"
+        className="relative inline-flex text-muted hover:text-ink cursor-help transition-colors before:absolute before:-inset-4 before:content-[''] sm:before:-inset-2"
       >
         <Info size={12} />
       </button>
@@ -134,7 +134,7 @@ export default function MetricCard({ icon: Icon, label, value, sub, positive, ne
       {loading ? (
         <div className="h-8 w-28 bg-surface-hover rounded animate-pulse mt-1" />
       ) : (
-        <span className="financial-headline text-2xl font-display font-bold tabular-nums truncate tracking-tight">
+        <span className="financial-headline text-2xl font-display font-bold tabular-nums tracking-tight [overflow-wrap:anywhere]">
           <MetricValue value={value} countUp={countUp} />
         </span>
       )}
