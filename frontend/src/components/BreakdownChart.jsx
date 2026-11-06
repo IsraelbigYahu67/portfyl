@@ -106,11 +106,11 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
           const half = Math.ceil(data.length / 2);
           const value = (n) => (isPhone ? formatCompact(n, currencyLabel) : fmt(n));
           const legendColumn = (items, offset) => (
-            <div className="grid min-w-0 grid-cols-[auto_auto_auto] content-start items-baseline justify-start gap-x-2.5 gap-y-1.5 text-sm">
+            <div className="grid min-w-0 grid-cols-[auto_auto_auto] content-start items-baseline justify-start gap-x-2 gap-y-1.5 text-[13px] sm:gap-x-2.5 sm:text-sm">
               {items.map((item, i) => (
                 <Fragment key={item.name}>
-                  <span className="inline-flex items-center gap-2 whitespace-nowrap text-ink">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: colorFor(item, i + offset) }} />
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-ink sm:gap-2">
+                    <span className="h-2 w-2 shrink-0 rounded-full sm:h-2.5 sm:w-2.5" style={{ backgroundColor: colorFor(item, i + offset) }} />
                     {item.name}
                   </span>
                   <span className="tabular-nums text-right text-muted">{item.weight}%</span>
@@ -119,8 +119,11 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
               ))}
             </div>
           );
+          // Phone: columns take their natural width, spread across the card (the
+          // negative margin wins back the card padding). If they still do not fit,
+          // the second one wraps below the first instead of overlapping it.
           return (
-            <div className="grid flex-1 min-w-0 grid-cols-2 gap-x-3 sm:flex sm:flex-wrap sm:gap-x-[100px] sm:gap-y-1.5">
+            <div className="-mx-2 flex min-w-0 flex-1 flex-wrap justify-between gap-x-3 gap-y-3 sm:mx-0 sm:justify-start sm:gap-x-[100px] sm:gap-y-1.5">
               {legendColumn(data.slice(0, half), 0)}
               {legendColumn(data.slice(half), half)}
             </div>

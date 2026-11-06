@@ -17,7 +17,7 @@ describe("BreakdownChart two-column legend", () => {
     const { container } = render(<BreakdownChart title="Positions" data={data} currencyLabel="CZK" legendColumns={2} />);
     const grids = container.querySelectorAll(".grid.grid-cols-\\[auto_auto_auto\\]");
     expect(grids).toHaveLength(2);
-    grids.forEach((grid) => expect(grid).toHaveClass("gap-x-2.5"));
+    grids.forEach((grid) => expect(grid).toHaveClass("gap-x-2", "sm:gap-x-2.5"));
     expect(grids[0]).toHaveTextContent("AAPL");
     expect(grids[0]).toHaveTextContent("BRK.B");
     expect(grids[1]).toHaveTextContent("MSFT");
