@@ -2,6 +2,12 @@ import { useAnalytics } from "./AnalyticsProvider";
 import { CONSENT_STATES } from "./consent";
 import { ANALYTICS_COPY, getAnalyticsLanguage } from "./analyticsCopy";
 
+// Anchors are the slugified "8. Cookies ..." headings of the privacy pages.
+const PRIVACY_COOKIES_HREF = {
+  cs: "/privacy?lang=cs#8-cookies-a-uloziste-v-prohlizeci",
+  en: "/privacy?lang=en#8-cookies-and-browser-storage",
+};
+
 // Self-gated: renders nothing once consent has been decided, so any parent
 // can mount it unconditionally. Accept/Reject are equally prominent,
 // keyboard-focusable, and rely on the app-wide :focus-visible outline for a
@@ -9,7 +15,8 @@ import { ANALYTICS_COPY, getAnalyticsLanguage } from "./analyticsCopy";
 export default function ConsentBanner() {
   const { consent, acceptAnalytics, rejectAnalytics } = useAnalytics();
   if (consent !== CONSENT_STATES.PENDING) return null;
-  const t = ANALYTICS_COPY[getAnalyticsLanguage()];
+  const lang = getAnalyticsLanguage();
+  const t = ANALYTICS_COPY[lang];
 
   return (
     <div
@@ -21,7 +28,12 @@ export default function ConsentBanner() {
         <div className="financial-data text-muted space-y-1">
           <p className="font-semibold text-ink">{t.bannerTitle}</p>
           <p>{t.essential}</p>
-          <p>{t.optional} {t.changeLater}</p>
+          <p>
+            {t.optional} {t.changeLater}{" "}
+            <a href={lang === "cs" ? PRIVACY_COOKIES_HREF.cs : PRIVACY_COOKIES_HREF.en} className="text-brand hover:underline">
+              {t.details}
+            </a>
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button type="button" onClick={rejectAnalytics} className="btn-ghost text-sm">

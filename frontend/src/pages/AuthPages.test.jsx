@@ -55,6 +55,17 @@ function renderAt(path, { initialConsent = "accepted" } = {}) {
 describe("Register", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("requires the 18+ and Terms/Privacy confirmation before any sign-up path is enabled", () => {
+    renderAt("/register");
+    expect(screen.getByRole("button", { name: /create account/i })).toBeDisabled();
+    const terms = screen.getByRole("link", { name: /terms of service/i });
+    const privacy = screen.getByRole("link", { name: /privacy policy/i });
+    expect(terms).toHaveAttribute("href", expect.stringMatching(/^\/terms\?lang=/));
+    expect(privacy).toHaveAttribute("href", expect.stringMatching(/^\/privacy\?lang=/));
+    fireEvent.click(screen.getByRole("checkbox", { name: /18 or older/i }));
+    expect(screen.getByRole("button", { name: /create account/i })).toBeEnabled();
+  });
+
   it("sends a verification e-mail and navigates to /verify-email", async () => {
     const fakeUser = { email: "new@example.com" };
     firebaseMocks.registerWithEmailPassword.mockResolvedValueOnce(fakeUser);
@@ -63,6 +74,7 @@ describe("Register", () => {
     fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "new@example.com" } });
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "s3cret!123" } });
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "s3cret!123" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: /18 or older/i }));
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() =>
@@ -77,6 +89,7 @@ describe("Register", () => {
     fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "new@example.com" } });
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "s3cret!123" } });
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "different!123" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: /18 or older/i }));
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/don't match/i);
@@ -114,6 +127,7 @@ describe("Register", () => {
     fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "new@example.com" } });
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "s3cret!123" } });
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "s3cret!123" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: /18 or older/i }));
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() =>
@@ -132,6 +146,7 @@ describe("Register", () => {
     fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "taken@example.com" } });
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "s3cret!123" } });
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "s3cret!123" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: /18 or older/i }));
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
@@ -235,6 +250,7 @@ describe("Continue with Google", () => {
     authMocks.loginWithIdToken.mockResolvedValue({ account_created: true });
 
     const { adapter } = renderAt("/register?source=demo");
+    fireEvent.click(screen.getByRole("checkbox", { name: /18 or older/i }));
     fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
 
     expect(await screen.findByText("Home")).toBeInTheDocument();
@@ -264,6 +280,7 @@ describe("Continue with Google", () => {
     );
 
     renderAt("/register");
+    fireEvent.click(screen.getByRole("checkbox", { name: /18 or older/i }));
     fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/private beta invitation/i);

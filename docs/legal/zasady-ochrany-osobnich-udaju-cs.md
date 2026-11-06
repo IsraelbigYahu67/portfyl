@@ -10,7 +10,9 @@ Verze: 0.1 (návrh)
 
 Tyto zásady vysvětlují, jaké osobní údaje služba Portfyl zpracovává, proč,
 jak dlouho, komu je předává a jaká máte práva. Řídí se nařízením (EU)
-2016/679 (GDPR) a zákonem č. 110/2019 Sb., o zpracování osobních údajů.
+2016/679 (GDPR), zákonem č. 110/2019 Sb., o zpracování osobních údajů, a
+pro cookies a ukládání informací v prohlížeči také § 89 odst. 3 zákona
+č. 127/2005 Sb., o elektronických komunikacích.
 
 ## 1. Správce a kontakt
 
@@ -31,10 +33,16 @@ nejmenovali, protože nám tato povinnost nevzniká. `[[PRÁVNÍK: ověřit]]`
 | **Údaje o předplatném** | tarif, období, stav předplatného, identifikátor zákazníka a transakce u Platebního partnera, země | od Platebního partnera; **číslo karty nikdy nedostáváme** |
 | **Technické a bezpečnostní údaje** | IP adresa, typ prohlížeče, otisky (hashe) přihlašovacích relací, čas posledního přihlášení, bezpečnostní záznamy (audit log), počty použití funkcí | automaticky při používání Služby |
 | **Komunikace s podporou** | obsah e-mailů, které nám pošlete | od vás |
-| **Analytika (jen se souhlasem)** | anonymní události o používání aplikace, viz čl. 8 | automaticky, pouze pokud souhlasíte |
+| **Analytika (jen se souhlasem)** | pseudonymní události o používání aplikace – po přihlášení je spojujeme s interním identifikátorem účtu, nikoli s e-mailem ani jménem; viz čl. 8 | automaticky, pouze pokud souhlasíte |
 
 Nezpracováváme zvláštní kategorie údajů (např. o zdraví) a nežádáme rodné
 číslo ani doklady totožnosti. Službu mohou používat jen osoby starší 18 let.
+
+**Povinnost poskytnout údaje.** Poskytnutí e-mailu je nutné k vytvoření
+účtu – bez něj vám Službu nemůžeme poskytovat. Údaje o portfoliu, připojení
+k brokerovi a Discord jsou dobrovolné; bez nich jen nebudou dostupné
+příslušné funkce. Souhlas s analytikou je zcela dobrovolný a na funkčnost
+nemá vliv.
 
 ## 3. Proč údaje zpracováváme a na jakém právním základě
 
@@ -62,12 +70,11 @@ základě smlouvy o zpracování osobních údajů:
 
 | Dodavatel | Co dělá | Kde se data zpracovávají |
 |---|---|---|
-| Google Cloud (Google Cloud EMEA Ltd. / Google LLC) | hosting aplikace (Cloud Run), šifrovací klíče, provozní záznamy, plánované úlohy | EU – Belgie (`europe-west1`) `[[OVĚŘIT]]`; podpora může přistupovat z USA |
+| Google Cloud (Google Cloud EMEA Ltd. / Google LLC) | hosting aplikace (Cloud Run), šifrovací klíče, provozní záznamy, plánované úlohy | EU – Belgie (`europe-west1`); podpora může přistupovat z USA |
 | Google Firebase Authentication | registrace, přihlášení, ověření e-mailu, přihlášení přes Google | EU/USA |
 | Neon Inc. | databáze (PostgreSQL) a zálohy | EU – Frankfurt `[[OVĚŘIT]]` |
 | Cloudflare, Inc. | DNS, šifrované spojení (TLS), ochrana proti útokům | globální síť |
 | PostHog Inc. (PostHog Cloud EU) | analytika používání – **jen pokud udělíte souhlas** | EU – Frankfurt |
-| Functional Software, Inc. (Sentry) | zachycení chybových hlášení bez obsahu požadavků `[[OVĚŘIT, zda je v produkci zapnuto]]` | `[[DOPLNIT]]` |
 
 **Samostatní správci** – tyto subjekty zpracovávají údaje podle vlastních
 zásad:
@@ -88,12 +95,14 @@ zásad:
 
 ## 5. Předávání mimo EU
 
-Někteří dodavatelé (Google, Cloudflare, Neon, PostHog, Sentry) jsou
+Někteří dodavatelé (Google, Cloudflare, Neon, PostHog) jsou
 společnosti z USA nebo mají podporu mimo EU. Předávání do USA se opírá o
 rozhodnutí Evropské komise o odpovídající ochraně (**EU-U.S. Data Privacy
 Framework**), pokud je dodavatel certifikován, jinak o **standardní smluvní
 doložky** schválené Evropskou komisí. `[[PRÁVNÍK: ověřit certifikace a DPA
-každého dodavatele]]`
+každého dodavatele]]` Kopii standardních smluvních doložek vám na žádost
+poskytneme na support@portfyl.com; seznam certifikovaných společností
+EU-U.S. Data Privacy Framework je na https://www.dataprivacyframework.gov.
 
 ## 6. Jak dlouho údaje uchováváme
 
@@ -110,8 +119,7 @@ každého dodavatele]]`
 
 **Smazání účtu:** Účet smažete v Nastavení → Data a soukromí. Z
 bezpečnostních důvodů vás nejprve požádáme o nové přihlášení. Smazání
-proběhne `[[ROZHODNOUT: po 30denní lhůtě, během níž ho můžete zrušit /
-ihned]]`; poté jsou všechna data účtu odstraněna z databáze a ze záloh
+proběhne po 30denní lhůtě, během níž ho můžete zrušit; poté jsou všechna data účtu odstraněna z databáze a ze záloh
 zmizí nejpozději po uplynutí doby uvedené výše.
 
 Zrušení předplatného účet **nemaže** – účet se jen přepne na tarif Free.
@@ -126,33 +134,51 @@ Máte právo:
 - **na omezení zpracování**;
 - **na přenositelnost** – data si můžete sami stáhnout ve formátu JSON
   v Nastavení;
-- **vznést námitku** proti zpracování na základě oprávněného zájmu;
 - **odvolat souhlas** (např. s analytikou) – kdykoli v nastavení cookies,
   aniž by to ovlivnilo předchozí zpracování;
 - **podat stížnost** u Úřadu pro ochranu osobních údajů, Pplk. Sochora 27,
   170 00 Praha 7, `https://uoou.gov.cz`.
 
-Žádosti posílejte na **support@portfyl.com**. Odpovíme do 1 měsíce. Abychom
+**Právo vznést námitku.** Proti zpracování, které provádíme na základě
+oprávněného zájmu (zabezpečení, ochrana právních nároků), můžete kdykoli
+vznést námitku na support@portfyl.com. Zpracování ukončíme, pokud
+neprokážeme závažné oprávněné důvody, které převažují nad vašimi zájmy.
+
+Žádosti posílejte na **support@portfyl.com**. Odpovíme do 1 měsíce; v
+odůvodněných případech můžeme lhůtu prodloužit o další dva měsíce a o
+prodloužení vás předem informujeme. Abychom
 ochránili váš účet, můžeme vás požádat o ověření, že žádost posíláte z
 e-mailu svého účtu.
 
 ## 8. Cookies a úložiště v prohlížeči
 
-**Nezbytné (bez souhlasu)** – bez nich Služba nefunguje:
+**Nezbytné nebo vámi vyžádané (bez souhlasu, § 89 odst. 3 zákona
+č. 127/2005 Sb.)** – bez nich Služba nefunguje nebo by si nezapamatovala vaše
+nastavení:
 
-| Název | K čemu slouží | Doba |
-|---|---|---|
-| `__Host-portfyl_session` | udržení přihlášení (náhodný identifikátor relace) | nejvýše 30 dní |
-| `sb_theme`, `sb_theme_style`, `sb_palette`, `sb_currency`, `sb_portfolio_id` (localStorage) | zapamatování vzhledu, měny a vybraného portfolia | dokud je nesmažete |
-| volba souhlasu s analytikou (localStorage) | zapamatování vaší volby | dokud ji nezměníte |
-| cookies Cloudflare (např. `__cf_bm`) | ochrana proti robotům a útokům | nejvýše 30 minut |
+| Název | Typ | K čemu slouží | Doba |
+|---|---|---|---|
+| `__Host-portfyl_session` | cookie | udržení přihlášení (náhodný identifikátor relace) | nejvýše 30 dní |
+| `portfyl_analytics_consent` | cookie první strany, sdílená mezi `portfyl.com` a subdoménami | zapamatování vaší volby souhlasu s analytikou | 180 dní |
+| `sb_theme`, `sb_theme_style`, `sb_palette`, `sb_currency`, `sb_portfolio_id`, `sb_view_mode`, `portfyl_landing_language` | localStorage | vzhled, měna, vybrané portfolio, režim zobrazení a jazyk úvodní stránky | dokud je nesmažete |
+| `sb_dashboard_layout_v3`, `sb_dashboard_widget_order_v4`, `sb_dashboard_widgets_hidden`, `sb_stock_report_sections`, `sb_stock_report_tabs` | localStorage | rozložení přehledu a nastavení detailu akcie | dokud je nesmažete |
+| `__cf_bm` a další cookies Cloudflare | cookie | ochrana proti robotům a útokům | nejvýše 30 minut |
 
-**Analytické (jen se souhlasem)** – PostHog Cloud EU. Měříme pouze předem
-určený seznam událostí (např. „otevřel ukázku“, „vytvořil portfolio“). Nikdy
-nesbíráme e-mail, jméno, obsah portfolia, transakce, částky ani poznámky.
-Nahrávání obrazovky je vypnuté. Bez souhlasu se analytické cookies
-neukládají. `[[PRÁVNÍK: ověřit, zda je možné odesílat bezcookiové souhrnné
-události i bez souhlasu – viz data-processing-inventory.md]]`
+**Analytické (jen se souhlasem)** – PostHog Cloud EU. Ukládají se pouze po
+tom, co analytiku přijmete:
+
+| Název | Typ | K čemu slouží | Doba |
+|---|---|---|---|
+| `ph_<projekt>_posthog` | cookie a localStorage | identifikátor návštěvníka a relace pro analytiku | dle PostHogu, typicky 1 rok |
+| `portfyl_captured_once:*`, `portfyl_activation_v1:*` | localStorage | aby se jednorázové události neposlaly dvakrát a aby se zapamatoval stav aktivace | dokud je nesmažete |
+
+Měříme pouze předem určený seznam událostí (např. „otevřel ukázku“,
+„vytvořil portfolio“). Po přihlášení je spojujeme s interním identifikátorem
+vašeho účtu (pseudonym), nikoli s e-mailem ani jménem. Nikdy nesbíráme
+e-mail, jméno, obsah portfolia, transakce, částky ani poznámky. Nahrávání
+obrazovky je vypnuté. **Pokud analytiku odmítnete nebo se ještě
+nerozhodnete, do PostHogu neodesíláme nic** a žádné analytické cookies ani
+úložiště se nevytvářejí.
 
 Reklamní ani sledovací cookies třetích stran nepoužíváme.
 
@@ -167,4 +193,4 @@ portfolií a tajné údaje.
 ## 10. Změny zásad
 
 Zásady můžeme aktualizovat. O podstatných změnách vás informujeme e-mailem
-nebo v aplikaci předem. Aktuální verze je vždy na `[[DOPLNIT: URL]]`.
+nebo v aplikaci předem. Aktuální verze je vždy na https://portfyl.com/privacy.

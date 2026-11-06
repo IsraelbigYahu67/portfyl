@@ -73,7 +73,6 @@ describe("analytics adapters", () => {
       cross_subdomain_cookie: true,
       persistence: "localStorage+cookie",
       secure_cookie: true,
-      cookieless_mode: "on_reject",
     });
     await adapter.capture("demo_started", { language: "en", entry_point: "direct" });
     await adapter.identify("opaque-user");
@@ -85,19 +84,13 @@ describe("analytics adapters", () => {
     expect(posthog.shutdown).toHaveBeenCalledOnce();
   });
 
-  it("uses memory persistence and explicit opt-out for rejected analytics", async () => {
-    const posthog = posthogDouble();
-    const adapter = loadPostHogAdapter({ ...acceptedConfig, consent: "rejected" }, {
-      importPostHog: async () => ({ default: posthog }),
-    });
-    await adapter.init();
-    await adapter.identify("opaque-user");
-    expect(posthog.init).toHaveBeenCalledWith("phc_public_key", expect.objectContaining({
-      persistence: "memory",
-      cookieless_mode: "on_reject",
-    }));
-    expect(posthog.opt_out_capturing).toHaveBeenCalledOnce();
-    expect(posthog.identify).not.toHaveBeenCalled();
+  it("never imports or initializes PostHog for rejected analytics", async () => {
+    const importPostHog = vi.fn(async () => ({ default: posthogDouble() }));
+    const adapter = loadPostHogAdapter({ ...acceptedConfig, consent: "rejected" }, { importPostHog });
+    await expect(adapter.init()).resolves.toBe(false);
+    await expect(adapter.capture("demo_started", {})).resolves.toBe(false);
+    await expect(adapter.identify("opaque-user")).resolves.toBe(false);
+    expect(importPostHog).not.toHaveBeenCalled();
   });
 
   it("absorbs import, init, and capture failures", async () => {

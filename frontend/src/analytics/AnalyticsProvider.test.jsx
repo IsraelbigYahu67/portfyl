@@ -34,14 +34,23 @@ describe("AnalyticsProvider", () => {
     expect(adapterFactory).not.toHaveBeenCalled();
   });
 
-  it.each(["accepted", "rejected"])("initializes one adapter and captures after %s consent", async (initialConsent) => {
+  it("initializes one adapter and captures after accepted consent", async () => {
     const adapter = createMemoryAdapter();
     const adapterFactory = vi.fn(() => adapter);
-    mount({ initialConsent, adapterFactory });
-    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent(`${initialConsent}:true`));
+    mount({ initialConsent: "accepted", adapterFactory });
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("accepted:true"));
     await act(() => screen.getByRole("button", { name: "Capture" }).click());
     expect(adapterFactory).toHaveBeenCalledTimes(1);
     expect(adapter.events).toEqual([["demo_started", { language: "en", entry_point: "direct" }]]);
+  });
+
+  it("sends nothing after rejected consent", async () => {
+    const adapter = createMemoryAdapter();
+    mount({ initialConsent: "rejected", adapterFactory: () => adapter });
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("rejected:true"));
+    await act(() => screen.getByRole("button", { name: "Capture" }).click());
+    await act(() => screen.getByRole("button", { name: "CaptureOnceA" }).click());
+    expect(adapter.events).toEqual([]);
   });
 
   it("initializes only after an explicit consent decision", async () => {
@@ -68,9 +77,10 @@ describe("AnalyticsProvider", () => {
   });
 
   it("captureOnce deduplicates by scope+event, but a different scope still captures", async () => {
+    localStorage.clear();
     const adapter = createMemoryAdapter();
-    mount({ initialConsent: "rejected", adapterFactory: () => adapter });
-    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("rejected:true"));
+    mount({ initialConsent: "accepted", adapterFactory: () => adapter });
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("accepted:true"));
 
     await act(() => screen.getByRole("button", { name: "CaptureOnceA" }).click());
     await act(() => screen.getByRole("button", { name: "CaptureOnceA" }).click());

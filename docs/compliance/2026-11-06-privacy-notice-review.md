@@ -336,3 +336,17 @@ zkušebním období.
 5. **D** – sjednotit interní dokumenty.
 6. Předat advokátovi tento report spolu s
    [../legal/poznamky-pro-pravnika.md](../legal/poznamky-pro-pravnika.md).
+
+---
+
+## Stav implementace (2026-11-06, větev `feat/privacy-compliance-fixes`)
+
+| # | Stav |
+|---|---|
+| A1 | **Hotovo v kódu.** Po odmítnutí ani před rozhodnutím se PostHog neimportuje ani neinicializuje, `capture()` a `captureOnce()` zahazují události; testy upraveny. Dokumentace (`posthog-activation-analytics.md`, inventura) aktualizována. `VITE_POSTHOG_*` lze zapnout až po schválení textů advokátem. |
+| A2 | Hotovo – zásady CZ/EN a banner (CZ/EN/DE) mluví o pseudonymních událostech. |
+| A3, A4 | Hotovo – čl. 8 zásad CZ/EN má úplnou tabulku včetně `portfyl_analytics_consent` (cookie, 180 dní), analytických klíčů a `sb_*`. `portfyl_session` a `CF_Authorization` se do veřejných zásad záměrně nedávají (v produkci se nepoužívají). |
+| B1–B4, B6 | Hotovo v CZ i EN verzi. |
+| B5 | Částečně. Registrace (heslo i Google) vyžaduje zaškrtnutí „18+ a souhlas s podmínkami a zásadami“ s odkazy; banner má odkaz „Podrobnosti“ na čl. 8. **Zbývá:** ukládat verzi a čas potvrzení na serveru (vyžaduje backend + migraci). |
+| C | Doplněno ověřené: region Google Cloud, odstraněn Sentry (v produkci neběží), 30denní lhůta smazání (odpovídá kódu), URL zásad. **Zůstává pro provozovatele/právníka:** DPO, region Neonu, přesný subjekt Platebního partnera, DPA/DPF certifikace, doba záloh, lhůta uchování daňových dokladů, datum účinnosti. |
+| D | Inventura sjednocena (kontakt, 18+, správce, brokeři, PostHog). **Zůstává:** rozpor o 10denním zkušebním období (poznámky pro právníka a `podminky-uzivani-cs.md` ho uvádějí, kód a ceník ne) – produktové rozhodnutí. |

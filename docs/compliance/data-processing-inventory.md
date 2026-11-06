@@ -12,8 +12,9 @@ legal bases on behalf of the service operator.
 - The owner confirmed on 2026-09-08 that the service is currently a private,
   free test operated from the Czech Republic, with no payments and no public
   self-registration.
-- `tom.zoubek@gmail.com` is the approved privacy, support, and security contact
-  for this private-test stage.
+- `support@portfyl.com` is the privacy, support, and security contact named in
+  the draft privacy policy (updated 2026-11-06; the private-test stage used
+  `tom.zoubek@gmail.com`).
 - The public landing page is available at `portfyl.com`. Cloudflare Access
   currently allows only that exact e-mail to reach the complete
   `app.portfyl.com` tracker hostname by one-time PIN. The operator may add individually approved
@@ -22,13 +23,15 @@ legal bases on behalf of the service operator.
 - An admitted tester may select a workspace test plan in the Plans page. The
   selection is stored as a workspace setting and audited, but creates no
   payment, subscription, trial, invoice, or billing-customer record.
-- No 18+ product restriction is intended. Because the current test admits no
-  external users, the future child/minor contract, consent, parental-
-  authorization, and child-readable-transparency design remains a public-
-  launch gate.
-- The controller's full legal identity, legal form, postal address, and any
-  registration identifiers are not decided. Public legal pages remain gated;
-  see `docs/compliance/private-test-legal-status.md`.
+- The Service is for people aged 18 or over only (draft privacy policy and
+  terms; updated 2026-11-06). Registration now requires confirming 18+ and
+  acceptance of the Terms and Privacy Policy (`frontend/src/pages/Register.jsx`).
+  Recording that confirmation server-side (version and time) is not yet
+  implemented.
+- The controller is Jakub Zoubek, IČO 67772366, Brusinková 1983, 252 28
+  Černošice (as named in the draft privacy policy, 2026-11-06). Public legal
+  pages remain gated until a Czech lawyer approves them; see
+  `docs/compliance/private-test-legal-status.md`.
 
 ## System boundary
 
@@ -70,10 +73,10 @@ legal bases on behalf of the service operator.
 | Firebase Authentication | Registration, verified e-mail/password identity, optional Google sign-in (OAuth popup, `openid email profile` scopes only), re-authentication, identity deletion | Processor/subprocessor | E-mail, UID, display/verification/authentication data. Passwords go to Firebase, not Portfyl. For Google sign-in, Google returns the verified e-mail, name, and Google account identifier to Firebase. Portfyl stores only the e-mail and name, and receives no Google API access. The audit log records which sign-in method was used (`password` or `google.com`). |
 | Neon | Managed PostgreSQL and PITR/branch recovery | Processor/subprocessor | All durable Portfyl database rows. |
 | Cloudflare | DNS, TLS proxy, trusted-edge header and request protection | Processor/subprocessor | IP/network/request metadata and encrypted HTTP traffic at the edge. |
-| Trading 212 / IBKR | Optional user-requested broker import/sync | Provider selected by the user; role/terms require review | Credential-authenticated account/trade requests and returned broker data. |
+| Trading 212 / IBKR / eToro (API sync) and Degiro, XTB, Charles Schwab, Fidelity (file import only) | Optional user-requested broker import/sync | Provider selected by the user; role/terms require review | Credential-authenticated account/trade requests and returned broker data. |
 | Discord | Optional outbound notifications | Independent service selected by the user; role/terms require review | User-selected notification content sent to the configured webhook. |
 | Yahoo/yfinance, Shibui Finance, SEC EDGAR | Market/fundamental/research data retrieval | Commercial-rights and privacy role unresolved for cloud launch | Tickers, date ranges, and request metadata; no broker credential or full portfolio is intentionally sent. |
-| PostHog Cloud EU, implemented but not yet enabled in any deployed environment | Consent-gated product-analytics events measuring public-demo and registered-user activation funnels; see `docs/operations/posthog-activation-analytics.md` | Processor/subprocessor; consent basis (rejected traffic sends cookieless aggregate events by design) is subject to qualified Czech/EU legal review before the integration may be enabled | Only the frozen 12-event allow-list in `frontend/src/analytics/eventContract.js` with each event's own allow-listed properties (language/referrer/UTM-source class, demo page/symbol, source surface/type, creation path); for accepted consent only, an opaque Portfyl user id via `identify()`. Never e-mail, display name, workspace name/ID, portfolio ID, holdings, transactions, balances, free-text notes, or credentials. EU region (`eu.i.posthog.com`), one-year retention, session replay/surveys/feature-flags/exception-autocapture all disabled. |
+| PostHog Cloud EU, implemented but not yet enabled in any deployed environment | Consent-gated product-analytics events measuring public-demo and registered-user activation funnels; see `docs/operations/posthog-activation-analytics.md` | Processor/subprocessor; consent basis; nothing is sent while consent is pending or rejected (the SDK is not even imported; changed 2026-11-06 after the privacy review, finding A1) | Only the frozen 12-event allow-list in `frontend/src/analytics/eventContract.js` with each event's own allow-listed properties (language/referrer/UTM-source class, demo page/symbol, source surface/type, creation path); an opaque Portfyl user id via `identify()` (the data is therefore pseudonymous, not anonymous). Never e-mail, display name, workspace name/ID, portfolio ID, holdings, transactions, balances, free-text notes, or credentials. EU region (`eu.i.posthog.com`), one-year retention, session replay/surveys/feature-flags/exception-autocapture all disabled. |
 
 Public pricing or an accessible API is not evidence of commercial display or
 redistribution permission. The market-data workstream remains a launch blocker.

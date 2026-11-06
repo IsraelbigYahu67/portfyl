@@ -150,22 +150,22 @@ checked against this list during verification (§5) and monitoring (§6):
 
 - **Pending** consent: nothing is captured, no adapter is initialized, no
   PostHog request of any kind is made.
-- **Rejected** consent: PostHog runs in cookieless mode
-  (`cookieless_mode: "on_reject"`, `persistence: "memory"`) — events are
-  still sent (for aggregate, anonymous funnel counts) but with no
-  persistent client-side identity. `captureOnce()`'s de-duplication for
-  rejected sessions lives in an in-memory `Set`, not `localStorage`.
+- **Rejected** consent: identical to pending. The PostHog SDK is never
+  imported or initialized (`loadPostHogAdapter()` returns the no-op adapter
+  unless consent is `accepted`), `capture()`/`captureOnce()` drop every
+  event, and nothing is stored. Changed 2026-11-06 (privacy review A1):
+  the former cookieless mode sent events after rejection, which contradicted
+  the banner and privacy policy and is not allowed without consent under
+  § 89(3) of Act 127/2005 Coll.
 - **Accepted** consent: PostHog persists a first-party
   `localStorage+cookie` identity, and once a user registers and consent is
   accepted, `AuthProvider.jsx` calls `identify(String(user.id))` — Portfyl's
   own opaque user id only.
 
-**Person-level cross-host/date conversion in PostHog (i.e. stitching a
-visitor's landing-page session to their later signup and activation) is
-only valid for accepted-consent traffic.** Rejected/cookieless traffic
-produces real aggregate event counts (funnel step volumes are still
-meaningful), but must never be interpreted as tracking a persistent person
-across sessions, hosts, or dates — there is no identity to stitch.
+**Only accepted-consent traffic is measured at all.** Funnel volumes
+therefore undercount real visitors by the share who rejected or ignored the
+banner; do not treat them as total traffic, and never try to infer rejected
+visitors from other data.
 
 ## 6. Live-debugger verification checklist
 
@@ -176,9 +176,9 @@ changes, using PostHog's live event debugger (Activity → Live events) with
 1. **Accept path** — accept the consent banner, walk the demo and/or
    register; confirm each expected event arrives with only its allow-listed
    properties (§4) and nothing else.
-2. **Reject path** — reject consent, repeat the same walk; confirm events
-   still arrive (aggregate) but with no persistent `$device_id`/identity
-   carried across a page reload.
+2. **Reject path** — reject consent, repeat the same walk; confirm **zero**
+   requests reach `eu.i.posthog.com` and no `ph_*` cookie/localStorage entry
+   exists.
 3. **Pending path** — leave the banner untouched; confirm **zero** requests
    reach `eu.i.posthog.com` in the browser's network panel.
 4. **Event property inspection** — open several captured events in the live
@@ -229,8 +229,8 @@ above is lifted and the two Vite variables are actually set), check weekly:
 - **Funnel sanity** — the three funnels in §7 should show plausible,
   monotonically-decreasing step counts; a funnel step with more people than
   the step before it indicates an instrumentation bug.
-- **Consent split** — accepted vs. rejected vs. pending-abandoned ratio,
-  purely informational (not a target to optimize).
+- **Consent split** — not measurable in PostHog any more: rejected and
+  pending visitors send nothing (see §5).
 - **Quota remaining** — remaining event allowance for the current billing
   month, from the PostHog billing/usage page.
 - **No payment card** — confirm the account still has no payment method on

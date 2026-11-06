@@ -40,7 +40,6 @@ export default function AnalyticsProvider({ children, initialConsent, adapterFac
   // capture: consent is already decided, only the adapter isn't ready yet.
   const queueRef = useRef([]);
   const acceptedOnceRef = useRef(new Set());
-  const rejectedOnceRef = useRef(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -85,7 +84,9 @@ export default function AnalyticsProvider({ children, initialConsent, adapterFac
 
   const capture = useCallback(
     (name, properties) => {
-      if (consent === CONSENT_STATES.PENDING) return;
+      // Only an explicit "accepted" choice may send events; a rejected choice
+      // sends nothing at all (privacy review A1).
+      if (consent !== CONSENT_STATES.ACCEPTED) return;
       const sanitized = sanitizeEvent(name, properties, { strict: false });
       if (!sanitized) return;
       if (readyRef.current && adapterRef.current) {
@@ -98,23 +99,19 @@ export default function AnalyticsProvider({ children, initialConsent, adapterFac
   );
 
   // `scope` never leaves the browser: it only keys local dedup state
-  // (localStorage in accepted mode, an in-memory Set in rejected mode), and
-  // is never passed to capture()/the adapter.
+  // (localStorage, stored only after the user accepted analytics), and is
+  // never passed to capture()/the adapter.
   const captureOnce = useCallback(
     (scope, name, properties) => {
+      if (consent !== CONSENT_STATES.ACCEPTED) return;
       const key = `${scope}:${name}`;
-      if (consent === CONSENT_STATES.ACCEPTED) {
-        const storageKey = ONCE_STORAGE_PREFIX + key;
-        try {
-          if (localStorage.getItem(storageKey)) return;
-          localStorage.setItem(storageKey, "1");
-        } catch {
-          if (acceptedOnceRef.current.has(key)) return;
-          acceptedOnceRef.current.add(key);
-        }
-      } else {
-        if (rejectedOnceRef.current.has(key)) return;
-        rejectedOnceRef.current.add(key);
+      const storageKey = ONCE_STORAGE_PREFIX + key;
+      try {
+        if (localStorage.getItem(storageKey)) return;
+        localStorage.setItem(storageKey, "1");
+      } catch {
+        if (acceptedOnceRef.current.has(key)) return;
+        acceptedOnceRef.current.add(key);
       }
       capture(name, properties);
     },
@@ -131,7 +128,6 @@ export default function AnalyticsProvider({ children, initialConsent, adapterFac
   );
 
   const reset = useCallback(() => {
-    rejectedOnceRef.current.clear();
     const adapter = adapterRef.current;
     if (adapter) adapter.reset().catch(() => {});
   }, []);

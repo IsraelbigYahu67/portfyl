@@ -54,7 +54,7 @@ export function createMemoryAdapter() {
   };
 }
 
-function buildOptions({ host, consent }) {
+function buildOptions({ host }) {
   return {
     api_host: host,
     ui_host: "https://eu.posthog.com",
@@ -64,14 +64,17 @@ function buildOptions({ host, consent }) {
     disable_session_recording: true,
     person_profiles: "identified_only",
     cross_subdomain_cookie: true,
-    persistence: consent === "rejected" ? "memory" : "localStorage+cookie",
+    persistence: "localStorage+cookie",
     secure_cookie: true,
-    cookieless_mode: "on_reject",
   };
 }
 
+// PostHog is loaded only after an explicit "accepted" decision. A rejected or
+// pending choice gets the no-op adapter: the SDK is never imported or
+// initialized, so nothing (not even cookieless events) leaves the browser.
+// Privacy review 2026-11-06, finding A1.
 export function loadPostHogAdapter(config, { importPostHog = () => import("posthog-js") } = {}) {
-  if (!config?.key || config.consent === "pending") return createNoopAdapter();
+  if (!config?.key || config.consent !== "accepted") return createNoopAdapter();
 
   let client = null;
   let initialized = false;
@@ -85,7 +88,6 @@ export function loadPostHogAdapter(config, { importPostHog = () => import("posth
         const module = await importPostHog();
         client = module.default || module;
         client.init(config.key, buildOptions(config));
-        if (config.consent === "rejected") client.opt_out_capturing();
         initialized = true;
         return true;
       } catch {
@@ -108,7 +110,7 @@ export function loadPostHogAdapter(config, { importPostHog = () => import("posth
   return {
     init,
     capture: (name, properties) => call("capture", name, properties),
-    identify: (id) => config.consent === "accepted" ? call("identify", id) : falseAsync(),
+    identify: (id) => call("identify", id),
     reset: () => call("reset"),
     shutdown: async () => {
       const result = await call("shutdown");
