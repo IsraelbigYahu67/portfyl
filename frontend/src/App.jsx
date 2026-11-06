@@ -17,6 +17,7 @@ import { ToastProvider } from "./components/ui/Toast";
 import { ConfirmProvider } from "./components/ui/ConfirmDialog";
 import StartupPrefetch from "./components/StartupPrefetch";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
+import { I18nProvider, useT } from "./i18n/I18nProvider";
 import { EDITION_NAVIGATION, EDITION_ROUTES, EditionShell } from "@edition-manifest";
 import { enabledEditionEntries } from "./editions/filter";
 import { PALETTES, DARK_SURFACES, LIGHT_TOKENS, NEU_TOKENS, CLAY_TOKENS, GLASS_CHART, SEMANTIC_THEME_TOKENS } from "./lib/themeTokens";
@@ -302,20 +303,24 @@ export default function App() {
   return (
     // Appearance is a device-level preference, independent of auth state --
     // it stays above the auth gate so the login/register/etc. pages render
-    // with the visitor's chosen theme instead of the light-mode fallback.
-    <PaletteProvider>
-      <AuthProvider>
-        <AuthGate />
-      </AuthProvider>
-    </PaletteProvider>
+    // with the visitor's chosen theme instead of the light-mode fallback. The
+    // language is device-level for the same reason.
+    <I18nProvider>
+      <PaletteProvider>
+        <AuthProvider>
+          <AuthGate />
+        </AuthProvider>
+      </PaletteProvider>
+    </I18nProvider>
   );
 }
 
 function AuthSplash() {
+  const t = useT();
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg" role="status">
       <Loader2 className="animate-spin text-brand" size={28} aria-hidden="true" />
-      <span className="sr-only">Loading your account…</span>
+      <span className="sr-only">{t("Loading your account…")}</span>
     </div>
   );
 }
@@ -324,17 +329,18 @@ function AuthSplash() {
 // all. Without it the empty placeholder list would send the visitor into the
 // real onboarding, whose choices create portfolios on the server.
 function PortfoliosLoadError({ onRetry }) {
+  const t = useT();
   return (
     <main className="min-h-screen flex items-center justify-center bg-bg px-4 py-8">
       <div role="alert" className="card w-full max-w-md space-y-3 text-center">
         <AlertCircle className="mx-auto text-loss" size={24} aria-hidden="true" />
-        <h1 className="text-lg font-semibold">We couldn't load your portfolios</h1>
+        <h1 className="text-lg font-semibold">{t("We couldn't load your portfolios")}</h1>
         <p className="text-sm text-muted">
-          Portfyl could not load your portfolio list just now. Nothing in your account has changed. Check your connection and try again.
+          {t("Portfyl could not load your portfolio list just now. Nothing in your account has changed. Check your connection and try again.")}
         </p>
         <button type="button" className="btn-primary min-h-11 inline-flex items-center gap-2" onClick={() => onRetry()}>
           <RefreshCw size={16} aria-hidden="true" />
-          Retry
+          {t("Retry")}
         </button>
       </div>
     </main>

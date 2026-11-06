@@ -121,7 +121,7 @@ describe("authenticated routing", () => {
     renderApp("/onboarding/preview");
 
     expect(await screen.findByText(/onboarding preview/i)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /which broker do you use/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /choose your language/i })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /portfolio overview/i })).not.toBeInTheDocument();
   });
 

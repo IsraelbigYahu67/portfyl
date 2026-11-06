@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import PreferencesSettings from "./PreferencesSettings";
+import { I18nProvider } from "../../i18n/I18nProvider";
 import { legacyColorClassesIn } from "../../test/legacyClasses";
 import { sourcePath } from "../../test/sourcePath";
 
@@ -102,4 +103,21 @@ it("takes the preview path from lib/routes, not the lazy route registry that loa
 
 it("uses no legacy color classes", async () => {
   expect(await legacyColorClassesIn(new URL("./PreferencesSettings.jsx", import.meta.url))).toEqual([]);
+});
+
+it("changes the app language from the Language picker", async () => {
+  render(<I18nProvider initial="en"><MemoryRouter><PreferencesSettings /></MemoryRouter></I18nProvider>);
+
+  const picker = screen.getByRole("combobox", { name: "Language" });
+  expect(picker).toHaveValue("en");
+  expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+    "Čeština", "English", "Deutsch", "Français", "Español", "Italiano", "Português", "Polski", "Nederlands",
+  ]);
+
+  fireEvent.change(picker, { target: { value: "cs" } });
+
+  expect(await screen.findByRole("heading", { name: "Preference" })).toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "Jazyk" })).toHaveValue("cs");
+  expect(localStorage.getItem("portfyl_language")).toBe("cs");
+  localStorage.clear();
 });

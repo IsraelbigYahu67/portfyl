@@ -36,6 +36,13 @@ const FORBIDDEN_MODULES = [
 ];
 // Bare packages are checked, never followed.
 const FORBIDDEN_PACKAGE = /^(?:axios|firebase|@firebase|@sentry)(?:\/|$)/;
+// Translation dictionaries (i18n/messages/*.js) are data: their English keys
+// can read like `import "...` to the patterns above. Instead of being scanned
+// they must be exactly one exported object of string pairs, so no code can
+// hide in one.
+const DATA_MODULE = /^i18n\/messages\/[a-z]{2}\.js$/;
+const STRING_LITERAL = /"(?:[^"\\\r\n]|\\.)*"/g;
+const STRING_TABLE = /^(?:\s*\/\/[^\r\n]*)*\s*export default\s*\{(?:\s*""\s*:\s*""\s*,?)*\s*\}\s*;?\s*$/;
 
 function packageName(specifier) {
   const parts = specifier.split("/");
@@ -74,6 +81,12 @@ function scanImportGraph(entry, { srcRoot, readSource, isFile, packageExists }) 
     const file = queue.shift();
     visited.push(label(file));
     const source = readSource(file);
+    if (DATA_MODULE.test(label(file))) {
+      if (!STRING_TABLE.test(source.replace(STRING_LITERAL, '""'))) {
+        violations.push(`${chain(file)}: a translation dictionary must be a plain object of strings`);
+      }
+      continue;
+    }
     const calls = [...source.matchAll(CALL_SPECIFIER)];
     if ((source.match(ANY_CALL) ?? []).length > calls.length) {
       violations.push(`${chain(file)}: dynamic import with a computed specifier`);
@@ -161,10 +174,11 @@ describe("OnboardingPreview import guard", () => {
 
     it("passes a clean graph", () => {
       expect(scan({
-        "pages/Entry.jsx": 'import { useState } from "react";\nimport View from "../components/View";\nimport "./entry.css";',
+        "pages/Entry.jsx": 'import { useState } from "react";\nimport View from "../components/View";\nimport "./entry.css";\nconst load = () => import("../i18n/messages/cs.js");',
         "components/View.jsx": 'export { helper } from "../lib/helper";',
         "lib/helper.js": "export const helper = 1;",
         "pages/entry.css": "",
+        "i18n/messages/cs.js": '// Czech.\nexport default {\n  "CSV import": "import \\"CSV\\"",\n  "Save": "Uložit",\n};\n',
       })).toEqual([]);
     });
 
@@ -205,6 +219,14 @@ describe("OnboardingPreview import guard", () => {
       ],
       ["a computed dynamic import", { "pages/Entry.jsx": "const load = (name) => import(name);" }, "pages/Entry.jsx: dynamic import with a computed specifier"],
       ["an unresolvable relative import", { "pages/Entry.jsx": 'import x from "./missing";' }, 'pages/Entry.jsx: cannot resolve "./missing"'],
+      [
+        "code in a translation dictionary",
+        {
+          "pages/Entry.jsx": 'const load = () => import("../i18n/messages/cs.js");',
+          "i18n/messages/cs.js": 'import "../../analytics/track";\nexport default { "Save": "Uložit" };',
+        },
+        "pages/Entry.jsx -> i18n/messages/cs.js: a translation dictionary must be a plain object of strings",
+      ],
     ])("catches %s", (_name, files, violation) => {
       expect(scan(files)).toContain(violation);
     });
@@ -249,6 +271,11 @@ function mount({ initialEntries = [ONBOARDING_PREVIEW_PATH], initialIndex, setti
   );
 }
 
+// The replay starts at the language step, like the real onboarding.
+function continuePastLanguage() {
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+}
+
 describe("OnboardingPreview", () => {
   let fetchSpy;
   let xhrOpenSpy;
@@ -281,13 +308,15 @@ describe("OnboardingPreview", () => {
     mount();
 
     expect(screen.getByText(/onboarding preview/i)).toBeInTheDocument();
-    expect(screen.getByText(/nothing you click here creates a portfolio or saves anything/i)).toBeInTheDocument();
+    expect(screen.getByText(/nothing you click here creates a portfolio\. a language you pick does apply/i)).toBeInTheDocument();
     expect(screen.queryByText(/tracked or sent/i)).not.toBeInTheDocument();
   });
 
   it("walks every step and choice locally without any network request or stored state", () => {
     mount();
 
+    expect(screen.getByRole("heading", { name: "Choose your language" })).toBeInTheDocument();
+    continuePastLanguage();
     expect(screen.getByRole("heading", { name: "Which broker do you use?" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Trading 212/ }));
     expect(screen.getByRole("heading", { name: /add your first portfolio/i })).toBeInTheDocument();
@@ -322,6 +351,7 @@ describe("OnboardingPreview", () => {
 
   it("keeps a single live region and swaps only its content", () => {
     mount();
+    continuePastLanguage();
     fireEvent.click(screen.getByRole("button", { name: /Interactive Brokers/ }));
     const status = screen.getByRole("status");
 
@@ -334,6 +364,7 @@ describe("OnboardingPreview", () => {
 
   it("marks the chosen card as pressed", () => {
     mount();
+    continuePastLanguage();
     fireEvent.click(screen.getByRole("button", { name: /Trading 212/ }));
 
     const buttons = ["Import your Trading 212 CSV", "Explore sample portfolio", "Connect Trading 212"]
@@ -354,7 +385,7 @@ describe("OnboardingPreview", () => {
 
     fireEvent.click(screen.getByRole("link", { name: /replay onboarding/i }));
 
-    const heading = await screen.findByRole("heading", { name: "Which broker do you use?" });
+    const heading = await screen.findByRole("heading", { name: "Choose your language" });
     await waitFor(() => expect(heading).toHaveFocus());
   });
 

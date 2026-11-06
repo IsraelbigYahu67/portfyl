@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { Link } from "react-router-dom";
 import { Loader2, Monitor, Moon, PlayCircle, Sun } from "lucide-react";
 
@@ -5,14 +6,36 @@ import { EditionViewModeSetting } from "@edition-manifest";
 import { useCurrency, usePalette } from "../../App";
 import SegmentedControl from "../ui/SegmentedControl";
 import { ONBOARDING_PREVIEW_PATH } from "../../lib/routes";
+import { useI18n } from "../../i18n/I18nProvider";
+import { APP_LANGUAGES } from "../../i18n/languages";
 
+// Palette names are product names, so they are not translated.
 const PALETTE_OPTIONS = [
   { key: "blue", label: "Arctic Blue", color: "#2563EB" },
   { key: "green", label: "Mint Green", color: "#059669" },
   { key: "purple", label: "Soft Iris", color: "#7C3AED" },
 ];
 
+function LanguageSetting() {
+  const { language, setLanguage, t } = useI18n();
+  const id = useId();
+  return (
+    <div>
+      <label htmlFor={id} className="mb-2 block text-sm font-semibold">{t("Language")}</label>
+      <select
+        id={id}
+        className="w-full max-w-xs rounded-lg border border-surface-border bg-surface-card px-3 py-2 min-h-11 md:min-h-0 text-base md:text-sm"
+        value={language}
+        onChange={(event) => setLanguage(event.target.value)}
+      >
+        {APP_LANGUAGES.map(({ code, name }) => <option key={code} value={code} lang={code}>{name}</option>)}
+      </select>
+    </div>
+  );
+}
+
 export default function PreferencesSettings({ headingRef }) {
+  const { t } = useI18n();
   const { currency, setCurrency, rate, rateLoading } = useCurrency();
   const { palette, setPalette, theme, setTheme, themeStyle, setThemeStyle } = usePalette();
   // Premium has one fixed light look, so Appearance and Accent palette stay
@@ -24,54 +47,56 @@ export default function PreferencesSettings({ headingRef }) {
   return (
     <section aria-labelledby="settings-preferences-heading" className="space-y-6">
       <div>
-        <h2 id="settings-preferences-heading" ref={headingRef} tabIndex={-1} className="text-xl font-semibold outline-none">Preferences</h2>
-        <p className="mt-1 text-sm text-muted">Choose how Portfyl looks and displays portfolio values on this device.</p>
+        <h2 id="settings-preferences-heading" ref={headingRef} tabIndex={-1} className="text-xl font-semibold outline-none">{t("Preferences")}</h2>
+        <p className="mt-1 text-sm text-muted">{t("Choose the language, look and currency Portfyl uses on this device.")}</p>
       </div>
 
       <div className="rounded-xl border border-surface-border bg-surface-card p-6 space-y-6">
+        <LanguageSetting />
+
         <div>
-          <h3 className="mb-2 text-sm font-semibold">Theme style</h3>
+          <h3 className="mb-2 text-sm font-semibold">{t("Theme style")}</h3>
           <SegmentedControl
-            aria-label="Theme style"
+            aria-label={t("Theme style")}
             block
             value={themeStyle}
             onChange={setThemeStyle}
             options={[
-              { value: "glass", label: "Classic", title: "Classic glass theme" },
-              { value: "neu", label: "Premium", title: "Warm glass-hybrid theme" },
-              { value: "clay", label: "Clay", title: "Soft clay theme" },
+              { value: "glass", label: "Classic", title: t("Classic glass theme") },
+              { value: "neu", label: "Premium", title: t("Warm glass-hybrid theme") },
+              { value: "clay", label: "Clay", title: t("Soft clay theme") },
             ]}
           />
         </div>
 
         {clay ? (
-          <p className="text-sm text-muted">Clay uses its own light palette.</p>
+          <p className="text-sm text-muted">{t("Clay uses its own light palette.")}</p>
         ) : (
           <>
           <div className={fixedLook ? "opacity-50" : ""}>
-            <h3 className="mb-2 text-sm font-semibold">Appearance</h3>
+            <h3 className="mb-2 text-sm font-semibold">{t("Appearance")}</h3>
             <SegmentedControl
-              aria-label="Appearance"
+              aria-label={t("Appearance")}
               block
               value={theme}
               onChange={setTheme}
               options={[
-                { value: "light", label: <><Sun size={14} aria-hidden="true" /> <span>Light</span></>, title: "Light", disabled: fixedLook },
-                { value: "dark", label: <><Moon size={14} aria-hidden="true" /> <span>Dark</span></>, title: "Dark", disabled: fixedLook },
-                { value: "system", label: <><Monitor size={14} aria-hidden="true" /> <span>System</span></>, title: "System", disabled: fixedLook },
+                { value: "light", label: <><Sun size={14} aria-hidden="true" /> <span>{t("Light")}</span></>, title: t("Light"), disabled: fixedLook },
+                { value: "dark", label: <><Moon size={14} aria-hidden="true" /> <span>{t("Dark")}</span></>, title: t("Dark"), disabled: fixedLook },
+                { value: "system", label: <><Monitor size={14} aria-hidden="true" /> <span>{t("System")}</span></>, title: t("System"), disabled: fixedLook },
               ]}
             />
-            {fixedLook && <p className="mt-2 text-xs text-muted">Premium uses its own fixed light appearance.</p>}
+            {fixedLook && <p className="mt-2 text-xs text-muted">{t("Premium uses its own fixed light appearance.")}</p>}
           </div>
 
           <div className={fixedLook ? "opacity-50" : ""}>
-            <h3 className="mb-2 text-sm font-semibold">Accent palette</h3>
+            <h3 className="mb-2 text-sm font-semibold">{t("Accent palette")}</h3>
             <div className="flex flex-wrap gap-2">
               {PALETTE_OPTIONS.map(({ key, label, color }) => (
                 <button
                   key={key}
                   type="button"
-                  aria-label={`Theme: ${label}`}
+                  aria-label={t("Theme: {name}", { name: label })}
                   aria-pressed={palette === key}
                   disabled={fixedLook}
                   onClick={() => setPalette(key)}
@@ -89,18 +114,18 @@ export default function PreferencesSettings({ headingRef }) {
         )}
 
         <div>
-          <h3 className="mb-2 text-sm font-semibold">Display currency</h3>
+          <h3 className="mb-2 text-sm font-semibold">{t("Display currency")}</h3>
           <SegmentedControl
-            aria-label="Display currency"
+            aria-label={t("Display currency")}
             value={currency}
             onChange={setCurrency}
             options={[
-              { value: "USD", label: "USD", title: "Display currency: USD" },
-              { value: "CZK", label: rateLoading ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : "CZK", title: czkUnavailable ? "Rate unavailable" : "Display currency: CZK", disabled: czkUnavailable },
+              { value: "USD", label: "USD", title: t("Display currency: {currency}", { currency: "USD" }) },
+              { value: "CZK", label: rateLoading ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : "CZK", title: czkUnavailable ? t("Rate unavailable") : t("Display currency: {currency}", { currency: "CZK" }), disabled: czkUnavailable },
             ]}
           />
           {currency === "CZK" && rate != null && <p className="mt-2 text-xs text-muted tabular-nums">1 USD = {rate.toFixed(2)} Kc</p>}
-          {czkUnavailable && <p className="mt-2 text-xs text-loss">CZK rate unavailable. USD remains available.</p>}
+          {czkUnavailable && <p className="mt-2 text-xs text-loss">{t("CZK rate unavailable. USD remains available.")}</p>}
         </div>
 
         <EditionViewModeSetting />
@@ -108,15 +133,15 @@ export default function PreferencesSettings({ headingRef }) {
 
       <div className="rounded-xl border border-surface-border bg-surface-card p-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-sm font-semibold">Welcome tour</h3>
-          <p className="mt-0.5 text-sm text-muted">Replay the first-run onboarding. It is a preview only: no portfolio is created and nothing is saved.</p>
+          <h3 className="text-sm font-semibold">{t("Welcome tour")}</h3>
+          <p className="mt-0.5 text-sm text-muted">{t("Replay the first-run onboarding. It is a preview only: no portfolio is created.")}</p>
         </div>
         <Link
           to={ONBOARDING_PREVIEW_PATH}
           className="btn-ghost inline-flex shrink-0 items-center justify-center gap-1.5 self-start min-h-11 md:min-h-0 text-sm font-medium sm:self-auto"
         >
           <PlayCircle size={14} aria-hidden="true" />
-          Replay onboarding
+          {t("Replay onboarding")}
         </Link>
       </div>
     </section>

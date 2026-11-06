@@ -6,6 +6,7 @@ import { ONBOARDING_CHOICE_KEYS, onboardingChoices } from "../components/onboard
 import { findSupportedBroker } from "../lib/onboardingBrokers";
 import { TRACKER_HOME } from "../lib/routes";
 import { legacyColorClassesIn } from "../test/legacyClasses";
+import { I18nProvider } from "../i18n/I18nProvider";
 
 
 const mocks = vi.hoisted(() => ({
@@ -43,8 +44,15 @@ vi.mock("../analytics/useRegisteredActivation", () => ({
 }));
 
 
-function mount(entry = "/onboarding") {
-  return render(
+// Most tests render without an I18nProvider, so the view stays in English.
+function mountPastLanguage() {
+  const view = mount();
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  return view;
+}
+
+function mount(entry = "/onboarding", { i18n = false } = {}) {
+  const routes = (
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/onboarding" element={<><Onboarding /><LocationProbe /></>} />
@@ -54,6 +62,7 @@ function mount(entry = "/onboarding") {
       </Routes>
     </MemoryRouter>
   );
+  return render(i18n ? <I18nProvider initial="en">{routes}</I18nProvider> : routes);
 }
 
 function LocationProbe() {
@@ -72,12 +81,46 @@ describe("Onboarding", () => {
     mocks.refetchPortfolios.mockResolvedValue({});
   });
 
-  describe("step 1: broker pick", () => {
-    it("asks for the broker first and lists supported and unsupported brokers", () => {
+  describe("step 1: language", () => {
+    afterEach(() => localStorage.clear());
+
+    it("starts by asking for the app's language", () => {
       mount();
 
+      expect(screen.getByRole("heading", { level: 1, name: "Choose your language" })).toBeInTheDocument();
+      expect(screen.getByText("Step 1 of 3")).toBeInTheDocument();
+      for (const name of ["Čeština", "English", "Deutsch", "Français", "Español", "Italiano", "Português", "Polski", "Nederlands"]) {
+        expect(screen.getByRole("button", { name: new RegExp(name) })).toBeInTheDocument();
+      }
+      expect(screen.getByRole("button", { name: /English/ })).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("switches the app to the picked language, saves it and continues in it", async () => {
+      mount("/onboarding", { i18n: true });
+
+      fireEvent.click(screen.getByRole("button", { name: /Deutsch/ }));
+
+      expect(await screen.findByRole("heading", { level: 1, name: "Wähle deine Sprache" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Deutsch/ })).toHaveAttribute("aria-pressed", "true");
+      expect(localStorage.getItem("portfyl_language")).toBe("de");
+      fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+      expect(screen.getByRole("heading", { level: 1, name: "Welchen Broker nutzt du?" })).toBeInTheDocument();
+    });
+
+    it("skips the language step when Leave import returns to a picked broker", () => {
+      mount("/onboarding?broker=trading212");
+
+      expect(screen.queryByRole("heading", { name: "Choose your language" })).not.toBeInTheDocument();
+      expect(screen.getByText("Step 3 of 3 · Trading 212")).toBeInTheDocument();
+    });
+  });
+
+  describe("step 2: broker pick", () => {
+    it("asks for the broker first and lists supported and unsupported brokers", () => {
+      mountPastLanguage();
+
       expect(screen.getByRole("heading", { level: 1, name: "Which broker do you use?" })).toBeInTheDocument();
-      expect(screen.getByText("Step 1 of 2")).toBeInTheDocument();
+      expect(screen.getByText("Step 2 of 3")).toBeInTheDocument();
       for (const name of ["Trading 212", "Interactive Brokers", "eToro", "Degiro", "XTB", "Charles Schwab", "Fidelity"]) {
         expect(screen.getByRole("button", { name: new RegExp(name) })).toBeInTheDocument();
       }
@@ -86,7 +129,7 @@ describe("Onboarding", () => {
     });
 
     it("filters both lists by the search box", () => {
-      mount();
+      mountPastLanguage();
 
       fireEvent.change(screen.getByLabelText("Search brokers"), { target: { value: "x" } });
 
@@ -95,17 +138,17 @@ describe("Onboarding", () => {
       expect(screen.queryByRole("button", { name: "Robinhood" })).not.toBeInTheDocument();
     });
 
-    it("moves to step 2 with the picked broker in the URL", () => {
-      mount();
+    it("moves to step 3 with the picked broker in the URL", () => {
+      mountPastLanguage();
 
       fireEvent.click(screen.getByRole("button", { name: /Trading 212/ }));
 
-      expect(screen.getByText("Step 2 of 2 · Trading 212")).toBeInTheDocument();
+      expect(screen.getByText("Step 3 of 3 · Trading 212")).toBeInTheDocument();
       expect(screen.getByLabelText("location")).toHaveTextContent("/onboarding?broker=trading212");
     });
 
     it("says up front when a listed broker is not supported", () => {
-      mount();
+      mountPastLanguage();
 
       fireEvent.click(screen.getByRole("button", { name: "Robinhood" }));
 
@@ -115,7 +158,7 @@ describe("Onboarding", () => {
     });
 
     it("checks a broker that is not on any list without putting it in the URL", () => {
-      mount();
+      mountPastLanguage();
 
       fireEvent.change(screen.getByLabelText("Search brokers"), { target: { value: "Acme Invest" } });
       fireEvent.click(screen.getByRole("button", { name: "Check this broker" }));
@@ -125,7 +168,7 @@ describe("Onboarding", () => {
     });
 
     it("offers the sample portfolio from the unsupported screen", async () => {
-      mount();
+      mountPastLanguage();
       fireEvent.click(screen.getByRole("button", { name: "Revolut" }));
 
       fireEvent.click(screen.getByRole("button", { name: /look around with sample data/i }));
@@ -136,7 +179,7 @@ describe("Onboarding", () => {
     });
   });
 
-  describe("step 2: tailored choices", () => {
+  describe("step 3: tailored choices", () => {
     it("offers connect, file import and sample data for an API broker", () => {
       mount("/onboarding?broker=ibkr");
 

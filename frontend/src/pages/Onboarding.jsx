@@ -7,12 +7,13 @@ import { TRACKER_HOME } from "../lib/routes";
 import { uniquePortfolioName } from "../lib/brokerPortfolio";
 import { findSupportedBroker } from "../lib/onboardingBrokers";
 import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
+import { useT } from "../i18n/I18nProvider";
 
 
-function errorMessage(error) {
+function errorMessage(error, t) {
   const detail = error?.response?.data?.detail;
   if (typeof detail === "string") return detail;
-  return detail?.message || "We couldn't prepare your portfolio. Please try again.";
+  return detail?.message || t("We couldn't prepare your portfolio. Please try again.");
 }
 
 
@@ -34,6 +35,7 @@ export function buildOnboardingActions({ beginImport, activate, broker = null, p
 
 
 export default function Onboarding() {
+  const t = useT();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { portfolios, pendingImportPortfolio, setCurrentId, refetchPortfolios } = usePortfolio();
@@ -44,6 +46,9 @@ export default function Onboarding() {
   const [unsupportedName, setUnsupportedName] = useState(null);
   // In the URL, so "Leave import" on the Import page can return to step 2.
   const broker = findSupportedBroker(searchParams.get("broker"));
+  // The language step comes first, except when "Leave import" brings the user
+  // back to a broker they already picked.
+  const [languageChosen, setLanguageChosen] = useState(() => searchParams.has("broker"));
 
   function changeBroker(key) {
     setError(null);
@@ -71,7 +76,7 @@ export default function Onboarding() {
       navigate(destination);
       await refetchPortfolios();
     } catch (err) {
-      setError(errorMessage(err));
+      setError(errorMessage(err, t));
     } finally {
       setBusy(null);
     }
@@ -87,7 +92,7 @@ export default function Onboarding() {
       await refetchPortfolios();
       navigate(broker ? `/import?broker=${broker.key}` : "/import");
     } catch (err) {
-      setError(errorMessage(err));
+      setError(errorMessage(err, t));
     } finally {
       setBusy(null);
     }
@@ -104,7 +109,7 @@ export default function Onboarding() {
       navigate(TRACKER_HOME);
       await refetchPortfolios();
     } catch (err) {
-      setError(errorMessage(err));
+      setError(errorMessage(err, t));
     } finally {
       setBusy(null);
     }
@@ -114,6 +119,8 @@ export default function Onboarding() {
 
   return (
     <OnboardingView
+      languageChosen={languageChosen}
+      onLanguageChosen={() => setLanguageChosen(true)}
       brokerKey={broker?.key ?? null}
       onBrokerChange={changeBroker}
       unsupportedName={unsupportedName}

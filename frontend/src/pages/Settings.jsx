@@ -19,6 +19,7 @@ import { AsyncSection } from "../components/ui";
 import Toggle from "../components/ui/Toggle";
 import { Badge } from "../components/ui/Badge";
 import { getApiErrorMessage } from "../lib/apiError";
+import { useT } from "../i18n/I18nProvider";
 import { useBrokerPortfolio } from "../hooks/useBrokerPortfolio";
 import { splitNote } from "../lib/brokerPortfolio";
 import { T212_HISTORY_ACTIVE_STATES, useT212Sync } from "../hooks/useT212Sync";
@@ -122,6 +123,7 @@ export function HistoryBackfillStatus({ run, onRetry, retryPending = false }) {
 const CONNECTION_ORDER = ["trading212", "ibkr", "etoro"];
 
 function ConnectionsSettings({ headingRef }) {
+  const t = useT();
   const [searchParams] = useSearchParams();
   const requestedBroker = searchParams.get("broker");
   const connectionOrder = CONNECTION_ORDER.includes(requestedBroker)
@@ -282,14 +284,14 @@ function ConnectionsSettings({ headingRef }) {
 
   return (
     <section aria-labelledby="settings-connections-heading" className="space-y-6">
-      <SectionHeading id="settings-connections-heading" headingRef={headingRef} description="Connect providers and control how portfolio data is synchronized.">Connections</SectionHeading>
+      <SectionHeading id="settings-connections-heading" headingRef={headingRef} description={t("Connect providers and control how portfolio data is synchronized.")}>{t("Connections")}</SectionHeading>
 
       {currentPortfolio && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-surface-border bg-surface-card px-4 py-2.5 text-sm text-muted">
           <Briefcase size={14} className="text-brand" aria-hidden="true" />
-          <span>Managing connection for portfolio</span>
+          <span>{t("Managing connection for portfolio")}</span>
           <span className="font-medium text-ink">{currentPortfolio.name}</span>
-          <span className="ml-auto text-xs">Each portfolio holds its own broker connections — data is never mixed.</span>
+          <span className="ml-auto text-xs">{t("Each portfolio holds its own broker connections — data is never mixed.")}</span>
         </div>
       )}
 
@@ -301,18 +303,20 @@ function ConnectionsSettings({ headingRef }) {
 }
 
 function NotificationsSettings({ headingRef }) {
+  const t = useT();
   return (
     <section aria-labelledby="settings-notifications-heading" className="space-y-6">
-      <SectionHeading id="settings-notifications-heading" headingRef={headingRef} description="Choose where price alerts and other enabled notifications are delivered.">Notifications</SectionHeading>
+      <SectionHeading id="settings-notifications-heading" headingRef={headingRef} description={t("Choose where price alerts and other enabled notifications are delivered.")}>{t("Notifications")}</SectionHeading>
       <DiscordSettings />
     </section>
   );
 }
 
 export function DataSettings({ headingRef, children }) {
+  const t = useT();
   return (
     <section aria-labelledby="settings-data-heading" className="space-y-6">
-      <SectionHeading id="settings-data-heading" headingRef={headingRef} description="Manage portfolio data, exports, and workspace privacy.">Data & Privacy</SectionHeading>
+      <SectionHeading id="settings-data-heading" headingRef={headingRef} description={t("Manage portfolio data, exports, and workspace privacy.")}>{t("Data & Privacy")}</SectionHeading>
       <LegalDocuments />
       {children}
       <DataPrivacySettings />
@@ -321,14 +325,16 @@ export function DataSettings({ headingRef, children }) {
 }
 
 // Cloud only: the public /terms and /privacy pages render outside the app's
-// router (Root.jsx), so these are plain links that open a new tab.
+// router (Root.jsx), so these are plain links that open a new tab. The
+// documents exist in English and Czech only, so each link names its language.
 function LegalDocuments() {
+  const t = useT();
   const links = [["/terms?lang=en", "Terms of Service"], ["/privacy?lang=en", "Privacy Policy"], ["/terms?lang=cs", "Obchodní podmínky"], ["/privacy?lang=cs", "Zásady ochrany osobních údajů"]];
   return (
     <div className="bg-surface-card border border-surface-border rounded-xl p-6 space-y-3">
       <div>
-        <h3 className="text-lg font-semibold">Legal documents</h3>
-        <p className="text-sm text-muted mt-0.5">The terms and privacy policy that apply to your Portfyl account.</p>
+        <h3 className="text-lg font-semibold">{t("Legal documents")}</h3>
+        <p className="text-sm text-muted mt-0.5">{t("The terms and privacy policy that apply to your Portfyl account.")}</p>
       </div>
       <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
         {links.map(([href, label]) => (
@@ -344,6 +350,7 @@ function LegalDocuments() {
 }
 
 export default function Settings({ dataManagement = <PortfolioDataManagement /> }) {
+  const t = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const headingRef = useRef(null);
   const focusAfterNavigation = useRef(false);
@@ -375,8 +382,8 @@ export default function Settings({ dataManagement = <PortfolioDataManagement /> 
   return (
     <div className="mx-auto max-w-5xl space-y-6 py-6">
       <div>
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="mt-1 text-sm text-muted">Manage connections, device preferences, notifications, and your data.</p>
+        <h1 className="text-2xl font-bold">{t("Settings")}</h1>
+        <p className="mt-1 text-sm text-muted">{t("Manage connections, device preferences, notifications, and your data.")}</p>
       </div>
 
       <div className="space-y-5 lg:flex lg:items-start lg:gap-8 lg:space-y-0">

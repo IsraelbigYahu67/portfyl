@@ -2,6 +2,7 @@
 // Keys are the backend broker keys (lib/brokerPortfolio.js BROKER_LABELS):
 // API sync = backend/routers/broker.py (T212), ibkr.py, etoro.py; file
 // import = backend/importers/formats/ plus the native T212 CSV path.
+import { msg, translate } from "../i18n/I18nProvider";
 import { BROKER_LABELS } from "./brokerPortfolio";
 import trading212Icon from "../assets/brokers/trading212.png";
 import ibkrIcon from "../assets/brokers/ibkr.png";
@@ -16,25 +17,25 @@ export const SUPPORTED_BROKERS = Object.freeze([
     key: "trading212",
     icon: trading212Icon,
     api: true,
-    credential: "API key and secret",
+    credential: msg("API key and secret"),
     syncDescription: "history, positions and dividends",
     fileKind: "CSV",
-    hint: "In Trading 212 open History and choose Export history (CSV).",
+    hint: msg("In Trading 212 open History and choose Export history (CSV)."),
   },
   {
     key: "ibkr",
     icon: ibkrIcon,
     api: true,
-    credential: "Flex Web Service token",
+    credential: msg("Flex Web Service token"),
     syncDescription: "trades, dividends and cash from a Flex Query",
     fileKind: "Flex XML",
-    hint: "In IBKR open Performance & Reports → Flex Queries and run an Activity Flex Query as XML.",
+    hint: msg("In IBKR open Performance & Reports → Flex Queries and run an Activity Flex Query as XML."),
   },
   {
     key: "etoro",
     icon: etoroIcon,
     api: true,
-    credential: "eToro API key",
+    credential: msg("eToro API key"),
     syncDescription: "trades and dividends",
     fileKind: null,
     hint: null,
@@ -44,28 +45,28 @@ export const SUPPORTED_BROKERS = Object.freeze([
     icon: degiroIcon,
     api: false,
     fileKind: "CSV",
-    hint: "In DEGIRO export Inbox → Transactions and Inbox → Account Statement as CSV, then upload both files.",
+    hint: msg("In DEGIRO export Inbox → Transactions and Inbox → Account Statement as CSV, then upload both files."),
   },
   {
     key: "xtb",
     icon: xtbIcon,
     api: false,
     fileKind: "XLSX",
-    hint: "In xStation 5 open Account history → Cash operations and export the whole period to Excel.",
+    hint: msg("In xStation 5 open Account history → Cash operations and export the whole period to Excel."),
   },
   {
     key: "schwab",
     icon: schwabIcon,
     api: false,
     fileKind: "CSV",
-    hint: "On schwab.com open Accounts → History → Transactions, select All and Export.",
+    hint: msg("On schwab.com open Accounts → History → Transactions, select All and Export."),
   },
   {
     key: "fidelity",
     icon: fidelityIcon,
     api: false,
     fileKind: "CSV",
-    hint: "On fidelity.com open Activity & Orders, choose the period and Download.",
+    hint: msg("On fidelity.com open Activity & Orders, choose the period and Download."),
   },
 ].map((broker) => Object.freeze({ ...broker, name: BROKER_LABELS[broker.key] })));
 
@@ -88,6 +89,10 @@ export function filterBrokers(query) {
   };
 }
 
-export function brokerMethods(broker) {
-  return [broker.api ? "API sync" : null, broker.fileKind ? `${broker.fileKind} import` : null].filter(Boolean).join(" · ");
+// `t` translates; it defaults to English for callers outside React.
+export function brokerMethods(broker, t = (text, vars) => translate(null, text, vars)) {
+  return [
+    broker.api ? t("API sync") : null,
+    broker.fileKind ? t("{fileKind} import", { fileKind: broker.fileKind }) : null,
+  ].filter(Boolean).join(" · ");
 }

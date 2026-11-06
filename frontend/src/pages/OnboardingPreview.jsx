@@ -5,6 +5,7 @@ import { Eye, X } from "lucide-react";
 import OnboardingView, { choiceHandler } from "../components/onboarding/OnboardingView";
 import { useRouteFocusAnnouncer } from "../hooks/useRouteFocusAnnouncer";
 import { findSupportedBroker } from "../lib/onboardingBrokers";
+import { translate, useT } from "../i18n/I18nProvider";
 
 // Read-only replay of the first-run onboarding for signed-in users.
 //
@@ -20,17 +21,23 @@ export const PREVIEW_EXIT_PATH = "/settings?section=preferences";
 
 // One outcome per ONBOARDING_CHOICE_KEYS entry, plus "blank" for the separate
 // "Start with a blank portfolio" link (OnboardingPreview.test.jsx checks this).
-// Each takes the broker picked in step 1 (null on the unsupported screen).
+// Each takes the broker picked in step 2 (null on the unsupported screen) and
+// the translate function (English when left out).
+const english = (text, vars) => translate(null, text, vars);
 export const OUTCOMES = Object.freeze({
-  import: (broker) => (broker?.fileKind
-    ? `Opens the import for your ${broker.name} ${broker.fileKind} file. You see a preview of the file and nothing is saved until you confirm it.`
-    : "Opens the import for a Portfyl CSV. You see a preview of the file and nothing is saved until you confirm it."),
-  demo: () => "Creates a clearly labelled sample portfolio and opens the dashboard so you can look around.",
-  broker: (broker) => `Creates an empty portfolio called “${broker?.name ?? "My portfolio"}” and opens Settings → Connections${broker ? ` with ${broker.name} first` : ""}.`,
-  blank: () => "Creates an empty portfolio and opens the dashboard, ready for manual transactions.",
+  import: (broker, t = english) => (broker?.fileKind
+    ? t("Opens the import for your {broker} {fileKind} file. You see a preview of the file and nothing is saved until you confirm it.", { broker: broker.name, fileKind: broker.fileKind })
+    : t("Opens the import for a Portfyl CSV. You see a preview of the file and nothing is saved until you confirm it.")),
+  demo: (broker, t = english) => t("Creates a clearly labelled sample portfolio and opens the dashboard so you can look around."),
+  broker: (broker, t = english) => (broker
+    ? t("Creates an empty portfolio called “{broker}” and opens Settings → Connections with {broker} first.", { broker: broker.name })
+    : t("Creates an empty portfolio called “{name}” and opens Settings → Connections.", { name: t("My portfolio") })),
+  blank: (broker, t = english) => t("Creates an empty portfolio and opens the dashboard, ready for manual transactions."),
 });
 
 export default function OnboardingPreview() {
+  const t = useT();
+  const [languageChosen, setLanguageChosen] = useState(false);
   const [selected, setSelected] = useState(null);
   const [brokerKey, setBrokerKey] = useState(null);
   const [unsupportedName, setUnsupportedName] = useState(null);
@@ -52,9 +59,9 @@ export default function OnboardingPreview() {
           <Eye size={18} aria-hidden="true" />
         </span>
         <div>
-          <p className="font-semibold text-ink">Onboarding preview</p>
+          <p className="font-semibold text-ink">{t("Onboarding preview")}</p>
           <p className="text-xs leading-5 text-muted">
-            You are replaying the welcome screen. Nothing you click here creates a portfolio or saves anything.
+            {t("You are replaying the welcome screen. Nothing you click here creates a portfolio. A language you pick does apply, as in Settings.")}
           </p>
         </div>
       </div>
@@ -65,7 +72,7 @@ export default function OnboardingPreview() {
         className="btn-ghost inline-flex items-center justify-center gap-1.5 self-start min-h-11 md:min-h-0 text-sm font-medium sm:self-auto"
       >
         <X size={14} aria-hidden="true" />
-        Exit preview
+        {t("Exit preview")}
       </Link>
     </div>
   );
@@ -78,9 +85,9 @@ export default function OnboardingPreview() {
     <div role="status">
       {selected && (
         <div className="card border border-brand/30 text-sm">
-          <p className="font-semibold text-ink">In the real onboarding</p>
-          <p className="mt-1 text-muted">{OUTCOMES[selected](broker)}</p>
-          <p className="mt-2 text-xs text-muted">Preview only — nothing was created.</p>
+          <p className="font-semibold text-ink">{t("In the real onboarding")}</p>
+          <p className="mt-1 text-muted">{OUTCOMES[selected](broker, t)}</p>
+          <p className="mt-2 text-xs text-muted">{t("Preview only — nothing was created.")}</p>
         </div>
       )}
     </div>
@@ -89,6 +96,8 @@ export default function OnboardingPreview() {
   return (
     <OnboardingView
       mainRef={mainRef}
+      languageChosen={languageChosen}
+      onLanguageChosen={() => setLanguageChosen(true)}
       brokerKey={brokerKey}
       onBrokerChange={changeBroker}
       unsupportedName={unsupportedName}
