@@ -12,6 +12,10 @@ nezkontroluje český advokát (viz brána ve
 | Obchodní podmínky a podmínky užívání (vč. upozornění „není investiční poradenství“, reklamací, odstoupení a vzorového formuláře) | [podminky-uzivani-cs.md](podminky-uzivani-cs.md) | [terms-of-service-en.md](terms-of-service-en.md) |
 | Zásady ochrany osobních údajů a cookies (vč. seznamu zpracovatelů) | [zasady-ochrany-osobnich-udaju-cs.md](zasady-ochrany-osobnich-udaju-cs.md) | [privacy-policy-en.md](privacy-policy-en.md) |
 
+Technická kontrola zásad proti kódu a GDPR/ZEK (2026-11-06), včetně rozporů,
+které je nutné opravit před zveřejněním:
+[../compliance/2026-11-06-privacy-notice-review.md](../compliance/2026-11-06-privacy-notice-review.md).
+
 ## Rozhodnutí provozovatele (2026-10-18)
 
 - Provozovatel a správce: **Jakub Zoubek**, OSVČ, místo podnikání
