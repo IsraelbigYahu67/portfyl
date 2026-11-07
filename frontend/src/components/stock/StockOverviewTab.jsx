@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchHistory, fetchHoldings, fetchStockView, fetchTransactionsPage } from "../../api";
+import { fetchHistory, fetchHoldings, fetchStockView } from "../../api";
 import { useCurrency } from "../../App";
-import { formatLongDate, formatMoney, formatPercent, formatQuantity } from "../../lib/format";
+import { formatMoney, formatPercent, formatQuantity } from "../../lib/format";
 import { StockOverview } from "../StockDetail";
 import { AsyncSection } from "../ui";
 
@@ -29,7 +29,7 @@ function HistorySummary({ history, ticker }) {
   );
 }
 
-function PositionSummary({ ticker, holding, latest, currency }) {
+function PositionSummary({ ticker, holding, currency }) {
   if (!holding) {
     return (
       <section aria-labelledby="position-heading" className="rounded-xl bg-surface p-4">
@@ -62,17 +62,6 @@ function PositionSummary({ ticker, holding, latest, currency }) {
           </div>
         ))}
       </dl>
-      <div className="mt-4 border-t border-surface-border pt-3">
-        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted">Latest transaction</h4>
-        {latest ? (
-          <p className="mt-1 text-sm">
-            {formatLongDate(latest.date)} · {latest.type} · {formatQuantity(latest.shares)} shares at {formatMoney(latest.price, latest.currency || currency)}
-          </p>
-        ) : (
-          <p className="mt-1 text-sm text-muted">No transaction found for {ticker}.</p>
-        )}
-        {latest?.notes ? <p className="mt-2 text-sm text-muted">Note: {latest.notes}</p> : null}
-      </div>
     </section>
   );
 }
@@ -117,12 +106,6 @@ export function StockOverviewTab({ ticker, overviewData }) {
     staleTime: 30_000,
     retry: false,
   });
-  const latest = useQuery({
-    queryKey: ["transactions-page", { ticker, sort: "-date", limit: 1 }],
-    queryFn: () => fetchTransactionsPage({ ticker, sort: "-date", limit: 1 }),
-    staleTime: 30_000,
-    retry: false,
-  });
   // TTM revenue and FCF come from the financials view (the same query, and
   // cache entry, as the Financials tab), so the headline figures match the
   // sum of the last four quarterly bars shown there.
@@ -148,12 +131,8 @@ export function StockOverviewTab({ ticker, overviewData }) {
         <AsyncSection isLoading={history.isLoading} error={history.error} onRetry={() => history.refetch()}>
           <HistorySummary history={history.data} ticker={ticker} />
         </AsyncSection>
-        <AsyncSection
-          isLoading={holdings.isLoading || latest.isLoading}
-          error={holdings.error || latest.error}
-          onRetry={() => Promise.all([holdings.refetch(), latest.refetch()])}
-        >
-          <PositionSummary ticker={ticker} holding={holding} latest={latest.data?.items?.[0]} currency={currency} />
+        <AsyncSection isLoading={holdings.isLoading} error={holdings.error} onRetry={() => holdings.refetch()}>
+          <PositionSummary ticker={ticker} holding={holding} currency={currency} />
         </AsyncSection>
       </div>
       {overviewData.description ? <AboutSection description={overviewData.description} /> : null}

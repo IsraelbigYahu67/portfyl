@@ -50,7 +50,7 @@ export default function KpiBox({
         </span>
       )}
       {delta && !loading && (
-        <DeltaPill value={delta.value} pct={delta.pct} currency={delta.currency} size="sm" />
+        <DeltaPill value={delta.value} pct={delta.pct} currency={delta.currency} size="sm" className="self-start" />
       )}
       {sub && !loading && (
         <span className={`text-sm font-semibold ${SUB_TONE[subTone] || SUB_TONE.muted}`}>{sub}</span>

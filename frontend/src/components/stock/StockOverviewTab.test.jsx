@@ -51,7 +51,7 @@ it("formats native average cost separately from selected-currency portfolio valu
   expect(within(position).getByText(/4.*000,00.*Kč/)).toBeInTheDocument();
 });
 
-it("shows the complete owned position and exact latest transaction", async () => {
+it("shows the complete owned position without a latest transaction", async () => {
   api.fetchHoldings.mockResolvedValue([{
     ticker: "AAPL",
     shares: 10,
@@ -70,9 +70,8 @@ it("shows the complete owned position and exact latest transaction", async () =>
   expect(within(position).getByText("$250.00")).toBeInTheDocument();
   expect(within(position).getByText("+25.00%")).toBeInTheDocument();
   expect(within(position).getByText("12.50%")).toBeInTheDocument();
-  expect(within(position).getByText(/January 2, 2024 · buy · 2 shares at \$100\.00/)).toBeInTheDocument();
-  expect(within(position).getByText("Note: Starter lot")).toBeInTheDocument();
-  expect(api.fetchTransactionsPage).toHaveBeenCalledWith({ ticker: "AAPL", sort: "-date", limit: 1 });
+  expect(within(position).queryByText("Latest transaction")).not.toBeInTheDocument();
+  expect(api.fetchTransactionsPage).not.toHaveBeenCalled();
 });
 
 it("About is clamped with a toggle", async () => {
