@@ -18,7 +18,7 @@ share one palette and are light-only (they ignore Light/Dark/System):
   mesh gradient.
 - **Clay** - the same palette with soft, inflated clay depth: raised surfaces
   with an inner highlight, pressed "wells" for inputs/tracks, pill controls,
-  24px cards, floating sidebar. Light always comes from the **top-left**.
+  24px cards, an edge-attached sidebar. Light always comes from the **top-left**.
 
 Classic (blue / green / purple brand, light and dark) still exists and is
 untouched by the organic palette. It keeps its own vivid `GLASS_CHART` series.
@@ -94,8 +94,12 @@ Classic themes keep `GLASS_CHART` (vivid blue/mint/amber/violet/sky/rose).
 ## 4. Shape and depth
 
 - Radius: cards **24px** (Clay), nested elevated tiles 14px, inputs 16px,
-  `rounded-xl` 20px, `rounded-2xl` 24px, sidebar/drawer 28px, buttons,
-  segmented controls and the top bar are **pills (999px)**. Premium cards use
+  `rounded-xl` 20px, `rounded-2xl` 24px, drawer 28px, buttons and
+  segmented controls are **pills (999px)**. Clay's desktop sidebar and phone
+  top bar are not floating bubbles: they are attached to the screen edge and
+  rounded only on the side facing the page (sidebar: right corners 28px, flush
+  left/top/bottom; top bar: bottom corners 24px, flush top, a "dynamic island"
+  hanging from the top edge). Premium cards use
   `--radius-card` 1.25rem; Classic uses 0.5rem. Prefer rounder over sharper.
 - Clay shadows (`.theme-clay` variables): `--clay-raise` (cards),
   `--clay-raise-hover`, `--clay-raise-sm` (small raised: active pill, ghost
@@ -115,9 +119,13 @@ Classic themes keep `GLASS_CHART` (vivid blue/mint/amber/violet/sky/rose).
 - Never set financial text or chart labels below **12px**. Use the semantic
   classes `.financial-headline`, `.financial-data`, `.financial-meta`,
   `.data-label`, `.chart-label`, `.eyebrow` instead of arbitrary sizes.
+  **One owner-approved exception:** the per-month value labels above the bars
+  in `DividendBarsCard` are 10px on phones (12px from `sm` up), so all
+  twelve months fit without hiding any.
 - Eyebrow: 12px, 600-700, uppercase, +0.05em tracking.
 - **Phone scale** (below 640px, app content `#main-content` only; the
-  landing page, auth screens and dialogs keep the normal scale). One block in
+  landing page, auth screens and dialogs keep the normal scale; from 640px up,
+  including desktop, nothing is shrunk). One block in
   `index.css` retunes the plain utilities, so components keep writing the
   normal classes:
 
@@ -152,6 +160,12 @@ Classic themes keep `GLASS_CHART` (vivid blue/mint/amber/violet/sky/rose).
   donut, put the `pie-pop` class on the chart wrapper (inside a
   `.hover-pop-zone` page). The scale origin is the wrapper center; set
   `--pie-cy` if a legend moves the donut center.
+- Every donut has a `<Tooltip>` naming the slice under the pointer, and is
+  wrapped in `<PieTouchScrub>` (`hooks/usePieTouchScrub.jsx`) so a finger
+  dragged across it shows each slice in turn (Recharts alone only reacts to the
+  slice a touch starts on). Spread the render-prop argument onto the `<Tooltip>`:
+  it floats the tooltip above the fingertip while the finger is down. A drag that
+  starts on a slice does not scroll the page; one that starts elsewhere does.
 
 ## 7. Motion
 
@@ -184,10 +198,21 @@ cards and tiles still (Allocation does this: its data/text blocks do not move).
   (`flex-grow` + opacity + scale, about 0.38s) while the neighbours flow over and
   the pill follows frame by frame; a removed page stays mounted (inert) until
   it has collapsed. The user picks the pages (2-5, default four) in Settings >
-  Preferences > Phone navigation bar, which shows the same bar as a live preview
-  (the real one is hidden from `lg` up). Stored per device in
+  Preferences > Phone navigation bar, which shows the same bar as a live preview.
+  That setting is hidden from `lg` up, like the bar itself. Stored per device in
   `sb_bottom_nav_items`; "More" is always last and lists every page not in the
   bar.
+- **Phone dashboard sections** (`PhoneWidget` / `Collapse` in
+  `components/DashboardGrid.jsx`) expand and collapse over 420ms with
+  `cubic-bezier(0.22, 1, 0.36, 1)`: the row height eases between `0fr` and `1fr`
+  (no measured heights), the content fades and slides down 10px, and the chevron
+  turns with a small spring. Content stays mounted until the close has finished
+  and overflow is clipped only while moving, so card shadows are not cut off when
+  open. A section that is already open on load does not animate.
+- **Stock > Valuation History** (`components/stock/ValuationHistoryCharts.jsx`, `.vh-*` in `index.css`): five sparkline tiles in a strip. The page opens with the P/E chart already showing (the first multiple with data if P/E has none; no opening animation on load), and the choice survives a 1Y/5Y/10Y/Max switch. The small tiles show no hover values; values can only be inspected on the opened chart. Clicking one opens its chart in a panel above the strip, only as wide as the content column (never full screen). The opened tile collapses out of the strip (flex-grow, padding, opacity, scale, about 0.38s) while the others flow wider, like the phone bottom bar; the panel height eases between `0fr` and `1fr` (0.42s). Opening another tile "pours" its chart over the open one (a `clip-path` circle grows from the clicked tile's x on the panel's bottom edge, 0.6s) and the previous tile slides back into the strip. Closed with the X button or Escape. Below 1280px the strip scrolls sideways instead of squeezing the tiles. Motion is off under `prefers-reduced-motion`.
+- **No hover pop on phones / touch.** Below 768px and on `(hover: none)`
+  devices the lift and scale are off for cards, tiles, buttons, donut slices and
+  bars, because a tap leaves `:hover` applied and the tapped block would grow.
 - `prefers-reduced-motion` turns the hover scale/translate off and shortens
   transitions to ~0; any new motion must respect it.
 
@@ -214,12 +239,18 @@ cards and tiles still (Allocation does this: its data/text blocks do not move).
   click, and no transform motion under reduced motion.
 - Keyboard focus: 3px brand outline with 2px offset (Clay), 2px elsewhere.
 - Touch targets at least 44px on mobile; right-align numbers in tables.
-- **Phone shell (below `lg`)**: a sticky top bar (`MobileTopBar`: logo, compact
+- **Phone shell (below `lg`)**: a sticky top bar, flush with the top edge of the
+  screen (`.theme-clay .app-topbar`, bottom corners rounded, not a floating pill)
+  (`MobileTopBar`: logo, compact
   `PortfolioSwitcher`, compact `AccountMenu` - the only phone log-out besides
   the drawer) and a fixed bottom bar (`MobileBottomNav`: by default Dashboard,
   Positions = Allocation, Transactions, Dividends, then More; the user can
   choose the pages in Preferences). "More" opens the drawer, which lists the
-  pages not in the bar and holds the account menu. Top bar, drawer and bottom bar share one rule in
+  pages not in the bar and holds the account menu. The drawer slides in from
+  the **right** edge (and slides back out when closed, 0.2s, no motion under
+  reduced-motion) and its backdrop dims the whole screen (also around the
+  floating bottom bar) but sits just under the bar's z-index, so the bar stays
+  on top, visible and tappable, while the panel ends above it. Top bar, drawer and bottom bar share one rule in
   `index.css` that lays the translucent `--surface-card-elevated` over the solid
   `--bg` and blurs it, so page text never shows through; Clay floats the bottom
   bar as a raised pill. `AppShell` adds a spacer so content clears the bar.

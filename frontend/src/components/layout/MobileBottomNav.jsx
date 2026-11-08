@@ -24,7 +24,7 @@ export function useBottomNavItems() {
 // picked (four by default) plus "More", which opens the full drawer. Hidden from
 // `lg` up, where the sidebar takes over. Opaque on purpose so page text never
 // shows through.
-export default function MobileBottomNav({ open = false, onOpenMenu }) {
+export default function MobileBottomNav({ open = false, onOpenMenu, onNavigate }) {
   const { pathname } = useLocation();
   const items = useBottomNavItems();
 
@@ -35,6 +35,7 @@ export default function MobileBottomNav({ open = false, onOpenMenu }) {
         activeKey={activeBarKey(items, pathname, open)}
         moreOpen={open}
         onOpenMenu={onOpenMenu}
+        onNavigate={onNavigate}
       />
     </nav>
   );

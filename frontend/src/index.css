@@ -308,6 +308,40 @@
   .hover-pop-zone button:not(:disabled):not(table button):active { translate: none; scale: none; }
 }
 
+/* Phone dashboard: a widget's title and its opened content share ONE card
+   (DashboardGrid's PhoneWidget). The cards the widget brings along are
+   flattened to plain sections so they don't draw a bubble inside the bubble.
+   Specificity beats `.theme-clay .card` and `#main-content .card` padding. */
+.phone-merged .card {
+  background: none;
+  background-image: none;
+  backdrop-filter: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+}
+#main-content .phone-merged .card:not(.p-0, .px-0, .py-0, .p-1, .p-2, .p-3) { padding: 0; }
+.theme-clay .phone-merged .card,
+.theme-clay .hover-pop-zone:not(.no-block-pop) .phone-merged .card:hover { box-shadow: none; border-color: transparent; }
+/* Two flattened cards stacked in one widget (insider buys + heatmap) stay apart. */
+.phone-merged .card + .card { margin-top: 1rem; }
+
+/* Phone / touch: a tap leaves :hover applied, so a tapped block would grow and
+   lift. No pop at all there. !important because the pop rules above carry
+   `:not(.no-block-pop)` and so out-rank any plain selector written here. */
+@media (max-width: 767px), (hover: none) {
+  .hover-pop-zone .card:hover,
+  .hover-pop-zone .pop-tile:hover,
+  .hover-pop-zone .pie-pop .recharts-pie-sector:hover,
+  .bar-pop:hover,
+  .bar-pop:focus-visible,
+  .bar-pop:hover .bar-pop-bar,
+  .bar-pop:focus-visible .bar-pop-bar,
+  .hover-pop-zone button:not(:disabled):not(table button):hover,
+  .hover-pop-zone button:not(:disabled):not(table button):active { translate: none !important; scale: none !important; }
+}
+
 /* ----------------------------------------------------------------------------
  * Dark mode. Surface / border / brand / text colors flow through CSS custom
  * properties (set per-theme by applyAppearance() in App.jsx) and adapt
@@ -424,15 +458,19 @@
 /* The bar's sliding highlight (BottomNavBar): Clay presses it into the bar. */
 .theme-clay .bottomnav-pill { background: var(--brand-light); box-shadow: var(--clay-inset-sm); }
 
-/* Shell: floating clay sidebar, pill top bar and drawer (mockup layout). */
+/* Shell: Clay sidebar and top bar grow out of the screen edge (not floating
+   bubbles); the drawer is still a floating raised panel (mockup layout).
+   Sidebar: flush with the left edge and full height, rounded only on the
+   side that faces the page, so it reads as a raised panel pushed out of the
+   edge. */
 .theme-clay .app-sidebar {
   position: sticky;
-  top: 16px;
+  top: 0;
   align-self: flex-start;
-  height: calc(100dvh - 32px);
-  margin: 16px 0 16px 16px;
+  height: 100dvh;
+  margin: 0;
   border: 0;
-  border-radius: 28px;
+  border-radius: 0 28px 28px 0;
   background: var(--surface-card-elevated);
   box-shadow: var(--clay-raise) !important;
   overflow: hidden;
@@ -454,13 +492,19 @@
 }
 .theme-clay .app-sidebar nav a[aria-current="page"] svg,
 .theme-clay .app-drawer nav a[aria-current="page"] svg { color: var(--brand); }
+/* Phone top bar: a "dynamic island" that hangs from the top edge of the screen
+   (flush, no gap above it), rounded only at the bottom. The top padding adds
+   the notch / status-bar inset on devices that report one. */
 .theme-clay .app-topbar {
   position: sticky;
-  top: 8px;
+  top: 0;
   z-index: 30;
-  margin: 8px 12px 0;
+  margin: 0 12px;
+  padding-top: calc(0.375rem + env(safe-area-inset-top));
+  padding-left: 16px;
+  padding-right: 16px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 0 0 24px 24px;
   box-shadow: var(--clay-raise);
 }
 .theme-clay .app-drawer {
@@ -469,6 +513,28 @@
   border: 0;
   border-radius: 28px;
   box-shadow: var(--clay-raise);
+}
+/* The phone drawer opens from the right edge, above the bottom bar. */
+@keyframes drawer-slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.drawer-slide-in-right { animation: drawer-slide-in-right 0.2s ease-out; }
+/* Closing mirrors opening: the panel slides back out and the backdrop fades. */
+@keyframes drawer-slide-out-right {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
+}
+@keyframes drawer-backdrop-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.drawer-slide-out-right { animation: drawer-slide-out-right 0.2s ease-in forwards; }
+.drawer-backdrop-out { animation: drawer-backdrop-out 0.2s ease-in forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .drawer-slide-in-right,
+  .drawer-slide-out-right,
+  .drawer-backdrop-out { animation: none; }
 }
 /* Bottom bar floats as a raised pill, clear of the home indicator. */
 .theme-clay .app-bottomnav {
@@ -496,4 +562,70 @@
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
   select,
   textarea { font-size: 16px; }
+}
+
+/* Stock > Valuation History (components/stock/ValuationHistoryCharts.jsx).
+   A strip of five sparkline tiles. The opened tile collapses out of the strip
+   (flex-grow, padding, opacity, scale) while its neighbours flow wider, like the
+   phone bottom bar; its big chart opens in `.vh-panel` above (row height eases
+   between 0fr and 1fr, the content stays unclipped once open so card shadows are
+   not cut off). Opening another tile "pours" the new chart over the old one:
+   a circle grows from the clicked tile's x on the panel's bottom edge. */
+.vh-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 0.42s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
+}
+.vh-panel[data-open="true"] { grid-template-rows: 1fr; opacity: 1; }
+.vh-panel:not([data-open="true"]) .vh-panel-inner { overflow: hidden; }
+
+.vh-strip {
+  display: flex;
+  /* The tiles carry the gap as padding so a collapsed one leaves none behind. */
+  margin-inline: -6px;
+  /* Room for the clay shadows when the strip scrolls sideways on small screens. */
+  margin-block: -12px;
+  padding-block: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.vh-strip::-webkit-scrollbar { display: none; }
+@media (min-width: 1280px) { .vh-strip { overflow: visible; } }
+
+.vh-item {
+  flex: 1 1 0;
+  min-width: 140px;
+  padding-inline: 6px;
+  transition:
+    flex-grow 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    min-width 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.22s ease,
+    transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.vh-item[data-selected="true"] {
+  flex-grow: 0;
+  min-width: 0;
+  padding-inline: 0;
+  opacity: 0;
+  transform: scale(0.85);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+@keyframes vh-pour {
+  from { clip-path: circle(0% at var(--pour-x, 50%) 100%); opacity: 0.6; }
+  to { clip-path: circle(160% at var(--pour-x, 50%) 100%); opacity: 1; }
+}
+@keyframes vh-leave {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.vh-pour { animation: vh-pour 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+.vh-leave { animation: vh-leave 0.6s ease forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .vh-panel, .vh-item { transition: none; }
+  .vh-pour, .vh-leave { animation: none; }
 }

@@ -123,6 +123,7 @@ export default function BottomNavBar({
   onSelect,
   moreOpen = false,
   onOpenMenu,
+  onNavigate,
 }) {
   const slots = useAnimatedSlots(items);
   const rowRef = useRef(null);
@@ -240,6 +241,7 @@ export default function BottomNavBar({
                 ref={register(key)}
                 to={to}
                 end={to === "/"}
+                onClick={onNavigate}
                 tabIndex={leaving ? -1 : undefined}
                 className={itemClass(active)}
                 style={{ transform: shown ? "scale(1)" : "scale(0.6)", transition: ITEM_TRANSITION }}

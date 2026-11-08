@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import MobileNavDrawer from "./MobileNavDrawer";
@@ -91,6 +91,55 @@ describe("MobileNavDrawer", () => {
     expect(onClose).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("link", { name: /cash/i }));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("MobileNavDrawer closing animation", () => {
+  it("slides out before it unmounts", () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender } = render(
+        <MemoryRouter>
+          <MobileNavDrawer groups={NAV_GROUPS} open onClose={vi.fn()} />
+        </MemoryRouter>,
+      );
+      rerender(
+        <MemoryRouter>
+          <MobileNavDrawer groups={NAV_GROUPS} open={false} onClose={vi.fn()} />
+        </MemoryRouter>,
+      );
+      const dialog = screen.getByRole("dialog", { hidden: true, name: /navigation/i });
+      expect(dialog).toHaveClass("drawer-slide-out-right");
+      act(() => { vi.advanceTimersByTime(250); });
+      expect(screen.queryByRole("dialog", { hidden: true })).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("MobileNavDrawer same-page link", () => {
+  it("closes when the tapped link points at the page already open", () => {
+    const onClose = vi.fn();
+    render(
+      <MemoryRouter initialEntries={["/search"]}>
+        <MobileNavDrawer groups={NAV_GROUPS} open onClose={onClose} />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("link", { name: "Search" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("MobileNavDrawer placement", () => {
+  it("opens on the right and leaves the bottom bar uncovered", () => {
+    renderDrawer();
+    const backdrop = screen.getByTestId("mobile-nav-backdrop");
+    expect(backdrop).toHaveClass("justify-end");
+    // Full-screen dim, just under the bottom bar (z-40), with the panel padded
+    // clear of it.
+    expect(backdrop).toHaveClass("inset-0", "z-[39]");
+    expect(backdrop.className).toMatch(/pb-\[calc\(4\.75rem/);
   });
 });
 

@@ -37,7 +37,13 @@ export default function AppShell({ groups, children }) {
         </main>
         {/* Keeps the last line of the page clear of the fixed bottom bar. */}
         <div aria-hidden="true" className="h-[calc(4.75rem+env(safe-area-inset-bottom))] shrink-0 lg:hidden" />
-        <MobileBottomNav open={drawerOpen} onOpenMenu={() => setDrawerOpen(true)} />
+        {/* "More" toggles the drawer; tapping a bar page closes it even when that
+            page is already the open route (no route change to close it). */}
+        <MobileBottomNav
+          open={drawerOpen}
+          onOpenMenu={() => setDrawerOpen((open) => !open)}
+          onNavigate={closeDrawer}
+        />
       </div>
     </div>
     </NavGroupsContext.Provider>
