@@ -1,5 +1,7 @@
 import { act, fireEvent, render, renderHook, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { Activity, TrendingUp } from "lucide-react";
+import { SectionHeader } from "./components/ui/SectionHeader";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DashboardGrid, { ALL_WIDGETS } from "./components/DashboardGrid";
 import DividendBarsCard from "./components/dashboard/DividendBarsCard";
@@ -95,11 +97,12 @@ describe("DividendBarsCard on a phone", () => {
   const half = { months, total: 200, monthlyAverage: 16 };
   const labelOf = (m) => within(screen.getByTestId(`column-${m}`)).getByText(/Kč/, { selector: "span" });
 
-  it("shows every second value label below sm so neighbours never overlap", () => {
+  it("shows every month's value label in a small font instead of hiding some", () => {
     render(<DividendBarsCard title="Dividends" half={half} totalLabel="Total" currency="CZK" />);
-    expect(labelOf("Jan")).not.toHaveClass("hidden");
-    expect(labelOf("Feb")).toHaveClass("hidden", "sm:inline");
-    expect(labelOf("Mar")).not.toHaveClass("hidden");
+    for (const m of ["Jan", "Feb", "Mar", "Dec"]) {
+      expect(labelOf(m)).not.toHaveClass("hidden");
+      expect(labelOf(m)).toHaveClass("text-[10px]", "sm:text-xs");
+    }
   });
 
   it("keeps every label for a six-month half", () => {
@@ -156,5 +159,108 @@ describe("DashboardGrid on a phone", () => {
     unmount();
     render(<DashboardGrid>{children}</DashboardGrid>);
     expect(screen.getByTestId("child-performance")).toBeInTheDocument();
+  });
+
+  it("pins an opened widget to one shrinkable column so wide content cannot push it off-screen", () => {
+    render(<DashboardGrid>{children}</DashboardGrid>);
+    fireEvent.click(screen.getByRole("button", { name: /^Performance$/ }));
+    const panel = document.getElementById("phone-widget-performance");
+    expect(panel.style.gridTemplateColumns).toBe("minmax(0, 1fr)");
+  });
+
+  it("draws the title and the opened content as one card, not two", () => {
+    render(<DashboardGrid>{children}</DashboardGrid>);
+    fireEvent.click(screen.getByRole("button", { name: /^Performance$/ }));
+    const button = screen.getByRole("button", { name: /^Performance$/ });
+    const panel = document.getElementById("phone-widget-performance");
+    const card = button.closest(".card");
+    expect(card).not.toBeNull();
+    expect(card.contains(panel)).toBe(true);
+    expect(button).not.toHaveClass("card");
+  });
+
+  it("shows the widget's icon on the row and drops the card's own small heading", () => {
+    const withHeader = {
+      ...children,
+      performance: (
+        <div data-testid="child-performance">
+          <SectionHeader icon={TrendingUp} action={<button type="button">1M</button>}>Portfolio Performance</SectionHeader>
+        </div>
+      ),
+    };
+    render(<DashboardGrid>{withHeader}</DashboardGrid>);
+    const row = screen.getByRole("button", { name: /^Performance$/ });
+    expect(row.querySelector("svg.lucide-trending-up")).not.toBeNull();
+    fireEvent.click(row);
+    // One title only: the row's. The header's action controls stay.
+    expect(screen.queryByText("Portfolio Performance")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "1M" })).toBeInTheDocument();
+  });
+
+  it("keeps the small headings of a two-card widget, which tell its cards apart", () => {
+    const withHeader = {
+      ...children,
+      movers: <div data-testid="child-movers"><SectionHeader icon={Activity}>Top Movers</SectionHeader></div>,
+    };
+    render(<DashboardGrid>{withHeader}</DashboardGrid>);
+    expect(screen.getByText("Top Movers")).toBeInTheDocument();
+  });
+
+  it("splits insider buys and heatmap into two rows, heatmap first (right under passive income)", () => {
+    const split = {
+      ...children,
+      heatmap: <div data-testid="child-heatmap">heatmap body</div>,
+      insiderBuys: <div data-testid="child-insiderBuys">insider body</div>,
+    };
+    render(<DashboardGrid>{split}</DashboardGrid>);
+    const labels = screen.getAllByRole("button").map((b) => b.textContent);
+    expect(labels[0]).toBe("Heatmap");
+    expect(labels[1]).toMatch(/^Movers/);
+    expect(labels).toContain("Insider buys");
+    expect(labels).not.toContain("Insider buys & heatmap");
+    // Each opens on its own.
+    fireEvent.click(screen.getByRole("button", { name: "Insider buys" }));
+    expect(screen.getByTestId("child-insiderBuys")).toBeInTheDocument();
+    expect(screen.queryByTestId("child-heatmap")).not.toBeInTheDocument();
+  });
+
+  it("falls back to top holdings in place of insider buys when the plan has no insider data", () => {
+    const split = {
+      ...children,
+      heatmap: <div data-testid="child-heatmap">heatmap body</div>,
+      topHoldings: <div data-testid="child-topHoldings">top body</div>,
+    };
+    render(<DashboardGrid>{split}</DashboardGrid>);
+    const labels = screen.getAllByRole("button").map((b) => b.textContent);
+    expect(labels).toContain("Top 10 holdings");
+    expect(labels).not.toContain("Insider buys");
+  });
+
+  it("keeps a remembered open state of the old combined row for both new rows", () => {
+    localStorage.setItem("sb_dashboard_phone_open_v1", JSON.stringify(["concentration"]));
+    const split = {
+      ...children,
+      heatmap: <div data-testid="child-heatmap">heatmap body</div>,
+      insiderBuys: <div data-testid="child-insiderBuys">insider body</div>,
+    };
+    render(<DashboardGrid>{split}</DashboardGrid>);
+    expect(screen.getByTestId("child-heatmap")).toBeInTheDocument();
+    expect(screen.getByTestId("child-insiderBuys")).toBeInTheDocument();
+  });
+
+  it("keeps a widget mounted while it animates closed, then unmounts it", () => {
+    vi.useFakeTimers();
+    try {
+      render(<DashboardGrid>{children}</DashboardGrid>);
+      const button = screen.getByRole("button", { name: /^Movers/ });
+      fireEvent.click(button);
+      expect(button).toHaveAttribute("aria-expanded", "false");
+      // Still in the DOM so the height can ease to zero.
+      expect(screen.getByTestId("child-movers")).toBeInTheDocument();
+      act(() => { vi.advanceTimersByTime(500); });
+      expect(screen.queryByTestId("child-movers")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { PieChart as PieIcon, ArrowRight } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { PieTouchScrub } from "../../hooks/usePieTouchScrub";
 import SegmentedControl from "../ui/SegmentedControl";
 import { SectionHeader } from "../ui";
 import { CATEGORICAL } from "../../lib/chartTheme";
@@ -42,6 +43,7 @@ function splitDecimal(text, currency) {
 // (realized + unrealized).
 export default function CompositionCard({ breakdown, currency }) {
   const [dimension, setDimension] = useState(DIMENSIONS[0].value);
+  const [activeIndex, setActiveIndex] = useState(null);
   const isPhone = useIsPhone();
   const showProfit = !NO_PROFIT.has(dimension);
   const rows = buildCompositionRows(breakdown?.[dimension] || []);
@@ -52,6 +54,7 @@ export default function CompositionCard({ breakdown, currency }) {
   const total = rows.reduce((sum, row) => sum + row.value, 0);
   // The donut radii are percentages of its max radius (~140px at full size), so
   // the 9px corner is ~6.5 in the same percent units.
+  const activeRow = activeIndex == null ? null : shown[activeIndex] ?? null;
   const pieSlices = withSliceCorners(shown, { valueKey: "value", inner: 62, outer: 92, corner: 6.5 });
 
   return (
@@ -60,7 +63,7 @@ export default function CompositionCard({ breakdown, currency }) {
         icon={PieIcon}
         action={
           <>
-            <SegmentedControl aria-label="Group composition by" value={dimension} onChange={setDimension} options={DIMENSIONS} />
+            <SegmentedControl aria-label="Group composition by" value={dimension} onChange={(next) => { setDimension(next); setActiveIndex(null); }} options={DIMENSIONS} />
             <Link to="/allocation" className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:text-brand-dim">
               Targets <ArrowRight size={12} aria-hidden="true" />
             </Link>
@@ -74,19 +77,36 @@ export default function CompositionCard({ breakdown, currency }) {
         <p className="text-sm text-muted py-6 text-center">No holdings to group yet.</p>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,280px)_minmax(0,1fr)] items-center">
-          <div className="pie-pop relative mx-auto w-full max-w-[280px] aspect-square">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={pieSlices} dataKey="value" nameKey="name" innerRadius="62%" outerRadius="92%" paddingAngle={3} cornerRadius={9} stroke="none" isAnimationActive={false}>
-                  {shown.map((row, i) => <Cell key={row.name} fill={CATEGORICAL[i % CATEGORICAL.length]} />)}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="pointer-events-none absolute inset-0 grid place-content-center text-center">
-              <span className="data-label">Total value</span>
-              <span className="font-display text-xl font-bold text-ink tabular-nums">{formatCompact(total, currency)}</span>
-            </div>
-          </div>
+          <PieTouchScrub className="pie-pop relative mx-auto w-full max-w-[280px] aspect-square">
+            {() => (
+              <>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={pieSlices} dataKey="value" nameKey="name" innerRadius="62%" outerRadius="92%" paddingAngle={3} cornerRadius={9} stroke="none" isAnimationActive={false} onMouseEnter={(_, i) => setActiveIndex(i)} onMouseLeave={() => setActiveIndex(null)}>
+                      {shown.map((row, i) => <Cell key={row.name} fill={CATEGORICAL[i % CATEGORICAL.length]} />)}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 grid place-content-center text-center">
+                  <span className="data-label">Total value</span>
+                  <span className="font-display text-xl font-bold text-ink tabular-nums">{formatCompact(total, currency)}</span>
+                </div>
+                {/* The slice's name and weight sit in the hole just below the total,
+                    so the bubble never covers the total (and the finger on the ring
+                    never covers the bubble). z-10 keeps it above the donut. */}
+                {activeRow && (
+                  <div
+                    role="status"
+                    className="pointer-events-none absolute left-1/2 z-10 flex max-w-[92%] -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-lg border border-hairline bg-surface-card-elevated px-3 py-1.5 text-xs font-semibold text-ink shadow-lg"
+                    style={{ top: "calc(50% + 34px)" }}
+                  >
+                    <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ background: CATEGORICAL[activeIndex % CATEGORICAL.length] }} />
+                    <span className="truncate">{activeRow.name} · {activeRow.weight.toFixed(1)}%</span>
+                  </div>
+                )}
+              </>
+            )}
+          </PieTouchScrub>
 
           <div className="min-w-0 overflow-x-auto">
             {isPhone ? (

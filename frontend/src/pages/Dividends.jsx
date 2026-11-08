@@ -1,9 +1,9 @@
+import { Fragment } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchDividends, fetchDividendForecast, fetchDividendGrowth } from "../api";
 import { AlertTriangle, CalendarDays, RefreshCw, TrendingUp } from "lucide-react";
 import { useCurrency } from "../App";
 import { useStockDetail } from "../components/StockDetail";
-import MetricCard from "../components/MetricCard";
 import DividendBarsCard from "../components/dashboard/DividendBarsCard";
 import { splitDividendForecast } from "../lib/dashboardSummaries";
 import { formatMoney, formatQuantity, formatTableDate } from "../lib/format";
@@ -28,7 +28,6 @@ function isKnownUpcoming(row, currentDay) {
 }
 
 export default function Dividends() {
-  const { currency: displayCurrency = "USD", rate } = useCurrency() ?? {};
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["dividends"],
     queryFn: fetchDividends,
@@ -61,30 +60,6 @@ export default function Dividends() {
   const needsReview = rows.filter((row) => row.date_status === "inconsistent" || !row.ex_date);
   const knownUpcoming = rows.filter(
     (row) => !needsReview.includes(row) && isKnownUpcoming(row, today),
-  );
-  const past = rows.filter(
-    (row) => !needsReview.includes(row) && !knownUpcoming.includes(row),
-  );
-  // USD estimates are folded into the display currency with the same rate the
-  // dividend charts use (`rate` is CZK per USD). Other currencies stay separate.
-  const usdRate = displayCurrency === "CZK" && rate ? rate : null;
-  const estimatedByCurrency = rows.reduce((totals, row) => {
-    if (row.income_status === "estimated" && row.annual_income != null) {
-      const rowCurrency = row.currency || "USD";
-      const converts = usdRate && rowCurrency === "USD";
-      const key = converts ? displayCurrency : rowCurrency;
-      const amount = Number(row.annual_income) * (converts ? usdRate : 1);
-      totals[key] = (totals[key] || 0) + amount;
-    }
-    return totals;
-  }, {});
-  const estimatedTotals = Object.entries(estimatedByCurrency);
-  if (!estimatedTotals.length && rows.length) {
-    estimatedTotals.push([usdRate ? displayCurrency : rows[0].currency || "USD", 0]);
-  }
-  const latestAsOf = rows.reduce(
-    (latest, row) => (row.as_of && (!latest || row.as_of > latest) ? row.as_of : latest),
-    null,
   );
 
   const refreshing = isFetching || forecastFetching;
@@ -129,36 +104,13 @@ export default function Dividends() {
         empty={<div className="text-center py-20 text-muted">No holdings found. Import a portfolio to see dividend info.</div>}
       >
         <>
-          <section className="space-y-3">
-            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
-              Estimated annual income
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {estimatedTotals.map(([currency, amount]) => (
-                <MetricCard
-                  key={currency}
-                  icon={TrendingUp}
-                  label={currency}
-                  value={formatMoney(amount, currency)}
-                />
-              ))}
-            </div>
-            <details className="text-xs text-muted">
-              <summary>Estimate source and freshness</summary>
-              <p className="mt-2">
-                Estimates come from Yahoo Finance and are not guaranteed payments.
-                {latestAsOf && <> Data retrieved {new Date(latestAsOf).toLocaleString()}.</>}
-              </p>
-            </details>
-          </section>
-
           {knownUpcoming.length > 0 && (
             <section>
               <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
                 <CalendarDays size={13} /> Known upcoming dates
               </h2>
               <div className="rounded-xl border border-surface-border overflow-hidden">
-                <Table rows={knownUpcoming} />
+                <Table rows={knownUpcoming} columns={UPCOMING_COLUMNS} />
               </div>
             </section>
           )}
@@ -170,17 +122,6 @@ export default function Dividends() {
               </h2>
               <div className="rounded-xl border border-surface-border overflow-hidden">
                 <Table rows={needsReview} />
-              </div>
-            </section>
-          )}
-
-          {past.length > 0 && (
-            <section>
-              <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
-                <CalendarDays size={13} /> Past dates
-              </h2>
-              <div className="rounded-xl border border-surface-border overflow-hidden">
-                <Table rows={past} />
               </div>
             </section>
           )}
@@ -217,16 +158,88 @@ function DividendBars({ forecast, loading, error, onRetry }) {
   );
 }
 
-function Table({ rows }) {
+// One definition per column; each table picks the order it needs.
+function buildColumns(displayCurrency) {
+  return {
+    ticker: {
+      header: "Ticker",
+      cell: (row) => <td className="px-4 py-3 font-mono font-semibold text-ink">{row.ticker}</td>,
+    },
+    shares: {
+      header: "Shares",
+      cell: (row) => (
+        <td className="px-4 py-3 text-muted tabular-nums">{formatQuantity(row.shares, displayCurrency)}</td>
+      ),
+    },
+    exDate: {
+      header: "Ex-Date",
+      cell: (row) => <td className="px-4 py-3 text-muted tabular-nums">{formatTableDate(row.ex_date)}</td>,
+    },
+    payDate: {
+      header: "Pay-Date",
+      cell: (row) => <td className="px-4 py-3 text-muted tabular-nums">{formatTableDate(row.pay_date)}</td>,
+    },
+    rate: {
+      header: "Rate/Share",
+      cell: (row) => (
+        <td className="px-4 py-3 text-muted tabular-nums">
+          {row.dividend_rate != null ? (
+            formatMoney(row.dividend_rate, row.currency)
+          ) : <span className="text-muted">—</span>}
+        </td>
+      ),
+    },
+    income: {
+      // Rate per share x the shares you hold = what you receive per year.
+      header: "Annual Income",
+      cell: (row) => (
+        <td className="px-4 py-3 text-ink tabular-nums font-medium">
+          {row.income_status === "review" ? (
+            <span className="inline-flex items-center gap-1 text-loss" title={(row.warnings || []).join(", ")}>
+              <AlertTriangle size={13} aria-hidden="true" /> Review estimate
+            </span>
+          ) : row.income_status === "unavailable" || row.annual_income == null ? (
+            <span className="text-muted">Unavailable</span>
+          ) : (
+            formatMoney(row.annual_income, row.currency)
+          )}
+        </td>
+      ),
+    },
+    yield: {
+      header: "Yield",
+      cell: (row) => (
+        <td className="px-4 py-3 tabular-nums">
+          {row.dividend_yield != null ? (
+            <span className="flex items-center gap-1 text-brand">
+              <TrendingUp size={11} />
+              {row.dividend_yield.toFixed(2)}%
+            </span>
+          ) : <span className="text-muted">—</span>}
+        </td>
+      ),
+    },
+    status: { header: "", cell: (row) => <td className="px-4 py-3">{statusBadge(row)}</td> },
+  };
+}
+
+const REVIEW_COLUMNS = ["ticker", "shares", "exDate", "payDate", "rate", "income", "yield", "status"];
+// Known upcoming dates: the per-share rate becomes your annual payout, and the
+// two dates close the row.
+const UPCOMING_COLUMNS = ["ticker", "shares", "income", "yield", "status", "exDate", "payDate"];
+
+function Table({ rows, columns = REVIEW_COLUMNS }) {
   const { openStock } = useStockDetail();
   const { currency: displayCurrency = "USD" } = useCurrency() ?? {};
+  const defs = buildColumns(displayCurrency);
+  const ordered = columns.map((key) => defs[key]);
   return (
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-surface-border bg-surface-card">
-          {["Ticker", "Company", "Shares", "Ex-Date", "Pay-Date", "Rate/Share", "Annual Income", "Yield", ""].map((h) => (
-            <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">
-              {h}
+          {ordered.map((col, i) => (
+            <th key={i} className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">
+              {col.header}
             </th>
           ))}
         </tr>
@@ -238,36 +251,9 @@ function Table({ rows }) {
             onClick={() => openStock(row.ticker)}
             className="border-b border-surface-border last:border-0 hover:bg-surface-hover transition-colors cursor-pointer"
           >
-            <td className="px-4 py-3 font-mono font-semibold text-ink">{row.ticker}</td>
-            <td className="px-4 py-3 text-muted max-w-[180px] truncate">{row.name}</td>
-            <td className="px-4 py-3 text-muted tabular-nums">{formatQuantity(row.shares, displayCurrency)}</td>
-            <td className="px-4 py-3 text-muted tabular-nums">{formatTableDate(row.ex_date)}</td>
-            <td className="px-4 py-3 text-muted tabular-nums">{formatTableDate(row.pay_date)}</td>
-            <td className="px-4 py-3 text-muted tabular-nums">
-              {row.dividend_rate != null ? (
-                formatMoney(row.dividend_rate, row.currency)
-              ) : <span className="text-muted">—</span>}
-            </td>
-            <td className="px-4 py-3 text-ink tabular-nums font-medium">
-              {row.income_status === "review" ? (
-                <span className="inline-flex items-center gap-1 text-loss" title={(row.warnings || []).join(", ")}>
-                  <AlertTriangle size={13} aria-hidden="true" /> Review estimate
-                </span>
-              ) : row.income_status === "unavailable" || row.annual_income == null ? (
-                <span className="text-muted">Unavailable</span>
-              ) : (
-                formatMoney(row.annual_income, row.currency)
-              )}
-            </td>
-            <td className="px-4 py-3 tabular-nums">
-              {row.dividend_yield != null ? (
-                <span className="flex items-center gap-1 text-brand">
-                  <TrendingUp size={11} />
-                  {row.dividend_yield.toFixed(2)}%
-                </span>
-              ) : <span className="text-muted">—</span>}
-            </td>
-            <td className="px-4 py-3">{statusBadge(row)}</td>
+            {ordered.map((col, i) => (
+              <Fragment key={i}>{col.cell(row)}</Fragment>
+            ))}
           </tr>
         ))}
       </tbody>
@@ -301,7 +287,7 @@ function GrowthSection({ rows, loading }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-surface-border bg-surface-card">
-              {["Ticker", "Company", "Streak", "CAGR", "YoY", "Payout"].map((h) => (
+              {["Ticker", "Streak", "CAGR", "YoY", "Payout"].map((h) => (
                 <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">
                   {h}
                 </th>
@@ -316,7 +302,6 @@ function GrowthSection({ rows, loading }) {
                 className="border-b border-surface-border last:border-0 hover:bg-surface-hover transition-colors cursor-pointer"
               >
                 <td className="px-4 py-3 font-mono font-semibold text-ink">{r.ticker}</td>
-                <td className="px-4 py-3 text-muted max-w-[180px] truncate">{r.name}</td>
                 <td className="px-4 py-3 text-ink tabular-nums">
                   {r.streak_years > 0 ? `${r.streak_years} yrs` : <span className="text-muted">—</span>}
                 </td>

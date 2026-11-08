@@ -7,9 +7,10 @@ import { bottomNavChoices, resolveBottomNavItems } from "../layout/navigation";
 import { BOTTOM_NAV_MAX, BOTTOM_NAV_MIN, useBottomNavPaths } from "../../lib/bottomNavPrefs";
 
 // Settings > Preferences: pick which pages sit in the phone bottom bar. The
-// preview is the very same bar the phone shows (the real one is hidden from
-// `lg` up), so adding / removing a page and tapping between pages animate here
-// exactly as they do on the phone.
+// preview is the very same bar the phone shows, so adding / removing a page and
+// tapping between pages animate here exactly as they do on the phone. The real
+// bar is hidden from `lg` up, so this whole setting is hidden there too: there
+// is nothing to configure on a desktop.
 export default function BottomNavSetting() {
   const groups = useNavGroups();
   const { paths, setPaths, reset, isDefault } = useBottomNavPaths();
@@ -29,7 +30,7 @@ export default function BottomNavSetting() {
   };
 
   return (
-    <div>
+    <div className="lg:hidden">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold">Phone navigation bar</h3>

@@ -2,6 +2,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recha
 import { CATEGORICAL, TOOLTIP_STYLE, LEGEND_TEXT_STYLE } from "../lib/chartTheme";
 import { withSliceCorners } from "../lib/pieCorners";
 import { displayLocale } from "../lib/format";
+import { PieTouchScrub } from "../hooks/usePieTouchScrub";
 
 export default function AllocationChart({ holdings, currency = "USD", rate = null }) {
   const convert = (n) => (currency === "CZK" && rate ? n * rate : n);
@@ -21,6 +22,8 @@ export default function AllocationChart({ holdings, currency = "USD", rate = nul
   const slices = withSliceCorners(data, { valueKey: "value", inner: 70, outer: 110, corner: 7 });
 
   return (
+    <PieTouchScrub>
+      {(tooltipProps) => (
     <ResponsiveContainer width="100%" height={280}>
       <PieChart>
         <Pie
@@ -38,6 +41,7 @@ export default function AllocationChart({ holdings, currency = "USD", rate = nul
           ))}
         </Pie>
         <Tooltip
+          {...tooltipProps}
           contentStyle={TOOLTIP_STYLE}
           formatter={(v, _name, props) => [
             `${fmtVal(v)}  (${props.payload.weight}%)`,
@@ -51,5 +55,7 @@ export default function AllocationChart({ holdings, currency = "USD", rate = nul
         />
       </PieChart>
     </ResponsiveContainer>
+      )}
+    </PieTouchScrub>
   );
 }

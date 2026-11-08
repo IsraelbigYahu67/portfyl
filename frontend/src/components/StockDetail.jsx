@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Customized, Legend,
   Line, Pie, PieChart, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -8,7 +7,7 @@ import {
 import {
   ArrowDown, ArrowDownRight, ArrowUpRight, Building2, ChevronDown, ChevronUp,
   ExternalLink, Eye, EyeOff, Flame, Globe, Info, Landmark, RotateCcw, Settings2,
-  TrendingDown, TrendingUp, Users, X,
+  TrendingDown, TrendingUp, Users,
 } from "lucide-react";
 import {
   fetchHistory, fetchStockDividendGrowth, fetchShibuiInsiders,
@@ -23,9 +22,11 @@ import {
   CATEGORICAL, NEUTRAL_COLOR, GAIN_COLOR, LOSS_COLOR, AXIS_TICK, AXIS_TICK_STYLE, GRID_STROKE, TOOLTIP_STYLE,
 } from "../lib/chartTheme";
 import { withSliceCorners } from "../lib/pieCorners";
+import { PieTouchScrub } from "../hooks/usePieTouchScrub";
 import { buildFinancialAxis, formatFinancialTick, financialAxisWidth } from "../lib/chartFinancialAxis";
 import { Badge, KpiBox } from "./ui";
 import SegmentedControl from "./ui/SegmentedControl";
+import ValuationHistoryCharts from "./stock/ValuationHistoryCharts";
 import Pagination from "./ui/Pagination";
 import ShinyText from "./reactbits/ShinyText";
 import SpotlightCard from "./reactbits/SpotlightCard";
@@ -655,9 +656,12 @@ export function DividendGrowthSection({ ticker, currency = "USD" }) {
     enabled: !!ticker,
   });
 
-  if (isLoading || !data || !data.payments?.length) return null;
+  // Only real payments: zero-amount rows would stretch the x-axis back to years
+  // before the first dividend and leave an empty chart for non-payers.
+  const payments = (data?.payments || []).filter((p) => Number(p.amount) > 0);
+  if (isLoading || !data || !payments.length) return null;
 
-  const lastExDate = data.payments[data.payments.length - 1]?.ex_date;
+  const lastExDate = payments[payments.length - 1]?.ex_date;
   const oneYearAgo = new Date();
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
   if (!lastExDate || new Date(lastExDate) < oneYearAgo) return null;
@@ -679,7 +683,7 @@ export function DividendGrowthSection({ ticker, currency = "USD" }) {
       </div>
       <div className="rounded-xl border border-surface-border bg-surface-card p-4">
         <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={data.payments} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <BarChart data={payments} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
             <XAxis dataKey="ex_date" tick={AXIS_TICK_STYLE} tickFormatter={(d) => String(d).slice(0, 7)} minTickGap={24} />
             <YAxis tick={AXIS_TICK_STYLE} width={52} tickFormatter={(v) => `${sym}${v}`} />
@@ -1679,7 +1683,8 @@ function OwnershipSection({ ownership, currencyCode }) {
             // Opt this donut alone into the slice pop (DESIGN.md §7); the rest
             // of the stock page keeps still.
             <div className="hover-pop-zone no-block-pop">
-            <div className="pie-pop h-72">
+            <PieTouchScrub className="pie-pop h-72">
+              {(tooltipProps) => (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -1700,6 +1705,7 @@ function OwnershipSection({ ownership, currencyCode }) {
                     ))}
                   </Pie>
                   <Tooltip
+                    {...tooltipProps}
                     cursor={{ fill: "color-mix(in srgb, var(--ink) 5%, transparent)" }}
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
@@ -1729,7 +1735,8 @@ function OwnershipSection({ ownership, currencyCode }) {
                   />
                 </PieChart>
               </ResponsiveContainer>
-            </div>
+              )}
+            </PieTouchScrub>
             </div>
           ) : (
             <div className="h-72 flex items-center justify-center text-muted text-sm">
@@ -2192,6 +2199,15 @@ function EarningsRecapSection({ ticker, currencyCode }) {
     surprise: q.surprise_percent,
   }));
   const recentBuyback = data.buyback_trend?.[0];
+  // The Y axis must fit the widest tick label (e.g. "-1234%"), so size it from the data:
+  // ~7px per character at the 12px tick font, plus room for the tick gap.
+  const surpriseValues = chartData.map((d) => d.surprise).filter((v) => Number.isFinite(v));
+  const widestTickChars = Math.max(
+    2,
+    ...surpriseValues.map((v) => `${Math.round(v)}%`.length),
+    // ticks can round up past the data extremes (e.g. 1234 -> 1400), so allow one extra digit
+  ) + 1;
+  const surpriseAxisWidth = Math.max(36, widestTickChars * 7 + 8);
 
   return (
     <div>
@@ -2261,7 +2277,7 @@ function EarningsRecapSection({ ticker, currencyCode }) {
             <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
               <XAxis dataKey="label" tick={AXIS_TICK_STYLE} minTickGap={16} />
-              <YAxis tick={AXIS_TICK_STYLE} width={36} tickFormatter={(v) => `${v}%`} />
+              <YAxis tick={AXIS_TICK_STYLE} width={surpriseAxisWidth} tickFormatter={(v) => `${Math.round(v)}%`} />
               <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v?.toFixed(1)}%`, "Surprise"]} />
               <Bar dataKey="surprise" radius={[7, 7, 0, 0]}>
                 {chartData.map((d, i) => (
@@ -2289,14 +2305,6 @@ function EarningsRecapSection({ ticker, currencyCode }) {
   );
 }
 
-const VALUATION_MULTIPLES = [
-  { key: "trailing_pe", label: "P/E", pctileKey: "pe_pctile", fmt: (v) => v?.toFixed(1) },
-  { key: "ev_ebitda", label: "EV/EBITDA", pctileKey: "ev_ebitda_pctile", fmt: (v) => v?.toFixed(1) },
-  { key: "price_to_sales", label: "P/S", pctileKey: "ps_pctile", fmt: (v) => v?.toFixed(2) },
-  { key: "price_to_cash_flow", label: "P/FCF", pctileKey: "pfcf_pctile", fmt: (v) => v?.toFixed(1) },
-  { key: "price_to_book", label: "P/B", pctileKey: "pb_pctile", fmt: (v) => v?.toFixed(2) },
-];
-
 const VALUATION_RANGES = [
   { label: "1Y", years: 1 },
   { label: "5Y", years: 5 },
@@ -2312,6 +2320,9 @@ function ValuationHistorySection({ ticker }) {
     staleTime: 60 * 60 * 1000,
     enabled: !!ticker,
     retry: false,
+    // Keep the old points while another range loads, so the strip (and the chart
+    // the user has open) is not unmounted and reset to P/E on every range switch.
+    placeholderData: keepPreviousData,
   });
 
   if (isError) return null;
@@ -2342,192 +2353,7 @@ function ValuationHistorySection({ ticker }) {
       )}
 
       {points.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-          {VALUATION_MULTIPLES.map((m) => (
-            <ValuationSparkline key={m.key} multiple={m} points={points} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BucketDateTooltip({ active, payload, valueFormatter }) {
-  if (!active || !payload?.length) return null;
-  const point = payload[0].payload;
-  return (
-    <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-sm shadow-lg">
-      <div className="text-muted">
-        {formatShortDate(point.bucket, { year: "numeric", month: "short", day: "numeric" })}
-      </div>
-      {valueFormatter && point.value != null && (
-        <div className="font-semibold text-ink mt-0.5">{valueFormatter(point.value)}</div>
-      )}
-    </div>
-  );
-}
-
-// Trailing multiples can blow way past a normal 2-digit range (a company
-// freshly back to profitability can print a P/E in the thousands), so the
-// axis needs to size itself to the actual label text instead of a constant
-// that only works for the common case.
-function estimateAxisWidth(labels, charWidth = 6.5, minWidth = 28, padding = 10) {
-  const maxLen = labels.reduce((max, s) => Math.max(max, String(s).length), 0);
-  return Math.max(minWidth, maxLen * charWidth + padding);
-}
-
-function ValuationSparkline({ multiple, points }) {
-  const [expanded, setExpanded] = useState(false);
-  const [logScale, setLogScale] = useState(false);
-  const series = points
-    .map((p) => ({ bucket: p.bucket, value: p[multiple.key] }))
-    .filter((p) => p.value != null);
-
-  if (!series.length) {
-    return (
-      <div className="card !p-3">
-        <div className="text-xs text-muted uppercase tracking-wider">{multiple.label}</div>
-        <div className="text-sm text-muted mt-2">No data</div>
-      </div>
-    );
-  }
-
-  const last = points[points.length - 1];
-  const currentValue = last?.[multiple.key];
-  const sortedValues = series.map((p) => p.value).slice().sort((a, b) => a - b);
-  const minValue = sortedValues[0];
-  const maxValue = sortedValues[sortedValues.length - 1];
-  // A few evenly-spaced labels between the extremes, in addition to the exact
-  // min/max -- plain tickCount would round to "nice" numbers that can fall
-  // outside the true min/max and hide the very values the chart exists to show.
-  const yTicks =
-    maxValue > minValue
-      ? [minValue, minValue + (maxValue - minValue) / 3, minValue + (2 * (maxValue - minValue)) / 3, maxValue]
-      : [minValue];
-  const yAxisWidth = estimateAxisWidth(yTicks.map((v) => multiple.fmt(v)));
-  const expandedYAxisWidth = estimateAxisWidth([minValue, maxValue].map((v) => multiple.fmt(v)), 7, 44, 14);
-
-  // A log axis cannot plot zero or negative multiples (e.g. a negative P/E),
-  // so those points are left out while it is on.
-  const positiveSeries = series.filter((p) => p.value > 0);
-  const hiddenByLog = series.length - positiveSeries.length;
-  const logAvailable = positiveSeries.length > 1;
-  const useLog = logScale && logAvailable;
-  const expandedSeries = useLog ? positiveSeries : series;
-  const logMin = Math.min(...positiveSeries.map((p) => p.value));
-  const logMax = Math.max(...positiveSeries.map((p) => p.value));
-  const logTicks =
-    logMax > logMin
-      ? [0, 1, 2, 3, 4].map((i) => logMin * (logMax / logMin) ** (i / 4))
-      : [logMin];
-
-  return (
-    <div
-      className="card card-interactive !p-3 cursor-pointer"
-      onClick={() => setExpanded(true)}
-      title="Click to expand"
-    >
-      <div className="text-xs text-muted uppercase tracking-wider">{multiple.label}</div>
-      <div className="text-xl font-bold tabular-nums text-ink">
-        {currentValue != null ? multiple.fmt(currentValue) : "—"}
-      </div>
-      <div className="h-16 mt-1">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={series} margin={{ top: 6, right: 2, left: 0, bottom: 6 }}>
-            <YAxis
-              domain={[minValue, maxValue]}
-              ticks={yTicks}
-              interval={0}
-              tick={AXIS_TICK_STYLE}
-              width={yAxisWidth}
-              tickFormatter={(v) => multiple.fmt(v)}
-            />
-            <Area
-              type="monotone"
-              dataKey="value"
-              stroke={CATEGORICAL[0]}
-              strokeWidth={1.5}
-              fill="none"
-              isAnimationActive={false}
-              dot={false}
-            />
-            <Tooltip content={<BucketDateTooltip valueFormatter={multiple.fmt} />} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Portalled to <body>: .card has backdrop-filter/translate, which makes it
-          the containing block of `position: fixed` children, so the overlay
-          would otherwise be clipped to the card's own box. */}
-      {expanded && createPortal(
-        <div
-          className="fixed inset-0 z-50 bg-surface flex flex-col p-6 sm:p-10 cursor-default"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={() => setExpanded(false)}
-            className="absolute top-4 right-4 sm:top-6 sm:right-6 p-2 rounded-full text-muted hover:text-ink hover:bg-surface-hover transition-colors"
-          >
-            <X size={22} />
-          </button>
-          <div className="mb-4 px-12">
-            <h3 className="text-base font-bold text-muted uppercase tracking-wider text-center">
-              {multiple.label} Valuation History
-            </h3>
-            <div className="text-3xl font-bold tabular-nums text-ink mt-1 text-center">
-              {currentValue != null ? multiple.fmt(currentValue) : "—"}
-            </div>
-            <div className="mt-3 flex items-center justify-center gap-3">
-              <SegmentedControl
-                aria-label="Valuation chart scale"
-                value={useLog ? "log" : "linear"}
-                onChange={(v) => setLogScale(v === "log")}
-                options={[
-                  { value: "linear", label: "Linear" },
-                  { value: "log", label: "Log", disabled: !logAvailable, title: logAvailable ? undefined : "Not enough positive values for a log scale" },
-                ]}
-              />
-              {useLog && hiddenByLog > 0 && (
-                <span className="text-xs text-muted">{hiddenByLog} non-positive value{hiddenByLog === 1 ? "" : "s"} hidden</span>
-              )}
-            </div>
-          </div>
-          <div className="flex-1 min-h-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={expandedSeries} margin={{ top: 10, right: 24, left: 10, bottom: 10 }}>
-                <CartesianGrid stroke={GRID_STROKE} strokeDasharray="3 3" vertical={false} />
-                <XAxis
-                  dataKey="bucket"
-                  tick={AXIS_TICK_STYLE}
-                  tickFormatter={(b) => formatShortDate(b, { month: "short", year: "numeric" })}
-                  minTickGap={40}
-                />
-                <YAxis
-                  scale={useLog ? "log" : "auto"}
-                  domain={useLog ? [logMin, logMax] : [minValue, maxValue]}
-                  ticks={useLog ? logTicks : undefined}
-                  interval={useLog ? 0 : "preserveEnd"}
-                  allowDataOverflow={useLog}
-                  tick={AXIS_TICK_STYLE}
-                  width={expandedYAxisWidth}
-                  tickFormatter={(v) => multiple.fmt(v)}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke={CATEGORICAL[0]}
-                  strokeWidth={2}
-                  fill={CATEGORICAL[0]}
-                  fillOpacity={0.08}
-                  isAnimationActive={false}
-                  dot={false}
-                />
-                <Tooltip content={<BucketDateTooltip valueFormatter={multiple.fmt} />} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>,
-        document.body,
+        <ValuationHistoryCharts points={points} />
       )}
     </div>
   );

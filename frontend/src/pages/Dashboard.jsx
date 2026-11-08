@@ -240,6 +240,73 @@ export default function Dashboard() {
   const pnlPos = summary?.total_pnl >= 0;
   const priceLine = priceFreshnessLine(summary);
 
+  // The cards of the "concentration" row. Desktop renders them side by side
+  // inside that one widget; a phone gets each as its own collapsible row
+  // (heatmap first, right under the passive-income box), see DashboardGrid.
+  const showInsiderBuys = capabilitiesPending || hasResearch;
+  const insiderBuysCard = (
+    <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "200ms" }}>
+      <InsiderBuysCard
+        buys={insiderBuys}
+        isLoading={capabilitiesPending || il}
+        error={insiderError}
+        onRetry={() => refetchInsider()}
+      />
+    </Card>
+  );
+  const topHoldingsCard = (
+    <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "200ms" }}>
+      <SectionHeader icon={PieChart}>Top 10 Holdings</SectionHeader>
+      <AsyncSection
+        isLoading={hl}
+        error={holdingsError}
+        onRetry={() => refetchHoldings()}
+        loading={<SkeletonRows rows={8} cols={3} />}
+        isEmpty={holdings.length === 0}
+        empty={<EmptyState icon={PieChart} title="No holdings yet" hint="Import your transactions to see your top positions." action={<a href="/import" className="btn-primary text-xs">Import CSV</a>} />}
+      >
+        <div className="space-y-2.5">
+          {holdings.slice(0, 10).map((h) => (
+            <div key={h.ticker} className="flex items-center gap-3">
+              <TickerLink ticker={h.ticker} className="w-16 font-mono font-semibold text-sm text-left" />
+              <div className="flex-1 bg-surface-hover rounded-full h-2.5 relative">
+                <div
+                  className="bg-brand rounded-full h-2.5 transition-all"
+                  style={{ width: `${h.weight}%` }}
+                />
+              </div>
+              <span className="text-sm font-semibold tabular-nums w-14 text-right text-ink">
+                {h.weight.toFixed(1)}%
+              </span>
+              <span className="text-sm tabular-nums w-28 text-right text-muted">
+                {formatMoney(h.market_value, currency)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </AsyncSection>
+    </Card>
+  );
+  const heatmapCard = (
+    <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "150ms" }}>
+      <SectionHeader icon={LayoutGrid}>Heatmap</SectionHeader>
+      {!capabilitiesPending && !hasStandardResearch ? (
+        <InvestorOnly icon={LayoutGrid} />
+      ) : (
+        <AsyncSection
+          isLoading={capabilitiesPending || hl}
+          error={holdingsError}
+          onRetry={() => refetchHoldings()}
+          loading={<div className="flex-1"><SkeletonChart height={256} /></div>}
+          isEmpty={holdings.length === 0}
+          empty={<div className="flex-1 flex"><EmptyState icon={LayoutGrid} title="No holdings to map" hint="Import transactions to see your heatmap." /></div>}
+        >
+          <Heatmap />
+        </AsyncSection>
+      )}
+    </Card>
+  );
+
   return (
     <div className="space-y-6 hover-pop-zone">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
@@ -414,70 +481,18 @@ export default function Dashboard() {
             </Card>
           ) : null,
 
+          // Desktop keeps the pair in one widget. A phone shows each card as its
+          // own collapsible row; the top-10 fallback stands in for insider buys
+          // when insider data is not on the plan.
           concentration: (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              {capabilitiesPending || hasResearch ? (
-              <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "200ms" }}>
-                <InsiderBuysCard
-                  buys={insiderBuys}
-                  isLoading={capabilitiesPending || il}
-                  error={insiderError}
-                  onRetry={() => refetchInsider()}
-                />
-              </Card>
-              ) : (
-              <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "200ms" }}>
-                <SectionHeader icon={PieChart}>Top 10 Holdings</SectionHeader>
-                <AsyncSection
-                  isLoading={hl}
-                  error={holdingsError}
-                  onRetry={() => refetchHoldings()}
-                  loading={<SkeletonRows rows={8} cols={3} />}
-                  isEmpty={holdings.length === 0}
-                  empty={<EmptyState icon={PieChart} title="No holdings yet" hint="Import your transactions to see your top positions." action={<a href="/import" className="btn-primary text-xs">Import CSV</a>} />}
-                >
-                  <div className="space-y-2.5">
-                    {holdings.slice(0, 10).map((h) => (
-                      <div key={h.ticker} className="flex items-center gap-3">
-                        <TickerLink ticker={h.ticker} className="w-16 font-mono font-semibold text-sm text-left" />
-                        <div className="flex-1 bg-surface-hover rounded-full h-2.5 relative">
-                          <div
-                            className="bg-brand rounded-full h-2.5 transition-all"
-                            style={{ width: `${h.weight}%` }}
-                          />
-                        </div>
-                        <span className="text-sm font-semibold tabular-nums w-14 text-right text-ink">
-                          {h.weight.toFixed(1)}%
-                        </span>
-                        <span className="text-sm tabular-nums w-28 text-right text-muted">
-                          {formatMoney(h.market_value, currency)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </AsyncSection>
-              </Card>
-              )}
-              <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "150ms" }}>
-                <SectionHeader icon={LayoutGrid}>Heatmap</SectionHeader>
-                {!capabilitiesPending && !hasStandardResearch ? (
-                  <InvestorOnly icon={LayoutGrid} />
-                ) : (
-                  <AsyncSection
-                    isLoading={capabilitiesPending || hl}
-                    error={holdingsError}
-                    onRetry={() => refetchHoldings()}
-                    loading={<div className="flex-1"><SkeletonChart height={256} /></div>}
-                    isEmpty={holdings.length === 0}
-                    empty={<div className="flex-1 flex"><EmptyState icon={LayoutGrid} title="No holdings to map" hint="Import transactions to see your heatmap." /></div>}
-                  >
-                    <Heatmap />
-                  </AsyncSection>
-                )}
-              </Card>
-
+              {showInsiderBuys ? insiderBuysCard : topHoldingsCard}
+              {heatmapCard}
             </div>
           ),
+          heatmap: heatmapCard,
+          insiderBuys: showInsiderBuys ? insiderBuysCard : null,
+          topHoldings: showInsiderBuys ? null : topHoldingsCard,
 
           movers: (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">

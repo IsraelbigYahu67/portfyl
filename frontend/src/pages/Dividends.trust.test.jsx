@@ -2,7 +2,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 
 import Dividends from "./Dividends";
-import { formatMoney } from "../lib/format";
 import { legacyColorClassesIn } from "../test/legacyClasses";
 
 
@@ -19,9 +18,6 @@ vi.mock("../App", () => ({ useCurrency: () => display.value }));
 vi.mock("../components/StockDetail", () => ({
   useStockDetail: () => ({ openStock: vi.fn() }),
 }));
-
-// Intl uses non-breaking spaces; toHaveTextContent normalizes only the element text.
-const plain = (text) => text.replace(/\s/g, " ");
 
 function dividend(patch = {}) {
   return {
@@ -88,7 +84,7 @@ it("does not call inconsistent or undated events upcoming", async () => {
   expect(screen.getByText("NONE").closest("section")).toHaveTextContent(/date unavailable/i);
 });
 
-it("shows review instead of suspect annual income and names provenance", async () => {
+it("shows review instead of suspect annual income", async () => {
   api.fetchDividends.mockResolvedValue([
     dividend({
       ticker: "RISK",
@@ -101,9 +97,20 @@ it("shows review instead of suspect annual income and names provenance", async (
   renderPage();
 
   expect(await screen.findByText(/review estimate/i)).toBeInTheDocument();
-  expect(screen.getByText(/Yahoo Finance/i)).toBeInTheDocument();
-  expect(screen.getByText(/not guaranteed payments/i)).toBeInTheDocument();
-  expect(screen.getByText(/Estimated annual income/i)).toBeInTheDocument();
+  expect(screen.queryByText(/Estimated annual income/i)).not.toBeInTheDocument();
+});
+
+it("known upcoming table shows annual payout and ends with ex-date and pay-date", async () => {
+  api.fetchDividends.mockResolvedValue([dividend({ ticker: "OK" })]);
+
+  renderPage();
+
+  const heading = await screen.findByRole("heading", { name: /known upcoming dates/i });
+  const table = heading.closest("section").querySelector("table");
+  const headers = [...table.querySelectorAll("th")].map((th) => th.textContent);
+  expect(headers).toEqual(["Ticker", "Shares", "Annual Income", "Yield", "", "Ex-Date", "Pay-Date"]);
+  expect(headers).not.toContain("Rate/Share");
+  expect(table).toHaveTextContent("34.86");
 });
 
 it("does not present a failed dividend request as an empty portfolio", async () => {
@@ -113,46 +120,6 @@ it("does not present a failed dividend request as an empty portfolio", async () 
 
   expect(await screen.findByRole("alert")).toHaveTextContent(/could not load dividend data/i);
   expect(screen.queryByText(/no holdings found/i)).not.toBeInTheDocument();
-});
-
-it("estimated annual income is shown in the display currency", async () => {
-  display.value = { currency: "CZK", rate: 21.71 };
-  api.fetchDividends.mockResolvedValue([
-    dividend({ ticker: "AAA", annual_income: 10.03 }),
-    dividend({ ticker: "BBB", annual_income: 8 }),
-  ]);
-
-  renderPage();
-
-  const heading = await screen.findByText(/Estimated annual income/i);
-  const section = heading.closest("section");
-  expect(section).toHaveTextContent(plain(formatMoney(18.03 * 21.71, "CZK")));
-  expect(screen.queryByText("USD")).not.toBeInTheDocument();
-});
-
-it("keeps USD estimates in USD when the display currency is USD", async () => {
-  api.fetchDividends.mockResolvedValue([dividend({ ticker: "AAA", annual_income: 12.5 })]);
-
-  renderPage();
-
-  const heading = await screen.findByText(/Estimated annual income/i);
-  expect(heading.closest("section")).toHaveTextContent(plain(formatMoney(12.5, "USD")));
-});
-
-it("keeps other currencies as separate tiles", async () => {
-  display.value = { currency: "CZK", rate: 21.71 };
-  api.fetchDividends.mockResolvedValue([
-    dividend({ ticker: "AAA", annual_income: 10 }),
-    dividend({ ticker: "BBB", currency: "EUR", annual_income: 5 }),
-  ]);
-
-  renderPage();
-
-  const heading = await screen.findByText(/Estimated annual income/i);
-  const section = heading.closest("section");
-  expect(section).toHaveTextContent(plain(formatMoney(10 * 21.71, "CZK")));
-  expect(section).toHaveTextContent(plain(formatMoney(5, "EUR")));
-  expect(screen.getByText("EUR")).toBeInTheDocument();
 });
 
 it("uses no legacy color classes", async () => {

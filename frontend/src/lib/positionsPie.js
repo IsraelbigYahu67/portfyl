@@ -15,8 +15,11 @@ export function groupPositions(holdings, maxSlices = 7) {
   const open = (holdings || []).filter((h) => !h.closed && h.market_value > 0);
   const byWeight = (a, b) => b.weight - a.weight;
   const sorted = [...open].sort(byWeight);
-  const major = sorted.slice(0, maxSlices);
-  const rest = sorted.slice(maxSlices);
+  // A lone leftover position keeps its own slice; "Other" must stand for at
+  // least two positions.
+  const cut = sorted.length === maxSlices + 1 ? sorted.length : maxSlices;
+  const major = sorted.slice(0, cut);
+  const rest = sorted.slice(cut);
 
   const slices = major.map((h) => ({ name: h.ticker, value: h.market_value, weight: h.weight }));
 

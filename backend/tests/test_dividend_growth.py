@@ -201,3 +201,31 @@ def test_malformed_shibui_rows_fall_back_to_yfinance(monkeypatch):
     g = dividend_growth.compute_dividend_growth("MALFORMED", _current_year=2026)
     assert g["source"] == "yfinance"
     assert len(g["payments"]) == 1
+
+
+def _shibui_with_info(monkeypatch, rows):
+    monkeypatch.setattr(dividend_growth.shibui_client, "query", lambda sql, prompt: rows)
+    _patch_ticker(monkeypatch, pd.Series(dtype=float), {})
+
+
+def test_never_paid_zero_rows_yield_no_payments(monkeypatch):
+    """Shibui reports 0.0 for non-paying quarters; a never-payer must be empty."""
+    _shibui_with_info(monkeypatch, _shibui_quarterly_rows([
+        ("2021-03-31", 0.0), ("2021-06-30", 0.0), ("2021-09-30", 0.0), ("2021-12-31", 0.0),
+    ]))
+    g = dividend_growth.compute_dividend_growth("NEVER", _current_year=2026)
+    assert g["payments"] == []
+    assert g["annual"] == []
+
+
+def test_leading_zero_quarters_are_trimmed_to_first_payment(monkeypatch):
+    """Alphabet-style: no dividend for years, then payments start."""
+    _shibui_with_info(monkeypatch, _shibui_quarterly_rows([
+        ("2021-03-31", 0.0), ("2021-12-31", 0.0), ("2023-12-31", 0.0),
+        ("2024-06-30", 0.20), ("2024-09-30", 0.20), ("2024-12-31", 0.20),
+        ("2025-03-31", 0.21), ("2025-06-30", 0.21),
+    ]))
+    g = dividend_growth.compute_dividend_growth("LATE", _current_year=2026)
+    assert g["payments"][0] == {"ex_date": "2024-06-30", "amount": 0.2}
+    assert all(p["amount"] > 0 for p in g["payments"])
+    assert [a["year"] for a in g["annual"]][0] == 2024

@@ -24,7 +24,8 @@ describe("Dividends growth table", () => {
       </QueryClientProvider>
     );
     expect(await screen.findByText(/Dividend growth/i)).toBeInTheDocument();
-    expect(await screen.findByText("Apple Inc.")).toBeInTheDocument();
+    expect(await screen.findByText("AAPL")).toBeInTheDocument();
+    expect(screen.queryByText("Apple Inc.")).not.toBeInTheDocument();
     expect(await screen.findByText(/12 yrs/i)).toBeInTheDocument();
     expect(await screen.findByText("5yr")).not.toHaveClass("text-[10px]");
   });

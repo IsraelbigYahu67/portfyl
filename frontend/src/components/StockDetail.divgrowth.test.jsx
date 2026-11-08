@@ -52,6 +52,24 @@ describe("DividendGrowthSection", () => {
     expect(screen.queryByText(/Dividend history/i)).toBeNull();
   });
 
+  it("renders nothing when every payment amount is zero (never paid)", async () => {
+    fetchStockDividendGrowth.mockResolvedValue({
+      ticker: "ZERO", streak_years: 0, cagr_pct: null, cagr_years_used: 0,
+      yoy_pct: null, payout_ratio_pct: null, annual: [],
+      payments: [
+        { ex_date: recentExDate(50), amount: 0 },
+        { ex_date: recentExDate(2), amount: 0 },
+      ],
+    });
+    const { container } = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <DividendGrowthSection ticker="ZERO" currency="USD" />
+      </QueryClientProvider>
+    );
+    await waitFor(() => expect(container.querySelector("section")).toBeNull());
+    expect(screen.queryByText(/Dividend history/i)).toBeNull();
+  });
+
   it("renders nothing when the last payment is over a year old", async () => {
     fetchStockDividendGrowth.mockResolvedValue({
       ticker: "STALE", streak_years: 5, cagr_pct: 4.0, cagr_years_used: 5,

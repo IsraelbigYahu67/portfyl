@@ -38,6 +38,9 @@ export function boundedAllocationRows(rows, minWeightPct = 2) {
   const major = sorted.filter((r) => r.weight > minWeightPct);
   const rest = sorted.filter((r) => r.weight <= minWeightPct);
   if (rest.length === 0) return sorted;
+  // A lone small row is shown under its own name; "Other" must stand for at
+  // least two rows.
+  if (rest.length === 1) return [...major, rest[0]];
 
   return [
     ...major,

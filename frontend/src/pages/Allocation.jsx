@@ -185,6 +185,7 @@ export default function Allocation() {
             data={positionRows}
             currencyLabel={currency}
             legendColumns={2}
+            shortenTickers
           />
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             {sideCategories.map(({ category, rows }) => (
@@ -320,7 +321,7 @@ export default function Allocation() {
                               <div className="w-16 bg-surface-hover rounded-full h-1.5">
                                 <div className="bg-brand rounded-full h-1.5" style={{ width: `${h.weight}%` }} />
                               </div>
-                              <span className="tabular-nums text-muted w-12 text-center">{formatPercent(h.weight, { sign: false, digits: 2 })}</span>
+                              <span className="tabular-nums text-muted w-14 text-right">{formatPercent(h.weight, { sign: false, digits: 2 })}</span>
                             </div>
                           )}
                         </td>

@@ -1,8 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Responsive, WidthProvider } from "react-grid-layout/legacy";
-import { GripVertical, X, Plus, RotateCcw, ChevronUp, ChevronDown } from "lucide-react";
+import {
+  GripVertical, X, Plus, RotateCcw, ChevronUp, ChevronDown,
+  Activity, TrendingUp, PieChart, Coins, LayoutGrid, UserCheck,
+} from "lucide-react";
 import "react-grid-layout/css/styles.css";
 import { useIsPhone } from "../hooks/useMediaQuery";
+import { MergedTitleContext } from "./ui/SectionHeader";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -22,16 +26,45 @@ const HIDDEN_KEY = "sb_dashboard_widgets_hidden";
 const PHONE_OPEN_KEY = "sb_dashboard_phone_open_v1";
 const PHONE_CORE = ["movers"];
 
+// `icon` is the tile shown on a phone's collapsible row (the same icon the
+// widget's own small heading used to carry). `mergeTitle` drops that small
+// heading inside the opened card; the two-card widgets (movers, dividends) keep
+// theirs because each heading tells its card from the other.
 const ALL_WIDGETS = [
-  { id: "attention", label: "Attention signals", minW: 3, minH: 3 },
-  { id: "performance", label: "Performance", minW: 3, minH: 4 },
-  { id: "composition", label: "Portfolio composition", minW: 3, minH: 4 },
-  { id: "concentration", label: "Insider buys & heatmap", minW: 3, minH: 4 },
-  { id: "movers", label: "Movers & earnings", minW: 4, minH: 4 },
-  { id: "dividends", label: "Dividends", minW: 3, minH: 4 },
+  { id: "attention", label: "Attention signals", icon: Activity, mergeTitle: true, minW: 3, minH: 3 },
+  { id: "performance", label: "Performance", icon: TrendingUp, mergeTitle: true, minW: 3, minH: 4 },
+  { id: "composition", label: "Portfolio composition", icon: PieChart, mergeTitle: true, minW: 3, minH: 4 },
+  { id: "concentration", label: "Insider buys & heatmap", icon: LayoutGrid, minW: 3, minH: 4 },
+  { id: "movers", label: "Movers & earnings", icon: Activity, minW: 4, minH: 4 },
+  { id: "dividends", label: "Dividends", icon: Coins, minW: 3, minH: 4 },
 ];
 
 const KNOWN_IDS = ALL_WIDGETS.map((w) => w.id);
+
+// Phones only: the concentration row is split into one collapsible row per
+// card, because a heatmap and an insider table are two different things to
+// open. The page supplies them as extra children (heatmap + insiderBuys, or
+// topHoldings when insider data is not on the plan); desktop keeps the pair.
+const PHONE_SPLIT = [
+  { id: "heatmap", label: "Heatmap", icon: LayoutGrid, mergeTitle: true },
+  { id: "insiderBuys", label: "Insider buys", icon: UserCheck, mergeTitle: true },
+  { id: "topHoldings", label: "Top 10 holdings", icon: PieChart, mergeTitle: true },
+];
+const PHONE_WIDGETS = [...ALL_WIDGETS, ...PHONE_SPLIT];
+const PHONE_KNOWN_IDS = PHONE_WIDGETS.map((w) => w.id);
+
+// The widget rows a phone shows, in order: the heatmap first (it sits right
+// under the net worth / profit / passive income block), then the core widget,
+// then the rest in the saved sequence.
+export function phoneWidgetOrder(visible, children) {
+  const split = PHONE_SPLIT.filter((w) => children[w.id] != null).map((w) => w.id);
+  const expanded = visible.flatMap((id) => (id === "concentration" && split.length > 1 ? split : [id]));
+  const rank = (id) => (id === "heatmap" ? 0 : PHONE_CORE.includes(id) ? 1 : 2);
+  return expanded
+    .map((id, index) => ({ id, index }))
+    .sort((a, b) => rank(a.id) - rank(b.id) || a.index - b.index)
+    .map((entry) => entry.id);
+}
 
 const DEFAULT_LAYOUTS = {
   lg: [
@@ -104,33 +137,117 @@ function getPhoneOpen() {
   try {
     const stored = localStorage.getItem(PHONE_OPEN_KEY);
     const ids = stored ? JSON.parse(stored) : null;
-    return Array.isArray(ids) ? ids.filter((id) => KNOWN_IDS.includes(id)) : PHONE_CORE;
+    if (!Array.isArray(ids)) return PHONE_CORE;
+    // The old combined row was opened for both of its cards: keep both open.
+    const migrated = ids.includes("concentration") ? [...ids, "heatmap", "insiderBuys", "topHoldings"] : ids;
+    return migrated.filter((id, i, all) => PHONE_KNOWN_IDS.includes(id) && all.indexOf(id) === i);
   } catch {
     return PHONE_CORE;
   }
 }
 
-// One widget as a collapsible row. Content mounts only while open, so a
-// collapsed widget costs no extra rendering or requests.
+const COLLAPSE_MS = 420;
+
+// Animated expand/collapse. The row height eases between 0fr and 1fr (so it
+// needs no measured pixel height), while the content fades and slides down a
+// few px. The content mounts when opening starts and unmounts only after the
+// close animation has finished, so a collapsed widget still costs no extra
+// rendering or requests. Overflow is clipped only while moving: once fully
+// open it is visible again so card shadows and hover lift are not cut off.
+// A widget that starts open (remembered) renders open with no animation.
+function Collapse({ open, id, children }) {
+  const [phase, setPhase] = useState(open ? "open" : "closed");
+
+  useEffect(() => {
+    let frame;
+    let timer;
+    if (open) {
+      setPhase((p) => (p === "open" ? p : "opening-start"));
+      // Two frames: paint the 0fr state first so the transition has a start.
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => setPhase("opening"));
+      });
+      timer = setTimeout(() => setPhase("open"), COLLAPSE_MS + 120);
+    } else {
+      setPhase((p) => (p === "closed" ? p : "closing"));
+      timer = setTimeout(() => setPhase("closed"), COLLAPSE_MS);
+    }
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
+  }, [open]);
+
+  // Mount synchronously on the click that opens it (not a frame later).
+  const mounted = open || phase !== "closed";
+  if (!mounted) return null;
+
+  const expanded = phase === "opening" || phase === "open";
+  const settled = phase === "open";
+  return (
+    <div
+      id={id}
+      className="grid transition-[grid-template-rows,opacity] ease-[cubic-bezier(0.22,1,0.36,1)]"
+      style={{
+        // Explicit single column: the implicit `auto` column grows to the widest
+        // non-wrapping child (benchmark chips) and pushed the whole card, chart
+        // included, past the edge of a phone screen.
+        gridTemplateColumns: "minmax(0, 1fr)",
+        gridTemplateRows: expanded ? "1fr" : "0fr",
+        opacity: expanded ? 1 : 0,
+        transitionDuration: `${COLLAPSE_MS}ms`,
+      }}
+    >
+      <div className={`min-h-0 min-w-0 ${settled ? "" : "overflow-hidden"}`}>
+        <div
+          className="pt-3 transition-transform ease-[cubic-bezier(0.22,1,0.36,1)]"
+          style={{
+            transform: expanded ? "translateY(0)" : "translateY(-10px)",
+            transitionDuration: `${COLLAPSE_MS}ms`,
+          }}
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// One widget as a collapsible row. The title and the opened content live in a
+// single card (`phone-merged` flattens the widget's own cards, see index.css),
+// so an opened widget reads as one bubble rather than a title bubble with a
+// second bubble underneath. The row carries the widget's icon, and (for
+// single-card widgets) the card's own small heading is dropped so the title is
+// never shown twice.
 function PhoneWidget({ widget, open, onToggle, children }) {
   const panelId = `phone-widget-${widget.id}`;
+  const Icon = widget.icon;
   return (
-    <section>
+    <section className="card phone-merged">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={panelId}
-        className="card flex min-h-14 w-full items-center justify-between gap-3 text-left font-display font-semibold text-ink"
+        className="flex min-h-11 w-full items-center justify-between gap-3 text-left font-display font-semibold text-ink"
       >
-        {widget.label}
-        <ChevronDown size={18} aria-hidden="true" className={`shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
+        <span className="flex min-w-0 items-center gap-2.5">
+          {Icon && (
+            <span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand">
+              <Icon size={13} />
+            </span>
+          )}
+          <span className="min-w-0 truncate">{widget.label}</span>
+        </span>
+        <ChevronDown
+          size={18}
+          aria-hidden="true"
+          className={`shrink-0 text-muted transition-transform duration-[420ms] ease-[cubic-bezier(0.34,1.4,0.64,1)] ${open ? "rotate-180" : ""}`}
+        />
       </button>
-      {open && (
-        <div id={panelId} className="mt-3 animate-fade-up">
-          {children}
-        </div>
-      )}
+      <Collapse open={open} id={panelId}>
+        <MergedTitleContext.Provider value={Boolean(widget.mergeTitle)}>{children}</MergedTitleContext.Provider>
+      </Collapse>
     </section>
   );
 }
@@ -307,10 +424,10 @@ export default function DashboardGrid({ children, editing, onEditToggle }) {
         </ResponsiveGridLayout>
       ) : isPhone ? (
         <div className="space-y-3">
-          {[...visibleList.filter((id) => PHONE_CORE.includes(id)), ...visibleList.filter((id) => !PHONE_CORE.includes(id))].map((id) => (
+          {phoneWidgetOrder(visibleList, children).map((id) => (
             <PhoneWidget
               key={id}
-              widget={ALL_WIDGETS.find((w) => w.id === id)}
+              widget={PHONE_WIDGETS.find((w) => w.id === id)}
               open={phoneOpen.includes(id)}
               onToggle={() => togglePhoneWidget(id)}
             >

@@ -21,8 +21,15 @@ describe("groupPositions — top-7-plus-Other bounding", () => {
     expect(slices.find((s) => s.name === OTHER_SLICE)).toBeDefined();
   });
 
+  it("shows a single leftover position under its own name instead of Other", () => {
+    const slices = groupPositions(makeHoldings(8));
+    expect(slices).toHaveLength(8);
+    expect(slices.find((s) => s.name === OTHER_SLICE)).toBeUndefined();
+    expect(slices[7].name).toBe("T7");
+  });
+
   it("puts the 7 largest-by-weight positions in named slices, not the first 7 in input order", () => {
-    const holdings = [holding("SMALL", 0.1, 1), ...makeHoldings(7)];
+    const holdings = [holding("SMALL", 0.1, 1), holding("TINY", 0.05, 1), ...makeHoldings(7)];
     const slices = groupPositions(holdings);
     expect(slices.map((s) => s.name)).not.toContain("SMALL");
   });

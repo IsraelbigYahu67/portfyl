@@ -153,11 +153,18 @@ def compute_dividend_growth(symbol: str, _current_year: int | None = None) -> di
         return {**empty, "payout_ratio_pct": payout, "source": source}
 
     try:
-        annual = _annual_dps(div)
+        # Shibui reports 0.0 (not null) for every quarter a company paid nothing,
+        # so the raw series can start years before the first real dividend (or be
+        # all zeros for a company that never paid). Start at the first payment.
+        div = pd.to_numeric(div, errors="coerce")
+        paid = div[div > 0]
+        if paid.empty:
+            return {**empty, "payout_ratio_pct": payout, "source": source}
+        annual = _annual_dps(div[div.index >= paid.index.min()].dropna())
         payments = sorted(
             (
                 {"ex_date": pd.Timestamp(ts).date().isoformat(), "amount": round(float(a), 4)}
-                for ts, a in div.items()
+                for ts, a in paid.items()
             ),
             key=lambda p: p["ex_date"],
         )

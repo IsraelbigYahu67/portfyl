@@ -44,6 +44,17 @@ describe("boundedAllocationRows", () => {
     expect(bounded[3].items).toHaveLength(2);
   });
 
+  it("shows a single small row under its own name instead of Other", () => {
+    const rows = [
+      { name: "A", value: 70, weight: 70 },
+      { name: "B", value: 28, weight: 28 },
+      { name: "C", value: 2, weight: 2 },
+    ];
+    const bounded = boundedAllocationRows(rows);
+    expect(bounded.map((r) => r.name)).toEqual(["A", "B", "C"]);
+    expect(bounded[2]).toEqual({ name: "C", value: 2, weight: 2 });
+  });
+
   it("returns rows unchanged when none fall at or below the threshold", () => {
     const rows = [
       { name: "A", value: 60, weight: 60 },
@@ -54,9 +65,10 @@ describe("boundedAllocationRows", () => {
 
   it("supports a custom minimum weight threshold", () => {
     const rows = [
-      { name: "A", value: 90, weight: 90 },
+      { name: "A", value: 88, weight: 88 },
       { name: "B", value: 6, weight: 6 },
-      { name: "C", value: 4, weight: 4 },
+      { name: "C", value: 3, weight: 3 },
+      { name: "D", value: 3, weight: 3 },
     ];
     const bounded = boundedAllocationRows(rows, 5);
     expect(bounded.map((r) => r.name)).toEqual(["A", "B", "Other"]);
