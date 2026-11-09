@@ -28,6 +28,7 @@ import { brokerLabel, describeSplit } from "../lib/brokerPortfolio";
 import { TRACKER_HOME } from "../lib/routes";
 import { findSupportedBroker } from "../lib/onboardingBrokers";
 import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
+import { msg, rich, useT } from "../i18n/I18nProvider";
 
 
 const SAMPLE_NATIVE = `date,ticker,type,shares,price,currency
@@ -57,14 +58,27 @@ function FormatBadge({ format }) {
 
 // Rows the parser recognized but did not import, grouped by reason.
 function SkippedReasons({ reasons, total }) {
+  const t = useT();
   const entries = Object.entries(reasons ?? {}).filter(([, count]) => count > 0);
   if (entries.length === 0) {
-    return total > 0 ? <p className="text-muted">{plural(total, "informational row")} recognized and skipped.</p> : null;
+    if (!(total > 0)) return null;
+    return (
+      <p className="text-muted">
+        {total === 1
+          ? t("{count} informational row recognized and skipped.", { count: total })
+          : t("{count} informational rows recognized and skipped.", { count: total })}
+      </p>
+    );
   }
+  const skipped = entries.reduce((sum, [, count]) => sum + count, 0);
   return (
     <div className="text-muted">
-      <p>{plural(entries.reduce((sum, [, count]) => sum + count, 0), "row")} recognized and skipped:</p>
-      <ul aria-label="Skipped rows" className="mt-1 list-disc space-y-0.5 pl-5">
+      <p>
+        {skipped === 1
+          ? t("{count} row recognized and skipped:", { count: skipped })
+          : t("{count} rows recognized and skipped:", { count: skipped })}
+      </p>
+      <ul aria-label={t("Skipped rows")} className="mt-1 list-disc space-y-0.5 pl-5">
         {entries.map(([reason, count]) => (
           <li key={reason}><span className="text-ink">{reason}</span> <span className="tabular-nums">× {count}</span></li>
         ))}
@@ -74,24 +88,21 @@ function SkippedReasons({ reasons, total }) {
 }
 
 
-function apiError(error) {
+// Server messages (detail.message, detail.errors) stay as the backend sends them.
+function apiError(error, t) {
   const detail = error?.response?.data?.detail;
   if (typeof detail === "string") return detail;
   if (detail?.errors?.length) {
-    return `${detail.message || "Import failed"}: ${detail.errors.join("; ")}`;
+    return `${detail.message || t("Import failed")}: ${detail.errors.join("; ")}`;
   }
-  return detail?.message || "Import failed";
+  return detail?.message || t("Import failed");
 }
 
 
-function plural(count, one, many = `${one}s`) {
-  return `${count} ${count === 1 ? one : many}`;
-}
-
-
-const IMPORT_STEPS = ["Select source", "Preview changes", "Confirm import", "Result / Undo"];
+const IMPORT_STEPS = [msg("Select source"), msg("Preview changes"), msg("Confirm import"), msg("Result / Undo")];
 
 export default function Import({ focused = false }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
@@ -153,7 +164,7 @@ export default function Import({ focused = false }) {
     },
     onError: (err) => {
       setPreview(null);
-      setError(apiError(err));
+      setError(apiError(err, t));
     },
   });
 
@@ -174,10 +185,10 @@ export default function Import({ focused = false }) {
       if (err?.response?.status === 409) {
         setPreview(null);
         setStage("select");
-        setError("The portfolio changed. Preview the file again.");
+        setError(t("The portfolio changed. Preview the file again."));
       } else {
         setStage("confirm");
-        setError(apiError(err));
+        setError(apiError(err, t));
       }
     },
   });
@@ -190,10 +201,10 @@ export default function Import({ focused = false }) {
       setResult(null);
       setStage("select");
       setUndoError(null);
-      toast.success("Last import undone");
+      toast.success(t("Last import undone"));
     },
     onError: (err) => {
-      const message = apiError(err);
+      const message = apiError(err, t);
       setUndoError(message);
       toast.error(message);
     },
@@ -201,9 +212,9 @@ export default function Import({ focused = false }) {
 
   async function handleUndo() {
     const accepted = await confirm({
-      title: "Undo last import?",
-      message: "Portfyl will restore the portfolio exactly as it was before the last import.",
-      confirmLabel: "Undo import",
+      title: t("Undo last import?"),
+      message: t("Portfyl will restore the portfolio exactly as it was before the last import."),
+      confirmLabel: t("Undo import"),
     });
     if (accepted) undoMutation.mutate();
   }
@@ -282,20 +293,20 @@ export default function Import({ focused = false }) {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold">{broker ? (brokerFile ? `Import your ${broker.name} file` : "Import a Portfyl CSV") : "Import transactions"}</h1>
-          <p className="text-xs text-muted mt-1">Preview every change before it reaches your portfolio.</p>
-          {broker?.hint && <p className="text-xs text-muted mt-1">{broker.hint}</p>}
+          <h1 className="text-xl font-bold">{broker ? (brokerFile ? t("Import your {broker} file", { broker: broker.name }) : t("Import a Portfyl CSV")) : t("Import transactions")}</h1>
+          <p className="text-xs text-muted mt-1">{t("Preview every change before it reaches your portfolio.")}</p>
+          {broker?.hint && <p className="text-xs text-muted mt-1">{t(broker.hint)}</p>}
         </div>
         <div className="flex gap-2">
-          {(focused || onboardingPending) && <button type="button" onClick={() => navigate(broker ? `/onboarding?broker=${broker.key}` : "/onboarding")} className="btn-ghost text-sm">Leave import</button>}
+          {(focused || onboardingPending) && <button type="button" onClick={() => navigate(broker ? `/onboarding?broker=${broker.key}` : "/onboarding")} className="btn-ghost text-sm">{t("Leave import")}</button>}
           <button onClick={downloadSample} className="btn-ghost flex items-center gap-2 text-sm">
-            <Download size={14} /> Download sample
+            <Download size={14} /> {t("Download sample")}
           </button>
         </div>
       </div>
 
       <ol
-        aria-label="Import progress"
+        aria-label={t("Import progress")}
         className="grid grid-cols-2 gap-1 rounded-3xl p-1 sm:grid-cols-4 sm:rounded-full"
         style={{ background: "var(--bg-subtle, var(--surface-hover))", boxShadow: "var(--clay-inset-sm, none)" }}
       >
@@ -310,53 +321,52 @@ export default function Import({ focused = false }) {
               }`}
               style={current ? { boxShadow: "var(--clay-raise-sm, none)" } : undefined}
             >
-              <span><span className="mr-1 tabular-nums">{index + 1}.</span>{label}</span>
+              <span><span className="mr-1 tabular-nums">{index + 1}.</span>{t(label)}</span>
             </li>
           );
         })}
       </ol>
 
       {undo?.available && (
-        <section className="card border border-brand/30 bg-brand/5 flex items-start justify-between gap-4" aria-label="Import recovery">
+        <section className="card border border-brand/30 bg-brand/5 flex items-start justify-between gap-4" aria-label={t("Import recovery")}>
           <div className="flex items-start gap-3">
             <RotateCcw size={18} className="text-brand mt-0.5 shrink-0" />
             <div>
-              <p className="font-semibold text-sm">Your last import can be undone</p>
+              <p className="font-semibold text-sm">{t("Your last import can be undone")}</p>
               <p className="text-xs text-muted mt-1">
-                Available until {new Date(undo.expires_at).toLocaleString()} unless the portfolio changes.
+                {t("Available until {time} unless the portfolio changes.", { time: new Date(undo.expires_at).toLocaleString() })}
               </p>
             </div>
           </div>
           <button onClick={handleUndo} className="btn-ghost text-sm shrink-0" disabled={undoMutation.isPending}>
-            {undoMutation.isPending ? "Restoring…" : "Undo last import"}
+            {undoMutation.isPending ? t("Restoring…") : t("Undo last import")}
           </button>
         </section>
       )}
-      {undoError && <p role="alert" className="text-sm text-loss">Undo was not applied: {undoError}</p>}
+      {undoError && <p role="alert" className="text-sm text-loss">{t("Undo was not applied: {reason}", { reason: undoError })}</p>}
 
       {stage === "select" && <>
       <section className="card space-y-4">
         <div className="flex items-center gap-2 flex-wrap">
           <FormatBadge format="Trading 212" />
-          <FormatBadge format="Native" />
+          <FormatBadge format={t("Native")} />
           <FormatBadge format="Interactive Brokers (Flex XML)" />
           {BROKER_FILE_FORMATS.map((name) => <FormatBadge key={name} format={name} />)}
-          <span className="text-xs text-muted">Auto-detected · maximum 5 MiB</span>
+          <span className="text-xs text-muted">{t("Auto-detected · maximum 5 MiB")}</span>
         </div>
         <div className="flex items-start gap-2 text-xs text-muted">
           <Info size={14} className="text-brand mt-0.5 shrink-0" />
           <p>
-            Trading 212 exports include the full account history and therefore replace this portfolio.
-            Native CSV files can append new rows or replace the portfolio. Exports from Degiro, XTB, Charles Schwab
-            and Fidelity add new rows; rows already in the portfolio are skipped.
+            {t("Trading 212 exports include the full account history and therefore replace this portfolio. Native CSV files can append new rows or replace the portfolio. Exports from Degiro, XTB, Charles Schwab and Fidelity add new rows; rows already in the portfolio are skipped.")}
           </p>
         </div>
         <div className="flex items-start gap-2 text-xs text-muted">
           <Info size={14} className="text-brand mt-0.5 shrink-0" />
           <p>
-            Interactive Brokers Activity Flex XML statements (.xml) add stocks, ETFs, dividends and cash; rows already
-            in the portfolio are skipped. A Flex statement covers at most 365 days, so for older history upload one XML
-            per year. The Flex Query setup is in <Link to="/settings?section=connections" className="text-brand underline">Settings → Connections</Link>.
+            {rich(
+              t("Interactive Brokers Activity Flex XML statements (.xml) add stocks, ETFs, dividends and cash; rows already in the portfolio are skipped. A Flex statement covers at most 365 days, so for older history upload one XML per year. The Flex Query setup is in <link>Settings → Connections</link>."),
+              { link: (words) => <Link to="/settings?section=connections" className="text-brand underline">{words}</Link> },
+            )}
           </p>
         </div>
       </section>
@@ -381,9 +391,11 @@ export default function Import({ focused = false }) {
         ) : (
           <div className="text-center">
             <p className="text-sm font-medium">
-              {brokerFile ? `Drop your ${brokerFile} file here or click to browse` : "Drop your broker export (CSV, XML or XLSX) here or click to browse"}
+              {brokerFile
+                ? t("Drop your {broker} {fileKind} file here or click to browse", { broker: broker.name, fileKind: broker.fileKind })
+                : t("Drop your broker export (CSV, XML or XLSX) here or click to browse")}
             </p>
-            <p className="text-xs text-muted mt-1">Nothing is saved until you review and confirm.</p>
+            <p className="text-xs text-muted mt-1">{t("Nothing is saved until you review and confirm.")}</p>
           </div>
         )}
       </div>
@@ -403,12 +415,12 @@ export default function Import({ focused = false }) {
               className="mt-0.5 accent-brand w-4 h-4"
             />
             <span>
-              <span className="text-sm font-medium">Replace existing portfolio</span>
-              <span className="block text-xs text-muted mt-0.5">The preview will show exactly what would be removed.</span>
+              <span className="text-sm font-medium">{t("Replace existing portfolio")}</span>
+              <span className="block text-xs text-muted mt-0.5">{t("The preview will show exactly what would be removed.")}</span>
             </span>
           </label>
           <button onClick={() => previewMutation.mutate()} className="btn-primary w-full" disabled={previewMutation.isPending}>
-            {previewMutation.isPending ? "Preparing preview…" : "Preview import"}
+            {previewMutation.isPending ? t("Preparing preview…") : t("Preview import")}
           </button>
         </div>
       )}
@@ -420,32 +432,35 @@ export default function Import({ focused = false }) {
       </>}
 
       {preview && stage === "preview" && (
-        <section className={`card border space-y-4 ${preview.mode === "replace" ? "border-loss/40" : "border-brand/30"}`} aria-label="Import preview">
+        <section className={`card border space-y-4 ${preview.mode === "replace" ? "border-loss/40" : "border-brand/30"}`} aria-label={t("Import preview")}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <h2 className="font-semibold">Review changes</h2>
+              <h2 className="font-semibold">{t("Review changes")}</h2>
               <FormatBadge format={preview.format} />
             </div>
-            <button onClick={cancelPreview} className="text-xs text-muted hover:text-ink">Cancel preview</button>
+            <button onClick={cancelPreview} className="text-xs text-muted hover:text-ink">{t("Cancel preview")}</button>
           </div>
 
           {split?.created && (
-            <div role="status" aria-label="New portfolio" className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-brand/30 bg-brand/5 p-3 text-sm">
+            <div role="status" aria-label={t("New portfolio")} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-brand/30 bg-brand/5 p-3 text-sm">
               <div className="flex items-start gap-2">
                 <Info size={16} className="text-brand mt-0.5 shrink-0" />
-                <p>{describeSplit(split.previous, split.created, preview.broker)}</p>
+                <p>{describeSplit(split.previous, split.created, preview.broker, t)}</p>
               </div>
               <button type="button" onClick={importIntoOriginal} className="btn-ghost text-xs shrink-0">
-                Import into “{split.previous.name}” instead
+                {t("Import into “{name}” instead", { name: split.previous.name })}
               </button>
             </div>
           )}
           {preview.split_blocked && (
-            <div role="status" aria-label="New portfolio not available" className="flex items-start gap-2 rounded-lg border border-surface-border bg-surface-hover p-3 text-sm text-muted">
+            <div role="status" aria-label={t("New portfolio not available")} className="flex items-start gap-2 rounded-lg border border-surface-border bg-surface-hover p-3 text-sm text-muted">
               <Info size={16} className="text-brand mt-0.5 shrink-0" />
               <p>
-                “{preview.split_blocked.previous.name}” already holds other data, and a separate {brokerLabel(preview.broker)} portfolio
-                could not be created ({preview.split_blocked.blocked}). This import goes into “{preview.split_blocked.previous.name}”.
+                {t("“{previous}” already holds other data, and a separate {broker} portfolio could not be created ({reason}). This import goes into “{previous}”.", {
+                  previous: preview.split_blocked.previous.name,
+                  broker: brokerLabel(preview.broker),
+                  reason: preview.split_blocked.blocked,
+                })}
               </p>
             </div>
           )}
@@ -454,30 +469,44 @@ export default function Import({ focused = false }) {
             <div className="rounded-lg bg-loss/10 border border-loss/30 p-3 text-sm">
               <p className="font-semibold text-loss">
                 {preview.format === "Trading 212"
-                  ? "Trading 212 exports replace the full portfolio when detected."
-                  : "This import replaces the full portfolio."}
+                  ? t("Trading 212 exports replace the full portfolio when detected.")
+                  : t("This import replaces the full portfolio.")}
               </p>
               <p className="text-muted mt-1">
-                {plural(preview.counts.removed, "current transaction")} will be removed. You can undo for 24 hours if the portfolio stays unchanged.
+                {preview.counts.removed === 1
+                  ? t("{count} current transaction will be removed. You can undo for 24 hours if the portfolio stays unchanged.", { count: 1 })
+                  : t("{count} current transactions will be removed. You can undo for 24 hours if the portfolio stays unchanged.", { count: preview.counts.removed })}
               </p>
               {preview.counts.notes_removed > 0 && (
                 <p className="text-muted mt-1">
-                  {plural(preview.counts.notes_removed, "trade note")} will be removed with those transactions and restored by undo.
+                  {preview.counts.notes_removed === 1
+                    ? t("{count} trade note will be removed with those transactions and restored by undo.", { count: 1 })
+                    : t("{count} trade notes will be removed with those transactions and restored by undo.", { count: preview.counts.notes_removed })}
                 </p>
               )}
             </div>
           )}
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-surface-hover rounded-lg p-3"><p className="text-xs text-muted">Current</p><p className="font-bold">{preview.counts.current}</p></div>
-            <div className="bg-surface-hover rounded-lg p-3"><p className="text-xs text-muted">Added</p><p className="font-bold text-gain">+{preview.counts.added}</p></div>
-            <div className="bg-surface-hover rounded-lg p-3"><p className="text-xs text-muted">Removed</p><p className="font-bold text-loss">−{preview.counts.removed}</p></div>
-            <div className="bg-surface-hover rounded-lg p-3"><p className="text-xs text-muted">After import</p><p className="font-bold">{preview.counts.projected}</p></div>
+            <div className="bg-surface-hover rounded-lg p-3"><p className="text-xs text-muted">{t("Current")}</p><p className="font-bold">{preview.counts.current}</p></div>
+            <div className="bg-surface-hover rounded-lg p-3"><p className="text-xs text-muted">{t("Added")}</p><p className="font-bold text-gain">+{preview.counts.added}</p></div>
+            <div className="bg-surface-hover rounded-lg p-3"><p className="text-xs text-muted">{t("Removed")}</p><p className="font-bold text-loss">−{preview.counts.removed}</p></div>
+            <div className="bg-surface-hover rounded-lg p-3"><p className="text-xs text-muted">{t("After import")}</p><p className="font-bold">{preview.counts.projected}</p></div>
           </div>
 
           <div className="text-sm space-y-1">
-            <p>{plural(preview.counts.added, "transaction")} will be added.</p>
-            {duplicateCount > 0 && <p className="text-muted">{plural(duplicateCount, "exact duplicate")} will be skipped.</p>}
+            <p>
+              {preview.counts.added === 1
+                ? t("{count} transaction will be added.", { count: 1 })
+                : t("{count} transactions will be added.", { count: preview.counts.added })}
+            </p>
+            {duplicateCount > 0 && (
+              <p className="text-muted">
+                {duplicateCount === 1
+                  ? t("{count} exact duplicate will be skipped.", { count: 1 })
+                  : t("{count} exact duplicates will be skipped.", { count: duplicateCount })}
+              </p>
+            )}
             <SkippedReasons reasons={preview.skipped_reasons} total={preview.counts.skipped} />
           </div>
 
@@ -485,12 +514,12 @@ export default function Import({ focused = false }) {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="text-muted">
-                  <tr><th className="text-left py-2">Date</th><th className="text-left">Ticker</th><th className="text-left">Type</th><th className="text-right">Shares</th><th className="text-right">Price</th></tr>
+                  <tr><th className="text-left py-2">{t("Date")}</th><th className="text-left">{t("Ticker")}</th><th className="text-left">{t("Type")}</th><th className="text-right">{t("Shares")}</th><th className="text-right">{t("Price")}</th></tr>
                 </thead>
                 <tbody>
                   {preview.sample.map((row, index) => (
                     <tr key={`${row.date}-${row.ticker}-${index}`} className="border-t border-surface-border">
-                      <td className="py-2">{row.date}</td><td>{row.ticker || "Cash"}</td><td>{row.type}</td><td className="text-right">{row.shares}</td><td className="text-right">{row.price} {row.currency}</td>
+                      <td className="py-2">{row.date}</td><td>{row.ticker || t("Cash")}</td><td>{row.type}</td><td className="text-right">{row.shares}</td><td className="text-right">{row.price} {row.currency}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -503,21 +532,41 @@ export default function Import({ focused = false }) {
             onClick={() => { setStage("confirm"); setError(null); }}
             className="btn-primary w-full"
           >
-            Continue to confirm
+            {t("Continue to confirm")}
           </button>
         </section>
       )}
 
       {preview && stage === "confirm" && (
-        <section className={`card space-y-4 border ${preview.mode === "replace" ? "border-loss/40" : "border-brand/30"}`} aria-label="Confirm import">
+        <section className={`card space-y-4 border ${preview.mode === "replace" ? "border-loss/40" : "border-brand/30"}`} aria-label={t("Confirm import")}>
           <div>
-            <h2 className="font-semibold">Confirm import</h2>
-            <p className="mt-1 text-sm text-muted">{preview.mode === "replace" ? "Replace" : "Append"} mode · {plural(preview.counts.added, "transaction")} added · {plural(preview.counts.removed, "transaction")} removed · {plural(duplicateCount, "duplicate")} skipped · {preview.counts.projected} total after import.</p>
+            <h2 className="font-semibold">{t("Confirm import")}</h2>
+            <p className="mt-1 text-sm text-muted">
+              {(() => {
+                const counts = {
+                  added: preview.counts.added,
+                  removed: preview.counts.removed,
+                  duplicates: duplicateCount,
+                  total: preview.counts.projected,
+                };
+                return preview.mode === "replace"
+                  ? t("Replace mode · added {added} · removed {removed} · duplicates skipped {duplicates} · {total} in total after import.", counts)
+                  : t("Append mode · added {added} · removed {removed} · duplicates skipped {duplicates} · {total} in total after import.", counts);
+              })()}
+            </p>
           </div>
           <div className="flex gap-3">
-            <button type="button" onClick={() => setStage("preview")} className="btn-ghost flex-1" disabled={commitMutation.isPending}>Back to preview</button>
+            <button type="button" onClick={() => setStage("preview")} className="btn-ghost flex-1" disabled={commitMutation.isPending}>{t("Back to preview")}</button>
             <button type="button" onClick={() => commitMutation.mutate()} className={`flex-1 ${preview.mode === "replace" ? "btn-primary !bg-loss hover:!opacity-90" : "btn-primary"}`} disabled={commitMutation.isPending}>
-              {commitMutation.isPending ? "Importing…" : preview.mode === "replace" ? `Replace portfolio with ${plural(preview.counts.projected, "transaction")}` : `Import ${plural(preview.counts.added, "transaction")}`}
+              {commitMutation.isPending
+                ? t("Importing…")
+                : preview.mode === "replace"
+                  ? (preview.counts.projected === 1
+                    ? t("Replace portfolio with {count} transaction", { count: 1 })
+                    : t("Replace portfolio with {count} transactions", { count: preview.counts.projected }))
+                  : (preview.counts.added === 1
+                    ? t("Import {count} transaction", { count: 1 })
+                    : t("Import {count} transactions", { count: preview.counts.added }))}
             </button>
           </div>
         </section>
@@ -526,7 +575,7 @@ export default function Import({ focused = false }) {
       {error && (
         <div role="alert" className="card border border-loss/40 bg-loss/10 flex items-start gap-3">
           <AlertCircle size={18} className="text-loss mt-0.5 shrink-0" />
-          <div><p className="font-semibold text-loss">Import not applied</p><p className="text-sm text-loss mt-1">{error}</p></div>
+          <div><p className="font-semibold text-loss">{t("Import not applied")}</p><p className="text-sm text-loss mt-1">{error}</p></div>
         </div>
       )}
 
@@ -534,13 +583,33 @@ export default function Import({ focused = false }) {
         <div className="card border border-gain/40 bg-gain/10 flex items-start gap-3">
           <CheckCircle size={18} className="text-gain mt-0.5 shrink-0" />
           <div className="flex-1">
-            <p className="font-semibold text-gain">{plural(result.imported, "transaction")} imported{result.portfolio_name && <> into the new portfolio “{result.portfolio_name}”</>}</p>
-            {result.duplicates_skipped > 0 && <p className="text-xs text-muted mt-1">{plural(result.duplicates_skipped, "exact duplicate")} skipped.</p>}
-            {result.removed > 0 && <p className="text-xs text-muted mt-1">{plural(result.removed, "previous transaction")} removed.</p>}
-            {result.undo?.available && <p className="mt-1 text-xs text-muted">Undo available until {new Date(result.undo.expires_at).toLocaleString()}.</p>}
-            <button type="button" onClick={viewPortfolio} className="btn-primary mt-3 text-sm">View portfolio</button>
-            <button onClick={() => { setFile(null); setResult(null); setStage("select"); }} className="mt-3 text-xs text-muted hover:text-ink">Import another file →</button>
-            <Link to="/settings?section=data" className="ml-4 mt-3 inline-block text-xs text-muted hover:text-ink">Manage portfolio data</Link>
+            <p className="font-semibold text-gain">
+              {result.portfolio_name
+                ? (result.imported === 1
+                  ? t("{count} transaction imported into the new portfolio “{name}”", { count: 1, name: result.portfolio_name })
+                  : t("{count} transactions imported into the new portfolio “{name}”", { count: result.imported, name: result.portfolio_name }))
+                : (result.imported === 1
+                  ? t("{count} transaction imported", { count: 1 })
+                  : t("{count} transactions imported", { count: result.imported }))}
+            </p>
+            {result.duplicates_skipped > 0 && (
+              <p className="text-xs text-muted mt-1">
+                {result.duplicates_skipped === 1
+                  ? t("{count} exact duplicate skipped.", { count: 1 })
+                  : t("{count} exact duplicates skipped.", { count: result.duplicates_skipped })}
+              </p>
+            )}
+            {result.removed > 0 && (
+              <p className="text-xs text-muted mt-1">
+                {result.removed === 1
+                  ? t("{count} previous transaction removed.", { count: 1 })
+                  : t("{count} previous transactions removed.", { count: result.removed })}
+              </p>
+            )}
+            {result.undo?.available && <p className="mt-1 text-xs text-muted">{t("Undo available until {time}.", { time: new Date(result.undo.expires_at).toLocaleString() })}</p>}
+            <button type="button" onClick={viewPortfolio} className="btn-primary mt-3 text-sm">{t("View portfolio")}</button>
+            <button onClick={() => { setFile(null); setResult(null); setStage("select"); }} className="mt-3 text-xs text-muted hover:text-ink">{t("Import another file →")}</button>
+            <Link to="/settings?section=data" className="ml-4 mt-3 inline-block text-xs text-muted hover:text-ink">{t("Manage portfolio data")}</Link>
           </div>
         </div>
       )}

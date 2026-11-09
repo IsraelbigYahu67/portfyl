@@ -12,7 +12,12 @@ export const BROKER_LABELS = {
   fidelity: "Fidelity",
 };
 
-const SOURCE_PHRASES = { own: "your own transactions", demo: "sample data" };
+// Sentences are English source text marked for translation and run through
+// `t` (the i18n translate function); without `t` they read in English.
+const msg = (text) => text;
+const english = (text, vars) => text.replace(/\{(\w+)\}/g, (m, key) => (vars && key in vars ? String(vars[key]) : m));
+
+const SOURCE_PHRASES = { own: msg("your own transactions"), demo: msg("sample data") };
 
 export function brokerLabel(broker) {
   return BROKER_LABELS[broker] ?? broker;
@@ -34,26 +39,35 @@ export function uniquePortfolioName(portfolios, broker) {
   return `${base} ${suffix}`;
 }
 
-function joinWords(words) {
+function joinWords(words, t) {
   if (words.length < 2) return words.join("");
-  return `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
+  return t("{list} and {last}", { list: words.slice(0, -1).join(", "), last: words.at(-1) });
 }
 
-export function describeSplit(previous, created, broker) {
+export function describeSplit(previous, created, broker, t = english) {
   const brokers = (previous.brokers ?? []).filter((existing) => existing !== broker);
   const named = brokers.filter((existing) => !SOURCE_PHRASES[existing]).map(brokerLabel);
   const parts = [
-    ...(named.length ? [`${joinWords(named)} data`] : []),
-    ...brokers.filter((existing) => SOURCE_PHRASES[existing]).map((existing) => SOURCE_PHRASES[existing]),
+    ...(named.length ? [t("{brokers} data", { brokers: joinWords(named, t) })] : []),
+    ...brokers.filter((existing) => SOURCE_PHRASES[existing]).map((existing) => t(SOURCE_PHRASES[existing])),
   ];
-  return `“${previous.name}” already holds ${joinWords(parts)}, so ${brokerLabel(broker)} goes into its own portfolio “${created.name}”.`;
+  return t("“{previous}” already holds {contents}, so {broker} goes into its own portfolio “{created}”.", {
+    previous: previous.name,
+    contents: joinWords(parts, t),
+    broker: brokerLabel(broker),
+    created: created.name,
+  });
 }
 
 // Sentence appended to a "connected" message after useBrokerPortfolio.open().
-export function splitNote(session, broker) {
-  if (session?.created) return ` ${describeSplit(session.previous, session.created, broker)}`;
+export function splitNote(session, broker, t = english) {
+  if (session?.created) return ` ${describeSplit(session.previous, session.created, broker, t)}`;
   if (session?.blocked) {
-    return ` “${session.previous.name}” already holds other data, but a separate ${brokerLabel(broker)} portfolio could not be created (${session.blocked}), so it was connected there.`;
+    return ` ${t("“{previous}” already holds other data, but a separate {broker} portfolio could not be created ({reason}), so it was connected there.", {
+      previous: session.previous.name,
+      broker: brokerLabel(broker),
+      reason: session.blocked,
+    })}`;
   }
   return "";
 }

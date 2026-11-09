@@ -12,26 +12,30 @@ import { AsyncSection, Badge, Modal } from "../components/ui";
 import Pagination from "../components/ui/Pagination";
 import SegmentedControl from "../components/ui/SegmentedControl";
 import { formatMoney, formatQuantity, formatTableDate } from "../lib/format";
-import { formatValidationDetail, uiLanguage } from "../lib/validationDetail";
+import { formatValidationDetail } from "../lib/validationDetail";
+import { msg, useT } from "../i18n/I18nProvider";
 
 const TYPE_TONES = { buy: "gain", sell: "loss", dividend: "info" };
-const TYPE_LABELS = { buy: "Buy", sell: "Sell", dividend: "Dividend" };
+const TYPE_LABELS = { buy: msg("Buy"), sell: msg("Sell"), dividend: msg("Dividend") };
 const TYPE_OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "buy", label: "Buy" },
-  { value: "sell", label: "Sell" },
-  { value: "dividend", label: "Dividend" },
+  { value: "all", label: msg("All") },
+  { value: "buy", label: msg("Buy") },
+  { value: "sell", label: msg("Sell") },
+  { value: "dividend", label: msg("Dividend") },
 ];
+const typeLabel = (t, type) => (TYPE_LABELS[type] ? t(TYPE_LABELS[type]) : String(type ?? ""));
 
 function TypeBadge({ type }) {
+  const t = useT();
   return (
     <Badge tone={TYPE_TONES[type] ?? "neutral"}>
-      {TYPE_LABELS[type] ?? String(type ?? "")}
+      {typeLabel(t, type)}
     </Badge>
   );
 }
 
 function AddModal({ onClose }) {
+  const t = useT();
   const qc = useQueryClient();
   const toast = useToast();
   const tickerRef = useRef(null);
@@ -45,7 +49,7 @@ function AddModal({ onClose }) {
       ["transactions", "holdings", "summary", "heatmap", "performance"].forEach((k) =>
         qc.invalidateQueries({ queryKey: [k] })
       );
-      toast.success(`${form.type === "dividend" ? "Dividend" : "Transaction"} added`);
+      toast.success(form.type === "dividend" ? t("Dividend added") : t("Transaction added"));
       onClose();
     },
   });
@@ -60,11 +64,11 @@ function AddModal({ onClose }) {
   return (
     <Modal open onClose={onClose} titleId="add-transaction-title" initialFocusRef={tickerRef} className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 id="add-transaction-title" className="font-bold text-lg">Add Transaction</h2>
+          <h2 id="add-transaction-title" className="font-bold text-lg">{t("Add Transaction")}</h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("Close")}
             className="inline-flex h-11 w-11 items-center justify-center rounded-md text-muted hover:text-ink md:h-8 md:w-8"
           >
             <X size={18} />
@@ -73,49 +77,50 @@ function AddModal({ onClose }) {
         <form onSubmit={submit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-muted mb-1 block">Ticker *</label>
-              <input ref={tickerRef} className="input uppercase" placeholder="e.g. AAPL" value={form.ticker} onChange={set("ticker")} required />
+              <label className="text-xs text-muted mb-1 block">{t("Ticker")} *</label>
+              <input ref={tickerRef} className="input uppercase" placeholder={t("e.g. {example}", { example: "AAPL" })} aria-label={t("Ticker")} value={form.ticker} onChange={set("ticker")} required />
             </div>
             <div>
-              <label className="text-xs text-muted mb-1 block">Type *</label>
-              <select className="input" value={form.type} onChange={set("type")}>
-                <option value="buy">Buy</option>
-                <option value="sell">Sell</option>
-                <option value="dividend">Dividend</option>
+              <label className="text-xs text-muted mb-1 block">{t("Type")} *</label>
+              <select className="input" value={form.type} onChange={set("type")} aria-label={t("Type")}>
+                <option value="buy">{t("Buy")}</option>
+                <option value="sell">{t("Sell")}</option>
+                <option value="dividend">{t("Dividend")}</option>
               </select>
             </div>
             <div>
-              <label className="text-xs text-muted mb-1 block">Shares *</label>
-              <input className="input" type="number" min="0.00000001" step="any" placeholder="e.g. 10" value={form.shares} onChange={set("shares")} required />
+              <label className="text-xs text-muted mb-1 block">{t("Shares")} *</label>
+              <input className="input" type="number" min="0.00000001" step="any" placeholder={t("e.g. {example}", { example: "10" })} aria-label={t("Shares")} value={form.shares} onChange={set("shares")} required />
             </div>
             <div>
-              <label className="text-xs text-muted mb-1 block">Price per share *</label>
-              <input className="input" type="number" min="0.00000001" step="any" placeholder="e.g. 185.50" value={form.price} onChange={set("price")} required />
+              <label className="text-xs text-muted mb-1 block">{t("Price per share")} *</label>
+              <input className="input" type="number" min="0.00000001" step="any" placeholder={t("e.g. {example}", { example: "185.50" })} aria-label={t("Price per share")} value={form.price} onChange={set("price")} required />
             </div>
             <div>
-              <label className="text-xs text-muted mb-1 block">Date *</label>
-              <input className="input" type="date" value={form.date} onChange={set("date")} required />
+              <label className="text-xs text-muted mb-1 block">{t("Date")} *</label>
+              <input className="input" type="date" aria-label={t("Date")} value={form.date} onChange={set("date")} required />
             </div>
             <div>
-              <label className="text-xs text-muted mb-1 block">Currency</label>
-              <input className="input" placeholder="USD" value={form.currency} onChange={set("currency")} />
+              <label className="text-xs text-muted mb-1 block">{t("Currency")}</label>
+              <input className="input" placeholder="USD" aria-label={t("Currency")} value={form.currency} onChange={set("currency")} />
             </div>
           </div>
           <div>
-            <label className="text-xs text-muted mb-1 block">Notes</label>
-            <input className="input" placeholder="Optional" value={form.notes} onChange={set("notes")} />
+            <label className="text-xs text-muted mb-1 block">{t("Notes")}</label>
+            <input className="input" placeholder={t("Optional")} aria-label={t("Notes")} value={form.notes} onChange={set("notes")} />
           </div>
           {mut.error && (
             <p role="alert" className="text-loss text-xs">
               {formatValidationDetail(mut.error.response?.data?.detail, {
-                fallback: uiLanguage() === "cs" ? "Transakci se nepodařilo přidat" : "Failed to add transaction",
+                t,
+                fallback: t("Failed to add transaction"),
               })}
             </p>
           )}
           <div className="flex gap-2 pt-1">
-            <button type="button" onClick={onClose} className="btn-ghost flex-1">Cancel</button>
+            <button type="button" onClick={onClose} className="btn-ghost flex-1">{t("Cancel")}</button>
             <button type="submit" className="btn-primary flex-1" disabled={mut.isPending}>
-              {mut.isPending ? "Saving…" : "Add"}
+              {mut.isPending ? t("Saving…") : t("Add")}
             </button>
           </div>
         </form>
@@ -124,6 +129,7 @@ function AddModal({ onClose }) {
 }
 
 export default function Transactions() {
+  const t = useT();
   const qc = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
@@ -154,7 +160,7 @@ export default function Transactions() {
   });
   const fetched = data?.items ?? [];
   // The type filter is client-side over the fetched page.
-  const txns = typeFilter === "all" ? fetched : fetched.filter((t) => t.type === typeFilter);
+  const txns = typeFilter === "all" ? fetched : fetched.filter((txn) => txn.type === typeFilter);
   const total = data?.total ?? 0;
 
   const { data: allNotes = [] } = useQuery({ queryKey: ["trade-notes-all"], queryFn: fetchAllTradeNotes });
@@ -167,41 +173,50 @@ export default function Transactions() {
         qc.invalidateQueries({ queryKey: [k] })
       );
       qc.invalidateQueries({ queryKey: ["transactions"] });
-      toast.success("Transaction deleted");
+      toast.success(t("Transaction deleted"));
       // If the deleted row was the only one on this page, step back one page.
       if (fetched.length === 1 && offset > 0) {
         updateParams({ offset: String(Math.max(0, offset - limit)) });
       }
     },
     onError: (err) =>
-      toast.error(err.response?.data?.detail || "Failed to delete transaction"),
+      toast.error(err.response?.data?.detail || t("Failed to delete transaction")),
   });
 
-  const handleDelete = async (t) => {
+  const handleDelete = async (txn) => {
     const ok = await confirm({
-      title: "Delete transaction?",
-      message: `${t.type === "dividend" ? "Dividend" : `${t.type} ${t.shares} ${t.ticker}`} on ${t.date} will be permanently removed.`,
-      confirmLabel: "Delete",
+      title: t("Delete transaction?"),
+      message: txn.type === "dividend"
+        ? t("Dividend {ticker} on {date} will be permanently removed.", { ticker: txn.ticker, date: txn.date })
+        : t("{type} {shares} {ticker} on {date} will be permanently removed.", {
+          type: typeLabel(t, txn.type),
+          shares: txn.shares,
+          ticker: txn.ticker,
+          date: txn.date,
+        }),
+      confirmLabel: t("Delete"),
       danger: true,
     });
-    if (ok) delMut.mutate(t.id);
+    if (ok) delMut.mutate(txn.id);
   };
 
   const hasFilter = filter.trim().length > 0;
-  const noteButton = (t, extra = "") => (
+  const noteButton = (txn, extra = "") => (
     <button
-      onClick={() => setNoteTarget(t)}
-      className={`inline-flex h-11 w-11 items-center justify-center rounded-md transition-colors md:h-8 md:w-8 ${extra} ${notesMap[t.id] ? "text-brand hover:text-brand/80" : "text-muted hover:text-ink"}`}
-      title={notesMap[t.id] ? "Edit note" : "Add note"}
-      aria-label={`${notesMap[t.id] ? "Edit" : "Add"} note for ${t.ticker} on ${t.date}`}
+      onClick={() => setNoteTarget(txn)}
+      className={`inline-flex h-11 w-11 items-center justify-center rounded-md transition-colors md:h-8 md:w-8 ${extra} ${notesMap[txn.id] ? "text-brand hover:text-brand/80" : "text-muted hover:text-ink"}`}
+      title={notesMap[txn.id] ? t("Edit note") : t("Add note")}
+      aria-label={notesMap[txn.id]
+        ? t("Edit note for {ticker} on {date}", { ticker: txn.ticker, date: txn.date })
+        : t("Add note for {ticker} on {date}", { ticker: txn.ticker, date: txn.date })}
     >
       <StickyNote size={14} />
     </button>
   );
-  const deleteButton = (t) => (
+  const deleteButton = (txn) => (
     <button
-      onClick={() => handleDelete(t)}
-      aria-label={`Delete ${t.type} ${t.ticker} on ${t.date}`}
+      onClick={() => handleDelete(txn)}
+      aria-label={t("Delete {type} {ticker} on {date}", { type: typeLabel(t, txn.type), ticker: txn.ticker, date: txn.date })}
       className="inline-flex h-11 w-11 items-center justify-center rounded-md text-muted hover:text-loss transition-colors md:h-8 md:w-8"
     >
       <Trash2 size={14} />
@@ -211,24 +226,24 @@ export default function Transactions() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-xl font-bold">Transactions</h1>
+        <h1 className="text-xl font-bold">{t("Transactions")}</h1>
         <div className="flex gap-2 flex-wrap items-center">
           <SegmentedControl
-            aria-label="Filter by type"
-            options={TYPE_OPTIONS}
+            aria-label={t("Filter by type")}
+            options={TYPE_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
             value={typeFilter}
             onChange={setTypeFilter}
           />
           <input
-            aria-label="Filter transactions by ticker"
+            aria-label={t("Filter transactions by ticker")}
             className="input w-48"
-            placeholder="Filter by ticker…"
+            placeholder={t("Filter by ticker…")}
             value={filter}
             onChange={(e) => updateParams({ q: e.target.value }, true)}
           />
           <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-2">
             <Plus size={15} />
-            Add
+            {t("Add")}
           </button>
         </div>
       </div>
@@ -237,43 +252,43 @@ export default function Transactions() {
         isLoading={isLoading}
         error={error}
         onRetry={() => refetch()}
-        loading={<div className="card animate-pulse h-40 flex items-center justify-center text-muted">Loading…</div>}
+        loading={<div className="card animate-pulse h-40 flex items-center justify-center text-muted">{t("Loading…")}</div>}
         isEmpty={fetched.length === 0}
         empty={(
           <div className="card text-muted text-sm text-center py-12">
             {hasFilter
-              ? `No transactions match “${filter}”.`
-              : "No transactions yet. Import a CSV or add one manually."}
+              ? t("No transactions match “{filter}”.", { filter })
+              : t("No transactions yet. Import a CSV or add one manually.")}
           </div>
         )}
       >
         <div className="card p-0 overflow-hidden">
           {txns.length === 0 && (
             <p className="text-muted text-sm text-center py-12">
-              No {TYPE_LABELS[typeFilter]?.toLowerCase()} transactions on this page.
+              {t("No transactions of this type on this page.")}
             </p>
           )}
           <ul className="md:hidden divide-y divide-surface-border">
-            {txns.map((t) => (
-              <li key={t.id} className="flex items-start justify-between gap-3 px-4 py-3">
+            {txns.map((txn) => (
+              <li key={txn.id} className="flex items-start justify-between gap-3 px-4 py-3">
                 <div className="min-w-0 space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-bold text-sm">
-                      <TickerLink ticker={t.ticker}>{t.ticker}</TickerLink>
+                      <TickerLink ticker={txn.ticker}>{txn.ticker}</TickerLink>
                     </span>
-                    <TypeBadge type={t.type} />
+                    <TypeBadge type={txn.type} />
                   </div>
                   <p className="text-sm text-muted tabular-nums">
-                    {formatTableDate(t.date)} · {formatQuantity(t.shares, currency)} × {formatMoney(t.price, t.currency)}
+                    {formatTableDate(txn.date)} · {formatQuantity(txn.shares, currency)} × {formatMoney(txn.price, txn.currency)}
                   </p>
-                  {t.notes && <p className="text-xs text-muted truncate">{t.notes}</p>}
+                  {txn.notes && <p className="text-xs text-muted truncate">{txn.notes}</p>}
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="tabular-nums text-sm font-medium">{formatMoney(t.shares * t.price, t.currency)}</p>
+                  <p className="tabular-nums text-sm font-medium">{formatMoney(txn.shares * txn.price, txn.currency)}</p>
                   {/* Wide gap: the destructive button must not sit next to the note one. */}
                   <div className="flex justify-end gap-5">
-                    {noteButton(t)}
-                    {deleteButton(t)}
+                    {noteButton(txn)}
+                    {deleteButton(txn)}
                   </div>
                 </div>
               </li>
@@ -283,7 +298,7 @@ export default function Transactions() {
             <table className="w-full">
               <thead className="border-b border-surface-border">
                 <tr>
-                  {["Date", "Ticker", "Type", "Shares", "Price", "Total", "Currency", "Notes", ""].map((h, i) => (
+                  {[t("Date"), t("Ticker"), t("Type"), t("Shares"), t("Price"), t("Total"), t("Currency"), t("Notes"), ""].map((h, i) => (
                     <th key={h || i} scope="col" className={`${[3, 4, 5, 8].includes(i) ? "text-right" : "text-left"} px-4 py-3 whitespace-nowrap text-xs font-medium text-muted uppercase tracking-wider`}>
                       {h}
                     </th>
@@ -291,30 +306,30 @@ export default function Transactions() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
-                {txns.map((t) => (
-                  <tr key={t.id} className="hover:bg-surface-hover transition-colors">
-                    <td className="px-4 py-3 text-sm text-ink whitespace-nowrap tabular-nums">{formatTableDate(t.date)}</td>
+                {txns.map((txn) => (
+                  <tr key={txn.id} className="hover:bg-surface-hover transition-colors">
+                    <td className="px-4 py-3 text-sm text-ink whitespace-nowrap tabular-nums">{formatTableDate(txn.date)}</td>
                     <td className="px-4 py-3 font-mono font-bold text-sm">
-                      <TickerLink ticker={t.ticker}>{t.ticker}</TickerLink>
+                      <TickerLink ticker={txn.ticker}>{txn.ticker}</TickerLink>
                     </td>
                     <td className="px-4 py-3 text-sm">
-                      <TypeBadge type={t.type} />
+                      <TypeBadge type={txn.type} />
                     </td>
-                    <td className="px-4 py-3 tabular-nums text-sm text-right">{formatQuantity(t.shares, currency)}</td>
-                    <td className="px-4 py-3 tabular-nums text-sm text-right">{formatMoney(t.price, t.currency)}</td>
+                    <td className="px-4 py-3 tabular-nums text-sm text-right">{formatQuantity(txn.shares, currency)}</td>
+                    <td className="px-4 py-3 tabular-nums text-sm text-right">{formatMoney(txn.price, txn.currency)}</td>
                     <td className="px-4 py-3 tabular-nums text-sm text-right font-medium">
-                      {formatMoney(t.shares * t.price, t.currency)}
+                      {formatMoney(txn.shares * txn.price, txn.currency)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-muted">{t.currency}</td>
+                    <td className="px-4 py-3 text-sm text-muted">{txn.currency}</td>
                     {/* One Notes column: the imported note text, then the
                         button for the user's own trade note. */}
                     <td className="px-4 py-3 text-sm text-muted">
                       <div className="flex items-center gap-1">
-                        {noteButton(t, "shrink-0")}
-                        <span className="max-w-xs truncate">{t.notes || ""}</span>
+                        {noteButton(txn, "shrink-0")}
+                        <span className="max-w-xs truncate">{txn.notes || ""}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right">{deleteButton(t)}</td>
+                    <td className="px-4 py-3 text-right">{deleteButton(txn)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -327,7 +342,7 @@ export default function Transactions() {
               total={total}
               onOffsetChange={(next) => updateParams({ offset: String(next) })}
               onLimitChange={(next) => updateParams({ limit: String(next) }, true)}
-              ariaLabel="Transactions pages"
+              ariaLabel={t("Transactions pages")}
             />
           </div>
         </div>
