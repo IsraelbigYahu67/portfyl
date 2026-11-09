@@ -12,6 +12,7 @@ import AllocationTargets from "../components/AllocationTargets";
 import { hasPriceProblem, priceFreshnessTitle } from "../lib/priceFreshness";
 import { useIsPhone } from "../hooks/useMediaQuery";
 import { CardSortBar, HoldingCards, SoldCards, SORT_OPTIONS, SOLD_SORT_OPTIONS } from "../components/HoldingCards";
+import { msg, useT } from "../i18n/I18nProvider";
 
 const fmtPct = (n) => formatPercent(n);
 
@@ -40,6 +41,7 @@ function useScrollCue(el, dependency) {
 }
 
 export default function Allocation() {
+  const t = useT();
   const { currency } = useCurrency();
   const currentPortfolio = usePortfolio()?.current;
   const { openStock } = useStockDetail();
@@ -117,11 +119,11 @@ export default function Allocation() {
   const toggleSoldSort = (key) =>
     setSoldSort((s) => (s?.key === key && s.dir === "desc" ? { key, dir: "asc" } : { key, dir: "desc" }));
   const CATEGORY_TITLE = {
-    position: "Positions",
-    sector: "Sector Allocation",
-    asset_type: "Asset Type",
-    currency: "Currency Exposure",
-    account: "Account",
+    position: t("Positions"),
+    sector: t("Sector Allocation"),
+    asset_type: t("Asset Type"),
+    currency: t("Currency Exposure"),
+    account: t("Account"),
   };
 
   const [sort, setSort] = useState({ key: "market_value", dir: "desc" });
@@ -139,10 +141,10 @@ export default function Allocation() {
   const toggle = (key) =>
     setSort((s) => ({ key, dir: s.key === key && s.dir === "desc" ? "asc" : "desc" }));
 
-  const Th = ({ label, k, pinned = false }) => (
+  const Th = ({ label, k, pinned = false, left = false }) => (
     <th
       onClick={() => toggle(k)}
-      className={`${label === "Company" || label === "Ticker" ? "text-left" : "text-center"} px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider cursor-pointer hover:text-ink select-none ${pinned ? "sticky left-0 z-[1] bg-surface-card" : ""}`}
+      className={`${left ? "text-left" : "text-center"} px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider cursor-pointer hover:text-ink select-none ${pinned ? "sticky left-0 z-[1] bg-surface-card" : ""}`}
     >
       {label}
       {sort.key === k && <span className="ml-1">{sort.dir === "asc" ? "↑" : "↓"}</span>}
@@ -152,14 +154,14 @@ export default function Allocation() {
   return (
     <div className="space-y-6 hover-pop-zone no-block-pop">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Allocation</h1>
+        <h1 className="text-xl font-bold">{t("Allocation")}</h1>
         <button
           onClick={() => refetchHoldings()}
           className="btn-ghost flex items-center gap-2 text-sm"
           disabled={isFetching}
         >
           <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
-          Refresh prices
+          {t("Refresh prices")}
         </button>
       </div>
 
@@ -169,14 +171,14 @@ export default function Allocation() {
         onRetry={() => Promise.all([refetchHoldings(), refetchBreakdown()])}
         loading={(
           <div className="card animate-pulse h-48 flex items-center justify-center text-muted">
-            Loading allocation data...
+            {t("Loading allocation data…")}
           </div>
         )}
       >
         <>
       {breakdownLoading || holdingsLoading ? (
         <div className="card animate-pulse h-48 flex items-center justify-center text-muted">
-          Loading allocation data...
+          {t("Loading allocation data…")}
         </div>
       ) : (
         <>
@@ -204,15 +206,15 @@ export default function Allocation() {
 
       <div>
         <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider">
-          All Holdings
+          {t("All Holdings")}
         </h2>
         {holdingsLoading ? (
           <div className="card animate-pulse h-48 flex items-center justify-center text-muted">
-            Loading live prices...
+            {t("Loading live prices…")}
           </div>
         ) : holdings.length === 0 ? (
           <div className="card text-muted text-sm text-center py-12">
-            No holdings yet. Import a CSV or add transactions to get started.
+            {t("No holdings yet. Import a CSV or add transactions to get started.")}
           </div>
         ) : isPhone ? (
           <>
@@ -234,19 +236,19 @@ export default function Allocation() {
               data-scroll-cue={scrollCue ? "true" : "false"}
               style={scrollCue ? { maskImage: SCROLL_FADE, WebkitMaskImage: SCROLL_FADE } : undefined}
             >
-              <table className="w-full" aria-label="All holdings">
+              <table className="w-full" aria-label={t("All holdings")}>
                 <thead className="border-b border-surface-border">
                   <tr>
-                    <Th label="Ticker" k="ticker" pinned />
-                    <Th label="Company" k="name" />
-                    <Th label="Shares" k="shares" />
-                    <Th label="Avg Cost" k="avg_cost" />
-                    <Th label="Price" k="current_price" />
-                    <Th label="Value" k="market_value" />
-                    <Th label="P&L" k="pnl" />
-                    <Th label="P&L %" k="pnl_percent" />
-                    <Th label="Weight" k="weight" />
-                    <Th label="Dividends" k="dividends" />
+                    <Th label={t("Ticker")} k="ticker" pinned left />
+                    <Th label={t("Company")} k="name" left />
+                    <Th label={t("Shares")} k="shares" />
+                    <Th label={t("Avg Cost")} k="avg_cost" />
+                    <Th label={t("Price")} k="current_price" />
+                    <Th label={t("Value")} k="market_value" />
+                    <Th label={t("P&L")} k="pnl" />
+                    <Th label={t("P&L %")} k="pnl_percent" />
+                    <Th label={t("Weight")} k="weight" />
+                    <Th label={t("Dividends")} k="dividends" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
@@ -261,7 +263,7 @@ export default function Allocation() {
                       >
                         <td className="px-4 py-3 font-mono font-bold text-sm sticky left-0 z-[1] bg-surface-card">
                           <TickerLink ticker={h.ticker} className="text-left">{h.ticker}</TickerLink>
-                          {closed && <span className="ml-1.5 financial-meta font-medium text-loss uppercase">Sold</span>}
+                          {closed && <span className="ml-1.5 financial-meta font-medium text-loss uppercase">{t("Sold")}</span>}
                         </td>
                         <td className={`px-4 py-3 text-sm max-w-xs truncate mx-auto ${closed ? "text-muted" : "text-ink"}`}>{h.name}</td>
                         <td className={`px-4 py-3 tabular-nums text-sm text-center ${closed ? "text-muted" : ""}`}>
@@ -269,20 +271,20 @@ export default function Allocation() {
                         </td>
                         <td className={`px-4 py-3 tabular-nums text-sm text-center ${closed ? "text-muted" : ""}`}>{fmtNative(h.avg_cost, h.currency)}</td>
                         <td className={`px-4 py-3 tabular-nums text-sm text-center font-medium ${closed ? "text-muted" : ""}`}>
-                          <div title={closed ? undefined : priceFreshnessTitle(h) ?? undefined}>
+                          <div title={closed ? undefined : priceFreshnessTitle(h, { t }) ?? undefined}>
                             {fmtNative(h.current_price, h.currency)}
                           </div>
                           {!closed && hasPriceProblem(h) && (
                             <div
                               className={`financial-meta leading-tight ${h.price_status === "missing" ? "text-loss" : "text-[color:var(--chart-3)]"}`}
-                              title={priceFreshnessTitle(h)}
+                              title={priceFreshnessTitle(h, { t })}
                             >
-                              {h.price_status === "missing" ? "no price" : "out of date"}
+                              {h.price_status === "missing" ? t("no price") : t("out of date")}
                             </div>
                           )}
                           {closed && h.live_price != null && (
-                            <div className="financial-meta leading-tight" title="Live market price today">
-                              now {fmtNative(h.live_price, h.currency)}
+                            <div className="financial-meta leading-tight" title={t("Live market price today")}>
+                              {t("now {price}", { price: fmtNative(h.live_price, h.currency) })}
                             </div>
                           )}
                         </td>
@@ -297,9 +299,9 @@ export default function Allocation() {
                           {closed && h.pnl_if_held != null && (
                             <div
                               className={`financial-meta leading-tight mt-0.5 font-normal ${h.pnl_if_held >= 0 ? "text-gain" : "text-loss"}`}
-                              title="P&L if you had held instead of sold (live price today)"
+                              title={t("P&L if you had held instead of sold (live price today)")}
                             >
-                              if held: {h.pnl_if_held >= 0 ? "+" : ""}{fmt(h.pnl_if_held)}
+                              {t("if held: {amount}", { amount: `${h.pnl_if_held >= 0 ? "+" : ""}${fmt(h.pnl_if_held)}` })}
                             </div>
                           )}
                         </td>
@@ -309,7 +311,7 @@ export default function Allocation() {
                             <div
                               className={`financial-meta leading-tight mt-0.5 font-normal ${h.pnl_if_held_pct >= 0 ? "text-gain" : "text-loss"}`}
                             >
-                              if held: {fmtPct(h.pnl_if_held_pct)}
+                              {t("if held: {amount}", { amount: fmtPct(h.pnl_if_held_pct) })}
                             </div>
                           )}
                         </td>
@@ -339,7 +341,7 @@ export default function Allocation() {
       </div>
       <div>
         <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider">
-          Sold Positions
+          {t("Sold Positions")}
         </h2>
         {isPhone && soldHoldings.length > 0 ? (
           <>
@@ -347,29 +349,29 @@ export default function Allocation() {
               sort={soldSort ?? { key: SOLD_SORT_OPTIONS[0].key, dir: "desc" }}
               onSort={toggleSoldSort}
               options={SOLD_SORT_OPTIONS}
-              label="Sort sold positions"
+              label={t("Sort sold positions")}
             />
             <p className={`financial-meta mb-3 ${missedOutTotal >= 0 ? "text-gain" : "text-loss"}`}>
-              Missed out on, total: {fmtSigned(missedOutTotal)}
+              {t("Missed out on, total: {amount}", { amount: fmtSigned(missedOutTotal) })}
             </p>
             <SoldCards holdings={soldSorted} fmtSigned={fmtSigned} fmtPct={fmtPct} missedOut={missedOut} onOpen={openStock} />
           </>
         ) : (
         <div className="card p-0 overflow-hidden">
           {soldHoldings.length === 0 ? (
-            <div className="text-muted text-sm text-center py-12">No sold positions.</div>
+            <div className="text-muted text-sm text-center py-12">{t("No sold positions.")}</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full" aria-label="Sold positions">
+              <table className="w-full" aria-label={t("Sold positions")}>
                 <thead className="border-b border-surface-border">
                   <tr>
                     {[
-                      ["Ticker"],
-                      ["Company"],
-                      ["Sold for"],
-                      ["Return if not sold", "pnl_if_held"],
-                      ["Missed out on", "missed_out"],
-                      ["P&L if held", "pnl_if_held_pct"],
+                      [msg("Ticker")],
+                      [msg("Company")],
+                      [msg("Sold for")],
+                      [msg("Return if not sold"), "pnl_if_held"],
+                      [msg("Missed out on"), "missed_out"],
+                      [msg("P&L if held"), "pnl_if_held_pct"],
                     ].map(([label, key]) => (
                       <th
                         key={label}
@@ -377,11 +379,11 @@ export default function Allocation() {
                         aria-sort={key && soldSort?.key === key ? (soldSort.dir === "asc" ? "ascending" : "descending") : undefined}
                         className={`relative ${label === "Company" || label === "Ticker" ? "text-left" : "text-center"} px-4 pt-3 pb-6 text-xs font-medium text-muted uppercase tracking-wider ${key ? "cursor-pointer hover:text-ink select-none" : ""}`}
                       >
-                        {label}
+                        {t(label)}
                         {key && soldSort?.key === key && <span className="ml-1">{soldSort.dir === "asc" ? "↑" : "↓"}</span>}
                         {key === "missed_out" && (
                           <div className={`financial-meta absolute inset-x-0 bottom-1.5 font-normal normal-case tracking-normal ${missedOutTotal >= 0 ? "text-gain" : "text-loss"}`}>
-                            Total: {fmtSigned(missedOutTotal)}
+                            {t("Total: {amount}", { amount: fmtSigned(missedOutTotal) })}
                           </div>
                         )}
                       </th>
@@ -393,7 +395,7 @@ export default function Allocation() {
                     <tr key={h.ticker} onClick={() => openStock(h.ticker)} className="hover:bg-surface-hover transition-colors cursor-pointer bg-loss/10">
                       <td className="px-4 py-3 font-mono font-bold text-sm">
                         <TickerLink ticker={h.ticker} className="text-left">{h.ticker}</TickerLink>
-                        <span className="ml-1.5 financial-meta font-medium text-loss uppercase">Sold</span>
+                        <span className="ml-1.5 financial-meta font-medium text-loss uppercase">{t("Sold")}</span>
                       </td>
                       <td className="px-4 py-3 text-sm text-muted max-w-xs truncate mx-auto">{h.name}</td>
                       <td className={`px-4 py-3 tabular-nums text-sm text-center ${(h.pnl ?? 0) >= 0 ? "text-gain" : "text-loss"}`}>

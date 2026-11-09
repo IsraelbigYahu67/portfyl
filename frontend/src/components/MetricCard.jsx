@@ -69,7 +69,7 @@ function InfoIcon({ info }) {
       <button
         ref={triggerRef}
         type="button"
-        aria-label={t("What is {term}?", { term: info.title })}
+        aria-label={t("What is {term}?", { term: t(info.title) })}
         aria-describedby={visible ? tooltipId : undefined}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
@@ -93,15 +93,15 @@ function InfoIcon({ info }) {
             visibility: position ? "visible" : "hidden",
           }}
         >
-          <span className="block font-semibold text-ink mb-1">{info.title}</span>
-          <span className="block text-muted">{info.what}</span>
+          <span className="block font-semibold text-ink mb-1">{t(info.title)}</span>
+          <span className="block text-muted">{t(info.what)}</span>
           {info.formula && (
             <span className="block mt-1.5 pt-1.5 border-t border-hairline font-mono text-xs text-brand">
               {info.formula}
             </span>
           )}
           {info.note && (
-            <span className="block mt-1 text-xs text-muted italic">{info.note}</span>
+            <span className="block mt-1 text-xs text-muted italic">{t(info.note)}</span>
           )}
         </span>,
         document.body

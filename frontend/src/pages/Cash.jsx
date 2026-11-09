@@ -19,29 +19,31 @@ import { useCurrency, usePortfolio } from "../App";
 import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/Toast";
 import { useT212Sync } from "../hooks/useT212Sync";
+import { msg, useT } from "../i18n/I18nProvider";
 
 // Types offered for manual entry; the ledger can additionally contain imported
 // rows (card debits, cashback, FX conversion legs) from a Trading 212 CSV.
 const CASH_TYPES = ["deposit", "withdrawal", "fee", "interest"];
 
 const TYPE_LABEL = {
-  deposit: "Deposit",
-  withdrawal: "Withdrawal",
-  fee: "Fee",
-  interest: "Interest",
-  card_debit: "Card",
-  cashback: "Cashback",
-  fx_in: "FX in",
-  fx_out: "FX out",
+  deposit: msg("Deposit"),
+  withdrawal: msg("Withdrawal"),
+  fee: msg("Fee"),
+  interest: msg("Interest"),
+  card_debit: msg("Card"),
+  cashback: msg("Cashback"),
+  fx_in: msg("FX in"),
+  fx_out: msg("FX out"),
 };
 
 // Direction of each type's cash impact — mirrors backend signed_cash.
 const CASH_IN = new Set(["deposit", "interest", "cashback", "fx_in"]);
 
 function TypeBadge({ type }) {
+  const t = useT();
   return (
     <Badge tone={CASH_IN.has(type) ? "gain" : "loss"}>
-      {TYPE_LABEL[type] || humanizeCode(type)}
+      {TYPE_LABEL[type] ? t(TYPE_LABEL[type]) : humanizeCode(type)}
     </Badge>
   );
 }
@@ -58,11 +60,13 @@ function formatNote(note) {
 }
 
 function DeleteEntryButton({ row, onDelete }) {
+  const t = useT();
+  const type = TYPE_LABEL[row.type] ? t(TYPE_LABEL[row.type]) : humanizeCode(row.type);
   return (
     <button
       type="button"
       onClick={() => onDelete(row)}
-      aria-label={`Delete ${row.type} on ${row.date}`}
+      aria-label={t("Delete {type} on {date}", { type, date: row.date })}
       className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 text-muted hover:text-loss transition-colors"
     >
       <Trash2 size={14} />
@@ -83,80 +87,80 @@ const STATUS_COPY = {
     icon: CheckCircle2,
     tone: "text-gain",
     badge: "bg-gain/10 text-gain",
-    label: "Matches your recorded history",
+    label: msg("Matches your recorded history"),
   },
   different: {
     icon: AlertTriangle,
     tone: "text-loss",
     badge: "bg-loss/10 text-loss",
-    label: "Differs from your recorded history",
+    label: msg("Differs from your recorded history"),
   },
 };
 
 function CashReconciliationCard({ data, isLoading, isError, onRetry, connected, currency, onSync, syncing }) {
+  const t = useT();
   return (
     <Card>
-      <SectionHeader icon={Wallet}>Current Trading 212 balance</SectionHeader>
+      <SectionHeader icon={Wallet}>{t("Current Trading 212 balance")}</SectionHeader>
       {isLoading ? (
         <SkeletonRows rows={2} cols={2} />
       ) : isError ? (
-        <ErrorState message="Couldn't load your broker balance." onRetry={onRetry} />
+        <ErrorState message={t("Couldn't load your broker balance.")} onRetry={onRetry} />
       ) : !data || data.status === "unavailable" ? (
         <EmptyState
           icon={Wallet}
-          title={connected ? "No Trading 212 balance synced yet" : "No Trading 212 connected"}
+          title={connected ? t("No Trading 212 balance synced yet") : t("No Trading 212 connected")}
           hint={
             connected
-              ? "Sync your Trading 212 connection to see your current broker balance here."
-              : "Connect Trading 212 in Settings to see your current broker balance alongside your recorded cash history."
+              ? t("Sync your Trading 212 connection to see your current broker balance here.")
+              : t("Connect Trading 212 in Settings to see your current broker balance alongside your recorded cash history.")
           }
           action={
             connected ? (
               <button type="button" className="btn-primary" onClick={onSync} disabled={syncing}>
-                {syncing ? "Syncing…" : "Sync now"}
+                {syncing ? t("Syncing…") : t("Sync now")}
               </button>
             ) : (
-              <Link className="btn-primary" to="/settings?section=connections">Connect Trading 212</Link>
+              <Link className="btn-primary" to="/settings?section=connections">{t("Connect {broker}", { broker: "Trading 212" })}</Link>
             )
           }
         />
       ) : data.status === "no_ledger_history" ? (
         <div className="space-y-3">
           <div>
-            <p className="text-xs text-muted">Trading 212 (broker snapshot)</p>
+            <p className="text-xs text-muted">{t("Trading 212 (broker snapshot)")}</p>
             <p className="text-2xl font-display font-bold tabular-nums text-ink">
               {formatMoney(data.broker_amount, currency)}
             </p>
             {data.broker_as_of && (
               <p className="text-xs text-muted mt-1">
-                As of {formatLongDate(data.broker_as_of)}
-                {data.broker_updated_at && ` · synced ${formatDateTime(data.broker_updated_at)}`}
+                {t("As of {date}", { date: formatLongDate(data.broker_as_of) })}
+                {data.broker_updated_at && ` · ${t("synced {time}", { time: formatDateTime(data.broker_updated_at) })}`}
               </p>
             )}
           </div>
           <p className="text-xs text-muted">
-            No recorded cash history yet. Add deposits and withdrawals, or import your
-            transaction history, so Portfyl can compare them against this broker balance.
+            {t("No recorded cash history yet. Add deposits and withdrawals, or import your transaction history, so Portfyl can compare them against this broker balance.")}
           </p>
-          <Link className="btn-ghost" to="/import">Import transactions</Link>
+          <Link className="btn-ghost" to="/import">{t("Import transactions")}</Link>
         </div>
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <p className="text-xs text-muted">Trading 212 (broker snapshot)</p>
+              <p className="text-xs text-muted">{t("Trading 212 (broker snapshot)")}</p>
               <p className="text-2xl font-display font-bold tabular-nums text-ink">
                 {formatMoney(data.broker_amount, currency)}
               </p>
               {data.broker_as_of && (
                 <p className="text-xs text-muted mt-1">
-                  As of {formatLongDate(data.broker_as_of)}
-                  {data.broker_updated_at && ` · synced ${formatDateTime(data.broker_updated_at)}`}
+                  {t("As of {date}", { date: formatLongDate(data.broker_as_of) })}
+                  {data.broker_updated_at && ` · ${t("synced {time}", { time: formatDateTime(data.broker_updated_at) })}`}
                 </p>
               )}
             </div>
             <div>
-              <p className="text-xs text-muted">Recorded ledger history</p>
+              <p className="text-xs text-muted">{t("Recorded ledger history")}</p>
               <p className="text-2xl font-display font-bold tabular-nums text-ink">
                 {formatMoney(data.ledger_amount, currency)}
               </p>
@@ -168,21 +172,19 @@ function CashReconciliationCard({ data, isLoading, isError, onRetry, connected, 
               const StatusIcon = (STATUS_COPY[data.status] ?? STATUS_COPY.different).icon;
               return <StatusIcon size={16} className={(STATUS_COPY[data.status] ?? STATUS_COPY.different).tone} />;
             })()}
-            <span className="font-medium">{(STATUS_COPY[data.status] ?? STATUS_COPY.different).label}</span>
+            <span className="font-medium">{t((STATUS_COPY[data.status] ?? STATUS_COPY.different).label)}</span>
             {data.status === "different" && (
-              <span className="text-xs opacity-90">({formatMoney(data.difference, currency)} difference)</span>
+              <span className="text-xs opacity-90">({t("{amount} difference", { amount: formatMoney(data.difference, currency) })})</span>
             )}
             {data.status === "matched" && (
-              <span className="text-xs opacity-90">(within {formatMoney(data.tolerance, currency)})</span>
+              <span className="text-xs opacity-90">({t("within {amount}", { amount: formatMoney(data.tolerance, currency) })})</span>
             )}
           </div>
 
           {data.status === "different" && (
             <div className="mt-3 space-y-2">
               <p className="text-xs text-muted">
-                A difference usually means your recorded history is incomplete, not that either number is
-                wrong. Import missing transactions or sync your broker connection — Portfyl never adjusts
-                the ledger automatically to force a match.
+                {t("A difference usually means your recorded history is incomplete, not that either number is wrong. Import missing transactions or sync your broker connection — Portfyl never adjusts the ledger automatically to force a match.")}
               </p>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -192,9 +194,9 @@ function CashReconciliationCard({ data, isLoading, isError, onRetry, connected, 
                   disabled={syncing}
                 >
                   <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
-                  {syncing ? "Syncing…" : "Sync now"}
+                  {syncing ? t("Syncing…") : t("Sync now")}
                 </button>
-                <Link className="btn-ghost" to="/import">Import transactions</Link>
+                <Link className="btn-ghost" to="/import">{t("Import transactions")}</Link>
               </div>
             </div>
           )}
@@ -205,6 +207,7 @@ function CashReconciliationCard({ data, isLoading, isError, onRetry, connected, 
 }
 
 export default function Cash() {
+  const t = useT();
   // useCurrency() reads CurrencyContext (provided by App's CurrencyProvider);
   // outside that provider (e.g. in tests) the context is null, so fall back to USD.
   const currency = useCurrency()?.currency || "USD";
@@ -245,22 +248,26 @@ export default function Cash() {
     mutationFn: deleteCash,
     onSuccess: () => {
       invalidate();
-      toast.success("Cash entry deleted");
+      toast.success(t("Cash entry deleted"));
     },
     onError: (err) =>
-      toast.error(err?.response?.data?.detail || "Failed to delete cash entry"),
+      toast.error(err?.response?.data?.detail || t("Failed to delete cash entry")),
   });
   const sync = t212.syncMutation;
   const handleSync = () => t212.sync(undefined, {
-    onSuccess: () => toast.success("Synced with Trading 212"),
-    onError: (err) => toast.error(err?.response?.data?.detail || "Sync failed"),
+    onSuccess: () => toast.success(t("Synced with {broker}", { broker: "Trading 212" })),
+    onError: (err) => toast.error(err?.response?.data?.detail || t("Sync failed")),
   });
 
   const handleDelete = async (r) => {
     const ok = await confirm({
-      title: "Delete this cash entry?",
-      message: `${r.type} of ${formatMoney(r.amount, r.currency)} on ${r.date} will be permanently removed.`,
-      confirmLabel: "Delete",
+      title: t("Delete this cash entry?"),
+      message: t("{type} of {amount} on {date} will be permanently removed.", {
+        type: TYPE_LABEL[r.type] ? t(TYPE_LABEL[r.type]) : humanizeCode(r.type),
+        amount: formatMoney(r.amount, r.currency),
+        date: r.date,
+      }),
+      confirmLabel: t("Delete"),
       danger: true,
     });
     if (ok) del.mutate(r.id);
@@ -282,7 +289,7 @@ export default function Cash() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">Cash</h1>
+      <h1 className="text-xl font-bold">{t("Cash")}</h1>
 
       <CashReconciliationCard
         data={reconciliation.data}
@@ -297,37 +304,38 @@ export default function Cash() {
 
       <MetricCard
         icon={Wallet}
-        label="Recorded balance"
+        label={t("Recorded balance")}
         value={formatMoney(balance.data?.total, currency)}
-        sub={balance.data?.total_accrued > 0 ? `+${formatMoney(balance.data.total_accrued, currency)} interest` : null}
+        sub={balance.data?.total_accrued > 0 ? t("+{amount} interest", { amount: formatMoney(balance.data.total_accrued, currency) }) : null}
         positive={balance.data?.total_accrued > 0}
         loading={balance.isLoading}
       />
 
       {(history.data?.series?.length ?? 0) >= 2 && (
         <Card>
-          <SectionHeader icon={TrendingUp}>Balance over time</SectionHeader>
+          <SectionHeader icon={TrendingUp}>{t("Balance over time")}</SectionHeader>
           <CashBalanceChart data={history.data.series} currency={currency} />
         </Card>
       )}
 
       <Card>
-        <SectionHeader icon={Plus}>Add cash flow</SectionHeader>
+        <SectionHeader icon={Plus}>{t("Add cash flow")}</SectionHeader>
         <form onSubmit={submit} className="flex flex-wrap gap-2 items-end">
           <select
             className="input w-auto"
             value={form.type}
             onChange={(e) => setForm({ ...form, type: e.target.value })}
           >
-            {CASH_TYPES.map((t) => (
-              <option key={t} value={t}>{TYPE_LABEL[t]}</option>
+            {CASH_TYPES.map((type) => (
+              <option key={type} value={type}>{t(TYPE_LABEL[type])}</option>
             ))}
           </select>
           <input
             className="input w-28"
             type="number"
             step="0.01"
-            placeholder="Amount"
+            placeholder={t("Amount")}
+            aria-label={t("Amount")}
             value={form.amount}
             onChange={(e) => setForm({ ...form, amount: e.target.value })}
             required
@@ -346,27 +354,28 @@ export default function Cash() {
           />
           <input
             className="input flex-1"
-            placeholder="Note"
+            placeholder={t("Note")}
+            aria-label={t("Note")}
             value={form.note}
             onChange={(e) => setForm({ ...form, note: e.target.value })}
           />
           <button className="btn-primary" type="submit" disabled={add.isPending}>
-            {add.isPending ? "Adding…" : "Add"}
+            {add.isPending ? t("Adding…") : t("Add")}
           </button>
         </form>
         {add.isError && (
           <p className="text-loss text-xs mt-2">
-            {add.error?.response?.data?.detail || "Failed to add cash flow"}
+            {add.error?.response?.data?.detail || t("Failed to add cash flow")}
           </p>
         )}
       </Card>
 
       <Card>
-        <SectionHeader icon={Wallet}>Ledger</SectionHeader>
+        <SectionHeader icon={Wallet}>{t("Ledger")}</SectionHeader>
         {rows.isLoading ? (
           <SkeletonRows rows={5} cols={4} />
         ) : (rows.data?.length ?? 0) === 0 ? (
-          <EmptyState icon={Wallet} title="No cash flows yet" hint="Add an opening balance deposit to start." />
+          <EmptyState icon={Wallet} title={t("No cash flows yet")} hint={t("Add an opening balance deposit to start.")} />
         ) : (
           <>
             <ul className="md:hidden divide-y divide-hairline">
@@ -393,10 +402,10 @@ export default function Cash() {
                 <thead className="border-b border-hairline">
                   <tr>
                     {[
-                      ["Date", "text-left"],
-                      ["Type", "text-left"],
-                      ["Amount", "text-right"],
-                      ["Note", "text-left pl-6"],
+                      [t("Date"), "text-left"],
+                      [t("Type"), "text-left"],
+                      [t("Amount"), "text-right"],
+                      [t("Note"), "text-left pl-6"],
                       ["", "text-right"],
                     ].map(([h, cls], i) => (
                       <th key={i} scope="col" className={`py-2 whitespace-nowrap text-xs font-medium text-muted uppercase tracking-wider ${cls}`}>
@@ -428,7 +437,7 @@ export default function Cash() {
                 limit={LEDGER_PAGE_SIZE}
                 total={ledgerRows.length}
                 onOffsetChange={setLedgerOffset}
-                ariaLabel="Cash ledger pages"
+                ariaLabel={t("Cash ledger pages")}
               />
             )}
           </>

@@ -13,6 +13,7 @@ import {
   toPayload,
 } from "../lib/allocationTargets";
 import { AsyncSection, EmptyState } from "./ui";
+import { useT } from "../i18n/I18nProvider";
 
 const pct = (n) => formatPercent(n, { sign: false });
 const TH = "text-left px-3 py-2 text-xs font-medium text-muted uppercase tracking-wider";
@@ -27,6 +28,7 @@ function driftClass(drift) {
 }
 
 export default function AllocationTargets({ currency }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [rows, setRows] = useState(null); // null = view mode
   const [newCount, setNewCount] = useState(0);
@@ -61,12 +63,12 @@ export default function AllocationTargets({ currency }) {
     );
 
   return (
-    <section aria-label="Target allocation" className="card space-y-4">
+    <section aria-label={t("Target allocation")} className="card space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-muted uppercase tracking-wider">Target allocation</h2>
+        <h2 className="text-sm font-semibold text-muted uppercase tracking-wider">{t("Target allocation")}</h2>
         {rows == null && targeted.length > 0 && (
           <button type="button" className="btn-ghost text-sm" onClick={startEditing}>
-            Edit targets
+            {t("Edit targets")}
           </button>
         )}
       </div>
@@ -75,7 +77,7 @@ export default function AllocationTargets({ currency }) {
         isLoading={query.isLoading}
         error={query.error}
         onRetry={() => query.refetch()}
-        loading={<div className="animate-pulse h-24 text-muted text-sm">Loading targets...</div>}
+        loading={<div className="animate-pulse h-24 text-muted text-sm">{t("Loading targets…")}</div>}
       >
         {rows != null ? (
           <TargetEditor
@@ -87,16 +89,16 @@ export default function AllocationTargets({ currency }) {
             onCancel={() => setRows(null)}
             onSave={() => save.mutate(toPayload(rows))}
             saving={save.isPending}
-            saveError={save.error ? getApiErrorMessage(save.error, "We couldn't save your targets.") : null}
+            saveError={save.error ? getApiErrorMessage(save.error, t("We couldn't save your targets.")) : null}
           />
         ) : targeted.length === 0 ? (
           <EmptyState
             icon={Target}
-            title="No target allocation yet"
-            hint="Set a target weight for each holding to see how far the portfolio has drifted from your plan."
+            title={t("No target allocation yet")}
+            hint={t("Set a target weight for each holding to see how far the portfolio has drifted from your plan.")}
             action={(
               <button type="button" className="btn-primary text-sm" onClick={startEditing}>
-                Set targets
+                {t("Set targets")}
               </button>
             )}
           />
@@ -109,6 +111,7 @@ export default function AllocationTargets({ currency }) {
 }
 
 function TargetView({ drift, currency }) {
+  const t = useT();
   const [showUntargeted, setShowUntargeted] = useState(false);
   const targetedRows = drift.rows.filter((r) => r.target_pct != null);
   const untargetedRows = drift.rows.filter((r) => r.target_pct == null);
@@ -117,31 +120,30 @@ function TargetView({ drift, currency }) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted">
-        {pct(drift.target_total_pct)} of 100% assigned
+        {t("{assigned} of 100% assigned", { assigned: pct(drift.target_total_pct) })}
         {drift.is_complete ? (
-          " · complete"
+          ` · ${t("complete")}`
         ) : (
-          <span className="text-[color:var(--chart-3)]"> · {pct(remaining)} not assigned</span>
+          <span className="text-[color:var(--chart-3)]"> · {t("{remaining} not assigned", { remaining: pct(remaining) })}</span>
         )}
-        {" · "}Weights use imported transactions at the latest quotes; cash is not included.
+        {" · "}{t("Weights use imported transactions at the latest quotes; cash is not included.")}
       </p>
       {drift.missing_price_tickers.length > 0 && (
         <p className="text-xs text-[color:var(--chart-3)]">
-          No current price for {drift.missing_price_tickers.join(", ")}. These holdings are valued at 0,
-          so their drift may be off.
+          {t("No current price for {tickers}. These holdings are valued at 0, so their drift may be off.", { tickers: drift.missing_price_tickers.join(", ") })}
         </p>
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="border-b border-surface-border">
             <tr>
-              <th className={TH}>Ticker</th>
-              <th className={`${TH} hidden sm:table-cell`}>Group</th>
-              <th className={`${TH} text-right`}>Target</th>
-              <th className={`${TH} text-right`}>Current</th>
-              <th className={`${TH} text-right`} title="Current weight minus target weight">Drift</th>
-              <th className={`${TH} text-right`} title="Value change that would bring this holding to its target">
-                Value to target
+              <th className={TH}>{t("Ticker")}</th>
+              <th className={`${TH} hidden sm:table-cell`}>{t("Group")}</th>
+              <th className={`${TH} text-right`}>{t("Target")}</th>
+              <th className={`${TH} text-right`}>{t("Current")}</th>
+              <th className={`${TH} text-right`} title={t("Current weight minus target weight")}>{t("Drift")}</th>
+              <th className={`${TH} text-right`} title={t("Value change that would bring this holding to its target")}>
+                {t("Value to target")}
               </th>
             </tr>
           </thead>
@@ -150,11 +152,11 @@ function TargetView({ drift, currency }) {
               <tr key={r.ticker}>
                 <td className={`${TD} font-mono font-bold`}>
                   {r.ticker}
-                  {!r.held && <span className="ml-1.5 financial-meta font-normal text-muted">not held</span>}
+                  {!r.held && <span className="ml-1.5 financial-meta font-normal text-muted">{t("not held")}</span>}
                 </td>
                 <td className={`${TD} text-muted hidden sm:table-cell`}>{r.group ?? "—"}</td>
                 <td className={`${TD} text-right tabular-nums`}>
-                  {r.target_pct == null ? <span className="text-xs text-muted">No target</span> : pct(r.target_pct)}
+                  {r.target_pct == null ? <span className="text-xs text-muted">{t("No target")}</span> : pct(r.target_pct)}
                 </td>
                 <td className={`${TD} text-right tabular-nums`}>{pct(r.current_pct)}</td>
                 <td className={`${TD} text-right tabular-nums ${driftClass(r.drift_pct)}`}>
@@ -174,7 +176,9 @@ function TargetView({ drift, currency }) {
                     aria-expanded={showUntargeted}
                     onClick={() => setShowUntargeted((v) => !v)}
                   >
-                    {untargetedRows.length} {untargetedRows.length === 1 ? "holding" : "holdings"} without a target
+                    {untargetedRows.length === 1
+                      ? t("1 holding without a target")
+                      : t("{count} holdings without a target", { count: untargetedRows.length })}
                   </button>
                 </td>
               </tr>
@@ -183,11 +187,15 @@ function TargetView({ drift, currency }) {
         </table>
       </div>
       {drift.groups.length > 0 && (
-        <ul aria-label="Target groups" className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted">
+        <ul aria-label={t("Target groups")} className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted">
           {drift.groups.map((g) => (
             <li key={g.group}>
-              <span className="text-ink font-medium">{g.group}</span>: target {pct(g.target_pct)} · current{" "}
-              {pct(g.current_pct)} · drift {formatPercent(g.drift_pct)}
+              <span className="text-ink font-medium">{g.group}</span>:{" "}
+              {t("target {target} · current {current} · drift {drift}", {
+                target: pct(g.target_pct),
+                current: pct(g.current_pct),
+                drift: formatPercent(g.drift_pct),
+              })}
             </li>
           ))}
         </ul>
@@ -197,7 +205,8 @@ function TargetView({ drift, currency }) {
 }
 
 function TargetEditor({ rows, onChange, onAdd, onRemove, onFill, onCancel, onSave, saving, saveError }) {
-  const errors = draftErrors(rows);
+  const t = useT();
+  const errors = draftErrors(rows, t);
   const total = draftTotal(rows);
   let newIndex = 0;
   return (
@@ -207,23 +216,23 @@ function TargetEditor({ rows, onChange, onAdd, onRemove, onFill, onCancel, onSav
         <table className="w-full min-w-[30rem]">
           <thead className="border-b border-surface-border">
             <tr>
-              <th className={TH}>Ticker</th>
-              <th className={`${TH} text-right`}>Target %</th>
-              <th className={`${TH} text-right`}>Current</th>
-              <th className={TH}>Group</th>
-              <th className={TH}><span className="sr-only">Remove</span></th>
+              <th className={TH}>{t("Ticker")}</th>
+              <th className={`${TH} text-right`}>{t("Target %")}</th>
+              <th className={`${TH} text-right`}>{t("Current")}</th>
+              <th className={TH}>{t("Group")}</th>
+              <th className={TH}><span className="sr-only">{t("Remove")}</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-border">
             {rows.map((r) => {
-              const label = r.isNew ? `new row ${++newIndex}` : r.ticker;
+              const label = r.isNew ? t("new row {number}", { number: ++newIndex }) : r.ticker;
               return (
                 <tr key={r.key}>
                   <td className={`${TD} font-mono font-bold`}>
                     {r.isNew ? (
                       <input
                         className={`${INPUT} w-24`}
-                        aria-label={`Ticker for ${label}`}
+                        aria-label={t("Ticker for {row}", { row: label })}
                         value={r.ticker}
                         maxLength={32}
                         onChange={(e) => onChange(r.key, "ticker", e.target.value)}
@@ -235,7 +244,7 @@ function TargetEditor({ rows, onChange, onAdd, onRemove, onFill, onCancel, onSav
                   <td className={`${TD} text-right`}>
                     <input
                       className={`${INPUT} text-right w-20`}
-                      aria-label={`Target for ${label}`}
+                      aria-label={t("Target for {row}", { row: label })}
                       inputMode="decimal"
                       value={r.target}
                       placeholder="—"
@@ -246,10 +255,10 @@ function TargetEditor({ rows, onChange, onAdd, onRemove, onFill, onCancel, onSav
                   <td className={TD}>
                     <input
                       className={`${INPUT} w-32`}
-                      aria-label={`Group for ${label}`}
+                      aria-label={t("Group for {row}", { row: label })}
                       value={r.group}
                       maxLength={40}
-                      placeholder="Optional"
+                      placeholder={t("Optional")}
                       onChange={(e) => onChange(r.key, "group", e.target.value)}
                     />
                   </td>
@@ -257,7 +266,7 @@ function TargetEditor({ rows, onChange, onAdd, onRemove, onFill, onCancel, onSav
                     <button
                       type="button"
                       className="btn-ghost p-1"
-                      aria-label={`Remove target for ${label}`}
+                      aria-label={t("Remove target for {row}", { row: label })}
                       onClick={() => onRemove(r.key)}
                     >
                       <Trash2 size={14} />
@@ -272,15 +281,15 @@ function TargetEditor({ rows, onChange, onAdd, onRemove, onFill, onCancel, onSav
 
       <div className="flex flex-wrap gap-2">
         <button type="button" className="btn-ghost text-sm flex items-center gap-1" onClick={onAdd}>
-          <Plus size={14} /> Add ticker
+          <Plus size={14} /> {t("Add ticker")}
         </button>
         <button type="button" className="btn-ghost text-sm" onClick={onFill}>
-          Use current weights
+          {t("Use current weights")}
         </button>
       </div>
 
       <p className="text-xs text-muted">
-        Total {pct(total)} of 100%. Leave a target empty for “no target”. You can save before reaching 100%.
+        {t("Total {total} of 100%. Leave a target empty for “no target”. You can save before reaching 100%.", { total: pct(total) })}
       </p>
       {errors.length > 0 && (
         <ul role="alert" className="text-xs text-loss space-y-1">
@@ -291,7 +300,7 @@ function TargetEditor({ rows, onChange, onAdd, onRemove, onFill, onCancel, onSav
 
       <div className="flex gap-2 justify-end">
         <button type="button" className="btn-ghost text-sm" onClick={onCancel} disabled={saving}>
-          Cancel
+          {t("Cancel")}
         </button>
         <button
           type="button"
@@ -299,7 +308,7 @@ function TargetEditor({ rows, onChange, onAdd, onRemove, onFill, onCancel, onSav
           onClick={onSave}
           disabled={saving || errors.length > 0}
         >
-          {saving ? "Saving..." : "Save targets"}
+          {saving ? t("Saving…") : t("Save targets")}
         </button>
       </div>
     </div>
