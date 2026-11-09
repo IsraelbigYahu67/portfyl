@@ -1,5 +1,16 @@
 import { Component } from 'react';
 import { reportError } from '../../errorMonitoring';
+import { useT } from '../../i18n/I18nProvider';
+
+// A class component cannot call hooks, so the fallback is its own component.
+function RouteError() {
+  const t = useT();
+  return <div role="alert" className="card my-4 space-y-3">
+    <h1 className="text-lg font-semibold">{t("This page could not load")}</h1>
+    <p className="text-sm text-muted">{t("Reload to try again.")}</p>
+    <button type="button" className="btn-primary min-h-11" onClick={() => window.location.reload()}>{t("Reload page")}</button>
+  </div>;
+}
 
 export default class RouteBoundary extends Component {
   state = { failed: false };
@@ -9,11 +20,7 @@ export default class RouteBoundary extends Component {
     reportError(error, { extra: { componentStack: info?.componentStack } });
   }
   render() {
-    if (this.state.failed) return <div role="alert" className="card my-4 space-y-3">
-      <h1 className="text-lg font-semibold">This page could not load</h1>
-      <p className="text-sm text-muted">Reload to try again.</p>
-      <button type="button" className="btn-primary min-h-11" onClick={() => window.location.reload()}>Reload page</button>
-    </div>;
+    if (this.state.failed) return <RouteError />;
     return this.props.children;
   }
 }

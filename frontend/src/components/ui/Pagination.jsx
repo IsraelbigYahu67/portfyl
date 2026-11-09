@@ -1,6 +1,9 @@
+import { useT } from "../../i18n/I18nProvider";
+
 const PAGE_SIZES = [25, 50, 100];
 
 export default function Pagination({ offset, limit, total, onOffsetChange, onLimitChange, ariaLabel }) {
+  const t = useT();
   const currentPage = Math.floor(offset / limit) + 1;
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const rangeStart = total === 0 ? 0 : offset + 1;
@@ -11,7 +14,7 @@ export default function Pagination({ offset, limit, total, onOffsetChange, onLim
   return (
     <nav aria-label={ariaLabel} className="flex items-center justify-between gap-4 flex-wrap py-3">
       <span className="text-xs text-muted tabular-nums">
-        {rangeStart}–{rangeEnd} of {total}
+        {t("{start}–{end} of {total}", { start: rangeStart, end: rangeEnd, total })}
       </span>
       <div className="flex items-center gap-2">
         <button
@@ -20,7 +23,7 @@ export default function Pagination({ offset, limit, total, onOffsetChange, onLim
           onClick={() => goTo(currentPage - 1)}
           disabled={currentPage <= 1}
         >
-          Previous
+          {t("Previous")}
         </button>
         {totalPages <= 7 && (
           <div className="flex items-center gap-1">
@@ -45,12 +48,12 @@ export default function Pagination({ offset, limit, total, onOffsetChange, onLim
           onClick={() => goTo(currentPage + 1)}
           disabled={currentPage >= totalPages}
         >
-          Next
+          {t("Next")}
         </button>
       </div>
       {onLimitChange && (
         <label className="text-xs text-muted flex items-center gap-2">
-          Rows per page
+          {t("Rows per page")}
           <select
             className="input py-1"
             value={limit}

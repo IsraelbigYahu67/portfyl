@@ -5,6 +5,7 @@ import { Briefcase, Check, ChevronDown, Pencil, Plus, Trash2, X } from "lucide-r
 import { usePortfolio } from "../App";
 import { createPortfolio, deletePortfolio, updatePortfolio } from "../api";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { useT } from "../i18n/I18nProvider";
 import { useConfirm } from "./ui/ConfirmDialog";
 import { useToast } from "./ui/Toast";
 
@@ -12,6 +13,7 @@ import { useToast } from "./ui/Toast";
 // backdrop-filter/z-index stacking context would otherwise keep this
 // `position: fixed` overlay underneath the page's cards.
 function NameModal({ title, initial = "", confirmLabel, busy, onCancel, onSubmit }) {
+  const t = useT();
   const [name, setName] = useState(initial);
   const inputRef = useRef(null);
   const titleId = useId();
@@ -46,15 +48,15 @@ function NameModal({ title, initial = "", confirmLabel, busy, onCancel, onSubmit
       >
         <div className="flex items-center justify-between">
           <h2 id={titleId} className="font-bold text-lg">{title}</h2>
-          <button type="button" onClick={onCancel} aria-label="Close" className="text-muted hover:text-ink">
+          <button type="button" onClick={onCancel} aria-label={t("Close")} className="text-muted hover:text-ink">
             <X size={18} />
           </button>
         </div>
         <input
           ref={inputRef}
           className="input"
-          placeholder="Portfolio name"
-          aria-label="Portfolio name"
+          placeholder={t("Portfolio name")}
+          aria-label={t("Portfolio name")}
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={64}
@@ -62,10 +64,10 @@ function NameModal({ title, initial = "", confirmLabel, busy, onCancel, onSubmit
         />
         <div className="flex gap-2 pt-1">
           <button type="button" onClick={onCancel} className="btn-ghost flex-1">
-            Cancel
+            {t("Cancel")}
           </button>
           <button type="submit" className="btn-primary flex-1" disabled={busy || !name.trim()}>
-            {busy ? "Saving…" : confirmLabel}
+            {busy ? t("Saving…") : confirmLabel}
           </button>
         </div>
       </form>
@@ -75,17 +77,19 @@ function NameModal({ title, initial = "", confirmLabel, busy, onCancel, onSubmit
 }
 
 // "Default · 759 transactions" on the second line of a row; non-default
-// portfolios show just the count.
-function transactionSummary(p) {
+// portfolios show just the count. One/other literal keys: Czech and Polish
+// translate the plural count-neutrally ("Transakce: 759").
+function transactionSummary(t, p) {
   const count = p.transaction_count ?? 0;
-  const label = `${count} ${count === 1 ? "transaction" : "transactions"}`;
-  return p.is_default ? `Default · ${label}` : label;
+  const label = count === 1 ? t("{count} transaction", { count }) : t("{count} transactions", { count });
+  return p.is_default ? t("Default · {summary}", { summary: label }) : label;
 }
 
 // `compact` is the phone top-bar variant: the root is not positioned, so the
 // menu anchors to the (relative) header and spans its width instead of the
 // narrow slot the button sits in; the button is a 44px-tall pill.
 export default function PortfolioSwitcher({ compact = false }) {
+  const t = useT();
   const { activePortfolios, portfolios: allPortfolios, current, setCurrentId, refetchPortfolios } = usePortfolio();
   const portfolios = activePortfolios || allPortfolios || [];
   const queryClient = useQueryClient();
@@ -114,7 +118,7 @@ export default function PortfolioSwitcher({ compact = false }) {
       refetchPortfolios().then(() => {
         if (created?.id) setCurrentId(created.id);
       });
-      toast.success(`Portfolio "${created?.name || name}" created`);
+      toast.success(t("Portfolio “{name}” created", { name: created?.name || name }));
     },
   });
 
@@ -124,7 +128,7 @@ export default function PortfolioSwitcher({ compact = false }) {
       setMode(null);
       setRenameTarget(null);
       queryClient.invalidateQueries({ queryKey: ["portfolios"] });
-      toast.success(`Renamed to "${name}"`);
+      toast.success(t("Renamed to “{name}”", { name }));
     },
   });
 
@@ -138,16 +142,16 @@ export default function PortfolioSwitcher({ compact = false }) {
         if (next) setCurrentId(next.id);
       }
       refetchPortfolios();
-      toast.success("Portfolio deleted");
+      toast.success(t("Portfolio deleted"));
     },
   });
 
   const handleDelete = async (p) => {
     if (portfolios.length <= 1) return;
     const ok = await confirm({
-      title: `Delete "${p.name}"?`,
-      message: `This permanently removes all ${p.transaction_count ?? 0} transactions and any broker connection in it.`,
-      confirmLabel: "Delete",
+      title: t("Delete “{name}”?", { name: p.name }),
+      message: t("This permanently removes all its transactions ({count}) and any broker connection in it.", { count: p.transaction_count ?? 0 }),
+      confirmLabel: t("Delete"),
       danger: true,
     });
     if (ok) deleteMut.mutate(p.id);
@@ -167,12 +171,14 @@ export default function PortfolioSwitcher({ compact = false }) {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Switch portfolio (current: ${current?.name ?? "none"})`}
+        aria-label={current?.name
+          ? t("Switch portfolio (current: {name})", { name: current.name })
+          : t("Switch portfolio (none selected)")}
         className={`w-full flex items-center gap-2 bg-surface border border-surface-border rounded-lg px-3 py-2 text-left hover:border-brand transition-colors ${compact ? "min-h-11" : ""}`}
       >
         <Briefcase size={14} className="text-brand shrink-0" />
         <div className="flex-1 min-w-0">
-          <div className="text-xs text-muted leading-none mb-0.5">Portfolio</div>
+          <div className="text-xs text-muted leading-none mb-0.5">{t("Portfolio")}</div>
           <div className="text-sm font-medium truncate">
             {current?.name ?? "—"}
           </div>
@@ -206,14 +212,14 @@ export default function PortfolioSwitcher({ compact = false }) {
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate font-medium">{p.name}</span>
                     <span className="text-xs text-muted tabular-nums">
-                      {transactionSummary(p)}
+                      {transactionSummary(t, p)}
                     </span>
                   </span>
                 </button>
                 <span className="flex shrink-0 items-center md:pointer-events-none md:absolute md:right-1.5 md:top-1/2 md:-translate-y-1/2 md:rounded-full md:bg-surface-card md:px-1 md:opacity-0 md:shadow-sm md:group-hover:pointer-events-auto md:group-hover:opacity-100 md:group-focus-within:pointer-events-auto md:group-focus-within:opacity-100">
                 <button
-                  title="Rename"
-                  aria-label={`Rename ${p.name}`}
+                  title={t("Rename")}
+                  aria-label={t("Rename {name}", { name: p.name })}
                   onClick={(e) => {
                     e.stopPropagation();
                     setRenameTarget(p);
@@ -225,8 +231,8 @@ export default function PortfolioSwitcher({ compact = false }) {
                   <Pencil size={12} />
                 </button>
                 <button
-                  title={portfolios.length <= 1 ? "Cannot delete the last portfolio" : "Delete"}
-                  aria-label={`Delete ${p.name}`}
+                  title={portfolios.length <= 1 ? t("Cannot delete the last portfolio") : t("Delete")}
+                  aria-label={t("Delete {name}", { name: p.name })}
                   disabled={portfolios.length <= 1}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -250,7 +256,7 @@ export default function PortfolioSwitcher({ compact = false }) {
               className="w-full flex items-center gap-2 px-2.5 py-1.5 text-sm text-muted hover:bg-surface-hover"
             >
               <Plus size={14} />
-              New portfolio
+              {t("New portfolio")}
             </button>
           </div>
         </div>
@@ -258,8 +264,8 @@ export default function PortfolioSwitcher({ compact = false }) {
 
       {mode === "create" && (
         <NameModal
-          title="New portfolio"
-          confirmLabel="Create"
+          title={t("New portfolio")}
+          confirmLabel={t("Create")}
           busy={createMut.isPending}
           onCancel={() => setMode(null)}
           onSubmit={(name) => createMut.mutate(name)}
@@ -268,9 +274,9 @@ export default function PortfolioSwitcher({ compact = false }) {
 
       {mode === "rename" && renameTarget && (
         <NameModal
-          title={`Rename "${renameTarget.name}"`}
+          title={t("Rename “{name}”", { name: renameTarget.name })}
           initial={renameTarget.name}
-          confirmLabel="Save"
+          confirmLabel={t("Save")}
           busy={renameMut.isPending}
           onCancel={() => {
             setMode(null);
@@ -285,7 +291,7 @@ export default function PortfolioSwitcher({ compact = false }) {
           {createMut.error?.response?.data?.detail ||
             renameMut.error?.response?.data?.detail ||
             deleteMut.error?.response?.data?.detail ||
-            "Action failed"}
+            t("Action failed")}
         </p>
       )}
     </div>

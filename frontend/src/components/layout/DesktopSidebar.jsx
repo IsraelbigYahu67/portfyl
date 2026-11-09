@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import { useT } from "../../i18n/I18nProvider";
 import AccountMenu from "../AccountMenu";
 import PortfolioSwitcher from "../PortfolioSwitcher";
 import { preloadRoute } from "./navigation";
@@ -9,6 +10,7 @@ const LEADING = "0.28s cubic-bezier(0.34, 1.1, 0.64, 1)";
 const TRAILING = "0.45s cubic-bezier(0.34, 1.1, 0.64, 1) 0.05s";
 
 export default function DesktopSidebar({ groups }) {
+  const t = useT();
   const { pathname } = useLocation();
   const navRef = useRef(null);
   const previousTop = useRef(null);
@@ -73,7 +75,7 @@ export default function DesktopSidebar({ groups }) {
         <PortfolioSwitcher />
       </div>
 
-      <nav ref={navRef} aria-label="Primary" className="relative flex-1 min-h-0 px-2.5 py-2 space-y-3 overflow-y-auto">
+      <nav ref={navRef} aria-label={t("Primary")} className="relative flex-1 min-h-0 px-2.5 py-2 space-y-3 overflow-y-auto">
         {thumb && (
           <span
             aria-hidden="true"
@@ -86,7 +88,7 @@ export default function DesktopSidebar({ groups }) {
           return (
             <section key={group.id} aria-labelledby={headingId}>
               <h2 id={headingId} className="data-label px-3 pb-1">
-                {group.label}
+                {t(group.label)}
               </h2>
               <div className="space-y-0.5">
                 {group.items.map(({ to, label, icon: Icon, preload }) => (
@@ -105,7 +107,7 @@ export default function DesktopSidebar({ groups }) {
                     )}
                   >
                     <Icon size={16} aria-hidden="true" />
-                    {label}
+                    {t(label)}
                   </NavLink>
                 ))}
               </div>

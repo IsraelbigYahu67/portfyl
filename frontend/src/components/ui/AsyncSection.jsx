@@ -1,4 +1,5 @@
 import { getApiErrorMessage } from "../../lib/apiError";
+import { useT } from "../../i18n/I18nProvider";
 import ErrorState from "./ErrorState";
 
 export default function AsyncSection({
@@ -10,9 +11,10 @@ export default function AsyncSection({
   empty,
   children,
 }) {
+  const t = useT();
   if (isLoading) {
     return (
-      <div role="status" aria-label="Loading">
+      <div role="status" aria-label={t("Loading")}>
         {loading}
       </div>
     );

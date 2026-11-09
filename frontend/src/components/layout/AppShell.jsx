@@ -5,8 +5,10 @@ import MobileBottomNav from "./MobileBottomNav";
 import MobileTopBar from "./MobileTopBar";
 import { useRouteFocusAnnouncer } from "../../hooks/useRouteFocusAnnouncer";
 import { NavGroupsContext } from "./NavGroupsContext";
+import { useT } from "../../i18n/I18nProvider";
 
 export default function AppShell({ groups, children }) {
+  const t = useT();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const mainRef = useRef(null);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
@@ -17,7 +19,7 @@ export default function AppShell({ groups, children }) {
     <NavGroupsContext.Provider value={groups}>
     <div className="flex min-h-dvh bg-bg">
       <a href="#main-content" className="skip-link">
-        Skip to main content
+        {t("Skip to main content")}
       </a>
 
       <div className="hidden lg:flex shrink-0 sticky top-0 h-dvh self-start">

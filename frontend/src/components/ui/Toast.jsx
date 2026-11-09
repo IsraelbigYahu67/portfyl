@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { AlertCircle, CheckCircle, Info, X } from "lucide-react";
+import { useT } from "../../i18n/I18nProvider";
 
 const ToastContext = createContext(null);
 
@@ -31,6 +32,7 @@ const VARIANTS = {
 };
 
 export function ToastProvider({ children }) {
+  const t = useT();
   const [toasts, setToasts] = useState([]);
 
   const dismiss = useCallback((id) => {
@@ -65,21 +67,21 @@ export function ToastProvider({ children }) {
         aria-live="polite"
         aria-atomic="false"
       >
-        {toasts.map((t) => {
-          const { Icon, accent, ring } = VARIANTS[t.variant] || VARIANTS.info;
+        {toasts.map((item) => {
+          const { Icon, accent, ring } = VARIANTS[item.variant] || VARIANTS.info;
           return (
             <div
-              key={t.id}
+              key={item.id}
               role="status"
               style={{ animation: "toast-in 0.15s ease-out" }}
               className={`card pointer-events-auto flex items-start gap-2.5 border shadow-lg ${ring}`}
             >
               <Icon size={18} className={`mt-0.5 shrink-0 ${accent}`} />
-              <p className="flex-1 text-sm text-ink">{t.message}</p>
+              <p className="flex-1 text-sm text-ink">{item.message}</p>
               <button
                 type="button"
-                onClick={() => dismiss(t.id)}
-                aria-label="Dismiss notification"
+                onClick={() => dismiss(item.id)}
+                aria-label={t("Dismiss notification")}
                 className="shrink-0 text-muted transition-colors hover:text-ink"
               >
                 <X size={15} />
