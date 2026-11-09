@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { LockKeyhole, X } from "lucide-react";
+import { useT } from "../i18n/I18nProvider";
 
 
 export default function UpgradePrompt() {
+  const t = useT();
   const [denial, setDenial] = useState(null);
 
   useEffect(() => {
@@ -19,7 +21,7 @@ export default function UpgradePrompt() {
     <div className="fixed bottom-5 right-5 z-50 max-w-sm rounded-xl border border-brand/40 bg-surface-card p-4 shadow-xl">
       <button
         type="button"
-        aria-label="Dismiss upgrade prompt"
+        aria-label={t("Dismiss upgrade prompt")}
         onClick={() => setDenial(null)}
         className="absolute right-3 top-3 text-muted hover:text-ink"
       >
@@ -29,17 +31,17 @@ export default function UpgradePrompt() {
         <LockKeyhole size={19} className="mt-0.5 shrink-0 text-brand" />
         <div>
           <p className="font-semibold">
-            {readOnly ? "This item is read-only on your plan" : quota ? "Plan limit reached" : "Upgrade required"}
+            {readOnly ? t("This item is read-only on your plan") : quota ? t("Plan limit reached") : t("Upgrade required")}
           </p>
           <p className="mt-1 text-sm text-muted">
-            Your data is preserved. Review plan access and limits to continue using this action.
+            {t("Your data is preserved. Review plan access and limits to continue using this action.")}
           </p>
           <Link
             to="/pricing"
             onClick={() => setDenial(null)}
             className="mt-3 inline-flex rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-black"
           >
-            Compare plans
+            {t("Compare plans")}
           </Link>
         </div>
       </div>

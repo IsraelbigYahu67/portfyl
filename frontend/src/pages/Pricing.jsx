@@ -12,6 +12,7 @@ import {
   updateTestPlan,
 } from "../api";
 import { Badge } from "../components/ui/Badge";
+import { msg, useI18n, useT } from "../i18n/I18nProvider";
 
 
 // Monthly prices in euro cents, VAT included. In billing mode the backend's
@@ -21,25 +22,31 @@ const PLANS = [
     id: "free",
     name: "Free",
     icon: Sprout,
-    tagline: "Track one portfolio and get to know Portfyl.",
+    tagline: msg("Track one portfolio and get to know Portfyl."),
     monthly: 0,
-    features: ["1 portfolio", "15 active positions", "250 transactions", "3 alerts"],
+    features: [msg("1 portfolio"), msg("15 active positions"), msg("250 transactions"), msg("3 alerts")],
   },
   {
     id: "investor",
     name: "Investor",
     icon: TrendingUp,
-    tagline: "For long-term investors with several accounts.",
+    tagline: msg("For long-term investors with several accounts."),
     monthly: 599,
-    features: ["5 portfolios", "2 broker connections", "Complete analytics", "Daily sync"],
+    features: [msg("5 portfolios"), msg("2 broker connections"), msg("Complete analytics"), msg("Daily sync")],
   },
   {
     id: "pro",
     name: "Pro",
     icon: Gem,
-    tagline: "For active investors who trade options and research deeply.",
+    tagline: msg("For active investors who trade options and research deeply."),
     monthly: 999,
-    features: ["15 portfolios", "5 broker connections", "Advanced options & Polymarket", "6-hour sync", "Advanced research & custom benchmarks"],
+    features: [
+      msg("15 portfolios"),
+      msg("5 broker connections"),
+      msg("Advanced options & Polymarket"),
+      msg("6-hour sync"),
+      msg("Advanced research & custom benchmarks"),
+    ],
   },
 ];
 
@@ -55,12 +62,15 @@ function euro(cents) {
 }
 
 
-function longDate(iso) {
-  return new Intl.DateTimeFormat("en", { day: "numeric", month: "long", year: "numeric" }).format(new Date(iso));
+// Spelled-out month names sit inside translated sentences, so they follow the
+// app language (numeric formats elsewhere still follow the display currency).
+function longDate(iso, language = "en") {
+  return new Intl.DateTimeFormat(language, { day: "numeric", month: "long", year: "numeric" }).format(new Date(iso));
 }
 
 
 function PlanCard({ plan, price, isCurrent, badge, action }) {
+  const t = useT();
   const Icon = plan.icon;
   const headingId = `plan-${plan.id}-name`;
 
@@ -77,13 +87,13 @@ function PlanCard({ plan, price, isCurrent, badge, action }) {
       </div>
 
       <h2 id={headingId} className="mt-4 text-lg font-bold">{plan.name}</h2>
-      <p className="mt-1 text-sm text-muted md:min-h-[2.5rem]">{plan.tagline}</p>
+      <p className="mt-1 text-sm text-muted md:min-h-[2.5rem]">{t(plan.tagline)}</p>
 
       <p className="mt-5 flex items-baseline gap-1.5">
         <span className="font-display text-4xl font-extrabold tracking-tight text-ink tnum">{euro(price)}</span>
-        <span className="text-sm text-muted">/ month</span>
+        <span className="text-sm text-muted">{t("/ month")}</span>
       </p>
-      <p className="financial-meta mt-1">{price > 0 ? "VAT included, billed monthly" : " "}</p>
+      <p className="financial-meta mt-1">{price > 0 ? t("VAT included, billed monthly") : " "}</p>
 
       <div className="my-5 h-px bg-hairline" aria-hidden="true" />
 
@@ -93,7 +103,7 @@ function PlanCard({ plan, price, isCurrent, badge, action }) {
             <span className="mt-px grid h-5 w-5 shrink-0 place-items-center rounded-full bg-brand-light text-brand">
               <Check size={12} strokeWidth={3} aria-hidden="true" />
             </span>
-            {feature}
+            {t(feature)}
           </li>
         ))}
       </ul>
@@ -147,6 +157,7 @@ function ErrorBanner({ message }) {
 
 
 function TestPlans({ currentPlan, onPlanChanged }) {
+  const t = useT();
   const [changingPlan, setChangingPlan] = useState(null);
   const [error, setError] = useState("");
   const [announcement, setAnnouncement] = useState("");
@@ -158,9 +169,9 @@ function TestPlans({ currentPlan, onPlanChanged }) {
     try {
       const result = await updateTestPlan(plan.id);
       onPlanChanged(result.plan);
-      setAnnouncement(`${plan.name} is now active for this workspace.`);
+      setAnnouncement(t("{plan} is now active for this workspace.", { plan: plan.name }));
     } catch {
-      setError("The plan could not be changed. Please try again.");
+      setError(t("The plan could not be changed. Please try again."));
     } finally {
       setChangingPlan(null);
     }
@@ -168,8 +179,8 @@ function TestPlans({ currentPlan, onPlanChanged }) {
 
   return (
     <>
-      <Notice icon={FlaskConical} title="Free plan switching during private testing">
-        Choose any plan below. No payment method, checkout, charge, or subscription will be created.
+      <Notice icon={FlaskConical} title={t("Free plan switching during private testing")}>
+        {t("Choose any plan below. No payment method, checkout, charge, or subscription will be created.")}
       </Notice>
       <ErrorBanner message={error} />
       <p aria-live="polite" className="sr-only">{announcement}</p>
@@ -183,7 +194,7 @@ function TestPlans({ currentPlan, onPlanChanged }) {
               plan={plan}
               price={plan.monthly}
               isCurrent={isCurrent}
-              badge={isCurrent && <Badge tone="brand">Current test plan</Badge>}
+              badge={isCurrent && <Badge tone="brand">{t("Current test plan")}</Badge>}
               action={(
                 <PlanButton
                   primary={isUpgrade}
@@ -192,7 +203,7 @@ function TestPlans({ currentPlan, onPlanChanged }) {
                   current={isCurrent}
                   onClick={() => selectPlan(plan)}
                 >
-                  {isCurrent ? "Active for testing" : `Use ${plan.name} for testing`}
+                  {isCurrent ? t("Active for testing") : t("Use {plan} for testing", { plan: plan.name })}
                 </PlanButton>
               )}
             />
@@ -209,25 +220,30 @@ function planName(id) {
 }
 
 
-function subscriptionSummary(subscription) {
+function subscriptionSummary(subscription, t, language) {
   if (!subscription) return null;
+  const date = (iso) => longDate(iso, language);
   if (subscription.scheduled_plan && subscription.scheduled_change_at) {
-    return `${planName(subscription.scheduled_plan)} starts on ${longDate(subscription.scheduled_change_at)}. `
-      + `Until then you keep ${planName(subscription.plan)}, with nothing extra to pay now.`;
+    return t("{next} starts on {date}. Until then you keep {current}, with nothing extra to pay now.", {
+      next: planName(subscription.scheduled_plan),
+      date: date(subscription.scheduled_change_at),
+      current: planName(subscription.plan),
+    });
   }
   if (subscription.status === "past_due") {
     return subscription.grace_ends_at
-      ? `Your last payment failed. Update your payment method by ${longDate(subscription.grace_ends_at)} to keep your plan.`
-      : "Your last payment failed. Update your payment method to keep your plan.";
+      ? t("Your last payment failed. Update your payment method by {date} to keep your plan.", { date: date(subscription.grace_ends_at) })
+      : t("Your last payment failed. Update your payment method to keep your plan.");
   }
   if (!subscription.current_period_end) return null;
   return subscription.cancel_at_period_end
-    ? `Cancelled. Your plan stays active until ${longDate(subscription.current_period_end)}, then the workspace moves to Free.`
-    : `Renews automatically on ${longDate(subscription.current_period_end)}.`;
+    ? t("Cancelled. Your plan stays active until {date}, then the workspace moves to Free.", { date: date(subscription.current_period_end) })
+    : t("Renews automatically on {date}.", { date: date(subscription.current_period_end) });
 }
 
 
 function PaidPlans({ status, onStatusChange }) {
+  const { t, language } = useI18n();
   const [consented, setConsented] = useState(false);
   const [redirecting, setRedirecting] = useState(null);
   const [changing, setChanging] = useState(null);
@@ -244,7 +260,7 @@ function PaidPlans({ status, onStatusChange }) {
     try {
       onStatusChange(await changePlan(plan.id));
     } catch {
-      setError("The plan change could not be saved. Please try again.");
+      setError(t("The plan change could not be saved. Please try again."));
     } finally {
       setChanging(null);
     }
@@ -257,27 +273,25 @@ function PaidPlans({ status, onStatusChange }) {
       const { url } = await request();
       window.location.assign(url);
     } catch {
-      setError("The payment page could not be opened. Please try again.");
+      setError(t("The payment page could not be opened. Please try again."));
       setRedirecting(null);
     }
   };
   const openPortal = () => goTo("portal", openBillingPortal);
   const checkout = (plan) => goTo(plan.id, () => startCheckout(plan.id));
 
-  const summary = subscriptionSummary(subscription);
+  const summary = subscriptionSummary(subscription, t, language);
 
   return (
     <>
-      <Notice icon={CreditCard} title="Secure payments through Link">
-        Payments are processed by Link, a Stripe company, as the seller of record. It handles VAT, receipts and
-        payment support. Portfyl never sees your card details. Cancel anytime; you keep your plan until the end of
-        the paid month.
+      <Notice icon={CreditCard} title={t("Secure payments through Link")}>
+        {t("Payments are processed by Link, a Stripe company, as the seller of record. It handles VAT, receipts and payment support. Portfyl never sees your card details. Cancel anytime; you keep your plan until the end of the paid month.")}
       </Notice>
 
       {subscription && (
         <div className="card flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold">Your subscription: {planName(subscription.plan)}</p>
+            <p className="text-sm font-semibold">{t("Your subscription: {plan}", { plan: planName(subscription.plan) })}</p>
             {summary && <p className="mt-0.5 text-sm text-muted">{summary}</p>}
           </div>
           {canManage && (
@@ -288,7 +302,7 @@ function PaidPlans({ status, onStatusChange }) {
               className="btn-ghost flex min-h-11 shrink-0 items-center justify-center gap-2 px-5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
             >
               {redirecting === "portal" && <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />}
-              Manage subscription
+              {t("Manage subscription")}
             </button>
           )}
         </div>
@@ -303,13 +317,12 @@ function PaidPlans({ status, onStatusChange }) {
             className="mt-0.5 h-4 w-4 accent-brand"
           />
           <span className="text-sm">
-            I want my subscription to start immediately. I understand that once it starts I lose my 14-day right of
-            withdrawal for this digital service.
+            {t("I want my subscription to start immediately. I understand that once it starts I lose my 14-day right of withdrawal for this digital service.")}
           </span>
         </label>
       )}
       {!canManage && (
-        <p className="text-sm text-muted">Only the workspace owner can change the plan or manage billing.</p>
+        <p className="text-sm text-muted">{t("Only the workspace owner can change the plan or manage billing.")}</p>
       )}
 
       <ErrorBanner message={error} />
@@ -320,39 +333,39 @@ function PaidPlans({ status, onStatusChange }) {
           const isCurrent = status.plan === plan.id;
           const isScheduled = subscription?.scheduled_plan === plan.id;
           let action;
-          let badge = isCurrent && <Badge tone="brand">Current plan</Badge>;
+          let badge = isCurrent && <Badge tone="brand">{t("Current plan")}</Badge>;
           if (isCurrent && subscription?.scheduled_plan) {
             // A switch is booked: offer to stay on the current plan instead.
             action = (
               <PlanButton disabled={!canManage || busy} busy={changing === plan.id} onClick={() => bookChange(plan)}>
-                {`Keep ${plan.name}`}
+                {t("Keep {plan}", { plan: plan.name })}
               </PlanButton>
             );
           } else if (isCurrent) {
-            action = <PlanButton disabled current>Current plan</PlanButton>;
+            action = <PlanButton disabled current>{t("Current plan")}</PlanButton>;
           } else if (isScheduled) {
-            badge = <Badge tone="neutral">From {longDate(subscription.scheduled_change_at)}</Badge>;
-            action = <PlanButton disabled current>Starts next period</PlanButton>;
+            badge = <Badge tone="neutral">{t("From {date}", { date: longDate(subscription.scheduled_change_at, language) })}</Badge>;
+            action = <PlanButton disabled current>{t("Starts next period")}</PlanButton>;
           } else if (subscription && plan.id === "free") {
             // Moving to Free is a cancellation, handled in the Stripe portal.
             action = (
-              <PlanButton disabled={!canManage || busy} onClick={openPortal}>Cancel in billing portal</PlanButton>
+              <PlanButton disabled={!canManage || busy} onClick={openPortal}>{t("Cancel in billing portal")}</PlanButton>
             );
           } else if (subscription?.cancel_at_period_end) {
             // Resume the cancelled subscription in the portal before switching.
             action = (
-              <PlanButton disabled={!canManage || busy} onClick={openPortal}>Manage in billing portal</PlanButton>
+              <PlanButton disabled={!canManage || busy} onClick={openPortal}>{t("Manage in billing portal")}</PlanButton>
             );
           } else if (subscription) {
             action = (
               <PlanButton disabled={!canManage || busy} busy={changing === plan.id} onClick={() => bookChange(plan)}>
                 {subscription.current_period_end
-                  ? `Switch to ${plan.name} from ${longDate(subscription.current_period_end)}`
-                  : `Switch to ${plan.name} next period`}
+                  ? t("Switch to {plan} from {date}", { plan: plan.name, date: longDate(subscription.current_period_end, language) })
+                  : t("Switch to {plan} next period", { plan: plan.name })}
               </PlanButton>
             );
           } else if (plan.id === "free") {
-            action = <PlanButton disabled>Included</PlanButton>;
+            action = <PlanButton disabled>{t("Included")}</PlanButton>;
           } else {
             action = (
               <PlanButton
@@ -361,7 +374,7 @@ function PaidPlans({ status, onStatusChange }) {
                 busy={redirecting === plan.id}
                 onClick={() => checkout(plan)}
               >
-                {`Upgrade to ${plan.name}`}
+                {t("Upgrade to {plan}", { plan: plan.name })}
               </PlanButton>
             );
           }
@@ -383,10 +396,11 @@ function PaidPlans({ status, onStatusChange }) {
 
 
 function ReferencePlans() {
+  const t = useT();
   return (
     <>
-      <Notice icon={FlaskConical} title="Local edition: every feature is included">
-        These are the cloud plans for reference. Nothing here changes this installation.
+      <Notice icon={FlaskConical} title={t("Local edition: every feature is included")}>
+        {t("These are the cloud plans for reference. Nothing here changes this installation.")}
       </Notice>
       <div className="grid gap-6 md:grid-cols-3">
         {PLANS.map((plan) => (
@@ -407,6 +421,7 @@ function checkoutReturn() {
 // The local edition has no plans (it always resolves to Pro) and no billing or
 // /api/test-plans routes, so it renders the catalogue read-only.
 export default function Pricing({ planSwitching = true }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState(null);
   const [testPlan, setTestPlan] = useState(null);
@@ -436,23 +451,25 @@ export default function Pricing({ planSwitching = true }) {
         setStatus(confirmed);
         setMessage(
           confirmed.checkout_status === "complete"
-            ? "Thank you! Your subscription is active."
-            : "Your payment is being processed. Your plan will switch shortly.",
+            ? t("Thank you! Your subscription is active.")
+            : t("Your payment is being processed. Your plan will switch shortly."),
         );
         queryClient.invalidateQueries({ queryKey: ["plan-capabilities"] });
         return;
       }
       if (!active) return;
       setStatus(current);
-      if (outcome === "canceled") setMessage("Checkout was cancelled. You have not been charged.");
+      if (outcome === "canceled") setMessage(t("Checkout was cancelled. You have not been charged."));
     };
 
     load().catch(() => {
-      if (active) setError("Unable to load your plan.");
+      if (active) setError(t("Unable to load your plan."));
     });
     return () => {
       active = false;
     };
+    // The messages are set once per load; a language change does not reload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryClient, outcome, sessionId, planSwitching]);
 
   const billing = status?.billing_enabled;
@@ -460,14 +477,14 @@ export default function Pricing({ planSwitching = true }) {
   return (
     <div className="hover-pop-zone mx-auto max-w-5xl space-y-8 animate-fade-up">
       <header className="space-y-2">
-        <p className="eyebrow">Portfyl plans</p>
-        <h1 className="text-2xl font-bold sm:text-3xl">Plans</h1>
+        <p className="eyebrow">{t("Portfyl plans")}</p>
+        <h1 className="text-2xl font-bold sm:text-3xl">{t("Plans")}</h1>
         <p className="max-w-2xl text-sm text-muted">
           {!planSwitching
-            ? "Compare the Portfyl cloud tiers."
+            ? t("Compare the Portfyl cloud tiers.")
             : billing
-              ? "Choose the plan that fits how you invest. Prices include VAT."
-              : "Compare Portfyl tiers and choose which limits and features to test."}
+              ? t("Choose the plan that fits how you invest. Prices include VAT.")
+              : t("Compare Portfyl tiers and choose which limits and features to test.")}
         </p>
       </header>
 
@@ -487,8 +504,8 @@ export default function Pricing({ planSwitching = true }) {
             setStatus(next);
             setMessage(
               next.subscription?.scheduled_plan
-                ? `Booked: ${planName(next.subscription.scheduled_plan)} starts when your current period ends.`
-                : `You stay on ${planName(next.plan)}.`,
+                ? t("Booked: {plan} starts when your current period ends.", { plan: planName(next.subscription.scheduled_plan) })
+                : t("You stay on {plan}.", { plan: planName(next.plan) }),
             );
           }}
         />
@@ -505,7 +522,7 @@ export default function Pricing({ planSwitching = true }) {
       )}
 
       <p className="financial-meta text-center">
-        Variable-cost services remain subject to the displayed fair-use quotas.
+        {t("Variable-cost services remain subject to the displayed fair-use quotas.")}
       </p>
     </div>
   );

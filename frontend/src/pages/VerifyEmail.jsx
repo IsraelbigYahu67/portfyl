@@ -2,8 +2,10 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { MailCheck } from "lucide-react";
 import { getCurrentFirebaseUser, mapFirebaseAuthError, sendVerificationEmail } from "../auth/firebase";
+import { rich, useT } from "../i18n/I18nProvider";
 
 export default function VerifyEmail() {
+  const t = useT();
   const location = useLocation();
   const emailHint = location.state?.email || null;
   const [status, setStatus] = useState("idle"); // idle | sending | sent
@@ -23,7 +25,7 @@ export default function VerifyEmail() {
       await sendVerificationEmail(currentUser);
       setStatus("sent");
     } catch (err) {
-      setError(mapFirebaseAuthError(err));
+      setError(t(mapFirebaseAuthError(err)));
       setStatus("idle");
     }
   }
@@ -33,14 +35,16 @@ export default function VerifyEmail() {
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center gap-2 text-center">
           <MailCheck size={40} className="text-brand" aria-hidden="true" />
-          <h1 className="font-display font-bold text-xl text-ink">Verify your e-mail</h1>
+          <h1 className="font-display font-bold text-xl text-ink">{t("Verify your e-mail")}</h1>
         </div>
 
         <div className="card space-y-4 text-sm text-ink">
           <p>
-            We sent a verification link to{" "}
-            {emailHint ? <span className="font-medium">{emailHint}</span> : "your e-mail address"}. Click
-            the link, then come back and log in.
+            {emailHint
+              ? rich(t("We sent a verification link to <b>{email}</b>. Click the link, then come back and log in.", { email: emailHint }), {
+                  b: (words) => <span className="font-medium">{words}</span>,
+                })
+              : t("We sent a verification link to your e-mail address. Click the link, then come back and log in.")}
           </p>
 
           {currentUser ? (
@@ -50,17 +54,17 @@ export default function VerifyEmail() {
               disabled={status === "sending"}
               className="btn-primary w-full"
             >
-              {status === "sent" ? "Verification e-mail sent" : status === "sending" ? "Sending…" : "Resend verification e-mail"}
+              {status === "sent" ? t("Verification e-mail sent") : status === "sending" ? t("Sending…") : t("Resend verification e-mail")}
             </button>
           ) : (
             <p className="text-xs text-muted">
-              Sign in again to resend the verification e-mail.
+              {t("Sign in again to resend the verification e-mail.")}
             </p>
           )}
 
           {status === "sent" && (
             <p role="status" className="text-xs text-gain">
-              Check your inbox (and spam folder).
+              {t("Check your inbox (and spam folder).")}
             </p>
           )}
           {error && (
@@ -71,7 +75,7 @@ export default function VerifyEmail() {
 
           <p className="text-xs text-muted text-center pt-1">
             <Link to="/login" className="text-brand hover:underline">
-              Back to login
+              {t("Back to login")}
             </Link>
           </p>
         </div>

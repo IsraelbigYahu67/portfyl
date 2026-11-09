@@ -177,39 +177,44 @@ export function getCurrentFirebaseUser() {
   return _auth?.currentUser ?? null;
 }
 
+// Marks English text for translation (same as i18n/I18nProvider's msg, kept
+// local so this module keeps no static imports). Callers show the result of
+// mapFirebaseAuthError with t().
+const msg = (text) => text;
+
 // Firebase error codes we expect to hit routinely, mapped to copy a user can
 // act on. Anything unrecognized falls back to a generic message rather than
 // leaking a raw "auth/..." code.
 const ERROR_MESSAGES = {
-  "auth/email-already-in-use": "An account with that e-mail already exists.",
-  "auth/invalid-email": "Enter a valid e-mail address.",
-  "auth/weak-password": "Choose a password with at least 6 characters.",
-  "auth/user-not-found": "Incorrect e-mail or password.",
-  "auth/wrong-password": "Incorrect e-mail or password.",
-  "auth/invalid-credential": "Incorrect e-mail or password.",
-  "auth/too-many-requests": "Too many attempts. Please wait a moment and try again.",
-  "auth/network-request-failed": "Network error — check your connection and try again.",
-  "auth/user-disabled": "This account has been disabled.",
+  "auth/email-already-in-use": msg("An account with that e-mail already exists."),
+  "auth/invalid-email": msg("Enter a valid e-mail address."),
+  "auth/weak-password": msg("Choose a password with at least 6 characters."),
+  "auth/user-not-found": msg("Incorrect e-mail or password."),
+  "auth/wrong-password": msg("Incorrect e-mail or password."),
+  "auth/invalid-credential": msg("Incorrect e-mail or password."),
+  "auth/too-many-requests": msg("Too many attempts. Please wait a moment and try again."),
+  "auth/network-request-failed": msg("Network error — check your connection and try again."),
+  "auth/user-disabled": msg("This account has been disabled."),
   "auth/popup-blocked":
-    "Your browser blocked the Google sign-in window. Allow pop-ups for this site and try again.",
+    msg("Your browser blocked the Google sign-in window. Allow pop-ups for this site and try again."),
   "auth/account-exists-with-different-credential":
-    "This e-mail already has a Portfyl password. Log in with your e-mail and password.",
-  "auth/unauthorized-domain": "Google sign-in is not available right now.",
-  "auth/operation-not-allowed": "Google sign-in is not available right now.",
+    msg("This e-mail already has a Portfyl password. Log in with your e-mail and password."),
+  "auth/unauthorized-domain": msg("Google sign-in is not available right now."),
+  "auth/operation-not-allowed": msg("Google sign-in is not available right now."),
 };
 
 // Codes returned by POST /api/auth/session (backend/routers/auth.py).
 const BACKEND_ERROR_MESSAGES = {
-  beta_access_required: "This e-mail does not have an active Portfyl private beta invitation.",
+  beta_access_required: msg("This e-mail does not have an active Portfyl private beta invitation."),
   identity_conflict:
-    "This e-mail is already linked to a different sign-in method. Log in with your e-mail and password.",
+    msg("This e-mail is already linked to a different sign-in method. Log in with your e-mail and password."),
   // Login.jsx handles this for passwords with a resend flow; a Google
   // account whose address Google itself has not verified ends up here.
-  email_verification_required: "This e-mail address is not verified yet.",
+  email_verification_required: msg("This e-mail address is not verified yet."),
 };
 
 export function mapFirebaseAuthError(error) {
   const backendMessage = BACKEND_ERROR_MESSAGES[error?.response?.data?.code];
   if (backendMessage) return backendMessage;
-  return ERROR_MESSAGES[error?.code] || "Something went wrong. Please try again.";
+  return ERROR_MESSAGES[error?.code] || msg("Something went wrong. Please try again.");
 }

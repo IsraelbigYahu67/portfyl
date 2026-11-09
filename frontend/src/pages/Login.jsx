@@ -12,8 +12,10 @@ import {
 } from "../auth/firebase";
 import AuthMethodDivider from "../components/auth/AuthMethodDivider";
 import GoogleSignInButton from "../components/auth/GoogleSignInButton";
+import { rich, useT } from "../i18n/I18nProvider";
 
 export default function Login() {
+  const t = useT();
   const navigate = useNavigate();
   const { loginWithIdToken } = useAuth();
   const emailId = useId();
@@ -51,7 +53,7 @@ export default function Login() {
       if (err?.response?.status === 403 && err?.response?.data?.code === "email_verification_required") {
         setUnverifiedUser(firebaseUser || { email });
       } else {
-        setError(mapFirebaseAuthError(err));
+        setError(t(mapFirebaseAuthError(err)));
       }
     } finally {
       setSubmitting(false);
@@ -76,8 +78,8 @@ export default function Login() {
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center gap-2 text-center">
           <img src="/portfyl-mark.svg" alt="" className="w-12 h-12 object-contain" />
-          <h1 className="font-display font-bold text-xl text-ink">Log in to Portfyl</h1>
-          <p className="text-sm text-muted">Track your portfolio, dividends, and taxes in one place.</p>
+          <h1 className="font-display font-bold text-xl text-ink">{t("Log in to Portfyl")}</h1>
+          <p className="text-sm text-muted">{t("Track your portfolio, dividends, and taxes in one place.")}</p>
         </div>
 
         {isGoogleSignInEnabled() && (
@@ -89,7 +91,7 @@ export default function Login() {
 
         <form onSubmit={handleSubmit} className="card space-y-4" noValidate>
           <div className="space-y-1.5">
-            <label htmlFor={emailId} className="eyebrow">E-mail</label>
+            <label htmlFor={emailId} className="eyebrow">{t("E-mail")}</label>
             <input
               id={emailId}
               type="email"
@@ -101,7 +103,7 @@ export default function Login() {
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor={passwordId} className="eyebrow">Password</label>
+            <label htmlFor={passwordId} className="eyebrow">{t("Password")}</label>
             <input
               id={passwordId}
               type="password"
@@ -116,9 +118,10 @@ export default function Login() {
           {unverifiedUser && (
             <div role="status" className="text-xs text-ink bg-surface-hover rounded-lg p-3 space-y-2">
               <p>
-                Please verify your e-mail before logging in — we sent a verification link to{" "}
-                <span className="font-medium">{unverifiedUser.email || email}</span>. Check your inbox
-                (and spam folder).
+                {rich(
+                  t("Please verify your e-mail before logging in — we sent a verification link to <b>{email}</b>. Check your inbox (and spam folder).", { email: unverifiedUser.email || email }),
+                  { b: (words) => <span className="font-medium">{words}</span> },
+                )}
               </p>
               {unverifiedUser.getIdToken && (
                 <button
@@ -128,10 +131,10 @@ export default function Login() {
                   className="text-brand font-medium hover:underline disabled:opacity-50"
                 >
                   {resendStatus === "sent"
-                    ? "Verification e-mail sent"
+                    ? t("Verification e-mail sent")
                     : resendStatus === "sending"
-                    ? "Sending…"
-                    : "Resend verification e-mail"}
+                    ? t("Sending…")
+                    : t("Resend verification e-mail")}
                 </button>
               )}
             </div>
@@ -145,15 +148,15 @@ export default function Login() {
 
           <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2" disabled={submitting}>
             <LogIn size={15} />
-            {submitting ? "Logging in…" : "Log in"}
+            {submitting ? t("Logging in…") : t("Log in")}
           </button>
 
           <div className="flex items-center justify-between text-xs pt-1">
             <Link to="/forgot-password" className="text-muted hover:text-brand">
-              Forgot password?
+              {t("Forgot password?")}
             </Link>
             <Link to="/register" className="text-muted hover:text-brand">
-              Create an account
+              {t("Create an account")}
             </Link>
           </div>
         </form>
