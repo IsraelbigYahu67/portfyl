@@ -8,7 +8,7 @@
     "audit:readability": "node scripts/audit-readability.mjs src",
     "dev": "vite --mode edition-local",
     "build": "vite build --mode edition-local",
-    "build:cloud": "vite build --mode edition-cloud",
+    "build:cloud": "vite build --mode edition-cloud && node scripts/prerender.mjs",
     "preview": "vite preview",
     "test": "vitest run --mode edition-local",
     "test:cloud": "vitest run --mode edition-cloud",

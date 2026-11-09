@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUpRight, ChartNoAxesCombined, PieChart, CalendarDays, Layers3, Check, Plus } from "lucide-react";
+import { ArrowDown, ArrowUpRight, ChartNoAxesCombined, PieChart, CalendarDays, Layers3, Check, Plus, X } from "lucide-react";
 import { COPY, LANGUAGES, LANGUAGE_KEY } from "./welcomeCopy";
 import { useAnalytics } from "../analytics/AnalyticsProvider";
 import SegmentedControl from "../components/ui/SegmentedControl";
 import { CLAY_STYLE } from "../lib/clayStyle";
-import { ANALYTICS_COPY, getAnalyticsLanguage } from "../analytics/analyticsCopy";
+import { ANALYTICS_COPY } from "../analytics/analyticsCopy";
+import { LANDING_PATHS } from "../lib/routes";
 import { ANALYTICS_EVENTS } from "../analytics/eventContract";
 import { DEMO_SESSION_SCOPE } from "../analytics/useDemoAnalytics";
 import "./Welcome.css";
@@ -15,11 +16,60 @@ const imageSizes = [[1047, 365], [1047, 350], [1047, 345], [1004, 455]];
 const screenshotPath = (name) => `/landing/${name}-live-20260911.png`;
 const icons = [ChartNoAxesCombined, PieChart, CalendarDays];
 
+const SUGGESTION_DISMISSED_KEY = "portfyl_landing_suggestion_dismissed";
+const isLanguage = (code) => LANGUAGES.some((language) => language.code === code);
+
 function savedLanguage() {
   try {
     const saved = localStorage.getItem(LANGUAGE_KEY);
-    return LANGUAGES.some(({ code }) => code === saved) ? saved : null;
+    return isLanguage(saved) ? saved : null;
   } catch { return null; }
+}
+
+// Only an explicit action saves the language (switcher, banner, demo CTA):
+// the app, demo and legal pages read it. Merely landing on a URL does not.
+function rememberLanguage(code) {
+  try { localStorage.setItem(LANGUAGE_KEY, code); } catch { /* Storage may be unavailable. */ }
+}
+
+// The language to offer a visitor reading `pageLanguage`: their saved choice,
+// else their browser's first supported language (Slovak reads Czech;
+// anything unsupported reads English). Null when it is the page's own.
+export function suggestedLanguage(pageLanguage, { saved = savedLanguage(), browserLanguages = [] } = {}) {
+  let preferred = saved;
+  if (!preferred) {
+    const base = (browserLanguages[0] || "").toLowerCase().split("-")[0];
+    preferred = base === "sk" ? "cs" : isLanguage(base) ? base : base ? "en" : null;
+  }
+  return preferred && preferred !== pageLanguage ? preferred : null;
+}
+
+function suggestionDismissed() {
+  try { return sessionStorage.getItem(SUGGESTION_DISMISSED_KEY) === "1"; } catch { return false; }
+}
+
+// A one-line offer of the visitor's own language. Rendered only after mount
+// (it depends on storage and the browser), so the prerendered HTML -- what
+// crawlers index -- is the page's language alone. Never redirects.
+function LanguageSuggestion({ pageLanguage }) {
+  const [offer, setOffer] = useState(null);
+  useEffect(() => {
+    if (suggestionDismissed()) return;
+    const code = suggestedLanguage(pageLanguage, { browserLanguages: navigator.languages?.length ? navigator.languages : [navigator.language] });
+    setOffer(code ? LANGUAGES.find((language) => language.code === code) : null);
+  }, [pageLanguage]);
+  if (!offer) return null;
+  function dismiss() {
+    setOffer(null);
+    try { sessionStorage.setItem(SUGGESTION_DISMISSED_KEY, "1"); } catch { /* Storage may be unavailable. */ }
+  }
+  return (
+    <aside className="welcome-language-suggestion welcome-container" lang={offer.code} aria-label={offer.suggestion}>
+      <span>{offer.suggestion}</span>
+      <a href={LANDING_PATHS[offer.code]} hrefLang={offer.code} onClick={() => rememberLanguage(offer.code)}>{offer.action} <ArrowUpRight size={16} aria-hidden="true" /></a>
+      <button type="button" onClick={dismiss} aria-label={offer.dismiss} title={offer.dismiss}><X size={16} aria-hidden="true" /></button>
+    </aside>
+  );
 }
 
 const SEARCH_ENGINE_HOSTS = ["google.", "bing.", "seznam.", "duckduckgo.", "yahoo."];
@@ -48,9 +98,9 @@ function Heading({ lines }) {
   return <>{lines[0]}<br /><span>{lines[1]}</span></>;
 }
 
-function AnalyticsPreferencesLink() {
+function AnalyticsPreferencesLink({ language }) {
   const { reopenAnalyticsPreferences } = useAnalytics();
-  const t = ANALYTICS_COPY[getAnalyticsLanguage()];
+  const t = ANALYTICS_COPY[language];
   return (
     <button type="button" onClick={reopenAnalyticsPreferences} className="welcome-preview-link" style={{ background: "none", border: "none", cursor: "pointer" }}>
       {t.manage}
@@ -58,20 +108,20 @@ function AnalyticsPreferencesLink() {
   );
 }
 
-export default function Welcome() {
-  const [language, setLanguage] = useState(savedLanguage);
+// The public home in one language. `language` comes from the URL ("/" = cs,
+// "/en/", "/de/"), so the same URL always renders the same page -- on the
+// server (prerender) and in the browser alike.
+export default function Welcome({ language }) {
   const [selected, setSelected] = useState(0);
-  const headingRef = useRef(null);
-  const focusHeading = useRef(false);
-  const copy = language ? COPY[language] : null;
+  const copy = COPY[language];
   const { ready, capture, captureOnce } = useAnalytics();
   const landingViewedRef = useRef(false);
 
   useEffect(() => {
     const previousTitle = document.title;
     const previousLanguage = document.documentElement.lang;
-    document.title = copy?.title || "Portfyl — CZ / EN / DE";
-    document.documentElement.lang = language || "en";
+    document.title = copy.title;
+    document.documentElement.lang = language;
     return () => { document.title = previousTitle; document.documentElement.lang = previousLanguage; };
   }, [language, copy]);
 
@@ -84,7 +134,7 @@ export default function Welcome() {
     landingViewedRef.current = true;
     const params = new URL(window.location.href).searchParams;
     capture(ANALYTICS_EVENTS.LANDING_VIEWED, {
-      language: language || "en",
+      language,
       referrer_class: classifyReferrer(document.referrer),
       // eventContract.js's stringField rejects empty strings (and the
       // contract is off-limits to change here), so an absent UTM param is
@@ -109,44 +159,14 @@ export default function Welcome() {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
         return;
       }
+      // The demo reads the saved language; entering it from this page is a choice.
+      rememberLanguage(language);
       event.preventDefault();
-      captureOnce(DEMO_SESSION_SCOPE, ANALYTICS_EVENTS.DEMO_STARTED, { language: language || "en", entry_point: entryPoint });
+      captureOnce(DEMO_SESSION_SCOPE, ANALYTICS_EVENTS.DEMO_STARTED, { language, entry_point: entryPoint });
       window.history.pushState(null, "", "/demo");
       window.dispatchEvent(new PopStateEvent("popstate"));
     };
   }
-
-  useEffect(() => {
-    if (language && focusHeading.current) {
-      headingRef.current?.focus({ preventScroll: true });
-      focusHeading.current = false;
-    }
-  }, [language]);
-
-  function chooseLanguage(code) {
-    focusHeading.current = !language;
-    setLanguage(code);
-    try { localStorage.setItem(LANGUAGE_KEY, code); } catch { /* Storage may be unavailable. */ }
-  }
-
-  if (!copy) return (
-    <main className="welcome theme-clay welcome-language-screen" style={CLAY_STYLE}>
-      <div className="welcome-language-brand welcome-logo"><Brand /></div>
-      <div className="welcome-language-intro">
-        <p className="welcome-kicker">CZ / EN / DE</p>
-        <h1><span lang="cs">Vítejte.</span> <span lang="en">Welcome.</span><br /><span lang="de">Willkommen.</span></h1>
-        <p><span lang="cs">Vyberte si jazyk.</span> <span lang="en">Choose your language.</span> <span lang="de">Wähle deine Sprache.</span></p>
-      </div>
-      <div className="welcome-language-options" role="group" aria-label="Vyberte jazyk / Choose your language / Sprache wählen">
-        {LANGUAGES.map(({ code, label, name, welcome, action }) => (
-          <button type="button" lang={code} key={code} onClick={() => chooseLanguage(code)}>
-            <span className="welcome-language-code">{label}</span><strong>{name}</strong><span>{welcome}</span><span className="welcome-language-action">{action}<ArrowUpRight size={18} aria-hidden="true" /></span>
-          </button>
-        ))}
-      </div>
-      <p className="welcome-language-footnote"><span lang="cs">Jazyk můžete kdykoliv změnit.</span><span lang="en">You can change it anytime.</span><span lang="de">Du kannst die Sprache jederzeit ändern.</span></p>
-    </main>
-  );
 
   const preview = copy.previews[selected];
   const image = images[selected];
@@ -160,14 +180,15 @@ export default function Welcome() {
           className="welcome-language-switch"
           aria-label={copy.language}
           value={language}
-          onChange={chooseLanguage}
-          options={LANGUAGES.map(({ code, label, name }) => ({ value: code, label: <span lang={code}>{label}</span>, title: name }))}
+          onChange={rememberLanguage}
+          options={LANGUAGES.map(({ code, label, name }) => ({ value: code, label: <span lang={code}>{label}</span>, title: name, href: LANDING_PATHS[code], hrefLang: code }))}
         />
       </div></header>
+      <LanguageSuggestion pageLanguage={language} />
       <main id="obsah">
         <section className="welcome-hero welcome-container" aria-labelledby="welcome-title">
           <div className="welcome-eyebrow"><span />{copy.eyebrow}</div>
-          <h1 id="welcome-title" ref={headingRef} tabIndex={-1}><Heading lines={copy.heading} /></h1>
+          <h1 id="welcome-title"><Heading lines={copy.heading} /></h1>
           <p className="welcome-lead">{copy.lead[0]}<br className="welcome-desktop-break" /> {copy.lead[1]}</p>
           <div className="welcome-hero-actions"><a className="welcome-cta" href="/demo" onClick={handleDemoCtaClick("landing_hero")}>{copy.demoCta} <ArrowUpRight size={17} /></a><a className="welcome-preview-link" href="#ukazky">{copy.cta} <ArrowDown size={17} /></a></div>
           <p className="welcome-hero-note">{copy.heroNote}</p>
@@ -218,7 +239,7 @@ export default function Welcome() {
         </section>
         <section className="welcome-closing welcome-container"><div className="welcome-eyebrow"><span />{copy.closingKicker}</div><h2><Heading lines={copy.closingHeading} /></h2><p>{copy.closingNote}</p><div className="welcome-closing-actions"><a className="welcome-cta" href="/demo" onClick={handleDemoCtaClick("landing_closing")}>{copy.demoCta} <ArrowUpRight size={17} /></a><a href="#nahoru">{copy.back} <ArrowUpRight size={16} /></a></div></section>
       </main>
-      <footer className="welcome-footer welcome-container"><a className="welcome-logo" href="#nahoru"><Brand /></a><span>{copy.footer}</span><nav className="welcome-footer-legal" aria-label={copy.legalNavigation}>{copy.legal.map(([page, label]) => <a key={page} href={`/${page}?lang=${copy.legalLanguage}`}>{label}</a>)}</nav><AnalyticsPreferencesLink /><small>© {new Date().getFullYear()} Portfyl</small></footer>
+      <footer className="welcome-footer welcome-container"><a className="welcome-logo" href="#nahoru"><Brand /></a><span>{copy.footer}</span><nav className="welcome-footer-legal" aria-label={copy.legalNavigation}>{copy.legal.map(([page, label]) => <a key={page} href={`/${page}?lang=${copy.legalLanguage}`}>{label}</a>)}</nav><AnalyticsPreferencesLink language={language} /><small suppressHydrationWarning>© {new Date().getFullYear()} Portfyl</small></footer>
     </div>
   );
 }

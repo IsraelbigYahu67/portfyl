@@ -283,8 +283,9 @@ cards and tiles still (Allocation does this: its data/text blocks do not move).
 
 ## 10. Public landing (portfyl.com)
 
-The cloud edition's public home (`pages/Welcome.jsx` + `Welcome.css`, plus
-its first-visit language picker) always renders **Clay**, whatever appearance
+The cloud edition's public home (`pages/Welcome.jsx` + `Welcome.css`; one
+URL per language: `/` Czech, `/en/`, `/de/`, prerendered at build time)
+always renders **Clay**, whatever appearance
 a signed-in user picked. It renders outside `App.jsx`, so `applyAppearance()`
 never runs there: `Welcome.jsx` scopes the `CLAY_TOKENS` variables onto the
 `.welcome` root (`CLAY_STYLE`) and adds `theme-clay`, which resolves the
@@ -296,7 +297,11 @@ blur), soft raised clay blobs behind the hero window, the broker ribbon as an
 inset trough with raised chips, raised 24px feature cards and 20px FAQ cards,
 an inset showcase panel, and the app's `SegmentedControl` for the language and
 preview switches (the preview trough is 24px, not a pill, because it wraps to
-two rows). Same motion rules as section 7, opt-in per element.
+two rows). The language options are links (`href` option, `aria-current` on
+the active one). A visitor whose language differs from the page's gets a
+one-line offer under the header: an inset pill trough like the ribbon, with
+a raised pill link and a dismiss icon button (a 24px trough on phones,
+where it wraps). Same motion rules as section 7, opt-in per element.
 
 The public legal pages `/terms` and `/privacy` (`pages/Legal.jsx` +
 `Legal.css`, cloud only) reuse the landing's Clay root (`lib/clayStyle.js`),

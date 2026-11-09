@@ -5,6 +5,21 @@ export const TRACKER_HOME = HAS_PUBLIC_HOME ? "/dashboard" : "/";
 // local dev) never counts as the tracker.
 export const isTrackerHost = (hostname) => hostname.toLowerCase() === "app.portfyl.com";
 
+// Public landing URLs, one per language (cloud only). Czech, the primary
+// market, owns the root; English and German live in subdirectories. Each URL
+// always serves the same language -- never redirect by a guessed language
+// (docs/superpowers/plans/2026-11-09-portfyl-seo.md, decision O1).
+export const LANDING_PATHS = Object.freeze({ cs: "/", en: "/en/", de: "/de/" });
+
+// Language of the landing page at `pathname`, or null when it is not one.
+// "/en" and "/en/" are the same page; the canonical form has the slash.
+export const landingLanguage = (pathname) => {
+  if (!HAS_PUBLIC_HOME) return null;
+  if (pathname === "/") return "cs";
+  const match = /^\/(en|de)\/?$/.exec(pathname);
+  return match ? match[1] : null;
+};
+
 // The public read-only demo (portfyl.com/demo/*) only exists in the cloud
 // edition, and only on the marketing host -- isTrackerHost() callers gate
 // that separately so a visitor can never reach it from app.portfyl.com.

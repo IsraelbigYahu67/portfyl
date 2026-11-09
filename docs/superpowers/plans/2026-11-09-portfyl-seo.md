@@ -1,6 +1,9 @@
 # Portfyl SEO — research and plan
 
-Date: 2026-11-09. Status: **research done, nothing implemented.** This plan
+Date: 2026-11-09. Status: **Wave 1 implemented on branch
+`claude/dreamy-gates-mlpwia` (not merged, not deployed); Wave 0 needs the
+owner (live access, Cloudflare and search-console accounts).** The owner
+accepted every recommendation in §7 (O1–O6) on 2026-11-09. This plan
 covers only the public marketing host `portfyl.com`. The tracker on
 `app.portfyl.com` and every authenticated route stay out of search on purpose.
 
@@ -38,7 +41,7 @@ rights allow it (§5.6), tax content (§5.5), paid search.
 | A6 | **Soft 404s.** An unknown path on `portfyl.com` (e.g. `/foo`) returns 200 and boots the tracker, which then sends the visitor to login. Paths Cloudflare Access covers return 302. | `Root.jsx` (falls through to `<Tracker />`), `main.py` | Junk URLs can be indexed as duplicates of the login page. |
 | A7 | **There is only one marketing page.** Everything public is `/` (navigation by in-page anchors), `/terms`, `/privacy` and `/demo`. | `Root.jsx`, `lib/routes.js` | Nothing exists to rank for anything but the brand. |
 | A8 | **Copy promises less than the product does, on purpose.** Public copy names Trading 212 and CSV only. IBKR claims were removed on 2026-09-11, and the Degiro/XTB/Schwab/Fidelity/eToro importers run on synthetic fixtures (`CLAUDE.md`). | `welcomeCopy.js` | Broker pages may only be built for brokers we can honestly claim (§5.3). |
-| A9 | **Landing images are heavy.** The four PNG screenshots are about 300 kB each. | `frontend/public/landing/*-live-20260911.png` | Slow LCP, which hurts Core Web Vitals and mobile ranking. |
+| A9 | ~~Landing images are heavy.~~ **Corrected during Wave 1:** the four live screenshots are 17–30 kB JPEGs (despite the `.png` name) with explicit sizes; only two unused 300 kB concept PNGs were heavy, and they are deleted. | `frontend/public/landing/` | None left; confirm LCP with Lighthouse in S0. |
 | A10 | **The app host is correctly private.** `app.portfyl.com` is behind Access as a whole host, and tracker paths on `portfyl.com` are behind path-scoped Access. | Cloudflare (outside this repo) | Good. Add `noindex` defensively anyway (§5.2). |
 | A11 | **The CSP allows `script-src 'self'` only.** | `backend/security_headers.py` | JSON-LD in a `<script type="application/ld+json">` data block doesn't execute, so CSP doesn't block it and Google reads it. Prerendered HTML must still add **no inline executable** scripts. |
 | A12 | **Live checks are pending.** This research ran in a sandbox that could not reach `portfyl.com` (all requests timed out), so live headers, Cloudflare bot settings and indexing status are unverified. | — | Task S0 re-checks them. |
@@ -157,6 +160,70 @@ HTML. Writing articles before A1–A6 are fixed would be wasted effort.
 | Rendering | Build-time prerender of **public routes only**, via a custom `react-dom/server` step (option a). Tracker, demo internals and auth stay CSR. | No router migration and no new runtime dependency; `react-dom/server` is already installed. |
 | Indexable set | Language landings, content pages (§5.3–5.4), legal pages (`/terms`, `/privacy` per language). `/demo` is `noindex` until market-data rights cover public display (O3). Everything else is `noindex` or 404. | Keeps the index clean (A6, A10). |
 | AI crawlers | Allow search/answer crawlers (Googlebot, Bingbot, SeznamBot, OAI-SearchBot, PerplexityBot, Claude-SearchBot). Training crawlers are the owner's call (O4). | Visibility in AI answers without giving consent to training by default. |
+
+## 4a. Wave 1 — what was built (2026-11-09)
+
+- **One URL per language** (S2). `/` renders Czech, `/en/` English, `/de/`
+  German, from the path alone (`lib/routes.js` `LANDING_PATHS`,
+  `landingLanguage`). The full-screen language gate is gone. The header
+  switcher is the same `SegmentedControl`, now rendering `<a href hreflang>`
+  links (new `href` option), and a click saves the choice. A dismissible
+  banner offers the visitor's own language (saved choice, else browser
+  language; Slovak reads Czech, unsupported languages read English). It
+  appears only after mount, so crawlers never see it, and it never
+  redirects. The language is saved only on an explicit action (switcher,
+  banner, demo CTA), because the demo, legal pages and app read it. On
+  landing URLs the consent banner follows the page language.
+- **Build-time prerender** (S4). `npm run build:cloud` runs
+  `scripts/prerender.mjs` after the client build:
+  - it SSR-builds `src/entry-prerender.jsx` and renders the real `<Root>`
+    for each page in `src/seo/publicPages.js` (`renderToPipeableStream`,
+    `onAllReady`);
+  - it writes `dist/prerendered/{,en/,de/}index.html` with the title,
+    description, canonical, reciprocal hreflang plus `x-default` → `/en/`,
+    Open Graph/Twitter tags, JSON-LD (`Organization`, `WebSite`,
+    `SoftwareApplication`, no `offers`) and the page chunk's CSS/modulepreload
+    links;
+  - it writes `dist/robots.txt` (training crawlers disallowed, search and
+    AI-answer crawlers allowed, private paths disallowed, `Sitemap:`) and
+    `dist/sitemap.xml`;
+  - the build fails if a page renders without an `<h1>`, renders the loading
+    fallback, or contains an inline `<script>`.
+
+  `dist/index.html` stays the empty shell. `main.jsx` hydrates only
+  prerendered landing URLs off the tracker host; anything else starts clean.
+  Open Graph images are `public/og/portfyl-{cs,en,de}.jpg`: 1200×630
+  screenshots of the prerendered hero with JS disabled. Regenerate them when
+  the hero changes.
+- **Backend serving** (S3, `backend/spa_serving.py`):
+  - a prerendered page is served only for a non-tracker host and is
+    indexable only on `portfyl.com`;
+  - `/en` and `/de` redirect 301 to `/en/` and `/de/`;
+  - every app-shell response carries `X-Robots-Tag: noindex, nofollow`, and
+    so does every response on another host (`app.portfyl.com`, `*.run.app`,
+    localhost);
+  - another host gets a `robots.txt` that disallows everything;
+  - `prerendered/` and `.vite/` are never served directly;
+  - the SPA route now also answers `HEAD`.
+
+  The host comes from `X-Forwarded-Host` (set by the app-host Worker), else
+  `Host`.
+- **Deferred from S3: true 404 status codes for unknown paths.** The frontend's
+  routes live in several places (App.jsx auth routes, the authenticated route
+  registry, the edition manifests, the demo router), so a generated route
+  list needs a small refactor first. Until then, unknown paths get the
+  `noindex` shell, which keeps them out of the index. That covers the SEO
+  risk; only crawl hygiene is left.
+- **S5:** nothing heavy was left to optimise (see A9). Lighthouse numbers come
+  from the live site in S0.
+- **Legal pages** (`/terms`, `/privacy`) are not prerendered and stay
+  `noindex` while they are lawyer-review drafts. Prerender them, with
+  path-based language URLs, once the texts are final.
+- **Deploy notes.** No Cloudflare Access change is needed: `/en/`, `/de/`,
+  `/og/*`, `/robots.txt` and `/sitemap.xml` are outside the protected path
+  list, the same as `/`. After deploying, check `curl -I` for `/`, `/en`,
+  `/en/`, `/dashboard` and `https://app.portfyl.com/robots.txt` against the
+  rules above. Then submit `https://portfyl.com/sitemap.xml` in S1.
 
 ## 5. Work plan
 

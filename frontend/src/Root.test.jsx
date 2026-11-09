@@ -20,11 +20,38 @@ function setLocation({ pathname = "/", hostname = "localhost" } = {}) {
 it("serves the public home only in cloud, outside the tracker", async () => {
   render(<MemoryRouter initialEntries={["/"]}><Root /></MemoryRouter>);
   if (HAS_PUBLIC_HOME) {
-    expect(await screen.findByRole("button", { name: /Pokračovat česky/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: /Vaše investice/ })).toBeInTheDocument();
     expect(screen.queryByText("Protected tracker")).not.toBeInTheDocument();
   } else {
     expect(await screen.findByText("Protected tracker")).toBeInTheDocument();
   }
+});
+
+it.each([
+  ["/en/", /Your investments/],
+  ["/en", /Your investments/],
+  ["/de/", /Deine Investments/],
+])("serves the %s landing in its own language in cloud, regardless of saved preference", async (pathname, heading) => {
+  localStorage.setItem("portfyl_landing_language", "cs");
+  setLocation({ pathname, hostname: "portfyl.com" });
+  render(<MemoryRouter initialEntries={[pathname]}><Root /></MemoryRouter>);
+  if (HAS_PUBLIC_HOME) {
+    expect(await screen.findByRole("heading", { level: 1, name: heading })).toBeInTheDocument();
+  } else {
+    expect(await screen.findByText("Protected tracker")).toBeInTheDocument();
+  }
+});
+
+it.each(["/fr/", "/en/demo", "/cs/"])("does not treat %s as a landing page", async (pathname) => {
+  setLocation({ pathname, hostname: "portfyl.com" });
+  render(<MemoryRouter initialEntries={[pathname]}><Root /></MemoryRouter>);
+  expect(await screen.findByText("Protected tracker")).toBeInTheDocument();
+});
+
+it("never serves the landing on the tracker host", async () => {
+  setLocation({ pathname: "/en/", hostname: "app.portfyl.com" });
+  render(<MemoryRouter initialEntries={["/en/"]}><Root /></MemoryRouter>);
+  expect(await screen.findByText("Protected tracker")).toBeInTheDocument();
 });
 
 it("keeps the private tracker reachable at its edition-specific home", async () => {

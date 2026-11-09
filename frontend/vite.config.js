@@ -9,6 +9,9 @@ export function createConfig({ mode, env = process.env }) {
   return {
     define: { "import.meta.env.VITE_PORTFYL_EDITION": JSON.stringify(edition) },
     plugins: [react()],
+    // The cloud prerender (scripts/prerender.mjs) reads the manifest to link
+    // a prerendered page's chunk CSS; measure:bundle reads it too.
+    build: { manifest: edition === "cloud" },
     resolve: {
       alias: {
         "@edition-manifest": editionManifestPath(edition),

@@ -38,4 +38,14 @@ describe("ConsentBanner", () => {
     fireEvent.click(screen.getByRole("button", { name: ANALYTICS_COPY.en.reject }));
     await waitFor(() => expect(screen.queryByRole("region", { name: ANALYTICS_COPY.en.bannerTitle })).not.toBeInTheDocument());
   });
+
+  it.each(["cs", "en", "de"])("uses an explicit page language (%s) over the saved choice", (lang) => {
+    localStorage.setItem(LANGUAGE_KEY, lang === "cs" ? "en" : "cs");
+    render(
+      <AnalyticsProvider initialConsent="pending" adapterFactory={() => createMemoryAdapter()}>
+        <ConsentBanner language={lang} />
+      </AnalyticsProvider>
+    );
+    expect(screen.getByRole("region", { name: ANALYTICS_COPY[lang].bannerTitle })).toBeInTheDocument();
+  });
 });

@@ -1,4 +1,8 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+
+// The landing page is prerendered on the server, where useLayoutEffect only
+// warns; the thumb is measured after hydration either way.
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /**
  * Segmented toggle — the grey pill-row pattern repeated across the app.
@@ -9,6 +13,10 @@ import { useLayoutEffect, useRef, useState } from "react";
  *     onChange={setMode}
  *     options={[{ value: "value", label: "Value" }, { value: "growth", label: "Growth %" }]}
  *   />
+ *
+ * An option with an `href` renders as a link (`aria-current="page"` when
+ * active) so crawlers and middle-clicks can follow it; `onChange` still runs
+ * on click, before the browser navigates.
  *
  * The highlighted pill is one shared element that slides between options.
  * Its leading edge moves faster than its trailing edge, so it stretches and
@@ -38,7 +46,7 @@ export default function SegmentedControl({
 
   const activeIndex = options.findIndex((opt) => opt.value === value);
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const root = rootRef.current;
     const button = buttonRefs.current[value];
     if (!root || !button) {
@@ -106,19 +114,21 @@ export default function SegmentedControl({
       )}
       {options.map((opt) => {
         const active = opt.value === value;
+        const Element = opt.href ? "a" : "button";
+        const elementProps = opt.href
+          ? { href: opt.href, hrefLang: opt.hrefLang, "aria-current": active ? "page" : undefined }
+          : { type: "button", "aria-pressed": active, disabled: opt.disabled };
         return (
-          <button
+          <Element
             key={opt.value}
             ref={(node) => {
               if (node) buttonRefs.current[opt.value] = node;
               else delete buttonRefs.current[opt.value];
             }}
-            type="button"
-            aria-pressed={active}
+            {...elementProps}
             aria-label={opt.title}
-            disabled={opt.disabled}
             title={opt.title}
-            onClick={() => onChange(opt.value)}
+            onClick={() => onChange?.(opt.value)}
             className={`relative z-10 shrink-0 whitespace-nowrap max-sm:inline-flex max-sm:min-h-10 max-sm:items-center max-sm:justify-center rounded-[var(--radius-card)] font-medium transition-colors ${block ? "flex-1 flex items-center justify-center" : ""} ${SIZES[size]} ${
               active
                 ? `font-semibold text-brand${thumb ? "" : " bg-surface-card-elevated"}`
@@ -126,7 +136,7 @@ export default function SegmentedControl({
             }`}
           >
             {opt.label}
-          </button>
+          </Element>
         );
       })}
     </div>

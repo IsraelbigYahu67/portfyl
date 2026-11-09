@@ -18,7 +18,9 @@ function cookieAttributes(hostname, maxAge) {
   return attributes.join("; ");
 }
 
-export function getAnalyticsConsent(documentRef = document) {
+// The build-time prerender has no document; consent is then still pending.
+export function getAnalyticsConsent(documentRef = typeof document === "undefined" ? null : document) {
+  if (!documentRef) return CONSENT_STATES.PENDING;
   const value = documentRef.cookie
     .split(";")
     .map((part) => part.trim())

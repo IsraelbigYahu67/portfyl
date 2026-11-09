@@ -170,3 +170,13 @@ Reference: https://developers.cloudflare.com/cloudflare-one/access-controls/poli
 - Final checks returned `200` for the public home, Access redirects for all
   anonymous beta routes, `403` for a direct-origin API request, and the
   expected `401` from the beta API after authenticated Access traversal.
+
+## Language URLs and prerendering — 2026-11-09 (branch, not deployed)
+
+- The first-visit language screen is replaced by one URL per language: `/`
+  (Czech), `/en/`, `/de/`, prerendered at build time with SEO head tags,
+  plus `robots.txt`, `sitemap.xml` and `/og/*.jpg`. All are outside the
+  Access-protected path list above, like `/`, so no Access change is needed.
+- `/en` and `/de` redirect to the slash form. App-shell responses and every
+  response on `app.portfyl.com` carry `X-Robots-Tag: noindex, nofollow`.
+- Details and the post-deploy checks: `docs/superpowers/plans/2026-11-09-portfyl-seo.md` §4a.

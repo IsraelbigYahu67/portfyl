@@ -126,7 +126,12 @@ mockup) and does not override it.
   `requirements*.lock` are a **hotspot**: only one task at a time may change
   them (see "Parallel session safety").
 - **Prod build**: `npm run build` emits `frontend/dist`, which FastAPI serves as a
-  same-origin local-edition SPA; `npm run build:cloud` emits the cloud edition.
+  same-origin local-edition SPA; `npm run build:cloud` emits the cloud edition
+  and then prerenders the public pages listed in `frontend/src/seo/publicPages.js`
+  (`scripts/prerender.mjs` → `dist/prerendered/`, `robots.txt`, `sitemap.xml`).
+  `backend/spa_serving.py` decides which file a path gets and what is
+  `noindex`; see `docs/superpowers/plans/2026-11-09-portfyl-seo.md`. A new
+  public page goes in `publicPages.js`, nowhere else.
   The Dockerfile always uses the cloud build. See the SPA fallback at the
   bottom of `main.py`.
 - **Login**: Firebase Authentication verifies identity, by e-mail/password or

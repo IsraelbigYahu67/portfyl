@@ -1,8 +1,11 @@
 export const LANGUAGE_KEY = "portfyl_landing_language";
+// Each language has its own URL (lib/routes.js LANDING_PATHS). `suggestion`
+// and `dismiss` are shown, in that language, to a visitor whose preferred
+// language differs from the page they landed on.
 export const LANGUAGES = [
-  { code: "cs", label: "CZ", name: "Čeština", welcome: "Vítejte v Portfylu", action: "Pokračovat česky" },
-  { code: "en", label: "EN", name: "English", welcome: "Welcome to Portfyl", action: "Continue in English" },
-  { code: "de", label: "DE", name: "Deutsch", welcome: "Willkommen bei Portfyl", action: "Auf Deutsch fortfahren" },
+  { code: "cs", label: "CZ", name: "Čeština", action: "Pokračovat česky", suggestion: "Tato stránka je dostupná i v češtině.", dismiss: "Zavřít" },
+  { code: "en", label: "EN", name: "English", action: "Continue in English", suggestion: "This page is also available in English.", dismiss: "Dismiss" },
+  { code: "de", label: "DE", name: "Deutsch", action: "Auf Deutsch fortfahren", suggestion: "Diese Seite gibt es auch auf Deutsch.", dismiss: "Schließen" },
 ];
 
 export const COPY = {
