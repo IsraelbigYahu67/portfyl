@@ -5,6 +5,7 @@ import ZoomDialog from "../ui/ZoomDialog";
 import { TickerLink } from "../TickerLink";
 import { useIsPhone } from "../../hooks/useMediaQuery";
 import { formatCompact, formatMoney, formatQuantity, formatTableDate } from "../../lib/format";
+import { useT } from "../../i18n/I18nProvider";
 
 // Rows shown before the card has been measured (and in jsdom, which has no layout).
 export const FALLBACK_ROWS = 8;
@@ -74,14 +75,15 @@ function PnlPctCells({ buy }) {
 }
 
 function CompactTable({ buys }) {
+  const t = useT();
   return (
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-surface-border">
-          <th className={`${thBase} pr-3 text-left text-muted`}>Ticker</th>
-          <th className={`${thBase} text-left text-muted`}>Insider</th>
+          <th className={`${thBase} pr-3 text-left text-muted`}>{t("Ticker")}</th>
+          <th className={`${thBase} text-left text-muted`}>{t("Insider")}</th>
           {/* Two header cells, like the body, so the "(" of the heading lines up with the rows' "(". */}
-          <th className={`${thBase} text-right text-muted whitespace-nowrap`}>Bought value</th>
+          <th className={`${thBase} text-right text-muted whitespace-nowrap`}>{t("Bought value")}</th>
           <th className={`${thBase} pl-1 pr-3 text-left text-muted whitespace-nowrap`}>(P&L)</th>
           {/* One word "P&L": the "&" is centred on the split between the percent cells (over the decimal dot) and the P and L hang off it, touching, on either side. */}
           <th className={`${thBase} text-right text-muted whitespace-nowrap`}>
@@ -94,7 +96,7 @@ function CompactTable({ buys }) {
             </span>
           </th>
           <th className={`${thBase} pr-3`} aria-hidden="true" />
-          <th className={`${thBase} text-right text-muted`}>Date</th>
+          <th className={`${thBase} text-right text-muted`}>{t("Date")}</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-surface-border">
@@ -129,8 +131,9 @@ function CompactTable({ buys }) {
 // Phone layout: one card line per purchase instead of a 7-column table whose
 // Insider and Value columns were cut off.
 function BuyCards({ buys }) {
+  const t = useT();
   return (
-    <ul className="divide-y divide-hairline" aria-label="Insider buys">
+    <ul className="divide-y divide-hairline" aria-label={t("Insider buys")}>
       {buys.map((b, i) => {
         const { tone, text } = b.pnl_pct != null ? signedPct(b.pnl_pct) : { tone: "text-muted", text: "—" };
         return (
@@ -157,6 +160,7 @@ function BuyCards({ buys }) {
 }
 
 function FullTable({ buys, sort, onSort }) {
+  const t = useT();
   // Sticky header cells need an opaque background to hide rows scrolling under them.
   // Cell radii only render with separated borders, so the row dividers live
   // on the cells instead of the rows.
@@ -167,13 +171,13 @@ function FullTable({ buys, sort, onSort }) {
     <table className="w-full text-sm border-separate border-spacing-0">
       <thead>
         <tr>
-          <th className={`${th} text-left text-muted`}>Ticker</th>
-          <th className={`${th} text-left text-muted`}>Insider</th>
-          <th className={`${th} text-right text-muted`}>Shares</th>
-          <th className={`${th} text-right text-muted`}>Buy Price</th>
-          <th className={thSortable("value", "text-right")} onClick={() => onSort("value")}>Value{sortArrow("value")}</th>
+          <th className={`${th} text-left text-muted`}>{t("Ticker")}</th>
+          <th className={`${th} text-left text-muted`}>{t("Insider")}</th>
+          <th className={`${th} text-right text-muted`}>{t("Shares")}</th>
+          <th className={`${th} text-right text-muted`}>{t("Buy Price")}</th>
+          <th className={thSortable("value", "text-right")} onClick={() => onSort("value")}>{t("Value")}{sortArrow("value")}</th>
           <th className={thSortable("pnl", "text-right")} onClick={() => onSort("pnl")}>P&L{sortArrow("pnl")}</th>
-          <th className={thSortable("date", "text-right")} onClick={() => onSort("date")}>Date{sortArrow("date")}</th>
+          <th className={thSortable("date", "text-right")} onClick={() => onSort("date")}>{t("Date")}{sortArrow("date")}</th>
         </tr>
       </thead>
       <tbody className="[&>tr+tr>td]:border-t [&>tr>td]:border-surface-border [&>tr>td:first-child]:pl-2 [&>tr>td:last-child]:pr-2">
@@ -199,7 +203,7 @@ function FullTable({ buys, sort, onSort }) {
               </td>
               <td className={`py-1.5 pr-3 text-right tabular-nums font-medium ${b.pnl == null ? "text-muted" : pnlUp ? "text-gain" : "text-loss"}`}>
                 {b.pnl != null ? (
-                  <span title={`Current: ${formatMoney(b.current_price, b.currency)}`}>
+                  <span title={t("Current: {price}", { price: formatMoney(b.current_price, b.currency) })}>
                     {b.pnl >= 0 ? "+" : ""}{formatMoney(b.pnl, b.currency)}
                     {b.pnl_pct != null && <span className="text-xs ml-1">({signedPct(b.pnl_pct).text})</span>}
                   </span>
@@ -220,6 +224,7 @@ function FullTable({ buys, sort, onSort }) {
 // holdings as fit the card's height. The expand button zooms the full,
 // sortable table (shares, buy price, P&L) out of the card into a dialog.
 export default function InsiderBuysCard({ buys = [], isLoading, error, onRetry }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [sort, setSort] = useState("date");
   const isPhone = useIsPhone();
@@ -234,8 +239,8 @@ export default function InsiderBuysCard({ buys = [], isLoading, error, onRetry }
     <button
       type="button"
       onClick={() => setOpen(true)}
-      aria-label="Expand insider buys"
-      title="Expand"
+      aria-label={t("Expand insider buys")}
+      title={t("Expand")}
       className="grid place-items-center w-8 h-8 rounded-lg text-muted hover:text-ink hover:bg-surface-hover transition-colors"
     >
       <Maximize2 size={15} />
@@ -244,14 +249,14 @@ export default function InsiderBuysCard({ buys = [], isLoading, error, onRetry }
 
   return (
     <div ref={rootRef} className="flex flex-col h-full">
-      <SectionHeader icon={UserCheck} action={expand}>Recent insider buys</SectionHeader>
+      <SectionHeader icon={UserCheck} action={expand}>{t("Recent insider buys")}</SectionHeader>
       <AsyncSection
         isLoading={isLoading}
         error={error}
         onRetry={onRetry}
         loading={<SkeletonRows rows={FALLBACK_ROWS} cols={5} />}
         isEmpty={buys.length === 0}
-        empty={<EmptyState icon={UserCheck} title="No insider buys" hint="No insider purchases across your holdings in the last 12 months." />}
+        empty={<EmptyState icon={UserCheck} title={t("No insider buys")} hint={t("No insider purchases across your holdings in the last 12 months.")} />}
       >
         {/* The table is absolutely positioned so it never sets the card's
             height — the box takes whatever the row gives it, and the hook
@@ -270,10 +275,10 @@ export default function InsiderBuysCard({ buys = [], isLoading, error, onRetry }
         <p className="mt-2 text-xs text-muted">
           {(isPhone ? Math.min(PHONE_ROWS, buys.length) : shown.length) < buys.length ? (
             <button type="button" onClick={() => setOpen(true)} className="inline-flex min-h-11 items-center text-brand hover:text-brand/80 font-medium transition-colors">
-              {isPhone ? Math.min(PHONE_ROWS, buys.length) : shown.length} of {buys.length} buys · view all
+              {t("{shown} of {total} buys · view all", { shown: isPhone ? Math.min(PHONE_ROWS, buys.length) : shown.length, total: buys.length })}
             </button>
           ) : (
-            `All ${buys.length} buys from the last 12 months`
+            t("All buys from the last 12 months ({count})", { count: buys.length })
           )}
         </p>
       </AsyncSection>
@@ -291,14 +296,14 @@ export default function InsiderBuysCard({ buys = [], isLoading, error, onRetry }
               <UserCheck size={14} />
             </span>
             <div>
-              <h2 id="insider-buys-dialog-title" className="font-display text-base font-semibold text-ink">Insider buys</h2>
-              <p className="text-xs text-muted">{buys.length} purchases across your holdings · last 12 months</p>
+              <h2 id="insider-buys-dialog-title" className="font-display text-base font-semibold text-ink">{t("Insider buys")}</h2>
+              <p className="text-xs text-muted">{t("Purchases across your holdings: {count} · last 12 months", { count: buys.length })}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => setOpen(false)}
-            aria-label="Close"
+            aria-label={t("Close")}
             className="grid place-items-center w-8 h-8 rounded-lg text-muted hover:text-ink hover:bg-surface-hover transition-colors"
           >
             <X size={16} />
@@ -308,14 +313,14 @@ export default function InsiderBuysCard({ buys = [], isLoading, error, onRetry }
           {isPhone ? (
             <>
               <select
-                aria-label="Sort insider buys"
+                aria-label={t("Sort insider buys")}
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
                 className="input mb-2 min-h-11"
               >
-                <option value="date">Sort: Newest</option>
-                <option value="value">Sort: Value</option>
-                <option value="pnl">Sort: P&amp;L</option>
+                <option value="date">{t("Sort: Newest")}</option>
+                <option value="value">{t("Sort: Value")}</option>
+                <option value="pnl">{t("Sort: P&L")}</option>
               </select>
               <BuyCards buys={sortBuys(buys, sort)} />
             </>

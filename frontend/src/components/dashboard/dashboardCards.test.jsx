@@ -30,7 +30,7 @@ describe("InsightCards", () => {
   it("reveals the remaining signals on request", () => {
     renderWithRouter(<InsightCards alerts={alerts} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Show all 4 signals" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show all signals (4)" }));
 
     expect(screen.getByText("Earnings soon: ASML")).toBeInTheDocument();
   });

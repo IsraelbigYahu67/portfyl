@@ -2,6 +2,7 @@ import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Info } from "lucide-react";
 import SpotlightCard from "./reactbits/SpotlightCard";
+import { useT } from "../i18n/I18nProvider";
 import { useCountUp } from "../hooks/useCountUp";
 
 const TOOLTIP_GAP = 8;
@@ -30,6 +31,7 @@ function tooltipPosition(trigger, tooltip) {
 }
 
 function InfoIcon({ info }) {
+  const t = useT();
   const triggerRef = useRef(null);
   const tooltipRef = useRef(null);
   const tooltipId = useId();
@@ -67,7 +69,7 @@ function InfoIcon({ info }) {
       <button
         ref={triggerRef}
         type="button"
-        aria-label={`What is ${info.title}?`}
+        aria-label={t("What is {term}?", { term: info.title })}
         aria-describedby={visible ? tooltipId : undefined}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}

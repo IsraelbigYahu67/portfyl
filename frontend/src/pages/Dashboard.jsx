@@ -27,11 +27,12 @@ import { useT212Sync } from "../hooks/useT212Sync";
 import { derivePortfolioAlerts } from "../lib/portfolioAlerts";
 import { priceFreshnessLine } from "../lib/priceFreshness";
 import { CATEGORICAL } from "../lib/chartTheme";
+import { msg, useT } from "../i18n/I18nProvider";
 
 const MOVER_PERIODS = [
-  { key: "1d", label: "Today" },
-  { key: "1w", label: "Week" },
-  { key: "1m", label: "Month" },
+  { key: "1d", label: msg("Today") },
+  { key: "1w", label: msg("Week") },
+  { key: "1m", label: msg("Month") },
 ];
 
 const PERIODS = ["7D", "MTD", "1M", "3M", "YTD", "1Y", "All"];
@@ -47,12 +48,13 @@ const BENCHMARKS = [
 // Slot content for an Investor-plan widget on a workspace without
 // standard_research: no request is made, the card just points at the plans.
 function InvestorOnly({ icon }) {
+  const t = useT();
   return (
     <div className="flex-1 flex">
       <EmptyState
         icon={icon}
-        title="Dostupné od plánu Investor"
-        action={<Link to="/pricing" className="btn-primary text-xs">Porovnat plány</Link>}
+        title={t("Available from the Investor plan")}
+        action={<Link to="/pricing" className="btn-primary text-xs">{t("Compare plans")}</Link>}
         className="flex-1"
       />
     </div>
@@ -60,6 +62,7 @@ function InvestorOnly({ icon }) {
 }
 
 export default function Dashboard() {
+  const t = useT();
   const { currency, rate } = useCurrency();
   const currentPortfolio = usePortfolio()?.current;
   const t212 = useT212Sync({ portfolioId: currentPortfolio?.id, currency });
@@ -193,14 +196,18 @@ export default function Dashboard() {
   const forecastYear = dividendForecast?.year ?? new Date().getFullYear();
 
   const irr = riskMetrics?.lifetime?.xirr;
-  let profitSub = summary ? `${formatMoney(summary.total_invested, currency)} invested` : null;
-  if (hasAnalytics && Number.isFinite(irr)) profitSub = `IRR ${formatPercent(irr)} · ${profitSub}`;
-  else if (hasAnalytics && rl) profitSub = `IRR calculating… · ${profitSub}`;
-  else if (hasAnalytics && riskError) profitSub = `IRR unavailable · ${profitSub}`;
+  let profitSub = summary ? t("{amount} invested", { amount: formatMoney(summary.total_invested, currency) }) : null;
+  if (hasAnalytics && Number.isFinite(irr)) profitSub = `${t("IRR {value}", { value: formatPercent(irr) })} · ${profitSub}`;
+  else if (hasAnalytics && rl) profitSub = `${t("IRR calculating…")} · ${profitSub}`;
+  else if (hasAnalytics && riskError) profitSub = `${t("IRR unavailable")} · ${profitSub}`;
 
   const passiveSub = [
-    passive.annualIncome > 0 ? `${formatMoney(passive.annualIncome, currency)} a year` : "No dividend payers yet",
-    passive.next ? `next ex-date ${passive.next.ticker} ${formatShortDate(passive.next.date)}` : null,
+    passive.annualIncome > 0
+      ? t("{amount} a year", { amount: formatMoney(passive.annualIncome, currency) })
+      : t("No dividend payers yet"),
+    passive.next
+      ? t("next ex-date {ticker} {date}", { ticker: passive.next.ticker, date: formatShortDate(passive.next.date) })
+      : null,
   ].filter(Boolean).join(" · ");
 
   const alerts = derivePortfolioAlerts({
@@ -209,6 +216,7 @@ export default function Dashboard() {
     taxReport: editionSignals?.taxReport ?? null,
     earnings,
     today,
+    t,
   });
   const alertsLoading = dl;
   const alertsError = dividendsError;
@@ -238,7 +246,7 @@ export default function Dashboard() {
   });
 
   const pnlPos = summary?.total_pnl >= 0;
-  const priceLine = priceFreshnessLine(summary);
+  const priceLine = priceFreshnessLine(summary, { t });
 
   // The cards of the "concentration" row. Desktop renders them side by side
   // inside that one widget; a phone gets each as its own collapsible row
@@ -256,14 +264,14 @@ export default function Dashboard() {
   );
   const topHoldingsCard = (
     <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "200ms" }}>
-      <SectionHeader icon={PieChart}>Top 10 Holdings</SectionHeader>
+      <SectionHeader icon={PieChart}>{t("Top 10 Holdings")}</SectionHeader>
       <AsyncSection
         isLoading={hl}
         error={holdingsError}
         onRetry={() => refetchHoldings()}
         loading={<SkeletonRows rows={8} cols={3} />}
         isEmpty={holdings.length === 0}
-        empty={<EmptyState icon={PieChart} title="No holdings yet" hint="Import your transactions to see your top positions." action={<a href="/import" className="btn-primary text-xs">Import CSV</a>} />}
+        empty={<EmptyState icon={PieChart} title={t("No holdings yet")} hint={t("Import your transactions to see your top positions.")} action={<a href="/import" className="btn-primary text-xs">{t("Import CSV")}</a>} />}
       >
         <div className="space-y-2.5">
           {holdings.slice(0, 10).map((h) => (
@@ -289,7 +297,7 @@ export default function Dashboard() {
   );
   const heatmapCard = (
     <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "150ms" }}>
-      <SectionHeader icon={LayoutGrid}>Heatmap</SectionHeader>
+      <SectionHeader icon={LayoutGrid}>{t("Heatmap")}</SectionHeader>
       {!capabilitiesPending && !hasStandardResearch ? (
         <InvestorOnly icon={LayoutGrid} />
       ) : (
@@ -299,7 +307,7 @@ export default function Dashboard() {
           onRetry={() => refetchHoldings()}
           loading={<div className="flex-1"><SkeletonChart height={256} /></div>}
           isEmpty={holdings.length === 0}
-          empty={<div className="flex-1 flex"><EmptyState icon={LayoutGrid} title="No holdings to map" hint="Import transactions to see your heatmap." /></div>}
+          empty={<div className="flex-1 flex"><EmptyState icon={LayoutGrid} title={t("No holdings to map")} hint={t("Import transactions to see your heatmap.")} /></div>}
         >
           <Heatmap />
         </AsyncSection>
@@ -311,7 +319,7 @@ export default function Dashboard() {
     <div className="space-y-6 hover-pop-zone">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
         <div>
-          <h1 className="text-xl font-bold" tabIndex={-1}>Dashboard</h1>
+          <h1 className="text-xl font-bold" tabIndex={-1}>{t("Dashboard")}</h1>
           {priceLine && <p className="text-xs text-muted mt-0.5">{priceLine}</p>}
         </div>
         <div className="flex items-center gap-2">
@@ -324,7 +332,7 @@ export default function Dashboard() {
             }`}
           >
             {editingLayout ? <Lock size={14} /> : <LayoutGrid size={14} />}
-            {editingLayout ? "Lock Layout" : "Customize"}
+            {editingLayout ? t("Lock Layout") : t("Customize")}
           </button>
           <button
             onClick={() =>
@@ -340,7 +348,7 @@ export default function Dashboard() {
             className="btn-ghost flex items-center gap-2 text-sm disabled:opacity-60"
           >
             <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-            Refresh
+            {t("Refresh")}
           </button>
         </div>
       </div>
@@ -359,7 +367,7 @@ export default function Dashboard() {
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-1">
           <KpiBox
             icon={TrendingUp}
-            label="Total profit"
+            label={t("Total profit")}
             loading={sl}
             value={summary ? `${summary.total_pnl >= 0 ? "+" : ""}${formatMoney(summary.total_pnl, currency)}` : null}
             delta={summary ? { pct: summary.total_pnl_percent } : null}
@@ -367,7 +375,7 @@ export default function Dashboard() {
           />
           <KpiBox
             icon={Coins}
-            label="Passive income"
+            label={t("Passive income")}
             loading={sl || dl}
             value={passive.yieldPct == null ? "—" : `${passive.yieldPct.toFixed(2)}%`}
             sub={passiveSub}
@@ -379,7 +387,7 @@ export default function Dashboard() {
         {{
           attention: (
             <Card className="animate-fade-up">
-              <SectionHeader icon={Activity}>Attention signals</SectionHeader>
+              <SectionHeader icon={Activity}>{t("Attention signals")}</SectionHeader>
               <AsyncSection
                 isLoading={alertsLoading}
                 error={alertsError}
@@ -406,7 +414,7 @@ export default function Dashboard() {
                             : "text-muted hover:text-ink"
                         }`}
                       >
-                        {m === "value" ? "Value" : "Growth %"}
+                        {m === "value" ? t("Value") : t("Growth %")}
                       </button>
                     ))}
                   </div>
@@ -423,12 +431,12 @@ export default function Dashboard() {
                             : "text-muted hover:text-ink"
                         }`}
                       >
-                        {p}
+                        {p === "All" ? t("All") : p}
                       </button>
                     ))}
                   </div>
                 </div>}>
-                Portfolio Performance
+                {t("Portfolio Performance")}
               </SectionHeader>
               <div className="flex gap-1.5 mb-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-wrap">
                 {BENCHMARKS.map((b) => (
@@ -499,19 +507,19 @@ export default function Dashboard() {
               <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "350ms" }}>
                 <SectionHeader icon={Activity} action={!capabilitiesPending && !hasStandardResearch ? null : <div className="flex items-center gap-3">
                     <SegmentedControl
-                      aria-label="Sort movers by"
+                      aria-label={t("Sort movers by")}
                       size="sm"
                       value={moverSort}
                       onChange={setMoverSort}
                       options={[{ value: "pct", label: "%" }, { value: "value", label: currency === "CZK" ? "Kč" : "$" }]}
                     />
                     <SegmentedControl
-                      aria-label="Movers period"
+                      aria-label={t("Movers period")}
                       value={moverPeriod}
                       onChange={setMoverPeriod}
-                      options={MOVER_PERIODS.map((p) => ({ value: p.key, label: p.label }))}
+                      options={MOVER_PERIODS.map((p) => ({ value: p.key, label: t(p.label) }))}
                     />
-                  </div>}>Top Movers</SectionHeader>
+                  </div>}>{t("Top Movers")}</SectionHeader>
                 {!capabilitiesPending && !hasStandardResearch ? (
                   <InvestorOnly icon={Activity} />
                 ) : (
@@ -521,19 +529,19 @@ export default function Dashboard() {
                   onRetry={() => refetchMovers()}
                   loading={<SkeletonRows rows={6} cols={3} />}
                   isEmpty={!movers?.gainers?.length && !movers?.losers?.length}
-                  empty={<EmptyState icon={Activity} title="No movers yet" hint="Import transactions to track daily gainers and losers." />}
+                  empty={<EmptyState icon={Activity} title={t("No movers yet")} hint={t("Import transactions to track daily gainers and losers.")} />}
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 gap-x-8 gap-y-6">
                     {[
-                      { key: "gainers", label: "Gainers", Icon: TrendingUp, tone: "text-gain", rows: moverGainers },
-                      { key: "losers", label: "Losers", Icon: TrendingDown, tone: "text-loss", rows: moverLosers },
+                      { key: "gainers", label: t("Gainers"), Icon: TrendingUp, tone: "text-gain", rows: moverGainers },
+                      { key: "losers", label: t("Losers"), Icon: TrendingDown, tone: "text-loss", rows: moverLosers },
                     ].map(({ key, label, Icon, tone, rows }) => (
                       <div key={key} className="min-w-0">
                         <h3 className={`eyebrow mb-3 flex items-center gap-1.5 ${tone}`}>
                           <Icon size={14} /> {label}
                         </h3>
                         {rows.length === 0 ? (
-                          <p className="text-muted text-xs">No data</p>
+                          <p className="text-muted text-xs">{t("No data")}</p>
                         ) : (
                           <ul className="space-y-1">
                             {rows.map((m) => (
@@ -568,7 +576,7 @@ export default function Dashboard() {
                 )}
               </Card>
               <Card className="h-full flex flex-col animate-fade-up" style={{ animationDelay: "300ms" }}>
-                <SectionHeader icon={Calendar}>Earnings Calendar</SectionHeader>
+                <SectionHeader icon={Calendar}>{t("Earnings Calendar")}</SectionHeader>
                 {!capabilitiesPending && !hasStandardResearch ? (
                   <InvestorOnly icon={Calendar} />
                 ) : (
@@ -578,7 +586,7 @@ export default function Dashboard() {
                   onRetry={() => refetchEarnings()}
                   loading={<SkeletonRows rows={6} cols={3} />}
                   isEmpty={earnings.length === 0}
-                  empty={<EmptyState icon={Calendar} title="No upcoming earnings" hint="None of your current holdings report soon." />}
+                  empty={<EmptyState icon={Calendar} title={t("No upcoming earnings")} hint={t("None of your current holdings report soon.")} />}
                 >
                   <div className="space-y-2.5">
                     {earnings.slice(0, 10).map((e) => (
@@ -607,12 +615,12 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <Card className="h-full animate-fade-up">
                 <AsyncSection isLoading={fl} error={forecastError} onRetry={() => refetchForecast()} loading={<SkeletonChart height={220} />}>
-                  <DividendBarsCard title="Dividends received" half={dividendsReceived} totalLabel={`${forecastYear} so far`} currency={currency} tone="accent" emptyHint="No dividends received this year yet." leadStat={{ label: "All time", amount: dividendsReceived.allTime }} />
+                  <DividendBarsCard title={t("Dividends received")} half={dividendsReceived} totalLabel={t("{year} so far", { year: forecastYear })} currency={currency} tone="accent" emptyHint={t("No dividends received this year yet.")} leadStat={{ label: t("All time"), amount: dividendsReceived.allTime }} />
                 </AsyncSection>
               </Card>
               <Card className="h-full animate-fade-up">
                 <AsyncSection isLoading={fl} error={forecastError} onRetry={() => refetchForecast()} loading={<SkeletonChart height={220} />}>
-                  <DividendBarsCard title="Upcoming payments" half={dividendsUpcoming} totalLabel="Next 12 months" currency={currency} emptyHint="No dividends expected in the next 12 months." trailStat={{ label: "Daily average", amount: dividendsUpcoming.dailyAverage }} />
+                  <DividendBarsCard title={t("Upcoming payments")} half={dividendsUpcoming} totalLabel={t("Next 12 months")} currency={currency} emptyHint={t("No dividends expected in the next 12 months.")} trailStat={{ label: t("Daily average"), amount: dividendsUpcoming.dailyAverage }} />
                 </AsyncSection>
               </Card>
             </div>

@@ -4,6 +4,7 @@ import { fetchHeatmap } from "../api";
 import { useStockDetail } from "../hooks/useStockDetail";
 import { GAIN_COLOR, LOSS_COLOR } from "../lib/chartTheme";
 import SegmentedControl from "./ui/SegmentedControl";
+import { useT } from "../i18n/I18nProvider";
 
 const PERIODS = [
   { key: "1d", label: "1D" },
@@ -131,6 +132,7 @@ export function squarify(items, W, H) {
 }
 
 export default function Heatmap() {
+  const t = useT();
   const [period, setPeriod] = useState("1d");
   const [containerEl, setContainerEl] = useState(null);
   const [size, setSize] = useState({ w: 400, h: 400 });
@@ -175,15 +177,15 @@ export default function Heatmap() {
           options={PERIODS.map((p) => ({ value: p.key, label: p.label }))}
           value={period}
           onChange={setPeriod}
-          aria-label="Heatmap period"
+          aria-label={t("Heatmap period")}
         />
       </div>
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center min-h-[300px]">
-          <div className="text-muted text-sm animate-pulse">Loading heatmap...</div>
+          <div className="text-muted text-sm animate-pulse">{t("Loading heatmap…")}</div>
         </div>
       ) : data.length === 0 ? (
-        <p className="text-muted text-xs">No holdings data available.</p>
+        <p className="text-muted text-xs">{t("No holdings data available.")}</p>
       ) : (
         <div
           ref={setContainerEl}
@@ -195,11 +197,11 @@ export default function Heatmap() {
               className="absolute inset-0 z-10 flex items-center justify-center rounded-[10px]"
               style={{ backgroundColor: "color-mix(in srgb, var(--surface-card) 60%, transparent)" }}
             >
-              <div className="text-muted text-sm animate-pulse">Loading heatmap...</div>
+              <div className="text-muted text-sm animate-pulse">{t("Loading heatmap…")}</div>
             </div>
           )}
-          {tiles.map((t) => {
-            if (t.item.ticker === "__small__") {
+          {tiles.map((tile) => {
+            if (tile.item.ticker === "__small__") {
               return (
                 <div
                   key="__small__"
@@ -208,10 +210,10 @@ export default function Heatmap() {
                   onMouseLeave={() => setShowSmallTooltip(false)}
                   className="absolute rounded-[10px] cursor-default flex items-center justify-center overflow-visible"
                   style={{
-                    left: `${t.x}px`,
-                    top: `${t.y}px`,
-                    width: `${t.w - 2}px`,
-                    height: `${t.h - 2}px`,
+                    left: `${tile.x}px`,
+                    top: `${tile.y}px`,
+                    width: `${tile.w - 2}px`,
+                    height: `${tile.h - 2}px`,
                     backgroundColor: "var(--bg-subtle)",
                   }}
                 >
@@ -221,7 +223,7 @@ export default function Heatmap() {
                       className="absolute z-50 bg-surface-card-elevated border border-hairline rounded-lg shadow-xl p-3 min-w-[240px] max-h-[300px] overflow-y-auto"
                       style={{ bottom: "calc(100% + 8px)", right: 0 }}
                     >
-                      <div className="text-xs font-semibold text-muted uppercase mb-2">Small positions (&lt;1%)</div>
+                      <div className="text-xs font-semibold text-muted uppercase mb-2">{t("Small positions (<1%)")}</div>
                       <div className="space-y-1.5">
                         {[...smallItems].sort((a, b) => b.weight - a.weight).map((s) => (
                           <div
@@ -244,36 +246,36 @@ export default function Heatmap() {
                 </div>
               );
             }
-            const labels = tileLabels(t.w - 2, t.h - 2);
+            const labels = tileLabels(tile.w - 2, tile.h - 2);
             return (
               <div
-                key={t.item.ticker}
-                onClick={() => openStock(t.item.ticker)}
+                key={tile.item.ticker}
+                onClick={() => openStock(tile.item.ticker)}
                 className={`absolute rounded-[10px] transition-opacity hover:opacity-80 cursor-pointer flex flex-col items-center justify-center overflow-hidden`}
                 style={{
-                  color: getTileTextColor(t.item.change_pct),
-                  left: `${t.x}px`,
-                  top: `${t.y}px`,
-                  width: `${t.w - 2}px`,
-                  height: `${t.h - 2}px`,
-                  backgroundColor: getColor(t.item.change_pct),
+                  color: getTileTextColor(tile.item.change_pct),
+                  left: `${tile.x}px`,
+                  top: `${tile.y}px`,
+                  width: `${tile.w - 2}px`,
+                  height: `${tile.h - 2}px`,
+                  backgroundColor: getColor(tile.item.change_pct),
                 }}
-                title={`${t.item.ticker} | ${t.item.change_pct >= 0 ? "+" : ""}${t.item.change_pct}% | Weight: ${t.item.weight}%`}
+                title={`${tile.item.ticker} | ${tile.item.change_pct >= 0 ? "+" : ""}${tile.item.change_pct}% | ${t("Weight: {weight}%", { weight: tile.item.weight })}`}
               >
                 {/* All tile text is 12px. A tile too small for a line drops it
                     (see tileLabels) rather than shrinking the text; the exact
                     ticker/change/weight stay in the tile title tooltip and
                     behind the click-through to stock detail. */}
                 {labels.ticker && (
-                  <span className="font-mono font-bold text-xs leading-tight">{t.item.ticker}</span>
+                  <span className="font-mono font-bold text-xs leading-tight">{tile.item.ticker}</span>
                 )}
                 {labels.change && (
                   <span className="font-medium text-xs leading-tight mt-0.5">
-                    {t.item.change_pct >= 0 ? "+" : ""}{t.item.change_pct}%
+                    {tile.item.change_pct >= 0 ? "+" : ""}{tile.item.change_pct}%
                   </span>
                 )}
                 {labels.weight && (
-                  <span className="opacity-80 text-xs leading-tight mt-0.5 font-semibold">{t.item.weight}%</span>
+                  <span className="opacity-80 text-xs leading-tight mt-0.5 font-semibold">{tile.item.weight}%</span>
                 )}
               </div>
             );
