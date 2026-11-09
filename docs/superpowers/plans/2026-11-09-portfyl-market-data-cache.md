@@ -1,6 +1,12 @@
 # Market-data cache in PostgreSQL — implementation plan
 
 Date: 2026-11-09 · Status: **draft, waiting for spec approval (gate G1)**
+
+> **Scope decision 2026-11-09 (founder):** no Twelve Data yet. The first
+> delivery is **local edition only**, loading data from **Shibui (primary) and
+> yfinance (fallback/complement)** into the store. See §0b, which overrides the
+> spec where they differ. Wave 4 (Twelve Data, cloud) waits until a plan is
+> bought.
 Spec: [`docs/superpowers/specs/2026-11-08-portfyl-market-data-cache-design.md`](../specs/2026-11-08-portfyl-market-data-cache-design.md)
 (read it first; section numbers below such as "§7.1" refer to it).
 
@@ -84,6 +90,124 @@ the tasks below; items marked **(confirm)** need the founder's OK.
    (the SQLite ≥ 3.35 path supports `WHERE` and `RETURNING`). Lease and limiter
    logic is plain SQL that both dialects accept. Real concurrency is tested only
    in `tests/postgres/`.
+
+---
+
+## 0b. Local phase: Shibui + yfinance (decision 2026-11-09)
+
+The store runs **only in the local edition** to prove that it works. Shibui is the
+primary source because its history is longer (fundamentals since 1990,
+valuation since 1993, prices since 1962). yfinance fills what Shibui does not
+have. **This overrides spec §15 "Shibui stays outside the store in v1".**
+
+**Facts about Shibui** (from `get_database_schema` and a live query on 2026-11-09):
+
+- It covers NYSE and NASDAQ only (~10,400 symbols: stocks, US-listed ETFs,
+  ADRs). All values are in USD.
+- It has no FX, no indices, no intraday data, and no exchanges outside the US.
+- Data is end-of-day with a ~1 trading-day lag: on Mon 2026-11-09 the last day
+  was Fri 2026-11-06.
+- **200 rows per query at most.**
+- Prices are split-adjusted but not dividend-adjusted, the same basis the store
+  uses.
+- Days of price history per symbol: AAPL 11,567 (from 1980-12-12), KO 16,320
+  (from 1962-01-02), MSFT 10,243, NVDA 6,992, O 8,068.
+
+### Data sets, sources and refresh
+
+"US" means a symbol Shibui covers (NYSE/NASDAQ). "Other" means Prague, Xetra,
+LSE, UCITS ETFs, indices and FX.
+
+| # | Data | US: primary → fallback | Other | Refresh (local) | Store as |
+|---|---|---|---|---|---|
+| D1 | Profile: name, GICS sector/industry, description, country, website, employees, ISIN, IPO date, logo | Shibui `general_info` → yf `.info` | yf `.info` | 90 d | `market_instrument` columns |
+| D2 | Latest price: price, change, % change, previous close, market state, 52-week range | **yf** (Shibui is EOD, 1 day late) | yf | held: every 15 min while the exchange is open; on Stock detail open if > 5 min old | `market_price_latest` |
+| D3 | Daily price history | Shibui `stock_quotes` (from 1962) → yf | yf | daily: append the new day(s) for all held symbols in one batched query (≤ 200 rows each); the yf close fills today until Shibui has it, then Shibui overwrites | `market_price_daily` (`source` per row) |
+| D4 | FX rates (`USD/CZK` …) | — | yf | like D2/D3 | `market_price_*` with `kind='fx'` |
+| D5 | Benchmarks and indices (S&P 500, …) | — | yf | daily | `market_price_daily` with `kind='index'` |
+| D6 | Statements, quarterly and annual: income, balance sheet, cash flow (since 1990) | Shibui `fundamentals_quarterly` / `fundamentals_yearly` → yf (~4 y / 5 q only) | yf | after each report (D11 dates) +1/+3/+7 d; safety net 120 d | snapshots `income_*`, `balance_*`, `cashflow_*` |
+| D7 | Quarterly ratios: margins, ROE, ROIC, D/E, YoY growth, DPS | Shibui `fundamentals_derived_quarterly` → yf `.info` | yf `.info` | with D6 | snapshot `ratios_quarterly` |
+| D8 | Valuation history (P/E, EV/EBITDA, P/S, P/FCF, P/B; feeds the 5-year average P/E) | Shibui `valuation` + `fundamentals_derived_daily` (from 1993) | not available (as today) | weekly append | snapshot `valuation_history`: **daily for the last 2 years, weekly before that** |
+| D9 | Current valuation: market cap, EV, P/B, trailing/operating P/E, dividend yield, payout | latest Shibui row (D8), recomputed with the D2 price (`derived.py`) | yf `.info` | with D2 (no fetch, computed) | computed on read |
+| D10 | Dividends: per payment (ex-date, amount) | **yf** (Shibui has no events) | yf | after each report; safety net 30 d (payers) / 90 d | `market_dividend_event` |
+| D10b | Dividends: annual/quarterly DPS since 1990 | Shibui (D7 `dividends_per_share`) → yf | yf | with D6 | inside `ratios_quarterly` |
+| D11 | Splits | yf | yf | split anomaly + 90 d | `market_split_event` |
+| D12 | Earnings history: EPS actual, estimate, surprise, report date | Shibui `earnings_quarterly` → yf | yf | after each report | snapshot `earnings_history` |
+| D13 | Next earnings date | **yf** `calendar` (Shibui has only past dates) | yf | daily for held symbols, otherwise 7 d | snapshot `earnings_dates` |
+| D14 | Analysts: target price, EPS estimates, forward P/E, forward PEG | Shibui `analyst_estimates` → yf | yf | 7 d | snapshot `estimates` |
+| D14b | Analysts: recommendation, number of analysts, target low/high | yf only | yf | 7 d | snapshot `recommendations` |
+| D15 | Ownership: % insiders, % institutions, short % of float, float shares | Shibui `ownership_stats` → yf | yf | 7 d | snapshot `ownership` |
+| D16 | Insider transactions, 13D/13G stakes, SEC filings list | Shibui (as today) | — | on open only, 24 h | snapshots `insider_transactions`, `beneficial_ownership`, `sec_filings` |
+| — | Politician trades, Shibui screener | unchanged, outside the store for now | | | |
+
+The source priority is one table in `market_store/sources.py`
+(`{kind: [ "shibui", "yfinance" ]}`) plus a coverage test
+(`shibui_coverage.covers(symbol)` → `general_info` lookup, cached as an alias
+row). Each stored row or snapshot records its `source`, so the UI can show it
+and the equivalence tests can compare like with like.
+
+### Shibui load and politeness
+
+- Seed cost per US symbol, in Shibui queries:
+  - D3 prices: rows ÷ 200, so 35–82 (≈ 55 on average);
+  - D1 1, D6 2, D7 1, D8 ≈ 10, D12 1, D14 + D15 1;
+  - total **≈ 70 queries**.
+- For 300 US symbols that is ≈ 21,000 queries, about **6 hours** at one query at
+  a time (~1 s each). That is a one-off overnight run, resumable via
+  `market_fetch_state`.
+- Daily upkeep is small because queries are batched (`WHERE ticker IN (…)`):
+  - D3: one query per 200 symbol-days;
+  - D8: one query per symbol per week;
+  - D6/D7/D12: only after reports.
+- Limit: `PORTFYL_SHIBUI_MAX_CONCURRENCY=1` and `…_MIN_INTERVAL_MS=500`,
+  enforced in `adapters/shibui.py`. Shibui is a free public service with no
+  stated quota. Being polite costs nothing locally, and a run that hits errors
+  backs off.
+- If 6 hours is too long: take D3 history from yfinance (one call per symbol)
+  and use Shibui only to cross-check. **Open question for the founder.** Whether
+  yfinance's `period="max"` reaches as far back could not be checked from the
+  cloud container (Yahoo is blocked there). Task 3.6 measures it locally.
+
+### Refresh cadence (local)
+
+Local runs on the owner's PC and PostgreSQL, so frequency costs no money. It is
+limited only by Yahoo throttling and politeness to Shibui:
+
+- `market_prices`: every 15 min, 08:00–22:30 Prague time, weekdays.
+- `market_refresh`: every 5 min.
+- `market_shibui_daily`: 14:00 Prague time. Shibui posts the previous US day
+  overnight, and this run appends D3/D8 for held symbols.
+- `market_earnings_watch`: daily, from D13 dates. No `/earnings_calendar` without
+  Twelve Data.
+- `market_cache_gc`: daily.
+
+All of them are in-process pollers (`main.py`), not Cloud Scheduler.
+
+### Disk (local)
+
+About 1.3 MB per US symbol (prices ~1.2 MB, everything else compressed
+~0.1 MB). 300 symbols ≈ 0.4 GB; 1,000 ≈ 1.3 GB.
+
+### What this changes in the waves below
+
+- Task 2A adds `market_store/sources.py`, `market_store/shibui_coverage.py` and
+  `market_store/adapters/shibui.py`. The Shibui adapter reuses `shibui_client.query`
+  and `_SHIBUI_TICKER_RE`, and pages D3/D8 in ≤ 200-row windows by date range.
+  Canonical shapes get the extra kinds listed above.
+- Migration `0026` adds the snapshot kinds `ratios_quarterly`,
+  `valuation_history`, `earnings_history`, `ownership`, `beneficial_ownership`
+  and `sec_filings` to the `CHECK` constraint.
+- Task 2B adds the `market_shibui_daily` pass. Cloud Scheduler entries are
+  **not** added in this phase. The `/internal/jobs/market_*` endpoints are
+  built later with Wave 4.
+- Task 3.1: the `/market/shibui/*` endpoints, `_shibui_fundamentals` and
+  `_shibui_ownership_stats` read through the store. Valuation keeps the
+  **5-year average P/E**, now computed from the stored D8 series.
+- Task 3.6: the seed loads D1–D15 from Shibui first and yfinance second.
+  `--dry-run` prints the number of Shibui queries and yf calls and the estimated
+  time.
+- The cloud guard (§0.6) stays: the cloud edition refuses to start with the
+  store on and no Twelve Data provider.
 
 ---
 
@@ -568,8 +692,9 @@ must stay green.
   `statistics` and `quote` through the store, plus `derived.*`. Analyst fields
   (`targetMeanPrice`, `recommendation*`, `numberOfAnalystOpinions`) come from
   snapshot kinds `estimates`/`recommendations`/`price_target`, still filled by the
-  yfinance adapter (§7). **The Shibui blocks are unchanged** (`_shibui_*`,
-  valuation history, 5-year average P/E).
+  yfinance adapter (§7). **Local phase (§0b):** the Shibui blocks (`_shibui_*`,
+  valuation history, 5-year average P/E) also read through the store, with
+  Shibui as the primary source.
 - [ ] `/market/search`: when it is the gateway to a new instrument, it goes
   through `resolver` + `adapter.search` and is cached as alias rows.
 - [ ] New `POST /market/revalidate/{ticker}`: marks the instrument's quote and
@@ -678,7 +803,7 @@ has `PORTFYL_MARKET_STORE` unset (= off).
 
 ---
 
-## 6. Wave 4 — Twelve Data and cloud
+## 6. Wave 4 — Twelve Data and cloud (deferred: no Twelve Data plan yet, 2026-11-09)
 
 ### Task 4.1 — Twelve Data adapter
 
