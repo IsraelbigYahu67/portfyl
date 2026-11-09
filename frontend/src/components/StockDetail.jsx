@@ -32,6 +32,15 @@ import ShinyText from "./reactbits/ShinyText";
 import SpotlightCard from "./reactbits/SpotlightCard";
 import { InfoIcon } from "./MetricCard";
 import { TickerLink } from "./TickerLink";
+import { msg, useT } from "../i18n/I18nProvider";
+
+// Financial metric names the API sends in English (backend/routers/market.py),
+// translated where a chart shows them.
+export const METRIC_NAMES = [
+  msg("Revenue"), msg("Cost of Revenue"), msg("Gross Profit"), msg("Operating Income"), msg("EBITDA"),
+  msg("Net Income"), msg("Diluted EPS"), msg("Free Cash Flow"), msg("CapEx"), msg("Total Debt"),
+  msg("Cash & Equivalents"), msg("Shares Outstanding"),
+];
 
 const TTM_COLOR = CATEGORICAL[3];
 const TTM_SIDE_REVEAL = 2;
@@ -96,43 +105,43 @@ function fmtRatio(v, digits = 2) {
 // valuation multiples (cheaper = greener) and leverage; false for quality
 // metrics (margins, ROE, ROA, yield, liquidity).
 const RATIO_ROWS = [
-  { key: "forward_pe", label: "Forward P/E", lowerIsBetter: true, yearKey: "forward_pe_fy1_year", labelYearSuffix: true,
-    tooltip: `Forward Price to Earnings. Like P/E, but the denominator is analysts' estimated EPS for a future fiscal year. Current share price ÷ estimated future EPS. Because earnings are usually expected to grow, forward P/E is typically lower than trailing P/E. Reliability drops the further out the projected year, since estimates get less accurate.` },
-  { key: "peg", label: "PEG", lowerIsBetter: true,
-    tooltip: `Price/Earnings to Growth. P/E ÷ the expected annual earnings growth rate (in %). Contextualizes P/E by accounting for growth. Rule of thumb: ≈1 is fairly valued, below 1 may be undervalued relative to growth, above 1 may be overvalued. Only as good as the growth estimate plugged in.` },
-  { key: "de", label: "D/E", lowerIsBetter: true,
-    tooltip: `Debt to Equity. Total debt ÷ shareholders' equity. Measures financial leverage — how much the company is funded by borrowing versus owners' capital. A high D/E indicates heavy reliance on debt. Nuance: aggressive buybacks shrink the equity base and can inflate D/E, overstating true financial risk for cash-rich firms.` },
-  { key: "current_ratio", label: "Current Ratio", lowerIsBetter: false,
-    tooltip: `Current assets ÷ current liabilities. A short-term liquidity test: can the company cover obligations due within one year using assets convertible to cash within one year? Above 1.0 means current assets exceed current liabilities; higher indicates a more comfortable liquidity cushion.` },
-  { key: "roe", label: "ROE", pct: true, lowerIsBetter: false,
-    tooltip: `Return on Equity. Net income ÷ shareholders' equity. Measures how efficiently the company generates profit from owners' capital. A very high ROE can be inflated by a small equity base (from buybacks) or by heavy leverage, so interpret it alongside ROIC.` },
-  { key: "roic", label: "ROIC", pct: true, lowerIsBetter: false,
-    tooltip: `Return on Invested Capital. NOPAT (Net Operating Profit After Tax) ÷ invested capital, where invested capital = total debt + equity − cash (the total capital actually deployed in the business). Measures how efficiently the company generates profit from all capital invested, regardless of how it's financed. Generally considered the highest-quality profitability metric because — unlike ROE — it is not distorted by leverage or buybacks. The key test: ROIC should exceed the company's cost of capital (WACC); if it does, the business is creating value.` },
-  { key: "gross_margin", label: "Gross Margin", pct: true, lowerIsBetter: false,
-    tooltip: `(Revenue − cost of goods sold) ÷ revenue, as a %. The share of each sales dollar left after the direct costs of producing the product/service. High gross margin indicates strong pricing power or a low-cost product (typical of software).` },
-  { key: "operating_margin", label: "Operating Margin", pct: true, lowerIsBetter: false,
-    tooltip: `Operating income ÷ revenue, as a %. Profit remaining after both COGS and operating expenses (R&D, sales, admin), but before interest and taxes. Reflects the profitability of core operations.` },
-  { key: "net_margin", label: "Net Margin", pct: true, lowerIsBetter: false,
-    tooltip: `Net income ÷ revenue, as a %. The "bottom line" — the share of each sales dollar that becomes profit after all costs: operating expenses, interest, and taxes. A net margin very close to the operating margin can signal large non-operating gains or a very low tax burden.` },
-  { key: "div_yield", label: "Div Yield", pct: true, lowerIsBetter: false,
-    tooltip: `Dividend Yield. Annual dividend per share ÷ share price, as a %. The cash return you receive in dividends relative to the stock's price. A low yield is typical of a growth company that reinvests profits rather than paying them out; a high yield suits income-focused stocks (though a very high yield can also signal risk).` },
-  { key: "payout_ratio", label: "Payout Ratio", pct: true, lowerIsBetter: true,
-    tooltip: `Dividends paid ÷ net income, as a %. The share of profits returned to shareholders as dividends. A low ratio means the company retains most earnings to fund growth or buybacks (leaving room to sustain or raise the dividend); a high ratio means most profit is paid out, which can be harder to sustain.` },
-  { key: "fcf_margin", label: "FCF Margin", pct: true, lowerIsBetter: false,
-    tooltip: `Free cash flow ÷ revenue, as a %. How much of every sales dollar ends up as real cash after capital expenditure. Compare it with net margin: a FCF margin at or above net margin means profits are backed by cash.` },
-  { key: "fcf_yield", label: "FCF Yield", pct: true, lowerIsBetter: false,
-    tooltip: `Free cash flow ÷ market cap, as a %. The cash return the business generates relative to its price, before any of it is paid out — the inverse of P/FCF. A broader measure of shareholder capacity than the dividend yield alone.` },
-  { key: "net_debt_ebitda", label: "Net Debt/EBITDA", lowerIsBetter: true,
-    tooltip: `(Total debt − cash) ÷ EBITDA. How many years of operating profit it would take to repay net debt. Below 0 means net cash; under ~2 is comfortable, above ~4 is heavy. Unlike D/E it is not distorted by buybacks shrinking equity.` },
+  { key: "forward_pe", label: msg("Forward P/E"), lowerIsBetter: true, yearKey: "forward_pe_fy1_year", labelYearSuffix: true,
+    tooltip: msg("Forward Price to Earnings. Like P/E, but the denominator is analysts' estimated EPS for a future fiscal year. Current share price ÷ estimated future EPS. Because earnings are usually expected to grow, forward P/E is typically lower than trailing P/E. Reliability drops the further out the projected year, since estimates get less accurate.") },
+  { key: "peg", label: msg("PEG"), lowerIsBetter: true,
+    tooltip: msg("Price/Earnings to Growth. P/E ÷ the expected annual earnings growth rate (in %). Contextualizes P/E by accounting for growth. Rule of thumb: ≈1 is fairly valued, below 1 may be undervalued relative to growth, above 1 may be overvalued. Only as good as the growth estimate plugged in.") },
+  { key: "de", label: msg("D/E"), lowerIsBetter: true,
+    tooltip: msg("Debt to Equity. Total debt ÷ shareholders' equity. Measures financial leverage — how much the company is funded by borrowing versus owners' capital. A high D/E indicates heavy reliance on debt. Nuance: aggressive buybacks shrink the equity base and can inflate D/E, overstating true financial risk for cash-rich firms.") },
+  { key: "current_ratio", label: msg("Current Ratio"), lowerIsBetter: false,
+    tooltip: msg("Current assets ÷ current liabilities. A short-term liquidity test: can the company cover obligations due within one year using assets convertible to cash within one year? Above 1.0 means current assets exceed current liabilities; higher indicates a more comfortable liquidity cushion.") },
+  { key: "roe", label: msg("ROE"), pct: true, lowerIsBetter: false,
+    tooltip: msg("Return on Equity. Net income ÷ shareholders' equity. Measures how efficiently the company generates profit from owners' capital. A very high ROE can be inflated by a small equity base (from buybacks) or by heavy leverage, so interpret it alongside ROIC.") },
+  { key: "roic", label: msg("ROIC"), pct: true, lowerIsBetter: false,
+    tooltip: msg("Return on Invested Capital. NOPAT (Net Operating Profit After Tax) ÷ invested capital, where invested capital = total debt + equity − cash (the total capital actually deployed in the business). Measures how efficiently the company generates profit from all capital invested, regardless of how it's financed. Generally considered the highest-quality profitability metric because — unlike ROE — it is not distorted by leverage or buybacks. The key test: ROIC should exceed the company's cost of capital (WACC); if it does, the business is creating value.") },
+  { key: "gross_margin", label: msg("Gross Margin"), pct: true, lowerIsBetter: false,
+    tooltip: msg("(Revenue − cost of goods sold) ÷ revenue, as a %. The share of each sales dollar left after the direct costs of producing the product/service. High gross margin indicates strong pricing power or a low-cost product (typical of software).") },
+  { key: "operating_margin", label: msg("Operating Margin"), pct: true, lowerIsBetter: false,
+    tooltip: msg("Operating income ÷ revenue, as a %. Profit remaining after both COGS and operating expenses (R&D, sales, admin), but before interest and taxes. Reflects the profitability of core operations.") },
+  { key: "net_margin", label: msg("Net Margin"), pct: true, lowerIsBetter: false,
+    tooltip: msg("Net income ÷ revenue, as a %. The “bottom line” — the share of each sales dollar that becomes profit after all costs: operating expenses, interest, and taxes. A net margin very close to the operating margin can signal large non-operating gains or a very low tax burden.") },
+  { key: "div_yield", label: msg("Div Yield"), pct: true, lowerIsBetter: false,
+    tooltip: msg("Dividend Yield. Annual dividend per share ÷ share price, as a %. The cash return you receive in dividends relative to the stock's price. A low yield is typical of a growth company that reinvests profits rather than paying them out; a high yield suits income-focused stocks (though a very high yield can also signal risk).") },
+  { key: "payout_ratio", label: msg("Payout Ratio"), pct: true, lowerIsBetter: true,
+    tooltip: msg("Dividends paid ÷ net income, as a %. The share of profits returned to shareholders as dividends. A low ratio means the company retains most earnings to fund growth or buybacks (leaving room to sustain or raise the dividend); a high ratio means most profit is paid out, which can be harder to sustain.") },
+  { key: "fcf_margin", label: msg("FCF Margin"), pct: true, lowerIsBetter: false,
+    tooltip: msg("Free cash flow ÷ revenue, as a %. How much of every sales dollar ends up as real cash after capital expenditure. Compare it with net margin: a FCF margin at or above net margin means profits are backed by cash.") },
+  { key: "fcf_yield", label: msg("FCF Yield"), pct: true, lowerIsBetter: false,
+    tooltip: msg("Free cash flow ÷ market cap, as a %. The cash return the business generates relative to its price, before any of it is paid out — the inverse of P/FCF. A broader measure of shareholder capacity than the dividend yield alone.") },
+  { key: "net_debt_ebitda", label: msg("Net Debt/EBITDA"), lowerIsBetter: true,
+    tooltip: msg("(Total debt − cash) ÷ EBITDA. How many years of operating profit it would take to repay net debt. Below 0 means net cash; under ~2 is comfortable, above ~4 is heavy. Unlike D/E it is not distorted by buybacks shrinking equity.") },
 ];
 
 // The tiles are shown in rows of three, each row answering one question.
 const RATIO_GROUPS = [
-  { title: "Valuation", keys: ["forward_pe", "peg"], moreMultiples: true },
-  { title: "Margins", keys: ["gross_margin", "operating_margin", "net_margin"] },
-  { title: "Returns & cash conversion", keys: ["roe", "roic", "fcf_margin"] },
-  { title: "Balance sheet", keys: ["de", "net_debt_ebitda", "current_ratio"] },
-  { title: "Shareholder payout", keys: ["div_yield", "payout_ratio", "fcf_yield"] },
+  { title: msg("Valuation"), keys: ["forward_pe", "peg"], moreMultiples: true },
+  { title: msg("Margins"), keys: ["gross_margin", "operating_margin", "net_margin"] },
+  { title: msg("Returns & cash conversion"), keys: ["roe", "roic", "fcf_margin"] },
+  { title: msg("Balance sheet"), keys: ["de", "net_debt_ebitda", "current_ratio"] },
+  { title: msg("Shareholder payout"), keys: ["div_yield", "payout_ratio", "fcf_yield"] },
 ].map((g) => ({ ...g, rows: g.keys.map((k) => RATIO_ROWS.find((r) => r.key === k)) }));
 
 function currencySymbol(code) {
@@ -167,6 +176,7 @@ function DecimalRow({ text, className = "", title }) {
 }
 
 function RatioTile({ label, info, value, sectorVal, pct, lowerIsBetter, showSector }) {
+  const t = useT();
   const unit = pct ? "%" : "";
   const digits = pct ? 1 : 2;
   const fmt = (v) => (v == null ? "—" : `${v.toFixed(digits)}${unit}`);
@@ -187,8 +197,8 @@ function RatioTile({ label, info, value, sectorVal, pct, lowerIsBetter, showSect
         </span>
         {showSector && (
           <div className="grid grid-cols-[auto_auto] shrink-0 leading-tight text-sm font-semibold tabular-nums">
-            <DecimalRow text={fmt(sectorVal)} className="text-muted" title="Sector median" />
-            <DecimalRow text={deltaText} className={RATIO_TONE[tone]} title="Deviation from sector median" />
+            <DecimalRow text={fmt(sectorVal)} className="text-muted" title={t("Sector median")} />
+            <DecimalRow text={deltaText} className={RATIO_TONE[tone]} title={t("Deviation from sector median")} />
           </div>
         )}
       </div>
@@ -202,6 +212,7 @@ function RatioTile({ label, info, value, sectorVal, pct, lowerIsBetter, showSect
 const VALUATION_HISTORY_ID = "valuation-history";
 
 function MoreMultiplesTile() {
+  const t = useT();
   const goToChart = () => {
     const target = document.getElementById(VALUATION_HISTORY_ID);
     if (!target) return;
@@ -214,9 +225,9 @@ function MoreMultiplesTile() {
       onClick={goToChart}
       className="card pop-tile !bg-surface-card-elevated flex flex-col gap-1 min-w-0 !p-3 text-left cursor-pointer"
     >
-      <span className="eyebrow">More multiples</span>
+      <span className="eyebrow">{t("More multiples")}</span>
       <span className="h-8 inline-flex items-center gap-1.5 text-base font-semibold text-brand">
-        Show chart <ArrowDown size={16} aria-hidden="true" />
+        {t("Show chart")} <ArrowDown size={16} aria-hidden="true" />
       </span>
     </button>
   );
@@ -367,6 +378,7 @@ function TtmUnderlay({ formattedGraphicalItems, yAxisMap, ttm }) {
 }
 
 export function MetricBarChart({ metric, currencyCode, period = "annual", isCount = false, ttm = null }) {
+  const t = useT();
   const cs = currencySymbol(currencyCode);
   const { name, years, values, yoy, cagr } = metric;
   const isQuarterly = period === "quarterly";
@@ -375,9 +387,9 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
   if (!years?.length) {
     return (
       <div className="bg-surface rounded-lg p-4 flex flex-col h-full">
-        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-1">{name}</h3>
+        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-1">{name ? t(name) : null}</h3>
         <div className="flex-1 flex items-center justify-center text-muted text-sm">
-          No data
+          {t("No data")}
         </div>
       </div>
     );
@@ -437,12 +449,12 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
     : yoy && yoy.length
       ? yoy[yoy.length - 1]
       : null;
-  const headlineChangeLabel = isQuarterly ? "QoQ" : "YoY";
+  const headlineChangeLabel = isQuarterly ? t("QoQ") : t("YoY");
 
   return (
     <div className="bg-surface rounded-lg p-4 flex flex-col">
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">{name}</h3>
+        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">{name ? t(name) : null}</h3>
         <div className="flex flex-col items-end text-xs gap-0.5">
           <span className="text-muted">
             CAGR{" "}
@@ -507,12 +519,12 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
                     <div className="font-semibold text-ink">{fmtVal(row.value)}</div>
                     {row.yoy != null && (
                       <div className={changeColor(row.yoy)}>
-                        YoY {fmtPct(row.yoy, 2)}
+                        {t("YoY")} {fmtPct(row.yoy, 2)}
                       </div>
                     )}
                     {isQuarterly && row.change != null && (
                       <div className={changeColor(row.change)}>
-                        QoQ {fmtPct(row.change, 2)}
+                        {t("QoQ")} {fmtPct(row.change, 2)}
                       </div>
                     )}
                     {row.hasTtmOverlay && (
@@ -553,10 +565,11 @@ function RatingPill({ children, tone = "neutral" }) {
 
 // Inset track + rounded fill; `color` is a CSS color from the theme tokens.
 function AnalystBar({ label, count, total, color }) {
+  const t = useT();
   const pct = total > 0 ? (count / total) * 100 : 0;
   return (
     <div className="flex items-center gap-2 text-sm">
-      <span className="w-24 text-muted">{label}</span>
+      <span className="w-24 text-muted">{t(label)}</span>
       <div
         className="flex-1 rounded-full h-2.5 overflow-hidden"
         style={{ background: "var(--bg-subtle, var(--surface-hover))", boxShadow: "var(--clay-inset-sm, none)" }}
@@ -572,6 +585,7 @@ function AnalystBar({ label, count, total, color }) {
 }
 
 function SectionCustomizer({ config, toggle, moveUp, moveDown, reset, isVisible }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
@@ -579,23 +593,23 @@ function SectionCustomizer({ config, toggle, moveUp, moveDown, reset, isVisible 
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-base rounded-lg border border-surface-border text-muted hover:text-ink hover:border-brand transition-colors"
-        title="Customize report sections"
+        title={t("Customize report sections")}
       >
         <Settings2 size={14} />
-        Customize
+        {t("Customize")}
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute right-0 mt-2 w-72 z-50 bg-surface-card border border-surface-border rounded-xl shadow-lg overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-surface-border">
-              <span className="text-sm font-semibold text-muted uppercase tracking-wider">Report Sections</span>
+              <span className="text-sm font-semibold text-muted uppercase tracking-wider">{t("Report Sections")}</span>
               <button
                 type="button"
                 onClick={reset}
                 className="inline-flex items-center gap-1 text-xs text-muted hover:text-ink transition-colors"
               >
-                <RotateCcw size={10} /> Reset
+                <RotateCcw size={10} /> {t("Reset")}
               </button>
             </div>
             <ul className="py-1 max-h-80 overflow-y-auto">
@@ -612,18 +626,19 @@ function SectionCustomizer({ config, toggle, moveUp, moveDown, reset, isVisible 
                       type="button"
                       onClick={() => toggle(id)}
                       className={`shrink-0 ${visible ? "text-brand" : "text-muted"}`}
-                      title={visible ? "Hide section" : "Show section"}
+                      title={visible ? t("Hide section") : t("Show section")}
                     >
                       {visible ? <Eye size={14} /> : <EyeOff size={14} />}
                     </button>
                     <span className={`flex-1 text-base ${visible ? "text-ink" : "text-muted"}`}>
-                      {section.label}
+                      {t(section.label)}
                     </span>
                     <div className="flex items-center gap-0.5">
                       <button
                         type="button"
                         onClick={() => moveUp(id)}
                         disabled={idx === 0}
+                        aria-label={t("Move {section} up", { section: t(section.label) })}
                         className="text-muted hover:text-ink disabled:opacity-20 transition-colors p-0.5"
                       >
                         <ChevronUp size={12} />
@@ -632,6 +647,7 @@ function SectionCustomizer({ config, toggle, moveUp, moveDown, reset, isVisible 
                         type="button"
                         onClick={() => moveDown(id)}
                         disabled={idx === config.order.length - 1}
+                        aria-label={t("Move {section} down", { section: t(section.label) })}
                         className="text-muted hover:text-ink disabled:opacity-20 transition-colors p-0.5"
                       >
                         <ChevronDown size={12} />
@@ -649,6 +665,7 @@ function SectionCustomizer({ config, toggle, moveUp, moveDown, reset, isVisible 
 }
 
 export function DividendGrowthSection({ ticker, currency = "USD" }) {
+  const t = useT();
   const { data, isLoading } = useQuery({
     queryKey: ["dividend-growth", ticker],
     queryFn: () => fetchStockDividendGrowth(ticker),
@@ -668,17 +685,17 @@ export function DividendGrowthSection({ ticker, currency = "USD" }) {
 
   const sym = currencySymbol(currency);
   const tiles = [
-    { label: "Growth streak", value: data.streak_years > 0 ? `${data.streak_years} yrs` : "—" },
-    { label: `${data.cagr_years_used || 5}yr CAGR`, value: data.cagr_pct != null ? `${data.cagr_pct.toFixed(1)}%` : "—" },
-    { label: "YoY", value: data.yoy_pct != null ? `${data.yoy_pct.toFixed(1)}%` : "—" },
+    { label: t("Growth streak"), value: data.streak_years > 0 ? t("{years} yrs", { years: data.streak_years }) : "—" },
+    { label: t("{years}yr CAGR", { years: data.cagr_years_used || 5 }), value: data.cagr_pct != null ? `${data.cagr_pct.toFixed(1)}%` : "—" },
+    { label: t("YoY"), value: data.yoy_pct != null ? `${data.yoy_pct.toFixed(1)}%` : "—" },
   ];
 
   return (
     <section className="space-y-3">
-      <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">Dividend history</h3>
+      <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">{t("Dividend history")}</h3>
       <div className="grid grid-cols-3 gap-3">
-        {tiles.map((t) => (
-          <KpiBox key={t.label} size="sm" label={t.label} value={t.value} />
+        {tiles.map((tile) => (
+          <KpiBox key={tile.label} size="sm" label={tile.label} value={tile.value} />
         ))}
       </div>
       <div className="rounded-xl border border-surface-border bg-surface-card p-4">
@@ -690,7 +707,7 @@ export function DividendGrowthSection({ ticker, currency = "USD" }) {
             <Tooltip
               cursor={{ fill: "rgba(255,255,255,0.03)" }}
               contentStyle={{ background: "var(--surface-card-elevated)", border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 13 }}
-              formatter={(v) => [`${sym}${v}`, "Per share"]}
+              formatter={(v) => [`${sym}${v}`, t("Per share")]}
             />
             <Bar dataKey="amount" fill={GAIN_COLOR} radius={[7, 7, 0, 0]} />
           </BarChart>
@@ -711,6 +728,7 @@ export function StockOverview({
   headerHeadingLevel = 2,
   ttmLoading = false,
 }) {
+  const t = useT();
   const [period, setPeriod] = useState("annual");
   const reportConfig = useStockReportConfig();
 
@@ -749,10 +767,10 @@ export function StockOverview({
   const sections = {
     quickStats: (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiBox size="sm" label="Market Cap" value={fmtCompact(data.market_cap, cs)} />
-        <KpiBox size="sm" label="Revenue (TTM)" loading={ttmLoading} value={fmtCompact(ttm.revenue, cs)} />
-        <KpiBox size="sm" label="Free Cash Flow (TTM)" loading={ttmLoading} value={fmtCompact(ttm.fcf, cs)} />
-        <KpiBox size="sm" label="Div Yield" value={ratios.div_yield != null ? `${ratios.div_yield.toFixed(2)}%` : "—"} />
+        <KpiBox size="sm" label={t("Market Cap")} value={fmtCompact(data.market_cap, cs)} />
+        <KpiBox size="sm" label={t("Revenue (TTM)")} loading={ttmLoading} value={fmtCompact(ttm.revenue, cs)} />
+        <KpiBox size="sm" label={t("Free Cash Flow (TTM)")} loading={ttmLoading} value={fmtCompact(ttm.fcf, cs)} />
+        <KpiBox size="sm" label={t("Div Yield")} value={ratios.div_yield != null ? `${ratios.div_yield.toFixed(2)}%` : "—"} />
       </div>
     ),
 
@@ -762,24 +780,26 @@ export function StockOverview({
       <div>
         <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
           <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
-            {period === "quarterly" ? "Quarterly Financials" : "Annual Financials"}
+            {period === "quarterly" ? t("Quarterly Financials") : t("Annual Financials")}
             {periodsCount > 0 && (
               <span className="ml-2 text-muted normal-case tracking-normal">
-                · {periodsCount} {period === "quarterly" ? "quarters" : "years"}
+                · {period === "quarterly"
+                  ? t("Quarters: {count}", { count: periodsCount })
+                  : t("Years: {count}", { count: periodsCount })}
               </span>
             )}
           </h3>
           <SegmentedControl
-            aria-label="Financials period"
+            aria-label={t("Financials period")}
             value={period}
             onChange={setPeriod}
             options={[
-              { value: "annual", label: "Annual" },
+              { value: "annual", label: t("Annual") },
               {
                 value: "quarterly",
-                label: "Quarterly",
+                label: t("Quarterly"),
                 disabled: !hasQuarterly,
-                title: hasQuarterly ? undefined : "No quarterly data available",
+                title: hasQuarterly ? undefined : t("No quarterly data available"),
               },
             ]}
           />
@@ -815,31 +835,31 @@ export function StockOverview({
         <div className="bg-surface rounded-[var(--radius-card)] p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
-              Valuation & Quality
+              {t("Valuation & Quality")}
             </h3>
             {sector.sample_size > 0 && (
               <span className="text-xs text-muted">
-                Sector = median of {sector.sample_size} {data.sector}
+                {t("Sector = median of {count} {sector}", { count: sector.sample_size, sector: data.sector })}
               </span>
             )}
           </div>
           <div className="flex flex-col gap-4">
             {RATIO_GROUPS.map((group) => (
-              <section key={group.title} aria-label={group.title}>
-                <h4 className="eyebrow mb-1.5">{group.title}</h4>
+              <section key={group.title} aria-label={t(group.title)}>
+                <h4 className="eyebrow mb-1.5">{t(group.title)}</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {group.rows.map((r) => {
                     const year = r.yearKey ? ratios[r.yearKey] : null;
                     const label =
                       r.labelYearSuffix && year != null
-                        ? `${r.label} (${year})`
-                        : r.label;
-                    const direction = r.lowerIsBetter ? "Lower is better." : "Higher is better.";
+                        ? `${t(r.label)} (${year})`
+                        : t(r.label);
+                    const direction = r.lowerIsBetter ? t("Lower is better.") : t("Higher is better.");
                     return (
                       <RatioTile
                         key={r.key}
                         label={label}
-                        info={r.tooltip ? { title: label, what: r.tooltip, note: direction } : { title: label, what: direction }}
+                        info={r.tooltip ? { title: label, what: t(r.tooltip), note: direction } : { title: label, what: direction }}
                         value={ratios[r.key]}
                         sectorVal={r.noSector ? null : sector[r.key]}
                         pct={!!r.pct}
@@ -859,7 +879,7 @@ export function StockOverview({
           <div className="bg-surface rounded-[var(--radius-card)] p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
-                Analyst Rating
+                {t("Analyst Rating")}
               </h3>
               {analyst.rating && (
                 <RatingPill tone={ratingTone(analyst.score)}>{humanizeCode(analyst.rating)}</RatingPill>
@@ -872,30 +892,30 @@ export function StockOverview({
                     {analyst.score != null ? analyst.score.toFixed(2) : "—"}
                   </span>
                   <span className="text-sm text-muted">
-                    consensus · {analyst.total} analysts
+                    {t("consensus · analysts: {count}", { count: analyst.total })}
                   </span>
                 </div>
                 <div className="space-y-1.5">
-                  <AnalystBar label="Strong Buy" count={analyst.strong_buy || 0} total={analyst.total} color={GAIN_COLOR} />
-                  <AnalystBar label="Buy" count={analyst.buy || 0} total={analyst.total} color={GAIN_COLOR} />
-                  <AnalystBar label="Hold" count={analyst.hold || 0} total={analyst.total} color="var(--chart-3)" />
-                  <AnalystBar label="Sell" count={analyst.sell || 0} total={analyst.total} color={LOSS_COLOR} />
-                  <AnalystBar label="Strong Sell" count={analyst.strong_sell || 0} total={analyst.total} color={LOSS_COLOR} />
+                  <AnalystBar label={msg("Strong Buy")} count={analyst.strong_buy || 0} total={analyst.total} color={GAIN_COLOR} />
+                  <AnalystBar label={msg("Buy")} count={analyst.buy || 0} total={analyst.total} color={GAIN_COLOR} />
+                  <AnalystBar label={msg("Hold")} count={analyst.hold || 0} total={analyst.total} color="var(--chart-3)" />
+                  <AnalystBar label={msg("Sell")} count={analyst.sell || 0} total={analyst.total} color={LOSS_COLOR} />
+                  <AnalystBar label={msg("Strong Sell")} count={analyst.strong_sell || 0} total={analyst.total} color={LOSS_COLOR} />
                 </div>
               </>
             ) : (
-              <div className="text-muted text-sm">No analyst coverage available.</div>
+              <div className="text-muted text-sm">{t("No analyst coverage available.")}</div>
             )}
           </div>
 
           <div className="bg-surface rounded-[var(--radius-card)] p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
-                Price Targets
+                {t("Price Targets")}
               </h3>
               {analyst.target_mean != null && analyst.upside != null && (
                 <span className={`text-sm font-medium ${analyst.upside >= 0 ? "text-gain" : "text-loss"}`}>
-                  {fmtPct(analyst.upside)} avg upside
+                  {t("{pct} avg upside", { pct: fmtPct(analyst.upside) })}
                 </span>
               )}
             </div>
@@ -908,7 +928,7 @@ export function StockOverview({
                 cs={cs}
               />
             ) : (
-              <div className="text-muted text-sm">No price targets available.</div>
+              <div className="text-muted text-sm">{t("No price targets available.")}</div>
             )}
           </div>
 
@@ -966,13 +986,13 @@ export function StockOverview({
                 tone={data.fundamentals_source === "shibui" ? "brand" : "warn"}
                 title={
                   data.fundamentals_source === "shibui"
-                    ? "Financials and ratios below are sourced from Shibui Finance (analyst rating/estimates are always from yfinance -- Shibui doesn't cover those)."
-                    : "Shibui doesn't cover this ticker, or is unavailable right now (e.g. rate-limited) -- financials and ratios below fell back to yfinance."
+                    ? t("Financials and ratios below are sourced from Shibui Finance (analyst rating/estimates are always from yfinance — Shibui doesn't cover those).")
+                    : t("Shibui doesn't cover this ticker, or is unavailable right now (e.g. rate-limited) — financials and ratios below fell back to yfinance.")
                 }
                 className="uppercase tracking-wider cursor-help"
               >
                 <Info size={10} />
-                {data.fundamentals_source === "shibui" ? "Shibui" : "yfinance fallback"}
+                {data.fundamentals_source === "shibui" ? "Shibui" : t("yfinance fallback")}
               </Badge>
             )}
           </div>
@@ -1036,6 +1056,7 @@ const CONE_MARGIN_RIGHT = 104;
 const EDGE_PILL_MIN_GAP = 22;
 
 function AnalystForecastCone({ low, high, mean, current, cs }) {
+  const t = useT();
   if (low == null || high == null || mean == null || current == null) return null;
 
   // Split the fan around the current price so the upper half renders green
@@ -1085,6 +1106,7 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
             <XAxis
               dataKey="label"
               height={CONE_XAXIS_HEIGHT}
+              tickFormatter={(value) => (value === "Now" ? t("Now") : t("1Y"))}
               tick={AXIS_TICK_STYLE}
               tickLine={false}
               axisLine={{ stroke: GRID_STROKE }}
@@ -1143,14 +1165,14 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
                 if (!row) return null;
                 return (
                   <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-sm shadow-lg space-y-0.5">
-                    <div className="text-muted mb-1">{row.label}</div>
+                    <div className="text-muted mb-1">{row.label === "Now" ? t("Now") : t("1Y")}</div>
                     {row.label === "Now" ? (
-                      <div className="text-ink">Current {cs}{current.toFixed(2)}</div>
+                      <div className="text-ink">{t("Current {price}", { price: `${cs}${current.toFixed(2)}` })}</div>
                     ) : (
                       <>
-                        <div className="text-gain">Max {cs}{high.toFixed(2)} <span className="text-muted">({pct(upsideMax)})</span></div>
-                        <div className="text-gain">Avg {cs}{mean.toFixed(2)} <span className="text-muted">({pct(upsideAvg)})</span></div>
-                        <div className="text-loss">Min {cs}{low.toFixed(2)} <span className="text-muted">({pct(upsideMin)})</span></div>
+                        <div className="text-gain">{t("Max {price}", { price: `${cs}${high.toFixed(2)}` })} <span className="text-muted">({pct(upsideMax)})</span></div>
+                        <div className="text-gain">{t("Avg {price}", { price: `${cs}${mean.toFixed(2)}` })} <span className="text-muted">({pct(upsideAvg)})</span></div>
+                        <div className="text-loss">{t("Min {price}", { price: `${cs}${low.toFixed(2)}` })} <span className="text-muted">({pct(upsideMin)})</span></div>
                       </>
                     )}
                   </div>
@@ -1162,10 +1184,10 @@ function AnalystForecastCone({ low, high, mean, current, cs }) {
       </div>
       <RightEdgePills
         items={[
-          { key: "max", value: high, tone: toneFor(high), label: "Max", detail: pct(upsideMax) },
-          { key: "avg", value: mean, tone: toneFor(mean), label: "Avg", detail: pct(upsideAvg) },
-          { key: "now", value: current, tone: "brand", label: "Now" },
-          { key: "min", value: low, tone: toneFor(low), label: "Min", detail: pct(upsideMin) },
+          { key: "max", value: high, tone: toneFor(high), label: t("Max"), detail: pct(upsideMax) },
+          { key: "avg", value: mean, tone: toneFor(mean), label: t("Avg"), detail: pct(upsideAvg) },
+          { key: "now", value: current, tone: "brand", label: t("Now") },
+          { key: "min", value: low, tone: toneFor(low), label: t("Min"), detail: pct(upsideMin) },
         ]}
         yMin={yMin}
         yMax={yMax}
@@ -1314,14 +1336,15 @@ function buildMergedSeries(metric, estimateRows, mode = "annual") {
 }
 
 export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm = null }) {
+  const t = useT();
   const cs = currencySymbol(currencyCode);
   const isQuarterly = data?.some((d) => /^Q[1-4]/.test(d.label));
   const [chartRef, chartWidth] = useElementWidth();
   if (!data?.length) {
     return (
       <div className="bg-surface rounded-lg p-4 flex flex-col h-full">
-        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-1">{name}</h3>
-        <div className="flex-1 flex items-center justify-center text-muted text-sm">No data</div>
+        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-1">{t(name)}</h3>
+        <div className="flex-1 flex items-center justify-center text-muted text-sm">{t("No data")}</div>
       </div>
     );
   }
@@ -1361,7 +1384,7 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
   // headline and the value beneath its year in lockstep even when the API's
   // optional historical YoY field is absent.
   const lastActualGrowth = lastActualIdx >= 0 ? changes[lastActualIdx] : null;
-  const headlineGrowthLabel = isQuarterly ? "QoQ" : "YoY";
+  const headlineGrowthLabel = isQuarterly ? t("QoQ") : t("YoY");
   // Forecast labels are wider than plain years, so include the actual rendered
   // labels in the same width-aware sizing used by the historical cards.
   const periodAxis = financialPeriodAxisLayout(rows.map((row) => row.label), chartWidth, isQuarterly);
@@ -1377,7 +1400,7 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
   return (
     <div className="bg-surface rounded-lg p-4 flex flex-col">
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">{name}</h3>
+        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">{t(name)}</h3>
         <div className="flex flex-col items-end text-xs gap-0.5">
           <span className="text-muted">
             CAGR{" "}
@@ -1450,7 +1473,7 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
                 return (
                   <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-sm shadow-lg">
                     <div className="text-muted">
-                      {row.label}{row.isEstimate ? " · estimate" : " · actual"}
+                      {row.label} · {row.isEstimate ? t("estimate") : t("actual")}
                     </div>
                     <div className="font-semibold text-ink">
                       {row.value == null
@@ -1461,22 +1484,24 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
                     </div>
                     {row.isEstimate && row.low != null && row.high != null && (
                       <div className="text-muted text-xs">
-                        Range {isPerShare
-                          ? `${cs}${row.low.toFixed(2)}–${cs}${row.high.toFixed(2)}`
-                          : `${fmtCompact(row.low, cs)}–${fmtCompact(row.high, cs)}`}
+                        {t("Range {range}", {
+                          range: isPerShare
+                            ? `${cs}${row.low.toFixed(2)}–${cs}${row.high.toFixed(2)}`
+                            : `${fmtCompact(row.low, cs)}–${fmtCompact(row.high, cs)}`,
+                        })}
                       </div>
                     )}
                     {row.isEstimate && row.analysts > 0 && (
-                      <div className="text-muted text-xs">{row.analysts} analysts</div>
+                      <div className="text-muted text-xs">{t("Analysts: {count}", { count: row.analysts })}</div>
                     )}
                     {row.growth != null && (
                       <div className={row.growth >= 0 ? "text-gain text-xs" : "text-loss text-xs"}>
-                        {row.isEstimate ? "Fcst growth" : "YoY"} {fmtPct(row.growth, 2)}
+                        {row.isEstimate ? t("Fcst growth") : t("YoY")} {fmtPct(row.growth, 2)}
                       </div>
                     )}
                     {isQuarterly && row.change != null && (
                       <div className={row.change >= 0 ? "text-gain text-xs" : "text-loss text-xs"}>
-                        QoQ {fmtPct(row.change, 2)}
+                        {t("QoQ")} {fmtPct(row.change, 2)}
                       </div>
                     )}
                     {row.hasTtmOverlay && (
@@ -1505,17 +1530,18 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
         </ResponsiveContainer>
       </div>
       <div className="flex items-center gap-3 mt-2 text-xs text-muted">
-        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: BAR_ACTUAL_COLOR }} />Actual</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: BAR_ACTUAL_COLOR }} />{t("Actual")}</span>
         {showTtm && (
           <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: TTM_COLOR }} />TTM</span>
         )}
-        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: BAR_ESTIMATE_COLOR }} />Estimate</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: BAR_ESTIMATE_COLOR }} />{t("Estimate")}</span>
       </div>
     </div>
   );
 }
 
 function TargetRangeBar({ low, high, mean, median, current, cs }) {
+  const t = useT();
   const span = high - low;
   if (span <= 0) return null;
   const pct = (v) => Math.max(0, Math.min(100, ((v - low) / span) * 100));
@@ -1537,29 +1563,29 @@ function TargetRangeBar({ low, high, mean, median, current, cs }) {
           <div
             className="absolute top-[-2px] h-3 w-0.5 rounded"
             style={{ left: `calc(${medianPct}% - 1px)`, backgroundColor: NEUTRAL_COLOR }}
-            title={`Median ${cs}${median.toFixed(2)}`}
+            title={t("Median {price}", { price: `${cs}${median.toFixed(2)}` })}
           />
         )}
         <div
           className="absolute top-[-3px] h-4 w-0.5 bg-brand rounded"
           style={{ left: `calc(${meanPct}% - 1px)` }}
-          title={`Mean ${cs}${mean.toFixed(2)}`}
+          title={t("Mean {price}", { price: `${cs}${mean.toFixed(2)}` })}
         />
         <div
           className="absolute top-[-4px] h-5 w-1 rounded"
           style={{ left: `calc(${currentPct}% - 2px)`, backgroundColor: "var(--ink)" }}
-          title={`Current ${cs}${current.toFixed(2)}`}
+          title={t("Current {price}", { price: `${cs}${current.toFixed(2)}` })}
         />
       </div>
       <div className="flex items-center justify-between text-xs text-muted mt-2">
-        <span>Low {cs}{low.toFixed(2)}</span>
-        <span>High {cs}{high.toFixed(2)}</span>
+        <span>{t("Low {price}", { price: `${cs}${low.toFixed(2)}` })}</span>
+        <span>{t("High {price}", { price: `${cs}${high.toFixed(2)}` })}</span>
       </div>
       <div className="flex items-center gap-3 text-xs text-muted mt-1">
-        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: "var(--ink)" }} />Current</span>
-        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-brand rounded-full" />Mean</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: "var(--ink)" }} />{t("Current")}</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-brand rounded-full" />{t("Mean")}</span>
         {median != null && (
-          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: NEUTRAL_COLOR }} />Median {cs}{median.toFixed(2)}</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: NEUTRAL_COLOR }} />{t("Median {price}", { price: `${cs}${median.toFixed(2)}` })}</span>
         )}
       </div>
     </div>
@@ -1578,6 +1604,7 @@ const OWNERSHIP_RETAIL_COLOR = "color-mix(in srgb, var(--ink) 55%, var(--surface
 const KPI_WELL_CLASS = "!bg-surface-hover ![box-shadow:var(--clay-inset-sm)]";
 
 function OwnershipSection({ ownership, currencyCode }) {
+  const t = useT();
   if (!ownership) return null;
   const cs = currencySymbol(currencyCode);
   const holders = ownership.top_institutional_holders || [];
@@ -1615,7 +1642,7 @@ function OwnershipSection({ ownership, currencyCode }) {
       slices.push({
         key: "inst-other",
         kind: "other",
-        name: "Other institutions",
+        name: t("Other institutions"),
         pct: otherInst,
         color: OWNERSHIP_OTHER_COLOR,
       });
@@ -1625,7 +1652,7 @@ function OwnershipSection({ ownership, currencyCode }) {
     slices.push({
       key: "insiders",
       kind: "insiders",
-      name: "Insiders",
+      name: t("Insiders"),
       pct: insiderPct,
       color: CATEGORICAL[6],
     });
@@ -1636,7 +1663,7 @@ function OwnershipSection({ ownership, currencyCode }) {
     slices.push({
       key: "retail",
       kind: "retail",
-      name: "Retail / public float",
+      name: t("Retail / public float"),
       pct: retailPct,
       color: OWNERSHIP_RETAIL_COLOR,
     });
@@ -1645,7 +1672,7 @@ function OwnershipSection({ ownership, currencyCode }) {
   return (
     <div>
       <h3 className="text-base font-semibold text-muted uppercase tracking-wider mb-3">
-        Ownership Breakdown
+        {t("Ownership Breakdown")}
       </h3>
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div className="card !p-4">
@@ -1653,19 +1680,19 @@ function OwnershipSection({ ownership, currencyCode }) {
             <KpiBox
               size="sm"
               className={KPI_WELL_CLASS}
-              label="Institutions"
+              label={t("Institutions")}
               value={instPct != null ? `${instPct.toFixed(1)}%` : "—"}
             />
             <KpiBox
               size="sm"
               className={KPI_WELL_CLASS}
-              label="Insiders"
+              label={t("Insiders")}
               value={insiderPct != null ? `${insiderPct.toFixed(1)}%` : "—"}
             />
             <KpiBox
               size="sm"
               className={KPI_WELL_CLASS}
-              label="Top holders"
+              label={t("Top holders")}
               value={
                 ownership.institutions_count != null
                   ? `${ownership.institutions_count}`
@@ -1675,7 +1702,7 @@ function OwnershipSection({ ownership, currencyCode }) {
             <KpiBox
               size="sm"
               className={KPI_WELL_CLASS}
-              label="Short interest"
+              label={t("Short interest")}
               value={shortPct != null ? `${(shortPct * 100).toFixed(2)}%` : "—"}
             />
           </div>
@@ -1714,11 +1741,11 @@ function OwnershipSection({ ownership, currencyCode }) {
                         <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-sm shadow-lg max-w-xs">
                           <div className="font-semibold text-ink truncate">{row.name}</div>
                           <div className="text-muted tabular-nums">
-                            {row.pct.toFixed(2)}% of shares
+                            {t("{pct}% of shares", { pct: row.pct.toFixed(2) })}
                           </div>
                           {row.shares != null && (
                             <div className="text-muted text-xs tabular-nums">
-                              {fmtCompact(row.shares, "")} shares
+                              {t("{count} shares", { count: fmtCompact(row.shares, "") })}
                               {row.value != null && (
                                 <> · {fmtCompact(row.value, cs)}</>
                               )}
@@ -1726,7 +1753,7 @@ function OwnershipSection({ ownership, currencyCode }) {
                           )}
                           {row.date && (
                             <div className="text-muted text-xs mt-0.5">
-                              As of {row.date}
+                              {t("As of {date}", { date: row.date })}
                             </div>
                           )}
                         </div>
@@ -1740,7 +1767,7 @@ function OwnershipSection({ ownership, currencyCode }) {
             </div>
           ) : (
             <div className="h-72 flex items-center justify-center text-muted text-sm">
-              No ownership data available.
+              {t("No ownership data available.")}
             </div>
           )}
         </div>
@@ -1749,12 +1776,12 @@ function OwnershipSection({ ownership, currencyCode }) {
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5">
               <Users size={12} />
-              Top Institutional Holders
+              {t("Top Institutional Holders")}
             </h4>
-            <span className="text-xs text-muted">% of shares · value</span>
+            <span className="text-xs text-muted">{t("% of shares · value")}</span>
           </div>
           {holders.length === 0 ? (
-            <div className="text-muted text-sm">No institutional holders reported.</div>
+            <div className="text-muted text-sm">{t("No institutional holders reported.")}</div>
           ) : (
             <ul className="space-y-1 max-h-80 overflow-y-auto pr-1">
               {holders.map((h, i) => (
@@ -1821,7 +1848,9 @@ const FILTER_PILL =
 const FILTER_PILL_ON = "bg-surface-card text-brand";
 const FILTER_PILL_OFF = "bg-surface-hover text-muted hover:text-ink";
 
+// Option labels and descriptions are English source text, translated here.
 function TypeFilterChips({ options, active, onToggle, onReset, className = "" }) {
+  const t = useT();
   if (!options || options.length <= 1) return null;
   const noFilter = active.size === 0;
   const pillStyle = (on) => ({ boxShadow: on ? "var(--clay-raise-sm)" : "var(--clay-inset-sm)" });
@@ -1834,7 +1863,7 @@ function TypeFilterChips({ options, active, onToggle, onReset, className = "" })
         style={pillStyle(noFilter)}
         className={`${FILTER_PILL} ${noFilter ? FILTER_PILL_ON : FILTER_PILL_OFF}`}
       >
-        All
+        {t("All")}
       </button>
       {options.map((opt) => {
         const isOn = noFilter || active.has(opt.value);
@@ -1842,13 +1871,13 @@ function TypeFilterChips({ options, active, onToggle, onReset, className = "" })
           <button
             key={opt.value}
             type="button"
-            title={opt.description}
+            title={opt.description ? t(opt.description) : undefined}
             aria-pressed={isOn}
             onClick={() => onToggle(opt.value)}
             style={pillStyle(isOn)}
             className={`${FILTER_PILL} ${isOn ? FILTER_PILL_ON : FILTER_PILL_OFF}`}
           >
-            {opt.label}
+            {t(opt.label)}
             <span className="ml-1 font-normal normal-case opacity-70">{opt.count}</span>
           </button>
         );
@@ -1859,12 +1888,12 @@ function TypeFilterChips({ options, active, onToggle, onReset, className = "" })
 
 // Newest filing first; ISO dates sort lexicographically.
 const YF_TYPE_META = {
-  buy: { label: "Buy", tone: "buy", description: "Insider purchased shares in the open market." },
-  sell: { label: "Sell", tone: "sell", description: "Insider sold shares in the open market." },
+  buy: { label: msg("Buy"), tone: "buy", description: msg("Insider purchased shares in the open market.") },
+  sell: { label: msg("Sell"), tone: "sell", description: msg("Insider sold shares in the open market.") },
   other: {
-    label: "Other",
+    label: msg("Other"),
     tone: "neutral",
-    description: "Grants, option exercises, gifts, and other non-market Form 4 transactions.",
+    description: msg("Grants, option exercises, gifts, and other non-market Form 4 transactions."),
   },
 };
 
@@ -1908,27 +1937,34 @@ function TradeMarker({ cx, cy, fill, isOption, onClick, tooltip }) {
 // published at all. Both are estimated here from the band midpoint and the
 // stock's closing price on the trade date, and clearly marked with "~" so
 // they never read as more precise than they are.
-function formatTradeTooltip(t, cs) {
-  const name = t.politician_canonical || t.politician;
-  const midValue = (Number(t.amount_min) + Number(t.amount_max)) / 2;
-  const lines = [name, t.transaction_date];
+function formatTradeTooltip(trade, cs, t) {
+  const name = trade.politician_canonical || trade.politician;
+  const midValue = (Number(trade.amount_min) + Number(trade.amount_max)) / 2;
+  const lines = [name, trade.transaction_date];
 
-  if (Number.isFinite(midValue) && t.tradePrice > 0) {
-    const estShares = midValue / t.tradePrice;
-    lines.push(`~${cs}${Math.round(midValue).toLocaleString()} · ~${Math.round(estShares).toLocaleString()} sh`);
-    if (t.isBuy && t.currentPrice != null) {
-      const pnlDollar = estShares * (t.currentPrice - t.tradePrice);
-      const pnlPct = (t.currentPrice / t.tradePrice - 1) * 100;
+  if (Number.isFinite(midValue) && trade.tradePrice > 0) {
+    const estShares = midValue / trade.tradePrice;
+    lines.push(t("~{value} · ~{shares} sh", {
+      value: `${cs}${Math.round(midValue).toLocaleString()}`,
+      shares: Math.round(estShares).toLocaleString(),
+    }));
+    if (trade.isBuy && trade.currentPrice != null) {
+      const pnlDollar = estShares * (trade.currentPrice - trade.tradePrice);
+      const pnlPct = (trade.currentPrice / trade.tradePrice - 1) * 100;
       const sign = pnlDollar >= 0 ? "+" : "";
-      lines.push(`Unrealized: ${sign}${cs}${Math.round(pnlDollar).toLocaleString()} (${sign}${pnlPct.toFixed(1)}%)`);
-    } else if (!t.isBuy) {
-      lines.push("Position sold — no unrealized P&L");
+      lines.push(t("Unrealized: {amount} ({pct})", {
+        amount: `${sign}${cs}${Math.round(pnlDollar).toLocaleString()}`,
+        pct: `${sign}${pnlPct.toFixed(1)}%`,
+      }));
+    } else if (!trade.isBuy) {
+      lines.push(t("Position sold — no unrealized P&L"));
     }
   }
   return lines.join("\n");
 }
 
 function PoliticalTradesChart({ ticker, trades, currencyCode, currentPrice, onSelect }) {
+  const t = useT();
   const cs = currencySymbol(currencyCode);
   const { data: hist } = useQuery({
     queryKey: ["history", ticker, "1y"],
@@ -1960,7 +1996,7 @@ function PoliticalTradesChart({ ticker, trades, currencyCode, currentPrice, onSe
   return (
     <div className="card !p-4 mb-3">
       <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">
-        Trades on price chart
+        {t("Trades on price chart")}
       </h4>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
@@ -1981,7 +2017,7 @@ function PoliticalTradesChart({ ticker, trades, currencyCode, currentPrice, onSe
                     {...props}
                     fill={d.isBuy ? GAIN_COLOR : LOSS_COLOR}
                     isOption={d.is_likely_option}
-                    tooltip={formatTradeTooltip(d, cs)}
+                    tooltip={formatTradeTooltip(d, cs, t)}
                     onClick={() => onSelect(d)}
                   />
                 )}
@@ -1991,14 +2027,14 @@ function PoliticalTradesChart({ ticker, trades, currencyCode, currentPrice, onSe
         </ResponsiveContainer>
       </div>
       <p className="text-xs text-muted mt-2">
-        ● stock trade · ◆ option-flagged trade · green = buy, red = sell — hover a marker for
-        name/date/value/shares/unrealized P&amp;L, click it (or a table row below) for full details.
+        {t("● stock trade · ◆ option-flagged trade · green = buy, red = sell — hover a marker for name/date/value/shares/unrealized P&L, click it (or a table row below) for full details.")}
       </p>
     </div>
   );
 }
 
 function TradeDetailCard({ trade, onClose }) {
+  const t = useT();
   const isBuy = isPoliticalTradeBuy(trade);
   const reportLag = daysBetween(trade.transaction_date, trade.filed_date);
 
@@ -2018,7 +2054,7 @@ function TradeDetailCard({ trade, onClose }) {
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close trade details"
+          aria-label={t("Close trade details")}
           className="text-muted hover:text-ink text-sm px-2 py-1 max-md:min-h-[44px] max-md:min-w-[44px]"
         >
           ✕
@@ -2026,42 +2062,43 @@ function TradeDetailCard({ trade, onClose }) {
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
         <div>
-          <div className="text-xs text-muted uppercase tracking-wider">Type</div>
+          <div className="text-xs text-muted uppercase tracking-wider">{t("Type")}</div>
           <div className="mt-0.5">
             <Badge size="sm" tone={isBuy ? "gain" : "loss"} className="uppercase">
               {isBuy ? <ArrowUpRight size={11} aria-hidden="true" /> : <ArrowDownRight size={11} aria-hidden="true" />}
-              {isBuy ? "BUY" : "SELL"}
+              {isBuy ? t("Buy") : t("Sell")}
             </Badge>
           </div>
         </div>
         <div>
-          <div className="text-xs text-muted uppercase tracking-wider">Amount</div>
+          <div className="text-xs text-muted uppercase tracking-wider">{t("Amount")}</div>
           <div className="text-sm text-ink tabular-nums">
             ${Number(trade.amount_min).toLocaleString()}–${Number(trade.amount_max).toLocaleString()}
           </div>
         </div>
         <div>
-          <div className="text-xs text-muted uppercase tracking-wider">Owner</div>
+          <div className="text-xs text-muted uppercase tracking-wider">{t("Owner")}</div>
           <div className="text-sm text-ink">{trade.owner_code || "—"}</div>
         </div>
         <div>
-          <div className="text-xs text-muted uppercase tracking-wider">Transaction date</div>
+          <div className="text-xs text-muted uppercase tracking-wider">{t("Transaction date")}</div>
           <div className="text-sm text-ink tabular-nums">{formatTableDate(trade.transaction_date)}</div>
         </div>
       </div>
       {trade.filed_date && (
         <p className="text-xs text-muted mt-2">
-          Reported {formatTableDate(trade.filed_date)}
-          {reportLag != null && reportLag > 0 && ` — ${reportLag} day${reportLag === 1 ? "" : "s"} after the trade`}
+          {t("Reported {date}", { date: formatTableDate(trade.filed_date) })}
+          {reportLag != null && reportLag > 0 && ` — ${reportLag === 1
+            ? t("{count} day after the trade", { count: 1 })
+            : t("{count} days after the trade", { count: reportLag })}`}
         </p>
       )}
       {trade.is_likely_option && (
         <div className="mt-3 pt-3 border-t border-surface-border">
-          <Chip tone="warn">Options trade</Chip>
+          <Chip tone="warn">{t("Options trade")}</Chip>
           <p className="text-xs text-muted mt-1.5">{trade.asset_name}</p>
           <p className="text-xs text-muted mt-1">
-            Exact strike/expiration aren't in the data available here — can't automatically tell
-            if this is a "deep ITM" style bet.
+            {t("Exact strike/expiration aren't in the data available here — can't automatically tell if this is a “deep ITM” style bet.")}
           </p>
         </div>
       )}
@@ -2070,6 +2107,7 @@ function TradeDetailCard({ trade, onClose }) {
 }
 
 function PoliticalTradesSection({ ticker, currencyCode, currentPrice }) {
+  const t = useT();
   const [enabled, setEnabled] = useState(false);
   const [selected, setSelected] = useState(null);
   const { data, isLoading, isError, error } = useQuery({
@@ -2083,36 +2121,35 @@ function PoliticalTradesSection({ ticker, currencyCode, currentPrice }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-        <h3 className="text-base font-semibold text-muted uppercase tracking-wider">Political Trades</h3>
+        <h3 className="text-base font-semibold text-muted uppercase tracking-wider">{t("Political Trades")}</h3>
         {!enabled && (
           <button
             onClick={() => setEnabled(true)}
             className="text-sm px-3 py-1.5 rounded-md bg-surface hover:bg-surface-hover border border-surface-border text-ink transition-colors"
           >
-            Load political trades
+            {t("Load political trades")}
           </button>
         )}
       </div>
 
       {!enabled && (
         <p className="text-sm text-muted">
-          Congressional (STOCK Act) trades referencing this ticker. Loaded only on request —
-          never fetched automatically.
+          {t("Congressional (STOCK Act) trades referencing this ticker. Loaded only on request — never fetched automatically.")}
         </p>
       )}
 
-      {enabled && isLoading && <p className="text-sm text-muted">Loading…</p>}
+      {enabled && isLoading && <p className="text-sm text-muted">{t("Loading…")}</p>}
 
       {enabled && isError && (
         <p className="text-sm text-muted">
           {error?.response?.status === 503
-            ? "Political trades aren't configured — set ALPHA_VANTAGE_API_KEY on the backend to enable this."
-            : "Could not load political trades."}
+            ? t("Political trades aren't configured — set ALPHA_VANTAGE_API_KEY on the backend to enable this.")
+            : t("Could not load political trades.")}
         </p>
       )}
 
       {enabled && data && data.trades.length === 0 && (
-        <p className="text-sm text-muted">No disclosed congressional trades found for this ticker.</p>
+        <p className="text-sm text-muted">{t("No disclosed congressional trades found for this ticker.")}</p>
       )}
 
       {enabled && data && data.trades.length > 0 && (
@@ -2127,11 +2164,11 @@ function PoliticalTradesSection({ ticker, currencyCode, currentPrice }) {
           {selected && <TradeDetailCard trade={selected} onClose={() => setSelected(null)} />}
           <div className="card !p-0 overflow-hidden">
             <div className="grid grid-cols-[1fr_3.5rem_5rem_9rem_6.5rem] gap-3 px-4 py-2 border-b border-surface-border text-xs uppercase tracking-wider text-muted font-medium">
-              <span>Politician</span>
-              <span className="text-center">Party</span>
-              <span className="text-center">Type</span>
-              <span className="text-right">Amount</span>
-              <span className="text-right">Date</span>
+              <span>{t("Politician")}</span>
+              <span className="text-center">{t("Party")}</span>
+              <span className="text-center">{t("Type")}</span>
+              <span className="text-right">{t("Amount")}</span>
+              <span className="text-right">{t("Date")}</span>
             </div>
             <ul className="max-h-96 overflow-y-auto">
               {data.trades.map((t, i) => {
@@ -2150,7 +2187,7 @@ function PoliticalTradesSection({ ticker, currencyCode, currentPrice }) {
                         {t.chamber} · {t.state}
                         {t.state_district ? ` (${t.state_district})` : ""} · {t.owner_code}
                         {t.is_likely_option && (
-                          <span className="ml-1" style={{ color: "var(--chart-3)" }}>◆ Option</span>
+                          <span className="ml-1" style={{ color: "var(--chart-3)" }}>◆ {t("Option")}</span>
                         )}
                       </div>
                     </div>
@@ -2158,7 +2195,7 @@ function PoliticalTradesSection({ ticker, currencyCode, currentPrice }) {
                     <span className="text-center">
                       <Badge size="sm" tone={isBuy ? "gain" : "loss"} className="uppercase">
                         {isBuy ? <ArrowUpRight size={11} aria-hidden="true" /> : <ArrowDownRight size={11} aria-hidden="true" />}
-                        {isBuy ? "BUY" : "SELL"}
+                        {isBuy ? t("Buy") : t("Sell")}
                       </Badge>
                     </span>
                     <span className="text-right tabular-nums text-muted">
@@ -2182,6 +2219,7 @@ function PoliticalTradesSection({ ticker, currencyCode, currentPrice }) {
 }
 
 function EarningsRecapSection({ ticker, currencyCode }) {
+  const t = useT();
   const cs = currencySymbol(currencyCode);
   const { data, isLoading, isError } = useQuery({
     queryKey: ["shibui-earnings-recap", ticker],
@@ -2211,23 +2249,24 @@ function EarningsRecapSection({ ticker, currencyCode }) {
 
   return (
     <div>
-      <h3 className="text-base font-semibold text-muted uppercase tracking-wider mb-3">Earnings</h3>
+      <h3 className="text-base font-semibold text-muted uppercase tracking-wider mb-3">{t("Earnings")}</h3>
 
       <div className="card !p-4 mb-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <div className="text-xs text-muted uppercase tracking-wider">
-              Latest report · Q{latest.quarter} {latest.year} · {formatTableDate(latest.report_date)}
+              {t("Latest report · Q{quarter} {year} · {date}", { quarter: latest.quarter, year: latest.year, date: formatTableDate(latest.report_date) })}
             </div>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <Badge tone={beat ? "gain" : "loss"} className="uppercase">
                 {beat ? <ArrowUpRight size={12} aria-hidden="true" /> : <ArrowDownRight size={12} aria-hidden="true" />}
-                {beat ? "Beat" : "Miss"}
+                {beat ? t("Beat") : t("Miss")}
               </Badge>
               <span className="text-base text-ink tabular-nums">
-                EPS {cs}
-                {latest.eps_actual?.toFixed(2)} vs {cs}
-                {latest.eps_estimate?.toFixed(2)} est.
+                {t("EPS {actual} vs {estimate} est.", {
+                  actual: `${cs}${latest.eps_actual?.toFixed(2)}`,
+                  estimate: `${cs}${latest.eps_estimate?.toFixed(2)}`,
+                })}
               </span>
               {latest.surprise_percent != null && (
                 <span className={`text-sm tabular-nums ${beat ? "text-gain" : "text-loss"}`}>
@@ -2244,17 +2283,17 @@ function EarningsRecapSection({ ticker, currencyCode }) {
               rel="noreferrer"
               className="text-sm text-brand hover:underline inline-flex items-center gap-1"
             >
-              8-K press release <ExternalLink size={10} />
+              {t("8-K press release")} <ExternalLink size={10} />
             </a>
           )}
         </div>
         {latest.revenue_actual != null && (
           <div className="text-sm text-muted mt-2 tabular-nums">
-            Revenue: {fmtCompact(latest.revenue_actual, cs)}
+            {t("Revenue: {amount}", { amount: fmtCompact(latest.revenue_actual, cs) })}
             {data.latest_revenue_estimate != null && (
               <>
                 {" "}
-                vs est. {fmtCompact(data.latest_revenue_estimate, cs)}
+                {t("vs est. {amount}", { amount: fmtCompact(data.latest_revenue_estimate, cs) })}
                 {data.latest_revenue_surprise_pct != null && (
                   <span className={data.latest_revenue_surprise_pct >= 0 ? "text-gain" : "text-loss"}>
                     {" "}
@@ -2270,7 +2309,7 @@ function EarningsRecapSection({ ticker, currencyCode }) {
 
       <div className="card !p-4 mb-3">
         <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">
-          EPS surprise history
+          {t("EPS surprise history")}
         </h4>
         <div className="h-40">
           <ResponsiveContainer width="100%" height="100%">
@@ -2278,7 +2317,7 @@ function EarningsRecapSection({ ticker, currencyCode }) {
               <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
               <XAxis dataKey="label" tick={AXIS_TICK_STYLE} minTickGap={16} />
               <YAxis tick={AXIS_TICK_STYLE} width={surpriseAxisWidth} tickFormatter={(v) => `${Math.round(v)}%`} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v?.toFixed(1)}%`, "Surprise"]} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v?.toFixed(1)}%`, t("Surprise")]} />
               <Bar dataKey="surprise" radius={[7, 7, 0, 0]}>
                 {chartData.map((d, i) => (
                   <Cell key={i} fill={d.surprise >= 0 ? GAIN_COLOR : LOSS_COLOR} />
@@ -2292,12 +2331,20 @@ function EarningsRecapSection({ ticker, currencyCode }) {
       {recentBuyback && (
         <div className="card !p-4">
           <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-1">
-            Buyback trend
+            {t("Buyback trend")}
           </h4>
           <p className="text-sm text-muted">
-            Q{recentBuyback.quarter} {recentBuyback.year}: net{" "}
-            {recentBuyback.equity_issuance_repayment < 0 ? "repurchase" : "issuance"} of{" "}
-            {fmtCompact(Math.abs(recentBuyback.equity_issuance_repayment), cs)}
+            {recentBuyback.equity_issuance_repayment < 0
+              ? t("Q{quarter} {year}: net repurchase of {amount}", {
+                quarter: recentBuyback.quarter,
+                year: recentBuyback.year,
+                amount: fmtCompact(Math.abs(recentBuyback.equity_issuance_repayment), cs),
+              })
+              : t("Q{quarter} {year}: net issuance of {amount}", {
+                quarter: recentBuyback.quarter,
+                year: recentBuyback.year,
+                amount: fmtCompact(Math.abs(recentBuyback.equity_issuance_repayment), cs),
+              })}
           </p>
         </div>
       )}
@@ -2313,6 +2360,7 @@ const VALUATION_RANGES = [
 ];
 
 function ValuationHistorySection({ ticker }) {
+  const t = useT();
   const [range, setRange] = useState(VALUATION_RANGES[2]);
   const { data, isLoading, isError } = useQuery({
     queryKey: ["shibui-valuation-history", ticker, range.years],
@@ -2332,7 +2380,7 @@ function ValuationHistorySection({ ticker }) {
     <div id={VALUATION_HISTORY_ID}>
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
-          Valuation History
+          {t("Valuation History")}
           {data?.granularity && (
             <span className="ml-2 text-muted normal-case tracking-normal">
               · {data.granularity} points
@@ -2340,16 +2388,16 @@ function ValuationHistorySection({ ticker }) {
           )}
         </h3>
         <SegmentedControl
-          aria-label="Valuation history range"
+          aria-label={t("Valuation history range")}
           value={range.label}
           onChange={(label) => setRange(VALUATION_RANGES.find((r) => r.label === label) ?? range)}
-          options={VALUATION_RANGES.map((r) => ({ value: r.label, label: r.label }))}
+          options={VALUATION_RANGES.map((r) => ({ value: r.label, label: r.label === "Max" ? t("Max") : r.label }))}
         />
       </div>
 
-      {isLoading && <p className="text-sm text-muted">Loading…</p>}
+      {isLoading && <p className="text-sm text-muted">{t("Loading…")}</p>}
       {!isLoading && points.length === 0 && (
-        <p className="text-sm text-muted">No valuation history available.</p>
+        <p className="text-sm text-muted">{t("No valuation history available.")}</p>
       )}
 
       {points.length > 0 && (
@@ -2361,10 +2409,12 @@ function ValuationHistorySection({ ticker }) {
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function formatWeekTick(ts) {
+// Month names are English source text (see DividendBarsCard's MONTH_LABELS),
+// translated with `t`.
+function formatWeekTick(ts, t) {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return "";
-  return `${MONTH_LABELS[d.getUTCMonth()]} '${String(d.getUTCFullYear()).slice(-2)}`;
+  return `${t(MONTH_LABELS[d.getUTCMonth()])} '${String(d.getUTCFullYear()).slice(-2)}`;
 }
 
 // Renders every insider buy/sell dot directly onto the chart's SVG via
@@ -2416,6 +2466,7 @@ function InsiderDotsLayer({ xAxisMap, yAxisMap, offset, dots, hoveredDot, onEnte
 }
 
 function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
+  const t = useT();
   const cs = currencySymbol(currencyCode);
   const [hoveredDot, setHoveredDot] = useState(null);
 
@@ -2467,14 +2518,14 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
   return (
     <div>
       <h3 className="text-base font-semibold text-muted uppercase tracking-wider mb-3">
-        Insider Trading Volume
+        {t("Insider Trading Volume")}
       </h3>
       <div className="card !p-4">
-        <ul className="flex flex-wrap gap-x-6 gap-y-2 mb-4 text-sm leading-5 text-ink" aria-label="Insider trading chart legend">
+        <ul className="flex flex-wrap gap-x-6 gap-y-2 mb-4 text-sm leading-5 text-ink" aria-label={t("Insider trading chart legend")}>
           {[
-            { label: "Close Price", color: CATEGORICAL[0], line: true },
-            { label: "Insider Buys", color: GAIN_COLOR },
-            { label: "Insider Sells", color: LOSS_COLOR },
+            { label: t("Close Price"), color: CATEGORICAL[0], line: true },
+            { label: t("Insider Buys"), color: GAIN_COLOR },
+            { label: t("Insider Sells"), color: LOSS_COLOR },
           ].map((item) => (
             <li key={item.label} className="inline-flex items-center gap-2">
               <span
@@ -2495,7 +2546,7 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
                 type="number"
                 domain={["dataMin", "dataMax"]}
                 ticks={monthTicks}
-                tickFormatter={formatWeekTick}
+                tickFormatter={(ts) => formatWeekTick(ts, t)}
                 tick={{ ...AXIS_TICK, fill: "var(--ink)", fontSize: 13, fontWeight: 500 }}
                 interval="preserveStartEnd"
                 minTickGap={8}
@@ -2555,7 +2606,7 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
               </div>
               <div className="text-muted">{hoveredDot.date}</div>
               <div className="text-ink">
-                {hoveredDot.shares != null ? fmtCompact(hoveredDot.shares, "") : "—"} sh
+                {hoveredDot.shares != null ? t("{shares} sh", { shares: fmtCompact(hoveredDot.shares, "") }) : "—"}
               </div>
               <div className={hoveredDot.side === "buy" ? "text-gain" : "text-loss"}>
                 {hoveredDot.value != null ? fmtCompact(hoveredDot.value, cs) : "—"}
@@ -2571,9 +2622,9 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
 const insiderTypeOf = (t) => (t.side === "buy" ? "buy" : t.side === "sell" ? "sell" : "other");
 
 const TX_CODE_LABELS = {
-  P: "Open-market buy", S: "Open-market sale", A: "Grant/award", D: "Disposition to issuer",
-  F: "Tax-withholding disposition", M: "Option/derivative exercise", G: "Gift",
-  C: "Conversion of derivative", X: "In-the-money option exercise",
+  P: msg("Open-market buy"), S: msg("Open-market sale"), A: msg("Grant/award"), D: msg("Disposition to issuer"),
+  F: msg("Tax-withholding disposition"), M: msg("Option/derivative exercise"), G: msg("Gift"),
+  C: msg("Conversion of derivative"), X: msg("In-the-money option exercise"),
 };
 
 const secKey = (date, shares) =>
@@ -2614,6 +2665,7 @@ function InsiderTransactionsWithSec({ ticker, transactions, ...rest }) {
 }
 
 export function InsiderTransactionsSection({ transactions, currencyCode, currentPrice, clusters = [] }) {
+  const t = useT();
   const [activeTypes, setActiveTypes] = useState(() => new Set());
   const INSIDER_ROWS_PER_PAGE = 25;
   const [insiderPage, setInsiderPage] = useState(0);
@@ -2621,8 +2673,8 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
   const cs = currencySymbol(currencyCode);
   const gridCols = "grid-cols-[1fr_auto_auto_auto_auto_auto_auto]";
 
-  const typeCounts = transactions.reduce((acc, t) => {
-    const key = insiderTypeOf(t);
+  const typeCounts = transactions.reduce((acc, txn) => {
+    const key = insiderTypeOf(txn);
     acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
@@ -2632,7 +2684,7 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
   const toggleType = (value) =>
     setActiveTypes((prev) => toggleSetValue(prev, value, typeOptions.length));
   const visibleTransactions =
-    activeTypes.size === 0 ? transactions : transactions.filter((t) => activeTypes.has(insiderTypeOf(t)));
+    activeTypes.size === 0 ? transactions : transactions.filter((txn) => activeTypes.has(insiderTypeOf(txn)));
 
   // Reset to page 1 whenever the active type filter changes the row count,
   // so a stale page index can never point past the end of a shorter list.
@@ -2646,7 +2698,7 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
     <div>
       <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
         <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
-          Latest Insider Transactions
+          {t("Latest Insider Transactions")}
         </h3>
         <TypeFilterChips
           options={typeOptions}
@@ -2665,9 +2717,9 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
             >
               <Flame size={14} className="shrink-0 mt-0.5" style={{ color: "var(--chart-3)" }} />
               <div>
-                <span className="font-semibold text-ink">Cluster buy detected</span>
+                <span className="font-semibold text-ink">{t("Cluster buy detected")}</span>
                 <span className="text-muted">
-                  {" "}— {c.buyers.length} insiders bought between {c.start} and {c.end}:{" "}
+                  {" "}— {t("{count} insiders bought between {start} and {end}:", { count: c.buyers.length, start: c.start, end: c.end })}{" "}
                 </span>
                 <span className="text-ink">{c.buyers.join(", ")}</span>
               </div>
@@ -2677,33 +2729,33 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
       )}
       <div className="card !p-0 overflow-x-auto">
         <div className={`grid ${gridCols} min-w-[700px] gap-3 px-4 py-2 border-b border-surface-border text-xs uppercase tracking-wider text-muted font-medium`}>
-          <span>Insider</span>
-          <span className="w-32 text-left">Type · Transaction</span>
-          <span className="w-20 text-right">Shares</span>
-          <span className="w-20 text-right">Price</span>
-          <span className="w-24 text-right">Value</span>
-          <span className="w-24 text-right" title="Unrealized P&L vs current price">P&amp;L (vs now)</span>
-          <span className="w-24 text-right">Date</span>
+          <span>{t("Insider")}</span>
+          <span className="w-32 text-left">{t("Type · Transaction")}</span>
+          <span className="w-20 text-right">{t("Shares")}</span>
+          <span className="w-20 text-right">{t("Price")}</span>
+          <span className="w-24 text-right">{t("Value")}</span>
+          <span className="w-24 text-right" title={t("Unrealized P&L vs current price")}>{t("P&L (vs now)")}</span>
+          <span className="w-24 text-right">{t("Date")}</span>
         </div>
         <ul className="min-w-[700px]">
           {!pagedTransactions.length && (
             <li className="px-4 py-6 text-center text-sm text-muted">
-              No transactions match the selected filter.
+              {t("No transactions match the selected filter.")}
             </li>
           )}
-          {pagedTransactions.map((t, i) => {
-            const isBuy = t.side === "buy";
-            const isSell = t.side === "sell";
+          {pagedTransactions.map((txn, i) => {
+            const isBuy = txn.side === "buy";
+            const isSell = txn.side === "sell";
             // The badge carries buy/sell; rows are not tinted.
             const sideColor = isBuy ? "text-gain" : isSell ? "text-loss" : "text-muted";
-            const sideLabel = isBuy ? "BUY" : isSell ? "SELL" : "OTHER";
+            const sideLabel = isBuy ? t("Buy") : isSell ? t("Sell") : t("Other");
             const sideTone = isBuy ? "gain" : isSell ? "loss" : "neutral";
             const Icon = isBuy ? ArrowUpRight : isSell ? ArrowDownRight : null;
 
             // Derive the executed price from value / shares. yfinance reports
             // both as positive magnitudes so this stays valid for either side.
-            const shares = t.shares != null ? Math.abs(t.shares) : null;
-            const value = t.value != null ? Math.abs(t.value) : null;
+            const shares = txn.shares != null ? Math.abs(txn.shares) : null;
+            const value = txn.value != null ? Math.abs(txn.value) : null;
             // A zero value (grants, gifts, option exercises) has no price: show a dash.
             const pricePerShare =
               shares && shares > 0 && value ? value / shares : null;
@@ -2739,29 +2791,29 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
                 className={`grid ${gridCols} gap-3 items-center px-4 py-2 border-b border-surface-border last:border-0 text-sm transition-colors hover:bg-surface-hover`}
               >
                 <div className="min-w-0">
-                  <div className="text-ink truncate" title={t.insider || ""}>
-                    {t.insider || "—"}
+                  <div className="text-ink truncate" title={txn.insider || ""}>
+                    {txn.insider || "—"}
                   </div>
-                  {t.position && (
-                    <div className="text-xs text-muted truncate" title={t.position}>
-                      {t.position}
+                  {txn.position && (
+                    <div className="text-xs text-muted truncate" title={txn.position}>
+                      {txn.position}
                     </div>
                   )}
                 </div>
                 <div className="w-32 flex items-center gap-1.5">
-                  <Badge size="sm" tone={sideTone} className="tracking-wider">
+                  <Badge size="sm" tone={sideTone} className="uppercase tracking-wider">
                     {sideLabel}
                   </Badge>
-                  {t.code ? (
-                    <Badge size="sm" tone="neutral" title={TX_CODE_LABELS[t.code] || "SEC Form 4 transaction code"} className="uppercase">
-                      {t.code}
+                  {txn.code ? (
+                    <Badge size="sm" tone="neutral" title={TX_CODE_LABELS[txn.code] ? t(TX_CODE_LABELS[txn.code]) : t("SEC Form 4 transaction code")} className="uppercase">
+                      {txn.code}
                     </Badge>
                   ) : (
                     <span
                       className={`truncate text-xs ${sideColor}`}
-                      title={t.transaction || ""}
+                      title={txn.transaction || ""}
                     >
-                      {t.transaction || "—"}
+                      {txn.transaction || "—"}
                     </span>
                   )}
                 </div>
@@ -2773,7 +2825,7 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
                   className="w-20 text-right tabular-nums text-ink"
                   title={
                     pricePerShare != null
-                      ? `${cs}${pricePerShare.toFixed(4)} / share`
+                      ? t("{price} / share", { price: `${cs}${pricePerShare.toFixed(4)}` })
                       : ""
                   }
                 >
@@ -2786,7 +2838,9 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
                   className={`w-24 text-right tabular-nums font-medium ${pnlColor}`}
                   title={
                     pnl != null
-                      ? `Buy held to now: ${pnlPrefix}${fmtCompact(Math.abs(pnl), cs)}${pnlPct != null ? ` (${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}%)` : ""}`
+                      ? t("Buy held to now: {amount}", {
+                        amount: `${pnlPrefix}${fmtCompact(Math.abs(pnl), cs)}${pnlPct != null ? ` (${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}%)` : ""}`,
+                      })
                       : ""
                   }
                 >
@@ -2806,7 +2860,7 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
                   )}
                 </div>
                 <div className="w-24 text-right text-muted tabular-nums text-xs">
-                  {formatTableDate(t.date)}
+                  {formatTableDate(txn.date)}
                 </div>
               </li>
             );
@@ -2818,13 +2872,12 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
             limit={INSIDER_ROWS_PER_PAGE}
             total={visibleTransactions.length}
             onOffsetChange={(next) => setInsiderPage(Math.floor(next / INSIDER_ROWS_PER_PAGE))}
-            ariaLabel="Insider transactions pages"
+            ariaLabel={t("Insider transactions pages")}
           />
         </div>
       </div>
       <div className="text-xs text-muted mt-2">
-        Source: yfinance · SEC transaction codes and cluster buys from Form 4/5
-        (Pro) · P&amp;L shown for buys only (held-to-now mark vs. current price).
+        {t("Source: yfinance · SEC transaction codes and cluster buys from Form 4/5 (Pro) · P&L shown for buys only (held-to-now mark vs. current price).")}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { msg } from "../i18n/I18nProvider";
 
 const STORAGE_KEY = "sb_stock_report_sections";
 const TAB_STORAGE_KEY = "sb_stock_report_tabs";
@@ -16,16 +17,16 @@ export const STOCK_TAB_SECTIONS = {
 };
 
 export const ALL_SECTIONS = [
-  { id: "quickStats", label: "Quick Stats" },
-  { id: "dividendGrowth", label: "Dividend History" },
-  { id: "financials", label: "Financials" },
-  { id: "earningsRecap", label: "Earnings" },
-  { id: "ratiosAnalyst", label: "Ratios & Analyst" },
-  { id: "valuationHistory", label: "Valuation History" },
-  { id: "insiderVolume", label: "Insider Volume" },
-  { id: "insiderTx", label: "Insider Transactions" },
-  { id: "politicalTrades", label: "Political Trades" },
-  { id: "ownership", label: "Ownership" },
+  { id: "quickStats", label: msg("Quick Stats") },
+  { id: "dividendGrowth", label: msg("Dividend History") },
+  { id: "financials", label: msg("Financials") },
+  { id: "earningsRecap", label: msg("Earnings") },
+  { id: "ratiosAnalyst", label: msg("Ratios & Analyst") },
+  { id: "valuationHistory", label: msg("Valuation History") },
+  { id: "insiderVolume", label: msg("Insider Volume") },
+  { id: "insiderTx", label: msg("Insider Transactions") },
+  { id: "politicalTrades", label: msg("Political Trades") },
+  { id: "ownership", label: msg("Ownership") },
 ];
 
 const DEFAULT_ORDER = ALL_SECTIONS.map((s) => s.id);
