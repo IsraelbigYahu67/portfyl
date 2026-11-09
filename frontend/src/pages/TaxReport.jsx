@@ -13,6 +13,7 @@ import {
 } from "../lib/format";
 import { AsyncSection, Badge } from "../components/ui";
 import Pagination from "../components/ui/Pagination";
+import { msg, useT } from "../i18n/I18nProvider";
 
 // Czech §4 capital gains exemption rules. Kept on the client so the labels can
 // be tweaked without touching the API.
@@ -42,14 +43,16 @@ export function czRowStatus(gain, yearsByTaxYear) {
 }
 
 function CzBadge({ gain, yearsByTaxYear }) {
+  const t = useT();
   const status = czRowStatus(gain, yearsByTaxYear);
+  const limit = CZ.VALUE_TEST_LIMIT.toLocaleString("cs-CZ");
   if (status === "exempt_time") {
     return (
       <Badge
         tone="gain"
-        title={`Held >3 years (§4 ZDP) — exempt from CZ income tax. Acquired ${gain.buy_date}, exempt from ${gain.cz_exempt_date}.`}
+        title={t("Held >3 years (§4 ZDP) — exempt from CZ income tax. Acquired {bought}, exempt from {exemptFrom}.", { bought: gain.buy_date, exemptFrom: gain.cz_exempt_date })}
       >
-        Exempt · 3y
+        {t("Exempt · 3y")}
       </Badge>
     );
   }
@@ -57,44 +60,53 @@ function CzBadge({ gain, yearsByTaxYear }) {
     return (
       <Badge
         tone="gain"
-        title={`Annual gross proceeds in the year of sale stayed within ${CZ.VALUE_TEST_LIMIT.toLocaleString("cs-CZ")} Kč (§4 ZDP value test) — exempt from CZ income tax.`}
+        title={t("Annual gross proceeds in the year of sale stayed within {limit} Kč (§4 ZDP value test) — exempt from CZ income tax.", { limit })}
       >
-        Exempt · value test
+        {t("Exempt · value test")}
       </Badge>
     );
   }
   return (
     <Badge
       tone="warn"
-      title={`Held <3 years and the year's gross proceeds are above ${CZ.VALUE_TEST_LIMIT.toLocaleString("cs-CZ")} Kč — taxable in CZ. Would be exempt from ${gain.cz_exempt_date}.`}
+      title={t("Held <3 years and the year's gross proceeds are above {limit} Kč — taxable in CZ. Would be exempt from {exemptFrom}.", { limit, exemptFrom: gain.cz_exempt_date })}
     >
-      Taxable
+      {t("Taxable")}
     </Badge>
   );
 }
 
 function TermBadge({ term }) {
+  const t = useT();
   return (
     <Badge tone={term === "long" ? "brand" : "neutral"} size="sm">
-      {term === "long" ? "Long" : "Short"}
+      {term === "long" ? t("Long") : t("Short")}
     </Badge>
   );
 }
 
-const GainPercent = ({ value }) => value == null ? (
-  <span
-    title="Percentage is not meaningful for a basis below one cent."
-    aria-label="Percentage is not meaningful for a basis below one cent."
-  >
-    —
-  </span>
-) : formatPercent(value, { sign: false });
+function GainPercent({ value }) {
+  const t = useT();
+  if (value != null) return formatPercent(value, { sign: false });
+  const note = t("Percentage is not meaningful for a basis below one cent.");
+  return (
+    <span title={note} aria-label={note}>
+      —
+    </span>
+  );
+}
+
+// "1 trade" / "{count} trades": two literal keys, so the dictionaries can use
+// a count-neutral form ("Obchody: 5") where a language has more plural forms.
+const tradeCount = (t, count) => (count === 1 ? t("{count} trade", { count }) : t("{count} trades", { count }));
 
 const csvFixed = (value, digits) => (
   value == null ? "" : Number(value).toFixed(digits)
 );
 
 function CzechTaxYearCard({ y }) {
+  const t = useT();
+  const limit = CZ.VALUE_TEST_LIMIT.toLocaleString("cs-CZ");
   // Cards collapse the per-year summary into actionable rows. Order matters:
   // value test first (because if it passes, the rest are moot), then time test,
   // then the 40M cap, then the bottom-line taxable amount.
@@ -104,9 +116,9 @@ function CzechTaxYearCard({ y }) {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold flex items-center gap-2">
           <ShieldCheck size={14} className="text-brand" />
-          Czech Tax — {y.tax_year}
+          {t("Czech Tax — {year}", { year: y.tax_year })}
         </h3>
-        <span className="text-xs text-muted">§4 ZDP · {y.trades} trade{y.trades === 1 ? "" : "s"}</span>
+        <span className="text-xs text-muted">§4 ZDP · {tradeCount(t, y.trades)}</span>
       </div>
 
       {y.incomplete_fx && (
@@ -119,49 +131,48 @@ function CzechTaxYearCard({ y }) {
         >
           <AlertTriangle size={12} className="mt-0.5 shrink-0" />
           <span>
-            Some transactions are missing the CZK exchange rate — totals exclude those rows.
-            Re-importing or refreshing FX rates will close the gap.
+            {t("Some transactions are missing the CZK exchange rate — totals exclude those rows. Re-importing or refreshing FX rates will close the gap.")}
           </span>
         </div>
       )}
 
       <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="text-muted">Gross sale proceeds</div>
+        <div className="text-muted">{t("Gross sale proceeds")}</div>
         <div className="text-right tabular-nums">{fmtCzk(y.gross_proceeds_czk)}</div>
 
-        <div className="text-muted">Value test (≤ {CZ.VALUE_TEST_LIMIT.toLocaleString("cs-CZ")} Kč)</div>
+        <div className="text-muted">{t("Value test (≤ {limit} Kč)", { limit })}</div>
         <div className="text-right">
           {y.value_test_passed ? (
-            <span className="text-gain font-medium">✓ Passed — fully exempt</span>
+            <span className="text-gain font-medium">{t("✓ Passed — fully exempt")}</span>
           ) : (
-            <span className="text-muted">Above threshold</span>
+            <span className="text-muted">{t("Above threshold")}</span>
           )}
         </div>
 
-        <div className="text-muted">Time-test exempt (&gt; 3 yrs)</div>
+        <div className="text-muted">{t("Time-test exempt (> 3 yrs)")}</div>
         <div className="text-right tabular-nums text-gain">{fmtCzk(y.time_test_exempt_gain_czk)}</div>
 
         {y.time_test_cap_active && (
           <>
-            <div className="text-muted">40M cap status</div>
+            <div className="text-muted">{t("40M cap status")}</div>
             <div className="text-right">
               {y.time_test_cap_excess_czk > 0 ? (
-                <span className="text-loss">Exceeded by {fmtCzk(y.time_test_cap_excess_czk)}</span>
+                <span className="text-loss">{t("Exceeded by {amount}", { amount: fmtCzk(y.time_test_cap_excess_czk) })}</span>
               ) : (
-                <span className="text-gain">Within cap</span>
+                <span className="text-gain">{t("Within cap")}</span>
               )}
             </div>
           </>
         )}
 
-        <div className="text-muted">Pre-cap taxable gain (&lt; 3 yrs)</div>
+        <div className="text-muted">{t("Pre-cap taxable gain (< 3 yrs)")}</div>
         <div className="text-right tabular-nums text-muted">{fmtCzk(y.taxable_gain_czk_pre_cap)}</div>
       </div>
 
       <div className="border-t border-surface-border pt-3 grid grid-cols-2 gap-2 text-sm">
-        <div className="text-muted">Exempt total</div>
+        <div className="text-muted">{t("Exempt total")}</div>
         <div className="text-right tabular-nums font-bold text-gain">{fmtCzk(y.exempt_total_czk)}</div>
-        <div className="text-muted">Taxable in CZ</div>
+        <div className="text-muted">{t("Taxable in CZ")}</div>
         <div
           className={`text-right tabular-nums font-bold ${taxablePositive ? "" : "text-muted"}`}
           style={taxablePositive ? { color: "var(--chart-3)" } : undefined}
@@ -174,6 +185,7 @@ function CzechTaxYearCard({ y }) {
 }
 
 function CzechTaxPanel({ years, year }) {
+  const t = useT();
   if (!years || years.length === 0) return null;
   const visible = year ? years.filter((y) => y.tax_year === year) : years;
   if (!visible.length) return null;
@@ -188,7 +200,7 @@ function CzechTaxPanel({ years, year }) {
     <section>
       <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider flex items-center gap-2">
         <ShieldCheck size={14} className="text-brand" />
-        Czech §4 Exemption Analysis
+        {t("Czech §4 Exemption Analysis")}
       </h2>
       <div className={`grid gap-6 ${gridCols}`}>
         {visible.map((y) => (
@@ -199,7 +211,18 @@ function CzechTaxPanel({ years, year }) {
   );
 }
 
+// Table headings, translated where they are drawn.
+const REALIZED_HEADINGS = [
+  msg("Ticker"), msg("Buy Date"), msg("Sell Date"), msg("Shares"), msg("Cost Basis"), msg("Proceeds"),
+  msg("Gain/Loss"), msg("Gain %"), msg("Days Held"), msg("Term"), msg("CZ Tax"),
+];
+const UNREALIZED_HEADINGS = [
+  msg("Ticker"), msg("Buy Date"), msg("Shares"), msg("Cost Basis"), msg("Market Value"),
+  msg("Unrealized G/L"), msg("Gain %"), msg("Days Held"), msg("Term"), msg("Tax-free In"),
+];
+
 export default function TaxReport() {
+  const t = useT();
   const { currency, rate } = useCurrency();
   const [params, setParams] = useSearchParams();
 
@@ -293,9 +316,9 @@ export default function TaxReport() {
   };
 
   const TABS = [
-    { key: "realized", label: "Realized Gains", count: gains.length },
-    { key: "unrealized", label: "Unrealized Gains", count: unrealized.length },
-    { key: "dividends", label: "Dividend Income", count: dividendIncome.length },
+    { key: "realized", label: t("Realized Gains"), count: gains.length },
+    { key: "unrealized", label: t("Unrealized Gains"), count: unrealized.length },
+    { key: "dividends", label: t("Dividend Income"), count: dividendIncome.length },
   ];
 
   return (
@@ -304,18 +327,18 @@ export default function TaxReport() {
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             <FileText size={20} className="text-brand" />
-            Tax Report
+            {t("Tax Report")}
           </h1>
-          <p className="text-xs text-muted mt-0.5">Capital gains, losses, and dividend income (FIFO method)</p>
+          <p className="text-xs text-muted mt-0.5">{t("Capital gains, losses, and dividend income (FIFO method)")}</p>
         </div>
         <div className="flex items-center gap-2">
           <select
             value={year || ""}
             onChange={(e) => setYear(e.target.value ? parseInt(e.target.value) : null)}
-            aria-label="Tax year"
+            aria-label={t("Tax year")}
             className="input text-sm"
           >
-            <option value="">All Years</option>
+            <option value="">{t("All Years")}</option>
             {availableYears.map((y) => (
               <option key={y} value={y}>{y}</option>
             ))}
@@ -326,7 +349,7 @@ export default function TaxReport() {
             className="btn-ghost flex items-center gap-2 whitespace-nowrap text-sm disabled:opacity-30"
           >
             <Download size={14} />
-            Export CSV
+            {t("Export CSV")}
           </button>
         </div>
       </div>
@@ -337,36 +360,38 @@ export default function TaxReport() {
         onRetry={() => refetch()}
         loading={(
           <div className="card animate-pulse h-32 flex items-center justify-center text-muted">
-            Generating tax report…
+            {t("Generating tax report…")}
           </div>
         )}
       >
         <>
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
             <MetricCard
-              label="Total Realized P&L"
+              label={t("Total Realized P&L")}
               value={fmtMoney(summary.total_realized, summary.total_realized_czk)}
               positive={summary.total_realized >= 0}
               negative={summary.total_realized < 0}
             />
             <MetricCard
-              label="Short-Term Gains"
+              label={t("Short-Term Gains")}
               value={fmtMoney(summary.short_term_gains, summary.short_term_gains_czk)}
-              sub={`${summary.short_term_count || 0} trades`}
+              sub={tradeCount(t, summary.short_term_count || 0)}
               positive={summary.short_term_gains >= 0}
               negative={summary.short_term_gains < 0}
             />
             <MetricCard
-              label="Long-Term Gains"
+              label={t("Long-Term Gains")}
               value={fmtMoney(summary.long_term_gains, summary.long_term_gains_czk)}
-              sub={`${summary.long_term_count || 0} trades`}
+              sub={tradeCount(t, summary.long_term_count || 0)}
               positive={summary.long_term_gains >= 0}
               negative={summary.long_term_gains < 0}
             />
             <MetricCard
-              label="Dividend Income"
+              label={t("Dividend Income")}
               value={fmtMoney(summary.total_dividends, summary.total_dividends_czk)}
-              sub={`${dividendIncome.length} stocks`}
+              sub={dividendIncome.length === 1
+                ? t("{count} stock", { count: 1 })
+                : t("{count} stocks", { count: dividendIncome.length })}
             />
           </div>
 
@@ -374,19 +399,19 @@ export default function TaxReport() {
 
           <div className="card p-0 overflow-hidden">
             <div className="flex border-b border-surface-border">
-              {TABS.map((t) => (
+              {TABS.map((item) => (
                 <button
-                  key={t.key}
-                  onClick={() => setTab(t.key)}
+                  key={item.key}
+                  onClick={() => setTab(item.key)}
                   className={`px-5 py-3 text-sm font-medium transition-colors ${
-                    tab === t.key
+                    tab === item.key
                       ? "text-brand border-b-2 border-brand"
                       : "text-muted hover:text-ink"
                   }`}
                 >
-                  {t.label}
-                  {t.count > 0 && (
-                    <span className="ml-2 text-xs bg-surface-hover px-1.5 py-0.5 rounded-full">{t.count}</span>
+                  {item.label}
+                  {item.count > 0 && (
+                    <span className="ml-2 text-xs bg-surface-hover px-1.5 py-0.5 rounded-full">{item.count}</span>
                   )}
                 </button>
               ))}
@@ -396,7 +421,7 @@ export default function TaxReport() {
               <>
               {!gains.length ? (
                 <div className="text-muted text-sm text-center py-12">
-                  No realized gains or losses{year ? ` in ${year}` : ""}.
+                  {year ? t("No realized gains or losses in {year}.", { year }) : t("No realized gains or losses.")}
                 </div>
               ) : (
                 <>
@@ -414,7 +439,7 @@ export default function TaxReport() {
                             <CzBadge gain={g} yearsByTaxYear={yearsByTaxYear} />
                           </div>
                           <p className="text-sm text-muted tabular-nums">
-                            {formatTableDate(g.buy_date)} → {formatTableDate(g.sell_date)} · {formatQuantity(g.shares, "CZK")} sh · {g.holding_days}d
+                            {formatTableDate(g.buy_date)} → {formatTableDate(g.sell_date)} · {t("{shares} sh", { shares: formatQuantity(g.shares, "CZK") })} · {t("{days}d", { days: g.holding_days })}
                           </p>
                         </div>
                         <div className="shrink-0 text-right">
@@ -431,13 +456,13 @@ export default function TaxReport() {
                   })}
                   <li className="px-4 py-3 space-y-1 text-sm">
                     <p className="flex justify-between font-bold">
-                      <span>Short-Term Total</span>
+                      <span>{t("Short-Term Total")}</span>
                       <span className={`tabular-nums ${summary.short_term_gains >= 0 ? "text-gain" : "text-loss"}`}>
                         {fmtMoney(summary.short_term_gains, summary.short_term_gains_czk)}
                       </span>
                     </p>
                     <p className="flex justify-between font-bold">
-                      <span>Long-Term Total</span>
+                      <span>{t("Long-Term Total")}</span>
                       <span className={`tabular-nums ${summary.long_term_gains >= 0 ? "text-gain" : "text-loss"}`}>
                         {fmtMoney(summary.long_term_gains, summary.long_term_gains_czk)}
                       </span>
@@ -448,8 +473,8 @@ export default function TaxReport() {
                   <table className="w-full">
                     <thead className="border-b border-surface-border">
                       <tr>
-                        {["Ticker", "Buy Date", "Sell Date", "Shares", "Cost Basis", "Proceeds", "Gain/Loss", "Gain %", "Days Held", "Term", "CZ Tax"].map((h, i) => (
-                          <th key={h} className={`${i >= 3 && i <= 8 ? "text-right" : "text-left"} px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider`}>{h}</th>
+                        {REALIZED_HEADINGS.map((h, i) => (
+                          <th key={h} className={`${i >= 3 && i <= 8 ? "text-right" : "text-left"} px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider`}>{t(h)}</th>
                         ))}
                       </tr>
                     </thead>
@@ -475,7 +500,7 @@ export default function TaxReport() {
                             <td className={`px-4 py-3 text-sm text-right tabular-nums ${up ? "text-gain" : "text-loss"}`}>
                               <GainPercent value={g.gain_pct} />
                             </td>
-                            <td className="px-4 py-3 text-sm text-right tabular-nums text-muted">{g.holding_days}d</td>
+                            <td className="px-4 py-3 text-sm text-right tabular-nums text-muted">{t("{days}d", { days: g.holding_days })}</td>
                             <td className="px-4 py-3"><TermBadge term={g.term} /></td>
                             <td className="px-4 py-3"><CzBadge gain={g} yearsByTaxYear={yearsByTaxYear} /></td>
                           </tr>
@@ -484,7 +509,7 @@ export default function TaxReport() {
                     </tbody>
                     <tfoot className="border-t-2 border-surface-border bg-surface">
                       <tr>
-                        <td className="px-4 py-3 text-sm font-bold" colSpan={5}>Short-Term Total</td>
+                        <td className="px-4 py-3 text-sm font-bold" colSpan={5}>{t("Short-Term Total")}</td>
                         <td className="px-4 py-3 text-sm text-right tabular-nums">{fmt(shortGains.reduce((s, g) => s + g.proceeds, 0))}</td>
                         <td className={`px-4 py-3 text-sm text-right tabular-nums font-bold ${summary.short_term_gains >= 0 ? "text-gain" : "text-loss"}`}>
                           {fmtMoney(summary.short_term_gains, summary.short_term_gains_czk)}
@@ -492,7 +517,7 @@ export default function TaxReport() {
                         <td colSpan={4}></td>
                       </tr>
                       <tr>
-                        <td className="px-4 py-3 text-sm font-bold" colSpan={5}>Long-Term Total</td>
+                        <td className="px-4 py-3 text-sm font-bold" colSpan={5}>{t("Long-Term Total")}</td>
                         <td className="px-4 py-3 text-sm text-right tabular-nums">{fmt(longGains.reduce((s, g) => s + g.proceeds, 0))}</td>
                         <td className={`px-4 py-3 text-sm text-right tabular-nums font-bold ${summary.long_term_gains >= 0 ? "text-gain" : "text-loss"}`}>
                           {fmtMoney(summary.long_term_gains, summary.long_term_gains_czk)}
@@ -511,7 +536,7 @@ export default function TaxReport() {
                     limit={ROWS_PER_PAGE}
                     total={gains.length}
                     onOffsetChange={(nextOffset) => setPage(Math.floor(nextOffset / ROWS_PER_PAGE))}
-                    ariaLabel="Tax report realized gains pages"
+                    ariaLabel={t("Tax report realized gains pages")}
                   />
                 </div>
               )}
@@ -522,13 +547,13 @@ export default function TaxReport() {
               <>
               <div className="overflow-x-auto">
                 {!unrealized.length ? (
-                  <div className="text-muted text-sm text-center py-12">No open positions with lot data.</div>
+                  <div className="text-muted text-sm text-center py-12">{t("No open positions with lot data.")}</div>
                 ) : (
                   <table className="w-full">
                     <thead className="border-b border-surface-border">
                       <tr>
-                        {["Ticker", "Buy Date", "Shares", "Cost Basis", "Market Value", "Unrealized G/L", "Gain %", "Days Held", "Term", "Tax-free In"].map((h, i) => (
-                          <th key={h} className={`${i >= 2 && i <= 7 ? "text-right" : "text-left"} px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider`}>{h}</th>
+                        {UNREALIZED_HEADINGS.map((h, i) => (
+                          <th key={h} className={`${i >= 2 && i <= 7 ? "text-right" : "text-left"} px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider`}>{t(h)}</th>
                         ))}
                       </tr>
                     </thead>
@@ -553,19 +578,19 @@ export default function TaxReport() {
                             <td className={`px-4 py-3 text-sm text-right tabular-nums ${up ? "text-gain" : "text-loss"}`}>
                               <GainPercent value={u.gain_pct} />
                             </td>
-                            <td className="px-4 py-3 text-sm text-right tabular-nums text-muted">{u.holding_days}d</td>
+                            <td className="px-4 py-3 text-sm text-right tabular-nums text-muted">{t("{days}d", { days: u.holding_days })}</td>
                             <td className="px-4 py-3"><TermBadge term={u.term} /></td>
                             <td className="px-4 py-3 text-sm">
                               {u.cz_exempt_time_test ? (
-                                <Badge tone="gain" title={`Exempt from ${u.cz_exempt_date} (§4 ZDP)`}>Exempt</Badge>
+                                <Badge tone="gain" title={t("Exempt from {date} (§4 ZDP)", { date: u.cz_exempt_date })}>{t("Exempt")}</Badge>
                               ) : (
                                 <Badge
                                   tone="warn"
                                   className="tabular-nums"
-                                  title={`Tax-free if sold on or after ${u.cz_exempt_date} (§4 ZDP, 3-year time test)`}
+                                  title={t("Tax-free if sold on or after {date} (§4 ZDP, 3-year time test)", { date: u.cz_exempt_date })}
                                 >
                                   <Hourglass size={12} aria-hidden="true" />
-                                  {u.cz_days_to_exemption}d
+                                  {t("{days}d", { days: u.cz_days_to_exemption })}
                                   <span className="font-normal">({formatTableDate(u.cz_exempt_date)})</span>
                                 </Badge>
                               )}
@@ -576,7 +601,7 @@ export default function TaxReport() {
                     </tbody>
                     <tfoot className="border-t-2 border-surface-border bg-surface">
                       <tr>
-                        <td className="px-4 py-3 text-sm font-bold" colSpan={3}>Total Unrealized</td>
+                        <td className="px-4 py-3 text-sm font-bold" colSpan={3}>{t("Total Unrealized")}</td>
                         <td className="px-4 py-3 text-sm text-right tabular-nums font-medium">{fmt(unrealized.reduce((s, u) => s + u.cost_basis, 0))}</td>
                         <td className="px-4 py-3 text-sm text-right tabular-nums font-medium">{fmt(unrealized.reduce((s, u) => s + u.market_value, 0))}</td>
                         <td className={`px-4 py-3 text-sm text-right tabular-nums font-bold ${
@@ -597,7 +622,7 @@ export default function TaxReport() {
                     limit={ROWS_PER_PAGE}
                     total={unrealized.length}
                     onOffsetChange={(nextOffset) => setPage(Math.floor(nextOffset / ROWS_PER_PAGE))}
-                    ariaLabel="Tax report unrealized gains pages"
+                    ariaLabel={t("Tax report unrealized gains pages")}
                   />
                 </div>
               )}
@@ -608,15 +633,15 @@ export default function TaxReport() {
               <div className="overflow-x-auto">
                 {!dividendIncome.length ? (
                   <div className="text-muted text-sm text-center py-12">
-                    No dividend income{year ? ` in ${year}` : ""}.
+                    {year ? t("No dividend income in {year}.", { year }) : t("No dividend income.")}
                   </div>
                 ) : (
                   <table className="w-full">
                     <thead className="border-b border-surface-border">
                       <tr>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Ticker</th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Amount</th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">% of Total</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">{t("Ticker")}</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">{t("Amount")}</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">{t("% of Total")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-border">
@@ -644,7 +669,7 @@ export default function TaxReport() {
                     </tbody>
                     <tfoot className="border-t-2 border-surface-border bg-surface">
                       <tr>
-                        <td className="px-4 py-3 text-sm font-bold">Total</td>
+                        <td className="px-4 py-3 text-sm font-bold">{t("Total")}</td>
                         <td className="px-4 py-3 text-sm tabular-nums text-gain font-bold">{fmtMoney(summary.total_dividends, summary.total_dividends_czk)}</td>
                         <td></td>
                       </tr>
