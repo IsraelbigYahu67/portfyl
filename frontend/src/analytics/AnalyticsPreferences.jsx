@@ -8,9 +8,9 @@ const STATUS_KEY = { accepted: "statusAccepted", rejected: "statusRejected", pen
 // wherever a "Manage analytics"/"Analytics preferences" entry point exists
 // (Welcome footer, DemoShell footer, the authenticated Data & Privacy
 // settings section); AnalyticsProvider owns whether it is currently open.
-export default function AnalyticsPreferences({ onClose }) {
+export default function AnalyticsPreferences({ onClose, language }) {
   const { consent, acceptAnalytics, rejectAnalytics } = useAnalytics();
-  const t = ANALYTICS_COPY[getAnalyticsLanguage()];
+  const t = ANALYTICS_COPY[ANALYTICS_COPY[language] ? language : getAnalyticsLanguage()];
 
   return (
     <div className="card space-y-3" role="region" aria-label={t.manage}>

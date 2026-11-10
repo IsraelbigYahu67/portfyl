@@ -44,7 +44,13 @@
 
 /* Segmented controls reuse the app's SegmentedControl; size them up for a page. */
 .welcome-language-switch { flex-shrink: 0; }
+/* The language options are links (one URL per language), so the generic
+   `.welcome a { color: inherit }` must not flatten their active/idle colors. */
 .welcome-language-switch > button { min-width: 44px; min-height: 36px; padding-inline: 12px; font-size: 13px; }
+.welcome-language-switch > a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 36px; padding-inline: 12px; font-size: 13px; }
+.welcome .welcome-language-switch > a { color: var(--muted); }
+.welcome .welcome-language-switch > a:hover { color: var(--ink); }
+.welcome .welcome-language-switch > a[aria-current="page"] { color: var(--brand); }
 /* Four long labels wrap to two rows in the copy column; a 24px trough reads
    cleanly on one or two rows where a 999px pill would pinch. */
 .welcome .welcome-preview-switch { flex-wrap: wrap; margin-bottom: 30px; border-radius: 24px; }
@@ -225,40 +231,26 @@
   .welcome .welcome-cta:hover, .welcome .welcome-preview-link:hover, .welcome .welcome-float:hover, .welcome .welcome-feature:hover { translate: none; scale: none; }
 }
 
-/* Language picker (first visit) */
-.welcome-language-screen { padding: 38px max(24px, calc((100vw - 1100px) / 2)); }
-.welcome-language-brand { display: flex; justify-content: center; }
-.welcome-language-intro { text-align: center; margin: 60px auto 44px; }
-.welcome-language-intro h1 { font-size: clamp(36px, 5vw, 64px); letter-spacing: -0.035em; }
-.welcome-language-intro h1 > span:first-child { color: var(--ink); }
-.welcome-language-intro p:last-child { color: var(--muted); line-height: 1.8; font-size: 14px; }
-.welcome-language-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; }
-.welcome-language-options button {
-  display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding: 30px; border-radius: 24px;
-  background: var(--surface-card); box-shadow: var(--clay-raise);
-  transition: translate .3s var(--w-spring), scale .3s var(--w-spring), box-shadow .2s;
+/* Offer of the visitor's own language (after mount only, never a redirect):
+   an inset trough under the header, like the broker ribbon. */
+.welcome-language-suggestion {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 16px;
+  margin-top: 14px; padding: 10px 10px 10px 22px; border-radius: 999px;
+  background: var(--bg-subtle); box-shadow: var(--clay-inset-sm); color: var(--muted); font-size: 14px;
 }
-.welcome-language-options button:hover { translate: 0 -4px; scale: 1.01; box-shadow: var(--clay-raise-hover); }
-.welcome-language-options button:active { scale: 0.99; box-shadow: var(--clay-inset-sm); }
-.welcome-language-code { padding: 9px 14px; border-radius: 999px; background: var(--bg-subtle); box-shadow: var(--clay-inset-sm); color: var(--brand); font-size: 13px; font-weight: 700; letter-spacing: 0.08em; margin-bottom: 24px; }
-.welcome-language-options strong { font-family: var(--w-display); font-size: 24px; letter-spacing: -0.02em; font-weight: 800; }
-.welcome-language-options strong + span { color: var(--muted); margin-top: 8px; font-size: 13px; }
-.welcome-language-action { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; margin-top: 30px; padding: 12px 12px 12px 18px; border-radius: 999px; background: var(--surface-card-elevated); box-shadow: var(--clay-raise-sm); color: var(--brand); font-size: 13px; font-weight: 700; }
-.welcome-language-footnote { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 18px; margin: 32px 0; color: var(--muted); font-size: 12px; }
+.welcome .welcome-language-suggestion a {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 999px;
+  background: var(--surface-card-elevated); box-shadow: var(--clay-raise-sm); color: var(--brand); font-weight: 700; font-size: 13px;
+}
+.welcome-language-suggestion button {
+  display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 999px;
+  background: none; border: none; color: var(--muted); cursor: pointer;
+}
+.welcome-language-suggestion button:hover { color: var(--ink); }
 @media (max-width: 760px) {
   .welcome-nav { flex-wrap: wrap; }
   .welcome-nav nav { order: 3; width: 100%; justify-content: center; margin: 0; }
   .welcome-nav nav a:last-child { display: flex; }
   .welcome-language-switch { margin-left: auto; }
-  .welcome-language-intro { margin-top: 38px; }
-  .welcome-language-intro p:last-child span { display: block; }
-  .welcome-language-options { grid-template-columns: 1fr; gap: 24px; max-width: 440px; margin-inline: auto; }
-  .welcome-language-options button { padding: 22px; display: grid; grid-template-columns: 56px 1fr; column-gap: 16px; }
-  .welcome-language-code { grid-row: span 2; align-self: center; text-align: center; margin: 0; padding-inline: 0; }
-  .welcome-language-options strong + span { grid-column: 2; }
-  .welcome-language-action { grid-column: 1 / -1; margin-top: 18px; }
-  .welcome-language-options strong { font-size: 20px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .welcome-language-options button:hover { translate: none; scale: none; }
+  .welcome-language-suggestion { border-radius: 24px; padding: 14px 16px; text-align: center; }
 }

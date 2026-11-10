@@ -34,3 +34,6 @@ stitch_portfyl_desktop.zip
 
 # Office lock files
 ~$*
+
+# Build-time prerender scratch output (frontend/scripts/prerender.mjs)
+frontend/.prerender/

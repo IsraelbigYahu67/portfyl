@@ -9,7 +9,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from logging_setup import configure_logging, correlation_id_var
@@ -29,6 +29,7 @@ from entitlements import EntitlementDenied, entitlement_denied_handler
 from error_monitoring import configure_sentry
 from cloud_gate import CloudApiGateMiddleware
 from security_headers import SecurityHeadersMiddleware
+import spa_serving
 from rate_limit import (
     InvalidClientIp,
     RateLimitExceeded,
@@ -472,20 +473,17 @@ _ASSETS = os.path.join(_DIST, "assets")
 # Files outside /assets have no content hash in their name (index.html,
 # theme-init.js, logo.png), so browsers must revalidate them on every load or
 # they keep an old index.html pointing at the previous deploy's bundles.
-# The ETag FileResponse sets makes that revalidation a cheap 304.
-_SPA_NO_CACHE = {"Cache-Control": "no-cache"}
-
-
-def _spa_file_response(full_path: str, dist: str) -> FileResponse:
-    # Serve real files (favicon, logo, etc.) directly; everything else returns
-    # index.html so the client-side router can handle the route. normpath +
-    # containment check blocks path traversal out of dist/.
-    candidate = os.path.normpath(os.path.join(dist, full_path))
-    if full_path and candidate.startswith(dist + os.sep) and os.path.isfile(candidate):
-        return FileResponse(candidate, headers=_SPA_NO_CACHE)
-    index_html = os.path.join(dist, "index.html")
-    if os.path.isfile(index_html):
-        return FileResponse(index_html, headers=_SPA_NO_CACHE)
+# The ETag FileResponse sets makes that revalidation a cheap 304. Which file a
+# path gets -- a prerendered public page, a real file, or the noindex app
+# shell -- and its indexing headers are decided in spa_serving.py.
+def _spa_file_response(full_path: str, dist: str, *, host: str = "", query: str = "") -> Response:
+    target = spa_serving.resolve(full_path, dist, host=host, query=query)
+    if target.redirect:
+        return RedirectResponse(target.redirect, status_code=301, headers=target.headers)
+    if target.body is not None:
+        return PlainTextResponse(target.body, media_type=target.media_type, headers=target.headers)
+    if target.file:
+        return FileResponse(target.file, headers=target.headers)
     raise HTTPException(status_code=404)
 
 
@@ -493,9 +491,12 @@ if os.path.isdir(_ASSETS):
     app.mount("/assets", StaticFiles(directory=_ASSETS), name="assets")
 
 if os.path.isdir(_DIST):
-    @app.get("/{full_path:path}", include_in_schema=False)
-    def spa_fallback(full_path: str):
+    # HEAD too: link checkers and some crawlers probe pages with it.
+    @app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+    def spa_fallback(full_path: str, request: Request):
         # Never shadow the API / auth / health routes (they match first anyway).
         if full_path == "api" or full_path.startswith("api/") or full_path == "health":
             raise HTTPException(status_code=404)
-        return _spa_file_response(full_path, _DIST)
+        return _spa_file_response(
+            full_path, _DIST, host=spa_serving.request_host(request.headers), query=request.url.query,
+        )

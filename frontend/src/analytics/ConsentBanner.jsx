@@ -12,10 +12,12 @@ const PRIVACY_COOKIES_HREF = {
 // can mount it unconditionally. Accept/Reject are equally prominent,
 // keyboard-focusable, and rely on the app-wide :focus-visible outline for a
 // visible focus ring.
-export default function ConsentBanner() {
+// `language` is set on the public landing pages, where the URL decides the
+// language; elsewhere the saved choice does (getAnalyticsLanguage).
+export default function ConsentBanner({ language }) {
   const { consent, acceptAnalytics, rejectAnalytics } = useAnalytics();
   if (consent !== CONSENT_STATES.PENDING) return null;
-  const lang = getAnalyticsLanguage();
+  const lang = ANALYTICS_COPY[language] ? language : getAnalyticsLanguage();
   const t = ANALYTICS_COPY[lang];
 
   return (
