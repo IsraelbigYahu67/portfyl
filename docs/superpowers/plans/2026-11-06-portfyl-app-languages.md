@@ -67,8 +67,19 @@ to them** (or each wave appends its block and the later one rebases).
 6. Transactions, Import (+ `components/import/*`; Import.jsx shows
    `broker.hint`, which must become `t(broker.hint)`).
 7. Stock/StockDetail and `components/stock/*`, Search, Watchlists.
-8. Settings cards (T212/IBKR/eToro connection cards, DataPrivacy, Discord,
-   SyncSchedule, PortfolioDataManagement), `lib/` user-facing messages.
+8. **Done (branch `claude/i18n-wave-8`, 2026-11-10):** Settings cards (the
+   Trading 212 card and `HistoryBackfillStatus` in `pages/Settings.jsx`, the
+   IBKR and eToro connection cards, DataPrivacySettings, DiscordSettings), the
+   user-facing messages in `lib/` (`apiError.js`, `ibkrFlex.js`) and
+   `hooks/useBrokerPortfolio.js`, plus a few aria-labels
+   (DashboardAttention, AllocationBreakdownList). SyncSchedule and
+   PortfolioDataManagement were already translated in earlier waves.
+   `getApiErrorMessage(error, fallback, t)` takes the translate function as a
+   third argument for its built-in sentences (every caller passes it); server
+   `detail` text stays English. `describeLedger` / `describeEtoroSync` /
+   `splitNote` take an optional `t` and read in English without it.
+   `hooks/useT212Sync.js` has no user-visible text (it only returns a `phase`
+   id; the labels live in `Settings.jsx`), so it is unchanged.
 9. **Done (branch `claude/portfolio-translation-continue-y015ue`, 2026-11-09):**
    Local edition only: TaxReport. Count nouns use two literal keys
    (`"{count} trade"` / `"{count} trades"`); Czech and Polish translate the
@@ -80,13 +91,28 @@ Each wave: wrap strings, add the keys to all eight dictionaries (run
 tests passing, run `npm test`, `npm run test:cloud`, `npm run build`,
 `npm run build:cloud`, then check the pages in Czech and Polish in the browser.
 
-## Status note, 2026-11-09
+## Status note, 2026-11-10
 
-Waves 2–8 were done in another session on the unpushed branch
-`claude/serene-pasteur-n3bp5y` (wave 8 unfinished when it stopped). That
-branch must be pushed and merged with this one; dictionary conflicts at the
-end of each `messages/<code>.js` are resolved by keeping both blocks and
-dropping duplicate keys (`messages.test.js` catches anything missed).
+Waves 1–9 are all done and on `main`, except wave 8, which is done on branch
+`claude/i18n-wave-8` and waits for review and merge. The earlier
+`claude/serene-pasteur-n3bp5y` branch was never pushed; its work was redone in
+`main`'s waves 2–7 and 9 and in wave 8, so it no longer matters.
+
+Left English on purpose (not translated): the public landing page and its
+copy (`Welcome.jsx`, `welcomeCopy.js`, `seo/`), the consent banner and
+analytics preferences (`analytics/analyticsCopy.js`, which has its own
+cs/en/de copy keyed to the landing page's language), the public demo pages
+(`src/demo/`, e.g. `AllocationChart`'s "No holdings yet."), backend `detail`
+strings, and broker/IBKR/eToro/Discord menu paths and permission names.
+
+## Verification of wave 8
+
+- `npm test` 1219 passed / 1 skipped, `npm run test:cloud` 1219 passed,
+  `npm run build` and `npm run build:cloud` succeed; `messages.test.js`
+  reports no missing or stale key in any of the eight dictionaries (164 keys
+  added per language). Checked by rendering the IBKR, eToro, Discord and
+  history-status components in Czech, Polish, German and Portuguese in jsdom;
+  no browser check yet.
 
 ## Verification of wave 9
 

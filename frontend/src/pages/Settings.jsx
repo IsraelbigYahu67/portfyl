@@ -19,7 +19,7 @@ import { AsyncSection } from "../components/ui";
 import Toggle from "../components/ui/Toggle";
 import { Badge } from "../components/ui/Badge";
 import { getApiErrorMessage } from "../lib/apiError";
-import { useT } from "../i18n/I18nProvider";
+import { msg, rich, useT } from "../i18n/I18nProvider";
 import { useBrokerPortfolio } from "../hooks/useBrokerPortfolio";
 import { splitNote } from "../lib/brokerPortfolio";
 import { T212_HISTORY_ACTIVE_STATES, useT212Sync } from "../hooks/useT212Sync";
@@ -40,30 +40,39 @@ function SectionHeading({ id, headingRef, children, description }) {
 // a background job keeps advancing after this request returns. This polls
 // its progress while active and stops once it reaches a terminal state.
 const HISTORY_STATE_LABEL = {
-  pending: "Queued",
-  fetching: "Downloading history…",
-  waiting_rate_limit: "Waiting for Trading 212…",
-  finalizing: "Finalizing history…",
-  completed: "History imported",
-  needs_review: "Needs review",
-  failed: "Import failed",
-  cancelled: "Cancelled",
+  pending: msg("Queued"),
+  fetching: msg("Downloading history…"),
+  waiting_rate_limit: msg("Waiting for Trading 212…"),
+  finalizing: msg("Finalizing history…"),
+  completed: msg("History imported"),
+  needs_review: msg("Needs review"),
+  failed: msg("Import failed"),
+  cancelled: msg("Cancelled"),
 };
 
 const FILL_TYPE_LABEL = {
-  STOCK_SPLIT: "Stock split",
-  STOCK_DISTRIBUTION: "Stock distribution",
-  SPIN_OFF: "Spin-off",
-  STOCK_ACQUISITION: "Acquisition",
-  FOP: "Free-of-payment transfer",
-  FOP_CORRECTION: "Transfer correction",
+  STOCK_SPLIT: msg("Stock split"),
+  STOCK_DISTRIBUTION: msg("Stock distribution"),
+  SPIN_OFF: msg("Spin-off"),
+  STOCK_ACQUISITION: msg("Acquisition"),
+  FOP: msg("Free-of-payment transfer"),
+  FOP_CORRECTION: msg("Transfer correction"),
 };
 
+function loadedSoFar(run, t) {
+  const orders = run.orders_loaded === 1 ? t("{count} order", { count: run.orders_loaded }) : t("{count} orders", { count: run.orders_loaded });
+  const dividends = run.dividends_loaded === 1 ? t("{count} dividend", { count: run.dividends_loaded }) : t("{count} dividends", { count: run.dividends_loaded });
+  const cashCount = run.cash_loaded ?? 0;
+  const cash = cashCount === 1 ? t("{count} cash transaction", { count: cashCount }) : t("{count} cash transactions", { count: cashCount });
+  return t("{orders}, {dividends} and {cash} loaded so far.", { orders, dividends, cash });
+}
+
 export function HistoryBackfillStatus({ run, onRetry, retryPending = false }) {
+  const t = useT();
   if (!run) return null;
 
   const active = T212_HISTORY_ACTIVE_STATES.has(run.state);
-  const label = HISTORY_STATE_LABEL[run.state] ?? run.state;
+  const label = HISTORY_STATE_LABEL[run.state] ? t(HISTORY_STATE_LABEL[run.state]) : run.state;
 
   return (
     <div className="space-y-2 rounded-lg bg-surface-hover p-4 text-sm">
@@ -72,14 +81,18 @@ export function HistoryBackfillStatus({ run, onRetry, retryPending = false }) {
         <span className="font-medium text-ink">{label}</span>
       </div>
       <p className="text-xs text-muted">
-        {run.orders_loaded} order{run.orders_loaded === 1 ? "" : "s"}, {run.dividends_loaded} dividend{run.dividends_loaded === 1 ? "" : "s"} and {run.cash_loaded ?? 0} cash transaction{(run.cash_loaded ?? 0) === 1 ? "" : "s"} loaded so far.
-        {active && " Continuing in the background — this page can be closed."}
+        {loadedSoFar(run, t)}
+        {active && ` ${t("Continuing in the background — this page can be closed.")}`}
       </p>
       {run.state === "completed" && (
-        <p className="text-xs text-muted">The history import is complete and historical analytics are up to date.</p>
+        <p className="text-xs text-muted">{t("The history import is complete and historical analytics are up to date.")}</p>
       )}
       {run.state === "waiting_rate_limit" && run.resume_at && (
-        <p className="text-xs text-muted">Continuing automatically after <time dateTime={run.resume_at}>{new Date(run.resume_at).toLocaleString()}</time>.</p>
+        <p className="text-xs text-muted">
+          {rich(t("Continuing automatically after <time>{when}</time>.", { when: new Date(run.resume_at).toLocaleString() }), {
+            time: (when) => <time dateTime={run.resume_at}>{when}</time>,
+          })}
+        </p>
       )}
       {run.last_error && (
         <p className="flex items-center gap-1.5 text-xs text-loss"><AlertCircle size={12} aria-hidden="true" />{run.last_error}</p>
@@ -90,17 +103,22 @@ export function HistoryBackfillStatus({ run, onRetry, retryPending = false }) {
             {run.review.items.map((item) => (
               <li key={`${item.fill_type}-${item.cash_type}-${item.ticker}-${item.date}`}>
                 {item.cash_type !== undefined
-                  ? `Cash transaction (${item.cash_type ?? "unknown type"}) · ${item.date ?? "unknown date"}`
-                  : `${FILL_TYPE_LABEL[item.fill_type] ?? item.fill_type} · ${item.ticker ?? "unknown"} · ${item.date ?? "unknown date"}`}
+                  ? t("Cash transaction ({type}) · {date}", { type: item.cash_type ?? t("unknown type"), date: item.date ?? t("unknown date") })
+                  : t("{type} · {ticker} · {date}", {
+                    type: FILL_TYPE_LABEL[item.fill_type] ? t(FILL_TYPE_LABEL[item.fill_type]) : item.fill_type,
+                    ticker: item.ticker ?? t("unknown"),
+                    date: item.date ?? t("unknown date"),
+                  })}
               </li>
             ))}
           </ul>
           {run.review.csv_covers_all ? (
-            <p>Your imported Trading 212 CSV already covers this history, so a retry can import it.</p>
+            <p>{t("Your imported Trading 212 CSV already covers this history, so a retry can import it.")}</p>
           ) : run.review.csv_needed_through && (
             <p>
-              To import this history now, import a <Link to="/import" className="text-brand underline">Trading 212 CSV export</Link> that
-              covers at least through {run.review.csv_needed_through}, then retry.
+              {rich(t("To import this history now, import a <link>Trading 212 CSV export</link> that covers at least through {date}, then retry.", { date: run.review.csv_needed_through }), {
+                link: (words) => <Link to="/import" className="text-brand underline">{words}</Link>,
+              })}
             </p>
           )}
           <button
@@ -110,7 +128,7 @@ export function HistoryBackfillStatus({ run, onRetry, retryPending = false }) {
             className="btn-ghost flex items-center gap-2 text-sm font-semibold min-h-11 md:min-h-0 disabled:opacity-40"
           >
             {retryPending ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <RefreshCw size={16} aria-hidden="true" />}
-            Retry history import
+            {t("Retry history import")}
           </button>
         </div>
       )}
@@ -158,7 +176,7 @@ function ConnectionsSettings({ headingRef }) {
       setApiKey("");
       setApiSecret("");
       setActionError(null);
-      setSuccess(`Connected to Trading 212 successfully.${splitNote(session, "trading212")}`);
+      setSuccess(`${t("Connected to Trading 212 successfully.")}${splitNote(session, "trading212", t)}`);
       // Connecting can also remove onboarding demo data (and demo portfolios),
       // which every portfolio-derived query may still be showing — including
       // long-cached ones such as insider buys, since the holdings changed.
@@ -169,7 +187,7 @@ function ConnectionsSettings({ headingRef }) {
     },
     onError: (error) => {
       setSuccess(null);
-      setActionError(getApiErrorMessage(error, "Failed to connect"));
+      setActionError(getApiErrorMessage(error, t("Failed to connect"), t));
     },
   });
 
@@ -177,13 +195,13 @@ function ConnectionsSettings({ headingRef }) {
     mutationFn: disconnectT212,
     onSuccess: () => {
       setActionError(null);
-      setSuccess("Disconnected from Trading 212");
+      setSuccess(t("Disconnected from Trading 212"));
       queryClient.invalidateQueries({ queryKey: ["t212-status"] });
       setTimeout(() => setSuccess(null), 4000);
     },
     onError: (error) => {
       setSuccess(null);
-      setActionError(getApiErrorMessage(error, "Failed to disconnect"));
+      setActionError(getApiErrorMessage(error, t("Failed to disconnect"), t));
     },
   });
 
@@ -192,15 +210,14 @@ function ConnectionsSettings({ headingRef }) {
     t212.sync(undefined, {
       onSuccess: (data) => {
         setActionError(null);
-        const snapshotMessage = data.snapshot?.status === "ready"
-          ? "Snapshot refreshed."
-          : "Snapshot partially refreshed.";
-        setSuccess(`${snapshotMessage} History continues in the background.`);
+        setSuccess(data.snapshot?.status === "ready"
+          ? t("Snapshot refreshed. History continues in the background.")
+          : t("Snapshot partially refreshed. History continues in the background."));
         setTimeout(() => setSuccess(null), 6000);
       },
       onError: (error) => {
         setSuccess(null);
-        setActionError(getApiErrorMessage(error, "Sync failed"));
+        setActionError(getApiErrorMessage(error, t("Sync failed"), t));
       },
     });
   };
@@ -210,7 +227,7 @@ function ConnectionsSettings({ headingRef }) {
       onSuccess: () => setActionError(null),
       onError: (error) => {
         setSuccess(null);
-        setActionError(getApiErrorMessage(error, "Retry failed"));
+        setActionError(getApiErrorMessage(error, t("Retry failed"), t));
       },
     });
   };
@@ -218,7 +235,7 @@ function ConnectionsSettings({ headingRef }) {
   const autoSyncMutation = useMutation({
     mutationFn: setT212AutoSync,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["t212-status"] }),
-    onError: (error) => setActionError(getApiErrorMessage(error, "Failed to update auto-sync")),
+    onError: (error) => setActionError(getApiErrorMessage(error, t("Failed to update auto-sync"), t)),
   });
 
   const connected = status?.connected === true;
@@ -230,9 +247,11 @@ function ConnectionsSettings({ headingRef }) {
           <div className="flex items-center justify-between gap-4">
             <div>
               <h3 className="text-lg font-semibold">Trading 212</h3>
-              <p className="mt-0.5 text-sm text-muted">Connect your account to import transactions into <span className="text-ink">{currentPortfolio?.name ?? "this portfolio"}</span>.</p>
+              <p className="mt-0.5 text-sm text-muted">{rich(t("Connect your account to import transactions into <b>{portfolio}</b>.", { portfolio: currentPortfolio?.name ?? t("this portfolio") }), {
+                b: (name) => <span className="text-ink">{name}</span>,
+              })}</p>
             </div>
-            <Badge tone={connected ? "gain" : "neutral"} className="shrink-0">{connected ? "Connected" : "Not connected"}</Badge>
+            <Badge tone={connected ? "gain" : "neutral"} className="shrink-0">{connected ? t("Connected") : t("Not connected")}</Badge>
           </div>
 
           {actionError && <div role="alert" className="flex items-center gap-2 rounded-lg border border-loss/30 bg-loss/10 px-4 py-3 text-sm text-loss"><AlertCircle size={16} />{actionError}</div>}
@@ -242,34 +261,34 @@ function ConnectionsSettings({ headingRef }) {
             <div className="space-y-3">
               <T212ApiGuide />
               <div>
-                <label htmlFor="t212-api-key" className="mb-1.5 block text-sm text-muted">API key ID</label>
+                <label htmlFor="t212-api-key" className="mb-1.5 block text-sm text-muted">{t("API key ID")}</label>
                 <div className="relative">
-                  <input id="t212-api-key" type={showKey ? "text" : "password"} value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Paste API key ID here" className="input pr-10 text-sm" />
-                  <button type="button" aria-label={showKey ? "Hide API key" : "Show API key"} onClick={() => setShowKey((visible) => !visible)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink">{showKey ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+                  <input id="t212-api-key" type={showKey ? "text" : "password"} value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={t("Paste API key ID here")} className="input pr-10 text-sm" />
+                  <button type="button" aria-label={showKey ? t("Hide API key") : t("Show API key")} onClick={() => setShowKey((visible) => !visible)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink">{showKey ? <EyeOff size={16} /> : <Eye size={16} />}</button>
                 </div>
               </div>
               <div>
-                <label htmlFor="t212-api-secret" className="mb-1.5 block text-sm text-muted">Secret key</label>
-                <input id="t212-api-secret" type="password" value={apiSecret} onChange={(event) => setApiSecret(event.target.value)} placeholder="Paste Secret Key here" className="input text-sm" />
+                <label htmlFor="t212-api-secret" className="mb-1.5 block text-sm text-muted">{t("Secret key")}</label>
+                <input id="t212-api-secret" type="password" value={apiSecret} onChange={(event) => setApiSecret(event.target.value)} placeholder={t("Paste Secret Key here")} className="input text-sm" />
               </div>
-              <button type="button" onClick={() => connectMutation.mutate()} disabled={!apiKey.trim() || !apiSecret.trim() || busy} className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40">{connectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} />}Connect</button>
+              <button type="button" onClick={() => connectMutation.mutate()} disabled={!apiKey.trim() || !apiSecret.trim() || busy} className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40">{connectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} />}{t("Connect")}</button>
             </div>
           )}
 
           {connected && (
             <div className="space-y-4">
-              {status.needs_attention && <div className="flex items-start gap-2 rounded-lg border border-loss/30 bg-loss/10 px-4 py-3 text-sm text-loss"><AlertCircle size={16} className="mt-0.5 shrink-0" /><div><div className="font-medium">Connection needs attention</div>{status.last_error && <div className="mt-0.5 text-xs">{status.last_error}</div>}</div></div>}
+              {status.needs_attention && <div className="flex items-start gap-2 rounded-lg border border-loss/30 bg-loss/10 px-4 py-3 text-sm text-loss"><AlertCircle size={16} className="mt-0.5 shrink-0" /><div><div className="font-medium">{t("Connection needs attention")}</div>{status.last_error && <div className="mt-0.5 text-xs">{status.last_error}</div>}</div></div>}
               <div className="space-y-2 rounded-lg bg-surface-hover p-4 text-sm">
-                <div className="flex justify-between"><span className="text-muted">API Key</span><span className="font-mono text-ink">{status.api_key_preview}</span></div>
-                {status.last_synced_at && <div className="flex justify-between"><span className="text-muted">Last synced</span><span>{new Date(status.last_synced_at).toLocaleString()}</span></div>}
-                <div className="flex justify-between"><span className="text-muted">Connected since</span><span>{status.connected_at ? new Date(status.connected_at).toLocaleDateString() : "—"}</span></div>
-                <div className="flex items-center justify-between pt-1"><span className="text-muted">Auto-sync <span className="ml-2 text-xs">checks on the schedule below</span></span><Toggle checked={status.auto_sync} onChange={(value) => autoSyncMutation.mutate(value)} disabled={autoSyncMutation.isPending} aria-label="T212 auto-sync" /></div>
+                <div className="flex justify-between"><span className="text-muted">{t("API Key")}</span><span className="font-mono text-ink">{status.api_key_preview}</span></div>
+                {status.last_synced_at && <div className="flex justify-between"><span className="text-muted">{t("Last synced")}</span><span>{new Date(status.last_synced_at).toLocaleString()}</span></div>}
+                <div className="flex justify-between"><span className="text-muted">{t("Connected since")}</span><span>{status.connected_at ? new Date(status.connected_at).toLocaleDateString() : "—"}</span></div>
+                <div className="flex items-center justify-between pt-1"><span className="text-muted">{t("Auto-sync")} <span className="ml-2 text-xs">{t("checks on the schedule below")}</span></span><Toggle checked={status.auto_sync} onChange={(value) => autoSyncMutation.mutate(value)} disabled={autoSyncMutation.isPending} aria-label={t("T212 auto-sync")} /></div>
               </div>
               <BrokerPositionSnapshot query={t212.positionsQuery} variant="summary" />
               <HistoryBackfillStatus run={t212.historyRun} onRetry={handleRetry} retryPending={t212.retryPending} />
               <div className="flex gap-3">
-                <button type="button" onClick={handleSync} disabled={busy} className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40">{syncMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}Sync now</button>
-                <button type="button" onClick={() => disconnectMutation.mutate()} disabled={busy} className="btn-ghost text-loss flex items-center gap-2 text-sm font-semibold min-h-11 md:min-h-0 disabled:opacity-40">{disconnectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Unlink size={16} />}Disconnect</button>
+                <button type="button" onClick={handleSync} disabled={busy} className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40">{syncMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}{t("Sync now")}</button>
+                <button type="button" onClick={() => disconnectMutation.mutate()} disabled={busy} className="btn-ghost text-loss flex items-center gap-2 text-sm font-semibold min-h-11 md:min-h-0 disabled:opacity-40">{disconnectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Unlink size={16} />}{t("Disconnect")}</button>
               </div>
             </div>
           )}

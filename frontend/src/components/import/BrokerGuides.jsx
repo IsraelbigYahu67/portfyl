@@ -26,7 +26,7 @@ function guides(t) {
           {t("Enable these sections (all fields):")}
           <ul className="mt-1 list-disc space-y-0.5 pl-5">
             {IBKR_FLEX_SECTIONS.map(([section, level]) => (
-              <li key={section}><Ink>{section}</Ink>{level && ` — ${level}`}</li>
+              <li key={section}><Ink>{section}</Ink>{level && ` — ${t(level)}`}</li>
             ))}
           </ul>
         </>,

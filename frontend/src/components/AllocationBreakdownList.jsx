@@ -1,14 +1,16 @@
 import { formatMoney } from "../lib/format";
+import { useT } from "../i18n/I18nProvider";
 
 // Full, unbounded composition list. The donut is deliberately capped (top 7 +
 // Other); this list is the complete text/table equivalent so no value is only
 // communicated by a chart segment.
 export default function AllocationBreakdownList({ rows, currency }) {
+  const t = useT();
   const sorted = [...(rows || [])].sort((a, b) => b.weight - a.weight);
   if (!sorted.length) return null;
 
   return (
-    <ul className="space-y-2" aria-label="Full allocation breakdown">
+    <ul className="space-y-2" aria-label={t("Full allocation breakdown")}>
       {sorted.map((row) => (
         <li key={row.name} className="flex items-center gap-3">
           <span className="w-24 font-mono text-xs font-bold shrink-0 truncate">{row.name}</span>

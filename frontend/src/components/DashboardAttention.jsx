@@ -2,16 +2,18 @@ import { Link } from "react-router-dom";
 import { AlertTriangle, AlertCircle, Info } from "lucide-react";
 import AsyncSection from "./ui/AsyncSection";
 import { SkeletonRows } from "./ui";
+import { msg, useT } from "../i18n/I18nProvider";
 
 const SEVERITY = {
-  critical: { label: "Critical", Icon: AlertTriangle, tone: "text-loss" },
-  warning: { label: "Warning", Icon: AlertCircle, tone: "text-amber-400" },
-  info: { label: "Info", Icon: Info, tone: "text-muted" },
+  critical: { label: msg("Critical"), Icon: AlertTriangle, tone: "text-loss" },
+  warning: { label: msg("Warning"), Icon: AlertCircle, tone: "text-amber-400" },
+  info: { label: msg("Info"), Icon: Info, tone: "text-muted" },
 };
 
 // Presentational list of deterministic attention signals. Severity is stated
 // in words, not color alone; every item links to the page that resolves it.
 export default function DashboardAttention({ alerts = [], isLoading = false, error, onRetry }) {
+  const t = useT();
   return (
     <AsyncSection
       isLoading={isLoading}
@@ -21,10 +23,10 @@ export default function DashboardAttention({ alerts = [], isLoading = false, err
     >
       {alerts.length === 0 ? (
         <p className="text-sm text-muted py-4 text-center">
-          Nothing needs attention right now.
+          {t("Nothing needs attention right now.")}
         </p>
       ) : (
-        <ul className="space-y-2.5" aria-label="Portfolio attention">
+        <ul className="space-y-2.5" aria-label={t("Portfolio attention")}>
           {alerts.map((alert) => {
             const { label, Icon, tone } = SEVERITY[alert.severity] || SEVERITY.info;
             return (
@@ -39,7 +41,7 @@ export default function DashboardAttention({ alerts = [], isLoading = false, err
                     <span className="block text-xs text-muted">{alert.detail}</span>
                   </span>
                   <span className={`ml-auto text-xs font-bold uppercase tracking-wider ${tone} shrink-0`}>
-                    {label}
+                    {t(label)}
                   </span>
                 </Link>
               </li>
