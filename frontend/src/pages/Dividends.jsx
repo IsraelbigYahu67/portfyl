@@ -100,7 +100,7 @@ export default function Dividends() {
 
       <AsyncSection
         isLoading={isLoading}
-        error={error ? new Error(`${t("Could not load dividend data.")} ${getApiErrorMessage(error)}`) : null}
+        error={error ? new Error(`${t("Could not load dividend data.")} ${getApiErrorMessage(error, undefined, t)}`) : null}
         onRetry={() => refetch()}
         loading={<div className="card animate-pulse h-48" />}
         isEmpty={!data?.length}

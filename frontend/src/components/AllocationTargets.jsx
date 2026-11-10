@@ -89,7 +89,7 @@ export default function AllocationTargets({ currency }) {
             onCancel={() => setRows(null)}
             onSave={() => save.mutate(toPayload(rows))}
             saving={save.isPending}
-            saveError={save.error ? getApiErrorMessage(save.error, t("We couldn't save your targets.")) : null}
+            saveError={save.error ? getApiErrorMessage(save.error, t("We couldn't save your targets."), t) : null}
           />
         ) : targeted.length === 0 ? (
           <EmptyState

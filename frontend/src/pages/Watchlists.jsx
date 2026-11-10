@@ -28,7 +28,7 @@ function NewWatchlistForm() {
   const create = useMutation({
     mutationFn: () => createWatchlist({ name: name.trim() }),
     onSuccess: (watchlist) => { toast.success(t("{name} created", { name: watchlist.name })); setName(""); },
-    onError: (error) => toast.error(getApiErrorMessage(error, t("Could not create watchlist"))),
+    onError: (error) => toast.error(getApiErrorMessage(error, t("Could not create watchlist"), t)),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["watchlists"] }),
   });
   return (
@@ -53,7 +53,7 @@ function PriceAlertsPanel({ alerts, isLoading, disabledReason, prefillTicker, on
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["alerts"] });
   const mutationOptions = (successMessage, failureMessage) => ({
     onSuccess: () => { toast.success(successMessage); invalidate(); },
-    onError: (error) => toast.error(getApiErrorMessage(error, failureMessage)),
+    onError: (error) => toast.error(getApiErrorMessage(error, failureMessage, t)),
   });
   const add = useMutation({
     mutationFn: createAlert,

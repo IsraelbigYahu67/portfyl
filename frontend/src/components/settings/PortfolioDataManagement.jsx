@@ -43,7 +43,7 @@ export default function PortfolioDataManagement() {
       toast.success(message);
     },
     onError: (error) => {
-      const message = getApiErrorMessage(error, t("Could not clear this portfolio"));
+      const message = getApiErrorMessage(error, t("Could not clear this portfolio"), t);
       setNotice({ type: "error", message });
       toast.error(message);
     },

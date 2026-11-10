@@ -53,7 +53,7 @@ function AddTickerForm({ watchlistId, watchlistName }) {
       toast.success(t("{ticker} added to {list}", { ticker, list: watchlistName }));
       setQuery("");
     },
-    onError: (error) => toast.error(getApiErrorMessage(error, t("Could not add ticker"))),
+    onError: (error) => toast.error(getApiErrorMessage(error, t("Could not add ticker"), t)),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["watchlists"] }),
   });
   const results = search.data?.results || [];
@@ -116,7 +116,7 @@ export function WatchlistCard({ wl, onAlert, alertsByTicker = new Map(), alertDi
   const removeList = useMutation({
     mutationFn: () => deleteWatchlist(wl.id),
     onSuccess: () => toast.success(t("{name} deleted", { name: wl.name })),
-    onError: (error) => toast.error(getApiErrorMessage(error, t("Could not delete watchlist"))),
+    onError: (error) => toast.error(getApiErrorMessage(error, t("Could not delete watchlist"), t)),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["watchlists"] }),
   });
   const removeItem = useMutation({
@@ -134,7 +134,7 @@ export function WatchlistCard({ wl, onAlert, alertsByTicker = new Map(), alertDi
     onSuccess: (_data, item) => toast.success(t("{ticker} removed from {list}", { ticker: item.ticker, list: wl.name })),
     onError: (error, _item, context) => {
       if (context?.previous) queryClient.setQueryData(["watchlists"], context.previous);
-      toast.error(getApiErrorMessage(error, t("Could not remove ticker from {list}", { list: wl.name })));
+      toast.error(getApiErrorMessage(error, t("Could not remove ticker from {list}", { list: wl.name }), t));
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["watchlists"] }),
   });

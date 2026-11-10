@@ -23,7 +23,7 @@ export default function AsyncSection({
   if (error) {
     return (
       <div role="alert">
-        <ErrorState message={getApiErrorMessage(error)} onRetry={onRetry} />
+        <ErrorState message={getApiErrorMessage(error, undefined, t)} onRetry={onRetry} />
       </div>
     );
   }

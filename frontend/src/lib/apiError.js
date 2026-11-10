@@ -1,6 +1,12 @@
-const DEFAULT_MESSAGE = "We couldn't load this data.";
+import { msg } from "../i18n/I18nProvider";
 
-export function getApiErrorMessage(error, fallback = DEFAULT_MESSAGE) {
+const DEFAULT_MESSAGE = msg("We couldn't load this data.");
+const identity = (text) => text;
+
+// `fallback` is the caller's own (already translated) sentence; `t` is the i18n
+// translate function and only matters for the built-in sentences below. Text
+// the server sends in `detail` stays as it is (backend messages are English).
+export function getApiErrorMessage(error, fallback, t = identity) {
   const detail = error?.response?.data?.detail;
   if (typeof detail === "string" && detail.trim()) {
     return detail.trim();
@@ -15,11 +21,11 @@ export function getApiErrorMessage(error, fallback = DEFAULT_MESSAGE) {
   }
 
   if (error?.code === "ECONNABORTED" || /timeout/i.test(error?.message || "")) {
-    return "The request timed out. Please try again.";
+    return t(msg("The request timed out. Please try again."));
   }
 
   if (error?.request && !error?.response) {
-    return "We couldn't reach Portfyl. Check your connection and try again.";
+    return t(msg("We couldn't reach Portfyl. Check your connection and try again."));
   }
 
   const message = typeof error?.message === "string" ? error.message.trim() : "";
@@ -27,5 +33,5 @@ export function getApiErrorMessage(error, fallback = DEFAULT_MESSAGE) {
     return message;
   }
 
-  return fallback;
+  return fallback === undefined ? t(DEFAULT_MESSAGE) : fallback;
 }

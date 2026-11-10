@@ -40,7 +40,7 @@ export function WatchlistEmptyState() {
       queryClient.invalidateQueries({ queryKey: ["watchlists"] });
     },
     onError: (mutationError) => {
-      const message = mutationError.message || getApiErrorMessage(mutationError, t("Could not create watchlist"));
+      const message = mutationError.message || getApiErrorMessage(mutationError, t("Could not create watchlist"), t);
       setError(message);
       toast.error(message);
       queryClient.invalidateQueries({ queryKey: ["watchlists"] });

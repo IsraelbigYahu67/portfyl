@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef } from "react";
 
 import { createPortfolio, deletePortfolio } from "../api";
 import { usePortfolio } from "../App";
+import { useT } from "../i18n/I18nProvider";
 import { getApiErrorMessage } from "../lib/apiError";
 import { needsOwnPortfolio, uniquePortfolioName } from "../lib/brokerPortfolio";
 
@@ -18,10 +19,11 @@ import { needsOwnPortfolio, uniquePortfolioName } from "../lib/brokerPortfolio";
 // when the import or connection it was made for did not happen.
 export function useBrokerPortfolio() {
   const { current, refetchPortfolios, setCurrentId } = usePortfolio();
+  const t = useT();
   // Always the latest setter: open() and discard() run across awaits during
   // which the active portfolio changes.
   const latest = useRef({});
-  latest.current = { current, refetchPortfolios, setCurrentId };
+  latest.current = { current, refetchPortfolios, setCurrentId, t };
 
   const open = useCallback(async (broker) => {
     const refreshed = await latest.current.refetchPortfolios();
@@ -33,7 +35,8 @@ export function useBrokerPortfolio() {
     try {
       created = await createPortfolio({ name: uniquePortfolioName(portfolios, broker) });
     } catch (error) {
-      return { blocked: getApiErrorMessage(error, "A new portfolio could not be created"), previous };
+      const { t } = latest.current;
+      return { blocked: getApiErrorMessage(error, t("A new portfolio could not be created"), t), previous };
     }
     await latest.current.refetchPortfolios();
     latest.current.setCurrentId(created.id);

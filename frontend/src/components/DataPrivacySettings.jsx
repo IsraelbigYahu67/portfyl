@@ -17,26 +17,28 @@ import {
   reauthenticateWithPassword,
 } from "../auth/firebase";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { rich, useT } from "../i18n/I18nProvider";
 import AnalyticsPreferences from "../analytics/AnalyticsPreferences";
 import AuthMethodDivider from "./auth/AuthMethodDivider";
 
 
-function errorMessage(error, fallback) {
+function errorMessage(error, fallback, t) {
   const body = error?.response?.data;
   const code = body?.code || body?.detail?.code;
   const messages = {
-    workspace_owner_required: "Only the workspace owner can schedule deletion.",
-    workspace_has_other_members: "Remove other workspace members before scheduling deletion.",
-    workspace_confirmation_mismatch: "The workspace name does not match.",
-    recent_reauthentication_required: "Confirm your identity again and retry.",
-    reauthentication_identity_mismatch: "The signed-in identity does not match this account.",
-    email_verification_required: "Verify your e-mail before scheduling deletion.",
+    workspace_owner_required: t("Only the workspace owner can schedule deletion."),
+    workspace_has_other_members: t("Remove other workspace members before scheduling deletion."),
+    workspace_confirmation_mismatch: t("The workspace name does not match."),
+    recent_reauthentication_required: t("Confirm your identity again and retry."),
+    reauthentication_identity_mismatch: t("The signed-in identity does not match this account."),
+    email_verification_required: t("Verify your e-mail before scheduling deletion."),
   };
   return messages[code] || fallback;
 }
 
 
 export default function DataPrivacySettings() {
+  const t = useT();
   const queryClient = useQueryClient();
   const { user, currentWorkspace } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -77,7 +79,7 @@ export default function DataPrivacySettings() {
       URL.revokeObjectURL(url);
       setError(null);
     },
-    onError: (err) => setError(errorMessage(err, "Failed to prepare the workspace export.")),
+    onError: (err) => setError(errorMessage(err, t("Failed to prepare the workspace export."), t)),
   });
 
   const scheduleMutation = useMutation({
@@ -101,8 +103,8 @@ export default function DataPrivacySettings() {
     },
     onError: (err) => {
       const message = err?.code?.startsWith?.("auth/")
-        ? mapFirebaseAuthError(err)
-        : errorMessage(err, "Could not schedule workspace deletion.");
+        ? t(mapFirebaseAuthError(err))
+        : errorMessage(err, t("Could not schedule workspace deletion."), t);
       setError(message);
     },
   });
@@ -116,7 +118,7 @@ export default function DataPrivacySettings() {
       });
       setError(null);
     },
-    onError: (err) => setError(errorMessage(err, "Could not cancel workspace deletion.")),
+    onError: (err) => setError(errorMessage(err, t("Could not cancel workspace deletion."), t)),
   });
 
   if (!currentWorkspace) return null;
@@ -129,10 +131,12 @@ export default function DataPrivacySettings() {
   return (
     <div className="bg-surface-card border border-surface-border rounded-xl p-6 space-y-5">
       <div>
-        <h2 className="text-lg font-semibold">Data and privacy</h2>
+        <h2 className="text-lg font-semibold">{t("Data and privacy")}</h2>
         <p className="text-sm text-muted mt-0.5">
-          Export or delete data for <span className="text-ink">{currentWorkspace.name}</span>.
-          These controls are available on every plan.
+          {rich(t("Export or delete data for <b>{name}</b>.", { name: currentWorkspace.name }), {
+            b: (name) => <span className="text-ink">{name}</span>,
+          })}{" "}
+          {t("These controls are available on every plan.")}
         </p>
       </div>
 
@@ -155,9 +159,9 @@ export default function DataPrivacySettings() {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-surface-border pb-5">
         <div>
-          <div className="text-sm font-medium text-ink">Workspace export</div>
+          <div className="text-sm font-medium text-ink">{t("Workspace export")}</div>
           <p className="text-xs text-muted mt-1">
-            Download your portfolio data, preferences, notes, alerts, and safe integration metadata as versioned JSON.
+            {t("Download your portfolio data, preferences, notes, alerts, and safe integration metadata as versioned JSON.")}
           </p>
         </div>
         <button
@@ -167,21 +171,21 @@ export default function DataPrivacySettings() {
           className="btn-ghost shrink-0 flex items-center justify-center gap-2 text-sm font-medium min-h-11 md:min-h-0 disabled:opacity-50"
         >
           {exportMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-          Download JSON export
+          {t("Download JSON export")}
         </button>
       </div>
 
       <div className="space-y-3">
         <div>
-          <div className="text-sm font-medium text-loss">Delete workspace</div>
+          <div className="text-sm font-medium text-loss">{t("Delete workspace")}</div>
           {deletion?.scheduled ? (
             <p className="text-xs text-muted mt-1">
-              Deletion is scheduled for {new Date(deletion.execute_after).toLocaleString()}.
-              Your data and export remain available until then.
+              {t("Deletion is scheduled for {date}.", { date: new Date(deletion.execute_after).toLocaleString() })}{" "}
+              {t("Your data and export remain available until then.")}
             </p>
           ) : (
             <p className="text-xs text-muted mt-1">
-              Starts a {deletion?.grace_days || 30}-day grace period. You can cancel at any time before the deadline.
+              {t("Starts a {days}-day grace period. You can cancel at any time before the deadline.", { days: deletion?.grace_days || 30 })}
             </p>
           )}
         </div>
@@ -195,7 +199,7 @@ export default function DataPrivacySettings() {
             className="btn-ghost flex items-center gap-2 text-sm font-medium min-h-11 md:min-h-0 disabled:opacity-50"
           >
             {cancelMutation.isPending && <Loader2 size={16} className="animate-spin" />}
-            Cancel deletion
+            {t("Cancel deletion")}
           </button>
         ) : (
           <button
@@ -210,7 +214,7 @@ export default function DataPrivacySettings() {
             className="btn-ghost text-loss flex items-center gap-2 text-sm font-medium min-h-11 md:min-h-0"
           >
             <Trash2 size={16} />
-            Delete workspace
+            {t("Delete workspace")}
           </button>
         ))}
       </div>
@@ -228,15 +232,15 @@ export default function DataPrivacySettings() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 id="delete-workspace-title" className="text-lg font-semibold text-loss">
-                  Schedule workspace deletion
+                  {t("Schedule workspace deletion")}
                 </h3>
                 <p id="delete-workspace-description" className="text-sm text-muted mt-1">
-                  Portfyl waits 30 days before permanent deletion. Access and export remain available during the grace period.
+                  {t("Portfyl waits 30 days before permanent deletion. Access and export remain available during the grace period.")}
                 </p>
               </div>
               <button
                 type="button"
-                aria-label="Close deletion dialog"
+                aria-label={t("Close deletion dialog")}
                 onClick={closeDialog}
                 className="text-muted hover:text-ink"
               >
@@ -245,7 +249,7 @@ export default function DataPrivacySettings() {
             </div>
 
             <label className="block text-sm text-muted">
-              Type {currentWorkspace.name} to confirm
+              {t("Type {name} to confirm", { name: currentWorkspace.name })}
               <input
                 ref={confirmationInputRef}
                 type="text"
@@ -256,7 +260,7 @@ export default function DataPrivacySettings() {
               />
             </label>
             <label className="block text-sm text-muted">
-              Password
+              {t("Password")}
               <input
                 type="password"
                 value={password}
@@ -272,13 +276,13 @@ export default function DataPrivacySettings() {
               className="btn-primary !bg-loss hover:!bg-loss/90 w-full flex items-center justify-center gap-2 min-h-11 md:min-h-0 text-sm disabled:opacity-40"
             >
               {pendingMethod === "password" && <Loader2 size={16} className="animate-spin" />}
-              Schedule deletion
+              {t("Schedule deletion")}
             </button>
             {googleEnabled && (
               <>
                 <AuthMethodDivider />
                 <p className="text-xs text-muted">
-                  Signed up with Google? Confirm with your Google account instead of a password.
+                  {t("Signed up with Google? Confirm with your Google account instead of a password.")}
                 </p>
                 <button
                   type="button"
@@ -287,7 +291,7 @@ export default function DataPrivacySettings() {
                   className="btn-ghost text-loss w-full flex items-center justify-center gap-2 min-h-11 md:min-h-0 text-sm font-semibold disabled:opacity-40"
                 >
                   {pendingMethod === "google" && <Loader2 size={16} className="animate-spin" />}
-                  Confirm with Google
+                  {t("Confirm with Google")}
                 </button>
               </>
             )}
