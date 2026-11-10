@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { Smartphone } from "lucide-react";
 
 import SegmentedControl from "../components/ui/SegmentedControl";
+import { useT } from "../i18n/I18nProvider";
 
 // Local-edition only (imported solely by editions/local.jsx): lets the owner
 // preview the mobile layout on a desktop browser. Layout reacts to the window
@@ -72,6 +73,7 @@ function useIsDesktopWindow() {
 // preview is on, the window is actually desktop-sized, and this is the
 // top-level document (the framed copy renders the app normally).
 export function MobilePreviewFrame({ children }) {
+  const t = useT();
   const [mode, setMode] = useViewMode();
   const wide = useIsDesktopWindow();
   if (mode !== "mobile" || !wide || isFramed()) return children;
@@ -80,18 +82,18 @@ export function MobilePreviewFrame({ children }) {
     <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-surface-hover p-6">
       <div className="flex w-full items-center justify-between" style={{ maxWidth: PHONE_WIDTH }}>
         <span className="flex items-center gap-2 text-sm text-muted">
-          <Smartphone size={14} aria-hidden="true" /> Mobile preview
+          <Smartphone size={14} aria-hidden="true" /> {t("Mobile preview")}
         </span>
         <button
           type="button"
           onClick={() => setMode("desktop")}
           className="rounded-full border border-surface-border bg-surface-card-elevated px-3 py-1 text-sm font-medium text-ink"
         >
-          Back to desktop
+          {t("Back to desktop")}
         </button>
       </div>
       <iframe
-        title="Mobile preview"
+        title={t("Mobile preview")}
         src={window.location.href}
         className="rounded-[28px] border border-surface-border bg-surface-card shadow-xl"
         style={{ width: PHONE_WIDTH, height: `min(${PHONE_HEIGHT}px, calc(100vh - 6rem))` }}
@@ -101,20 +103,21 @@ export function MobilePreviewFrame({ children }) {
 }
 
 export function ViewModeSetting() {
+  const t = useT();
   const [mode, setMode] = useViewMode();
   return (
     <div>
-      <h3 className="mb-2 text-sm font-semibold">View mode</h3>
+      <h3 className="mb-2 text-sm font-semibold">{t("View mode")}</h3>
       <SegmentedControl
-        aria-label="View mode"
+        aria-label={t("View mode")}
         value={mode}
         onChange={setMode}
         options={[
-          { value: "desktop", label: "Desktop", title: "View mode: Desktop" },
-          { value: "mobile", label: "Mobile", title: "View mode: Mobile" },
+          { value: "desktop", label: t("Desktop"), title: t("View mode: Desktop") },
+          { value: "mobile", label: t("Mobile"), title: t("View mode: Mobile") },
         ]}
       />
-      <p className="mt-2 text-xs text-muted">Preview the mobile layout inside a phone-sized frame on this computer.</p>
+      <p className="mt-2 text-xs text-muted">{t("Preview the mobile layout inside a phone-sized frame on this computer.")}</p>
     </div>
   );
 }

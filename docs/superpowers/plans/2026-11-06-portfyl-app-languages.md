@@ -69,12 +69,29 @@ to them** (or each wave appends its block and the later one rebases).
 7. Stock/StockDetail and `components/stock/*`, Search, Watchlists.
 8. Settings cards (T212/IBKR/eToro connection cards, DataPrivacy, Discord,
    SyncSchedule, PortfolioDataManagement), `lib/` user-facing messages.
-9. Local edition only: TaxReport.
+9. **Done (branch `claude/portfolio-translation-continue-y015ue`, 2026-11-09):**
+   Local edition only: TaxReport. Count nouns use two literal keys
+   (`"{count} trade"` / `"{count} trades"`); Czech and Polish translate the
+   plural one count-neutrally (`"Obchody: {count}"`) instead of adding plural
+   rules to the core.
 
 Each wave: wrap strings, add the keys to all eight dictionaries (run
 `npm test` and read `messages.test.js`'s list of missing keys), keep English
 tests passing, run `npm test`, `npm run test:cloud`, `npm run build`,
 `npm run build:cloud`, then check the pages in Czech and Polish in the browser.
+
+## Status note, 2026-11-09
+
+Waves 2–8 were done in another session on the unpushed branch
+`claude/serene-pasteur-n3bp5y` (wave 8 unfinished when it stopped). That
+branch must be pushed and merged with this one; dictionary conflicts at the
+end of each `messages/<code>.js` are resolved by keeping both blocks and
+dropping duplicate keys (`messages.test.js` catches anything missed).
+
+## Verification of wave 9
+
+- `npm test` 1194 passed / 1 skipped, `npm run test:cloud` 1194 passed,
+  `npm run build` and `npm run build:cloud` succeed. No browser check yet.
 
 ## Verification of wave 1
 

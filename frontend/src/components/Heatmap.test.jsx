@@ -17,13 +17,13 @@ describe("Heatmap period change", () => {
         <Heatmap />
       </QueryClientProvider>,
     );
-    await vi.waitFor(() => expect(screen.queryByText("Loading heatmap...")).not.toBeInTheDocument());
+    await vi.waitFor(() => expect(screen.queryByText("Loading heatmap…")).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "1W" }));
 
     // Loading is shown, but as an overlay: the old tiles stay mounted, so the
     // treemap box (and the card around it) keeps its size.
-    expect(screen.getByText("Loading heatmap...")).toBeInTheDocument();
+    expect(screen.getByText("Loading heatmap…")).toBeInTheDocument();
     expect(screen.getByTitle(/AAPL/)).toBeInTheDocument();
   });
 });

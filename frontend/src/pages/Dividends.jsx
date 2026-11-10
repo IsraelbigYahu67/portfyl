@@ -9,18 +9,20 @@ import { splitDividendForecast } from "../lib/dashboardSummaries";
 import { formatMoney, formatQuantity, formatTableDate } from "../lib/format";
 import { getApiErrorMessage } from "../lib/apiError";
 import { AsyncSection, Badge, Card, SkeletonChart } from "../components/ui";
+import { msg, useT } from "../i18n/I18nProvider";
 
 const today = new Date().toISOString().slice(0, 10);
 
-function statusBadge(row) {
-  if (row.date_status === "inconsistent") return <Badge tone="loss" size="sm">Needs review</Badge>;
-  if (!row.ex_date) return <Badge tone="neutral" size="sm">Date unavailable</Badge>;
+function statusBadge(row, t) {
+  if (row.date_status === "inconsistent") return <Badge tone="loss" size="sm">{t("Needs review")}</Badge>;
+  if (!row.ex_date) return <Badge tone="neutral" size="sm">{t("Date unavailable")}</Badge>;
   const diff = Math.ceil((new Date(row.ex_date) - new Date(today)) / 86400000);
-  if (diff < 0) return <Badge tone="neutral" size="sm">Past</Badge>;
-  if (diff === 0) return <Badge tone="warn" size="sm">Today</Badge>;
-  if (diff <= 7) return <Badge tone="warn" size="sm">In {diff}d</Badge>;
-  if (diff <= 30) return <Badge tone="brand" size="sm">In {diff}d</Badge>;
-  return <Badge tone="neutral" size="sm">In {diff}d</Badge>;
+  if (diff < 0) return <Badge tone="neutral" size="sm">{t("Past")}</Badge>;
+  if (diff === 0) return <Badge tone="warn" size="sm">{t("Today")}</Badge>;
+  const label = t("In {days}d", { days: diff });
+  if (diff <= 7) return <Badge tone="warn" size="sm">{label}</Badge>;
+  if (diff <= 30) return <Badge tone="brand" size="sm">{label}</Badge>;
+  return <Badge tone="neutral" size="sm">{label}</Badge>;
 }
 
 function isKnownUpcoming(row, currentDay) {
@@ -28,6 +30,7 @@ function isKnownUpcoming(row, currentDay) {
 }
 
 export default function Dividends() {
+  const t = useT();
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["dividends"],
     queryFn: fetchDividends,
@@ -73,8 +76,8 @@ export default function Dividends() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Dividend Calendar</h1>
-          <p className="text-sm text-muted mt-0.5">Ex-dates and pay-dates for your portfolio holdings</p>
+          <h1 className="text-xl font-semibold">{t("Dividend Calendar")}</h1>
+          <p className="text-sm text-muted mt-0.5">{t("Ex-dates and pay-dates for your portfolio holdings")}</p>
         </div>
         <button
           onClick={refreshAll}
@@ -82,7 +85,7 @@ export default function Dividends() {
           className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-card border border-surface-border text-sm text-muted hover:text-ink transition-colors disabled:opacity-50"
         >
           <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-          Refresh
+          {t("Refresh")}
         </button>
       </div>
 
@@ -97,17 +100,17 @@ export default function Dividends() {
 
       <AsyncSection
         isLoading={isLoading}
-        error={error ? new Error(`Could not load dividend data. ${getApiErrorMessage(error)}`) : null}
+        error={error ? new Error(`${t("Could not load dividend data.")} ${getApiErrorMessage(error)}`) : null}
         onRetry={() => refetch()}
         loading={<div className="card animate-pulse h-48" />}
         isEmpty={!data?.length}
-        empty={<div className="text-center py-20 text-muted">No holdings found. Import a portfolio to see dividend info.</div>}
+        empty={<div className="text-center py-20 text-muted">{t("No holdings found. Import a portfolio to see dividend info.")}</div>}
       >
         <>
           {knownUpcoming.length > 0 && (
             <section>
               <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
-                <CalendarDays size={13} /> Known upcoming dates
+                <CalendarDays size={13} /> {t("Known upcoming dates")}
               </h2>
               <div className="rounded-xl border border-surface-border overflow-hidden">
                 <Table rows={knownUpcoming} columns={UPCOMING_COLUMNS} />
@@ -118,7 +121,7 @@ export default function Dividends() {
           {needsReview.length > 0 && (
             <section>
               <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
-                <AlertTriangle size={13} /> Date unavailable or needs review
+                <AlertTriangle size={13} /> {t("Date unavailable or needs review")}
               </h2>
               <div className="rounded-xl border border-surface-border overflow-hidden">
                 <Table rows={needsReview} />
@@ -133,6 +136,7 @@ export default function Dividends() {
 
 // Same received / upcoming bar cards as the dashboard's dividend row.
 function DividendBars({ forecast, loading, error, onRetry }) {
+  const t = useT();
   const { currency = "USD", rate } = useCurrency() ?? {};
   // The forecast is in USD; `rate` is CZK per USD.
   const usdRate = currency === "CZK" && rate ? rate : 1;
@@ -146,12 +150,12 @@ function DividendBars({ forecast, loading, error, onRetry }) {
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
       <Card className="h-full animate-fade-up">
         <AsyncSection isLoading={loading} error={error} onRetry={onRetry} loading={<SkeletonChart height={220} />}>
-          <DividendBarsCard title="Dividends received" half={received} totalLabel={`${year} so far`} currency={currency} tone="accent" emptyHint="No dividends received this year yet." leadStat={{ label: "All time", amount: received.allTime }} />
+          <DividendBarsCard title={t("Dividends received")} half={received} totalLabel={t("{year} so far", { year })} currency={currency} tone="accent" emptyHint={t("No dividends received this year yet.")} leadStat={{ label: t("All time"), amount: received.allTime }} />
         </AsyncSection>
       </Card>
       <Card className="h-full animate-fade-up">
         <AsyncSection isLoading={loading} error={error} onRetry={onRetry} loading={<SkeletonChart height={220} />}>
-          <DividendBarsCard title="Upcoming payments" half={upcoming} totalLabel="Next 12 months" currency={currency} emptyHint="No dividends expected in the next 12 months." trailStat={{ label: "Daily average", amount: upcoming.dailyAverage }} />
+          <DividendBarsCard title={t("Upcoming payments")} half={upcoming} totalLabel={t("Next 12 months")} currency={currency} emptyHint={t("No dividends expected in the next 12 months.")} trailStat={{ label: t("Daily average"), amount: upcoming.dailyAverage }} />
         </AsyncSection>
       </Card>
     </div>
@@ -159,28 +163,28 @@ function DividendBars({ forecast, loading, error, onRetry }) {
 }
 
 // One definition per column; each table picks the order it needs.
-function buildColumns(displayCurrency) {
+function buildColumns(displayCurrency, t) {
   return {
     ticker: {
-      header: "Ticker",
+      header: t("Ticker"),
       cell: (row) => <td className="px-4 py-3 font-mono font-semibold text-ink">{row.ticker}</td>,
     },
     shares: {
-      header: "Shares",
+      header: t("Shares"),
       cell: (row) => (
         <td className="px-4 py-3 text-muted tabular-nums">{formatQuantity(row.shares, displayCurrency)}</td>
       ),
     },
     exDate: {
-      header: "Ex-Date",
+      header: t("Ex-Date"),
       cell: (row) => <td className="px-4 py-3 text-muted tabular-nums">{formatTableDate(row.ex_date)}</td>,
     },
     payDate: {
-      header: "Pay-Date",
+      header: t("Pay-Date"),
       cell: (row) => <td className="px-4 py-3 text-muted tabular-nums">{formatTableDate(row.pay_date)}</td>,
     },
     rate: {
-      header: "Rate/Share",
+      header: t("Rate/Share"),
       cell: (row) => (
         <td className="px-4 py-3 text-muted tabular-nums">
           {row.dividend_rate != null ? (
@@ -191,15 +195,15 @@ function buildColumns(displayCurrency) {
     },
     income: {
       // Rate per share x the shares you hold = what you receive per year.
-      header: "Annual Income",
+      header: t("Annual Income"),
       cell: (row) => (
         <td className="px-4 py-3 text-ink tabular-nums font-medium">
           {row.income_status === "review" ? (
             <span className="inline-flex items-center gap-1 text-loss" title={(row.warnings || []).join(", ")}>
-              <AlertTriangle size={13} aria-hidden="true" /> Review estimate
+              <AlertTriangle size={13} aria-hidden="true" /> {t("Review estimate")}
             </span>
           ) : row.income_status === "unavailable" || row.annual_income == null ? (
-            <span className="text-muted">Unavailable</span>
+            <span className="text-muted">{t("Unavailable")}</span>
           ) : (
             formatMoney(row.annual_income, row.currency)
           )}
@@ -207,7 +211,7 @@ function buildColumns(displayCurrency) {
       ),
     },
     yield: {
-      header: "Yield",
+      header: t("Yield"),
       cell: (row) => (
         <td className="px-4 py-3 tabular-nums">
           {row.dividend_yield != null ? (
@@ -219,7 +223,7 @@ function buildColumns(displayCurrency) {
         </td>
       ),
     },
-    status: { header: "", cell: (row) => <td className="px-4 py-3">{statusBadge(row)}</td> },
+    status: { header: "", cell: (row) => <td className="px-4 py-3">{statusBadge(row, t)}</td> },
   };
 }
 
@@ -229,9 +233,10 @@ const REVIEW_COLUMNS = ["ticker", "shares", "exDate", "payDate", "rate", "income
 const UPCOMING_COLUMNS = ["ticker", "shares", "income", "yield", "status", "exDate", "payDate"];
 
 function Table({ rows, columns = REVIEW_COLUMNS }) {
+  const t = useT();
   const { openStock } = useStockDetail();
   const { currency: displayCurrency = "USD" } = useCurrency() ?? {};
-  const defs = buildColumns(displayCurrency);
+  const defs = buildColumns(displayCurrency, t);
   const ordered = columns.map((key) => defs[key]);
   return (
     <table className="w-full text-sm">
@@ -268,11 +273,12 @@ function fmtPct(v) {
 }
 
 function GrowthSection({ rows, loading }) {
+  const t = useT();
   const { openStock } = useStockDetail();
   if (loading) {
     return (
       <div className="rounded-xl border border-surface-border bg-surface-card p-4 text-sm text-muted">
-        Loading dividend growth…
+        {t("Loading dividend growth…")}
       </div>
     );
   }
@@ -281,15 +287,15 @@ function GrowthSection({ rows, loading }) {
   return (
     <section className="space-y-3">
       <h2 className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-2">
-        <TrendingUp size={13} /> Dividend growth
+        <TrendingUp size={13} /> {t("Dividend growth")}
       </h2>
       <div className="rounded-xl border border-surface-border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-surface-border bg-surface-card">
-              {["Ticker", "Streak", "CAGR", "YoY", "Payout"].map((h) => (
+              {[msg("Ticker"), msg("Streak"), msg("CAGR"), msg("YoY"), msg("Payout")].map((h) => (
                 <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">
-                  {h}
+                  {t(h)}
                 </th>
               ))}
             </tr>
@@ -303,13 +309,13 @@ function GrowthSection({ rows, loading }) {
               >
                 <td className="px-4 py-3 font-mono font-semibold text-ink">{r.ticker}</td>
                 <td className="px-4 py-3 text-ink tabular-nums">
-                  {r.streak_years > 0 ? `${r.streak_years} yrs` : <span className="text-muted">—</span>}
+                  {r.streak_years > 0 ? t("{years} yrs", { years: r.streak_years }) : <span className="text-muted">—</span>}
                 </td>
                 <td className="px-4 py-3">
                   {r.cagr_pct != null ? (
                     <span className="flex items-baseline gap-1">
                       {fmtPct(r.cagr_pct)}
-                      <span className="text-xs text-muted">{r.cagr_years_used}yr</span>
+                      <span className="text-xs text-muted">{t("{years}yr", { years: r.cagr_years_used })}</span>
                     </span>
                   ) : <span className="text-muted">—</span>}
                 </td>

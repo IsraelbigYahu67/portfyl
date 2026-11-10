@@ -1,4 +1,8 @@
 import { formatValidationDetail } from "./validationDetail";
+import { translate } from "../i18n/I18nProvider";
+import cs from "../i18n/messages/cs.js";
+
+const czech = (text, vars) => translate(cs, text, vars);
 
 const gt = (field, n = 0) => ({
   type: "greater_than",
@@ -9,11 +13,11 @@ const gt = (field, n = 0) => ({
 
 describe("formatValidationDetail", () => {
   it("passes a plain string through", () => {
-    expect(formatValidationDetail("Portfolio not found", { lang: "en" })).toBe("Portfolio not found");
+    expect(formatValidationDetail("Portfolio not found")).toBe("Portfolio not found");
   });
 
   it("describes 422 entries in English with field names", () => {
-    expect(formatValidationDetail([gt("shares"), gt("price")], { lang: "en" })).toBe(
+    expect(formatValidationDetail([gt("shares"), gt("price")])).toBe(
       "Shares must be greater than 0; Price per share must be greater than 0",
     );
     expect(
@@ -23,34 +27,29 @@ describe("formatValidationDetail", () => {
       ),
     ).toBe("Currency has an invalid format (currency must be 3 letters, e.g. USD)");
     expect(
-      formatValidationDetail([{ type: "literal_error", loc: ["body", "type"], msg: "Input should be 'buy'" }], { lang: "en" }),
+      formatValidationDetail([{ type: "literal_error", loc: ["body", "type"], msg: "Input should be 'buy'" }]),
     ).toBe("Type has an unsupported value");
   });
 
   it("describes 422 entries in Czech", () => {
-    expect(formatValidationDetail([gt("shares")], { lang: "cs" })).toBe("Počet kusů musí být větší než 0");
+    expect(formatValidationDetail([gt("shares")], { t: czech })).toBe("Kusy musí být větší než 0");
   });
 
   it("falls back to the server msg for unknown error types", () => {
     expect(
-      formatValidationDetail([{ type: "value_error", loc: ["body", "notes"], msg: "Value error, Too long" }], { lang: "en" }),
+      formatValidationDetail([{ type: "value_error", loc: ["body", "notes"], msg: "Value error, Too long" }]),
     ).toBe("Notes: Too long");
-    expect(formatValidationDetail([{ msg: "Something odd" }], { lang: "en" })).toBe("Something odd");
+    expect(formatValidationDetail([{ msg: "Something odd" }])).toBe("Something odd");
   });
 
   it("de-duplicates and never returns an object", () => {
-    expect(formatValidationDetail([gt("shares"), gt("shares")], { lang: "en" })).toBe("Shares must be greater than 0");
-    expect(formatValidationDetail({ secret: "x" }, { lang: "en" })).toBe("The server rejected the request.");
-    expect(formatValidationDetail([{}, null, 5], { lang: "cs" })).toBe("Server požadavek odmítl.");
-    expect(formatValidationDetail(undefined, { lang: "en", fallback: "Custom" })).toBe("Custom");
+    expect(formatValidationDetail([gt("shares"), gt("shares")])).toBe("Shares must be greater than 0");
+    expect(formatValidationDetail({ secret: "x" })).toBe("The server rejected the request.");
+    expect(formatValidationDetail([{}, null, 5], { t: czech })).toBe("Server požadavek odmítl.");
+    expect(formatValidationDetail(undefined, { fallback: "Custom" })).toBe("Custom");
   });
 
-  it("picks the language from the document when not given", () => {
-    document.documentElement.lang = "cs";
-    try {
-      expect(formatValidationDetail([gt("price")])).toBe("Cena za kus musí být větší než 0");
-    } finally {
-      document.documentElement.lang = "";
-    }
+  it("words a sentence without a field from the verb", () => {
+    expect(formatValidationDetail([{ type: "missing", loc: ["body"] }])).toBe("is required");
   });
 });

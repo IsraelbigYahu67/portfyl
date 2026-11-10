@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Coins } from "lucide-react";
 import { SectionHeader } from "../ui";
 import { formatCompact, formatMoney } from "../../lib/format";
+import { msg, useT } from "../../i18n/I18nProvider";
 
 const TONES = {
   brand: { bar: "linear-gradient(180deg, var(--chart-1), var(--brand))" },
@@ -13,7 +14,12 @@ const TONES = {
 const OPAQUE_CARD = "linear-gradient(var(--surface-card), var(--surface-card)), var(--bg)";
 
 const MAX_TOOLTIP_ROWS = 8;
-const STATUS_LABEL = { paid: "Received", confirmed: "Confirmed", forecasted: "Forecasted" };
+const STATUS_LABEL = { paid: msg("Received"), confirmed: msg("Confirmed"), forecasted: msg("Forecasted") };
+// The forecast API names months in English ("Jan"); they are translated where drawn.
+export const MONTH_LABELS = [
+  msg("Jan"), msg("Feb"), msg("Mar"), msg("Apr"), msg("May"), msg("Jun"),
+  msg("Jul"), msg("Aug"), msg("Sep"), msg("Oct"), msg("Nov"), msg("Dec"),
+];
 
 // Pin the tooltip to the hovered column, but keep it inside the card: columns
 // near either edge anchor the tooltip to that edge instead of centring it.
@@ -25,7 +31,8 @@ function tooltipPlacement(index, count) {
 }
 
 function MonthTooltip({ month, index, count, currency }) {
-  const title = month.year ? `${month.month} ${month.year}` : month.month;
+  const t = useT();
+  const title = month.year ? `${t(month.month)} ${month.year}` : t(month.month);
   const shown = (month.entries || []).slice(0, MAX_TOOLTIP_ROWS);
   const hidden = (month.entries || []).length - shown.length;
   return (
@@ -40,7 +47,7 @@ function MonthTooltip({ month, index, count, currency }) {
         <span className="text-xs font-semibold tabular-nums text-ink">{formatMoney(month.amount, currency)}</span>
       </div>
       {shown.length === 0 ? (
-        <p className="text-xs text-muted">No payments</p>
+        <p className="text-xs text-muted">{t("No payments")}</p>
       ) : (
         <ul className="space-y-1">
           {shown.map((e) => (
@@ -48,7 +55,7 @@ function MonthTooltip({ month, index, count, currency }) {
               <span className="font-mono font-semibold text-ink">{e.ticker}</span>
               {e.status && (
                 <span className={`rounded px-1 text-xs uppercase tracking-wide ${e.status === "forecasted" ? "bg-surface-hover text-muted" : "bg-surface-hover text-gain"}`}>
-                  {STATUS_LABEL[e.status] ?? e.status}
+                  {STATUS_LABEL[e.status] ? t(STATUS_LABEL[e.status]) : e.status}
                 </span>
               )}
               <span className="ml-auto tabular-nums text-ink">{formatMoney(e.amount, currency)}</span>
@@ -56,7 +63,7 @@ function MonthTooltip({ month, index, count, currency }) {
           ))}
         </ul>
       )}
-      {hidden > 0 && <p className="financial-meta mt-1.5">+{hidden} more</p>}
+      {hidden > 0 && <p className="financial-meta mt-1.5">{t("+{count} more", { count: hidden })}</p>}
     </div>
   );
 }
@@ -68,10 +75,16 @@ function MonthTooltip({ month, index, count, currency }) {
 // and hovering or focusing a column lists what each company pays.
 // `leadStat` / `trailStat` ({ label, amount }) add an extra tile before the
 // total or after the average; a null amount hides the tile.
-export default function DividendBarsCard({ title, half, totalLabel, avgLabel = "Monthly average", currency, tone = "brand", emptyHint = "No dividends in this period.", leadStat = null, trailStat = null }) {
+export default function DividendBarsCard({ title, half, totalLabel, avgLabel, currency, tone = "brand", emptyHint, leadStat = null, trailStat = null }) {
+  const t = useT();
+  avgLabel ??= t("Monthly average");
+  emptyHint ??= t("No dividends in this period.");
   const [active, setActive] = useState(null);
   const max = Math.max(0, ...half.months.map((m) => m.amount));
-  const label = `${title} by month: ${half.months.map((m) => `${m.month} ${formatCompact(m.amount, currency)}`).join(", ")}`;
+  const label = t("{title} by month: {months}", {
+    title,
+    months: half.months.map((m) => `${t(m.month)} ${formatCompact(m.amount, currency)}`).join(", "),
+  });
   const stacked = half.months.some((m) => m.confirmed !== undefined || m.forecasted !== undefined);
   const barBackground = TONES[tone].bar;
   const stats = [
@@ -99,10 +112,10 @@ export default function DividendBarsCard({ title, half, totalLabel, avgLabel = "
           {stacked && (
             <div className="flex gap-4 mb-2 text-xs text-muted" data-testid="dividend-legend">
               <span className="inline-flex items-center gap-1.5">
-                <i className="block h-2.5 w-2.5 rounded-sm" style={{ background: barBackground }} /> Confirmed
+                <i className="block h-2.5 w-2.5 rounded-sm" style={{ background: barBackground }} /> {t("Confirmed")}
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <i className="block h-2.5 w-2.5 rounded-sm" style={{ background: barBackground, opacity: 0.4 }} /> Forecasted
+                <i className="block h-2.5 w-2.5 rounded-sm" style={{ background: barBackground, opacity: 0.4 }} /> {t("Forecasted")}
               </span>
             </div>
           )}
@@ -155,7 +168,7 @@ export default function DividendBarsCard({ title, half, totalLabel, avgLabel = "
             </div>
             <div className="flex gap-1.5 mt-2" aria-hidden="true">
               {half.months.map((m) => (
-                <span key={`${m.year ?? ""}${m.month}`} className="flex-1 min-w-0 text-center text-xs text-muted">{m.month}</span>
+                <span key={`${m.year ?? ""}${m.month}`} className="flex-1 min-w-0 text-center text-xs text-muted">{t(m.month)}</span>
               ))}
             </div>
           </div>

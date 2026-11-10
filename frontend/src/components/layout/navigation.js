@@ -10,41 +10,45 @@ import {
   Upload,
   Wallet,
 } from "lucide-react";
+import { msg } from "../../i18n/I18nProvider";
 import { TRACKER_HOME } from "../../lib/routes";
+
+// Labels are English source text marked with msg(); the sidebar, drawer and
+// bottom bar translate them with t(label) where they are drawn.
 
 export const NAV_GROUPS = Object.freeze([
   {
     id: "portfolio",
-    label: "Portfolio",
+    label: msg("Portfolio"),
     items: [
-      { to: TRACKER_HOME, label: "Dashboard", icon: LayoutDashboard },
-      { to: "/allocation", label: "Allocation", icon: PieChart },
-      { to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
-      { to: "/cash", label: "Cash", icon: Wallet },
+      { to: TRACKER_HOME, label: msg("Dashboard"), icon: LayoutDashboard },
+      { to: "/allocation", label: msg("Allocation"), icon: PieChart },
+      { to: "/transactions", label: msg("Transactions"), icon: ArrowLeftRight },
+      { to: "/cash", label: msg("Cash"), icon: Wallet },
     ],
   },
   {
     id: "research",
-    label: "Research",
+    label: msg("Research"),
     items: [
-      { to: "/search", label: "Search", icon: Search },
-      { to: "/watchlists", label: "Watchlists", icon: Star },
+      { to: "/search", label: msg("Search"), icon: Search },
+      { to: "/watchlists", label: msg("Watchlists"), icon: Star },
     ],
   },
   {
     id: "insights",
-    label: "Insights",
+    label: msg("Insights"),
     items: [
-      { to: "/dividends", label: "Dividends", icon: CalendarDays },
-      { to: "/analytics", label: "Analytics", icon: Activity },
+      { to: "/dividends", label: msg("Dividends"), icon: CalendarDays },
+      { to: "/analytics", label: msg("Analytics"), icon: Activity },
     ],
   },
   {
     id: "system",
-    label: "System",
+    label: msg("System"),
     items: [
-      { to: "/import", label: "Import", icon: Upload },
-      { to: "/settings", label: "Settings", icon: SettingsIcon },
+      { to: "/import", label: msg("Import"), icon: Upload },
+      { to: "/settings", label: msg("Settings"), icon: SettingsIcon },
     ],
   },
 ]);
@@ -55,15 +59,15 @@ export const NAV_GROUPS = Object.freeze([
 // This is the DEFAULT bar; users pick their own in Settings > Preferences
 // (see lib/bottomNavPrefs.js and resolveBottomNavItems below).
 export const BOTTOM_NAV_ITEMS = Object.freeze([
-  { to: TRACKER_HOME, label: "Dashboard", icon: LayoutDashboard },
-  { to: "/allocation", label: "Positions", icon: PieChart },
-  { to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
-  { to: "/dividends", label: "Dividends", icon: CalendarDays },
+  { to: TRACKER_HOME, label: msg("Dashboard"), icon: LayoutDashboard },
+  { to: "/allocation", label: msg("Positions"), icon: PieChart },
+  { to: "/transactions", label: msg("Transactions"), icon: ArrowLeftRight },
+  { to: "/dividends", label: msg("Dividends"), icon: CalendarDays },
 ]);
 
 // The bar calls the Allocation page "Positions"; everywhere else it is
 // "Allocation".
-const BAR_LABELS = Object.freeze({ "/allocation": "Positions" });
+const BAR_LABELS = Object.freeze({ "/allocation": msg("Positions") });
 
 // Every page that may sit in the bar: the whole (edition-aware) navigation,
 // flattened in sidebar order, with the bar's own labels.

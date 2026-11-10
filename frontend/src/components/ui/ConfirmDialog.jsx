@@ -7,6 +7,7 @@ import {
 } from "react";
 import { AlertTriangle } from "lucide-react";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
+import { useT } from "../../i18n/I18nProvider";
 
 const ConfirmContext = createContext(null);
 
@@ -22,11 +23,13 @@ export function useConfirm() {
   return ctx;
 }
 
+// Callers pass already-translated text; the default labels are translated in
+// the dialog itself.
 const DEFAULTS = {
-  title: "Are you sure?",
+  title: null,
   message: "",
-  confirmLabel: "Confirm",
-  cancelLabel: "Cancel",
+  confirmLabel: null,
+  cancelLabel: null,
   danger: false,
 };
 
@@ -57,7 +60,11 @@ export function ConfirmProvider({ children }) {
   );
 }
 
-function ConfirmDialog({ title, message, confirmLabel, cancelLabel, danger, onResolve }) {
+function ConfirmDialog({ title: givenTitle, message, confirmLabel: givenConfirm, cancelLabel: givenCancel, danger, onResolve }) {
+  const t = useT();
+  const title = givenTitle ?? t("Are you sure?");
+  const confirmLabel = givenConfirm ?? t("Confirm");
+  const cancelLabel = givenCancel ?? t("Cancel");
   const cancelBtnRef = useRef(null);
   const confirmBtnRef = useRef(null);
   const titleId = "confirm-dialog-title";

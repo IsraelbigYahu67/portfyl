@@ -55,7 +55,7 @@ describe("PortfolioSwitcher dialogs", () => {
     renderInSidebar();
     fireEvent.click(screen.getByRole("button", { name: "Rename Side" }));
 
-    const dialog = screen.getByRole("dialog", { name: 'Rename "Side"' });
+    const dialog = screen.getByRole("dialog", { name: "Rename “Side”" });
     expect(screen.getByTestId("sidebar")).not.toContainElement(dialog);
     expect(screen.getByRole("textbox", { name: "Portfolio name" })).toHaveValue("Side");
 

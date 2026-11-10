@@ -6,6 +6,7 @@ import { getIdToken, mapFirebaseAuthError, prepareGoogleSignIn, signInWithGoogle
 import { useAnalytics } from "../../analytics/AnalyticsProvider";
 import { ANALYTICS_EVENTS } from "../../analytics/eventContract";
 import { TRACKER_HOME } from "../../lib/routes";
+import { useT } from "../../i18n/I18nProvider";
 
 // Google's multicolor "G" mark, unaltered, as its branding guidelines require.
 function GoogleMark() {
@@ -27,6 +28,7 @@ function GoogleMark() {
  * is no /verify-email step.
  */
 export default function GoogleSignInButton({ sourceSurface = "direct", disabled = false }) {
+  const t = useT();
   const navigate = useNavigate();
   const { loginWithIdToken } = useAuth();
   const { capture } = useAnalytics();
@@ -54,7 +56,7 @@ export default function GoogleSignInButton({ sourceSurface = "direct", disabled 
       }
       navigate(TRACKER_HOME, { replace: true });
     } catch (err) {
-      setError(mapFirebaseAuthError(err));
+      setError(t(mapFirebaseAuthError(err)));
     } finally {
       setPending(false);
     }
@@ -70,7 +72,7 @@ export default function GoogleSignInButton({ sourceSurface = "direct", disabled 
         className="btn-ghost w-full min-h-11 flex items-center justify-center gap-2.5 bg-surface text-ink font-medium disabled:opacity-60"
       >
         {pending ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <GoogleMark />}
-        {pending ? "Connecting to Google…" : "Continue with Google"}
+        {pending ? t("Connecting to Google…") : t("Continue with Google")}
       </button>
       {error && (
         <p role="alert" className="text-xs text-loss">

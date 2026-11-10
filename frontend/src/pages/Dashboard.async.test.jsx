@@ -370,8 +370,8 @@ describe("Investor-only widgets (standard_research)", () => {
       renderPage();
 
       await screen.findByText("Healthy performance chart");
-      expect(await screen.findAllByText("Dostupné od plánu Investor")).toHaveLength(3);
-      for (const link of screen.getAllByRole("link", { name: "Porovnat plány" })) {
+      expect(await screen.findAllByText("Available from the Investor plan")).toHaveLength(3);
+      for (const link of screen.getAllByRole("link", { name: "Compare plans" })) {
         expect(link).toHaveAttribute("href", "/pricing");
       }
       expect(screen.queryByText("Healthy heatmap")).not.toBeInTheDocument();
@@ -389,7 +389,7 @@ describe("Investor-only widgets (standard_research)", () => {
 
     expect(await screen.findByText("Healthy heatmap")).toBeInTheDocument();
     await waitFor(() => investorEndpoints().forEach((endpoint) => expect(endpoint).toHaveBeenCalled()));
-    expect(screen.queryByText("Dostupné od plánu Investor")).not.toBeInTheDocument();
+    expect(screen.queryByText("Available from the Investor plan")).not.toBeInTheDocument();
   });
 
   it("requests none of them while the plan is still loading", async () => {
@@ -399,7 +399,7 @@ describe("Investor-only widgets (standard_research)", () => {
 
     await screen.findByText("Healthy performance chart");
     expect(screen.getByText("Top Movers")).toBeInTheDocument();
-    expect(screen.queryByText("Dostupné od plánu Investor")).not.toBeInTheDocument();
+    expect(screen.queryByText("Available from the Investor plan")).not.toBeInTheDocument();
     expect(screen.queryByText("Healthy heatmap")).not.toBeInTheDocument();
     investorEndpoints().forEach((endpoint) => expect(endpoint).not.toHaveBeenCalled());
   });

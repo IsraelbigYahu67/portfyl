@@ -10,11 +10,12 @@ import { withSliceCorners } from "../../lib/pieCorners";
 import { displayLocale, formatCompact, formatMoney } from "../../lib/format";
 import { buildCompositionRows } from "../../lib/dashboardSummaries";
 import { useIsPhone } from "../../hooks/useMediaQuery";
+import { msg, useT } from "../../i18n/I18nProvider";
 
 const DIMENSIONS = [
-  { value: "sectors", label: "Sectors" },
-  { value: "countries", label: "Countries" },
-  { value: "asset_types", label: "Categories" },
+  { value: "sectors", label: msg("Sectors") },
+  { value: "countries", label: msg("Countries") },
+  { value: "asset_types", label: msg("Categories") },
 ];
 // The Countries tab deliberately has no profit column.
 const NO_PROFIT = new Set(["countries"]);
@@ -42,6 +43,7 @@ function splitDecimal(text, currency) {
 // /analytics/sector-breakdown. Columns: weight, value, and total profit
 // (realized + unrealized).
 export default function CompositionCard({ breakdown, currency }) {
+  const t = useT();
   const [dimension, setDimension] = useState(DIMENSIONS[0].value);
   const [activeIndex, setActiveIndex] = useState(null);
   const isPhone = useIsPhone();
@@ -63,18 +65,23 @@ export default function CompositionCard({ breakdown, currency }) {
         icon={PieIcon}
         action={
           <>
-            <SegmentedControl aria-label="Group composition by" value={dimension} onChange={(next) => { setDimension(next); setActiveIndex(null); }} options={DIMENSIONS} />
+            <SegmentedControl
+              aria-label={t("Group composition by")}
+              value={dimension}
+              onChange={(next) => { setDimension(next); setActiveIndex(null); }}
+              options={DIMENSIONS.map((option) => ({ ...option, label: t(option.label) }))}
+            />
             <Link to="/allocation" className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:text-brand-dim">
-              Targets <ArrowRight size={12} aria-hidden="true" />
+              {t("Targets")} <ArrowRight size={12} aria-hidden="true" />
             </Link>
           </>
         }
       >
-        Portfolio composition
+        {t("Portfolio composition")}
       </SectionHeader>
 
       {rows.length === 0 ? (
-        <p className="text-sm text-muted py-6 text-center">No holdings to group yet.</p>
+        <p className="text-sm text-muted py-6 text-center">{t("No holdings to group yet.")}</p>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,280px)_minmax(0,1fr)] items-center">
           <PieTouchScrub className="pie-pop relative mx-auto w-full max-w-[280px] aspect-square">
@@ -88,7 +95,7 @@ export default function CompositionCard({ breakdown, currency }) {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="pointer-events-none absolute inset-0 grid place-content-center text-center">
-                  <span className="data-label">Total value</span>
+                  <span className="data-label">{t("Total value")}</span>
                   <span className="font-display text-xl font-bold text-ink tabular-nums">{formatCompact(total, currency)}</span>
                 </div>
                 {/* The slice's name and weight sit in the hole just below the total,
@@ -112,7 +119,7 @@ export default function CompositionCard({ breakdown, currency }) {
             {isPhone ? (
               // A phone shows each row as a card line (name + profit left, value + weight right):
               // the 5-column table cut off its Value and Profit columns.
-              <ul className="divide-y divide-hairline" aria-label="Composition">
+              <ul className="divide-y divide-hairline" aria-label={t("Composition")}>
                 {shown.map((row, i) => (
                   <li key={row.name} className="flex items-center gap-3 py-2.5">
                     <span aria-hidden="true" className="h-9 w-1.5 shrink-0 rounded-full" style={{ background: CATEGORICAL[i % CATEGORICAL.length] }} />
@@ -133,16 +140,16 @@ export default function CompositionCard({ breakdown, currency }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-muted">
-                  <th scope="col" className="pb-2 font-medium">Name</th>
-                  <th scope="col" className="pb-2 pr-3 font-medium text-right">Weight</th>
+                  <th scope="col" className="pb-2 font-medium">{t("Name")}</th>
+                  <th scope="col" className="pb-2 pr-3 font-medium text-right">{t("Weight")}</th>
                   {/* Two header cells like the body: the word is centred on the split, over the decimal separator. */}
                   <th scope="col" className="pb-2 font-medium text-right">
                     <span className="inline-block w-0 overflow-visible">
-                      <span className="inline-block translate-x-[calc(-50%+3px)]">Value</span>
+                      <span className="inline-block translate-x-[calc(-50%+3px)]">{t("Value")}</span>
                     </span>
                   </th>
                   <th scope="col" className="pb-2 pr-3" aria-hidden="true" />
-                  {showProfit && <th scope="col" className="pb-2 font-medium text-right" title="Realized + unrealized profit">Profit</th>}
+                  {showProfit && <th scope="col" className="pb-2 font-medium text-right" title={t("Realized + unrealized profit")}>{t("Profit")}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline">
@@ -173,7 +180,7 @@ export default function CompositionCard({ breakdown, currency }) {
             )}
             {hiddenCount > 0 && (
               <Link to="/allocation" className="mt-2 inline-block text-xs font-semibold text-brand hover:text-brand-dim">
-                +{hiddenCount} more in Allocation
+                {t("+{count} more in Allocation", { count: hiddenCount })}
               </Link>
             )}
           </div>

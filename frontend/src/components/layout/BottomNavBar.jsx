@@ -1,6 +1,7 @@
 import { Menu } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
+import { useT } from "../../i18n/I18nProvider";
 
 /**
  * The phone bottom bar itself, shared by the real bar (MobileBottomNav) and the
@@ -125,6 +126,7 @@ export default function BottomNavBar({
   onOpenMenu,
   onNavigate,
 }) {
+  const t = useT();
   const slots = useAnimatedSlots(items);
   const rowRef = useRef(null);
   const elementRefs = useRef({});
@@ -207,7 +209,7 @@ export default function BottomNavBar({
         const content = (
           <>
             <Icon size={20} aria-hidden="true" />
-            <span className="max-w-full truncate">{label}</span>
+            <span className="max-w-full truncate">{t(label)}</span>
           </>
         );
         return (
@@ -262,14 +264,14 @@ export default function BottomNavBar({
             style={{ transition: ITEM_TRANSITION }}
           >
             <Menu size={20} aria-hidden="true" />
-            <span>More</span>
+            <span>{t("More")}</span>
           </div>
         ) : (
           <button
             ref={register(MORE_KEY)}
             type="button"
             onClick={onOpenMenu}
-            aria-label="More, open navigation menu"
+            aria-label={t("More, open navigation menu")}
             aria-expanded={moreOpen}
             aria-controls="mobile-nav-drawer"
             aria-haspopup="dialog"
@@ -277,7 +279,7 @@ export default function BottomNavBar({
             style={{ transition: ITEM_TRANSITION }}
           >
             <Menu size={20} aria-hidden="true" />
-            <span>More</span>
+            <span>{t("More")}</span>
           </button>
         )}
       </div>

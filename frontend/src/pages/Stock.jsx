@@ -14,16 +14,18 @@ import { StockOverviewTab } from "../components/stock/StockOverviewTab";
 import { StockFinancialsTab } from "../components/stock/StockFinancialsTab";
 import { StockValuationTab } from "../components/stock/StockValuationTab";
 import { StockOwnershipTab } from "../components/stock/StockOwnershipTab";
+import { msg, useT } from "../i18n/I18nProvider";
 
 const STOCK_TABS = [
-  { value: "overview", label: "Overview", panelId: "stock-overview-panel" },
-  { value: "financials", label: "Financials", panelId: "stock-financials-panel" },
-  { value: "valuation", label: "Valuation", panelId: "stock-valuation-panel" },
-  { value: "ownership", label: "Ownership", panelId: "stock-ownership-panel" },
+  { value: "overview", label: msg("Overview"), panelId: "stock-overview-panel" },
+  { value: "financials", label: msg("Financials"), panelId: "stock-financials-panel" },
+  { value: "valuation", label: msg("Valuation"), panelId: "stock-valuation-panel" },
+  { value: "ownership", label: msg("Ownership"), panelId: "stock-ownership-panel" },
 ];
 const VALID_TABS = new Set(STOCK_TABS.map((tab) => tab.value));
 
 function WatchlistMenu({ ticker }) {
+  const t = useT();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
 
@@ -34,7 +36,7 @@ function WatchlistMenu({ ticker }) {
   });
 
   const addMut = useMutation({
-    mutationFn: ({ id, t }) => addWatchlistItem(id, t),
+    mutationFn: ({ id, symbol }) => addWatchlistItem(id, symbol),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["watchlists"] }),
   });
   const removeMut = useMutation({
@@ -65,7 +67,9 @@ function WatchlistMenu({ ticker }) {
           size={14}
           className={isWatching ? "fill-yellow-300" : ""}
         />
-        {isWatching ? `In ${inLists.length} watchlist${inLists.length > 1 ? "s" : ""}` : "Add to watchlist"}
+        {isWatching
+          ? (inLists.length === 1 ? t("In {count} watchlist", { count: 1 }) : t("In {count} watchlists", { count: inLists.length }))
+          : t("Add to watchlist")}
       </button>
 
       {open && (
@@ -73,13 +77,13 @@ function WatchlistMenu({ ticker }) {
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute right-0 mt-2 w-64 z-50 bg-surface-card border border-surface-border rounded-lg shadow-lg overflow-hidden">
             <div className="px-3 py-2 text-xs uppercase tracking-wider text-muted border-b border-surface-border">
-              Watchlists
+              {t("Watchlists")}
             </div>
             {watchlists.length === 0 ? (
               <div className="px-3 py-4 text-xs text-muted">
-                No watchlists yet.{" "}
+                {t("No watchlists yet.")}{" "}
                 <Link to="/watchlists" className="text-brand hover:underline">
-                  Create one →
+                  {t("Create one →")}
                 </Link>
               </div>
             ) : (
@@ -99,7 +103,7 @@ function WatchlistMenu({ ticker }) {
                           if (checked) {
                             removeMut.mutate({ id: w.id, itemId: existing.id });
                           } else {
-                            addMut.mutate({ id: w.id, t: ticker });
+                            addMut.mutate({ id: w.id, symbol: ticker });
                           }
                         }}
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface-hover transition-colors text-left disabled:opacity-50"
@@ -132,7 +136,7 @@ function WatchlistMenu({ ticker }) {
                 onClick={() => setOpen(false)}
               >
                 <Plus size={12} />
-                Manage watchlists
+                {t("Manage watchlists")}
               </Link>
             </div>
           </div>
@@ -143,6 +147,7 @@ function WatchlistMenu({ ticker }) {
 }
 
 export default function Stock() {
+  const t = useT();
   const { ticker: rawTicker } = useParams();
   const ticker = (rawTicker || "").toUpperCase();
   const navigate = useNavigate();
@@ -186,18 +191,18 @@ export default function Stock() {
           className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink transition-colors"
         >
           <ChevronLeft size={16} />
-          Back
+          {t("Back")}
         </button>
       </div>
 
       <div className="bg-surface-card border border-surface-border rounded-xl shadow-lg">
         <AsyncSection
           isLoading={isLoading}
-          error={error || (!isLoading && !data ? new Error(`Could not load fundamentals for ${ticker}.`) : null)}
+          error={error || (!isLoading && !data ? new Error(t("Could not load fundamentals for {ticker}.", { ticker })) : null)}
           onRetry={() => refetch()}
           loading={(
             <div className="h-96 flex items-center justify-center text-muted text-sm animate-pulse">
-              Loading fundamentals for {ticker}…
+              {t("Loading fundamentals for {ticker}…", { ticker })}
             </div>
           )}
         >
@@ -209,9 +214,9 @@ export default function Stock() {
               />
               <div className="border-b border-surface-border px-4 py-2 sm:px-6">
                 <UrlTabs
-                  ariaLabel="Stock sections"
+                  ariaLabel={t("Stock sections")}
                   idPrefix="stock"
-                  items={STOCK_TABS}
+                  items={STOCK_TABS.map((tab) => ({ ...tab, label: t(tab.label) }))}
                   value={activeTab}
                   onChange={selectTab}
                 />

@@ -4,8 +4,10 @@ import { Loader2, Search } from "lucide-react";
 import { addWatchlistItem, createWatchlist, searchTickers } from "../../api";
 import { getApiErrorMessage } from "../../lib/apiError";
 import { useToast } from "../ui/Toast";
+import { useT } from "../../i18n/I18nProvider";
 
 export function WatchlistEmptyState() {
+  const t = useT();
   const queryClient = useQueryClient();
   const toast = useToast();
   const [query, setQuery] = useState("");
@@ -20,12 +22,12 @@ export function WatchlistEmptyState() {
 
   const quickStart = useMutation({
     mutationFn: async (ticker) => {
-      const watchlist = await createWatchlist({ name: "My watchlist" });
+      const watchlist = await createWatchlist({ name: t("My watchlist") });
       queryClient.setQueryData(["watchlists"], (current = []) => [...current, watchlist]);
       try {
         await addWatchlistItem(watchlist.id, ticker);
       } catch (cause) {
-        const partial = new Error("The watchlist was created, but the ticker could not be added. Retry from My watchlist.");
+        const partial = new Error(t("The watchlist was created, but the ticker could not be added. Retry from My watchlist."));
         partial.cause = cause;
         throw partial;
       }
@@ -34,11 +36,11 @@ export function WatchlistEmptyState() {
     onSuccess: (ticker) => {
       setError("");
       setQuery("");
-      toast.success(`${ticker} added to My watchlist`);
+      toast.success(t("{ticker} added to {list}", { ticker, list: t("My watchlist") }));
       queryClient.invalidateQueries({ queryKey: ["watchlists"] });
     },
     onError: (mutationError) => {
-      const message = mutationError.message || getApiErrorMessage(mutationError, "Could not create watchlist");
+      const message = mutationError.message || getApiErrorMessage(mutationError, t("Could not create watchlist"));
       setError(message);
       toast.error(message);
       queryClient.invalidateQueries({ queryKey: ["watchlists"] });
@@ -48,12 +50,12 @@ export function WatchlistEmptyState() {
   const results = search.data?.results || [];
   return (
     <section className="mx-auto max-w-xl rounded-xl border border-surface-border bg-surface-card p-6 text-center">
-      <h2 className="text-xl font-bold">Track a stock you are researching</h2>
+      <h2 className="text-xl font-bold">{t("Track a stock you are researching")}</h2>
       <p className="mt-2 text-sm text-muted">
-        A watchlist follows researched symbols without adding them to your portfolio.
+        {t("A watchlist follows researched symbols without adding them to your portfolio.")}
       </p>
       <div className="relative mx-auto mt-5 max-w-sm text-left">
-        <label htmlFor="watchlist-quick-start" className="mb-1.5 block text-sm font-medium">Ticker to track</label>
+        <label htmlFor="watchlist-quick-start" className="mb-1.5 block text-sm font-medium">{t("Ticker to track")}</label>
         <Search size={15} className="pointer-events-none absolute left-3 top-[2.6rem] text-muted" />
         <input
           id="watchlist-quick-start"
@@ -65,7 +67,7 @@ export function WatchlistEmptyState() {
           value={query}
           onChange={(event) => { setQuery(event.target.value); setError(""); }}
           className="w-full rounded-lg border border-surface-border bg-surface py-2 pl-9 pr-9 text-sm focus:border-brand focus:outline-none"
-          placeholder="Search ticker or company"
+          placeholder={t("Search ticker or company")}
         />
         {(search.isFetching || quickStart.isPending) && <Loader2 size={15} className="absolute right-3 top-[2.6rem] animate-spin text-muted" />}
         {results.length > 0 && (

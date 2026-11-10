@@ -1,4 +1,5 @@
 import { matchPath, useLocation } from "react-router-dom";
+import { useT } from "../../i18n/I18nProvider";
 import { useBottomNavPaths } from "../../lib/bottomNavPrefs";
 import BottomNavBar, { MORE_KEY } from "./BottomNavBar";
 import { useNavGroups } from "./NavGroupsContext";
@@ -25,11 +26,12 @@ export function useBottomNavItems() {
 // `lg` up, where the sidebar takes over. Opaque on purpose so page text never
 // shows through.
 export default function MobileBottomNav({ open = false, onOpenMenu, onNavigate }) {
+  const t = useT();
   const { pathname } = useLocation();
   const items = useBottomNavItems();
 
   return (
-    <nav aria-label="Main" className="app-bottomnav lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-hairline">
+    <nav aria-label={t("Main")} className="app-bottomnav lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-hairline">
       <BottomNavBar
         items={items}
         activeKey={activeBarKey(items, pathname, open)}

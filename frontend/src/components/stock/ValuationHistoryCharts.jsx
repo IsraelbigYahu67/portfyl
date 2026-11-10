@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { formatShortDate } from "../../lib/format";
 import { AXIS_TICK_STYLE, CATEGORICAL, GRID_STROKE } from "../../lib/chartTheme";
 import SegmentedControl from "../ui/SegmentedControl";
+import { useT } from "../../i18n/I18nProvider";
 
 export const VALUATION_MULTIPLES = [
   { key: "trailing_pe", label: "P/E", fmt: (v) => v?.toFixed(1) },
@@ -56,13 +57,14 @@ function buildSeries(multiple, points) {
 
 /** One small tile of the strip: label, current value and a sparkline. */
 function ValuationTile({ multiple, points, onSelect }) {
+  const t = useT();
   const series = buildSeries(multiple, points);
 
   if (!series.length) {
     return (
       <div className="card !p-3 h-full">
         <div className="text-xs text-muted uppercase tracking-wider">{multiple.label}</div>
-        <div className="text-sm text-muted mt-2">No data</div>
+        <div className="text-sm text-muted mt-2">{t("No data")}</div>
       </div>
     );
   }
@@ -84,7 +86,7 @@ function ValuationTile({ multiple, points, onSelect }) {
     <div
       role="button"
       tabIndex={0}
-      aria-label={`Open ${multiple.label} valuation history chart`}
+      aria-label={t("Open {multiple} valuation history chart", { multiple: multiple.label })}
       className="card card-interactive !p-3 cursor-pointer h-full"
       onClick={(e) => onSelect(multiple.key, e.currentTarget)}
       onKeyDown={(e) => {
@@ -93,7 +95,7 @@ function ValuationTile({ multiple, points, onSelect }) {
           onSelect(multiple.key, e.currentTarget);
         }
       }}
-      title="Click to open the chart"
+      title={t("Click to open the chart")}
     >
       <div className="text-xs text-muted uppercase tracking-wider">{multiple.label}</div>
       <div className="text-xl font-bold tabular-nums text-ink">
@@ -132,6 +134,7 @@ function ValuationTile({ multiple, points, onSelect }) {
 
 /** The big chart that opens above the strip, as wide as the content column. */
 function ValuationBigChart({ multiple, points, onClose, className = "", style }) {
+  const t = useT();
   const [logScale, setLogScale] = useState(false);
   const series = buildSeries(multiple, points);
   if (!series.length) return null;
@@ -159,7 +162,7 @@ function ValuationBigChart({ multiple, points, onClose, className = "", style })
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h4 className="text-sm font-bold text-muted uppercase tracking-wider">
-            {multiple.label} Valuation History
+            {t("{multiple} Valuation History", { multiple: multiple.label })}
           </h4>
           <div className="text-3xl font-bold tabular-nums text-ink mt-0.5">
             {currentValue != null ? multiple.fmt(currentValue) : "—"}
@@ -168,20 +171,22 @@ function ValuationBigChart({ multiple, points, onClose, className = "", style })
         <div className="flex items-center gap-2">
           {useLog && hiddenByLog > 0 && (
             <span className="text-xs text-muted">
-              {hiddenByLog} non-positive value{hiddenByLog === 1 ? "" : "s"} hidden
+              {hiddenByLog === 1
+                ? t("{count} non-positive value hidden", { count: 1 })
+                : t("{count} non-positive values hidden", { count: hiddenByLog })}
             </span>
           )}
           <SegmentedControl
-            aria-label="Valuation chart scale"
+            aria-label={t("Valuation chart scale")}
             value={useLog ? "log" : "linear"}
             onChange={(v) => setLogScale(v === "log")}
             options={[
-              { value: "linear", label: "Linear" },
+              { value: "linear", label: t("Linear") },
               {
                 value: "log",
-                label: "Log",
+                label: t("Log"),
                 disabled: !logAvailable,
-                title: logAvailable ? undefined : "Not enough positive values for a log scale",
+                title: logAvailable ? undefined : t("Not enough positive values for a log scale"),
               },
             ]}
           />
@@ -189,7 +194,7 @@ function ValuationBigChart({ multiple, points, onClose, className = "", style })
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close chart"
+              aria-label={t("Close chart")}
               className="inline-flex items-center justify-center h-9 w-9 rounded-full text-muted hover:text-ink hover:bg-surface-hover transition-colors"
             >
               <X size={20} />

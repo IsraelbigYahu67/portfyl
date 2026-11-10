@@ -13,6 +13,7 @@ import { formatCompact, formatMoney, formatPercent } from "../../lib/format";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
 import { TickerLink } from "../TickerLink";
+import { useT } from "../../i18n/I18nProvider";
 
 function compareNullable(left, right, direction) {
   const leftMissing = left == null || Number.isNaN(Number(left));
@@ -35,6 +36,7 @@ export function sortWatchlistItems(items, sort) {
 }
 
 function AddTickerForm({ watchlistId, watchlistName }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const toast = useToast();
   const [query, setQuery] = useState("");
@@ -48,22 +50,22 @@ function AddTickerForm({ watchlistId, watchlistName }) {
   const add = useMutation({
     mutationFn: (ticker) => addWatchlistItem(watchlistId, ticker),
     onSuccess: (_data, ticker) => {
-      toast.success(`${ticker} added to ${watchlistName}`);
+      toast.success(t("{ticker} added to {list}", { ticker, list: watchlistName }));
       setQuery("");
     },
-    onError: (error) => toast.error(getApiErrorMessage(error, "Could not add ticker")),
+    onError: (error) => toast.error(getApiErrorMessage(error, t("Could not add ticker"))),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["watchlists"] }),
   });
   const results = search.data?.results || [];
   return (
     <div className="relative">
-      <label className="sr-only" htmlFor={`add-ticker-${watchlistId}`}>Add ticker to {watchlistName}</label>
+      <label className="sr-only" htmlFor={`add-ticker-${watchlistId}`}>{t("Add ticker to {list}", { list: watchlistName })}</label>
       <input
         id={`add-ticker-${watchlistId}`}
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         className="w-44 rounded-md border border-surface-border bg-surface px-3 py-1.5 text-xs"
-        placeholder="Add ticker…"
+        placeholder={t("Add ticker…")}
       />
       {(search.isFetching || add.isPending) && <Loader2 size={12} className="absolute right-2 top-2 animate-spin" />}
       {results.length > 0 && (
@@ -82,6 +84,7 @@ function AddTickerForm({ watchlistId, watchlistName }) {
 }
 
 export function WatchlistCard({ wl, onAlert, alertsByTicker = new Map(), alertDisabledReason = "" }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
@@ -112,8 +115,8 @@ export function WatchlistCard({ wl, onAlert, alertsByTicker = new Map(), alertDi
 
   const removeList = useMutation({
     mutationFn: () => deleteWatchlist(wl.id),
-    onSuccess: () => toast.success(`${wl.name} deleted`),
-    onError: (error) => toast.error(getApiErrorMessage(error, "Could not delete watchlist")),
+    onSuccess: () => toast.success(t("{name} deleted", { name: wl.name })),
+    onError: (error) => toast.error(getApiErrorMessage(error, t("Could not delete watchlist"))),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["watchlists"] }),
   });
   const removeItem = useMutation({
@@ -128,34 +131,34 @@ export function WatchlistCard({ wl, onAlert, alertsByTicker = new Map(), alertDi
       )));
       return { previous };
     },
-    onSuccess: (_data, item) => toast.success(`${item.ticker} removed from ${wl.name}`),
+    onSuccess: (_data, item) => toast.success(t("{ticker} removed from {list}", { ticker: item.ticker, list: wl.name })),
     onError: (error, _item, context) => {
       if (context?.previous) queryClient.setQueryData(["watchlists"], context.previous);
-      toast.error(getApiErrorMessage(error, `Could not remove ticker from ${wl.name}`));
+      toast.error(getApiErrorMessage(error, t("Could not remove ticker from {list}", { list: wl.name })));
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["watchlists"] }),
   });
 
   const askDeleteList = async () => {
-    if (await confirm({ title: `Delete ${wl.name}?`, message: "The list and its tracked symbols will be removed.", confirmLabel: "Delete watchlist", danger: true })) removeList.mutate();
+    if (await confirm({ title: t("Delete {name}?", { name: wl.name }), message: t("The list and its tracked symbols will be removed."), confirmLabel: t("Delete watchlist"), danger: true })) removeList.mutate();
   };
   const askRemoveItem = async (item) => {
-    if (await confirm({ title: `Remove ${item.ticker}?`, message: `Remove ${item.ticker} from ${wl.name}?`, confirmLabel: "Remove ticker", danger: true })) removeItem.mutate(item);
+    if (await confirm({ title: t("Remove {ticker}?", { ticker: item.ticker }), message: t("Remove {ticker} from {list}?", { ticker: item.ticker, list: wl.name }), confirmLabel: t("Remove ticker"), danger: true })) removeItem.mutate(item);
   };
 
   return (
     <section className="rounded-xl border border-surface-border bg-surface-card" aria-labelledby={`watchlist-${wl.id}-heading`}>
       <header className="flex flex-wrap items-center gap-3 border-b border-surface-border px-4 py-3">
-        <div className="mr-auto"><h2 id={`watchlist-${wl.id}-heading`} className="text-lg font-bold">{wl.name}</h2><p className="text-xs text-muted">{wl.count} {wl.count === 1 ? "stock" : "stocks"}</p></div>
+        <div className="mr-auto"><h2 id={`watchlist-${wl.id}-heading`} className="text-lg font-bold">{wl.name}</h2><p className="text-xs text-muted">{wl.count === 1 ? t("{count} stock", { count: 1 }) : t("{count} stocks", { count: wl.count })}</p></div>
         <AddTickerForm watchlistId={wl.id} watchlistName={wl.name} />
-        <button type="button" onClick={askDeleteList} aria-label={`Delete ${wl.name}`} className="text-muted hover:text-red-600"><Trash2 size={15} /></button>
+        <button type="button" onClick={askDeleteList} aria-label={t("Delete {name}", { name: wl.name })} className="text-muted hover:text-red-600"><Trash2 size={15} /></button>
       </header>
       <div className="flex flex-wrap gap-2 border-b border-surface-border px-4 py-3">
-        <label className="relative flex-1 min-w-48"><span className="sr-only">Search {wl.name}</span><Search size={14} className="absolute left-2.5 top-2.5 text-muted" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${wl.name}`} className="w-full rounded-md border border-surface-border bg-surface py-2 pl-8 pr-3 text-sm" /></label>
-        <label><span className="sr-only">Sort {wl.name}</span><select aria-label={`Sort ${wl.name}`} value={sort} onChange={(event) => setSort(event.target.value)} className="rounded-md border border-surface-border bg-surface px-3 py-2 text-sm"><option value="ticker">Ticker A–Z</option><option value="change_desc">Daily change: high to low</option><option value="change_asc">Daily change: low to high</option><option value="market_cap_desc">Market cap: high to low</option></select></label>
+        <label className="relative flex-1 min-w-48"><span className="sr-only">{t("Search {list}", { list: wl.name })}</span><Search size={14} className="absolute left-2.5 top-2.5 text-muted" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("Search {list}", { list: wl.name })} className="w-full rounded-md border border-surface-border bg-surface py-2 pl-8 pr-3 text-sm" /></label>
+        <label><span className="sr-only">{t("Sort {list}", { list: wl.name })}</span><select aria-label={t("Sort {list}", { list: wl.name })} value={sort} onChange={(event) => setSort(event.target.value)} className="rounded-md border border-surface-border bg-surface px-3 py-2 text-sm"><option value="ticker">{t("Ticker A–Z")}</option><option value="change_desc">{t("Daily change: high to low")}</option><option value="change_asc">{t("Daily change: low to high")}</option><option value="market_cap_desc">{t("Market cap: high to low")}</option></select></label>
       </div>
-      {alertDisabledReason && <p className="border-b border-surface-border px-4 py-2 text-xs text-muted">Price alerts unavailable: {alertDisabledReason}. <Link className="text-brand hover:underline" to="/settings?section=notifications">Notification settings</Link></p>}
-      {!visibleItems.length ? <p className="px-4 py-8 text-center text-sm text-muted">No tracked symbols match this view.</p> : (
+      {alertDisabledReason && <p className="border-b border-surface-border px-4 py-2 text-xs text-muted">{t("Price alerts unavailable: {reason}.", { reason: alertDisabledReason })} <Link className="text-brand hover:underline" to="/settings?section=notifications">{t("Notification settings")}</Link></p>}
+      {!visibleItems.length ? <p className="px-4 py-8 text-center text-sm text-muted">{t("No tracked symbols match this view.")}</p> : (
         <ul className="divide-y divide-surface-border">
           {visibleItems.map((item) => {
             const quote = item.quote || {};
@@ -171,9 +174,9 @@ export function WatchlistCard({ wl, onAlert, alertsByTicker = new Map(), alertDi
                   <span className={`flex w-24 items-center justify-end gap-1 text-xs tabular-nums ${change == null ? "text-muted" : up ? "text-gain" : "text-loss"}`}>{change != null && (up ? <TrendingUp size={11} /> : <TrendingDown size={11} />)}{formatPercent(change)}</span>
                   <span className="hidden w-24 text-right text-xs text-muted tabular-nums lg:block">{formatCompact(quote.market_cap, quote.currency || "USD")}</span>
                 </TickerLink>
-                {alert && <span className="text-xs font-medium text-muted">{alert.status === "triggered" ? "Triggered" : "Active"}</span>}
-                <button type="button" disabled={Boolean(alertDisabledReason)} onClick={() => onAlert?.(item.ticker)} aria-label={`Create price alert for ${item.ticker}`} title={alertDisabledReason || "Create price alert"} className="p-1 text-muted hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"><Bell size={14} /></button>
-                <button type="button" onClick={() => askRemoveItem(item)} aria-label={`Remove ${item.ticker} from ${wl.name}`} className="p-1 text-muted hover:text-red-600"><X size={14} /></button>
+                {alert && <span className="text-xs font-medium text-muted">{alert.status === "triggered" ? t("Triggered") : t("Active")}</span>}
+                <button type="button" disabled={Boolean(alertDisabledReason)} onClick={() => onAlert?.(item.ticker)} aria-label={t("Create price alert for {ticker}", { ticker: item.ticker })} title={alertDisabledReason || t("Create price alert")} className="p-1 text-muted hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"><Bell size={14} /></button>
+                <button type="button" onClick={() => askRemoveItem(item)} aria-label={t("Remove {ticker} from {list}", { ticker: item.ticker, list: wl.name })} className="p-1 text-muted hover:text-red-600"><X size={14} /></button>
               </li>
             );
           })}

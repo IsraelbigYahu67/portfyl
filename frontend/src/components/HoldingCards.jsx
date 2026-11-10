@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, TrendingDown, TrendingUp } from "lucide-react";
 import { TickerLink } from "./TickerLink";
 import { formatPercent, formatQuantity } from "../lib/format";
 import { hasPriceProblem, priceFreshnessTitle } from "../lib/priceFreshness";
+import { msg, useT } from "../i18n/I18nProvider";
 
 // Phone layout of the Allocation tables (DESIGN.md section 8): one card per
 // position instead of a 10-column table, so value, P&L and weight sit on the
@@ -9,39 +10,42 @@ import { hasPriceProblem, priceFreshnessTitle } from "../lib/priceFreshness";
 // desktop table; the page chooses which one to mount.
 
 export const SORT_OPTIONS = [
-  { key: "market_value", label: "Value" },
-  { key: "pnl", label: "P&L" },
-  { key: "pnl_percent", label: "P&L %" },
-  { key: "weight", label: "Weight" },
-  { key: "ticker", label: "Ticker" },
+  { key: "market_value", label: msg("Value") },
+  { key: "pnl", label: msg("P&L") },
+  { key: "pnl_percent", label: msg("P&L %") },
+  { key: "weight", label: msg("Weight") },
+  { key: "ticker", label: msg("Ticker") },
 ];
 
 export const SOLD_SORT_OPTIONS = [
-  { key: "pnl_if_held", label: "Return if not sold" },
-  { key: "missed_out", label: "Missed out on" },
-  { key: "pnl_if_held_pct", label: "P&L if held" },
+  { key: "pnl_if_held", label: msg("Return if not sold") },
+  { key: "missed_out", label: msg("Missed out on") },
+  { key: "pnl_if_held_pct", label: msg("P&L if held") },
 ];
 
 // Native select (16px text so iOS does not zoom the page) + a direction button.
 // Picking the active key again flips the direction, like the desktop headers.
-export function CardSortBar({ sort, onSort, options = SORT_OPTIONS, label = "Sort holdings" }) {
+// Option labels are English source text, translated here; `label` comes in
+// already translated.
+export function CardSortBar({ sort, onSort, options = SORT_OPTIONS, label }) {
+  const t = useT();
   const active = sort?.key ?? options[0].key;
   return (
     <div className="mb-3 flex items-center gap-2">
       <select
-        aria-label={label}
+        aria-label={label ?? t("Sort holdings")}
         value={active}
         onChange={(e) => onSort(e.target.value)}
         className="input min-h-11 flex-1"
       >
         {options.map((o) => (
-          <option key={o.key} value={o.key}>{`Sort: ${o.label}`}</option>
+          <option key={o.key} value={o.key}>{t("Sort: {option}", { option: t(o.label) })}</option>
         ))}
       </select>
       <button
         type="button"
         onClick={() => onSort(active)}
-        aria-label={sort?.dir === "asc" ? "Ascending, switch to descending" : "Descending, switch to ascending"}
+        aria-label={sort?.dir === "asc" ? t("Ascending, switch to descending") : t("Descending, switch to ascending")}
         className="btn-ghost grid h-11 w-11 shrink-0 place-items-center !p-0"
       >
         {sort?.dir === "asc" ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
@@ -70,8 +74,9 @@ function CardShell({ onOpen, children }) {
 }
 
 export function HoldingCards({ holdings, currency, fmt, fmtSigned, fmtNative, onOpen }) {
+  const t = useT();
   return (
-    <ul className="space-y-3" aria-label="All holdings">
+    <ul className="space-y-3" aria-label={t("All holdings")}>
       {holdings.map((h) => {
         const up = h.pnl >= 0;
         const tone = up ? "text-gain" : "text-loss";
@@ -105,29 +110,29 @@ export function HoldingCards({ holdings, currency, fmt, fmtSigned, fmtNative, on
 
               <dl className="financial-meta grid grid-cols-3 gap-2 tabular-nums">
                 <div>
-                  <dt>Shares</dt>
+                  <dt>{t("Shares")}</dt>
                   <dd className="text-ink">{formatQuantity(h.shares, currency)}</dd>
                 </div>
                 <div>
-                  <dt>Avg cost</dt>
+                  <dt>{t("Avg cost")}</dt>
                   <dd className="text-ink">{fmtNative(h.avg_cost, h.currency)}</dd>
                 </div>
                 <div>
-                  <dt>Price</dt>
-                  <dd className="text-ink" title={priceFreshnessTitle(h) ?? undefined}>
+                  <dt>{t("Price")}</dt>
+                  <dd className="text-ink" title={priceFreshnessTitle(h, { t }) ?? undefined}>
                     {fmtNative(h.current_price, h.currency)}
                   </dd>
                 </div>
               </dl>
 
               <div className="financial-meta flex flex-wrap items-center justify-between gap-x-3">
-                <span>Dividends {fmt(h.dividends)}</span>
+                <span>{t("Dividends {amount}", { amount: fmt(h.dividends) })}</span>
                 {hasPriceProblem(h) && (
                   <span
                     className={h.price_status === "missing" ? "text-loss" : "text-[color:var(--chart-3)]"}
-                    title={priceFreshnessTitle(h)}
+                    title={priceFreshnessTitle(h, { t })}
                   >
-                    {h.price_status === "missing" ? "no price" : "out of date"}
+                    {h.price_status === "missing" ? t("no price") : t("out of date")}
                   </span>
                 )}
               </div>
@@ -140,9 +145,10 @@ export function HoldingCards({ holdings, currency, fmt, fmtSigned, fmtNative, on
 }
 
 export function SoldCards({ holdings, fmtSigned, fmtPct, missedOut, onOpen }) {
+  const t = useT();
   const toneOf = (v) => ((v ?? 0) >= 0 ? "text-gain" : "text-loss");
   return (
-    <ul className="space-y-3" aria-label="Sold positions">
+    <ul className="space-y-3" aria-label={t("Sold positions")}>
       {holdings.map((h) => (
         <li key={h.ticker}>
           <CardShell onOpen={() => onOpen(h.ticker)}>
@@ -151,11 +157,11 @@ export function SoldCards({ holdings, fmtSigned, fmtPct, missedOut, onOpen }) {
                 <TickerLink ticker={h.ticker} className="inline-flex min-h-11 items-center font-mono text-base font-bold">
                   {h.ticker}
                 </TickerLink>
-                <span className="financial-meta ml-1.5 font-medium uppercase text-loss">Sold</span>
+                <span className="financial-meta ml-1.5 font-medium uppercase text-loss">{t("Sold")}</span>
                 <div className="-mt-2 truncate text-sm text-muted">{h.name}</div>
               </div>
               <div className="shrink-0 text-right">
-                <div className="financial-meta">Sold for</div>
+                <div className="financial-meta">{t("Sold for")}</div>
                 <div className={`font-display text-lg font-bold tabular-nums ${toneOf(h.pnl)}`}>
                   {h.pnl != null ? fmtSigned(h.pnl) : "—"}
                 </div>
@@ -163,17 +169,17 @@ export function SoldCards({ holdings, fmtSigned, fmtPct, missedOut, onOpen }) {
             </div>
             <dl className="financial-meta grid grid-cols-3 gap-2 tabular-nums">
               <div>
-                <dt>Return if not sold</dt>
+                <dt>{t("Return if not sold")}</dt>
                 <dd className={toneOf(h.pnl_if_held)}>{h.pnl_if_held != null ? fmtSigned(h.pnl_if_held) : "—"}</dd>
               </div>
               <div>
-                <dt>Missed out on</dt>
+                <dt>{t("Missed out on")}</dt>
                 <dd className={toneOf(missedOut(h))}>
                   {h.pnl != null && h.pnl_if_held != null ? fmtSigned(missedOut(h)) : "—"}
                 </dd>
               </div>
               <div>
-                <dt>P&amp;L if held</dt>
+                <dt>{t("P&L if held")}</dt>
                 <dd className={toneOf(h.pnl_if_held_pct)}>{h.pnl_if_held_pct != null ? fmtPct(h.pnl_if_held_pct) : "—"}</dd>
               </div>
             </dl>

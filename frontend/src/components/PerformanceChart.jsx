@@ -2,6 +2,7 @@ import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Customized,
 } from "recharts";
 import { formatMoney, formatPercent } from "../lib/format";
+import { useT } from "../i18n/I18nProvider";
 import { AXIS_TICK_STYLE, LEGEND_TEXT_STYLE, GRID_STROKE, NEUTRAL_COLOR, SERIES_STYLES } from "../lib/chartTheme";
 import { buildPercentAxis } from "../lib/chartPercentAxis";
 import { splitGrowthLineSegments } from "../lib/growthLineSegments";
@@ -50,6 +51,7 @@ function GrowthLineLayer({ xAxisMap, yAxisMap, series }) {
 }
 
 function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }) {
+  const t = useT();
   if (!active || !payload?.length) return null;
 
   const row = payload[0]?.payload;
@@ -74,14 +76,14 @@ function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }
       <div className="space-y-1">
         {mode === "value" && (
           <>
-            {line("Value", formatMoney(row.value, currency), "text-ink")}
-            {line("Deposited", formatMoney(row.invested, currency), "text-muted")}
+            {line(t("Value"), formatMoney(row.value, currency), "text-ink")}
+            {line(t("Deposited"), formatMoney(row.invested, currency), "text-muted")}
           </>
         )}
-        {pnl != null && line("Period P&L", formatMoney(pnl, currency), moneyColor(pnl))}
-        {pnlPct != null && line("Period % (TWR)", formatPercent(pnlPct), moneyColor(pnlPct))}
-        {totalPnl != null && line("Total P&L", formatMoney(totalPnl, currency), moneyColor(totalPnl))}
-        {totalPnlPct != null && line("Total % (TWR)", formatPercent(totalPnlPct), moneyColor(totalPnlPct))}
+        {pnl != null && line(t("Period P&L"), formatMoney(pnl, currency), moneyColor(pnl))}
+        {pnlPct != null && line(t("Period % (TWR)"), formatPercent(pnlPct), moneyColor(pnlPct))}
+        {totalPnl != null && line(t("Total P&L"), formatMoney(totalPnl, currency), moneyColor(totalPnl))}
+        {totalPnlPct != null && line(t("Total % (TWR)"), formatPercent(totalPnlPct), moneyColor(totalPnlPct))}
         {benchmarkMeta?.map((b) => {
           const val = row[`bench_${b.key}`];
           if (val == null) return null;
@@ -97,7 +99,7 @@ function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }
       </div>
       {(pnlPct != null || totalPnlPct != null) && (
         <p className="financial-meta mt-1.5 pt-1.5 border-t border-hairline">
-          % = time-weighted return, excludes deposits/withdrawals
+          {t("% = time-weighted return, excludes deposits/withdrawals")}
         </p>
       )}
     </div>
@@ -105,7 +107,8 @@ function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }
 }
 
 export default function PerformanceChart({ data, currency = "USD", mode = "value", benchmarks = {}, benchmarkMeta = [] }) {
-  if (!data?.length) return <div className="text-muted text-sm">No performance data yet.</div>;
+  const t = useT();
+  if (!data?.length) return <div className="text-muted text-sm">{t("No performance data yet.")}</div>;
 
   const merged = data.map((point) => {
     const row = { ...point };
@@ -187,7 +190,7 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                 align="right"
                 wrapperStyle={LEGEND_WRAPPER_STYLE}
                 formatter={(v) => {
-                  if (v === "pnl_pct") return <span style={LEGEND_TEXT_STYLE}>Portfolio Growth</span>;
+                  if (v === "pnl_pct") return <span style={LEGEND_TEXT_STYLE}>{t("Portfolio Growth")}</span>;
                   const bm = benchmarkMeta.find((b) => `bench_${b.key}` === v);
                   if (bm) return <span style={{ ...LEGEND_TEXT_STYLE, color: bm.color }}>{bm.label}</span>;
                   return <span style={LEGEND_TEXT_STYLE}>{v}</span>;
@@ -248,8 +251,8 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                 align="right"
                 wrapperStyle={LEGEND_WRAPPER_STYLE}
                 formatter={(v) => {
-                  if (v === "value") return <span style={LEGEND_TEXT_STYLE}>Portfolio Value</span>;
-                  if (v === "invested") return <span style={LEGEND_TEXT_STYLE}>Deposited</span>;
+                  if (v === "value") return <span style={LEGEND_TEXT_STYLE}>{t("Portfolio Value")}</span>;
+                  if (v === "invested") return <span style={LEGEND_TEXT_STYLE}>{t("Deposited")}</span>;
                   const bm = benchmarkMeta.find((b) => `bench_${b.key}` === v);
                   if (bm) return <span style={{ ...LEGEND_TEXT_STYLE, color: bm.color }}>{bm.label}</span>;
                   return <span style={LEGEND_TEXT_STYLE}>{v}</span>;

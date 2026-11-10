@@ -3,88 +3,69 @@
 // {loc, msg, type, ctx} objects for a 422 request-validation error.
 // Rendering that list straight into JSX crashes React ("Objects are not valid
 // as a React child"), so every form that shows a server error goes through here.
+//
+// The text is English source text marked with msg()/t() and translated through
+// `t` (the i18n translate function, see i18n/I18nProvider); without `t` it
+// reads in English.
+
+const msg = (text) => text;
+const english = (text, vars) => text.replace(/\{(\w+)\}/g, (m, key) => (vars && key in vars ? String(vars[key]) : m));
 
 const FIELD_LABELS = {
-  en: {
-    ticker: "Ticker", type: "Type", shares: "Shares", price: "Price per share",
-    currency: "Currency", date: "Date", notes: "Notes",
-  },
-  cs: {
-    ticker: "Ticker", type: "Typ", shares: "Počet kusů", price: "Cena za kus",
-    currency: "Měna", date: "Datum", notes: "Poznámka",
-  },
+  ticker: msg("Ticker"),
+  type: msg("Type"),
+  shares: msg("Shares"),
+  price: msg("Price per share"),
+  currency: msg("Currency"),
+  date: msg("Date"),
+  notes: msg("Notes"),
 };
 
-// Pydantic v2 error `type` -> sentence. Anything not listed falls back to the
-// server's own `msg`.
+// Pydantic v2 error `type` -> sentence about `{field}`. Anything not listed
+// falls back to the server's own `msg`.
 const MESSAGES = {
-  en: {
-    greater_than: (ctx) => `must be greater than ${ctx?.gt ?? 0}`,
-    greater_than_equal: (ctx) => `must be at least ${ctx?.ge ?? 0}`,
-    literal_error: () => "has an unsupported value",
-    string_pattern_mismatch: () => "has an invalid format (currency must be 3 letters, e.g. USD)",
-    string_too_short: () => "is required",
-    missing: () => "is required",
-    finite_number: () => "must be a finite number",
-    float_parsing: () => "must be a number",
-    date_from_datetime_parsing: () => "must be a valid date",
-    date_parsing: () => "must be a valid date",
-    date_type: () => "must be a valid date",
-  },
-  cs: {
-    greater_than: (ctx) => `musí být větší než ${ctx?.gt ?? 0}`,
-    greater_than_equal: (ctx) => `musí být alespoň ${ctx?.ge ?? 0}`,
-    literal_error: () => "má nepodporovanou hodnotu",
-    string_pattern_mismatch: () => "má neplatný formát (měna musí mít 3 písmena, např. USD)",
-    string_too_short: () => "je povinné",
-    missing: () => "je povinné",
-    finite_number: () => "musí být konečné číslo",
-    float_parsing: () => "musí být číslo",
-    date_from_datetime_parsing: () => "musí být platné datum",
-    date_parsing: () => "musí být platné datum",
-    date_type: () => "musí být platné datum",
-  },
+  greater_than: (t, field, ctx) => t("{field} must be greater than {value}", { field, value: ctx?.gt ?? 0 }),
+  greater_than_equal: (t, field, ctx) => t("{field} must be at least {value}", { field, value: ctx?.ge ?? 0 }),
+  literal_error: (t, field) => t("{field} has an unsupported value", { field }),
+  string_pattern_mismatch: (t, field) => t("{field} has an invalid format (currency must be 3 letters, e.g. USD)", { field }),
+  string_too_short: (t, field) => t("{field} is required", { field }),
+  missing: (t, field) => t("{field} is required", { field }),
+  finite_number: (t, field) => t("{field} must be a finite number", { field }),
+  float_parsing: (t, field) => t("{field} must be a number", { field }),
+  date_from_datetime_parsing: (t, field) => t("{field} must be a valid date", { field }),
+  date_parsing: (t, field) => t("{field} must be a valid date", { field }),
+  date_type: (t, field) => t("{field} must be a valid date", { field }),
 };
 
-const FALLBACKS = {
-  en: "The server rejected the request.",
-  cs: "Server požadavek odmítl.",
-};
-
-export function uiLanguage() {
-  const lang = typeof document !== "undefined" ? document.documentElement?.lang : "";
-  return typeof lang === "string" && lang.toLowerCase().startsWith("cs") ? "cs" : "en";
-}
-
-function describeItem(item, lang) {
+function describeItem(item, t) {
   if (typeof item === "string") return item.trim();
   if (!item || typeof item !== "object") return "";
 
   const field = Array.isArray(item.loc)
     ? [...item.loc].reverse().find((part) => typeof part === "string" && part !== "body")
     : undefined;
-  const label = field ? (FIELD_LABELS[lang][field] ?? field) : "";
+  const label = field ? (FIELD_LABELS[field] ? t(FIELD_LABELS[field]) : field) : "";
 
-  const known = MESSAGES[lang][item.type];
+  const known = MESSAGES[item.type];
   if (known) {
-    const text = known(item.ctx);
-    return label ? `${label} ${text}` : text;
+    // Without a field the sentence starts at the verb ("must be ..."): drop the
+    // empty placeholder and the space after it.
+    return known(t, label).trim();
   }
 
   // "Value error, ..." is pydantic's wrapper around a custom validator message.
-  const msg = typeof item.msg === "string" ? item.msg.replace(/^Value error,\s*/i, "").trim() : "";
-  if (!msg) return "";
-  return label ? `${label}: ${msg}` : msg;
+  const text = typeof item.msg === "string" ? item.msg.replace(/^Value error,\s*/i, "").trim() : "";
+  if (!text) return "";
+  return label ? `${label}: ${text}` : text;
 }
 
-export function formatValidationDetail(detail, { lang = uiLanguage(), fallback } = {}) {
-  const language = lang === "cs" ? "cs" : "en";
-  const fallbackText = fallback ?? FALLBACKS[language];
+export function formatValidationDetail(detail, { t = english, fallback } = {}) {
+  const fallbackText = fallback ?? t("The server rejected the request.");
 
   if (typeof detail === "string") return detail.trim() || fallbackText;
 
   if (Array.isArray(detail)) {
-    const sentences = detail.map((item) => describeItem(item, language)).filter(Boolean);
+    const sentences = detail.map((item) => describeItem(item, t)).filter(Boolean);
     return sentences.length ? [...new Set(sentences)].join("; ") : fallbackText;
   }
 

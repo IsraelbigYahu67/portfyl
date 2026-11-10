@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
+import { useT } from "../../i18n/I18nProvider";
 import AccountMenu from "../AccountMenu";
 import { useBottomNavItems } from "./MobileBottomNav";
 import { groupsWithoutBottomNav, preloadRoute } from "./navigation";
@@ -16,6 +17,7 @@ function prefersReducedMotion() {
 }
 
 export default function MobileNavDrawer({ groups, open, onClose }) {
+  const t = useT();
   const { pathname } = useLocation();
   const previousPathnameRef = useRef(pathname);
   const restoreFocusRef = useRef(true);
@@ -76,27 +78,27 @@ export default function MobileNavDrawer({ groups, open, onClose }) {
         id="mobile-nav-drawer"
         role="dialog"
         aria-modal="true"
-        aria-label="Navigation"
+        aria-label={t("Navigation")}
         className={`app-drawer flex h-full w-[280px] max-w-[85vw] flex-col border-l border-hairline overflow-y-auto ${motionClass}`}
       >
         <div className="flex items-center justify-between px-4 py-2 border-b border-hairline">
-          <span className="font-display font-bold text-[15px] text-ink">Navigation</span>
+          <span className="font-display font-bold text-[15px] text-ink">{t("Navigation")}</span>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close navigation menu"
+            aria-label={t("Close navigation menu")}
             className="w-11 h-11 inline-flex items-center justify-center rounded-lg text-muted hover:text-ink hover:bg-surface-hover"
           >
             <X size={20} aria-hidden="true" />
           </button>
         </div>
-        <nav aria-label="Primary" className="flex-1 px-2.5 py-3 space-y-4">
+        <nav aria-label={t("Primary")} className="flex-1 px-2.5 py-3 space-y-4">
           {groupsWithoutBottomNav(groups, barItems).map((group) => {
             const headingId = `mobile-nav-${group.id}`;
             return (
               <section key={group.id} aria-labelledby={headingId}>
                 <h2 id={headingId} className="data-label px-3 pb-1">
-                  {group.label}
+                  {t(group.label)}
                 </h2>
                 <div className="space-y-0.5">
                   {group.items.map(({ to, label, icon: Icon, preload }) => (
@@ -122,7 +124,7 @@ export default function MobileNavDrawer({ groups, open, onClose }) {
                       )}
                     >
                       <Icon size={17} aria-hidden="true" />
-                      {label}
+                      {t(label)}
                     </NavLink>
                   ))}
                 </div>

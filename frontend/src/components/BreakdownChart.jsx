@@ -7,6 +7,11 @@ import { useIsPhone } from "../hooks/useMediaQuery";
 import { PieTouchScrub } from "../hooks/usePieTouchScrub";
 import { shortTickerLabels } from "../lib/tickerLabel";
 import AlignedPercent, { maxDecimalsOf } from "./AlignedPercent";
+import { msg, useT } from "../i18n/I18nProvider";
+
+// Row names the frontend/API produce in English; every other name is data
+// (a ticker, a sector from the data provider) and is shown as is.
+const GROUP_NAMES = new Set([msg("Cash"), msg("Other")]);
 
 // Cash has no sector/country/asset-type of its own — give it a fixed neutral
 // slate color instead of whatever the palette-by-index lookup would assign,
@@ -24,6 +29,8 @@ const colorFor = (item, i) =>
 export default function BreakdownChart({ title, data, currencyLabel, legendColumns = 1, nameWidth = 70, stacked = false, shortenTickers = false }) {
   // Same formatter as the rest of the app, so separators follow the display
   // currency (CZK reads "5 224,05 Kč", not "5,224.05 Kč").
+  const t = useT();
+  const nameOf = (item) => (GROUP_NAMES.has(item.name) ? t(item.name) : item.name);
   const fmt = (n) => formatMoney(n, currencyLabel);
   const isPhone = useIsPhone();
 
@@ -67,7 +74,7 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
                   return (
                     <div className="bg-surface-card-elevated border border-hairline rounded-lg px-3 py-2 text-xs shadow-lg">
                       <div className="font-semibold text-ink">
-                        {item.name} · <AlignedPercent value={item.weight} decimals={2} />
+                        {nameOf(item)} · <AlignedPercent value={item.weight} decimals={2} />
                       </div>
                       {/* Grouped slices (e.g. "Other" positions) carry their
                           members in `items` — list them on hover. */}
@@ -97,7 +104,7 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
                 className="w-2.5 h-2.5 rounded-full shrink-0"
                 style={{ backgroundColor: colorFor(item, i) }}
               />
-              <span className="text-ink whitespace-nowrap shrink-0" style={{ minWidth: `${nameWidth}px`, width: `${longestName}ch` }}>{item.name}</span>
+              <span className="text-ink whitespace-nowrap shrink-0" style={{ minWidth: `${nameWidth}px`, width: `${longestName}ch` }}>{nameOf(item)}</span>
               <span className="flex items-baseline shrink-0">
                 <span className="tabular-nums text-muted min-w-[3.5rem] text-right"><AlignedPercent value={item.weight} decimals={pctDecimals} /></span>
                 <span className="tabular-nums text-muted text-xs ml-[10px]">({fmt(item.value)})</span>
@@ -120,7 +127,7 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
           // never drop below the first, whatever the phone width.
           if (isPhone) {
             const labels = shortenTickers ? shortTickerLabels(data.map((d) => d.name)) : null;
-            const labelOf = (item) => labels?.get(String(item.name)) ?? item.name;
+            const labelOf = (item) => labels?.get(String(item.name)) ?? nameOf(item);
             const phoneColumn = (items, offset) => (
               <div className="grid min-w-0 grid-cols-[minmax(0,auto)_auto_auto] content-start items-baseline justify-start gap-x-1 gap-y-1.5 text-xs">
                 {items.map((item, i) => (
@@ -153,7 +160,7 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
                 <Fragment key={item.name}>
                   <span className="inline-flex items-center gap-2 whitespace-nowrap text-ink">
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: colorFor(item, i + offset) }} />
-                    {item.name}
+                    {nameOf(item)}
                   </span>
                   <span className="text-right text-muted"><AlignedPercent value={item.weight} decimals={pctDecimals} /></span>
                   <span className="tabular-nums whitespace-nowrap text-xs text-muted">({fmt(item.value)})</span>

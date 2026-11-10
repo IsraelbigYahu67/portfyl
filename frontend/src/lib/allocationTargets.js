@@ -41,28 +41,31 @@ export function draftTotal(rows) {
   return cents / 100;
 }
 
-export function draftErrors(rows) {
+// English fallback for `t` (the i18n translate function): fills {placeholders}.
+const english = (text, vars) => text.replace(/\{(\w+)\}/g, (m, key) => (vars && key in vars ? String(vars[key]) : m));
+
+export function draftErrors(rows, t = english) {
   const errors = [];
   const seen = new Set();
   for (const r of rows) {
     if (String(r.target).trim() === "") continue;
     const ticker = r.ticker.trim().toUpperCase();
     if (!ticker) {
-      errors.push("Every target needs a ticker.");
+      errors.push(t("Every target needs a ticker."));
       continue;
     }
-    if (seen.has(ticker)) errors.push(`${ticker} has more than one target.`);
+    if (seen.has(ticker)) errors.push(t("{ticker} has more than one target.", { ticker }));
     seen.add(ticker);
     if (Number.isNaN(parseTarget(r.target))) {
-      errors.push(`The target for ${ticker} must be a number from 0 to 100 with at most two decimals.`);
+      errors.push(t("The target for {ticker} must be a number from 0 to 100 with at most two decimals.", { ticker }));
     }
     if (r.group.trim().length > MAX_GROUP_LENGTH) {
-      errors.push(`The group for ${ticker} can be at most ${MAX_GROUP_LENGTH} characters.`);
+      errors.push(t("The group for {ticker} can be at most {max} characters.", { ticker, max: MAX_GROUP_LENGTH }));
     }
   }
   const total = draftTotal(rows);
   if (total > 100 + TARGET_SUM_TOLERANCE) {
-    errors.push(`Targets add up to ${total.toFixed(2)}%, more than 100%.`);
+    errors.push(t("Targets add up to {total}%, more than 100%.", { total: total.toFixed(2) }));
   }
   return [...new Set(errors)];
 }

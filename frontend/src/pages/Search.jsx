@@ -5,6 +5,7 @@ import { Search as SearchIcon, Loader2, ArrowRight } from "lucide-react";
 import { fetchAllHoldings, searchTickers } from "../api";
 import { useCurrency } from "../App";
 import { AsyncSection, SectionHeader } from "../components/ui";
+import { useT } from "../i18n/I18nProvider";
 
 // Light debounce so typing doesn't fire a query on every keystroke. 250ms is
 // short enough to feel instant but cuts request count by ~10x for fast typers.
@@ -18,6 +19,7 @@ function useDebounced(value, delay = 250) {
 }
 
 export default function Search() {
+  const t = useT();
   const [query, setQuery] = useState("");
   const debounced = useDebounced(query, 250);
   const inputRef = useRef(null);
@@ -54,10 +56,9 @@ export default function Search() {
 
   return (
     <div className="max-w-4xl mx-auto py-6">
-      <h1 className="text-2xl font-bold mb-1">Search Stocks</h1>
+      <h1 className="text-2xl font-bold mb-1">{t("Search Stocks")}</h1>
       <p className="text-sm text-muted mb-6">
-        Look up any ticker or company name to see fundamentals, ratios, and
-        analyst targets.
+        {t("Look up any ticker or company name to see fundamentals, ratios, and analyst targets.")}
       </p>
 
       <div className="relative">
@@ -70,7 +71,8 @@ export default function Search() {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by ticker (AAPL) or company name…"
+          placeholder={t("Search by ticker (AAPL) or company name…")}
+          aria-label={t("Search stocks")}
           className="w-full bg-surface-card border border-surface-border rounded-lg pl-10 pr-10 py-3 text-base focus:outline-none focus:border-brand"
         />
         {(isLoading || isFetching) && enabled && (
@@ -83,8 +85,8 @@ export default function Search() {
 
       <div className="mt-6">
         {!enabled && yourHoldings.length > 0 && (
-          <section aria-label="Your holdings">
-            <SectionHeader>Your holdings</SectionHeader>
+          <section aria-label={t("Your holdings")}>
+            <SectionHeader>{t("Your holdings")}</SectionHeader>
             <ul className="flex flex-wrap gap-2">
               {yourHoldings.map((h) => (
                 <li key={h.ticker}>
@@ -97,12 +99,12 @@ export default function Search() {
                 </li>
               ))}
             </ul>
-            <p className="mt-6 text-center text-sm text-muted">Or start typing to look up any ticker.</p>
+            <p className="mt-6 text-center text-sm text-muted">{t("Or start typing to look up any ticker.")}</p>
           </section>
         )}
         {!enabled && yourHoldings.length === 0 && (
           <div className="text-center text-muted py-12 text-sm">
-            Start typing to see suggestions.
+            {t("Start typing to see suggestions.")}
           </div>
         )}
 
@@ -113,13 +115,13 @@ export default function Search() {
             onRetry={() => refetch()}
             loading={(
               <div className="text-center text-muted py-12 text-sm animate-pulse">
-                Searching…
+                {t("Searching…")}
               </div>
             )}
             isEmpty={results.length === 0}
             empty={(
               <div className="text-center text-muted py-12 text-sm">
-                No matches for "{debounced}".
+                {t("No matches for “{query}”.", { query: debounced })}
               </div>
             )}
           >

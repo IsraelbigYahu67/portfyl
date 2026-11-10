@@ -7,6 +7,7 @@ import {
 import "react-grid-layout/css/styles.css";
 import { useIsPhone } from "../hooks/useMediaQuery";
 import { MergedTitleContext } from "./ui/SectionHeader";
+import { msg, useT } from "../i18n/I18nProvider";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -31,12 +32,12 @@ const PHONE_CORE = ["movers"];
 // heading inside the opened card; the two-card widgets (movers, dividends) keep
 // theirs because each heading tells its card from the other.
 const ALL_WIDGETS = [
-  { id: "attention", label: "Attention signals", icon: Activity, mergeTitle: true, minW: 3, minH: 3 },
-  { id: "performance", label: "Performance", icon: TrendingUp, mergeTitle: true, minW: 3, minH: 4 },
-  { id: "composition", label: "Portfolio composition", icon: PieChart, mergeTitle: true, minW: 3, minH: 4 },
-  { id: "concentration", label: "Insider buys & heatmap", icon: LayoutGrid, minW: 3, minH: 4 },
-  { id: "movers", label: "Movers & earnings", icon: Activity, minW: 4, minH: 4 },
-  { id: "dividends", label: "Dividends", icon: Coins, minW: 3, minH: 4 },
+  { id: "attention", label: msg("Attention signals"), icon: Activity, mergeTitle: true, minW: 3, minH: 3 },
+  { id: "performance", label: msg("Performance"), icon: TrendingUp, mergeTitle: true, minW: 3, minH: 4 },
+  { id: "composition", label: msg("Portfolio composition"), icon: PieChart, mergeTitle: true, minW: 3, minH: 4 },
+  { id: "concentration", label: msg("Insider buys & heatmap"), icon: LayoutGrid, minW: 3, minH: 4 },
+  { id: "movers", label: msg("Movers & earnings"), icon: Activity, minW: 4, minH: 4 },
+  { id: "dividends", label: msg("Dividends"), icon: Coins, minW: 3, minH: 4 },
 ];
 
 const KNOWN_IDS = ALL_WIDGETS.map((w) => w.id);
@@ -46,9 +47,9 @@ const KNOWN_IDS = ALL_WIDGETS.map((w) => w.id);
 // open. The page supplies them as extra children (heatmap + insiderBuys, or
 // topHoldings when insider data is not on the plan); desktop keeps the pair.
 const PHONE_SPLIT = [
-  { id: "heatmap", label: "Heatmap", icon: LayoutGrid, mergeTitle: true },
-  { id: "insiderBuys", label: "Insider buys", icon: UserCheck, mergeTitle: true },
-  { id: "topHoldings", label: "Top 10 holdings", icon: PieChart, mergeTitle: true },
+  { id: "heatmap", label: msg("Heatmap"), icon: LayoutGrid, mergeTitle: true },
+  { id: "insiderBuys", label: msg("Insider buys"), icon: UserCheck, mergeTitle: true },
+  { id: "topHoldings", label: msg("Top 10 holdings"), icon: PieChart, mergeTitle: true },
 ];
 const PHONE_WIDGETS = [...ALL_WIDGETS, ...PHONE_SPLIT];
 const PHONE_KNOWN_IDS = PHONE_WIDGETS.map((w) => w.id);
@@ -220,6 +221,7 @@ function Collapse({ open, id, children }) {
 // single-card widgets) the card's own small heading is dropped so the title is
 // never shown twice.
 function PhoneWidget({ widget, open, onToggle, children }) {
+  const t = useT();
   const panelId = `phone-widget-${widget.id}`;
   const Icon = widget.icon;
   return (
@@ -237,7 +239,7 @@ function PhoneWidget({ widget, open, onToggle, children }) {
               <Icon size={13} />
             </span>
           )}
-          <span className="min-w-0 truncate">{widget.label}</span>
+          <span className="min-w-0 truncate">{t(widget.label)}</span>
         </span>
         <ChevronDown
           size={18}
@@ -253,6 +255,7 @@ function PhoneWidget({ widget, open, onToggle, children }) {
 }
 
 export default function DashboardGrid({ children, editing, onEditToggle }) {
+  const t = useT();
   const isPhone = useIsPhone();
   const [phoneOpen, setPhoneOpen] = useState(getPhoneOpen);
   const togglePhoneWidget = (id) =>
@@ -344,22 +347,22 @@ export default function DashboardGrid({ children, editing, onEditToggle }) {
               onClick={resetLayout}
               className="flex items-center gap-1.5 text-xs text-muted hover:text-ink px-2.5 py-1.5 rounded-lg border border-hairline transition-colors"
             >
-              <RotateCcw size={12} /> Reset
+              <RotateCcw size={12} /> {t("Reset")}
             </button>
             {hiddenWidgets.map((w) => (
               <button
                 key={w.id}
                 type="button"
-                aria-label={`Restore ${w.label}`}
+                aria-label={t("Restore {widget}", { widget: t(w.label) })}
                 onClick={() => restore(w.id)}
                 className="flex items-center gap-1.5 text-xs text-brand hover:text-brand/80 px-2.5 py-1.5 rounded-lg border border-brand/30 hover:border-brand/50 transition-colors"
               >
-                <Plus size={12} /> Restore {w.label}
+                <Plus size={12} /> {t("Restore {widget}", { widget: t(w.label) })}
               </button>
             ))}
           </div>
           <p className="text-xs text-muted lg:hidden">
-            Ordering follows the saved sequence on small screens.
+            {t("Ordering follows the saved sequence on small screens.")}
           </p>
         </div>
       )}
@@ -386,12 +389,12 @@ export default function DashboardGrid({ children, editing, onEditToggle }) {
                 <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between bg-surface-card/90 backdrop-blur-sm rounded-t-xl px-3 py-1.5 border-b border-hairline">
                   <div className="drag-handle cursor-grab active:cursor-grabbing flex items-center gap-1.5 text-xs text-muted">
                     <GripVertical size={12} />
-                    {widget?.label}
+                    {widget?.label ? t(widget.label) : null}
                   </div>
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      aria-label={`Move ${widget?.label} up`}
+                      aria-label={t("Move {widget} up", { widget: t(widget?.label ?? "") })}
                       disabled={index === 0}
                       onClick={() => move(id)("up")}
                       className="text-muted hover:text-ink disabled:opacity-30 disabled:hover:text-muted transition-colors"
@@ -400,7 +403,7 @@ export default function DashboardGrid({ children, editing, onEditToggle }) {
                     </button>
                     <button
                       type="button"
-                      aria-label={`Move ${widget?.label} down`}
+                      aria-label={t("Move {widget} down", { widget: t(widget?.label ?? "") })}
                       disabled={index === visibleList.length - 1}
                       onClick={() => move(id)("down")}
                       className="text-muted hover:text-ink disabled:opacity-30 disabled:hover:text-muted transition-colors"
@@ -409,7 +412,7 @@ export default function DashboardGrid({ children, editing, onEditToggle }) {
                     </button>
                     <button
                       type="button"
-                      aria-label={`Hide ${widget?.label}`}
+                      aria-label={t("Hide {widget}", { widget: t(widget?.label ?? "") })}
                       onClick={() => hide(id)}
                       className="text-muted hover:text-red-500 transition-colors"
                     >

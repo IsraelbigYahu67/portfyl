@@ -47,7 +47,7 @@ describe("insider transactions", () => {
     render(<InsiderTransactionsSection transactions={[sell]} currencyCode="USD" currentPrice={100} />);
     const row = screen.getByText("Sam Seller").closest("li");
     expect(row.className).not.toMatch(/bg-(red|loss)/);
-    expect(within(row).getByText("SELL").dataset.tone).toBe("loss");
+    expect(within(row).getByText("Sell").dataset.tone).toBe("loss");
   });
 });
 

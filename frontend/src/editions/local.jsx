@@ -1,5 +1,6 @@
 import { FileText, Layers3 } from "lucide-react";
 import { lazy } from "react";
+import { msg } from "../i18n/I18nProvider";
 import { fetchLocalTaxReport } from "./localApi";
 
 const loadTaxReport = () => import("../pages/TaxReport");
@@ -17,8 +18,8 @@ export const EDITION_ROUTES = Object.freeze([
 ]);
 
 export const EDITION_NAVIGATION = Object.freeze([
-  { to: "/tax-report", label: "Tax Report", icon: FileText, capability: "tax_report", preload: loadTaxReport },
-  { to: "/pricing", label: "Plans", icon: Layers3, capability: "settings", preload: loadPricing },
+  { to: "/tax-report", label: msg("Tax Report"), icon: FileText, capability: "tax_report", preload: loadTaxReport },
+  { to: "/pricing", label: msg("Plans"), icon: Layers3, capability: "settings", preload: loadPricing },
 ]);
 
 export const fetchEditionDashboardSignals = async () => ({

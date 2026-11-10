@@ -3,6 +3,7 @@ import { formatMoney, formatCompact, formatNumber } from "../lib/format";
 import { DeltaPill, Skeleton, SkeletonMetric } from "./ui";
 import HeroSparkline from "./HeroSparkline";
 import ShinyText from "./reactbits/ShinyText";
+import { useT } from "../i18n/I18nProvider";
 
 function Chip({ label, value, positive, negative }) {
   const valueColor = positive ? "text-gain" : negative ? "text-loss" : "text-ink";
@@ -19,6 +20,7 @@ function Chip({ label, value, positive, negative }) {
 // lib/dashboardSummaries.snapshotNetWorth). The ledger's day change is
 // meaningless then, so it is hidden.
 export default function PortfolioHero({ summary, snapshot = null, loading, currency = "USD", series = [] }) {
+  const t = useT();
   const positive = (summary?.day_change ?? summary?.total_pnl ?? 0) >= 0;
   const positionsValue = snapshot ? snapshot.positionsValue : summary?.total_value;
   const netWorth = snapshot
@@ -32,7 +34,7 @@ export default function PortfolioHero({ summary, snapshot = null, loading, curre
       <div className="relative">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="eyebrow"><ShinyText text="Net Worth" /></p>
+            <p className="eyebrow"><ShinyText text={t("Net Worth")} /></p>
             {loading || summary == null ? (
               <div className="mt-2"><Skeleton h="2.75rem" w="16rem" /></div>
             ) : (
@@ -46,13 +48,13 @@ export default function PortfolioHero({ summary, snapshot = null, loading, curre
                   )}
                 </div>
                 <div className="flex items-center gap-3 mt-1 financial-data font-sans">
-                  <span>Positions {formatMoney(positionsValue, currency)}</span>
+                  <span>{t("Positions {amount}", { amount: formatMoney(positionsValue, currency) })}</span>
                   <span aria-hidden="true">·</span>
-                  <span>Cash {formatMoney(summary.cash, currency)}</span>
+                  <span>{t("Cash {amount}", { amount: formatMoney(summary.cash, currency) })}</span>
                 </div>
                 {snapshot && (
                   <p className="text-xs text-muted mt-1">
-                    Current value from your Trading 212 snapshot. Performance figures fill in once the history import finishes.
+                    {t("Current value from your Trading 212 snapshot. Performance figures fill in once the history import finishes.")}
                   </p>
                 )}
               </>
@@ -70,8 +72,8 @@ export default function PortfolioHero({ summary, snapshot = null, loading, curre
             </>
           ) : (
             <>
-              <Chip label="Dividends" value={formatCompact(summary.total_dividends, currency)} />
-              <Chip label="Holdings" value={formatNumber(summary.holdings_count)} />
+              <Chip label={t("Dividends")} value={formatCompact(summary.total_dividends, currency)} />
+              <Chip label={t("Holdings")} value={formatNumber(summary.holdings_count)} />
             </>
           )}
         </div>
