@@ -2525,9 +2525,13 @@ _EMPTY_MOVERS = {"gainers": [], "losers": [], "value_gainers": [], "value_losers
 @router.get("/movers", dependencies=[Depends(require_capability("standard_research"))])
 def get_movers(
     period: str = "1d",
+    currency: str = "USD",
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
 ):
+    # `currency` is the display currency: each row also carries its money move
+    # converted into it (period_pnl_display). Ranking stays on CZK.
+    display_ccy = (currency or "USD").upper()
     transactions = _portfolio_txns(db, portfolio).all()
     if not transactions:
         return dict(_EMPTY_MOVERS)
@@ -2570,6 +2574,7 @@ def get_movers(
         return dict(_EMPTY_MOVERS)
 
     fx_cache: dict = {}
+    disp_rate = 1.0 if display_ccy == "CZK" else _live_fx_to_czk(display_ccy, fx_cache)
     results = []
     for ticker in tickers:
         if ticker not in closes_map:
@@ -2578,17 +2583,20 @@ def get_movers(
         if start_price <= 0:
             continue
         change_pct = round(((end_price - start_price) / start_price) * 100, 2)
-        price, name, currency = _fetch_price_and_info(ticker)
+        price, name, quote_ccy = _fetch_price_and_info(ticker)
         shares = active[ticker]["shares"]
         period_pnl = shares * (end_price - start_price)
+        pnl_czk = period_pnl * _live_fx_to_czk(quote_ccy, fx_cache)
         results.append({
             "ticker": ticker,
             "name": name,
             "current_price": round(end_price, 2),
             "change_pct": change_pct,
             "period_pnl": round(period_pnl, 2),
-            "period_pnl_czk": round(period_pnl * _live_fx_to_czk(currency, fx_cache), 2),
-            "currency": currency,
+            "period_pnl_czk": round(pnl_czk, 2),
+            "period_pnl_display": round(pnl_czk / disp_rate, 2) if disp_rate else None,
+            "display_currency": display_ccy,
+            "currency": quote_ccy,
         })
 
     return _rank_movers(results)

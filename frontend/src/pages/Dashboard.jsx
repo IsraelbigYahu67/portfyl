@@ -146,8 +146,8 @@ export default function Dashboard() {
   const hasStandardResearch = capabilities.has("standard_research");
 
   const { data: movers, isLoading: ml, error: moversError, refetch: refetchMovers } = useQuery({
-    queryKey: ["movers", moverPeriod],
-    queryFn: () => fetchMovers(moverPeriod),
+    queryKey: ["movers", moverPeriod, currency],
+    queryFn: () => fetchMovers(moverPeriod, currency),
     enabled: hasStandardResearch,
   });
   // The %/$ toggle switches between two server-side rankings of the WHOLE
@@ -553,13 +553,14 @@ export default function Dashboard() {
                                 <TickerLink ticker={m.ticker} className="font-mono font-semibold text-left truncate" />
                                 <span className="min-w-0 truncate text-muted" title={m.name}>{m.name}</span>
                                 {(() => {
-                                  // With CZK selected show the CZK P/L; older API
-                                  // responses lack period_pnl_czk, so fall back.
-                                  const inCzk = currency === "CZK" && Number.isFinite(m.period_pnl_czk);
-                                  const pnl = inCzk ? m.period_pnl_czk : m.period_pnl;
+                                  // The P/L in the display currency; older API
+                                  // responses lack period_pnl_display, so fall
+                                  // back to the stock's own currency.
+                                  const inDisplay = m.display_currency === currency && Number.isFinite(m.period_pnl_display);
+                                  const pnl = inDisplay ? m.period_pnl_display : m.period_pnl;
                                   return (
                                     <span className={`tabular-nums whitespace-nowrap text-right font-medium ${pnl >= 0 ? "text-gain" : "text-loss"}`}>
-                                      {formatMoney(pnl, inCzk ? "CZK" : m.currency)}
+                                      {formatMoney(pnl, inDisplay ? currency : m.currency)}
                                     </span>
                                   );
                                 })()}

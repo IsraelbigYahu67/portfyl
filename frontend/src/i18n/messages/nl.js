@@ -62,6 +62,7 @@ export default {
   "Display currency": "Weergavevaluta",
   "Display currency: {currency}": "Weergavevaluta: {currency}",
   "Show my portfolio in": "Mijn portfolio tonen in",
+  "Display only in USD (you can change this later)": "Alleen in USD tonen (je kunt dit later wijzigen)",
   "The {currency} rate is unavailable right now, so some amounts stay in USD.": "De {currency}-koers is nu niet beschikbaar, dus sommige bedragen blijven in USD.",
   "Welcome tour": "Welkomstrondleiding",
   "Replay the first-run onboarding. It is a preview only: no portfolio is created.": "Bekijk de onboarding opnieuw. Het is alleen een voorbeeld: er wordt geen portefeuille aangemaakt.",

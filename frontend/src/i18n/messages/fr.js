@@ -62,6 +62,7 @@ export default {
   "Display currency": "Devise d'affichage",
   "Display currency: {currency}": "Devise d'affichage : {currency}",
   "Show my portfolio in": "Afficher mon portefeuille en",
+  "Display only in USD (you can change this later)": "Afficher uniquement en USD (vous pourrez le modifier plus tard)",
   "The {currency} rate is unavailable right now, so some amounts stay in USD.": "Le taux {currency} est indisponible pour le moment, certains montants restent donc en USD.",
   "Welcome tour": "Visite de bienvenue",
   "Replay the first-run onboarding. It is a preview only: no portfolio is created.": "Revoyez l'onboarding initial. Ce n'est qu'un aperçu : aucun portefeuille n'est créé.",

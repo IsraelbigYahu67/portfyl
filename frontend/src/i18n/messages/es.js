@@ -62,6 +62,7 @@ export default {
   "Display currency": "Moneda de visualización",
   "Display currency: {currency}": "Moneda de visualización: {currency}",
   "Show my portfolio in": "Mostrar mi cartera en",
+  "Display only in USD (you can change this later)": "Mostrar solo en USD (puedes cambiarlo más tarde)",
   "The {currency} rate is unavailable right now, so some amounts stay in USD.": "El tipo de cambio {currency} no está disponible ahora, así que algunos importes siguen en USD.",
   "Welcome tour": "Recorrido de bienvenida",
   "Replay the first-run onboarding. It is a preview only: no portfolio is created.": "Vuelve a ver el onboarding inicial. Es solo una vista previa: no se crea ninguna cartera.",

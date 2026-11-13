@@ -62,6 +62,7 @@ export default {
   "Display currency": "Zobrazovaná měna",
   "Display currency: {currency}": "Zobrazovaná měna: {currency}",
   "Show my portfolio in": "Zobrazovat portfolio v",
+  "Display only in USD (you can change this later)": "Zobrazovat jen v USD (můžete to později změnit)",
   "The {currency} rate is unavailable right now, so some amounts stay in USD.": "Kurz {currency} teď není k dispozici, proto některé částky zůstávají v USD.",
   "Welcome tour": "Úvodní prohlídka",
   "Replay the first-run onboarding. It is a preview only: no portfolio is created.": "Projděte si znovu úvodní onboarding. Je to jen náhled: žádné portfolio se nevytvoří.",

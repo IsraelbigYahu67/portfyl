@@ -34,8 +34,9 @@ vi.mock("@edition-manifest", () => ({
   fetchEditionDashboardSignals: async () => ({ taxReport: null }),
   fetchEditionPlanCapabilities: editionMocks.fetchEditionPlanCapabilities,
 }));
+const currencyState = vi.hoisted(() => ({ currency: "USD", rate: 22 }));
 vi.mock("../App", () => ({
-  useCurrency: () => ({ currency: "USD", rate: 22 }),
+  useCurrency: () => currencyState,
   usePortfolio: () => ({ current: { id: "portfolio-1" } }),
 }));
 vi.mock("../hooks/useT212Sync", () => t212Mocks);
@@ -91,6 +92,8 @@ function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  currencyState.currency = "USD";
+  currencyState.rate = 22;
   t212Mocks.useT212Sync.mockReturnValue({ connected: false, positionsQuery: {} });
   api.fetchSummary.mockResolvedValue({ total_value: 1000, total_pnl: 100 });
   api.fetchHoldings.mockResolvedValue([{ ticker: "MSFT", weight: 100, market_value: 1000 }]);
@@ -120,6 +123,25 @@ it("does not show the broker snapshot bar on the dashboard (it lives in Settings
   expect(await screen.findByText("Healthy portfolio hero")).toBeInTheDocument();
   expect(screen.queryByRole("region", { name: "Trading 212 current positions" })).not.toBeInTheDocument();
   expect(screen.queryByText(/historical performance uses imported transactions/i)).not.toBeInTheDocument();
+});
+
+it("shows each Top Movers money move in the selected display currency", async () => {
+  currencyState.currency = "EUR";
+  currencyState.rate = 0.9;
+  api.fetchCapabilities.mockResolvedValue({ capabilities: ["standard_research"] });
+  api.fetchMovers.mockReset().mockResolvedValue({
+    gainers: [{
+      ticker: "NOVO-B.CO", name: "Novo Nordisk", change_pct: 2.1, currency: "DKK",
+      period_pnl: 700, period_pnl_czk: 2345, period_pnl_display: 93.8, display_currency: "EUR",
+    }],
+    losers: [],
+  });
+  renderPage();
+
+  const moversCard = (await screen.findByText("Top Movers")).closest(".card");
+  expect(await within(moversCard).findByText("€93.80")).toBeInTheDocument();
+  expect(within(moversCard).queryByText(/DKK/)).not.toBeInTheDocument();
+  expect(api.fetchMovers).toHaveBeenCalledWith("1d", "EUR");
 });
 
 it("keeps healthy dashboard widgets visible when Movers fails and retries only Movers", async () => {

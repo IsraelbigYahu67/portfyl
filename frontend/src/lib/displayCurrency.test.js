@@ -20,14 +20,17 @@ describe("displayCurrency", () => {
     expect(localCurrencyForLanguage("cs")).toBe("CZK");
     expect(localCurrencyForLanguage("de")).toBe("EUR");
     expect(localCurrencyForLanguage("pl")).toBe("PLN");
-    expect(localCurrencyForLanguage("en")).toBe("USD");
+    expect(localCurrencyForLanguage("en")).toBe("GBP");
     expect(localCurrencyForLanguage("xx")).toBe("USD");
   });
 
-  it("offers USD plus the local currency", () => {
-    expect(currencyChoicesForLanguage("cs")).toEqual(["USD", "CZK"]);
-    expect(currencyChoicesForLanguage("fr")).toEqual(["USD", "EUR"]);
-    expect(currencyChoicesForLanguage("en")).toEqual(["USD"]);
+  it("offers the local currency as a card (USD is a separate option)", () => {
+    expect(currencyChoicesForLanguage("cs")).toEqual(["CZK"]);
+    expect(currencyChoicesForLanguage("fr")).toEqual(["EUR"]);
+    expect(currencyChoicesForLanguage("en")).toEqual(["GBP"]);
+    expect(currencyChoicesForLanguage("en", "USD")).toEqual(["GBP"]);
+    expect(currencyChoicesForLanguage("cs", "PLN")).toEqual(["CZK", "PLN"]);
+    expect(currencyChoicesForLanguage("xx")).toEqual([]);
   });
 
   it("starts from the saved currency, else the language's local one", () => {

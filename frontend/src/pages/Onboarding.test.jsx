@@ -119,14 +119,21 @@ describe("Onboarding", () => {
       expect(screen.getByRole("heading", { level: 1, name: "Welchen Broker nutzt du?" })).toBeInTheDocument();
     });
 
-    it("offers only USD for English", () => {
+    it("offers pounds for English, with 'only in USD' under the options", () => {
       mount();
 
       const section = screen.getByRole("region", { name: "Show my portfolio in" });
       const buttons = within(section).getAllByRole("button");
-      expect(buttons).toHaveLength(1);
-      expect(buttons[0]).toHaveTextContent("USD");
+      expect(buttons).toHaveLength(2);
+      expect(buttons[0]).toHaveTextContent("GBP");
+      expect(buttons[1]).toHaveAccessibleName(/^Display only in USD \(you can change this later\)/);
+      // The mock starts in USD, so the USD-only option is the selected one.
+      expect(buttons[1]).toHaveAttribute("aria-pressed", "true");
+
+      fireEvent.click(buttons[0]);
+      expect(mocks.setCurrency).toHaveBeenLastCalledWith("GBP");
       expect(buttons[0]).toHaveAttribute("aria-pressed", "true");
+      expect(buttons[1]).toHaveAttribute("aria-pressed", "false");
     });
 
     it("preselects the local currency of the picked language and keeps USD one click away", async () => {
@@ -137,7 +144,7 @@ describe("Onboarding", () => {
 
       const section = await screen.findByRole("region", { name: "Zobrazovat portfolio v" });
       const czk = within(section).getByRole("button", { name: /CZK/ });
-      const usd = within(section).getByRole("button", { name: /USD/ });
+      const usd = within(section).getByRole("button", { name: /^Zobrazovat jen v USD/ });
       expect(czk).toHaveAttribute("aria-pressed", "true");
       expect(usd).toHaveAttribute("aria-pressed", "false");
 

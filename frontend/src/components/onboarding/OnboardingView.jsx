@@ -9,7 +9,6 @@ import { APP_LANGUAGES } from "../../i18n/languages";
 import {
   currencyChoicesForLanguage,
   currencySymbol,
-  isDisplayCurrency,
   localCurrencyForLanguage,
 } from "../../lib/displayCurrency";
 
@@ -135,13 +134,12 @@ function currencyName(code, language) {
 }
 
 
-// Part of step 1: show the portfolio in USD or in the local currency of the
-// picked language. Any other currency already chosen (e.g. in Settings) stays
-// listed so the selection is never hidden.
+// Part of step 1: show the portfolio in the local currency of the picked
+// language, or (the option under all the others) only in USD.
 function CurrencyPick({ language, currency, onChange }) {
   const t = useT();
-  const choices = currencyChoicesForLanguage(language);
-  if (isDisplayCurrency(currency) && !choices.includes(currency)) choices.push(currency);
+  const choices = currencyChoicesForLanguage(language, currency);
+  const usdOnly = currency === "USD";
 
   return (
     <section aria-labelledby="onboarding-currency" className="space-y-4">
@@ -169,6 +167,19 @@ function CurrencyPick({ language, currency, onChange }) {
           );
         })}
       </ul>
+      <div className="flex justify-center">
+        <button
+          type="button"
+          onClick={() => onChange("USD")}
+          aria-pressed={usdOnly}
+          className={`card card-interactive inline-flex items-center gap-3 min-h-[44px] !py-2.5 !px-4 text-sm font-medium ${
+            usdOnly ? "outline outline-2 outline-offset-4 outline-brand text-ink" : "text-muted"
+          }`}
+        >
+          {t("Display only in USD (you can change this later)")}
+          {usdOnly && <SelectedBadge />}
+        </button>
+      </div>
     </section>
   );
 }
@@ -176,7 +187,7 @@ function CurrencyPick({ language, currency, onChange }) {
 
 // Step 1: the app's language. A click switches the whole view at once, so the
 // user reads the next steps in the language they picked. Picking a language
-// also preselects its local currency; USD stays one click away.
+// also preselects its local currency; "only in USD" stays one click away.
 function LanguagePick({ onContinue, currency, onCurrencyChange }) {
   const { language, setLanguage, t } = useI18n();
   const pickLanguage = (code) => {

@@ -77,6 +77,23 @@ def test_value_ranking_compares_in_czk(db_session, pid, default_portfolio, monke
     assert out["value_gainers"][0]["ticker"] == "EU"  # bigger CZK move
 
 
+def test_money_move_is_also_given_in_the_display_currency(db_session, pid, default_portfolio, monkeypatch):
+    # A 100 USD move = 2,000 Kč = 80 EUR when 1 EUR = 25 Kč.
+    _seed(db_session, pid, {"US": 1})
+    closes = {"US": (100.0, 200.0)}
+    rates = {"EUR": 25.0, "USD": 20.0, "PLN": 5.0}
+    monkeypatch.setattr(portfolio_router, "_two_day_closes", lambda tickers: closes)
+    monkeypatch.setattr(portfolio_router, "_fetch_price_and_info", lambda t: (200.0, t, "USD"))
+    monkeypatch.setattr(portfolio_router, "_live_fx_to_czk", lambda c, cache: rates[c])
+
+    for display, expected in (("EUR", 80.0), ("PLN", 400.0), ("CZK", 2000.0), ("usd", 100.0)):
+        out = portfolio_router.get_movers(period="1d", currency=display, db=db_session, portfolio=default_portfolio)
+        row = out["value_gainers"][0]
+        assert row["period_pnl_display"] == expected
+        assert row["display_currency"] == display.upper()
+        assert row["period_pnl_czk"] == 2000.0
+
+
 def test_lse_pence_move_converts_at_the_pound_rate_over_100(
         db_session, pid, default_portfolio, monkeypatch):
     # Yahoo quotes LSE stocks in 'GBp' (pence). A 100p move on 10 shares is
