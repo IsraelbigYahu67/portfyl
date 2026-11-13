@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import OnboardingView, { choiceHandler } from "../components/onboarding/OnboardingView";
 import { activatePortfolio, createDemoPortfolio, createPendingImportPortfolio, createPortfolio } from "../api";
-import { usePortfolio } from "../App";
+import { useCurrency, usePortfolio } from "../App";
 import { TRACKER_HOME } from "../lib/routes";
 import { uniquePortfolioName } from "../lib/brokerPortfolio";
 import { findSupportedBroker } from "../lib/onboardingBrokers";
@@ -39,6 +39,7 @@ export default function Onboarding() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { portfolios, pendingImportPortfolio, setCurrentId, refetchPortfolios } = usePortfolio();
+  const { currency, setCurrency } = useCurrency() ?? {};
   const { recordPortfolioCreated, recordPortfolioDataImported } = useRegisteredActivation();
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
@@ -121,6 +122,8 @@ export default function Onboarding() {
     <OnboardingView
       languageChosen={languageChosen}
       onLanguageChosen={() => setLanguageChosen(true)}
+      currency={currency}
+      onCurrencyChange={setCurrency}
       brokerKey={broker?.key ?? null}
       onBrokerChange={changeBroker}
       unsupportedName={unsupportedName}

@@ -6,6 +6,7 @@ import {
   fetchCapabilities, fetchRiskMetrics, fetchSectorBreakdown, fetchDividendForecast,
 } from "../api";
 import { useCurrency, usePortfolio } from "../App";
+import { convertFromUsd, currencySymbol } from "../lib/displayCurrency";
 import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
 import { fetchEditionDashboardSignals, fetchEditionPlanCapabilities } from "@edition-manifest";
 import MetricCard from "../components/MetricCard";
@@ -187,8 +188,8 @@ export default function Dashboard() {
 
   const today = new Date().toISOString().slice(0, 10);
   const passive = summarizePassiveIncome({ dividends, holdings, totalValue: summary?.total_value ?? null, today });
-  // The forecast is in USD; `rate` is CZK per USD.
-  const forecastRate = currency === "CZK" && rate ? rate : 1;
+  // The forecast is in USD; `rate` is display units per USD.
+  const forecastRate = convertFromUsd(1, currency, rate);
   const { received: dividendsReceived, upcoming: dividendsUpcoming } = splitDividendForecast(dividendForecast, {
     monthIndex: new Date().getMonth(),
     usdRate: forecastRate,
@@ -511,7 +512,7 @@ export default function Dashboard() {
                       size="sm"
                       value={moverSort}
                       onChange={setMoverSort}
-                      options={[{ value: "pct", label: "%" }, { value: "value", label: currency === "CZK" ? "Kč" : "$" }]}
+                      options={[{ value: "pct", label: "%" }, { value: "value", label: currencySymbol(currency) }]}
                     />
                     <SegmentedControl
                       aria-label={t("Movers period")}

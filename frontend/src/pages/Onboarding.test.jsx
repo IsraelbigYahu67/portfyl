@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 import Onboarding, { buildOnboardingActions } from "./Onboarding";
@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   createPendingImportPortfolio: vi.fn(),
   activatePortfolio: vi.fn(),
   setCurrentId: vi.fn(),
+  setCurrency: vi.fn(),
   refetchPortfolios: vi.fn(),
   recordPortfolioCreated: vi.fn(() => true),
   recordPortfolioDataImported: vi.fn(() => true),
@@ -27,14 +28,25 @@ vi.mock("../api", () => ({
   activatePortfolio: mocks.activatePortfolio,
 }));
 
-vi.mock("../App", () => ({
-  usePortfolio: () => ({
-    portfolios: [],
-    setCurrentId: mocks.setCurrentId,
-    refetchPortfolios: mocks.refetchPortfolios,
-    pendingImportPortfolio: null,
-  }),
-}));
+vi.mock("../App", async () => {
+  const { useState } = await import("react");
+  return {
+    // A real state hook, so the view re-renders with the picked currency.
+    useCurrency: () => {
+      const [currency, setCurrency] = useState("USD");
+      return {
+        currency,
+        setCurrency: (code) => { mocks.setCurrency(code); setCurrency(code); },
+      };
+    },
+    usePortfolio: () => ({
+      portfolios: [],
+      setCurrentId: mocks.setCurrentId,
+      refetchPortfolios: mocks.refetchPortfolios,
+      pendingImportPortfolio: null,
+    }),
+  };
+});
 
 vi.mock("../analytics/useRegisteredActivation", () => ({
   useRegisteredActivation: () => ({
@@ -105,6 +117,38 @@ describe("Onboarding", () => {
       expect(localStorage.getItem("portfyl_language")).toBe("de");
       fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
       expect(screen.getByRole("heading", { level: 1, name: "Welchen Broker nutzt du?" })).toBeInTheDocument();
+    });
+
+    it("offers only USD for English", () => {
+      mount();
+
+      const section = screen.getByRole("region", { name: "Show my portfolio in" });
+      const buttons = within(section).getAllByRole("button");
+      expect(buttons).toHaveLength(1);
+      expect(buttons[0]).toHaveTextContent("USD");
+      expect(buttons[0]).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("preselects the local currency of the picked language and keeps USD one click away", async () => {
+      mount("/onboarding", { i18n: true });
+
+      fireEvent.click(screen.getByRole("button", { name: /Čeština/ }));
+      expect(mocks.setCurrency).toHaveBeenLastCalledWith("CZK");
+
+      const section = await screen.findByRole("region", { name: "Zobrazovat portfolio v" });
+      const czk = within(section).getByRole("button", { name: /CZK/ });
+      const usd = within(section).getByRole("button", { name: /USD/ });
+      expect(czk).toHaveAttribute("aria-pressed", "true");
+      expect(usd).toHaveAttribute("aria-pressed", "false");
+
+      fireEvent.click(usd);
+      expect(mocks.setCurrency).toHaveBeenLastCalledWith("USD");
+      expect(usd).toHaveAttribute("aria-pressed", "true");
+
+      fireEvent.click(screen.getByRole("button", { name: /Polski/ }));
+      expect(mocks.setCurrency).toHaveBeenLastCalledWith("PLN");
+      fireEvent.click(screen.getByRole("button", { name: /Deutsch/ }));
+      expect(mocks.setCurrency).toHaveBeenLastCalledWith("EUR");
     });
 
     it("skips the language step when Leave import returns to a picked broker", () => {

@@ -6,6 +6,12 @@ import { Badge } from "../ui/Badge";
 import { brokerMethods, filterBrokers, findSupportedBroker } from "../../lib/onboardingBrokers";
 import { translate, useI18n, useT } from "../../i18n/I18nProvider";
 import { APP_LANGUAGES } from "../../i18n/languages";
+import {
+  currencyChoicesForLanguage,
+  currencySymbol,
+  isDisplayCurrency,
+  localCurrencyForLanguage,
+} from "../../lib/displayCurrency";
 
 // Pure presentation of the first-run onboarding (docs/prototypes/
 // onboarding-preview.html). It deliberately imports nothing from the API
@@ -14,7 +20,7 @@ import { APP_LANGUAGES } from "../../i18n/languages";
 // so signed-in users can walk through it again safely.
 //
 // The flow is controlled by its parent:
-//   step 1  languageChosen false  -> "Choose your language"
+//   step 1  languageChosen false  -> "Choose your language" (+ display currency)
 //   step 2  no brokerKey          -> "Which broker do you use?"
 //   step 2b unsupportedName set   -> "Portfyl doesn't support X yet"
 //   step 3  brokerKey supported   -> choices tailored to that broker
@@ -118,10 +124,65 @@ function BrokerIcon({ broker }) {
 }
 
 
+// The currency's name in the app language ("česká koruna", "Euro"), falling
+// back to the code where Intl.DisplayNames is missing.
+function currencyName(code, language) {
+  try {
+    return new Intl.DisplayNames([language], { type: "currency" }).of(code) || code;
+  } catch {
+    return code;
+  }
+}
+
+
+// Part of step 1: show the portfolio in USD or in the local currency of the
+// picked language. Any other currency already chosen (e.g. in Settings) stays
+// listed so the selection is never hidden.
+function CurrencyPick({ language, currency, onChange }) {
+  const t = useT();
+  const choices = currencyChoicesForLanguage(language);
+  if (isDisplayCurrency(currency) && !choices.includes(currency)) choices.push(currency);
+
+  return (
+    <section aria-labelledby="onboarding-currency" className="space-y-4">
+      <h2 id="onboarding-currency" className="eyebrow text-center">{t("Show my portfolio in")}</h2>
+      <ul className={`grid gap-4 mx-auto ${choices.length === 1 ? "max-w-xs" : "max-w-lg grid-cols-2"}`}>
+        {choices.map((code) => {
+          const isSelected = currency === code;
+          return (
+            <li key={code}>
+              <button
+                type="button"
+                onClick={() => onChange(code)}
+                aria-pressed={isSelected}
+                className={`card card-interactive w-full h-full flex items-center justify-between gap-3 text-left !p-4 ${
+                  isSelected ? "outline outline-2 outline-offset-4 outline-brand" : ""
+                }`}
+              >
+                <span className="min-w-0">
+                  <span className="block font-semibold text-ink">{currencySymbol(code)} · {code}</span>
+                  <span className="block text-xs text-muted first-letter:uppercase">{currencyName(code, language)}</span>
+                </span>
+                {isSelected && <SelectedBadge />}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+
 // Step 1: the app's language. A click switches the whole view at once, so the
-// user reads the next steps in the language they picked.
-function LanguagePick({ onContinue }) {
+// user reads the next steps in the language they picked. Picking a language
+// also preselects its local currency; USD stays one click away.
+function LanguagePick({ onContinue, currency, onCurrencyChange }) {
   const { language, setLanguage, t } = useI18n();
+  const pickLanguage = (code) => {
+    setLanguage(code);
+    if (onCurrencyChange) onCurrencyChange(localCurrencyForLanguage(code));
+  };
 
   return (
     <div className="space-y-8">
@@ -137,7 +198,7 @@ function LanguagePick({ onContinue }) {
               <button
                 type="button"
                 lang={code}
-                onClick={() => setLanguage(code)}
+                onClick={() => pickLanguage(code)}
                 aria-pressed={isSelected}
                 className={`card card-interactive w-full h-full flex items-center justify-between gap-3 text-left !p-4 ${
                   isSelected ? "outline outline-2 outline-offset-4 outline-brand" : ""
@@ -153,6 +214,8 @@ function LanguagePick({ onContinue }) {
           );
         })}
       </ul>
+
+      {onCurrencyChange && <CurrencyPick language={language} currency={currency} onChange={onCurrencyChange} />}
 
       <div className="flex justify-center">
         <button type="button" onClick={onContinue} className="btn-primary min-h-[44px] px-8">
@@ -346,6 +409,10 @@ export default function OnboardingView({
   // when a parent passes languageChosen={false}.
   languageChosen = true,
   onLanguageChosen,
+  // The display currency picked in step 1. Without onCurrencyChange the
+  // currency choice is not shown.
+  currency = null,
+  onCurrencyChange = undefined,
   brokerKey = null,
   onBrokerChange,
   unsupportedName = null,
@@ -374,7 +441,7 @@ export default function OnboardingView({
   let stepKey;
   if (!languageChosen) {
     stepKey = "language";
-    step = <LanguagePick onContinue={onLanguageChosen} />;
+    step = <LanguagePick onContinue={onLanguageChosen} currency={currency} onCurrencyChange={onCurrencyChange} />;
   } else if (unsupportedName) {
     stepKey = "unsupported";
     step = (
