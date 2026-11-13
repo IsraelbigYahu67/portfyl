@@ -253,6 +253,109 @@ class TestHoldingsCurrency:
         assert h["price_status"] == "missing"
 
 
+class TestNonCzkDisplayUsesTradeDateRates:
+    """A non-CZK display currency converts every booked amount at the rate of
+    its own date, never by a CZK round trip at today's rate. A US stock in the
+    USD view is therefore pure dollars: no FX at all.
+
+    Scenario: USD was 22 Kč when bought, 20 Kč today; EUR was 25 Kč that day.
+    """
+
+    _LIVE = {"USD": 20.0, "CZK": 1.0, "EUR": 24.0}
+    _HIST_USD = 22.0  # USD->CZK on every booked date in these tests
+
+    def _patches(self, live_price=200.0, ccy="USD"):
+        return (
+            patch("routers.portfolio._fetch_price_and_info",
+                  return_value=(live_price, "Mock Co.", ccy)),
+            patch("routers.portfolio._live_fx_to_czk",
+                  side_effect=lambda c, cache: self._LIVE.get((c or "USD").upper(), 1.0)),
+            patch("routers.portfolio.market_data.get_infos", return_value={}),
+            patch("routers.portfolio.bulk_fetch_fx",
+                  side_effect=lambda keys: {k: self._HIST_USD for k in keys if k[0] == "USD"}),
+        )
+
+    def test_usd_stock_in_usd_view_has_no_fx(self, db_session, pid, default_portfolio):
+        db_session.add(make_txn("AAPL", "buy", 10, 150.0, currency="USD", fx_to_czk=22.0,
+                                date=date(2024, 1, 1), portfolio_id=pid))
+        db_session.commit()
+
+        p1, p2, p3, p4 = self._patches(live_price=200.0)
+        with p1, p2, p3, p4:
+            h = get_holdings(currency="USD", db=db_session, portfolio=default_portfolio)[0]
+
+        assert h["cost_basis"] == pytest.approx(1500.0)     # 10 x $150, not x 22/20
+        assert h["market_value"] == pytest.approx(2000.0)
+        assert h["pnl_percent"] == pytest.approx(33.33, abs=0.01)  # = 200/150 - 1
+
+    def test_usd_stock_in_czk_view_keeps_fx_effect(self, db_session, pid, default_portfolio):
+        db_session.add(make_txn("AAPL", "buy", 10, 150.0, currency="USD", fx_to_czk=22.0,
+                                date=date(2024, 1, 1), portfolio_id=pid))
+        db_session.commit()
+
+        p1, p2, p3, p4 = self._patches(live_price=200.0)
+        with p1, p2, p3, p4:
+            h = get_holdings(currency="CZK", db=db_session, portfolio=default_portfolio)[0]
+
+        assert h["cost_basis"] == pytest.approx(10 * 150 * 22.0)
+        assert h["market_value"] == pytest.approx(10 * 200 * 20.0)
+
+    def test_eur_stock_in_usd_view_uses_trade_date_cross_rate(
+        self, db_session, pid, default_portfolio
+    ):
+        db_session.add(make_txn("SAP.DE", "buy", 10, 100.0, currency="EUR", fx_to_czk=25.0,
+                                date=date(2024, 1, 1), portfolio_id=pid))
+        db_session.commit()
+
+        p1, p2, p3, p4 = self._patches(live_price=100.0, ccy="EUR")
+        with p1, p2, p3, p4:
+            h = get_holdings(currency="USD", db=db_session, portfolio=default_portfolio)[0]
+
+        # EUR->USD on the trade date = 25 / 22; today = 24 / 20.
+        assert h["cost_basis"] == pytest.approx(1000 * 25.0 / 22.0, abs=0.01)
+        assert h["market_value"] == pytest.approx(1000 * 24.0 / 20.0, abs=0.01)
+
+    def test_czk_paid_dividend_in_usd_view_uses_pay_date_rate(self, pid):
+        """T212 pays a US dividend in the CZK account: 220 Kč on a day USD was
+        22 Kč is $10, whatever the koruna does afterwards."""
+        dividend = make_txn("AAPL", "dividend", 10, 1.2, currency="USD", fx_to_czk=22.0,
+                            date=date(2024, 6, 1), portfolio_id=pid)
+        dividend.cash_amount = 220.0
+        dividend.cash_currency = "CZK"
+
+        _, p2, _, p4 = self._patches()
+        with p2, p4:
+            usd = _build_holdings([dividend], include_closed=True, display_ccy="USD")
+            czk = _build_holdings([dividend], include_closed=True, display_ccy="CZK")
+
+        assert usd["AAPL"]["dividends"] == pytest.approx(10.0)
+        assert czk["AAPL"]["dividends"] == pytest.approx(220.0)
+
+    def test_summary_usd_view_realized_and_dividends_without_fx(
+        self, db_session, pid, default_portfolio
+    ):
+        buy = make_txn("AAPL", "buy", 10, 100.0, currency="USD", fx_to_czk=22.0,
+                       date=date(2024, 1, 1), portfolio_id=pid)
+        sell = make_txn("AAPL", "sell", 5, 150.0, currency="USD", fx_to_czk=22.0,
+                        date=date(2024, 3, 1), portfolio_id=pid)
+        dividend = make_txn("AAPL", "dividend", 5, 1.2, currency="USD", fx_to_czk=22.0,
+                            date=date(2024, 6, 1), portfolio_id=pid)
+        dividend.cash_amount = 110.0
+        dividend.cash_currency = "CZK"
+        for t in (buy, sell, dividend):
+            db_session.add(t)
+        db_session.commit()
+
+        p1, p2, p3, p4 = self._patches(live_price=150.0)
+        with p1, p2, p3, p4, patch("routers.portfolio._two_day_closes", return_value={}):
+            s = get_summary(currency="USD", db=db_session, portfolio=default_portfolio)
+
+        assert s["total_invested"] == pytest.approx(500.0)
+        assert s["total_dividends"] == pytest.approx(5.0)
+        # realized 5 x $50 + unrealized 5 x $50 + $5 dividends
+        assert s["total_pnl"] == pytest.approx(505.0)
+
+
 class TestSummary:
     """Tests for /portfolio/summary logic (get_summary)."""
 

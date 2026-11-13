@@ -582,18 +582,23 @@ def _portfolio_txns(db: Session, portfolio: Portfolio):
 
 def _received_dividend_in_currency(
     txn: Transaction, display_ccy: str | None, fx_cache: dict[str, float],
-    display_rate_to_czk: float | None = None,
+    display_fx: "_DisplayFx | None" = None,
 ) -> float:
+    """The dividend cash actually received, in `display_ccy` (None: the
+    instrument's own currency). With `display_fx` the paid amount converts at
+    the pay date's rate, so a CZK-credited US dividend shows its dollar value
+    in the USD view instead of being re-priced at today's koruna rate."""
     cash_ccy, paid_amount = signed_cash(txn)
     target_ccy = (display_ccy or txn.currency or cash_ccy).upper()
     if cash_ccy == target_ccy:
         return paid_amount
     trade_ccy = (txn.currency or "USD").upper()
+    if display_fx is not None and display_fx.display == normalize_currency(target_ccy):
+        snapshot = txn.fx_to_czk if cash_ccy == trade_ccy else None
+        return paid_amount * display_fx.rate(cash_ccy, txn.date, snapshot)
     cash_rate = (txn.fx_to_czk if cash_ccy == trade_ccy and txn.fx_to_czk
                  else _live_fx_to_czk(cash_ccy, fx_cache))
-    if display_rate_to_czk is not None:
-        target_rate = display_rate_to_czk
-    elif target_ccy == trade_ccy and txn.fx_to_czk:
+    if target_ccy == trade_ccy and txn.fx_to_czk:
         target_rate = txn.fx_to_czk
     else:
         target_rate = _live_fx_to_czk(target_ccy, fx_cache)
@@ -601,21 +606,23 @@ def _received_dividend_in_currency(
 
 
 def _build_holdings(transactions: list, include_closed: bool = False,
-                    display_ccy: str | None = None) -> dict:
+                    display_ccy: str | None = None,
+                    display_fx: "_DisplayFx | None" = None) -> dict:
     """Aggregate per-ticker shares, cost, dividends and realized P&L.
 
     display_ccy=None leaves money values in each txn's native currency (fine for
     the many callers that only read `shares`). Passing a currency converts every
-    value native -> CZK (historical per-txn snapshot) -> display (live rate)."""
+    value into it at the rate of the transaction's own date (`_DisplayFx`)."""
     fx_fallback: dict[str, float] = {}
-    disp_rate = _live_fx_to_czk(display_ccy, fx_fallback) if display_ccy else None
+    if display_ccy and display_fx is None:
+        display_fx = _DisplayFx(display_ccy, transactions, fx_fallback)
     holdings: dict[str, dict] = {}
     for txn in sorted(transactions, key=chronological_key):
         if txn.type not in POSITION_TYPES or not txn.ticker:
             continue  # cash rows (deposit/withdrawal/fee/interest/...) never affect holdings
         t = txn.ticker
-        if disp_rate:
-            fx = (txn.fx_to_czk or _live_fx_to_czk(txn.currency, fx_fallback)) / disp_rate
+        if display_ccy:
+            fx = display_fx.rate(txn.currency, txn.date, txn.fx_to_czk)
         else:
             fx = 1.0
         if t not in holdings:
@@ -647,7 +654,7 @@ def _build_holdings(transactions: list, include_closed: bool = False,
             holdings[t]["shares"] += txn.shares
         elif txn.type == "dividend":
             holdings[t]["dividends"] += _received_dividend_in_currency(
-                txn, display_ccy, fx_fallback, disp_rate,
+                txn, display_ccy, fx_fallback, display_fx,
             )
     if include_closed:
         return holdings
@@ -694,6 +701,59 @@ def _live_fx_to_czk(currency: str, cache: dict) -> float:
     _LAST_GOOD_FX[c] = rate
     cache[c] = rate
     return rate
+
+
+class _DisplayFx:
+    """Converts money booked on a past date into the display currency at the
+    rate of that date, pivoting through CZK:
+
+        amount x (its ccy -> CZK on the date) / (display -> CZK on the date)
+
+    The first leg is the transaction's own `fx_to_czk` snapshot; the second
+    comes from one batched daily history. An amount already in the display
+    currency is never converted, so a US stock in the USD view is pure
+    dollars: its return is the stock's own, untouched by the koruna. In the
+    CZK view the second leg is 1, i.e. exactly the per-transaction snapshot.
+    Today's value is converted at live rates by the callers, as before."""
+
+    def __init__(self, display_ccy: str, transactions, live_cache: dict | None = None):
+        self.display = normalize_currency(display_ccy)
+        self._live = live_cache if live_cache is not None else {}
+        self.live_display_to_czk = _live_fx_to_czk(self.display, self._live)
+        self._hist: dict = {}
+        if self.display == "CZK":
+            return
+        dates = {
+            t.date for t in transactions
+            if t.date and (
+                normalize_currency(t.currency) != self.display
+                or normalize_currency(getattr(t, "cash_currency", None),
+                                      default=self.display) != self.display
+            )
+        }
+        if dates:
+            try:
+                self._hist = bulk_fetch_fx((self.display, d) for d in dates)
+            except Exception:
+                self._hist = {}  # no history: degrade to today's display rate
+
+    def _display_to_czk_on(self, on) -> float:
+        if self.display == "CZK":
+            return 1.0
+        return self._hist.get((self.display, on)) or self.live_display_to_czk
+
+    def rate(self, ccy: str | None, on, snapshot_to_czk: float | None = None) -> float:
+        src = normalize_currency(ccy)
+        if src == self.display:
+            return 1.0
+        if src == "CZK":
+            src_to_czk = 1.0
+        elif snapshot_to_czk:
+            src_to_czk = snapshot_to_czk
+        else:
+            # No rate stored with the row: today's cross rate is all we have.
+            return _live_fx_to_czk(src, self._live) / self.live_display_to_czk
+        return src_to_czk / self._display_to_czk_on(on)
 
 
 @router.get("/transactions", response_model=List[TransactionResponse])
@@ -1366,7 +1426,9 @@ def get_holdings(
         return []
 
     display_ccy = currency.upper()
-    all_data = _build_holdings(transactions, include_closed=True, display_ccy=display_ccy)
+    display_fx = _DisplayFx(display_ccy, transactions)
+    all_data = _build_holdings(transactions, include_closed=True, display_ccy=display_ccy,
+                               display_fx=display_fx)
     active = {k: v for k, v in all_data.items() if v["shares"] > 0.0001}
     # Warm the quote cache for every ticker in one concurrent, deadline-bounded
     # batch so the per-ticker _fetch_price_and_info calls below all hit the
@@ -1425,7 +1487,7 @@ def get_holdings(
                     "bought_val": 0.0, "sold_val": 0.0,
                     "bought_val_native": 0.0, "sold_val_native": 0.0,
                     "bought_sh": 0.0, "sold_sh": 0.0})
-                fx = (txn.fx_to_czk or _live_fx_to_czk(txn.currency, fx_cache)) / disp_rate
+                fx = display_fx.rate(txn.currency, txn.date, txn.fx_to_czk)
                 if txn.type == "buy":
                     t["bought_val"] += txn.shares * txn.price * fx
                     t["bought_val_native"] += txn.shares * txn.price
@@ -1502,13 +1564,13 @@ def get_summary(
 
     transactions = _portfolio_txns(db, portfolio).all()
     fx_fallback: dict[str, float] = {}
-    disp_rate = _live_fx_to_czk(display_ccy, fx_fallback)
+    display_fx = _DisplayFx(display_ccy, transactions, fx_fallback)
 
     def _txn_fx(t):
-        return (t.fx_to_czk or _live_fx_to_czk(t.currency, fx_fallback)) / disp_rate
+        return display_fx.rate(t.currency, t.date, t.fx_to_czk)
 
     total_dividends = sum(
-        _received_dividend_in_currency(t, display_ccy, fx_fallback, disp_rate)
+        _received_dividend_in_currency(t, display_ccy, fx_fallback, display_fx)
         for t in transactions if t.type == "dividend"
     )
     total_interest = sum(

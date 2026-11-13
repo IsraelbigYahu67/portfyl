@@ -380,13 +380,19 @@ class TestSettlementSignedCash:
 
 class TestDisplayCurrencyConversion:
     """USD display used to sum native amounts with fx=1.0 (CZK cash counted as
-    USD). Now every value converts native -> CZK (snapshot) -> display (live)."""
+    USD). Now every value converts native -> CZK (snapshot) -> display at the
+    rate of the transaction's own date; same-currency amounts never convert."""
 
     def _patch_live_fx(self, monkeypatch):
         import routers.portfolio as rp
         monkeypatch.setattr(
             rp, "_live_fx_to_czk",
             lambda ccy, cache: {"CZK": 1.0, "USD": 20.0}[(ccy or "USD").upper()],
+        )
+        # USD->CZK on every booked date (the display leg of a CZK trade).
+        monkeypatch.setattr(
+            rp, "bulk_fetch_fx",
+            lambda keys: {k: 20.0 for k in keys if k[0] == "USD"},
         )
 
     def test_usd_display_converts_czk_cost(self, monkeypatch):
@@ -399,15 +405,17 @@ class TestDisplayCurrencyConversion:
         assert usd["CEZ"]["cost"] == pytest.approx(1000.0 / 20.0)
         assert czk["CEZ"]["cost"] == pytest.approx(1000.0)
 
-    def test_usd_display_uses_historical_snapshot_for_usd_trades(self, monkeypatch):
+    def test_usd_display_keeps_usd_trades_in_dollars(self, monkeypatch):
         self._patch_live_fx(monkeypatch)
         from routers.portfolio import _build_holdings
-        # Bought when USDCZK was 25; live rate is 20 -> the USD-display cost
-        # reflects the FX move (25/20), it is no longer just shares*price.
+        # Bought when USDCZK was 25; live rate is 20. A dollar cost viewed in
+        # dollars is just shares*price: the koruna's move is not the stock's.
         buy = make_txn(ticker="AAPL", type="buy", shares=1, price=100.0,
                        currency="USD", fx_to_czk=25.0)
         usd = _build_holdings([buy], display_ccy="USD")
-        assert usd["AAPL"]["cost"] == pytest.approx(100.0 * 25.0 / 20.0)
+        czk = _build_holdings([buy], display_ccy="CZK")
+        assert usd["AAPL"]["cost"] == pytest.approx(100.0)
+        assert czk["AAPL"]["cost"] == pytest.approx(100.0 * 25.0)
 
     def test_default_stays_native_for_shares_only_callers(self):
         from routers.portfolio import _build_holdings
