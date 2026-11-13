@@ -47,6 +47,15 @@ class TestRedactsKnownSecretShapes:
             assert secret not in redacted
         assert "sk_live_[REDACTED]" in redacted
 
+    def test_ibkr_flex_token_in_url_is_redacted(self):
+        line = ('HTTP Request: GET https://gdcdyn.interactivebrokers.com/Universal/servlet/'
+                'FlexStatementService.SendRequest?t=123456789012345678901234&q=1519214&v=3 "200 OK"')
+        redacted = redact(line)
+        assert "123456789012345678901234" not in redacted
+        assert "SendRequest?t=[REDACTED]&q=1519214" in redacted
+        get = "FlexStatementService.GetStatement?q=999&t=123456789012345678901234&v=3"
+        assert "123456789012345678901234" not in redact(get)
+
     def test_non_secret_context_is_preserved(self):
         line = "autosync pass: workspace=3f2c job=alerts status=ok items=4"
         assert redact(line) == line

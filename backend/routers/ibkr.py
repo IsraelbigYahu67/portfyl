@@ -17,6 +17,7 @@ from entitlements import (
     require_capability,
     require_writable_broker,
 )
+from logging_setup import redact
 from rate_limit import rate_limit
 from models import BrokerConnection, OptionsTrade, BrokerBalance, Portfolio
 from private_loop import run_on_private_loop
@@ -32,6 +33,36 @@ FLEX_GET_URL = (
     "https://gdcdyn.interactivebrokers.com/Universal/servlet/"
     "FlexStatementService.GetStatement?q={referenceCode}&t={token}&v=3"
 )
+
+# IBKR Flex error codes that mean "not right now" rather than "wrong setup":
+# 1001 could not be generated, 1004 incomplete, 1005-1008 data not ready,
+# 1009 heavy load, 1018 too many requests, 1019 generation in progress,
+# 1021 could not be retrieved.
+_TRANSIENT_FLEX_CODES = frozenset(
+    {"1001", "1004", "1005", "1006", "1007", "1008", "1009", "1018", "1019", "1021"}
+)
+# Pauses between SendRequest attempts on a transient code.
+_FLEX_RETRY_DELAYS = (5.0, 10.0)
+
+
+def _safe_error(error: Exception) -> str:
+    """An exception's text with the Flex token scrubbed (httpx errors carry the URL)."""
+    return redact(str(error))
+
+
+def _flex_unavailable(code: str, message: str) -> HTTPException:
+    return HTTPException(
+        status_code=503,
+        detail=(f"IBKR could not prepare the statement right now (code {code}: {message}). "
+                "This is temporary on IBKR's side; try again in 10-15 minutes."),
+    )
+
+
+async def _flex_get(url: str) -> str:
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.get(url)
+        resp.raise_for_status()
+        return resp.text
 
 
 def _get_ibkr_connection(db: Session, portfolio: Portfolio) -> BrokerConnection | None:
@@ -61,24 +92,25 @@ def _get_ibkr_balance(db: Session, portfolio: Portfolio) -> BrokerBalance | None
 async def _send_flex_request(token: str, query_id: str) -> str:
     """Send a Flex request and return the reference code on success."""
     url = FLEX_SEND_URL.format(token=token, queryId=query_id)
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
+    for delay in (*_FLEX_RETRY_DELAYS, None):
+        root = ET.fromstring(await _flex_get(url))
+        status = root.findtext("Status", "")
+        if status == "Success":
+            ref_code = root.findtext("ReferenceCode", "")
+            if not ref_code:
+                raise HTTPException(status_code=502, detail="IBKR returned Success but no ReferenceCode")
+            return ref_code
 
-    root = ET.fromstring(resp.text)
-    status = root.findtext("Status", "")
-    if status == "Success":
-        ref_code = root.findtext("ReferenceCode", "")
-        if not ref_code:
-            raise HTTPException(status_code=502, detail="IBKR returned Success but no ReferenceCode")
-        return ref_code
-
-    error_code = root.findtext("ErrorCode", "")
-    error_msg = root.findtext("ErrorMessage", "Unknown error")
-    raise HTTPException(
-        status_code=502,
-        detail=f"IBKR Flex request failed (code {error_code}): {error_msg}",
-    )
+        error_code = root.findtext("ErrorCode", "")
+        error_msg = root.findtext("ErrorMessage", "Unknown error")
+        if error_code not in _TRANSIENT_FLEX_CODES:
+            raise HTTPException(
+                status_code=502,
+                detail=f"IBKR Flex request failed (code {error_code}): {error_msg}",
+            )
+        if delay is None:
+            raise _flex_unavailable(error_code, error_msg)
+        await asyncio.sleep(delay)
 
 
 async def _poll_flex_statement(token: str, reference_code: str) -> str:
@@ -88,45 +120,43 @@ async def _poll_flex_statement(token: str, reference_code: str) -> str:
     elapsed = 0.0
     timeout = 60.0
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        while elapsed < timeout:
-            await asyncio.sleep(wait)
-            elapsed += wait
+    while elapsed < timeout:
+        await asyncio.sleep(wait)
+        elapsed += wait
 
-            resp = await client.get(url)
-            resp.raise_for_status()
-            text = resp.text
+        text = await _flex_get(url)
 
-            # If the response is a status/warn XML (short), check for Warn status
-            # A full report will be much larger and contain FlexQueryResponse
-            if "<FlexQueryResponse" in text:
-                return text
+        # If the response is a status/warn XML (short), check for Warn status
+        # A full report will be much larger and contain FlexQueryResponse
+        if "<FlexQueryResponse" in text:
+            return text
 
-            # Try parsing as status XML
-            try:
-                root = ET.fromstring(text)
-                status = root.findtext("Status", "")
-                if status == "Success":
-                    # Shouldn't happen without FlexQueryResponse, but handle it
-                    return text
-                if status == "Warn":
-                    # Still generating, continue polling
-                    pass
-                elif status == "Fail":
-                    error_msg = root.findtext("ErrorMessage", "Unknown error")
-                    raise HTTPException(
-                        status_code=502,
-                        detail=f"IBKR statement generation failed: {error_msg}",
-                    )
-            except ET.ParseError:
-                # Non-XML response, might be the raw report in unexpected format
-                raise HTTPException(
-                    status_code=502,
-                    detail="Unexpected response format from IBKR",
-                )
+        # Try parsing as status XML
+        try:
+            root = ET.fromstring(text)
+        except ET.ParseError:
+            # Non-XML response, might be the raw report in unexpected format
+            raise HTTPException(
+                status_code=502,
+                detail="Unexpected response format from IBKR",
+            )
+        status = root.findtext("Status", "")
+        if status == "Success":
+            # Shouldn't happen without FlexQueryResponse, but handle it
+            return text
+        error_code = root.findtext("ErrorCode", "")
+        if status == "Fail" and error_code != "1019":  # 1019 = still generating
+            error_msg = root.findtext("ErrorMessage", "Unknown error")
+            if error_code in _TRANSIENT_FLEX_CODES:
+                raise _flex_unavailable(error_code, error_msg)
+            raise HTTPException(
+                status_code=502,
+                detail=f"IBKR statement generation failed: {error_msg}",
+            )
+        # Warn (or 1019): still generating, keep polling.
 
-            # Exponential backoff, capped at 10s
-            wait = min(wait * 1.5, 10.0)
+        # Exponential backoff, capped at 10s
+        wait = min(wait * 1.5, 10.0)
 
     raise HTTPException(
         status_code=504,
@@ -385,7 +415,7 @@ def connect(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Could not validate IBKR credentials: {e}")
+        raise HTTPException(status_code=502, detail=f"Could not validate IBKR credentials: {_safe_error(e)}")
 
     enforce_broker_capacity_locked(db, portfolio.workspace_id, None, "ibkr", portfolio)
     # Re-read under the lock: another connect or a disconnect may have won.
@@ -596,7 +626,7 @@ async def _run_ibkr_sync(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Failed to send Flex request: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to send Flex request: {_safe_error(e)}")
 
     # Phase 2: Poll for statement
     try:
@@ -604,7 +634,7 @@ async def _run_ibkr_sync(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Failed to retrieve Flex statement: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to retrieve Flex statement: {_safe_error(e)}")
 
     # Phase 3: Parse XML for OPT trades
     try:

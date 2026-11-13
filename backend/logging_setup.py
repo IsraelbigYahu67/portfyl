@@ -40,6 +40,9 @@ _REDACTION_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"(X-CSRF-Token[\"'\s:=]+)\S+", re.IGNORECASE), r"\1[REDACTED]"),
     # Stripe secret / restricted API keys and webhook signing secrets.
     (re.compile(r"\b((?:sk|rk)_(?:live|test)_|whsec_)[A-Za-z0-9]+"), r"\1[REDACTED]"),
+    # IBKR Flex Web Service token, sent as the `t` query parameter (httpx
+    # logs every request URL at INFO).
+    (re.compile(r"(FlexStatementService\.\w+\?(?:[^\s\"'&]*&)*t=)[^&\s\"']+"), r"\1[REDACTED]"),
 ]
 
 
