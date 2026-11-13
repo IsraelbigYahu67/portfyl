@@ -682,6 +682,7 @@ export default {
   "Deposit": "Storting",
   "Withdrawal": "Opname",
   "Fee": "Kosten",
+  "Fee refund": "Terugbetaalde kosten",
   "Interest": "Rente",
   "Card": "Kaart",
   "Cashback": "Cashback",

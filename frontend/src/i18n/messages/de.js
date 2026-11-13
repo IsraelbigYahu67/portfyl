@@ -682,6 +682,7 @@ export default {
   "Deposit": "Einzahlung",
   "Withdrawal": "Auszahlung",
   "Fee": "Gebühr",
+  "Fee refund": "Gebührenerstattung",
   "Interest": "Zinsen",
   "Card": "Karte",
   "Cashback": "Cashback",

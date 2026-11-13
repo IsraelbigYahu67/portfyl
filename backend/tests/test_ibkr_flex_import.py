@@ -126,9 +126,21 @@ def test_unknown_cash_type_is_error():
     assert any("Mystery" in e for e in result.errors)
 
 
-def test_positive_fee_is_error():
+def test_positive_fee_is_a_fee_refund():
+    # IBKR books a reversed/refunded fee as a positive "Other Fees" amount
+    # (seen in a real CZK account: +207.12 CZK). It must not block the sync.
     result = _parse(FIXTURE.read_text().replace('amount="-10" description="MARKET DATA"',
                                                 'amount="10" description="MARKET DATA"'))
+    assert result.errors == []
+    assert validate_rows(result.rows) == []
+    [refund] = _by(result.rows, source_event_id="8005")
+    assert (refund["type"], refund["amount"], refund["currency"]) == ("fee_refund", 10, "USD")
+    assert not _by(result.rows, type="fee", source_event_id="8005")
+
+
+def test_zero_fee_is_still_an_error():
+    result = _parse(FIXTURE.read_text().replace('amount="-10" description="MARKET DATA"',
+                                                'amount="0" description="MARKET DATA"'))
     assert any("Other Fees" in e for e in result.errors)
 
 

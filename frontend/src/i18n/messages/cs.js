@@ -682,6 +682,7 @@ export default {
   "Deposit": "Vklad",
   "Withdrawal": "Výběr",
   "Fee": "Poplatek",
+  "Fee refund": "Vrácený poplatek",
   "Interest": "Úrok",
   "Card": "Karta",
   "Cashback": "Cashback",

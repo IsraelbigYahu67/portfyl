@@ -1514,8 +1514,10 @@ def get_summary(
     total_interest = sum(
         (t.amount or 0.0) * _txn_fx(t) for t in transactions if t.type == "interest"
     )
+    # A refunded fee (fee_refund) cancels the fee it pays back.
     total_fees = sum(
-        (t.amount or 0.0) * _txn_fx(t) for t in transactions if t.type == "fee"
+        (t.amount or 0.0) * _txn_fx(t) * (-1 if t.type == "fee_refund" else 1)
+        for t in transactions if t.type in ("fee", "fee_refund")
     )
 
     # Realized P&L from FIFO-style avg-cost matching, mirroring the per-date

@@ -15,6 +15,7 @@ def test_signed_cash_directions():
     assert signed_cash(_cash("deposit", 1000)) == ("USD", 1000.0)
     assert signed_cash(_cash("withdrawal", 300)) == ("USD", -300.0)
     assert signed_cash(_cash("fee", 5)) == ("USD", -5.0)
+    assert signed_cash(_cash("fee_refund", 5)) == ("USD", 5.0)
     assert signed_cash(_cash("interest", 12)) == ("USD", 12.0)
 
 

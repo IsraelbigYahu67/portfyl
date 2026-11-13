@@ -29,6 +29,7 @@ const TYPE_LABEL = {
   deposit: msg("Deposit"),
   withdrawal: msg("Withdrawal"),
   fee: msg("Fee"),
+  fee_refund: msg("Fee refund"),
   interest: msg("Interest"),
   card_debit: msg("Card"),
   cashback: msg("Cashback"),
@@ -37,7 +38,7 @@ const TYPE_LABEL = {
 };
 
 // Direction of each type's cash impact — mirrors backend signed_cash.
-const CASH_IN = new Set(["deposit", "interest", "cashback", "fx_in"]);
+const CASH_IN = new Set(["deposit", "interest", "cashback", "fx_in", "fee_refund"]);
 
 function TypeBadge({ type }) {
   const t = useT();

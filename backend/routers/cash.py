@@ -20,8 +20,8 @@ router = APIRouter(prefix="/cash", tags=["cash"])
 
 class CashCreate(BaseModel):
     # Manual entry uses the first four; the rest exist so imported rows
-    # (card debits, cashback, FX legs) can be edited without a 422.
-    type: str = Field(pattern="^(deposit|withdrawal|fee|interest|card_debit|cashback|fx_in|fx_out)$")
+    # (card debits, cashback, FX legs, fee refunds) can be edited without a 422.
+    type: str = Field(pattern="^(deposit|withdrawal|fee|fee_refund|interest|card_debit|cashback|fx_in|fx_out)$")
     # allow_inf_nan=False: Starlette parses JSON with json.loads, which accepts
     # the literals NaN and Infinity; without it they would reach the ledger.
     amount: float = Field(gt=0, allow_inf_nan=False)

@@ -13,14 +13,15 @@ TRADE_TYPES = frozenset({"buy", "sell", "dividend"})
 POSITION_TYPES = TRADE_TYPES | frozenset({"split_open", "split_close"})
 # card_debit / cashback: T212 card spending and its cashback. fx_in / fx_out: the two
 # legs of a currency conversion (internal transfer between currency piles).
-CASH_TYPES = frozenset({"deposit", "withdrawal", "fee", "interest",
+# fee_refund: a broker fee paid back (IBKR posts it as a positive fee).
+CASH_TYPES = frozenset({"deposit", "withdrawal", "fee", "fee_refund", "interest",
                         "card_debit", "cashback", "fx_in", "fx_out"})
 # Money entering/leaving the portfolio from outside — gates the cash-aware returns
 # path and feeds the external-cashflow series C. fee/interest/fx_* are cash-only
 # internal events; buys/sells are internal reallocation.
 EXTERNAL_FLOW_TYPES = frozenset({"deposit", "withdrawal", "card_debit", "cashback"})
 
-_CASH_IN = frozenset({"deposit", "interest", "cashback", "fx_in"})
+_CASH_IN = frozenset({"deposit", "interest", "cashback", "fx_in", "fee_refund"})
 _CASH_OUT = frozenset({"withdrawal", "fee", "card_debit", "fx_out"})
 
 

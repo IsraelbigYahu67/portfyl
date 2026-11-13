@@ -279,6 +279,9 @@ def _cash(el, base, ticker, legs, result):
     elif (kind in _FEE_TYPES or kind == _WITHHOLDING) and amount < 0:
         # A withholding tax without a symbol is tax on credit interest.
         ledger_type = "fee"
+    elif kind in _FEE_TYPES and amount > 0:
+        # IBKR books a reversed or refunded fee as a positive amount.
+        ledger_type = "fee_refund"
     else:
         result.errors.append(
             f"IBKR cash transaction {kind!r} ({amount} {currency} on {day}) is not supported yet"

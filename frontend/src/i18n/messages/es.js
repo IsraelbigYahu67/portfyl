@@ -682,6 +682,7 @@ export default {
   "Deposit": "Depósito",
   "Withdrawal": "Retirada",
   "Fee": "Comisión",
+  "Fee refund": "Reembolso de comisión",
   "Interest": "Intereses",
   "Card": "Tarjeta",
   "Cashback": "Cashback",
