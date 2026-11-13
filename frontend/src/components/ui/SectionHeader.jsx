@@ -15,13 +15,16 @@ export function SectionHeader({ icon: Icon, action, className = "", children }) 
   }
   return (
     <div className={`flex flex-col items-stretch gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between ${className}`}>
-      <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center gap-2.5 min-w-0">
         {Icon && (
-          <span className="grid place-items-center w-6 h-6 rounded-lg bg-brand/10 text-brand shrink-0">
-            <Icon size={13} />
+          <span className="card-title-chip grid place-items-center w-[30px] h-[30px] rounded-[10px] shrink-0">
+            <Icon size={15} />
           </span>
         )}
-        <span className="eyebrow data-label truncate">{children}</span>
+        <div className="flex min-w-0 flex-col gap-[5px]">
+          <span className="card-title">{children}</span>
+          <span className="card-title-bar" aria-hidden="true" />
+        </div>
       </div>
       {action && <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">{action}</div>}
     </div>

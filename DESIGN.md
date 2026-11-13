@@ -122,7 +122,14 @@ Classic themes keep `GLASS_CHART` (vivid blue/mint/amber/violet/sky/rose).
   **One owner-approved exception:** the per-month value labels above the bars
   in `DividendBarsCard` are 10px on phones (12px from `sm` up), so all
   twelve months fit without hiding any.
-- Eyebrow: 12px, 600-700, uppercase, +0.05em tracking.
+- Eyebrow: 12px, 600-700, uppercase, +0.05em tracking. Now only for small
+  labels; **card and section titles do not use it.**
+- **Card / section title** (`components/ui/SectionHeader.jsx`, classes
+  `.card-title`, `.card-title-bar`, `.card-title-chip` in `index.css`): 16px
+  (`text-base`), Plus Jakarta Sans 700, `--ink`, sentence case (no uppercase),
+  with a 24x3px `--brand` bar underneath. The icon (15px) sits in a 30px raised
+  chip (`--surface-card-elevated`, `--clay-raise-sm`, brand-coloured glyph).
+  Uppercase is kept for table column heads only.
 - **Phone scale** (below 640px, app content `#main-content` only; the
   landing page, auth screens and dialogs keep the normal scale; from 640px up,
   including desktop, nothing is shrunk). One block in

@@ -16,9 +16,11 @@ describe("ui primitives", () => {
     render(<SectionHeader icon={Calendar}>Earnings Calendar</SectionHeader>);
     expect(screen.getByText("Earnings Calendar")).toBeInTheDocument();
   });
-  it("SectionHeader label uses the data-label semantic class", () => {
+  it("SectionHeader title uses the card-title class (16px, sentence case)", () => {
     render(<SectionHeader icon={Calendar}>Earnings Calendar</SectionHeader>);
-    expect(screen.getByText("Earnings Calendar")).toHaveClass("data-label");
+    const title = screen.getByText("Earnings Calendar");
+    expect(title).toHaveClass("card-title");
+    expect(title).not.toHaveClass("uppercase");
   });
   it("SectionHeader stacks and wraps wide actions on small screens", () => {
     const { container } = render(

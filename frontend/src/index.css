@@ -96,6 +96,18 @@
   .eyebrow {
     @apply font-display text-xs font-semibold uppercase tracking-[0.05em] text-muted;
   }
+  /* Card / section title (SectionHeader): 16px, sentence case, ink colour, with
+     a short brand bar underneath. The icon sits in a small raised chip. */
+  .card-title {
+    @apply font-display text-base font-bold text-ink truncate;
+    line-height: 1.2;
+  }
+  .card-title-bar { width: 1.5rem; height: 3px; border-radius: 999px; background: var(--brand); }
+  .card-title-chip {
+    background: var(--surface-card-elevated);
+    color: var(--brand);
+    box-shadow: var(--clay-raise-sm, 0 1px 3px rgba(120, 100, 70, 0.18));
+  }
   .gain { @apply text-gain; }
   .loss { @apply text-loss; }
 
