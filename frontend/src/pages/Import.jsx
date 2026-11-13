@@ -29,14 +29,10 @@ import { TRACKER_HOME } from "../lib/routes";
 import { findSupportedBroker } from "../lib/onboardingBrokers";
 import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
 import { msg, rich, useT } from "../i18n/I18nProvider";
-
-
-const SAMPLE_NATIVE = `date,ticker,type,shares,price,currency
-2023-06-01,AAPL,buy,10,180.57,USD
-2023-08-15,MSFT,buy,5,316.48,USD
-2024-01-20,NVDA,buy,12,61.50,USD
-2024-05-15,MSFT,dividend,5,0.75,USD
-2025-02-20,AAPL,sell,3,223.50,USD`;
+// 30 companies across all 11 sectors, real historical prices and dividends.
+// A copy of the repo-root sample_portfolio.csv (samplePortfolio.test.js keeps
+// the two identical); Vite will not serve the root file in dev or Vitest.
+import SAMPLE_NATIVE from "../assets/sample_portfolio.csv?raw";
 
 
 function downloadSample() {
