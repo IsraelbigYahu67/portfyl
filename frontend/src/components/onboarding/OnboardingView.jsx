@@ -190,8 +190,12 @@ function CurrencyPick({ language, currency, onChange }) {
 // also preselects its local currency; "only in USD" stays one click away.
 function LanguagePick({ onContinue, currency, onCurrencyChange }) {
   const { language, setLanguage, t } = useI18n();
+  // The currency offer slides in only once the user has clicked a language
+  // (the preselected one counts once clicked).
+  const [languagePicked, setLanguagePicked] = useState(false);
   const pickLanguage = (code) => {
     setLanguage(code);
+    setLanguagePicked(true);
     if (onCurrencyChange) onCurrencyChange(localCurrencyForLanguage(code));
   };
 
@@ -226,7 +230,11 @@ function LanguagePick({ onContinue, currency, onCurrencyChange }) {
         })}
       </ul>
 
-      {onCurrencyChange && <CurrencyPick language={language} currency={currency} onChange={onCurrencyChange} />}
+      {onCurrencyChange && languagePicked && (
+        <div className="animate-fade-up">
+          <CurrencyPick language={language} currency={currency} onChange={onCurrencyChange} />
+        </div>
+      )}
 
       <div className="flex justify-center">
         <button type="button" onClick={onContinue} className="btn-primary min-h-[44px] px-8">
