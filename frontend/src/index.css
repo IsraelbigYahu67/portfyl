@@ -102,6 +102,13 @@
     @apply font-display text-base font-bold text-ink truncate;
     line-height: 1.2;
   }
+  /* Same look as .card-title + bar, for plain h2/h3/h4 headings (no markup change). */
+  .section-title {
+    @apply font-display text-base font-bold text-ink;
+    line-height: 1.2;
+    padding-bottom: 0.4rem;
+    background: linear-gradient(var(--brand), var(--brand)) left bottom / 1.5rem 3px no-repeat;
+  }
   .card-title-bar { width: 1.5rem; height: 3px; border-radius: 999px; background: var(--brand); }
   .card-title-chip {
     background: var(--surface-card-elevated);
@@ -352,6 +359,19 @@
   .bar-pop:focus-visible .bar-pop-bar,
   .hover-pop-zone button:not(:disabled):not(table button):hover,
   .hover-pop-zone button:not(:disabled):not(table button):active { translate: none !important; scale: none !important; }
+  /* A tap leaves :hover stuck, so the hover glow/border must not stay either:
+     keep the resting look. Flattened phone-merged cards are excluded (their
+     own rule above removes shadow and border). */
+  .hover-pop-zone .card:not(.phone-merged .card):hover,
+  .hover-pop-zone .pop-tile:not(.phone-merged .card):hover {
+    box-shadow: var(--shadow-ambient) !important;
+    border-color: var(--hairline) !important;
+  }
+  .theme-clay .hover-pop-zone .card:not(.phone-merged .card):hover,
+  .theme-clay .hover-pop-zone .pop-tile:not(.phone-merged .card):hover {
+    box-shadow: var(--clay-raise) !important;
+    border-color: transparent !important;
+  }
 }
 
 /* ----------------------------------------------------------------------------

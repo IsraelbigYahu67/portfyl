@@ -129,7 +129,9 @@ Classic themes keep `GLASS_CHART` (vivid blue/mint/amber/violet/sky/rose).
   (`text-base`), Plus Jakarta Sans 700, `--ink`, sentence case (no uppercase),
   with a 24x3px `--brand` bar underneath. The icon (15px) sits in a 30px raised
   chip (`--surface-card-elevated`, `--clay-raise-sm`, brand-coloured glyph).
-  Uppercase is kept for table column heads only.
+  Uppercase is kept for table column heads only. Plain `h2`/`h3`/`h4` headings
+  outside `SectionHeader` use `.section-title` (same type, brand bar drawn as a
+  background) — never `uppercase tracking-wider text-muted` on a heading.
 - **Phone scale** (below 640px, app content `#main-content` only; the
   landing page, auth screens and dialogs keep the normal scale; from 640px up,
   including desktop, nothing is shrunk). One block in
@@ -182,6 +184,19 @@ properties (not `transform`) so it composes with `animate-fade-up`.
 Add `no-block-pop` next to it to keep donut-slice and button hover but leave
 cards and tiles still (Allocation does this: its data/text blocks do not move).
 
+- **Touch / phone: no hover leftovers.** A tap leaves `:hover` applied, so on
+  `(max-width: 767px), (hover: none)` a card or tile must keep its resting
+  shadow and border (no glow, no lift, no scale). `index.css` enforces this
+  with `!important` in the touch block, because the pop rules carry
+  `:not(.no-block-pop)` and out-rank plain selectors.
+- **Flattened cards stay flat.** Cards inside `.phone-merged` (the phone
+  dashboard's one-card-per-widget) have no background, border, shadow or radius.
+  Any new hover/focus/active rule that sets `box-shadow`, `border-color` or
+  `background` on `.card` MUST also be neutralised for
+  `.hover-pop-zone:not(.no-block-pop) .phone-merged .card:hover` in **every**
+  theme, not only `.theme-clay`. Otherwise a tapped inner card shows up as a
+  square box with a different colour (bug seen 2026-11-13 on "Největší pohyby").
+  When adding a `.card` state, test it by tapping a card inside a phone widget.
 - Spring easing: `cubic-bezier(0.34, 1.56, 0.64, 1)`, about 0.2-0.32s.
 - Cards lift 4px and scale 1.01. **Cards that contain a chart
   (`.recharts-wrapper`) lift but never scale**, because scaling blurs the
