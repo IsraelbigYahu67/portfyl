@@ -5,7 +5,8 @@ import { Eye, X } from "lucide-react";
 import OnboardingView, { choiceHandler } from "../components/onboarding/OnboardingView";
 import { useRouteFocusAnnouncer } from "../hooks/useRouteFocusAnnouncer";
 import { findSupportedBroker } from "../lib/onboardingBrokers";
-import { translate, useT } from "../i18n/I18nProvider";
+import { translate, useI18n, useT } from "../i18n/I18nProvider";
+import { localCurrencyForLanguage, readStoredCurrency } from "../lib/displayCurrency";
 
 // Read-only replay of the first-run onboarding for signed-in users.
 //
@@ -38,6 +39,9 @@ export const OUTCOMES = Object.freeze({
 export default function OnboardingPreview() {
   const t = useT();
   const [languageChosen, setLanguageChosen] = useState(false);
+  // Local only: the preview may not reach the currency context in src/App.
+  const { language } = useI18n();
+  const [currency, setCurrency] = useState(() => readStoredCurrency() ?? localCurrencyForLanguage(language));
   const [selected, setSelected] = useState(null);
   const [brokerKey, setBrokerKey] = useState(null);
   const [unsupportedName, setUnsupportedName] = useState(null);
@@ -98,6 +102,8 @@ export default function OnboardingPreview() {
       mainRef={mainRef}
       languageChosen={languageChosen}
       onLanguageChosen={() => setLanguageChosen(true)}
+      currency={currency}
+      onCurrencyChange={setCurrency}
       brokerKey={brokerKey}
       onBrokerChange={changeBroker}
       unsupportedName={unsupportedName}

@@ -1,16 +1,18 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { CATEGORICAL, TOOLTIP_STYLE, LEGEND_TEXT_STYLE } from "../lib/chartTheme";
 import { withSliceCorners } from "../lib/pieCorners";
-import { displayLocale } from "../lib/format";
+import { currencyParts, displayLocale } from "../lib/format";
+import { convertFromUsd } from "../lib/displayCurrency";
 import { PieTouchScrub } from "../hooks/usePieTouchScrub";
 
 export default function AllocationChart({ holdings, currency = "USD", rate = null }) {
-  const convert = (n) => (currency === "CZK" && rate ? n * rate : n);
+  const convert = (n) => convertFromUsd(n, currency, rate);
 
   const fmtVal = (v) => {
     const converted = convert(v);
     const str = converted.toLocaleString(displayLocale(currency), { maximumFractionDigits: 0 });
-    return currency === "CZK" ? `${str} Kč` : `$${str}`;
+    const { prefix = "", suffix = "" } = currencyParts(currency);
+    return `${prefix}${str}${suffix}`;
   };
 
   const data = holdings

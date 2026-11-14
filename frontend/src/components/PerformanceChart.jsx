@@ -1,7 +1,7 @@
 import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Customized,
 } from "recharts";
-import { formatMoney, formatPercent } from "../lib/format";
+import { currencyParts, formatMoney, formatPercent } from "../lib/format";
 import { useT } from "../i18n/I18nProvider";
 import { AXIS_TICK_STYLE, LEGEND_TEXT_STYLE, GRID_STROKE, NEUTRAL_COLOR, SERIES_STYLES } from "../lib/chartTheme";
 import { buildPercentAxis } from "../lib/chartPercentAxis";
@@ -134,10 +134,9 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
   const growthZeroOffset = (growthDomain[1] / (growthDomain[1] - growthDomain[0])) * 100;
 
   const fmtAxis = (v) => {
-    if (currency === "CZK") {
-      return v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M Kč` : `${(v / 1_000).toFixed(0)}k Kč`;
-    }
-    return v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${(v / 1_000).toFixed(0)}k`;
+    const { prefix = "", suffix = "" } = currencyParts(currency);
+    const body = v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : `${(v / 1_000).toFixed(0)}k`;
+    return `${prefix}${body}${suffix}`;
   };
 
   const fmtPctAxis = (v) => `${v > 0 ? "+" : ""}${v}%`;
@@ -229,7 +228,7 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                 yAxisId="value"
                 tick={{ ...AXIS_TICK_STYLE, fontFamily: "JetBrains Mono Variable" }}
                 tickFormatter={fmtAxis}
-                width={currency === "CZK" ? 72 : 52}
+                width={currencyParts(currency).suffix ? 72 : 52}
                 domain={['dataMin', 'dataMax']}
                 axisLine={false}
                 tickLine={false}

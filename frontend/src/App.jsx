@@ -17,7 +17,8 @@ import { ToastProvider } from "./components/ui/Toast";
 import { ConfirmProvider } from "./components/ui/ConfirmDialog";
 import StartupPrefetch from "./components/StartupPrefetch";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
-import { I18nProvider, useT } from "./i18n/I18nProvider";
+import { I18nProvider, useI18n, useT } from "./i18n/I18nProvider";
+import { initialDisplayCurrency, isDisplayCurrency, saveCurrency } from "./lib/displayCurrency";
 import { EDITION_NAVIGATION, EDITION_ROUTES, EditionShell } from "@edition-manifest";
 import { enabledEditionEntries } from "./editions/filter";
 import { PALETTES, DARK_SURFACES, LIGHT_TOKENS, NEU_TOKENS, CLAY_TOKENS, GLASS_CHART, SEMANTIC_THEME_TOKENS } from "./lib/themeTokens";
@@ -122,25 +123,29 @@ export function usePortfolio() {
 }
 
 function CurrencyProvider({ children }) {
-  // CZK default: the broker account settles in CZK, so the headline numbers are
-  // directly comparable to Trading 212. USD stays available in the switcher.
-  const [currency, setCurrencyState] = useState(
-    () => localStorage.getItem("sb_currency") || "CZK"
-  );
+  const { language } = useI18n();
+  // A saved choice wins; a first visit starts in the local currency of the app
+  // language (onboarding then offers USD or that currency explicitly).
+  const [currency, setCurrencyState] = useState(() => initialDisplayCurrency(language));
 
   const setCurrency = (c) => {
-    localStorage.setItem("sb_currency", c);
+    if (!isDisplayCurrency(c)) return;
+    saveCurrency(c);
     setCurrencyState(c);
   };
 
-  const { data: fxData, isLoading: rateLoading } = useQuery({
-    queryKey: ["fx", "USDCZK"],
-    queryFn: () => fetchFxRate("USDCZK"),
+  // `rate` is display units per 1 USD: 1 for USD, fetched for the others.
+  const pair = `USD${currency}`;
+  const { data: fxData, isLoading } = useQuery({
+    queryKey: ["fx", pair],
+    queryFn: () => fetchFxRate(pair),
     staleTime: 5 * 60 * 1000,
     retry: false,
+    enabled: currency !== "USD",
   });
 
-  const rate = fxData?.rate ?? null;
+  const rate = currency === "USD" ? 1 : (fxData?.rate ?? null);
+  const rateLoading = currency !== "USD" && isLoading;
 
   return (
     <CurrencyContext.Provider value={{ currency, setCurrency, rate, rateLoading }}>

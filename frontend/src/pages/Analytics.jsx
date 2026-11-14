@@ -6,6 +6,7 @@ import {
   fetchBenchmarkComparison,
 } from "../api";
 import { useCurrency } from "../App";
+import { convertFromUsd } from "../lib/displayCurrency";
 import MetricCard, { InfoIcon } from "../components/MetricCard";
 import Select from "../components/ui/Select";
 import {
@@ -143,7 +144,7 @@ export default function Analytics() {
   const [period, setPeriod] = useState("1Y");
   const [benchmarkId, setBenchmarkId] = useState(null);
 
-  const convert = (n) => (currency === "CZK" && rate ? n * rate : n);
+  const convert = (n) => convertFromUsd(n, currency, rate);
   const fmt = (n) => (n == null ? "—" : formatMoney(convert(n), currency));
   const { data: benchmarks } = useQuery({
     queryKey: ["benchmark-catalog"],

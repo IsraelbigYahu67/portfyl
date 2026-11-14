@@ -336,8 +336,8 @@ export const fetchBenchmarkComparison = (period = "1y", benchmarkId = null, requ
     .then((r) => r.data);
 export const fetchSectorBreakdown = (currency = "USD", requestConfig = {}) =>
   api.get(`/analytics/sector-breakdown`, { ...requestConfig, params: { currency } }).then((r) => r.data);
-export const fetchMovers = (period = "1d", requestConfig = {}) =>
-  api.get(`/portfolio/movers`, { ...requestConfig, params: { period } }).then((r) => r.data);
+export const fetchMovers = (period = "1d", currency = "USD", requestConfig = {}) =>
+  api.get(`/portfolio/movers`, { ...requestConfig, params: { period, currency } }).then((r) => r.data);
 export const fetchEarnings = (requestConfig = {}) =>
   api.get("/portfolio/earnings", requestConfig).then((r) => r.data);
 export const fetchHeatmap = (period = "1d", requestConfig = {}) =>

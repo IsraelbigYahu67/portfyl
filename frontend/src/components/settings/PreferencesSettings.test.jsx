@@ -43,12 +43,16 @@ it("uses the existing context setters for every device preference", () => {
   fireEvent.click(screen.getByRole("button", { name: "Dark" }));
   fireEvent.click(screen.getByRole("button", { name: "Theme: Soft Iris" }));
   fireEvent.click(screen.getByRole("button", { name: "Display currency: USD" }));
+  fireEvent.click(screen.getByRole("button", { name: "Display currency: EUR" }));
+  fireEvent.click(screen.getByRole("button", { name: "Display currency: PLN" }));
 
   expect(context.setThemeStyle).toHaveBeenCalledWith("neu");
   expect(context.setTheme).toHaveBeenCalledWith("dark");
   expect(context.setPalette).toHaveBeenCalledWith("purple");
   expect(context.setCurrency).toHaveBeenCalledWith("USD");
-  expect(screen.getByText("1 USD = 22.75 Kc")).toBeInTheDocument();
+  expect(context.setCurrency).toHaveBeenCalledWith("EUR");
+  expect(context.setCurrency).toHaveBeenCalledWith("PLN");
+  expect(screen.getByText("1 USD = 22.75 Kč")).toBeInTheDocument();
 });
 
 it("offers Clay as a third theme style next to Premium", () => {

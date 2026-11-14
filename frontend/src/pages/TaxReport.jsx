@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { fetchTaxReport } from "../editions/localApi";
 import { useCurrency } from "../App";
+import { convertFromUsd } from "../lib/displayCurrency";
 import MetricCard from "../components/MetricCard";
 import Select from "../components/ui/Select";
 import { FileText, Download, TrendingUp, TrendingDown, ShieldCheck, AlertTriangle, Hourglass } from "lucide-react";
@@ -251,7 +252,7 @@ export default function TaxReport() {
     setParams(p, { replace: true });
   };
 
-  const convert = (n) => (currency === "CZK" && rate ? n * rate : n);
+  const convert = (n) => convertFromUsd(n, currency, rate);
   const fmt = (n) => formatSharedMoney(convert(n), currency);
 
   // For amounts the backend also provides in CZK at trade-time FX. In CZK mode

@@ -1,7 +1,9 @@
 ﻿const DASH = "—";
 
-const LOCALE_BY_CURRENCY = { CZK: "cs-CZ", USD: "en-US" };
-const SUPPORTED_CURRENCY_CODES = new Set(["CZK", "EUR", "GBP", "USD"]);
+const LOCALE_BY_CURRENCY = { CZK: "cs-CZ", PLN: "pl-PL", USD: "en-US" };
+const SUPPORTED_CURRENCY_CODES = new Set(["CZK", "EUR", "GBP", "PLN", "USD"]);
+// Locales that write a decimal comma.
+const COMMA_LOCALES = new Set(["cs-CZ", "pl-PL"]);
 
 // Prefix/suffix per currency. Note GBp/GBX (London pence) is distinct from GBP
 // (pounds) and must be checked on the raw code before upper-casing collapses them.
@@ -9,6 +11,7 @@ export function currencyParts(currency) {
   if (currency === "GBp" || currency === "GBX") return { suffix: " p" };
   switch ((currency || "USD").toUpperCase()) {
     case "CZK": return { suffix: " Kč" };
+    case "PLN": return { suffix: " zł" };
     case "EUR": return { prefix: "€" };
     case "GBP": return { prefix: "£" };
     case "GBX": return { suffix: " p" };
@@ -24,9 +27,9 @@ export function formatMoney(value, currency = "USD") {
     : String(currency || "USD").toUpperCase();
 
   if (n !== 0 && Math.abs(n) < 0.01) {
-    if (code === "CZK") return n > 0 ? "<0,01 Kč" : ">-0,01 Kč";
     const { prefix = "", suffix = "" } = currencyParts(code);
-    return n > 0 ? `<${prefix}0.01${suffix}` : `>-${prefix}0.01${suffix}`;
+    const cent = COMMA_LOCALES.has(LOCALE_BY_CURRENCY[code]) ? "0,01" : "0.01";
+    return n > 0 ? `<${prefix}${cent}${suffix}` : `>-${prefix}${cent}${suffix}`;
   }
 
   if (code === "GBp" || code === "GBX") {
@@ -58,7 +61,8 @@ export function formatMoney(value, currency = "USD") {
   }
 }
 
-// Number separators follow the display currency: CZK reads cs-CZ, the rest en-US.
+// Number separators follow the display currency: CZK reads cs-CZ, PLN pl-PL,
+// the rest en-US.
 export function displayLocale(currency) {
   return LOCALE_BY_CURRENCY[String(currency || "USD").toUpperCase()] || "en-US";
 }
@@ -84,8 +88,8 @@ export function formatCompact(n, currency = "USD") {
     notation: "compact",
     maximumFractionDigits: 1,
   });
-  // Keep the K/M/B suffixes but use the Czech decimal comma for CZK.
-  if (displayLocale(currency) === "cs-CZ") str = str.replace(".", ",");
+  // Keep the K/M/B suffixes but use the decimal comma for CZK and PLN.
+  if (COMMA_LOCALES.has(displayLocale(currency))) str = str.replace(".", ",");
   const { prefix = "", suffix = "" } = currencyParts(currency);
   return `${sign}${prefix}${str}${suffix}`;
 }

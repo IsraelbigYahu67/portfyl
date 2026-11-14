@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchDividends, fetchDividendForecast, fetchDividendGrowth } from "../api";
 import { AlertTriangle, CalendarDays, RefreshCw, TrendingUp } from "lucide-react";
 import { useCurrency } from "../App";
+import { convertFromUsd } from "../lib/displayCurrency";
 import { useStockDetail } from "../components/StockDetail";
 import DividendBarsCard from "../components/dashboard/DividendBarsCard";
 import { splitDividendForecast } from "../lib/dashboardSummaries";
@@ -138,8 +139,8 @@ export default function Dividends() {
 function DividendBars({ forecast, loading, error, onRetry }) {
   const t = useT();
   const { currency = "USD", rate } = useCurrency() ?? {};
-  // The forecast is in USD; `rate` is CZK per USD.
-  const usdRate = currency === "CZK" && rate ? rate : 1;
+  // The forecast is in USD; `rate` is display units per USD.
+  const usdRate = convertFromUsd(1, currency, rate);
   const { received, upcoming } = splitDividendForecast(forecast, {
     monthIndex: new Date().getMonth(),
     usdRate,

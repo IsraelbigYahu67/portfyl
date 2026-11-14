@@ -10,6 +10,7 @@ import BottomNavSetting from "./BottomNavSetting";
 import { ONBOARDING_PREVIEW_PATH } from "../../lib/routes";
 import { useI18n } from "../../i18n/I18nProvider";
 import { APP_LANGUAGES } from "../../i18n/languages";
+import { DISPLAY_CURRENCIES, currencySymbol } from "../../lib/displayCurrency";
 
 // Palette names are product names, so they are not translated.
 const PALETTE_OPTIONS = [
@@ -43,7 +44,7 @@ export default function PreferencesSettings({ headingRef }) {
   // visible but disabled. Clay has its own palette, so they are not shown.
   const clay = themeStyle === "clay";
   const fixedLook = themeStyle === "neu";
-  const czkUnavailable = !rateLoading && rate === null;
+  const rateUnavailable = currency !== "USD" && !rateLoading && rate === null;
 
   return (
     <section aria-labelledby="settings-preferences-heading" className="space-y-6">
@@ -120,13 +121,14 @@ export default function PreferencesSettings({ headingRef }) {
             aria-label={t("Display currency")}
             value={currency}
             onChange={setCurrency}
-            options={[
-              { value: "USD", label: "USD", title: t("Display currency: {currency}", { currency: "USD" }) },
-              { value: "CZK", label: rateLoading ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : "CZK", title: czkUnavailable ? t("Rate unavailable") : t("Display currency: {currency}", { currency: "CZK" }), disabled: czkUnavailable },
-            ]}
+            options={DISPLAY_CURRENCIES.map((code) => ({
+              value: code,
+              label: rateLoading && currency === code ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : code,
+              title: t("Display currency: {currency}", { currency: code }),
+            }))}
           />
-          {currency === "CZK" && rate != null && <p className="mt-2 text-xs text-muted tabular-nums">1 USD = {rate.toFixed(2)} Kc</p>}
-          {czkUnavailable && <p className="mt-2 text-xs text-loss">{t("CZK rate unavailable. USD remains available.")}</p>}
+          {currency !== "USD" && rate != null && <p className="mt-2 text-xs text-muted tabular-nums">1 USD = {rate.toFixed(2)} {currencySymbol(currency)}</p>}
+          {rateUnavailable && <p className="mt-2 text-xs text-loss">{t("The {currency} rate is unavailable right now, so some amounts stay in USD.", { currency })}</p>}
         </div>
 
         <BottomNavSetting />
