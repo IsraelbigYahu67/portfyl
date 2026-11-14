@@ -439,8 +439,28 @@ describe("first-run onboarding aids", () => {
 
     expect(await screen.findByText("Getting started")).toBeInTheDocument();
     expect(screen.getByText("1 of 4 done")).toBeInTheDocument();
-    expect(await screen.findByText("You hold 1 positions.")).toBeInTheDocument();
+    expect(await screen.findByText("You hold 1 position.")).toBeInTheDocument();
     expect(screen.queryByText("You're looking at sample data.")).not.toBeInTheDocument();
+  });
+
+  it("uses the plural for several positions", async () => {
+    api.fetchHoldings.mockResolvedValue([
+      { ticker: "MSFT", weight: 60, market_value: 600 },
+      { ticker: "AAPL", weight: 40, market_value: 400 },
+    ]);
+    renderPage();
+
+    expect(await screen.findByText("You hold 2 positions.")).toBeInTheDocument();
+  });
+
+  it("describes dividend income as a yearly estimate, never as a past figure", async () => {
+    api.fetchHoldings.mockResolvedValue([{ ticker: "MSFT", weight: 100, market_value: 1000, shares: 10, current_price: 100 }]);
+    api.fetchDividends.mockResolvedValue([{ ticker: "MSFT", income_status: "estimated", annual_income: 30 }]);
+    renderPage();
+
+    expect(await screen.findByText("Your dividends are on track to bring you about $30.00 a year.")).toBeInTheDocument();
+    expect(screen.queryByText(/last 12 months/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/You hold/)).not.toBeInTheDocument();
   });
 
   it("remembers a visit and the dismissal for the workspace", async () => {

@@ -216,13 +216,19 @@ export default function Dashboard() {
     preferencesConfirmed: preferencesConfirmed(),
     visited: gettingStarted.visited,
   });
-  // One line of substance for the panel: dividend income when there is some,
-  // otherwise how many positions the portfolio holds. Nothing while loading.
+  // One line of substance for the panel: the estimated yearly dividend income
+  // when there is some, otherwise how many positions the portfolio holds.
+  // Nothing while loading.
   let welcomeInsight = null;
   if (!hl && !dl && holdings.length > 0) {
-    welcomeInsight = passive.annualIncome > 0
-      ? t("Over the last 12 months your dividends brought you {amount}.", { amount: formatMoney(passive.annualIncome, currency) })
-      : t("You hold {count} positions.", { count: holdings.length });
+    if (passive.annualIncome > 0) {
+      // annualIncome is the forward estimate, so the wording claims no past figure.
+      welcomeInsight = t("Your dividends are on track to bring you about {amount} a year.", { amount: formatMoney(passive.annualIncome, currency) });
+    } else {
+      welcomeInsight = holdings.length === 1
+        ? t("You hold 1 position.")
+        : t("You hold {count} positions.", { count: holdings.length });
+    }
   }
 
   const irr = riskMetrics?.lifetime?.xirr;
