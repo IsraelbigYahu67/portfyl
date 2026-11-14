@@ -1,4 +1,5 @@
 import { useT } from "../../i18n/I18nProvider";
+import Select from "./Select";
 
 const PAGE_SIZES = [25, 50, 100];
 
@@ -54,17 +55,12 @@ export default function Pagination({ offset, limit, total, onOffsetChange, onLim
       {onLimitChange && (
         <label className="text-xs text-muted flex items-center gap-2">
           {t("Rows per page")}
-          <select
-            className="input py-1"
+          <Select
+            className="!w-auto py-1"
             value={limit}
-            onChange={(e) => onLimitChange(Number(e.target.value))}
-          >
-            {PAGE_SIZES.map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => onLimitChange(Number(v))}
+            options={PAGE_SIZES.map((size) => ({ value: size, label: String(size) }))}
+          />
         </label>
       )}
     </nav>

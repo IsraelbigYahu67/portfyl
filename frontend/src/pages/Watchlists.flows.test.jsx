@@ -102,20 +102,21 @@ it("keeps list search and sorting through stock navigation, back, and reload", a
   const page = renderPage("/watchlists?from=research");
   await screen.findByRole("link", { name: /AAPL Apple/i });
   fireEvent.change(screen.getByRole("textbox", { name: "Search Ideas" }), { target: { value: "beta" } });
-  fireEvent.change(screen.getByRole("combobox", { name: "Sort Ideas" }), { target: { value: "change_desc" } });
+  fireEvent.click(screen.getByRole("combobox", { name: "Sort Ideas" }));
+  fireEvent.click(document.querySelector('[role="option"][data-value="change_desc"]'));
   const savedSearch = screen.getByTestId("location").textContent;
   expect(savedSearch).toContain("from=research");
   fireEvent.click(screen.getByRole("link", { name: /BETA Beta Corp/i }));
   expect(screen.getByRole("heading", { name: "Stock research" })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Browser back" }));
   expect(await screen.findByRole("textbox", { name: "Search Ideas" })).toHaveValue("beta");
-  expect(screen.getByRole("combobox", { name: "Sort Ideas" })).toHaveValue("change_desc");
+  expect(screen.getByRole("combobox", { name: "Sort Ideas" })).toHaveAttribute("data-value", "change_desc");
   expect(screen.queryByRole("link", { name: /AAPL Apple/i })).not.toBeInTheDocument();
   expect(screen.getByRole("textbox", { name: "Search Second" })).toHaveValue("");
   page.unmount();
   renderPage(`/watchlists${savedSearch}`);
   expect(await screen.findByRole("textbox", { name: "Search Ideas" })).toHaveValue("beta");
-  expect(screen.getByRole("combobox", { name: "Sort Ideas" })).toHaveValue("change_desc");
+  expect(screen.getByRole("combobox", { name: "Sort Ideas" })).toHaveAttribute("data-value", "change_desc");
 });
 
 it.each(["fetchCapabilities", "fetchDiscordWebhook"])("blocks alert creation until %s resolves", async (request) => {

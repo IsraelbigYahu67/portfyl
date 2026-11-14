@@ -9,6 +9,7 @@ import {
   searchTickers,
 } from "../../api";
 import { getApiErrorMessage } from "../../lib/apiError";
+import Select from "../ui/Select";
 import { formatCompact, formatMoney, formatPercent } from "../../lib/format";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
@@ -155,7 +156,7 @@ export function WatchlistCard({ wl, onAlert, alertsByTicker = new Map(), alertDi
       </header>
       <div className="flex flex-wrap gap-2 border-b border-surface-border px-4 py-3">
         <label className="relative flex-1 min-w-48"><span className="sr-only">{t("Search {list}", { list: wl.name })}</span><Search size={14} className="absolute left-2.5 top-2.5 text-muted" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("Search {list}", { list: wl.name })} className="w-full rounded-md border border-surface-border bg-surface py-2 pl-8 pr-3 text-sm" /></label>
-        <label><span className="sr-only">{t("Sort {list}", { list: wl.name })}</span><select aria-label={t("Sort {list}", { list: wl.name })} value={sort} onChange={(event) => setSort(event.target.value)} className="rounded-md border border-surface-border bg-surface px-3 py-2 text-sm"><option value="ticker">{t("Ticker A–Z")}</option><option value="change_desc">{t("Daily change: high to low")}</option><option value="change_asc">{t("Daily change: low to high")}</option><option value="market_cap_desc">{t("Market cap: high to low")}</option></select></label>
+        <label><span className="sr-only">{t("Sort {list}", { list: wl.name })}</span><Select aria-label={t("Sort {list}", { list: wl.name })} value={sort} onChange={setSort} className="text-sm" options={[{ value: "ticker", label: t("Ticker A–Z") }, { value: "change_desc", label: t("Daily change: high to low") }, { value: "change_asc", label: t("Daily change: low to high") }, { value: "market_cap_desc", label: t("Market cap: high to low") }]} /></label>
       </div>
       {alertDisabledReason && <p className="border-b border-surface-border px-4 py-2 text-xs text-muted">{t("Price alerts unavailable: {reason}.", { reason: alertDisabledReason })} <Link className="text-brand hover:underline" to="/settings?section=notifications">{t("Notification settings")}</Link></p>}
       {!visibleItems.length ? <p className="px-4 py-8 text-center text-sm text-muted">{t("No tracked symbols match this view.")}</p> : (

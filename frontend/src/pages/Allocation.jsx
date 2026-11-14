@@ -205,7 +205,7 @@ export default function Allocation() {
       )}
 
       <div>
-        <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider">
+        <h2 className="mb-3 section-title">
           {t("All Holdings")}
         </h2>
         {holdingsLoading ? (
@@ -340,7 +340,7 @@ export default function Allocation() {
         )}
       </div>
       <div>
-        <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider">
+        <h2 className="mb-3 section-title">
           {t("Sold Positions")}
         </h2>
         {isPhone && soldHoldings.length > 0 ? (

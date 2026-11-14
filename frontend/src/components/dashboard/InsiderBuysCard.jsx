@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { Maximize2, UserCheck, X } from "lucide-react";
 import { AsyncSection, EmptyState, SectionHeader, SkeletonRows } from "../ui";
 import ZoomDialog from "../ui/ZoomDialog";
+import Select from "../ui/Select";
 import { TickerLink } from "../TickerLink";
 import { useIsPhone } from "../../hooks/useMediaQuery";
 import { formatCompact, formatMoney, formatQuantity, formatTableDate } from "../../lib/format";
@@ -312,16 +313,17 @@ export default function InsiderBuysCard({ buys = [], isLoading, error, onRetry }
         <div className="min-h-0 flex-1 overflow-auto">
           {isPhone ? (
             <>
-              <select
+              <Select
                 aria-label={t("Sort insider buys")}
                 value={sort}
-                onChange={(e) => setSort(e.target.value)}
-                className="input mb-2 min-h-11"
-              >
-                <option value="date">{t("Sort: Newest")}</option>
-                <option value="value">{t("Sort: Value")}</option>
-                <option value="pnl">{t("Sort: P&L")}</option>
-              </select>
+                onChange={setSort}
+                className="mb-2 min-h-11"
+                options={[
+                  { value: "date", label: t("Sort: Newest") },
+                  { value: "value", label: t("Sort: Value") },
+                  { value: "pnl", label: t("Sort: P&L") },
+                ]}
+              />
               <BuyCards buys={sortBuys(buys, sort)} />
             </>
           ) : (

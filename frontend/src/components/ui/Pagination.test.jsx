@@ -55,7 +55,8 @@ describe("Pagination", () => {
         ariaLabel="Test pages"
       />
     );
-    fireEvent.change(screen.getByLabelText(/rows per page/i), { target: { value: "100" } });
+    fireEvent.click(screen.getByLabelText(/rows per page/i));
+    fireEvent.click(document.querySelector('[role="option"][data-value="100"]'));
     expect(onLimitChange).toHaveBeenCalledWith(100);
   });
 

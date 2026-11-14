@@ -206,8 +206,9 @@ describe("Cash", () => {
     it("cash type options are humanized", async () => {
       renderCash();
       await screen.findByText(/No cash flows yet/i);
+      fireEvent.click(screen.getByRole("combobox", { name: "Type" }));
       const option = screen.getByRole("option", { name: "Deposit" });
-      expect(option).toHaveValue("deposit");
+      expect(option).toHaveAttribute("data-value", "deposit");
     });
   });
 

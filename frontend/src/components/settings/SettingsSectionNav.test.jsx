@@ -24,6 +24,7 @@ it("offers a labelled narrow-screen chooser", () => {
     </MemoryRouter>,
   );
 
-  fireEvent.change(screen.getByRole("combobox", { name: "Settings section" }), { target: { value: "data" } });
+  fireEvent.click(screen.getByRole("combobox", { name: "Settings section" }));
+  fireEvent.click(document.querySelector('[role="option"][data-value="data"]'));
   expect(onSelect).toHaveBeenCalledWith("data", true);
 });

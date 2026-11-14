@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUp, TrendingDown, TrendingUp } from "lucide-react";
 import { TickerLink } from "./TickerLink";
+import Select from "./ui/Select";
 import { formatPercent, formatQuantity } from "../lib/format";
 import { hasPriceProblem, priceFreshnessTitle } from "../lib/priceFreshness";
 import { msg, useT } from "../i18n/I18nProvider";
@@ -32,16 +33,13 @@ export function CardSortBar({ sort, onSort, options = SORT_OPTIONS, label }) {
   const active = sort?.key ?? options[0].key;
   return (
     <div className="mb-3 flex items-center gap-2">
-      <select
+      <Select
         aria-label={label ?? t("Sort holdings")}
         value={active}
-        onChange={(e) => onSort(e.target.value)}
-        className="input min-h-11 flex-1"
-      >
-        {options.map((o) => (
-          <option key={o.key} value={o.key}>{t("Sort: {option}", { option: t(o.label) })}</option>
-        ))}
-      </select>
+        onChange={onSort}
+        className="min-h-11 flex-1"
+        options={options.map((o) => ({ value: o.key, label: t("Sort: {option}", { option: t(o.label) }) }))}
+      />
       <button
         type="button"
         onClick={() => onSort(active)}

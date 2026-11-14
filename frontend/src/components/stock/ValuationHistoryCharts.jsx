@@ -161,7 +161,7 @@ function ValuationBigChart({ multiple, points, onClose, className = "", style })
     <div className={`card !p-4 sm:!p-5 ${className}`} style={style}>
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h4 className="text-sm font-bold text-muted uppercase tracking-wider">
+          <h4 className="section-title">
             {t("{multiple} Valuation History", { multiple: multiple.label })}
           </h4>
           <div className="text-3xl font-bold tabular-nums text-ink mt-0.5">

@@ -82,7 +82,8 @@ describe("HoldingCards", () => {
     render(<CardSortBar sort={{ key: "market_value", dir: "desc" }} onSort={onSort} options={SORT_OPTIONS} />);
     const select = screen.getByRole("combobox", { name: "Sort holdings" });
     expect(select).toHaveClass("min-h-11");
-    fireEvent.change(select, { target: { value: "pnl" } });
+    fireEvent.click(select);
+    fireEvent.click(document.querySelector('[role="option"][data-value="pnl"]'));
     expect(onSort).toHaveBeenCalledWith("pnl");
     fireEvent.click(screen.getByRole("button", { name: /descending/i }));
     expect(onSort).toHaveBeenLastCalledWith("market_value");

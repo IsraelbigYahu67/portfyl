@@ -10,6 +10,7 @@ import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/Toast";
 import { AsyncSection, Badge, Modal } from "../components/ui";
 import Pagination from "../components/ui/Pagination";
+import Select from "../components/ui/Select";
 import SegmentedControl from "../components/ui/SegmentedControl";
 import { formatMoney, formatQuantity, formatTableDate } from "../lib/format";
 import { formatValidationDetail } from "../lib/validationDetail";
@@ -82,11 +83,16 @@ function AddModal({ onClose }) {
             </div>
             <div>
               <label className="text-xs text-muted mb-1 block">{t("Type")} *</label>
-              <select className="input" value={form.type} onChange={set("type")} aria-label={t("Type")}>
-                <option value="buy">{t("Buy")}</option>
-                <option value="sell">{t("Sell")}</option>
-                <option value="dividend">{t("Dividend")}</option>
-              </select>
+              <Select
+                value={form.type}
+                onChange={(v) => setForm((f) => ({ ...f, type: v }))}
+                aria-label={t("Type")}
+                options={[
+                  { value: "buy", label: t("Buy") },
+                  { value: "sell", label: t("Sell") },
+                  { value: "dividend", label: t("Dividend") },
+                ]}
+              />
             </div>
             <div>
               <label className="text-xs text-muted mb-1 block">{t("Shares")} *</label>

@@ -114,9 +114,8 @@ describe("Transactions (server-side pagination)", () => {
       )
     );
 
-    fireEvent.change(screen.getByLabelText(/rows per page/i), {
-      target: { value: "100" },
-    });
+    fireEvent.click(screen.getByLabelText(/rows per page/i));
+    fireEvent.click(document.querySelector('[role="option"][data-value="100"]'));
     await waitFor(() =>
       expect(api.fetchTransactionsPage).toHaveBeenLastCalledWith(
         expect.objectContaining({ offset: 0, limit: 100 })

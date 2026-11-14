@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { fetchTaxReport } from "../editions/localApi";
 import { useCurrency } from "../App";
 import MetricCard from "../components/MetricCard";
+import Select from "../components/ui/Select";
 import { FileText, Download, TrendingUp, TrendingDown, ShieldCheck, AlertTriangle, Hourglass } from "lucide-react";
 import { TickerLink } from "../components/StockDetail";
 import {
@@ -198,7 +199,7 @@ function CzechTaxPanel({ years, year }) {
 
   return (
     <section>
-      <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider flex items-center gap-2">
+      <h2 className="mb-3 flex items-center gap-2 section-title">
         <ShieldCheck size={14} className="text-brand" />
         {t("Czech §4 Exemption Analysis")}
       </h2>
@@ -332,17 +333,13 @@ export default function TaxReport() {
           <p className="text-xs text-muted mt-0.5">{t("Capital gains, losses, and dividend income (FIFO method)")}</p>
         </div>
         <div className="flex items-center gap-2">
-          <select
+          <Select
             value={year || ""}
-            onChange={(e) => setYear(e.target.value ? parseInt(e.target.value) : null)}
+            onChange={(v) => setYear(v ? parseInt(v, 10) : null)}
             aria-label={t("Tax year")}
-            className="input text-sm"
-          >
-            <option value="">{t("All Years")}</option>
-            {availableYears.map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+            className="text-sm"
+            options={[{ value: "", label: t("All Years") }, ...availableYears.map((y) => ({ value: y, label: String(y) }))]}
+          />
           <button
             onClick={exportCSV}
             disabled={!gains.length && !dividendIncome.length}

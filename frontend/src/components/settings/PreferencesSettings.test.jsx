@@ -109,15 +109,16 @@ it("changes the app language from the Language picker", async () => {
   render(<I18nProvider initial="en"><MemoryRouter><PreferencesSettings /></MemoryRouter></I18nProvider>);
 
   const picker = screen.getByRole("combobox", { name: "Language" });
-  expect(picker).toHaveValue("en");
+  expect(picker).toHaveAttribute("data-value", "en");
+  fireEvent.click(picker);
   expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
     "Čeština", "English", "Deutsch", "Français", "Español", "Italiano", "Português", "Polski", "Nederlands",
   ]);
 
-  fireEvent.change(picker, { target: { value: "cs" } });
+  fireEvent.click(document.querySelector('[role="option"][data-value="cs"]'));
 
   expect(await screen.findByRole("heading", { name: "Preference" })).toBeInTheDocument();
-  expect(screen.getByRole("combobox", { name: "Jazyk" })).toHaveValue("cs");
+  expect(screen.getByRole("combobox", { name: "Jazyk" })).toHaveAttribute("data-value", "cs");
   expect(localStorage.getItem("portfyl_language")).toBe("cs");
   localStorage.clear();
 });

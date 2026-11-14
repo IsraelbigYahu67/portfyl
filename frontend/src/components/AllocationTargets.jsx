@@ -65,7 +65,7 @@ export default function AllocationTargets({ currency }) {
   return (
     <section aria-label={t("Target allocation")} className="card space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-muted uppercase tracking-wider">{t("Target allocation")}</h2>
+        <h2 className="section-title">{t("Target allocation")}</h2>
         {rows == null && targeted.length > 0 && (
           <button type="button" className="btn-ghost text-sm" onClick={startEditing}>
             {t("Edit targets")}

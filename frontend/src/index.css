@@ -661,3 +661,89 @@
   .vh-panel, .vh-item { transition: none; }
   .vh-pour, .vh-leave { animation: none; }
 }
+
+/* Portfyl dropdown (components/ui/Select.jsx) ------------------------------
+   Trigger = a pressed well like .input, but it never draws a focus ring on
+   click/tap (only a quiet border change for keyboard users). The menu is a
+   raised panel over the solid --bg; options fade up one after another. */
+.select-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  color: var(--ink);
+  background: var(--bg-subtle);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card, 16px);
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+.select-trigger:focus,
+.select-trigger:focus-visible { outline: none; box-shadow: none; }
+.select-trigger:focus-visible { border-color: color-mix(in srgb, var(--ink) 35%, var(--hairline)); }
+.select-trigger:disabled { opacity: 0.5; cursor: not-allowed; }
+.select-chevron { color: var(--muted); transition: transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1); }
+.select-chevron.is-open { transform: rotate(180deg); }
+.theme-clay .select-trigger {
+  border-color: transparent;
+  border-radius: 16px;
+  box-shadow: var(--clay-inset-sm);
+}
+.theme-clay .select-trigger:focus,
+.theme-clay .select-trigger:focus-visible { box-shadow: var(--clay-inset-sm); }
+
+.select-menu {
+  position: fixed;
+  z-index: 70;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 18px;
+  background: linear-gradient(var(--surface-card-elevated), var(--surface-card-elevated)), var(--bg);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--clay-raise, var(--shadow-ambient));
+  transform-origin: top center;
+  opacity: 0;
+  transform: translateY(-6px) scale(0.96);
+  transition: opacity 0.16s ease, transform 0.22s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+.select-menu[data-up="true"] { transform-origin: bottom center; transform: translateY(6px) scale(0.96); }
+.select-menu[data-open="true"] { opacity: 1; transform: none; }
+.theme-clay .select-menu { border-color: transparent; border-radius: 20px; }
+.select-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 40px;
+  padding: 0.4rem 0.75rem;
+  border-radius: 14px;
+  color: var(--ink);
+  font-size: 0.875rem;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: background-color 0.12s, color 0.12s;
+}
+.select-menu[data-open="true"] .select-option {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.22s ease calc(var(--i) * 28ms + 30ms),
+              transform 0.3s cubic-bezier(0.34, 1.3, 0.64, 1) calc(var(--i) * 28ms + 30ms),
+              background-color 0.12s, color 0.12s;
+}
+.select-option[data-active="true"] { background: var(--brand-light); }
+.select-option[aria-selected="true"] { color: var(--brand); font-weight: 700; }
+@media (max-width: 767px), (hover: none) {
+  .select-option { min-height: 44px; font-size: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .select-menu, .select-option, .select-chevron { transition: none !important; transform: none !important; }
+}

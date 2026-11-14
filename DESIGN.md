@@ -250,6 +250,14 @@ cards and tiles still (Allocation does this: its data/text blocks do not move).
   hides card borders and owns the card box-shadow.
 - Segmented controls and period selectors sit in an inset trough with a
   raised active pill (brand-colored bold text).
+- **Dropdowns**: never a native `<select>` (its OS list cannot be styled). Use
+  `components/ui/Select.jsx` (`options=[{value,label,lang?}]`, `onChange(value)`;
+  `.select-*` in `index.css`). The trigger is a pressed well with a chevron that
+  turns; the list is a portaled raised panel over solid `--bg` (opens upward when
+  there is no room) whose options fade up one after another (28ms stagger, spring),
+  the chosen one is brand-coloured with a check. Focus stays on the trigger
+  (`aria-activedescendant`); it draws **no ring on click or tap**, only a quiet
+  border change for keyboard users. Reduced motion turns the animation off.
 - Delta/gain-loss: tinted capsule or colored text, always with arrow or sign.
 - Badges and dialogs: status labels use `components/ui/Badge.jsx`, a pill with
   six tones (`gain`, `loss`, `warn` = `--chart-3`, `info` = `--chart-4` blue,

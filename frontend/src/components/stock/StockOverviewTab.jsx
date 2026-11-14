@@ -20,7 +20,7 @@ function HistorySummary({ history, ticker }) {
     .join(" ");
   return (
     <section aria-labelledby="price-history-heading" className="rounded-xl bg-surface p-4">
-      <h3 id="price-history-heading" className="text-sm font-semibold uppercase tracking-wider text-muted">
+      <h3 id="price-history-heading" className="section-title">
         {t("One-year price history")}
       </h3>
       <svg className="mt-3 h-48 w-full" viewBox="0 0 100 40" role="img" aria-label={t("{ticker} one-year closing-price chart", { ticker })} preserveAspectRatio="none">
@@ -36,7 +36,7 @@ function PositionSummary({ ticker, holding, currency }) {
   if (!holding) {
     return (
       <section aria-labelledby="position-heading" className="rounded-xl bg-surface p-4">
-        <h3 id="position-heading" className="text-sm font-semibold uppercase tracking-wider text-muted">{t("Your position")}</h3>
+        <h3 id="position-heading" className="section-title">{t("Your position")}</h3>
         <p className="mt-2 text-sm text-muted">{t("You do not currently own {ticker}", { ticker })}</p>
       </section>
     );
@@ -56,7 +56,7 @@ function PositionSummary({ ticker, holding, currency }) {
 
   return (
     <section aria-labelledby="position-heading" className="rounded-xl bg-surface p-4">
-      <h3 id="position-heading" className="text-sm font-semibold uppercase tracking-wider text-muted">{t("Your position")}</h3>
+      <h3 id="position-heading" className="section-title">{t("Your position")}</h3>
       <dl className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
         {rows.map(([label, value]) => (
           <div key={label}>
@@ -78,7 +78,7 @@ function AboutSection({ description }) {
   const clampable = description.length > ABOUT_CLAMP_CHARS;
   return (
     <section className="mx-4 mb-6 rounded-xl bg-surface p-4 sm:mx-6" aria-labelledby="company-description-heading">
-      <h3 id="company-description-heading" className="text-sm font-semibold uppercase tracking-wider text-muted">{t("About")}</h3>
+      <h3 id="company-description-heading" className="section-title">{t("About")}</h3>
       <p className={`mt-2 text-sm leading-relaxed text-muted ${clampable && !expanded ? "line-clamp-3" : ""}`}>
         {description}
       </p>

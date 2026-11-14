@@ -7,6 +7,7 @@ import {
 } from "../api";
 import { useCurrency } from "../App";
 import MetricCard, { InfoIcon } from "../components/MetricCard";
+import Select from "../components/ui/Select";
 import {
   Tooltip, ResponsiveContainer, XAxis, YAxis, CartesianGrid, LineChart, Line,
 } from "recharts";
@@ -187,20 +188,17 @@ export default function Analytics() {
           <p className="text-xs text-muted mt-0.5">{t("Return, risk and benchmark comparison")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select
+          <Select
             value={benchmarkId ?? ""}
-            onChange={(e) => setBenchmarkId(e.target.value || null)}
-            className="input min-w-0 max-w-full !w-auto text-xs"
+            onChange={(v) => setBenchmarkId(v || null)}
+            className="min-w-0 max-w-full !w-auto text-xs"
             title={t("Benchmark for beta / alpha / tracking error")}
-          >
-            {benchmarks?.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-                {b.is_preset ? "" : " ·"}
-                {b.is_default ? ` (${t("default")})` : ""}
-              </option>
-            ))}
-          </select>
+            aria-label={t("Benchmark for beta / alpha / tracking error")}
+            options={(benchmarks ?? []).map((b) => ({
+              value: b.id,
+              label: `${b.name}${b.is_preset ? "" : " ·"}${b.is_default ? ` (${t("default")})` : ""}`,
+            }))}
+          />
           <SegmentedControl
             size="sm"
             aria-label={t("Analytics period")}
@@ -234,7 +232,7 @@ export default function Analytics() {
           <p className="text-xs text-muted mb-3">{dataContext(metricsUpdatedAt)}</p>
           {metrics.lifetime && (
             <section>
-              <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider flex items-center gap-2">
+              <h2 className="mb-3 flex items-center gap-2 section-title">
                 <Wallet size={14} className="text-brand" />
                 {t("Lifetime — Money-Weighted (your actual cashflows)")}
               </h2>
@@ -274,7 +272,7 @@ export default function Analytics() {
           )}
 
           <section>
-            <h2 className="text-sm font-semibold text-muted mb-3 uppercase tracking-wider flex items-center gap-2">
+            <h2 className="mb-3 flex items-center gap-2 section-title">
               <Activity size={14} className="text-brand" />
               {t("{period} — Time-Weighted (investment performance only)", { period })}
             </h2>
@@ -305,7 +303,7 @@ export default function Analytics() {
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold text-muted mb-1 uppercase tracking-wider flex items-center gap-2">
+            <h2 className="mb-1 flex items-center gap-2 section-title">
               <TrendingUp size={14} className="text-brand" />
               {t("vs {benchmark} — Active Performance", { benchmark: benchName })}
             </h2>
@@ -329,7 +327,7 @@ export default function Analytics() {
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                 <div className="card xl:col-span-2">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-xs uppercase tracking-wider text-muted">{t("Cumulative Return")}</h3>
+                    <h3 className="section-title">{t("Cumulative Return")}</h3>
                     <div className="flex items-center gap-3 text-xs">
                       <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ background: GAIN_COLOR }} />{t("Portfolio")}</span>
                       <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ background: NEUTRAL_COLOR }} />{benchName}</span>
@@ -367,7 +365,7 @@ export default function Analytics() {
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <div className="card">
-              <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider flex items-center gap-2">
+              <h2 className="mb-4 flex items-center gap-2 section-title">
                 <Shield size={14} />
                 {t("Risk-Adjusted Returns")}
               </h2>
@@ -411,7 +409,7 @@ export default function Analytics() {
             </div>
 
             <div className="card">
-              <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider flex items-center gap-2">
+              <h2 className="mb-4 flex items-center gap-2 section-title">
                 <TrendingDown size={14} />
                 {t("Drawdown Analysis")}
               </h2>

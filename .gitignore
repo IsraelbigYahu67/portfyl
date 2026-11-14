@@ -37,3 +37,6 @@ stitch_portfyl_desktop.zip
 
 # Build-time prerender scratch output (frontend/scripts/prerender.mjs)
 frontend/.prerender/
+
+# Email
+FMP_EMAIL.txt

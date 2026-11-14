@@ -1420,9 +1420,8 @@ def _allocation_totals(db: Session, portfolio: Portfolio, display_ccy: str) -> d
     type_totals: dict[str, float] = defaultdict(float)
     currency_totals: dict[str, float] = defaultdict(float)  # native trading ccy -> display value
     # Realized + unrealized profit per dimension row, keyed like the *_totals.
-    # Countries are left out on purpose: the dashboard shows no profit there.
     profit_totals: dict[str, dict[str, float]] = {
-        "sectors": defaultdict(float),
+        "sectors": defaultdict(float), "countries": defaultdict(float),
         "asset_types": defaultdict(float), "currencies": defaultdict(float),
     }
     total_value = 0.0
@@ -1462,7 +1461,7 @@ def _allocation_totals(db: Session, portfolio: Portfolio, display_ccy: str) -> d
             profit = held.get("realized_pnl", 0.0)
             if price:  # no quote -> value is 0, so an "unrealized loss" would be fiction
                 profit += market_value - held.get("cost", 0.0)
-            for key, label in (("sectors", sector),
+            for key, label in (("sectors", sector), ("countries", country),
                                ("asset_types", type_label), ("currencies", trade_ccy)):
                 profit_totals[key][label] += profit
         except Exception:
@@ -1480,6 +1479,7 @@ def _allocation_totals(db: Session, portfolio: Portfolio, display_ccy: str) -> d
             ticker_ccy = info.get("currency") or "USD"
             for key, label in (
                 ("sectors", _classify_sector(info)),
+                ("countries", _classify_country(info)),
                 ("asset_types", _QUOTE_TYPE_LABEL.get(quote_type, quote_type.title() if quote_type else "Other")),
                 ("currencies", "GBP" if ticker_ccy == "GBp" else ticker_ccy.upper()),
             ):

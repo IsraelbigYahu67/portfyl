@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, Plus, RefreshCw, TrendingUp, Trash2, Wallet } from "lucide-react";
 import { Badge, Card, SectionHeader, SkeletonRows, EmptyState, ErrorState } from "../components/ui";
 import Pagination from "../components/ui/Pagination";
+import Select from "../components/ui/Select";
 import MetricCard from "../components/MetricCard";
 import { formatDateTime, formatLongDate, formatMoney, formatTableDate, humanizeCode } from "../lib/format";
 import CashBalanceChart from "../components/CashBalanceChart";
@@ -322,15 +323,13 @@ export default function Cash() {
       <Card>
         <SectionHeader icon={Plus}>{t("Add cash flow")}</SectionHeader>
         <form onSubmit={submit} className="flex flex-wrap gap-2 items-end">
-          <select
-            className="input w-auto"
+          <Select
+            className="!w-auto"
+            aria-label={t("Type")}
             value={form.type}
-            onChange={(e) => setForm({ ...form, type: e.target.value })}
-          >
-            {CASH_TYPES.map((type) => (
-              <option key={type} value={type}>{t(TYPE_LABEL[type])}</option>
-            ))}
-          </select>
+            onChange={(v) => setForm({ ...form, type: v })}
+            options={CASH_TYPES.map((type) => ({ value: type, label: t(TYPE_LABEL[type]) }))}
+          />
           <input
             className="input w-28"
             type="number"

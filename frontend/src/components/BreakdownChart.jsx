@@ -43,7 +43,7 @@ export default function BreakdownChart({ title, data, currencyLabel, legendColum
 
   return (
     <div className="card min-w-0">
-      <h2 className="text-sm font-semibold text-muted mb-4 uppercase tracking-wider">
+      <h2 className="mb-4 section-title">
         {title}
       </h2>
       <div className={`flex flex-col items-stretch gap-6 ${stacked ? "" : "sm:flex-row sm:items-start"}`}>

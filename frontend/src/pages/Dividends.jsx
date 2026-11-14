@@ -109,7 +109,7 @@ export default function Dividends() {
         <>
           {knownUpcoming.length > 0 && (
             <section>
-              <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
+              <h2 className="mb-3 flex items-center gap-2 section-title">
                 <CalendarDays size={13} /> {t("Known upcoming dates")}
               </h2>
               <div className="rounded-xl border border-surface-border overflow-hidden">
@@ -120,7 +120,7 @@ export default function Dividends() {
 
           {needsReview.length > 0 && (
             <section>
-              <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
+              <h2 className="mb-3 flex items-center gap-2 section-title">
                 <AlertTriangle size={13} /> {t("Date unavailable or needs review")}
               </h2>
               <div className="rounded-xl border border-surface-border overflow-hidden">
@@ -286,7 +286,7 @@ function GrowthSection({ rows, loading }) {
 
   return (
     <section className="space-y-3">
-      <h2 className="text-xs font-semibold text-muted uppercase tracking-wider flex items-center gap-2">
+      <h2 className="flex items-center gap-2 section-title">
         <TrendingUp size={13} /> {t("Dividend growth")}
       </h2>
       <div className="rounded-xl border border-surface-border overflow-hidden">

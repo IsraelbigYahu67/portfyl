@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 
 import { msg, useT } from "../../i18n/I18nProvider";
+import Select from "../ui/Select";
 
 export const SETTINGS_SECTIONS = [
   { value: "connections", label: msg("Connections") },
@@ -42,16 +43,13 @@ export default function SettingsSectionNav({ value, searchParams, onSelect }) {
 
       <label className="block lg:hidden">
         <span className="mb-1.5 block text-sm font-medium">{t("Settings section")}</span>
-        <select
+        <Select
           aria-label={t("Settings section")}
-          className="w-full rounded-lg border border-surface-border bg-surface-card px-3 py-2 text-sm"
-          onChange={(event) => onSelect(event.target.value, true)}
+          className="text-sm"
+          onChange={(next) => onSelect(next, true)}
           value={value}
-        >
-          {SETTINGS_SECTIONS.map((section) => (
-            <option key={section.value} value={section.value}>{t(section.label)}</option>
-          ))}
-        </select>
+          options={SETTINGS_SECTIONS.map((section) => ({ value: section.value, label: t(section.label) }))}
+        />
       </label>
     </>
   );

@@ -63,17 +63,22 @@ describe("CompositionCard", () => {
     countries: [{ name: "United States", value: 2000, weight: 100 }],
   };
 
-  it("lists weight, then value, then combined profit, and no target column", () => {
+  it("lists weight, then value, and no profit or target column for categories", () => {
     renderWithRouter(<CompositionCard breakdown={breakdown} currency="CZK" />);
     fireEvent.click(screen.getByRole("button", { name: "Categories" }));
 
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual(["Name", "Weight", "Value", "Profit"]);
+    expect(headers).toEqual(["Name", "Weight", "Value"]);
     const stocks = screen.getByRole("row", { name: /Stocks/ });
     expect(within(stocks).getByText("60.0%")).toBeInTheDocument();
-    expect(within(stocks).getByText(/^\+/)).toHaveClass("text-gain");
-    expect(within(screen.getByRole("row", { name: /ETFs/ })).getByText(/120/)).toHaveClass("text-loss");
-    expect(within(screen.getByRole("row", { name: /Cash/ })).getByText("—")).toBeInTheDocument();
+    expect(within(stocks).queryByText(/^\+/)).not.toBeInTheDocument();
+  });
+
+  it("still shows the combined profit column for sectors", () => {
+    renderWithRouter(<CompositionCard breakdown={{ ...breakdown, sectors: [{ name: "Technology", value: 2000, weight: 100, profit: 300 }] }} currency="CZK" />);
+
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Name", "Weight", "Value", "Profit"]);
+    expect(within(screen.getByRole("row", { name: /Technology/ })).getByText(/^\+/)).toHaveClass("text-gain");
   });
 
   it("totals the donut from its own rows, because the API's total_value leaves cash out", () => {
@@ -96,13 +101,13 @@ describe("CompositionCard", () => {
     expect(screen.queryByRole("row", { name: /Stocks/ })).not.toBeInTheDocument();
   });
 
-  it("shows no profit column for countries", () => {
-    renderWithRouter(<CompositionCard breakdown={breakdown} currency="CZK" />);
+  it("shows the profit column for countries", () => {
+    renderWithRouter(<CompositionCard breakdown={{ ...breakdown, countries: [{ name: "United States", value: 2000, weight: 100, profit: 300 }] }} currency="CZK" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Countries" }));
 
-    expect(screen.getByRole("row", { name: /United States/ })).toBeInTheDocument();
-    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Name", "Weight", "Value"]);
+    expect(within(screen.getByRole("row", { name: /United States/ })).getByText(/^\+/)).toHaveClass("text-gain");
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Name", "Weight", "Value", "Profit"]);
   });
 });
 

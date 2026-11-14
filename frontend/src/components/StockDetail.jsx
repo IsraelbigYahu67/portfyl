@@ -387,7 +387,7 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
   if (!years?.length) {
     return (
       <div className="bg-surface rounded-lg p-4 flex flex-col h-full">
-        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-1">{name ? t(name) : null}</h3>
+        <h3 className="mb-1 section-title">{name ? t(name) : null}</h3>
         <div className="flex-1 flex items-center justify-center text-muted text-sm">
           {t("No data")}
         </div>
@@ -454,7 +454,7 @@ export function MetricBarChart({ metric, currencyCode, period = "annual", isCoun
   return (
     <div className="bg-surface rounded-lg p-4 flex flex-col">
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">{name ? t(name) : null}</h3>
+        <h3 className="section-title">{name ? t(name) : null}</h3>
         <div className="flex flex-col items-end text-xs gap-0.5">
           <span className="text-muted">
             CAGR{" "}
@@ -692,7 +692,7 @@ export function DividendGrowthSection({ ticker, currency = "USD" }) {
 
   return (
     <section className="space-y-3">
-      <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">{t("Dividend history")}</h3>
+      <h3 className="section-title">{t("Dividend history")}</h3>
       <div className="grid grid-cols-3 gap-3">
         {tiles.map((tile) => (
           <KpiBox key={tile.label} size="sm" label={tile.label} value={tile.value} />
@@ -779,7 +779,7 @@ export function StockOverview({
     financials: (
       <div>
         <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-          <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
+          <h3 className="section-title">
             {period === "quarterly" ? t("Quarterly Financials") : t("Annual Financials")}
             {periodsCount > 0 && (
               <span className="ml-2 text-muted normal-case tracking-normal">
@@ -834,7 +834,7 @@ export function StockOverview({
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div className="bg-surface rounded-[var(--radius-card)] p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
+            <h3 className="section-title">
               {t("Valuation & Quality")}
             </h3>
             {sector.sample_size > 0 && (
@@ -878,7 +878,7 @@ export function StockOverview({
         <div className="flex flex-col gap-4">
           <div className="bg-surface rounded-[var(--radius-card)] p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
+              <h3 className="section-title">
                 {t("Analyst Rating")}
               </h3>
               {analyst.rating && (
@@ -910,7 +910,7 @@ export function StockOverview({
 
           <div className="bg-surface rounded-[var(--radius-card)] p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
+              <h3 className="section-title">
                 {t("Price Targets")}
               </h3>
               {analyst.target_mean != null && analyst.upside != null && (
@@ -1343,7 +1343,7 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
   if (!data?.length) {
     return (
       <div className="bg-surface rounded-lg p-4 flex flex-col h-full">
-        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-1">{t(name)}</h3>
+        <h3 className="mb-1 section-title">{t(name)}</h3>
         <div className="flex-1 flex items-center justify-center text-muted text-sm">{t("No data")}</div>
       </div>
     );
@@ -1400,7 +1400,7 @@ export function MergedMetricBarChart({ name, data, currencyCode, isPerShare, ttm
   return (
     <div className="bg-surface rounded-lg p-4 flex flex-col">
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">{t(name)}</h3>
+        <h3 className="section-title">{t(name)}</h3>
         <div className="flex flex-col items-end text-xs gap-0.5">
           <span className="text-muted">
             CAGR{" "}
@@ -1671,7 +1671,7 @@ function OwnershipSection({ ownership, currencyCode }) {
 
   return (
     <div>
-      <h3 className="text-base font-semibold text-muted uppercase tracking-wider mb-3">
+      <h3 className="mb-3 section-title">
         {t("Ownership Breakdown")}
       </h3>
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -1774,7 +1774,7 @@ function OwnershipSection({ ownership, currencyCode }) {
 
         <div className="card !p-4">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-semibold text-muted uppercase tracking-wider flex items-center gap-1.5">
+            <h4 className="flex items-center gap-1.5 section-title">
               <Users size={12} />
               {t("Top Institutional Holders")}
             </h4>
@@ -1995,7 +1995,7 @@ function PoliticalTradesChart({ ticker, trades, currencyCode, currentPrice, onSe
 
   return (
     <div className="card !p-4 mb-3">
-      <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">
+      <h4 className="mb-2 section-title">
         {t("Trades on price chart")}
       </h4>
       <div className="h-64">
@@ -2121,7 +2121,7 @@ function PoliticalTradesSection({ ticker, currencyCode, currentPrice }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-        <h3 className="text-base font-semibold text-muted uppercase tracking-wider">{t("Political Trades")}</h3>
+        <h3 className="section-title">{t("Political Trades")}</h3>
         {!enabled && (
           <button
             onClick={() => setEnabled(true)}
@@ -2249,7 +2249,7 @@ function EarningsRecapSection({ ticker, currencyCode }) {
 
   return (
     <div>
-      <h3 className="text-base font-semibold text-muted uppercase tracking-wider mb-3">{t("Earnings")}</h3>
+      <h3 className="mb-3 section-title">{t("Earnings")}</h3>
 
       <div className="card !p-4 mb-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
@@ -2308,7 +2308,7 @@ function EarningsRecapSection({ ticker, currencyCode }) {
       </div>
 
       <div className="card !p-4 mb-3">
-        <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">
+        <h4 className="mb-2 section-title">
           {t("EPS surprise history")}
         </h4>
         <div className="h-40">
@@ -2330,7 +2330,7 @@ function EarningsRecapSection({ ticker, currencyCode }) {
 
       {recentBuyback && (
         <div className="card !p-4">
-          <h4 className="text-sm font-semibold text-muted uppercase tracking-wider mb-1">
+          <h4 className="mb-1 section-title">
             {t("Buyback trend")}
           </h4>
           <p className="text-sm text-muted">
@@ -2379,7 +2379,7 @@ function ValuationHistorySection({ ticker }) {
   return (
     <div id={VALUATION_HISTORY_ID}>
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
+        <h3 className="section-title">
           {t("Valuation History")}
           {data?.granularity && (
             <span className="ml-2 text-muted normal-case tracking-normal">
@@ -2517,7 +2517,7 @@ function InsiderVolumeChart({ ticker, transactions, currencyCode }) {
 
   return (
     <div>
-      <h3 className="text-base font-semibold text-muted uppercase tracking-wider mb-3">
+      <h3 className="mb-3 section-title">
         {t("Insider Trading Volume")}
       </h3>
       <div className="card !p-4">
@@ -2697,7 +2697,7 @@ export function InsiderTransactionsSection({ transactions, currencyCode, current
   return (
     <div>
       <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-        <h3 className="text-base font-semibold text-muted uppercase tracking-wider">
+        <h3 className="section-title">
           {t("Latest Insider Transactions")}
         </h3>
         <TypeFilterChips

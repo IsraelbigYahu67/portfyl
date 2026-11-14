@@ -5,6 +5,7 @@ import { Loader2, Monitor, Moon, PlayCircle, Sun } from "lucide-react";
 import { EditionViewModeSetting } from "@edition-manifest";
 import { useCurrency, usePalette } from "../../App";
 import SegmentedControl from "../ui/SegmentedControl";
+import Select from "../ui/Select";
 import BottomNavSetting from "./BottomNavSetting";
 import { ONBOARDING_PREVIEW_PATH } from "../../lib/routes";
 import { useI18n } from "../../i18n/I18nProvider";
@@ -23,14 +24,13 @@ function LanguageSetting() {
   return (
     <div>
       <label htmlFor={id} className="mb-2 block text-sm font-semibold">{t("Language")}</label>
-      <select
+      <Select
         id={id}
-        className="w-full max-w-xs rounded-lg border border-surface-border bg-surface-card px-3 py-2 min-h-11 md:min-h-0 text-base md:text-sm"
+        className="max-w-xs min-h-11 md:min-h-0 text-base md:text-sm"
         value={language}
-        onChange={(event) => setLanguage(event.target.value)}
-      >
-        {APP_LANGUAGES.map(({ code, name }) => <option key={code} value={code} lang={code}>{name}</option>)}
-      </select>
+        onChange={setLanguage}
+        options={APP_LANGUAGES.map(({ code, name }) => ({ value: code, label: name, lang: code }))}
+      />
     </div>
   );
 }

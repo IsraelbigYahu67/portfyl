@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, BellRing, Plus, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import Select from "../components/ui/Select";
 import {
   checkAlerts,
   createAlert,
@@ -90,7 +91,7 @@ function PriceAlertsPanel({ alerts, isLoading, disabledReason, prefillTicker, on
       {disabledReason && <p className="border-b border-surface-border px-4 py-2 text-sm text-muted" role="status">{t("Alerts are unavailable: {reason}.", { reason: disabledReason })} <Link className="text-brand hover:underline" to="/settings?section=notifications">{t("Configure notifications")}</Link></p>}
       <form onSubmit={submit} className="flex flex-wrap items-center gap-2 border-b border-surface-border px-4 py-3">
         <label className="sr-only" htmlFor="alert-ticker">{t("Alert ticker")}</label><input id="alert-ticker" value={form.ticker} onChange={(event) => setForm({ ...form, ticker: event.target.value.toUpperCase() })} placeholder={t("Ticker")} className="input !w-28 min-h-[44px] font-mono text-sm md:min-h-0" />
-        <label className="sr-only" htmlFor="alert-direction">{t("Alert direction")}</label><select id="alert-direction" value={form.direction} onChange={(event) => setForm({ ...form, direction: event.target.value })} className="input !w-auto min-h-[44px] text-sm md:min-h-0"><option value="above">{t("rises to / above")}</option><option value="below">{t("falls to / below")}</option></select>
+        <label className="sr-only" htmlFor="alert-direction">{t("Alert direction")}</label><Select id="alert-direction" value={form.direction} onChange={(v) => setForm({ ...form, direction: v })} className="!w-auto min-h-[44px] text-sm md:min-h-0" options={[{ value: "above", label: t("rises to / above") }, { value: "below", label: t("falls to / below") }]} />
         <label className="sr-only" htmlFor="alert-price">{t("Target price")}</label><input id="alert-price" type="number" step="0.01" value={form.target_price} onChange={(event) => setForm({ ...form, target_price: event.target.value })} placeholder={t("Target price")} className="input !w-32 min-h-[44px] text-sm md:min-h-0" />
         <button type="submit" disabled={add.isPending || !form.ticker.trim() || !form.target_price || Boolean(disabledReason)} className="btn-primary inline-flex min-h-[44px] items-center gap-1.5 text-sm disabled:opacity-40 md:min-h-0"><Plus size={14} />{t("Add alert")}</button>
       </form>
