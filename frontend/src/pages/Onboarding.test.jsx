@@ -8,6 +8,8 @@ import { INTENDED_BROKER_KEY, intendedBroker } from "../lib/signupIntent";
 import { TRACKER_HOME } from "../lib/routes";
 import { legacyColorClassesIn } from "../test/legacyClasses";
 import { I18nProvider } from "../i18n/I18nProvider";
+import AnalyticsProvider from "../analytics/AnalyticsProvider";
+import { createMemoryAdapter } from "../analytics/analyticsClient";
 
 
 const mocks = vi.hoisted(() => ({
@@ -60,7 +62,12 @@ vi.mock("../analytics/useRegisteredActivation", () => ({
 
 
 // Most tests render without an I18nProvider, so the view stays in English.
+// Onboarding reads useAnalytics (like Register and Welcome), so every mount is
+// wrapped in the real provider with a memory adapter, exposed as `analytics`.
+let analytics;
+
 function mount(entry = "/onboarding", { i18n = false } = {}) {
+  analytics = createMemoryAdapter();
   const routes = (
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
@@ -71,7 +78,11 @@ function mount(entry = "/onboarding", { i18n = false } = {}) {
       </Routes>
     </MemoryRouter>
   );
-  return render(i18n ? <I18nProvider initial="en">{routes}</I18nProvider> : routes);
+  return render(
+    <AnalyticsProvider initialConsent="accepted" adapterFactory={() => analytics}>
+      {i18n ? <I18nProvider initial="en">{routes}</I18nProvider> : routes}
+    </AnalyticsProvider>,
+  );
 }
 
 function LocationProbe() {
@@ -284,6 +295,115 @@ describe("Onboarding", () => {
 
       expect(status.query()).not.toBeInTheDocument();
       expect(notify("Robinhood")).toBeEnabled();
+    });
+  });
+
+  describe("funnel analytics", () => {
+    const events = () => analytics.events.map(([name, props]) => [name, props]);
+    const named = (name) => analytics.events.filter(([n]) => n === name);
+    const notify = (name) => screen.getByRole("button", { name: `Notify me when ${name} is supported` });
+
+    it("reports the broker step once, not on every re-render", async () => {
+      mount();
+      await waitFor(() => expect(named("onboarding_step_viewed")).toHaveLength(1));
+
+      fireEvent.change(screen.getByLabelText("Search brokers"), { target: { value: "x" } });
+      fireEvent.change(screen.getByLabelText("Search brokers"), { target: { value: "xt" } });
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(events()).toEqual([["onboarding_step_viewed", { step: "broker" }]]);
+    });
+
+    it("reports the pick and then the choices step when a supported broker is picked", async () => {
+      mount();
+      await waitFor(() => expect(named("onboarding_step_viewed")).toHaveLength(1));
+
+      fireEvent.click(screen.getByRole("button", { name: /XTB/ }));
+
+      await waitFor(() => expect(events()).toHaveLength(3));
+      expect(events()).toEqual([
+        ["onboarding_step_viewed", { step: "broker" }],
+        ["onboarding_broker_picked", { broker_key: "xtb" }],
+        ["onboarding_step_viewed", { step: "choices" }],
+      ]);
+    });
+
+    it("reports a step again when the visitor comes back to it", async () => {
+      mount();
+      fireEvent.click(screen.getByRole("button", { name: /XTB/ }));
+      await waitFor(() => expect(named("onboarding_step_viewed")).toHaveLength(2));
+
+      fireEvent.click(screen.getByRole("button", { name: "Change broker" }));
+
+      await waitFor(() => expect(named("onboarding_step_viewed")).toHaveLength(3));
+      expect(named("onboarding_step_viewed").map(([, props]) => props.step)).toEqual(["broker", "choices", "broker"]);
+      expect(named("onboarding_broker_picked")).toHaveLength(1);
+    });
+
+    it("reports an unsupported pick as the fixed marker, never the typed name", async () => {
+      mount();
+      fireEvent.change(screen.getByLabelText("Search brokers"), { target: { value: "Revolut" } });
+      fireEvent.click(screen.getByRole("button", { name: "Revolut" }));
+
+      await waitFor(() => expect(named("onboarding_step_viewed")).toHaveLength(2));
+      expect(events()).toEqual([
+        ["onboarding_step_viewed", { step: "broker" }],
+        ["onboarding_broker_picked", { broker_key: "unsupported" }],
+        ["onboarding_step_viewed", { step: "unsupported" }],
+      ]);
+      expect(JSON.stringify(analytics.events)).not.toMatch(/revolut/i);
+    });
+
+    it("does not call a remembered or URL broker a pick", async () => {
+      localStorage.setItem(INTENDED_BROKER_KEY, "xtb");
+      mount();
+
+      await waitFor(() => expect(named("onboarding_step_viewed")).toHaveLength(1));
+      expect(events()).toEqual([["onboarding_step_viewed", { step: "choices" }]]);
+
+      mount("/onboarding?broker=ibkr");
+      await waitFor(() => expect(named("onboarding_step_viewed")).toHaveLength(1));
+      expect(named("onboarding_broker_picked")).toHaveLength(0);
+    });
+
+    it("reports broker_request_sent with no properties after a saved request", async () => {
+      mount();
+      fireEvent.click(screen.getByRole("button", { name: "Revolut" }));
+
+      fireEvent.click(notify("Revolut"));
+
+      await waitFor(() => expect(named("broker_request_sent")).toHaveLength(1));
+      expect(named("broker_request_sent")[0][1]).toEqual({});
+      expect(JSON.stringify(analytics.events)).not.toMatch(/revolut/i);
+    });
+
+    it("reports nothing for a request that failed", async () => {
+      mocks.requestBrokerSupport.mockRejectedValueOnce(new Error("boom"));
+      mount();
+      fireEvent.click(screen.getByRole("button", { name: "Revolut" }));
+
+      fireEvent.click(notify("Revolut"));
+
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      await Promise.resolve();
+      expect(named("broker_request_sent")).toHaveLength(0);
+    });
+
+    it("reports nothing for a late answer about a broker no longer on screen", async () => {
+      let finish;
+      mocks.requestBrokerSupport.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+      mount();
+      fireEvent.click(screen.getByRole("button", { name: "Revolut" }));
+      fireEvent.click(notify("Revolut"));
+      fireEvent.click(screen.getByRole("button", { name: "Choose another broker" }));
+
+      finish({});
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(named("broker_request_sent")).toHaveLength(0);
     });
   });
 
