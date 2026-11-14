@@ -61,6 +61,9 @@ have no password.
   Before public launch, move `authDomain` to a Portfyl-branded host, either a
   Firebase Hosting custom domain such as `auth.portfyl.com` or a `/__/auth/*`
   proxy on `portfyl.com`. That is a follow-up and outside this plan.
+  **Done 2026-11-14:** prod uses `authDomain = app.portfyl.com` through a
+  `/__/auth/*` proxy in the Cloudflare Worker; see "Branded auth domain" in
+  `deploy/cloudrun.md`.
 - **D3: Keep Firebase "One account per e-mail address" (the default).** Never
   switch it to "multiple accounts per e-mail". Doing so would mint a new UID
   for the same e-mail and hit `identity_conflict` (409) on every Google

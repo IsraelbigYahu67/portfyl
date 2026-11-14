@@ -6,9 +6,49 @@ const CLOUD_RUN_ORIGIN = "https://portfyl-812512242326.europe-west1.run.app";
 // they did behind the old Cloud Run domain mapping.
 const TRACKER_HOST = "app.portfyl.com";
 
+// Google sign-in: Firebase's popup helper pages live under /__/auth/ on the
+// Firebase auth domain. Serving them from app.portfyl.com (authDomain =
+// app.portfyl.com) makes Google's account chooser say "continue to
+// app.portfyl.com" instead of the raw <project>.firebaseapp.com name. This is
+// Firebase's documented "proxy auth requests to firebaseapp.com" setup.
+const FIREBASE_AUTH_ORIGIN = "https://portfyl-cloud-fstxby.firebaseapp.com";
+const FIREBASE_AUTH_PATH_PREFIX = "/__/auth/";
+
+// The helper pages are static and keep their state in the query string and
+// browser storage, so nothing of the visitor's Portfyl or Cloudflare Access
+// session is forwarded to Firebase Hosting.
+async function proxyFirebaseAuthHelper(request, incoming) {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return new Response(null, { status: 405, headers: { Allow: "GET, HEAD" } });
+  }
+  const target = new URL(FIREBASE_AUTH_ORIGIN);
+  target.pathname = incoming.pathname;
+  target.search = incoming.search;
+  const headers = new Headers();
+  for (const name of ["Accept", "Accept-Language", "User-Agent", "If-None-Match", "If-Modified-Since"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  return fetch(target.toString(), { method: request.method, headers, redirect: "manual" });
+}
+
 export default {
   async fetch(request, env) {
     const incoming = new URL(request.url);
+    if (incoming.hostname === TRACKER_HOST && incoming.pathname.startsWith(FIREBASE_AUTH_PATH_PREFIX)) {
+      try {
+        return await proxyFirebaseAuthHelper(request, incoming);
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            event: "firebase_auth_fetch_failed",
+            path: incoming.pathname,
+            error: error instanceof Error ? error.name : "UnknownError",
+          }),
+        );
+        return Response.json({ code: "auth_helper_unavailable" }, { status: 502 });
+      }
+    }
     const target = new URL(CLOUD_RUN_ORIGIN);
     target.pathname = incoming.pathname;
     target.search = incoming.search;
