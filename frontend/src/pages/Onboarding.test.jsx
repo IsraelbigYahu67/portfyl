@@ -363,6 +363,31 @@ describe("Onboarding", () => {
       expect(screen.getByRole("heading", { level: 1, name: "Which broker do you use?" })).toBeInTheDocument();
     });
 
+    it("a different broker picked later is what the demo then keeps", async () => {
+      localStorage.setItem(INTENDED_BROKER_KEY, "xtb");
+      mount();
+
+      fireEvent.click(screen.getByRole("button", { name: "Change broker" }));
+      fireEvent.click(screen.getByRole("button", { name: /Degiro/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Just look around with sample data first" }));
+
+      expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
+      expect(intendedBroker()).toBe("degiro");
+    });
+
+    it("Change broker without a new pick forgets the old one across a reload", () => {
+      localStorage.setItem(INTENDED_BROKER_KEY, "xtb");
+      const { unmount } = mount();
+
+      fireEvent.click(screen.getByRole("button", { name: "Change broker" }));
+      expect(intendedBroker()).toBeNull();
+      unmount();
+
+      mount();
+      expect(screen.getByRole("heading", { level: 1, name: "Which broker do you use?" })).toBeInTheDocument();
+      expect(screen.getByText("Step 1 of 2")).toBeInTheDocument();
+    });
+
     it("keeps the remembered broker after the demo", async () => {
       localStorage.setItem(INTENDED_BROKER_KEY, "xtb");
       mount();

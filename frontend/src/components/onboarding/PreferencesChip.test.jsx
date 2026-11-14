@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { I18nProvider } from "../../i18n/I18nProvider";
 import { PREFERENCES_CONFIRMED_KEY } from "../../lib/preferencesConfirmation";
@@ -65,7 +65,7 @@ describe("PreferencesChip", () => {
     expect(screen.getByText("You can change both later in Settings → Preferences.")).toBeInTheDocument();
   });
 
-  it("offers every app language by its own name and the currencies as symbol · code", () => {
+  it("offers every app language by its own name and the currencies as symbol · code", async () => {
     renderChip();
     fireEvent.click(screen.getByRole("button", { name: "English · GBP" }));
 
@@ -73,6 +73,8 @@ describe("PreferencesChip", () => {
     expect(within(screen.getByRole("listbox", { name: "Language" })).getAllByRole("option").map((option) => option.textContent)).toEqual([
       "Čeština", "English", "Deutsch", "Français", "Español", "Italiano", "Português", "Polski", "Nederlands",
     ]);
+    // The menu counts as open from the next animation frame.
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Language" })).toHaveAttribute("aria-expanded", "true"));
     fireEvent.keyDown(screen.getByRole("combobox", { name: "Language" }), { key: "Escape" });
 
     fireEvent.click(screen.getByRole("combobox", { name: "Display currency" }));
@@ -116,6 +118,32 @@ describe("PreferencesChip", () => {
     expect(localStorage.getItem(PREFERENCES_CONFIRMED_KEY)).toBe("1");
     expect(screen.getByRole("button", { name: "English · GBP" })).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("button", { name: "Looks good" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "English · GBP" })).toHaveFocus();
+  });
+
+  it("closes on Escape, returns focus to the chip and confirms nothing", () => {
+    renderChip();
+    fireEvent.click(screen.getByRole("button", { name: "English · GBP" }));
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Looks good" }), { key: "Escape" });
+
+    const chip = screen.getByRole("button", { name: "English · GBP" });
+    expect(chip).toHaveAttribute("aria-expanded", "false");
+    expect(chip).toHaveFocus();
+    expect(localStorage.getItem(PREFERENCES_CONFIRMED_KEY)).toBeNull();
+  });
+
+  it("Escape in an open select closes only the select menu", async () => {
+    renderChip();
+    fireEvent.click(screen.getByRole("button", { name: "English · GBP" }));
+    const language = screen.getByRole("combobox", { name: "Language" });
+    fireEvent.click(language);
+    await waitFor(() => expect(language).toHaveAttribute("aria-expanded", "true"));
+
+    fireEvent.keyDown(language, { key: "Escape" });
+    await waitFor(() => expect(language).toHaveAttribute("aria-expanded", "false"));
+
+    expect(screen.getByRole("button", { name: "English · GBP" })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("collapses again when the chip is clicked a second time", () => {

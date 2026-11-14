@@ -6,7 +6,7 @@ import { useCurrency, usePortfolio } from "../App";
 import { TRACKER_HOME } from "../lib/routes";
 import { uniquePortfolioName } from "../lib/brokerPortfolio";
 import { findSupportedBroker } from "../lib/onboardingBrokers";
-import { clearIntendedBroker, intendedBroker } from "../lib/signupIntent";
+import { clearIntendedBroker, intendedBroker, rememberIntendedBroker } from "../lib/signupIntent";
 import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
 import { useT } from "../i18n/I18nProvider";
 
@@ -68,6 +68,10 @@ export default function Onboarding() {
   function changeBroker(key) {
     setError(null);
     setRemembered(null);
+    // Storage follows the latest choice, so a stale broker never survives a
+    // reload or reaches the sample-data banner after the demo.
+    if (key) rememberIntendedBroker(key);
+    else clearIntendedBroker();
     const next = new URLSearchParams(searchParams);
     if (key) next.set("broker", key);
     else next.delete("broker");

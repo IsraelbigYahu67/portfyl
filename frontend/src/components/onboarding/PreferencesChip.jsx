@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { ChevronDown, Globe } from "lucide-react";
 
 import Select from "../ui/Select";
@@ -16,6 +16,7 @@ const LANGUAGE_OPTIONS = APP_LANGUAGES.map(({ code, name }) => ({ value: code, l
 export default function PreferencesChip({ currency, onCurrencyChange }) {
   const { language, setLanguage, t } = useI18n();
   const [open, setOpen] = useState(false);
+  const chipRef = useRef(null);
   const panelId = useId();
   const languageId = useId();
   const currencyId = useId();
@@ -32,14 +33,20 @@ export default function PreferencesChip({ currency, onCurrencyChange }) {
     setLanguage(code);
     onCurrencyChange(localCurrencyForLanguage(code));
   };
+  // Closing unmounts the focused control, so focus goes back to the chip.
+  const close = () => {
+    setOpen(false);
+    chipRef.current?.focus({ preventScroll: true });
+  };
   const confirm = () => {
     confirmPreferences();
-    setOpen(false);
+    close();
   };
 
   return (
     <div className="relative">
       <button
+        ref={chipRef}
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
@@ -54,6 +61,8 @@ export default function PreferencesChip({ currency, onCurrencyChange }) {
       {open && (
         <div
           id={panelId}
+          // An open Select menu handles (and stops) its own Escape first.
+          onKeyDown={(event) => { if (event.key === "Escape") close(); }}
           className="card animate-fade-up absolute right-0 top-full z-20 mt-2 w-[min(20rem,calc(100vw-3rem))] space-y-4 text-left"
         >
           <div>
