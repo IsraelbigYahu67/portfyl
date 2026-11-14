@@ -1465,4 +1465,7 @@ export default {
   "Paste Secret Key here": "Vložte sem Secret Key",
   "API Key": "API klíč",
   "T212 auto-sync": "Automatická synchronizace T212",
+  // onboarding-flow Task 2
+  "We sent a verification link to <b>{email}</b>. Click it and this page continues by itself.": "Poslali jsme ověřovací odkaz na <b>{email}</b>. Klikněte na něj a tato stránka bude pokračovat sama.",
+  "E-mail verified. Log in to continue.": "E-mail ověřen. Přihlaste se a pokračujte.",
 };

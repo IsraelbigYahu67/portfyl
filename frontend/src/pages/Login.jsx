@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { LogIn } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { TRACKER_HOME } from "../lib/routes";
@@ -17,6 +17,7 @@ import { rich, useT } from "../i18n/I18nProvider";
 export default function Login() {
   const t = useT();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { loginWithIdToken } = useAuth();
   const emailId = useId();
   const passwordId = useId();
@@ -81,6 +82,12 @@ export default function Login() {
           <h1 className="font-display font-bold text-xl text-ink">{t("Log in to Portfyl")}</h1>
           <p className="text-sm text-muted">{t("Track your portfolio, dividends, and taxes in one place.")}</p>
         </div>
+
+        {searchParams.get("verified") === "1" && (
+          <p role="status" className="text-sm text-gain text-center">
+            {t("E-mail verified. Log in to continue.")}
+          </p>
+        )}
 
         {isGoogleSignInEnabled() && (
           <div className="space-y-4">
