@@ -36,7 +36,7 @@ export const api = axios.create({ baseURL: "/api" });
 
 // Endpoints that are NOT portfolio-scoped — these must not receive portfolio_id
 // or they'd 404 / mis-route.
-const PORTFOLIO_AGNOSTIC_PREFIXES = ["/portfolios", "/market", "/watchlists", "/settings", "/auth", "/capabilities", "/test-plans", "/billing"];
+const PORTFOLIO_AGNOSTIC_PREFIXES = ["/portfolios", "/market", "/watchlists", "/settings", "/auth", "/capabilities", "/test-plans", "/billing", "/broker-requests"];
 
 function isPortfolioAgnostic(url) {
   if (!url) return false;
@@ -181,6 +181,11 @@ export const openBillingPortal = () => api.post("/billing/portal").then((r) => r
 // Books a switch between paid plans for the end of the paid period (no
 // proration); choosing the current plan again withdraws a booked switch.
 export const changePlan = (plan) => api.post("/billing/change-plan", { plan }).then((r) => r.data);
+
+// "Notify me when my broker is supported": the name is free text the user typed;
+// 201 = stored, 200 = already requested (case-insensitive), 422/429 = rejected.
+export const requestBrokerSupport = (brokerName) =>
+  api.post("/broker-requests", { broker_name: brokerName }).then((r) => r.data);
 
 export const fetchDeletionStatus = () =>
   api.get("/settings/account/deletion").then((r) => r.data);

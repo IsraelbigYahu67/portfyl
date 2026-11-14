@@ -1234,6 +1234,35 @@ class AllocationTarget(Base):
     display_order = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+class BrokerRequest(Base):
+    """A broker the user asked us to support ("notify me when my broker is
+    supported", onboarding-flow plan Task 3). The name is free text typed by
+    the user, stored whitespace-collapsed and always rendered as plain text.
+    At most one row per workspace and case-insensitive name (see the index
+    below), and at most MAX_PER_WORKSPACE rows per workspace (router)."""
+
+    __tablename__ = "broker_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    public_id = _public_id()
+    workspace_id = _workspace_id()
+    user_id = Column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    broker_name = Column(String(60), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+Index(
+    "uq_broker_requests_workspace_name",
+    BrokerRequest.workspace_id,
+    func.lower(BrokerRequest.broker_name),
+    unique=True,
+)
+
 
 class DividendNotification(Base):
     __tablename__ = "dividend_notifications"

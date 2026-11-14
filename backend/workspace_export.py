@@ -18,6 +18,7 @@ from models import (
     BrokerCorporateAction,
     BrokerCorporateActionApplication,
     BrokerPosition,
+    BrokerRequest,
     CashInterestRate,
     DiscordWebhook,
     DividendNotification,
@@ -34,7 +35,7 @@ from models import (
 from tenancy import RequestContext
 
 
-EXPORT_SCHEMA_VERSION = 6
+EXPORT_SCHEMA_VERSION = 7
 
 _WORKSPACE_PREFERENCE_KEYS = (
     "broker_sync_daily_time",
@@ -216,6 +217,11 @@ def build_workspace_export(
             AllocationTarget.display_order,
             AllocationTarget.id,
         )
+    ).all()
+    broker_requests = db.scalars(
+        select(BrokerRequest)
+        .where(BrokerRequest.workspace_id == workspace_id)
+        .order_by(BrokerRequest.created_at, BrokerRequest.id)
     ).all()
     dividend_notifications = db.scalars(
         select(DividendNotification)
@@ -519,6 +525,14 @@ def build_workspace_export(
             }
             for target in allocation_targets
             if target.portfolio_id in portfolio_public_ids
+        ],
+        "broker_requests": [
+            {
+                "id": str(request.public_id),
+                "broker_name": request.broker_name,
+                "created_at": _iso(request.created_at),
+            }
+            for request in broker_requests
         ],
         "dividend_notifications": [
             {

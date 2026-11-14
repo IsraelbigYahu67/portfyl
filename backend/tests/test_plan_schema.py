@@ -25,7 +25,7 @@ def test_stripe_billing_models_are_mapped_without_trials():
 
 
 def test_expected_alembic_head_adds_t212_account_binding():
-    assert EXPECTED_ALEMBIC_HEAD == "0025_stripe_billing"
+    assert EXPECTED_ALEMBIC_HEAD == "0026_broker_requests"
     assert models.AllocationTarget.__tablename__ == "allocation_targets"
     for column in (
         "cash_next_page_path", "cash_complete", "cash_loaded",
