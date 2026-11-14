@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { useDemoData } from "./DemoDataContext";
-import { DEMO_COPY, getDemoLanguage } from "./demoCopy";
+import { DEMO_COPY, getChosenLanguage, getDemoLanguage } from "./demoCopy";
 import { useAnalytics } from "../analytics/AnalyticsProvider";
 import { ANALYTICS_COPY, getAnalyticsLanguage } from "../analytics/analyticsCopy";
 import { ANALYTICS_EVENTS } from "../analytics/eventContract";
@@ -42,7 +42,7 @@ export default function DemoShell({ children }) {
           {t.disclosure} · {t.asOfLabel} {data.asOf}
         </span>
         <a
-          href={registerUrl({ source: "demo", lang: language })}
+          href={registerUrl({ source: "demo", lang: getChosenLanguage() })}
           className="btn-primary text-sm"
           onClick={() => capture(ANALYTICS_EVENTS.SIGNUP_CTA_CLICKED, { source_surface: "demo", language })}
         >
