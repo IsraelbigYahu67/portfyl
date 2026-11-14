@@ -9,6 +9,10 @@ param(
     [ValidateRange(1, 365)]
     [int]$ExpiresDays = 30,
 
+    # invite-only: the invitation never expires (cannot be combined with
+    # -ExpiresDays). Accepted testers never expire either way.
+    [switch]$NoExpiry,
+
     [string]$ProjectId = "portfyl-prod-f6shqb",
     [string]$Region = "europe-west1",
     # Named gcloud configuration logged in to the prod project's account; the
@@ -34,6 +38,13 @@ $ErrorActionPreference = "Stop"
 
 if ($Action -ne "list" -and [string]::IsNullOrWhiteSpace($Email)) {
     throw "-Email is required for '$Action'."
+}
+
+if ($NoExpiry -and $PSBoundParameters.ContainsKey("ExpiresDays")) {
+    throw "-NoExpiry and -ExpiresDays cannot be used together."
+}
+if ($NoExpiry -and $Action -ne "invite") {
+    throw "-NoExpiry only applies to -Action invite."
 }
 
 $cloudflareConfigured = -not ([string]::IsNullOrWhiteSpace($CloudflareAccountId)) `
@@ -150,7 +161,12 @@ if ($Action -ne "list") {
     $jobArgs += $Email.Trim().ToLowerInvariant()
 }
 if ($Action -eq "invite") {
-    $jobArgs += @("--expires-days", $ExpiresDays)
+    if ($NoExpiry) {
+        $jobArgs += "--no-expiry"
+    }
+    else {
+        $jobArgs += @("--expires-days", $ExpiresDays)
+    }
 }
 $encodedArgs = $jobArgs -join ","
 

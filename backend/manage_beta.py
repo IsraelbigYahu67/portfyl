@@ -27,7 +27,13 @@ def _email(value: str) -> str:
     return normalized
 
 
-def invite(email: str, expires_days: int) -> None:
+def invite(email: str, expires_days: int | None) -> None:
+    """Admit ``email``. ``expires_days=None`` means the invitation never expires.
+
+    An already accepted tester keeps their accepted status (and so never
+    expires); re-inviting only clears a revocation or disabled flag. No user,
+    workspace, key or portfolio data is touched.
+    """
     now = _utcnow()
     with SessionLocal() as db:
         row = db.scalar(select(BetaInvite).where(BetaInvite.email == email))
@@ -37,7 +43,9 @@ def invite(email: str, expires_days: int) -> None:
         if row.status != "accepted":
             row.status = "invited"
             row.accepted_at = None
-            row.expires_at = now + timedelta(days=expires_days)
+            row.expires_at = (
+                None if expires_days is None else now + timedelta(days=expires_days)
+            )
         row.revoked_at = None
         user = db.scalar(select(User).where(User.email == email))
         if user is not None:
@@ -84,7 +92,13 @@ def main() -> None:
 
     invite_parser = commands.add_parser("invite", help="allow a tester to create a Portfyl account")
     invite_parser.add_argument("email", type=_email)
-    invite_parser.add_argument("--expires-days", type=int, default=30)
+    expiry = invite_parser.add_mutually_exclusive_group()
+    expiry.add_argument("--expires-days", type=int, default=30)
+    expiry.add_argument(
+        "--no-expiry",
+        action="store_true",
+        help="invitation never expires (default: expires after --expires-days)",
+    )
 
     revoke_parser = commands.add_parser("revoke", help="remove access and revoke Portfyl sessions")
     revoke_parser.add_argument("email", type=_email)
@@ -93,9 +107,12 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "invite":
-        if args.expires_days < 1:
-            parser.error("--expires-days must be at least 1")
-        invite(args.email, args.expires_days)
+        if args.no_expiry:
+            invite(args.email, None)
+        else:
+            if args.expires_days < 1:
+                parser.error("--expires-days must be at least 1")
+            invite(args.email, args.expires_days)
     elif args.command == "revoke":
         revoke(args.email)
     else:
