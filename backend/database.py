@@ -79,7 +79,7 @@ class Base(DeclarativeBase):
     pass
 
 
-EXPECTED_ALEMBIC_HEAD = "0025_stripe_billing"
+EXPECTED_ALEMBIC_HEAD = "0026_broker_requests"
 
 
 def assert_alembic_head(

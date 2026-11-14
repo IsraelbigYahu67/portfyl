@@ -30,6 +30,7 @@ nejmenovali, protože nám tato povinnost nevzniká. `[[PRÁVNÍK: ověřit]]`
 | **Údaje o účtu** | e-mail, jméno (pokud se přihlásíte přes Google), interní identifikátor účtu, datum ověření e-mailu | od vás při registraci, případně od Googlu při přihlášení přes Google |
 | **Údaje o portfoliu** | názvy portfolií, transakce, tickery, počty kusů, ceny, měny, data, hotovost, dividendy, opce, poznámky | od vás (ruční zadání, import souboru) nebo od vašeho brokera, pokud ho připojíte |
 | **Připojení k brokerům a službám** | šifrované API klíče, stav synchronizace, anonymizovaný otisk čísla účtu u brokera, šifrovaná adresa Discord webhooku | od vás |
+| **Požadavky na brokery** | brokeři, které nás požádáte podporovat (název, který jste napsali), propojení s vaším účtem | od vás |
 | **Údaje o předplatném** | tarif, období, stav předplatného, identifikátor zákazníka a transakce u Platebního partnera, země | od Platebního partnera; **číslo karty nikdy nedostáváme** |
 | **Technické a bezpečnostní údaje** | IP adresa, typ prohlížeče, otisky (hashe) přihlašovacích relací, čas posledního přihlášení, bezpečnostní záznamy (audit log), počty použití funkcí | automaticky při používání Služby |
 | **Komunikace s podporou** | obsah e-mailů, které nám pošlete | od vás |
@@ -113,6 +114,7 @@ EU-U.S. Data Privacy Framework je na https://www.dataprivacyframework.gov.
 | Provozní záznamy (logy) | 30 dní; neobsahují obsah portfolia ani hesla |
 | Záznamy o přihlašovacích relacích | 30 dní po vypršení nebo odhlášení |
 | Bezpečnostní záznamy (audit log) | po dobu existence účtu, smažou se spolu s ním |
+| Požadavky na brokery (názvy brokerů, které nás požádáte podporovat) | po dobu existence účtu, smažou se spolu s ním |
 | Komunikace s podporou | 1 rok od vyřízení |
 | Doklady o platbách | uchovává Platební partner; my údaje o předplatném po dobu, kterou vyžadují daňové předpisy `[[PRÁVNÍK: doplnit lhůtu]]` |
 | Analytická data (se souhlasem) | nejvýše 1 rok |
@@ -161,6 +163,9 @@ nastavení:
 | `__Host-portfyl_session` | cookie | udržení přihlášení (náhodný identifikátor relace) | nejvýše 30 dní |
 | `portfyl_analytics_consent` | cookie první strany, sdílená mezi `portfyl.com` a subdoménami | zapamatování vaší volby souhlasu s analytikou | 180 dní |
 | `sb_theme`, `sb_theme_style`, `sb_palette`, `sb_currency`, `sb_portfolio_id`, `sb_view_mode`, `portfyl_landing_language` | localStorage | vzhled, měna, vybrané portfolio, režim zobrazení a jazyk úvodní stránky | dokud je nesmažete |
+| `portfyl_intended_broker` | localStorage | zapamatování brokera, kterého jste si zvolili před registrací | dokud ho nesmažete nebo nevytvoříte první portfolio |
+| `portfyl_preferences_confirmed` | localStorage | zapamatování, že jste potvrdili jazyk a měnu | dokud ho nesmažete |
+| `portfyl_getting_started:<workspaceId>` | localStorage | zapamatování postupu v úvodním seznamu úkolů | dokud ho nesmažete |
 | `sb_dashboard_layout_v3`, `sb_dashboard_widget_order_v4`, `sb_dashboard_widgets_hidden`, `sb_stock_report_sections`, `sb_stock_report_tabs` | localStorage | rozložení přehledu a nastavení detailu akcie | dokud je nesmažete |
 | `__cf_bm` a další cookies Cloudflare | cookie | ochrana proti robotům a útokům | nejvýše 30 minut |
 

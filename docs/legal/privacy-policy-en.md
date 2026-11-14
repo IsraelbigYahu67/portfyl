@@ -32,6 +32,7 @@ have not appointed a Data Protection Officer because we are not required to.
 | **Account data** | e-mail, name (if you sign in with Google), internal account ID, e-mail verification date | you at registration, or Google if you sign in with Google |
 | **Portfolio data** | portfolio names, transactions, tickers, quantities, prices, currencies, dates, cash, dividends, options, notes | you (manual entry, file import) or your broker if you connect it |
 | **Broker and service connections** | encrypted API keys, sync status, an anonymised fingerprint of your broker account number, encrypted Discord webhook URL | you |
+| **Broker requests** | brokers you ask us to support (the name you typed), linked to your account | you |
 | **Subscription data** | plan, period, subscription status, customer and transaction IDs at the Payment Partner, country | the Payment Partner; **we never receive your card number** |
 | **Technical and security data** | IP address, browser type, hashed session tokens, last sign-in time, security records (audit log), feature usage counts | automatically when you use the Service |
 | **Support communication** | the content of e-mails you send us | you |
@@ -114,6 +115,7 @@ companies is at https://www.dataprivacyframework.gov.
 | Operational logs | 30 days; they contain no portfolio content or passwords |
 | Session records | 30 days after expiry or sign-out |
 | Security records (audit log) | while your account exists; deleted with it |
+| Broker requests (the broker names you ask us to support) | while your account exists; deleted together with your account |
 | Support communication | 1 year after resolution |
 | Payment records | kept by the Payment Partner; we keep subscription records for as long as tax law requires `[[LAWYER: add period]]` |
 | Analytics data (with consent) | at most 1 year |
@@ -165,6 +167,9 @@ remember your settings:
 | `__Host-portfyl_session` | cookie | keeps you signed in (random session identifier) | up to 30 days |
 | `portfyl_analytics_consent` | first-party cookie shared by `portfyl.com` and subdomains | remembers your analytics consent choice | 180 days |
 | `sb_theme`, `sb_theme_style`, `sb_palette`, `sb_currency`, `sb_portfolio_id`, `sb_view_mode`, `portfyl_landing_language` | localStorage | appearance, currency, selected portfolio, view mode and landing-page language | until you clear them |
+| `portfyl_intended_broker` | localStorage | remembers the broker you checked before signing up | until you clear it or create your first portfolio |
+| `portfyl_preferences_confirmed` | localStorage | remembers that you confirmed your language and currency | until you clear it |
+| `portfyl_getting_started:<workspaceId>` | localStorage | remembers your getting-started checklist progress | until you clear it |
 | `sb_dashboard_layout_v3`, `sb_dashboard_widget_order_v4`, `sb_dashboard_widgets_hidden`, `sb_stock_report_sections`, `sb_stock_report_tabs` | localStorage | dashboard layout and stock-detail settings | until you clear them |
 | `__cf_bm` and other Cloudflare cookies | cookie | bot and attack protection | up to 30 minutes |
 

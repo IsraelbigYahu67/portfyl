@@ -149,4 +149,10 @@ poskytovatele dat a podle jeho licence upravit čl. 9.3 a 10 podmínek.
 - Ověření DPA, certifikací DPF a regionů u Google Cloud, Firebase, Neon,
   Cloudflare, PostHog a Sentry (a zda je Sentry v produkci zapnutý).
 - Lhůta uchování údajů o předplatném podle daňových předpisů.
+- Změny zásad z 2026-11-14 (česká i anglická verze): nová kategorie „požadavky
+  na brokery“ (název brokera zadaný uživatelem, propojený s účtem, smazaný
+  spolu s účtem) v čl. 2 a 6 a nové klíče úložiště `portfyl_intended_broker`,
+  `portfyl_preferences_confirmed` a `portfyl_getting_started:<workspaceId>`
+  v čl. 8. Vyžadují kontrolu právníkem, zejména zda je lze uvádět mezi
+  nezbytným úložištěm bez souhlasu.
 - Pověřenec pro ochranu osobních údajů: potvrdit, že není povinný.

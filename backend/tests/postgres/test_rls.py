@@ -46,6 +46,7 @@ RLS_TABLES = {
     "discord_webhooks",
     "trade_notes",
     "allocation_targets",
+    "broker_requests",
     "cash_interest_rates",
     "dividend_notifications",
     "price_alerts",
