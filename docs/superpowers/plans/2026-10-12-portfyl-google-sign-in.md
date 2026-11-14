@@ -61,6 +61,11 @@ have no password.
   Before public launch, move `authDomain` to a Portfyl-branded host, either a
   Firebase Hosting custom domain such as `auth.portfyl.com` or a `/__/auth/*`
   proxy on `portfyl.com`. That is a follow-up and outside this plan.
+  **Superseded 2026-11-14:** the button now opens Google's own popup (Google
+  Identity Services) and signs in with `signInWithCredential`, so the
+  `firebaseapp.com` helper window, `signInWithPopup`, `apis.google.com` and
+  the auth-domain iframe described below are no longer used. Current state:
+  "Google sign-in" in `deploy/cloudrun.md` and `frontend/src/auth/firebase.js`.
 - **D3: Keep Firebase "One account per e-mail address" (the default).** Never
   switch it to "multiple accounts per e-mail". Doing so would mint a new UID
   for the same e-mail and hit `identity_conflict` (409) on every Google

@@ -105,13 +105,19 @@ def _directive(policy: str, name: str) -> str | None:
 def test_without_auth_domain_policy_has_no_frame_src_or_google_scripts():
     policy = build_content_security_policy(NO_ENV)
     assert _directive(policy, "frame-src") is None
-    assert "apis.google.com" not in policy
+    assert "google.com" not in policy
 
 
-def test_auth_domain_enables_firebase_popup_hosts_only():
+def test_auth_domain_enables_google_identity_sources_only():
     policy = build_content_security_policy(AUTH_ENV)
-    assert _directive(policy, "script-src") == "script-src 'self' https://apis.google.com"
-    assert _directive(policy, "frame-src") == "frame-src https://portfyl-prod.firebaseapp.com"
+    assert _directive(policy, "script-src") == "script-src 'self' https://accounts.google.com/gsi/client"
+    assert _directive(policy, "style-src") == "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style"
+    assert _directive(policy, "frame-src") == "frame-src https://accounts.google.com/gsi/"
+    assert _directive(policy, "connect-src").endswith(" https://accounts.google.com/gsi/")
+    # Google's popup replaced Firebase's: neither its loader nor the Firebase
+    # auth domain's iframe is admitted any more.
+    assert "apis.google.com" not in policy
+    assert "firebaseapp.com" not in policy
     # Embedding Portfyl itself stays forbidden.
     assert _directive(policy, "frame-ancestors") == "frame-ancestors 'none'"
     assert "unsafe-eval" not in policy
@@ -127,7 +133,7 @@ def test_auth_domain_is_normalized():
     policy = build_content_security_policy(
         {"PORTFYL_FIREBASE_AUTH_DOMAIN": "  Portfyl-Prod.FirebaseApp.com "}
     )
-    assert _directive(policy, "frame-src") == "frame-src https://portfyl-prod.firebaseapp.com"
+    assert policy == build_content_security_policy(AUTH_ENV)
 
 
 @pytest.mark.parametrize("value", [
@@ -150,7 +156,7 @@ def test_invalid_auth_domain_fails_closed_to_the_strict_policy(value: str):
 def test_middleware_stamps_the_auth_domain_policy():
     response = TestClient(_make_app(AUTH_ENV)).get("/html")
     assert response.headers["content-security-policy"] == build_content_security_policy(AUTH_ENV)
-    assert "frame-src https://portfyl-prod.firebaseapp.com" in response.headers["content-security-policy"]
+    assert "frame-src https://accounts.google.com/gsi/" in response.headers["content-security-policy"]
 
 
 def test_script_src_never_allows_inline_scripts():

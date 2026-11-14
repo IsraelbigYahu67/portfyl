@@ -5,11 +5,13 @@ Firebase/Google and Sentry hosts the app already depends on, are allowed in
 connect-src.
 
 Google sign-in (docs/superpowers/plans/2026-10-12-portfyl-google-sign-in.md)
-uses Firebase's popup flow, which loads Google's gapi loader from
-https://apis.google.com and embeds a hidden iframe served from the Firebase
-auth domain. Both are allowed only when PORTFYL_FIREBASE_AUTH_DOMAIN holds a
-valid bare hostname; otherwise the policy stays at its strict default and the
-popup flow simply cannot start (fail closed)."""
+opens Google's own popup through Google Identity Services, whose script,
+styles, frames and calls all live under https://accounts.google.com/gsi/.
+They are allowed only when PORTFYL_FIREBASE_AUTH_DOMAIN holds a valid bare
+hostname; otherwise the policy stays at its strict default and the popup flow
+simply cannot start (fail closed). The variable is only this on/off switch
+now: its hostname was the Firebase popup's iframe host until 2026-11-14 and is
+no longer put into the policy."""
 from __future__ import annotations
 
 import os
@@ -21,7 +23,10 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 AUTH_DOMAIN_ENV = "PORTFYL_FIREBASE_AUTH_DOMAIN"
-GOOGLE_SIGN_IN_SCRIPT_HOST = "https://apis.google.com"
+# The four sources Google documents for Google Identity Services under a CSP.
+GOOGLE_IDENTITY_SCRIPT = "https://accounts.google.com/gsi/client"
+GOOGLE_IDENTITY_STYLE = "https://accounts.google.com/gsi/style"
+GOOGLE_IDENTITY_PATH = "https://accounts.google.com/gsi/"
 
 # A bare DNS hostname with at least two labels: no scheme, port, path,
 # wildcard, whitespace, or CSP punctuation can pass.
@@ -43,21 +48,27 @@ def _frame_ancestors(env: Mapping[str, str] | None) -> str:
 
 
 def build_content_security_policy(env: Mapping[str, str] | None = None) -> str:
-    auth_domain = firebase_auth_domain(env)
+    google_sign_in = firebase_auth_domain(env) is not None
     script_src = "script-src 'self'"
-    if auth_domain:
-        script_src += f" {GOOGLE_SIGN_IN_SCRIPT_HOST}"
+    style_src = "style-src 'self' 'unsafe-inline'"
+    connect_src = (
+        "connect-src 'self' https://eu.i.posthog.com https://eu-assets.i.posthog.com "
+        "https://*.googleapis.com https://*.firebaseio.com https://*.ingest.sentry.io"
+    )
+    if google_sign_in:
+        script_src += f" {GOOGLE_IDENTITY_SCRIPT}"
+        style_src += f" {GOOGLE_IDENTITY_STYLE}"
+        connect_src += f" {GOOGLE_IDENTITY_PATH}"
     directives = [
         "default-src 'self'",
         script_src,
-        "style-src 'self' 'unsafe-inline'",
+        style_src,
         "img-src 'self' data: blob:",
         "font-src 'self' data:",
-        "connect-src 'self' https://eu.i.posthog.com https://eu-assets.i.posthog.com "
-        "https://*.googleapis.com https://*.firebaseio.com https://*.ingest.sentry.io",
+        connect_src,
     ]
-    if auth_domain:
-        directives.append(f"frame-src https://{auth_domain}")
+    if google_sign_in:
+        directives.append(f"frame-src {GOOGLE_IDENTITY_PATH}")
     directives += [
         "object-src 'none'",
         "base-uri 'self'",

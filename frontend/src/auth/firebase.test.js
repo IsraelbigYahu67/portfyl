@@ -14,11 +14,36 @@ const sdk = vi.hoisted(() => ({
   sendEmailVerification: vi.fn(),
   sendPasswordResetEmail: vi.fn(),
   signOut: vi.fn(),
-  signInWithPopup: vi.fn(),
-  providers: [],
-  GoogleAuthProvider: vi.fn(),
+  signInWithCredential: vi.fn(),
+  GoogleAuthProvider: { credential: vi.fn() },
   auth: { currentUser: null },
 }));
+
+// Stand-in for Google Identity Services (window.google.accounts.oauth2).
+// `respond` decides what the popup does once requestAccessToken is called.
+const google = {
+  configs: [],
+  requests: 0,
+  respond: null,
+};
+
+function installGoogleIdentity() {
+  window.google = {
+    accounts: {
+      oauth2: {
+        initTokenClient: (config) => {
+          google.configs.push(config);
+          return {
+            requestAccessToken: () => {
+              google.requests += 1;
+              google.respond(config);
+            },
+          };
+        },
+      },
+    },
+  };
+}
 
 vi.mock("firebase/app", () => {
   sdk.appLoads += 1;
@@ -39,7 +64,7 @@ vi.mock("firebase/auth", () => {
     sendEmailVerification: sdk.sendEmailVerification,
     sendPasswordResetEmail: sdk.sendPasswordResetEmail,
     signOut: sdk.signOut,
-    signInWithPopup: sdk.signInWithPopup,
+    signInWithCredential: sdk.signInWithCredential,
     GoogleAuthProvider: sdk.GoogleAuthProvider,
   };
 });
@@ -59,17 +84,17 @@ beforeEach(() => {
   sdk.sendEmailVerification.mockReset();
   sdk.sendPasswordResetEmail.mockReset();
   sdk.signOut.mockReset().mockResolvedValue(undefined);
-  sdk.providers = [];
-  sdk.GoogleAuthProvider.mockReset().mockImplementation(function GoogleAuthProvider() {
-    this.setCustomParameters = vi.fn((params) => {
-      this.customParameters = params;
-    });
-    sdk.providers.push(this);
-  });
-  sdk.signInWithPopup.mockReset().mockResolvedValue({
+  sdk.GoogleAuthProvider.credential.mockReset().mockImplementation((idToken, accessToken) => ({ idToken, accessToken }));
+  sdk.signInWithCredential.mockReset().mockResolvedValue({
     user: { uid: "google-user", getIdToken: vi.fn().mockResolvedValue("fresh-google-token") },
   });
+  google.configs = [];
+  google.requests = 0;
+  google.respond = (config) => config.callback({ access_token: "google-access-token" });
+  installGoogleIdentity();
+  document.head.querySelectorAll("script").forEach((script) => script.remove());
   vi.unstubAllEnvs();
+  vi.stubEnv("VITE_GOOGLE_OAUTH_CLIENT_ID", "client-id.apps.googleusercontent.com");
 });
 
 function firebaseError(code) {
@@ -122,7 +147,7 @@ it("cleans up a temporary Firebase user when reauthentication fails", async () =
   expect(sdk.signOut).toHaveBeenCalledWith(sdk.auth);
 });
 
-it("enables Google sign-in only for an explicit build-time opt-in", async () => {
+it("enables Google sign-in only for an explicit build-time opt-in with a client ID", async () => {
   const firebase = await import("./firebase");
 
   vi.stubEnv("VITE_FIREBASE_GOOGLE_SIGN_IN", "");
@@ -131,17 +156,30 @@ it("enables Google sign-in only for an explicit build-time opt-in", async () => 
   expect(firebase.isGoogleSignInEnabled()).toBe(false);
   vi.stubEnv("VITE_FIREBASE_GOOGLE_SIGN_IN", "true");
   expect(firebase.isGoogleSignInEnabled()).toBe(true);
+  vi.stubEnv("VITE_GOOGLE_OAUTH_CLIENT_ID", " ");
+  expect(firebase.isGoogleSignInEnabled()).toBe(false);
 });
 
-it("signs in with a Google popup that always offers the account chooser", async () => {
+it("signs in through Google's own popup and always offers the account chooser", async () => {
   const firebase = await import("./firebase");
 
   const user = await firebase.signInWithGoogle();
 
   expect(user).toEqual(expect.objectContaining({ uid: "google-user" }));
   expect(sdk.setPersistence).toHaveBeenCalledWith(sdk.auth, sdk.inMemoryPersistence);
-  expect(sdk.signInWithPopup).toHaveBeenCalledWith(sdk.auth, sdk.providers[0]);
-  expect(sdk.providers[0].customParameters).toEqual({ prompt: "select_account" });
+  expect(google.configs[0]).toEqual(
+    expect.objectContaining({
+      client_id: "client-id.apps.googleusercontent.com",
+      scope: "openid email profile",
+      prompt: "select_account",
+    }),
+  );
+  expect(google.configs[0]).not.toHaveProperty("login_hint");
+  expect(sdk.GoogleAuthProvider.credential).toHaveBeenCalledWith(null, "google-access-token");
+  expect(sdk.signInWithCredential).toHaveBeenCalledWith(sdk.auth, {
+    idToken: null,
+    accessToken: "google-access-token",
+  });
 });
 
 it("opens the popup without awaiting anything once Google sign-in is prepared", async () => {
@@ -151,45 +189,89 @@ it("opens the popup without awaiting anything once Google sign-in is prepared", 
   // Called synchronously inside the click handler: the popup must already be
   // requested before the first await so the browser's user activation holds.
   const pending = firebase.signInWithGoogle();
-  expect(sdk.signInWithPopup).toHaveBeenCalledTimes(1);
+  expect(google.requests).toBe(1);
   await pending;
 });
 
-it.each(["auth/popup-closed-by-user", "auth/cancelled-popup-request"])(
-  "treats %s as a dismissal, not an error",
-  async (code) => {
-    sdk.signInWithPopup.mockRejectedValueOnce(firebaseError(code));
-    const firebase = await import("./firebase");
+it("loads Google's script once when it is not on the page yet", async () => {
+  delete window.google;
+  const firebase = await import("./firebase");
 
-    await expect(firebase.signInWithGoogle()).resolves.toBeNull();
-  },
-);
+  const first = firebase.prepareGoogleSignIn();
+  const second = firebase.prepareGoogleSignIn();
+  const scripts = await vi.waitFor(() => {
+    const found = document.head.querySelectorAll('script[src="https://accounts.google.com/gsi/client"]');
+    expect(found).toHaveLength(1);
+    return found;
+  });
+  installGoogleIdentity();
+  scripts[0].onload();
 
-it("propagates other Google popup failures", async () => {
-  sdk.signInWithPopup.mockRejectedValueOnce(firebaseError("auth/popup-blocked"));
+  await Promise.all([first, second]);
+  await expect(firebase.signInWithGoogle()).resolves.toEqual(expect.objectContaining({ uid: "google-user" }));
+});
+
+it("reports a network error when Google's script cannot load, and retries next time", async () => {
+  delete window.google;
+  const firebase = await import("./firebase");
+
+  const failed = firebase.prepareGoogleSignIn();
+  const script = await vi.waitFor(() => {
+    const found = document.head.querySelector("script");
+    expect(found).not.toBeNull();
+    return found;
+  });
+  script.onerror();
+  await expect(failed).rejects.toMatchObject({ code: "auth/network-request-failed" });
+
+  installGoogleIdentity();
+  await expect(firebase.prepareGoogleSignIn()).resolves.toBeUndefined();
+});
+
+it.each([
+  ["a closed popup", (config) => config.error_callback({ type: "popup_closed" })],
+  ["a declined consent", (config) => config.callback({ error: "access_denied" })],
+])("treats %s as a dismissal, not an error", async (_label, respond) => {
+  google.respond = respond;
+  const firebase = await import("./firebase");
+
+  await expect(firebase.signInWithGoogle()).resolves.toBeNull();
+  expect(sdk.signInWithCredential).not.toHaveBeenCalled();
+});
+
+it("reports a blocked popup", async () => {
+  google.respond = (config) => config.error_callback({ type: "popup_failed_to_open" });
   const firebase = await import("./firebase");
 
   await expect(firebase.signInWithGoogle()).rejects.toMatchObject({ code: "auth/popup-blocked" });
 });
 
+it("propagates Firebase failures after the popup", async () => {
+  sdk.signInWithCredential.mockRejectedValueOnce(firebaseError("auth/account-exists-with-different-credential"));
+  const firebase = await import("./firebase");
+
+  await expect(firebase.signInWithGoogle()).rejects.toMatchObject({
+    code: "auth/account-exists-with-different-credential",
+  });
+});
+
 it("reauthenticates with Google for the expected account and signs the temporary session out", async () => {
-  sdk.signInWithPopup.mockImplementationOnce(async () => {
+  sdk.signInWithCredential.mockImplementationOnce(async () => {
     sdk.auth.currentUser = { uid: "google-user" };
     return { user: { getIdToken: vi.fn().mockResolvedValue("fresh-google-token") } };
   });
   const firebase = await import("./firebase");
 
   await expect(firebase.reauthenticateWithGoogle("person@gmail.com")).resolves.toBe("fresh-google-token");
-  expect(sdk.providers[0].customParameters).toEqual({
-    prompt: "select_account",
-    login_hint: "person@gmail.com",
-  });
+  expect(google.configs[0]).toEqual(
+    expect.objectContaining({ prompt: "select_account", login_hint: "person@gmail.com" }),
+  );
   expect(sdk.signOut).toHaveBeenCalledWith(sdk.auth);
 });
 
 it("returns null and still cleans up when Google reauthentication is dismissed", async () => {
   sdk.auth.currentUser = { uid: "temporary" };
-  sdk.signInWithPopup.mockRejectedValueOnce(firebaseError("auth/popup-closed-by-user"));
+  google.respond = (config) => config.error_callback({ type: "popup_closed" });
   const firebase = await import("./firebase");
 
   await expect(firebase.reauthenticateWithGoogle("person@gmail.com")).resolves.toBeNull();
@@ -198,7 +280,7 @@ it("returns null and still cleans up when Google reauthentication is dismissed",
 
 it("signs the temporary session out when Google reauthentication fails", async () => {
   sdk.auth.currentUser = { uid: "temporary" };
-  sdk.signInWithPopup.mockRejectedValueOnce(firebaseError("auth/network-request-failed"));
+  sdk.signInWithCredential.mockRejectedValueOnce(firebaseError("auth/network-request-failed"));
   const firebase = await import("./firebase");
 
   await expect(firebase.reauthenticateWithGoogle("person@gmail.com")).rejects.toMatchObject({

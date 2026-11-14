@@ -136,12 +136,15 @@ mockup) and does not override it.
   bottom of `main.py`.
 - **Login**: Firebase Authentication verifies identity, by e-mail/password or
   by a Google **popup**. Never use a redirect: `inMemoryPersistence` cannot
-  survive one. Portfyl then issues its own opaque, revocable session
+  survive one. The popup is Google's own (Google Identity Services, then
+  `signInWithCredential`), not Firebase's `signInWithPopup`, which showed a
+  `firebaseapp.com` helper window. Portfyl then issues its own opaque, revocable session
   (`backend/auth.py`, `backend/routers/auth.py`). There is no shared
   `APP_PASSWORD`/`SESSION_SECRET` any more. Unauthenticated `/api` calls get
   401, and the SPA routes to `/login`/`/register` (`frontend/src/auth/`).
-  Two settings control the Google button: the build flag
-  `VITE_FIREBASE_GOOGLE_SIGN_IN=true`, and the runtime
+  Three settings control the Google button: the build flag
+  `VITE_FIREBASE_GOOGLE_SIGN_IN=true`, the build value
+  `VITE_GOOGLE_OAUTH_CLIENT_ID`, and the runtime
   `PORTFYL_FIREBASE_AUTH_DOMAIN`, which the CSP in `security_headers.py`
   needs. See `docs/superpowers/plans/2026-10-12-portfyl-google-sign-in.md`
   and the "Google sign-in" section of `deploy/cloudrun.md`.
