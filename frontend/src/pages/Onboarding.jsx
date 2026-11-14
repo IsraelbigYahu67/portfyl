@@ -8,6 +8,8 @@ import { uniquePortfolioName } from "../lib/brokerPortfolio";
 import { findSupportedBroker } from "../lib/onboardingBrokers";
 import { clearIntendedBroker, intendedBroker, rememberIntendedBroker } from "../lib/signupIntent";
 import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
+import { useAnalytics } from "../analytics/AnalyticsProvider";
+import { ANALYTICS_EVENTS } from "../analytics/eventContract";
 import { useT } from "../i18n/I18nProvider";
 
 
@@ -42,6 +44,7 @@ export default function Onboarding() {
   const { portfolios, pendingImportPortfolio, setCurrentId, refetchPortfolios } = usePortfolio();
   const { currency, setCurrency } = useCurrency() ?? {};
   const { recordPortfolioCreated, recordPortfolioDataImported } = useRegisteredActivation();
+  const { capture } = useAnalytics();
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
   // In memory, not the URL: it may be free text the user typed.
@@ -60,6 +63,19 @@ export default function Onboarding() {
   // In the URL, so "Leave import" on the Import page can return to step 2.
   const broker = findSupportedBroker(searchParams.get("broker") ?? remembered);
 
+  // Funnel: one onboarding_step_viewed per step the visitor reaches. The ref
+  // holds the last step reported, so a re-render on the same step and React
+  // StrictMode's double effect stay silent, while coming back to a step
+  // (broker -> choices -> Change broker -> broker) reports it again. The step
+  // is only a fixed label; the typed broker name never leaves this page.
+  const step = unsupportedName ? "unsupported" : broker ? "choices" : "broker";
+  const reportedStep = useRef(null);
+  useEffect(() => {
+    if (reportedStep.current === step) return;
+    reportedStep.current = step;
+    capture(ANALYTICS_EVENTS.ONBOARDING_STEP_VIEWED, { step });
+  }, [step, capture]);
+
   // Put the remembered broker in the URL too, so that Leave import and a
   // reload come back to it.
   useEffect(() => {
@@ -72,6 +88,9 @@ export default function Onboarding() {
   }, []);
 
   function changeBroker(key) {
+    // Only a real pick: null is "Change broker", and a broker restored from
+    // the URL or the landing page never comes through here.
+    if (key) capture(ANALYTICS_EVENTS.ONBOARDING_BROKER_PICKED, { broker_key: key });
     setError(null);
     setRemembered(null);
     // Storage follows the latest choice, so a stale broker never survives a
@@ -85,6 +104,10 @@ export default function Onboarding() {
   }
 
   function changeUnsupported(name) {
+    // A name means the visitor went to the unsupported screen; null is
+    // "Choose another broker" or the first half of a supported pick. The
+    // marker is fixed: the typed name is never an event property.
+    if (name) capture(ANALYTICS_EVENTS.ONBOARDING_BROKER_PICKED, { broker_key: "unsupported" });
     setError(null);
     setUnsupportedName(name);
     notifyRun.current += 1;
@@ -106,6 +129,7 @@ export default function Onboarding() {
     if (run !== notifyRun.current) return;
     notifyBusy.current = false;
     setNotifyState(result);
+    if (result === "sent") capture(ANALYTICS_EVENTS.BROKER_REQUEST_SENT, {});
   }
 
   async function activate(create, destination, kind) {
