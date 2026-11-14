@@ -12,11 +12,6 @@ without it, so the backend rejects any apex `/api` call with
 still gates the tracker paths there. Roll back the apex by removing the
 `portfyl.com/*` route and redeploying.
 
-`app.portfyl.com/__/auth/*` (GET/HEAD only) is proxied to the Firebase auth
-domain `portfyl-cloud-fstxby.firebaseapp.com` without cookies or the edge
-token, so Google sign-in shows `app.portfyl.com`. See "Branded auth domain" in
-`deploy/cloudrun.md`.
-
 `PORTFYL_EDGE_TOKEN` is a Wrangler secret. Never add its value to this
 directory, the Wrangler configuration, or Git. Set or rotate it separately:
 

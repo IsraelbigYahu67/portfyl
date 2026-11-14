@@ -560,9 +560,6 @@ $fb = @{}
 Get-Content frontend/.env.local | Where-Object { $_ -match '^(VITE_(?:FIREBASE|POSTHOG)_\w+)=(.*)$' } | ForEach-Object { $fb[$Matches[1]] = $Matches[2].Trim().Trim('"') }
 # A missing flag silently builds Google sign-in off; prod has it on, so require an explicit true/false.
 if ($fb.VITE_FIREBASE_GOOGLE_SIGN_IN -notin @("true", "false")) { throw "frontend/.env.local needs VITE_FIREBASE_GOOGLE_SIGN_IN=true (or =false to turn Google sign-in off)" }
-# Prod shows Google's popup on Portfyl's own host (see "Google sign-in" below);
-# frontend/.env.local keeps the firebaseapp.com domain for local dev.
-$fb.VITE_FIREBASE_AUTH_DOMAIN = "app.portfyl.com"
 @"
 steps:
 - name: gcr.io/cloud-builders/docker
@@ -607,11 +604,10 @@ can no longer disappear by accident. Prod has had it on since 2026-10-13. See
    - every private tester is a consent-screen Test user, in addition to
      Cloudflare Access and `beta_invites`.
 2. One time only, give the service the auth domain its CSP must admit for
-   Firebase's popup. It must equal the `VITE_FIREBASE_AUTH_DOMAIN` the image
-   was built with (`app.portfyl.com` in prod, set by the redeploy recipe).
-   Until it is set, the CSP keeps blocking Google's popup scripts:
+   Firebase's popup. It must equal `VITE_FIREBASE_AUTH_DOMAIN`. Until it is
+   set, the CSP keeps blocking Google's popup scripts:
    ```powershell
-   gcloud run services update portfyl --region $REGION --project $PROJECT --update-env-vars="PORTFYL_FIREBASE_AUTH_DOMAIN=app.portfyl.com"
+   gcloud run services update portfyl --region $REGION --project $PROJECT --update-env-vars="PORTFYL_FIREBASE_AUTH_DOMAIN=portfyl-cloud-fstxby.firebaseapp.com"
    ```
 3. Add `VITE_FIREBASE_GOOGLE_SIGN_IN=true` to `frontend/.env.local`. The same
    line also enables the button in local dev. Then run the routine redeploy.
@@ -620,26 +616,6 @@ can no longer disappear by accident. Prod has had it on since 2026-10-13. See
 
 To roll back, remove the line or set it to `false` and redeploy. No data
 changes are involved. Leaving `PORTFYL_FIREBASE_AUTH_DOMAIN` set is harmless.
-
-**Branded auth domain.** Prod uses `authDomain = app.portfyl.com`, so Google's
-popup says "continue to app.portfyl.com" and not
-`portfyl-cloud-fstxby.firebaseapp.com`. Three things must agree:
-
-- the Cloudflare Worker (`deploy/cloudflare/portfyl-beta-proxy.js`) proxies
-  `app.portfyl.com/__/auth/*` to `portfyl-cloud-fstxby.firebaseapp.com`;
-- the Google OAuth web client of `portfyl-cloud-fstxby` (Google Cloud console
-  → APIs & Services → Credentials → "Web client (auto created by Google
-  Service)") lists `https://app.portfyl.com/__/auth/handler` under Authorized
-  redirect URIs. Keep the `firebaseapp.com` one too: local dev uses it;
-- the image is built with `VITE_FIREBASE_AUTH_DOMAIN=app.portfyl.com` and the
-  service has `PORTFYL_FIREBASE_AUTH_DOMAIN=app.portfyl.com`.
-
-Order when setting it up: Worker and redirect URI first, then the env var and
-the redeploy. A missing redirect URI shows as Google's
-`redirect_uri_mismatch` page in the popup. To roll back, build with the
-`firebaseapp.com` domain again and set the env var back. Local dev keeps
-`firebaseapp.com` in `frontend/.env.local`, because `app.portfyl.com` sits
-behind Cloudflare Access.
 
 ## Stripe Managed Payments (paid plans)
 
