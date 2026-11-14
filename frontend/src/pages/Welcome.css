@@ -119,6 +119,36 @@
 .welcome-ribbon span:first-child { padding: 0 8px 0 4px; background: none; box-shadow: none; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
 .welcome-ribbon i { display: none; }
 
+/* Broker check: a raised panel with an inset search trough and chips. */
+.welcome-broker-check { padding-block: 56px 8px; }
+.welcome-broker-panel {
+  display: grid; justify-items: center; gap: 18px; padding: 36px 32px; border-radius: 32px; text-align: center;
+  background: var(--surface-card); box-shadow: var(--clay-raise);
+}
+.welcome-broker-panel h2 { font-size: clamp(24px, 3vw, 34px); line-height: 1.15; letter-spacing: -0.03em; font-weight: 800; }
+.welcome-broker-input {
+  width: min(460px, 100%); min-height: 48px; padding: 12px 22px; border: 0; border-radius: 999px; text-align: center;
+  background: var(--bg-subtle); box-shadow: var(--clay-inset-sm); color: var(--ink); font: inherit; font-size: 16px; font-weight: 600;
+}
+.welcome-broker-input::placeholder { color: var(--muted); font-weight: 500; }
+.welcome-broker-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; list-style: none; margin: 0; padding: 0; }
+.welcome-broker-chips button {
+  display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 18px 8px 10px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--surface-card-elevated); box-shadow: var(--clay-raise-sm); color: var(--ink); font: inherit; font-size: 14px; font-weight: 700;
+  transition: translate .25s var(--w-spring), scale .25s var(--w-spring), box-shadow .2s, color .2s;
+}
+.welcome-broker-chips button:hover { color: var(--brand); translate: 0 -1px; scale: 1.04; }
+.welcome-broker-chips button[aria-pressed="true"] { color: var(--brand); box-shadow: var(--clay-inset-sm); }
+.welcome-broker-chips img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+.welcome-broker-live { display: grid; justify-items: center; }
+.welcome-broker-result { display: grid; justify-items: center; gap: 14px; max-width: 560px; }
+.welcome-broker-result p { font-size: 16px; line-height: 1.7; font-weight: 600; }
+.welcome-broker-result small { font-size: 12px; line-height: 1.6; color: var(--muted); }
+.welcome-broker-actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 14px; }
+@media (max-width: 760px) {
+  .welcome-broker-panel { padding: 28px 20px; border-radius: 24px; }
+}
+
 /* Features */
 .welcome-features { padding-block: 100px; }
 .welcome-section-heading { display: flex; justify-content: space-between; gap: 40px; align-items: end; margin-bottom: 44px; }

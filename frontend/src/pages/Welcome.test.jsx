@@ -71,6 +71,12 @@ it.each(LANGUAGES)("renders the full $name page straight from its URL, with no l
   expect(localStorage.getItem(LANGUAGE_KEY)).toBeNull();
 });
 
+it.each(LANGUAGES)("shows the broker check on the $name page", ({ code }) => {
+  renderWelcome({ language: code });
+  expect(screen.getByRole("heading", { name: COPY[code].brokerCheck.title })).toBeInTheDocument();
+  expect(screen.getByRole("searchbox")).toBeInTheDocument();
+});
+
 it("offers the other languages as crawlable links and remembers an explicit switch", () => {
   renderWelcome({ language: "en" });
   const switcher = screen.getByRole("group", { name: COPY.en.language });

@@ -37,6 +37,12 @@ export const COPY = {
       ["Můžu si už Portfyl vyzkoušet?", "Ano. Živé demo je syntetické, nevyžaduje účet a ukazuje, jak Portfyl funguje bez vašich investičních dat."],
     ],
     closingKicker: "PŘIPRAVUJEME PRO VÁS", closingHeading: ["Více přehledu.", "Více klidu."], closingNote: "Nový pohled na vaše investice. Již brzy.", back: "Zpátky nahoru", footer: "Váš prostor pro investiční přehled.", legal: [["terms", "Obchodní podmínky"], ["privacy", "Ochrana osobních údajů"]], legalLanguage: "cs", legalNavigation: "Právní dokumenty",
+    brokerCheck: {
+      title: "Podporujeme tvého brokera?", placeholder: "Např. XTB, Trading 212…",
+      supported: "{name} podporujeme. Svoje data nahraješ hned po registraci.", signup: "Založit účet zdarma", demo: "Prohlédnout demo",
+      betaNote: "Portfyl je teď v uzavřené betě. Demo si ale můžeš projít hned.",
+      unsupported: "{name} zatím neumíme načíst. Podívej se aspoň na ukázkové portfolio.",
+    },
   },
   en: {
     title: "Portfyl — Your investments. Finally clear.", skip: "Skip to content", home: "Portfyl — home", navigation: "Main navigation", language: "Page language",
@@ -66,6 +72,12 @@ export const COPY = {
       ["Can I try Portfyl yet?", "Yes. The live demo is synthetic, account-free, and shows how Portfyl works without using your investment data."],
     ],
     closingKicker: "ON THE WAY", closingHeading: ["More clarity.", "More peace of mind."], closingNote: "A fresh perspective on your investments. Coming soon.", back: "Back to top", footer: "Your space for a clearer investment picture.", legal: [["terms", "Terms of Service"], ["privacy", "Privacy Policy"]], legalLanguage: "en", legalNavigation: "Legal documents",
+    brokerCheck: {
+      title: "Is your broker supported?", placeholder: "e.g. XTB, Trading 212…",
+      supported: "{name} is supported. You can bring your data right after signing up.", signup: "Create a free account", demo: "Open the demo",
+      betaNote: "Portfyl is in private beta right now, but you can explore the demo straight away.",
+      unsupported: "We can't read {name} yet. Take a look at the sample portfolio instead.",
+    },
   },
   de: {
     title: "Portfyl — Deine Investments. Endlich übersichtlich.", skip: "Zum Inhalt springen", home: "Portfyl — Startseite", navigation: "Hauptnavigation", language: "Sprache der Seite",
@@ -95,5 +107,11 @@ export const COPY = {
       ["Kann ich Portfyl schon ausprobieren?", "Ja. Die Live-Demo ist synthetisch, ohne Konto nutzbar und zeigt Portfyl ohne deine eigenen Investmentdaten."],
     ],
     closingKicker: "WIR BEREITEN ALLES FÜR DICH VOR", closingHeading: ["Mehr Überblick.", "Mehr Gelassenheit."], closingNote: "Ein neuer Blick auf deine Investments. Demnächst.", back: "Nach oben", footer: "Dein Ort für den Überblick über deine Investments.", legal: [["terms", "Nutzungsbedingungen (EN)"], ["privacy", "Datenschutz (EN)"]], legalLanguage: "en", legalNavigation: "Rechtliches",
+    brokerCheck: {
+      title: "Wird dein Broker unterstützt?", placeholder: "z. B. XTB, Trading 212…",
+      supported: "{name} wird unterstützt. Deine Daten importierst du direkt nach der Registrierung.", signup: "Kostenloses Konto erstellen", demo: "Demo öffnen",
+      betaNote: "Portfyl ist gerade in einer geschlossenen Beta – die Demo kannst du aber sofort ansehen.",
+      unsupported: "{name} können wir noch nicht einlesen. Sieh dir stattdessen das Beispielportfolio an.",
+    },
   },
 };

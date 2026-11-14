@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUpRight, ChartNoAxesCombined, PieChart, CalendarDays, L
 import { COPY, LANGUAGES, LANGUAGE_KEY } from "./welcomeCopy";
 import { useAnalytics } from "../analytics/AnalyticsProvider";
 import SegmentedControl from "../components/ui/SegmentedControl";
+import BrokerCheck from "../components/landing/BrokerCheck";
 import { CLAY_STYLE } from "../lib/clayStyle";
 import { ANALYTICS_COPY } from "../analytics/analyticsCopy";
 import { LANDING_PATHS } from "../lib/routes";
@@ -203,6 +204,7 @@ export default function Welcome({ language }) {
           <p className="welcome-caption">{copy.caption}</p>
         </section>
         <div className="welcome-ribbon"><div className="welcome-container"><span>{copy.ribbon}</span><span>{copy.assets}</span><i /><span>Trading 212</span><i /><span>{copy.moreBrokers}</span><i /><span>{copy.import}</span></div></div>
+        <BrokerCheck copy={copy.brokerCheck} language={language} onDemo={handleDemoCtaClick("landing_hero")} />
         <section className="welcome-features welcome-container" id="funkce" aria-labelledby="features-title">
           <div className="welcome-section-heading"><div><p className="welcome-kicker">{copy.featuresKicker}</p><h2 id="features-title"><Heading lines={copy.featuresHeading} /></h2></div><p>{copy.featuresLead}</p></div>
           <div className="welcome-feature-grid">
