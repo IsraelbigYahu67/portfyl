@@ -131,6 +131,18 @@ describe("OnboardingView", () => {
     expect(screen.queryByRole("heading", { name: "How to connect Trading 212" })).not.toBeInTheDocument();
   });
 
+  it("shows the picked file-only broker's export guide under the cards", () => {
+    const { unmount } = renderView({ brokerKey: "xtb" });
+    expect(screen.getByRole("heading", { name: "How to get the file from XTB" })).toBeInTheDocument();
+    expect(screen.getByText(/Cash operations/i)).toBeInTheDocument();
+    // The card no longer repeats the one-line hint.
+    expect(screen.getByRole("button", { name: "Import your XTB file" })).not.toHaveTextContent("xStation 5");
+    unmount();
+
+    renderView({ brokerKey: "trading212" });
+    expect(screen.queryByRole("heading", { name: /How to get the file from/ })).not.toBeInTheDocument();
+  });
+
   it("renders plain action buttons when no selection is in use", () => {
     renderView({ brokerKey: "ibkr" });
 

@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { AlertCircle, Check, Link2, Loader2, Upload } from "lucide-react";
 
+import BrokerGuides from "../import/BrokerGuides";
 import T212ApiGuide from "../settings/T212ApiGuide";
 import { Badge } from "../ui/Badge";
 import PreferencesChip from "./PreferencesChip";
@@ -48,7 +49,12 @@ export function onboardingChoices(broker, t = english) {
       title: broker.api
         ? t("Import your {broker} {fileKind}", { broker: broker.name, fileKind: broker.fileKind })
         : t("Import your {broker} file", { broker: broker.name }),
-      description: `${t(broker.hint)} ${t("You'll see a preview before anything is saved.")}`,
+      // A file-only broker's steps are the export guide under the cards, so
+      // the card keeps just the reassurance; an API broker's card still
+      // carries its one-line hint.
+      description: broker.api
+        ? `${t(broker.hint)} ${t("You'll see a preview before anything is saved.")}`
+        : t("You'll see a preview before anything is saved."),
     }
     : {
       key: "import",
@@ -268,6 +274,12 @@ function Choices({ broker, busy, selected, onChoose, onChangeBroker, onStartBlan
           );
         })}
       </div>
+
+      {!broker.api && (
+        <div className="max-w-2xl mx-auto">
+          <BrokerGuides only={broker.key} />
+        </div>
+      )}
 
       {notice}
 

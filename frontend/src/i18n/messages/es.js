@@ -1475,4 +1475,8 @@ export default {
   "Just look around with sample data first": "Primero, echar un vistazo con datos de ejemplo",
   "You can change both later in Settings → Preferences.": "Puedes cambiar ambos más tarde en Ajustes → Preferencias.",
   "Looks good": "Todo bien",
+  // onboarding-flow Task 6
+  "In Trading 212 open <b>History</b> and choose <b>Export history</b>.": "En Trading 212 abre <b>History</b> y elige <b>Export history</b>.",
+  "Choose the whole period and every data type, then download the CSV and upload it here.": "Elige todo el período y todos los tipos de datos, descarga el CSV y súbelo aquí.",
+  "How to get the file from {broker}": "Cómo obtener el archivo de {broker}",
 };
