@@ -1468,4 +1468,15 @@ export default {
   // onboarding-flow Task 2
   "We sent a verification link to <b>{email}</b>. Click it and this page continues by itself.": "Poslali jsme ověřovací odkaz na <b>{email}</b>. Klikněte na něj a tato stránka bude pokračovat sama.",
   "E-mail verified. Log in to continue.": "E-mail ověřen. Přihlaste se a pokračujte.",
+  // onboarding-flow Task 10
+  "Getting started": "Začínáme",
+  "{done} of {total} done": "{done} z {total} hotovo",
+  "Add another broker for one combined view": "Přidejte další brokera pro společný přehled",
+  "Check language and currency": "Zkontrolujte jazyk a měnu",
+  "See your dividend calendar": "Prohlédněte si kalendář dividend",
+  "Hide": "Skrýt",
+  "Over the last 12 months your dividends brought you {amount}.": "Za posledních 12 měsíců vám dividendy přinesly {amount}.",
+  "You hold {count} positions.": "Držíte {count} pozic.",
+  "You're looking at sample data.": "Prohlížíte si ukázková data.",
+  "Import your own portfolio": "Naimportujte své vlastní portfolio",
 };

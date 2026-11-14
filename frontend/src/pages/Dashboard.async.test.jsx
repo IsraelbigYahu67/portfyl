@@ -35,9 +35,13 @@ vi.mock("@edition-manifest", () => ({
   fetchEditionPlanCapabilities: editionMocks.fetchEditionPlanCapabilities,
 }));
 const currencyState = vi.hoisted(() => ({ currency: "USD", rate: 22 }));
+const portfolioState = vi.hoisted(() => ({ portfolios: [{ id: "portfolio-1", brokers: ["xtb"] }] }));
 vi.mock("../App", () => ({
   useCurrency: () => currencyState,
-  usePortfolio: () => ({ current: { id: "portfolio-1" } }),
+  usePortfolio: () => ({ current: portfolioState.portfolios[0], portfolios: portfolioState.portfolios }),
+}));
+vi.mock("../auth/AuthProvider", () => ({
+  useAuth: () => ({ currentWorkspace: { id: "workspace-1" } }),
 }));
 vi.mock("../hooks/useT212Sync", () => t212Mocks);
 vi.mock("../components/DashboardGrid", () => ({
@@ -94,6 +98,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   currencyState.currency = "USD";
   currencyState.rate = 22;
+  portfolioState.portfolios = [{ id: "portfolio-1", brokers: ["xtb"] }];
+  localStorage.clear();
   t212Mocks.useT212Sync.mockReturnValue({ connected: false, positionsQuery: {} });
   api.fetchSummary.mockResolvedValue({ total_value: 1000, total_pnl: 100 });
   api.fetchHoldings.mockResolvedValue([{ ticker: "MSFT", weight: 100, market_value: 1000 }]);
@@ -424,5 +430,37 @@ describe("Investor-only widgets (standard_research)", () => {
     expect(screen.queryByText("Available from the Investor plan")).not.toBeInTheDocument();
     expect(screen.queryByText("Healthy heatmap")).not.toBeInTheDocument();
     investorEndpoints().forEach((endpoint) => expect(endpoint).not.toHaveBeenCalled());
+  });
+});
+
+describe("first-run onboarding aids", () => {
+  it("shows the getting-started panel with progress and the holdings insight", async () => {
+    renderPage();
+
+    expect(await screen.findByText("Getting started")).toBeInTheDocument();
+    expect(screen.getByText("1 of 4 done")).toBeInTheDocument();
+    expect(await screen.findByText("You hold 1 positions.")).toBeInTheDocument();
+    expect(screen.queryByText("You're looking at sample data.")).not.toBeInTheDocument();
+  });
+
+  it("remembers a visit and the dismissal for the workspace", async () => {
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("link", { name: /See your dividend calendar/ }));
+    expect(JSON.parse(localStorage.getItem("portfyl_getting_started:workspace-1")).visited).toEqual(["dividends"]);
+    expect(await screen.findByText("2 of 4 done")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+    expect(screen.queryByText("Getting started")).not.toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("portfyl_getting_started:workspace-1")).dismissed).toBe(true);
+  });
+
+  it("shows the sample-data banner on the demo portfolio", async () => {
+    portfolioState.portfolios = [{ id: "portfolio-1", brokers: ["demo"] }];
+    renderPage();
+
+    expect(await screen.findByText("You're looking at sample data.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Import your own portfolio" })).toHaveAttribute("href", "/import");
+    expect(screen.getByText("0 of 4 done")).toBeInTheDocument();
   });
 });

@@ -1468,4 +1468,15 @@ export default {
   // onboarding-flow Task 2
   "We sent a verification link to <b>{email}</b>. Click it and this page continues by itself.": "We hebben een verificatielink gestuurd naar <b>{email}</b>. Klik erop en deze pagina gaat vanzelf verder.",
   "E-mail verified. Log in to continue.": "E-mail geverifieerd. Log in om verder te gaan.",
+  // onboarding-flow Task 10
+  "Getting started": "Aan de slag",
+  "{done} of {total} done": "{done} van {total} klaar",
+  "Add another broker for one combined view": "Voeg nog een broker toe voor één gecombineerd overzicht",
+  "Check language and currency": "Controleer taal en valuta",
+  "See your dividend calendar": "Bekijk je dividendkalender",
+  "Hide": "Verbergen",
+  "Over the last 12 months your dividends brought you {amount}.": "In de afgelopen 12 maanden leverden je dividenden {amount} op.",
+  "You hold {count} positions.": "Je bezit {count} posities.",
+  "You're looking at sample data.": "Je bekijkt voorbeeldgegevens.",
+  "Import your own portfolio": "Importeer je eigen portefeuille",
 };

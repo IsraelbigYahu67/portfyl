@@ -1468,4 +1468,15 @@ export default {
   // onboarding-flow Task 2
   "We sent a verification link to <b>{email}</b>. Click it and this page continues by itself.": "Wysłaliśmy link weryfikacyjny na <b>{email}</b>. Kliknij go, a ta strona przejdzie dalej sama.",
   "E-mail verified. Log in to continue.": "E-mail zweryfikowany. Zaloguj się, aby kontynuować.",
+  // onboarding-flow Task 10
+  "Getting started": "Pierwsze kroki",
+  "{done} of {total} done": "Zrobione: {done} z {total}",
+  "Add another broker for one combined view": "Dodaj kolejnego brokera, aby mieć jeden wspólny widok",
+  "Check language and currency": "Sprawdź język i walutę",
+  "See your dividend calendar": "Zobacz swój kalendarz dywidend",
+  "Hide": "Ukryj",
+  "Over the last 12 months your dividends brought you {amount}.": "W ciągu ostatnich 12 miesięcy dywidendy przyniosły ci {amount}.",
+  "You hold {count} positions.": "Masz {count} pozycji.",
+  "You're looking at sample data.": "Oglądasz dane przykładowe.",
+  "Import your own portfolio": "Zaimportuj własny portfel",
 };

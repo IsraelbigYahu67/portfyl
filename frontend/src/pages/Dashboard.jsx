@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient, useIsFetching } from "@tanstack/react-query";
 import {
@@ -6,6 +6,7 @@ import {
   fetchCapabilities, fetchRiskMetrics, fetchSectorBreakdown, fetchDividendForecast,
 } from "../api";
 import { useCurrency, usePortfolio } from "../App";
+import { useAuth } from "../auth/AuthProvider";
 import { convertFromUsd, currencySymbol } from "../lib/displayCurrency";
 import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
 import { fetchEditionDashboardSignals, fetchEditionPlanCapabilities } from "@edition-manifest";
@@ -20,6 +21,12 @@ import { TickerLink } from "../components/TickerLink";
 import DashboardGrid from "../components/DashboardGrid";
 import PortfolioHero from "../components/PortfolioHero";
 import InsightCards from "../components/dashboard/InsightCards";
+import WelcomePanel from "../components/dashboard/WelcomePanel";
+import DemoDataBanner from "../components/dashboard/DemoDataBanner";
+import {
+  dismissGettingStarted, gettingStartedItems, markGettingStartedVisited, readGettingStarted,
+} from "../lib/gettingStarted";
+import { preferencesConfirmed } from "../lib/preferencesConfirmation";
 import CompositionCard from "../components/dashboard/CompositionCard";
 import DividendBarsCard from "../components/dashboard/DividendBarsCard";
 import InsiderBuysCard from "../components/dashboard/InsiderBuysCard";
@@ -65,7 +72,8 @@ function InvestorOnly({ icon }) {
 export default function Dashboard() {
   const t = useT();
   const { currency, rate } = useCurrency();
-  const currentPortfolio = usePortfolio()?.current;
+  const { current: currentPortfolio, portfolios } = usePortfolio() ?? {};
+  const workspaceId = useAuth().currentWorkspace?.id;
   const t212 = useT212Sync({ portfolioId: currentPortfolio?.id, currency });
   const queryClient = useQueryClient();
   const { recordPopulatedDashboard } = useRegisteredActivation();
@@ -76,6 +84,8 @@ export default function Dashboard() {
   const [moverPeriod, setMoverPeriod] = useState("1d");
   const [moverSort, setMoverSort] = useState("pct");
   const [editingLayout, setEditingLayout] = useState(false);
+  // Bumped after a visit/dismissal so the stored checklist state is re-read.
+  const [gettingStartedVersion, setGettingStartedVersion] = useState(0);
 
   const toggleBenchmark = (key) =>
     setActiveBenchmarks((prev) =>
@@ -195,6 +205,25 @@ export default function Dashboard() {
     usdRate: forecastRate,
   });
   const forecastYear = dividendForecast?.year ?? new Date().getFullYear();
+
+  const gettingStarted = useMemo(
+    () => readGettingStarted(workspaceId),
+    // gettingStartedVersion is not read inside: bumping it re-reads storage after a write.
+    [workspaceId, gettingStartedVersion],
+  );
+  const gettingStartedList = gettingStartedItems({
+    portfolios,
+    preferencesConfirmed: preferencesConfirmed(),
+    visited: gettingStarted.visited,
+  });
+  // One line of substance for the panel: dividend income when there is some,
+  // otherwise how many positions the portfolio holds. Nothing while loading.
+  let welcomeInsight = null;
+  if (!hl && !dl && holdings.length > 0) {
+    welcomeInsight = passive.annualIncome > 0
+      ? t("Over the last 12 months your dividends brought you {amount}.", { amount: formatMoney(passive.annualIncome, currency) })
+      : t("You hold {count} positions.", { count: holdings.length });
+  }
 
   const irr = riskMetrics?.lifetime?.xirr;
   let profitSub = summary ? t("{amount} invested", { amount: formatMoney(summary.total_invested, currency) }) : null;
@@ -353,6 +382,22 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      <DemoDataBanner portfolio={currentPortfolio} />
+      {!gettingStarted.dismissed && (
+        <WelcomePanel
+          items={gettingStartedList}
+          insight={welcomeInsight}
+          onVisit={(id) => {
+            markGettingStartedVisited(workspaceId, id);
+            setGettingStartedVersion((v) => v + 1);
+          }}
+          onDismiss={() => {
+            dismissGettingStarted(workspaceId);
+            setGettingStartedVersion((v) => v + 1);
+          }}
+        />
+      )}
 
       {/* Variant A: the Net Worth hero stays the anchor, with profit and
           passive income beside it. */}
