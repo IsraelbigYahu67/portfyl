@@ -182,6 +182,14 @@ describe("Import preview and undo", () => {
     expect(screen.getByRole("button", { name: /English · CZK/ })).toHaveFocus();
   });
 
+  it("changes the display currency from the chip", () => {
+    mount({ focused: true });
+    fireEvent.click(screen.getByRole("button", { name: /English · CZK/ }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Display currency" }));
+    fireEvent.click(document.querySelector('[role="option"][data-value="EUR"]'));
+    expect(mocks.setCurrency).toHaveBeenCalledWith("EUR");
+  });
+
   it("tailors the copy to the broker picked during onboarding and returns to it", async () => {
     mount({ focused: true }, "/import?broker=xtb");
 

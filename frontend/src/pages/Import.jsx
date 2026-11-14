@@ -299,12 +299,15 @@ export default function Import({ focused = false }) {
           <p className="text-xs text-muted mt-1">{t("Preview every change before it reaches your portfolio.")}</p>
           {broker?.hint && <p className="text-xs text-muted mt-1">{t(broker.hint)}</p>}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {showPreferencesChip && <PreferencesChip currency={currency} onCurrencyChange={setCurrency} />}
+        {/* ml-auto + justify-end keep every wrapped row right-aligned, so the
+            chip (last) sits at the right edge and its right-anchored panel
+            opens leftwards inside the viewport on phones. */}
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           {(focused || onboardingPending) && <button type="button" onClick={() => navigate(broker ? `/onboarding?broker=${broker.key}` : "/onboarding")} className="btn-ghost text-sm">{t("Leave import")}</button>}
           <button onClick={downloadSample} className="btn-ghost flex items-center gap-2 text-sm">
             <Download size={14} /> {t("Download sample")}
           </button>
+          {showPreferencesChip && <PreferencesChip currency={currency} onCurrencyChange={setCurrency} />}
         </div>
       </div>
 
