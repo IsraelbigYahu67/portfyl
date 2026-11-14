@@ -38,10 +38,10 @@ export const COPY = {
     ],
     closingKicker: "PŘIPRAVUJEME PRO VÁS", closingHeading: ["Více přehledu.", "Více klidu."], closingNote: "Nový pohled na vaše investice. Již brzy.", back: "Zpátky nahoru", footer: "Váš prostor pro investiční přehled.", legal: [["terms", "Obchodní podmínky"], ["privacy", "Ochrana osobních údajů"]], legalLanguage: "cs", legalNavigation: "Právní dokumenty",
     brokerCheck: {
-      title: "Podporujeme tvého brokera?", placeholder: "Např. XTB, Trading 212…",
-      supported: "{name} podporujeme. Svoje data nahraješ hned po registraci.", signup: "Založit účet zdarma", demo: "Prohlédnout demo",
-      betaNote: "Portfyl je teď v uzavřené betě. Demo si ale můžeš projít hned.",
-      unsupported: "{name} zatím neumíme načíst. Podívej se aspoň na ukázkové portfolio.",
+      title: "Podporujeme vašeho brokera?", placeholder: "Např. XTB, Trading 212…",
+      supported: "{name} podporujeme. Svoje data nahrajete hned po registraci.", signup: "Založit účet zdarma", demo: "Prohlédnout demo",
+      betaNote: "Portfyl je teď v uzavřené betě. Demo si ale můžete projít hned.",
+      unsupported: "{name} zatím neumíme načíst. Podívejte se aspoň na ukázkové portfolio.",
     },
   },
   en: {

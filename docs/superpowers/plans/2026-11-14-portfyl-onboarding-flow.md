@@ -358,7 +358,7 @@ Prerequisite: M0 done (the uncommitted currency-`Select` change is committed or 
 - `unsupported` result: `copy.unsupported.replace("{name}", typed)` plus the demo link.
 - No `window`/storage access during render.
 - `welcomeCopy.js` gets `brokerCheck` for each language. Match each language's existing form of address:
-  - **cs:** `title: "Podporujeme tvého brokera?"`, `placeholder: "Např. XTB, Trading 212…"`, `supported: "{name} podporujeme. Svoje data nahraješ hned po registraci."`, `signup: "Založit účet zdarma"`, `demo: "Prohlédnout demo"`, `betaNote: "Portfyl je teď v uzavřené betě. Demo si ale můžeš projít hned."`, `unsupported: "{name} zatím neumíme načíst. Podívej se aspoň na ukázkové portfolio."`
+  - **cs:** `title: "Podporujeme vašeho brokera?"`, `placeholder: "Např. XTB, Trading 212…"`, `supported: "{name} podporujeme. Svoje data nahrajete hned po registraci."`, `signup: "Založit účet zdarma"`, `demo: "Prohlédnout demo"`, `betaNote: "Portfyl je teď v uzavřené betě. Demo si ale můžete projít hned."`, `unsupported: "{name} zatím neumíme načíst. Podívejte se aspoň na ukázkové portfolio."`
   - **en:** `"Is your broker supported?"`, `"e.g. XTB, Trading 212…"`, `"{name} is supported. You can bring your data right after signing up."`, `"Create a free account"`, `"Open the demo"`, `"Portfyl is in private beta right now, but you can explore the demo straight away."`, `"We can't read {name} yet. Take a look at the sample portfolio instead."`
   - **de:** `"Wird dein Broker unterstützt?"`, `"z. B. XTB, Trading 212…"`, `"{name} wird unterstützt. Deine Daten importierst du direkt nach der Registrierung."`, `"Kostenloses Konto erstellen"`, `"Demo öffnen"`, `"Portfyl ist gerade in einer geschlossenen Beta – die Demo kannst du aber sofort ansehen."`, `"{name} können wir noch nicht einlesen. Sieh dir stattdessen das Beispielportfolio an."`
 
@@ -370,7 +370,7 @@ Prerequisite: M0 done (the uncommitted currency-`Select` change is committed or 
   - `Welcome.test.jsx`: the cs/en/de pages each contain their `brokerCheck.title`.
 - [ ] **Step 2: Run them.** `npx vitest run src/components/landing src/pages/Welcome.test.jsx` should FAIL.
 - [ ] **Step 3: Implement.** Style it in `Welcome.css` with the landing's existing classes/tokens (`welcome-container`, `welcome-cta`, Clay surfaces). Broker logos come from `onboardingBrokers.js`.
-- [ ] **Step 4: Run the tests and builds.** Same tests should PASS, then `npm test && npm run test:cloud && npm run build && npm run build:cloud`. The prerender output `dist/prerendered/index.html` contains "Podporujeme tvého brokera?".
+- [ ] **Step 4: Run the tests and builds.** Same tests should PASS, then `npm test && npm run test:cloud && npm run build && npm run build:cloud`. The prerender output `dist/prerendered/index.html` contains "Podporujeme vašeho brokera?".
 - [ ] **Step 5: Commit.** `git commit -m "feat(landing): check broker support before signing up"`
 
 ---
