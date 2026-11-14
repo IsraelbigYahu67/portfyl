@@ -54,6 +54,12 @@ export function initialLanguage(browserLanguages = globalThis.navigator?.languag
   return SOURCE_LANGUAGE;
 }
 
+// True when the user has chosen a language on this device, as opposed to one
+// guessed from the landing page or the browser.
+export function hasSavedLanguage() {
+  return isAppLanguage(readStorage(LANGUAGE_STORAGE_KEY));
+}
+
 export function saveLanguage(code) {
   try {
     localStorage.setItem(LANGUAGE_STORAGE_KEY, code);
