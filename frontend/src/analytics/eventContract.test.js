@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ANALYTICS_EVENTS, sanitizeEvent } from "./eventContract";
+import { SUPPORTED_BROKERS } from "../lib/onboardingBrokers";
 import eventContractSource from "./eventContract.js?raw";
 
 const validEvents = [
@@ -15,6 +16,10 @@ const validEvents = [
   ["portfolio_data_imported", { source_type: "csv" }],
   ["dashboard_first_value_rendered", { source_type: "broker" }],
   ["user_activation_reached", { source_type: "demo" }],
+  ["onboarding_step_viewed", { step: "broker" }],
+  ["onboarding_broker_picked", { broker_key: "xtb" }],
+  ["broker_check_used", { result: "supported", language: "cs" }],
+  ["broker_request_sent", {}],
 ];
 
 describe("activation event contract", () => {
@@ -28,6 +33,28 @@ describe("activation event contract", () => {
       name,
       properties: { ...properties, ...(name === "landing_viewed" ? { language: "en" } : {}) },
     });
+  });
+
+  it("accepts every supported broker key, the unsupported marker and each onboarding step", () => {
+    for (const broker of SUPPORTED_BROKERS) {
+      expect(sanitizeEvent("onboarding_broker_picked", { broker_key: broker.key }, { strict: true }).properties).toEqual({ broker_key: broker.key });
+    }
+    expect(sanitizeEvent("onboarding_broker_picked", { broker_key: "unsupported" }, { strict: true }).properties).toEqual({ broker_key: "unsupported" });
+    for (const step of ["broker", "choices", "unsupported"]) {
+      expect(sanitizeEvent("onboarding_step_viewed", { step }, { strict: true }).properties).toEqual({ step });
+    }
+    expect(sanitizeEvent("broker_check_used", { result: "unsupported", language: "de" }, { strict: true }).properties).toEqual({ result: "unsupported", language: "de" });
+    expect(sanitizeEvent("signup_started", { source_surface: "landing_broker_check", language: "cs" }, { strict: true }).properties.source_surface).toBe("landing_broker_check");
+  });
+
+  it("rejects typed broker names, unknown steps and results, and any property on broker_request_sent", () => {
+    expect(() => sanitizeEvent("onboarding_broker_picked", { broker_key: "Revolut" }, { strict: true })).toThrow(/broker_key/);
+    expect(sanitizeEvent("onboarding_broker_picked", { broker_key: "Revolut" }, { strict: false })).toBeNull();
+    expect(() => sanitizeEvent("onboarding_step_viewed", { step: "language" }, { strict: true })).toThrow(/step/);
+    expect(sanitizeEvent("onboarding_step_viewed", { step: "language" }, { strict: false })).toBeNull();
+    expect(() => sanitizeEvent("broker_check_used", { result: "maybe", language: "cs" }, { strict: true })).toThrow(/result/);
+    expect(() => sanitizeEvent("broker_check_used", { result: "supported", language: "fr" }, { strict: true })).toThrow(/language/);
+    expect(() => sanitizeEvent("broker_request_sent", { broker_name: "Revolut" }, { strict: true })).toThrow(/broker_name/);
   });
 
   it("trims allowed strings and caps UTM values separately", () => {

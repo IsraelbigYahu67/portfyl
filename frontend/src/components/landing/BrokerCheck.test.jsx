@@ -1,5 +1,7 @@
 import { renderToString } from "react-dom/server";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import AnalyticsProvider from "../../analytics/AnalyticsProvider";
+import { createMemoryAdapter } from "../../analytics/analyticsClient";
 import BrokerCheck from "./BrokerCheck";
 import { COPY } from "../../pages/welcomeCopy";
 import { registerUrl } from "../../lib/signupIntent";
@@ -87,4 +89,39 @@ test("renders the same HTML on the server", () => {
   expect(html).not.toContain("broker-check-result");
   expect(html).not.toContain("/demo");
   expect(renderToString(<BrokerCheck copy={copy} language="cs" />)).toBe(html);
+});
+
+describe("broker_check_used analytics", () => {
+  function renderTracked(language = "cs") {
+    const adapter = createMemoryAdapter();
+    render(
+      <AnalyticsProvider initialConsent="accepted" adapterFactory={() => adapter}>
+        <BrokerCheck copy={copy} language={language} onDemo={() => {}} />
+      </AnalyticsProvider>,
+    );
+    const used = () => adapter.events.filter(([name]) => name === "broker_check_used");
+    return { used };
+  }
+
+  it("emits one event for x, xt, xtb typed in turn", async () => {
+    const { used } = renderTracked();
+    for (const value of ["x", "xt", "xtb"]) type(value);
+    await waitFor(() => expect(used()).toHaveLength(1));
+    expect(used()[0][1]).toEqual({ result: "supported", language: "cs" });
+  });
+
+  it("emits nothing for an empty query and one unsupported event per distinct unsupported run", async () => {
+    const { used } = renderTracked("de");
+    expect(used()).toHaveLength(0);
+    for (const value of ["Rev", "Revo", "Revolut"]) type(value);
+    await waitFor(() => expect(used()).toHaveLength(1));
+    expect(used()[0][1]).toEqual({ result: "unsupported", language: "de" });
+  });
+
+  it("does not send the typed name", async () => {
+    const { used } = renderTracked();
+    type("Revolut");
+    await waitFor(() => expect(used()).toHaveLength(1));
+    expect(JSON.stringify(used())).not.toMatch(/revolut/i);
+  });
 });

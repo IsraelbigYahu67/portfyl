@@ -1,3 +1,5 @@
+import { SUPPORTED_BROKERS } from "../lib/onboardingBrokers";
+
 export const ANALYTICS_EVENTS = Object.freeze({
   LANDING_VIEWED: "landing_viewed",
   DEMO_STARTED: "demo_started",
@@ -11,18 +13,27 @@ export const ANALYTICS_EVENTS = Object.freeze({
   PORTFOLIO_DATA_IMPORTED: "portfolio_data_imported",
   DASHBOARD_FIRST_VALUE_RENDERED: "dashboard_first_value_rendered",
   USER_ACTIVATION_REACHED: "user_activation_reached",
+  ONBOARDING_STEP_VIEWED: "onboarding_step_viewed",
+  ONBOARDING_BROKER_PICKED: "onboarding_broker_picked",
+  BROKER_CHECK_USED: "broker_check_used",
+  BROKER_REQUEST_SENT: "broker_request_sent",
 });
 
 const languages = new Set(["cs", "en", "de"]);
 const referrerClasses = new Set(["direct", "search", "social", "referral", "internal", "unknown"]);
 const sourceTypes = new Set(["demo", "csv", "broker"]);
 const creationPaths = new Set(["blank", "demo", "csv", "broker"]);
-const sourceSurfaces = new Set(["landing_hero", "landing_closing", "demo", "direct"]);
+const sourceSurfaces = new Set(["landing_hero", "landing_closing", "landing_broker_check", "demo", "direct"]);
 const entryPoints = new Set(["landing_hero", "landing_closing", "direct"]);
 const demoPages = new Set(["overview", "allocation", "analytics", "dividends", "stock"]);
 const demoSymbols = new Set(["VUAA", "MSFT", "JPM", "JNJ", "XOM", "PG", "AMZN", "CAT", "NEE", "PLD"]);
 const activationPaths = new Set(["three_pages", "stock_after_page"]);
 const authMethods = new Set(["password", "google"]);
+const onboardingSteps = new Set(["broker", "choices", "unsupported"]);
+// Supported broker keys come from the registry, never a typed name; an
+// unsupported pick is reported as the fixed marker only.
+const brokerKeys = new Set([...SUPPORTED_BROKERS.map((broker) => broker.key), "unsupported"]);
+const brokerCheckResults = new Set(["supported", "unsupported"]);
 
 function stringField(value, { max = 80, values } = {}) {
   if (typeof value !== "string") return null;
@@ -50,6 +61,9 @@ const fields = Object.freeze({
   creation_path: (value) => stringField(value, { values: creationPaths }),
   source_type: (value) => stringField(value, { values: sourceTypes }),
   auth_method: (value) => stringField(value, { values: authMethods }),
+  step: (value) => stringField(value, { values: onboardingSteps }),
+  broker_key: (value) => stringField(value, { values: brokerKeys }),
+  result: (value) => stringField(value, { values: brokerCheckResults }),
 });
 
 const schemas = Object.freeze({
@@ -65,6 +79,10 @@ const schemas = Object.freeze({
   [ANALYTICS_EVENTS.PORTFOLIO_DATA_IMPORTED]: ["source_type"],
   [ANALYTICS_EVENTS.DASHBOARD_FIRST_VALUE_RENDERED]: ["source_type"],
   [ANALYTICS_EVENTS.USER_ACTIVATION_REACHED]: ["source_type"],
+  [ANALYTICS_EVENTS.ONBOARDING_STEP_VIEWED]: ["step"],
+  [ANALYTICS_EVENTS.ONBOARDING_BROKER_PICKED]: ["broker_key"],
+  [ANALYTICS_EVENTS.BROKER_CHECK_USED]: ["result", "language"],
+  [ANALYTICS_EVENTS.BROKER_REQUEST_SENT]: [],
 });
 
 function fail(strict, message) {

@@ -1,9 +1,12 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
+import { ANALYTICS_EVENTS } from "../../analytics/eventContract";
+import { useOptionalAnalytics } from "../../analytics/AnalyticsProvider";
 import { filterBrokers } from "../../lib/onboardingBrokers";
 import { registerUrl } from "../../lib/signupIntent";
 
 const MAX_TYPED = 60;
+const ANALYTICS_LANGUAGES = ["cs", "en", "de"];
 
 // Whitespace collapsed and length capped: the text is only ever rendered as
 // a text node, but the sentence it lands in should stay readable.
@@ -34,6 +37,21 @@ export default function BrokerCheck({ copy, language, signupOpen = import.meta.e
   const titleId = useId();
   const { typed, matches, result } = resolve(query, language);
   const selectedKey = result?.kind === "supported" ? result.broker.key : null;
+  const analytics = useOptionalAnalytics();
+  const capture = analytics?.capture;
+  const lastReported = useRef(null);
+  // One event per distinct result, from an effect: nothing is sent while
+  // typing a half-matching name, and nothing runs during render, so the
+  // server and client HTML stay identical. Only the result kind and the
+  // landing language are sent, never the typed text.
+  const resultKind = result?.kind ?? null;
+  useEffect(() => {
+    if (!resultKind || !capture || !ANALYTICS_LANGUAGES.includes(language)) return;
+    const identity = resultKind === "supported" ? `supported:${selectedKey}` : "unsupported";
+    if (lastReported.current === identity) return;
+    lastReported.current = identity;
+    capture(ANALYTICS_EVENTS.BROKER_CHECK_USED, { result: resultKind, language });
+  }, [resultKind, selectedKey, language, capture]);
   const demoLink = (className) => (
     <a className={className} href="/demo" onClick={onDemo}>{copy.demo} <ArrowUpRight size={16} aria-hidden="true" /></a>
   );

@@ -173,3 +173,9 @@ export function useAnalytics() {
   }
   return ctx;
 }
+
+// For components that also render outside the provider (prerender, unit
+// tests): the same value as useAnalytics, or null when there is no provider.
+export function useOptionalAnalytics() {
+  return useContext(AnalyticsContext);
+}

@@ -18,11 +18,13 @@ import { readSignupIntent, rememberIntendedBroker } from "../lib/signupIntent";
 
 const MIN_PASSWORD_LENGTH = 8;
 
-// Strict allowlist: only a literal ?source=demo maps to "demo". Any other
-// value (or none) is "direct" -- arbitrary query parameters are never
+// Strict allowlist: only these literal ?source= values map to a surface. Any
+// other value (or none) is "direct" -- arbitrary query parameters are never
 // forwarded into analytics.
+const SOURCE_SURFACES = Object.freeze({ demo: "demo", landing_broker_check: "landing_broker_check" });
 function sourceSurfaceFrom(searchParams) {
-  return searchParams.get("source") === "demo" ? "demo" : "direct";
+  const source = searchParams.get("source");
+  return Object.hasOwn(SOURCE_SURFACES, source) ? SOURCE_SURFACES[source] : "direct";
 }
 
 export default function Register() {
