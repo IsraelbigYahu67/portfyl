@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 import main
 import market_data
+from tests.helpers import cap_free_limits
 from app_settings import set_workspace_setting
 from edition import Edition
 from entitlements import (
@@ -295,7 +296,8 @@ def test_polymarket_connect_holds_no_lock_during_the_data_api_call(cloud, monkey
 # --- two concurrent creates at limit-1: exactly one passes --------------------
 
 def test_concurrent_transactions_at_limit_minus_one_admit_exactly_one(cloud, monkeypatch):
-    fill_transactions(cloud, 249)  # Free: 250
+    cap_free_limits(monkeypatch, transactions=250)  # Free itself is unlimited
+    fill_transactions(cloud, 249)
     barrier = Barrier(2, timeout=BARRIER_TIMEOUT)
     patch_transaction_network(monkeypatch, barrier.wait)
 
@@ -464,7 +466,8 @@ def test_broker_sync_without_portfolio_id_checks_the_default_portfolio(cloud):
 
 def test_cash_entries_count_against_the_transaction_limit(cloud, monkeypatch):
     monkeypatch.setattr("routers.cash.fetch_fx_to_czk", lambda currency, when: 23.0)
-    fill_transactions(cloud, 249)  # Free: 250
+    cap_free_limits(monkeypatch, transactions=250)  # Free itself is unlimited
+    fill_transactions(cloud, 249)
     body = {"type": "deposit", "amount": 10, "currency": "USD", "date": "2026-01-02"}
 
     last_allowed = cloud.client.post("/api/cash", json=body)

@@ -24,7 +24,7 @@ const PLANS = [
     icon: Sprout,
     tagline: msg("Track one portfolio and get to know Portfyl."),
     monthly: 0,
-    features: [msg("1 portfolio"), msg("15 active positions"), msg("250 transactions"), msg("3 alerts")],
+    features: [msg("1 portfolio"), msg("Unlimited positions and transactions"), msg("3 alerts")],
   },
   {
     id: "investor",
@@ -38,12 +38,11 @@ const PLANS = [
     id: "pro",
     name: "Pro",
     icon: Gem,
-    tagline: msg("For active investors who trade options and research deeply."),
+    tagline: msg("For active investors who research deeply."),
     monthly: 999,
     features: [
       msg("15 portfolios"),
       msg("5 broker connections"),
-      msg("Advanced options & Polymarket"),
       msg("6-hour sync"),
       msg("Advanced research & custom benchmarks"),
     ],

@@ -8,6 +8,10 @@ from plans import MINIMUM_PLAN, PlanTier, plan_allows, plan_limits
 def test_canonical_limits_and_plan_access_are_provider_neutral():
     limits = plan_limits({})
     assert limits[PlanTier.FREE].portfolios == 1
+    # Free is a usable tracker: positions and transactions are never capped.
+    for tier in PlanTier:
+        assert limits[tier].active_positions is None
+        assert limits[tier].transactions is None
     assert limits[PlanTier.INVESTOR].broker_connections == 2
     assert limits[PlanTier.PRO].alerts == 100
     assert plan_allows(PlanTier.FREE, "alerts")
