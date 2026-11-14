@@ -19,14 +19,16 @@ import {
   undoLastImport,
 } from "../api";
 import BrokerGuides from "../components/import/BrokerGuides";
+import PreferencesChip from "../components/onboarding/PreferencesChip";
 import { Badge } from "../components/ui/Badge";
 import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToast } from "../components/ui/Toast";
-import { usePortfolio } from "../App";
+import { useCurrency, usePortfolio } from "../App";
 import { useBrokerPortfolio } from "../hooks/useBrokerPortfolio";
 import { brokerLabel, describeSplit } from "../lib/brokerPortfolio";
 import { TRACKER_HOME } from "../lib/routes";
 import { findSupportedBroker } from "../lib/onboardingBrokers";
+import { preferencesConfirmed } from "../lib/preferencesConfirmation";
 import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
 import { msg, rich, useT } from "../i18n/I18nProvider";
 // 30 companies across all 11 sectors, real historical prices and dividends.
@@ -108,6 +110,10 @@ export default function Import({ focused = false }) {
   const broker = findSupportedBroker(searchParams.get("broker"));
   const brokerFile = broker?.fileKind ? `${broker.name} ${broker.fileKind}` : null;
   const { current, pendingImportPortfolio, refetchPortfolios, setCurrentId } = usePortfolio();
+  const { currency, setCurrency } = useCurrency();
+  // Language/currency chip on the onboarding import only. Decided once on
+  // mount, so "Looks good" does not unmount the chip under its own focus.
+  const [showPreferencesChip] = useState(() => focused && !preferencesConfirmed());
   const { recordPortfolioDataImported } = useRegisteredActivation();
   const [file, setFile] = useState(null);
   const [replace, setReplace] = useState(false);
@@ -293,7 +299,8 @@ export default function Import({ focused = false }) {
           <p className="text-xs text-muted mt-1">{t("Preview every change before it reaches your portfolio.")}</p>
           {broker?.hint && <p className="text-xs text-muted mt-1">{t(broker.hint)}</p>}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {showPreferencesChip && <PreferencesChip currency={currency} onCurrencyChange={setCurrency} />}
           {(focused || onboardingPending) && <button type="button" onClick={() => navigate(broker ? `/onboarding?broker=${broker.key}` : "/onboarding")} className="btn-ghost text-sm">{t("Leave import")}</button>}
           <button onClick={downloadSample} className="btn-ghost flex items-center gap-2 text-sm">
             <Download size={14} /> {t("Download sample")}

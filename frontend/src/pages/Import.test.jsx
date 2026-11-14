@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 import Import from "./Import";
+import { PREFERENCES_CONFIRMED_KEY } from "../lib/preferencesConfirmation";
 import { legacyColorClassesIn } from "../test/legacyClasses";
 
 
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
   refetchPortfolios: vi.fn(),
   setCurrentId: vi.fn(),
+  setCurrency: vi.fn(),
   recordPortfolioDataImported: vi.fn(() => true),
   createPortfolio: vi.fn(),
   deletePortfolio: vi.fn(),
@@ -52,6 +54,7 @@ vi.mock("../App", () => ({
     refetchPortfolios: mocks.refetchPortfolios,
     setCurrentId: mocks.setCurrentId,
   }),
+  useCurrency: () => ({ currency: "CZK", setCurrency: mocks.setCurrency }),
 }));
 
 
@@ -86,6 +89,7 @@ function chooseCsv(container) {
 describe("Import preview and undo", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     mocks.fetchImportUndo.mockResolvedValue({ available: false, reason: null });
     mocks.previewImportCSV.mockResolvedValue({
       preview_id: "preview-1",
@@ -152,6 +156,30 @@ describe("Import preview and undo", () => {
     fireEvent.click(screen.getByRole("button", { name: /leave import/i }));
     expect(screen.getByLabelText("location")).toHaveTextContent("/onboarding");
     expect(mocks.commitImportCSV).not.toHaveBeenCalled();
+  });
+
+  it("shows the language and currency chip only on the onboarding import", () => {
+    const { unmount } = mount({ focused: true });
+    expect(screen.getByRole("button", { name: /English · CZK/ })).toBeInTheDocument();
+    unmount();
+
+    mount();
+    expect(screen.queryByRole("button", { name: /English · CZK/ })).not.toBeInTheDocument();
+  });
+
+  it("hides the chip once the preferences were confirmed", () => {
+    localStorage.setItem(PREFERENCES_CONFIRMED_KEY, "1");
+    mount({ focused: true });
+    expect(screen.queryByRole("button", { name: /English · CZK/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps the chip and its focus after Looks good", () => {
+    mount({ focused: true });
+    const chip = screen.getByRole("button", { name: /English · CZK/ });
+    fireEvent.click(chip);
+    fireEvent.click(screen.getByRole("button", { name: "Looks good" }));
+    expect(localStorage.getItem(PREFERENCES_CONFIRMED_KEY)).toBe("1");
+    expect(screen.getByRole("button", { name: /English · CZK/ })).toHaveFocus();
   });
 
   it("tailors the copy to the broker picked during onboarding and returns to it", async () => {
