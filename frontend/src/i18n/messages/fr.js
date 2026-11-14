@@ -1465,4 +1465,7 @@ export default {
   "Paste Secret Key here": "Collez ici le Secret Key",
   "API Key": "Clé API",
   "T212 auto-sync": "Synchronisation automatique T212",
+  // onboarding-flow Task 2
+  "We sent a verification link to <b>{email}</b>. Click it and this page continues by itself.": "Nous avons envoyé un lien de vérification à <b>{email}</b>. Cliquez dessus et cette page continuera d'elle-même.",
+  "E-mail verified. Log in to continue.": "E-mail vérifié. Connectez-vous pour continuer.",
 };

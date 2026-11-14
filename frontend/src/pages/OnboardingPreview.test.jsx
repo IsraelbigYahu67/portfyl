@@ -42,7 +42,9 @@ const FORBIDDEN_PACKAGE = /^(?:axios|firebase|@firebase|@sentry)(?:\/|$)/;
 // hide in one.
 const DATA_MODULE = /^i18n\/messages\/[a-z]{2}\.js$/;
 const STRING_LITERAL = /"(?:[^"\\\r\n]|\\.)*"/g;
-const STRING_TABLE = /^(?:\s*\/\/[^\r\n]*)*\s*export default\s*\{(?:\s*""\s*:\s*""\s*,?)*\s*\}\s*;?\s*$/;
+// `//` comments are allowed anywhere (a line comment cannot hide code, and the
+// onboarding-flow tasks head their appended dictionary block with one).
+const STRING_TABLE = /^(?:\s*\/\/[^\r\n]*)*\s*export default\s*\{(?:\s*(?:\/\/[^\r\n]*|""\s*:\s*""\s*,?))*\s*\}\s*;?\s*$/;
 
 function packageName(specifier) {
   const parts = specifier.split("/");
@@ -178,7 +180,7 @@ describe("OnboardingPreview import guard", () => {
         "components/View.jsx": 'export { helper } from "../lib/helper";',
         "lib/helper.js": "export const helper = 1;",
         "pages/entry.css": "",
-        "i18n/messages/cs.js": '// Czech.\nexport default {\n  "CSV import": "import \\"CSV\\"",\n  "Save": "Uložit",\n};\n',
+        "i18n/messages/cs.js": '// Czech.\nexport default {\n  "CSV import": "import \\"CSV\\"",\n  // a heading comment inside the table\n  "Save": "Uložit",\n  // trailing comment\n};\n',
       })).toEqual([]);
     });
 
