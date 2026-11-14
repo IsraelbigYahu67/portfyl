@@ -125,7 +125,7 @@
   display: grid; justify-items: center; gap: 18px; padding: 36px 32px; border-radius: 32px; text-align: center;
   background: var(--surface-card); box-shadow: var(--clay-raise);
 }
-.welcome-broker-panel h2 { font-size: clamp(24px, 3vw, 34px); line-height: 1.15; letter-spacing: -0.03em; font-weight: 800; }
+.welcome .welcome-broker-panel h2 { font-size: clamp(24px, 3vw, 34px); line-height: 1.15; letter-spacing: -0.03em; font-weight: 800; }
 .welcome-broker-input {
   width: min(460px, 100%); min-height: 48px; padding: 12px 22px; border: 0; border-radius: 999px; text-align: center;
   background: var(--bg-subtle); box-shadow: var(--clay-inset-sm); color: var(--ink); font: inherit; font-size: 16px; font-weight: 600;
@@ -258,7 +258,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .welcome *, .welcome *::before, .welcome *::after { transition: none !important; }
-  .welcome .welcome-cta:hover, .welcome .welcome-preview-link:hover, .welcome .welcome-float:hover, .welcome .welcome-feature:hover { translate: none; scale: none; }
+  .welcome .welcome-cta:hover, .welcome .welcome-preview-link:hover, .welcome .welcome-float:hover, .welcome .welcome-feature:hover, .welcome .welcome-broker-chips button:hover { translate: none; scale: none; }
 }
 
 /* Offer of the visitor's own language (after mount only, never a redirect):

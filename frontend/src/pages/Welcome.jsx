@@ -15,6 +15,9 @@ import "../fonts.css";
 const images = ["allocation", "stock", "dashboard", "performance"];
 const imageSizes = [[1047, 365], [1047, 350], [1047, 345], [1004, 455]];
 const screenshotPath = (name) => `/landing/${name}-live-20260911.png`;
+// Short names of the first supported brokers; the rest is "+ N more"
+// (the full list is lib/onboardingBrokers.js, shown by the broker check).
+const RIBBON_BROKERS = ["Trading 212", "IBKR", "XTB", "Degiro"];
 const icons = [ChartNoAxesCombined, PieChart, CalendarDays];
 
 const SUGGESTION_DISMISSED_KEY = "portfyl_landing_suggestion_dismissed";
@@ -203,7 +206,7 @@ export default function Welcome({ language }) {
           </div>
           <p className="welcome-caption">{copy.caption}</p>
         </section>
-        <div className="welcome-ribbon"><div className="welcome-container"><span>{copy.ribbon}</span><span>{copy.assets}</span><i /><span>Trading 212</span><i /><span>{copy.moreBrokers}</span><i /><span>{copy.import}</span></div></div>
+        <div className="welcome-ribbon"><div className="welcome-container"><span>{copy.ribbon}</span><span>{copy.assets}</span>{RIBBON_BROKERS.map((name) => <span key={name}>{name}</span>)}<span>{copy.moreBrokers}</span><i /><span>{copy.import}</span></div></div>
         <BrokerCheck copy={copy.brokerCheck} language={language} onDemo={handleDemoCtaClick("landing_hero")} />
         <section className="welcome-features welcome-container" id="funkce" aria-labelledby="features-title">
           <div className="welcome-section-heading"><div><p className="welcome-kicker">{copy.featuresKicker}</p><h2 id="features-title"><Heading lines={copy.featuresHeading} /></h2></div><p>{copy.featuresLead}</p></div>

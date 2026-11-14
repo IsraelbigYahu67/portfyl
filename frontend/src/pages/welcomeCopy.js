@@ -15,7 +15,7 @@ export const COPY = {
     heading: ["Vaše investice.", "Konečně přehledně."], lead: ["Za každým číslem je kus vaší budoucnosti.", "Dejte svému portfoliu prostor, ve kterém mu budete rozumět."],
     cta: "Prohlédnout ukázky", demoCta: "Vyzkoušet živé demo", heroNote: "Přehled portfolia, analytika a dividendy na jednom místě.", window: "PORTFYL / VAŠE PORTFOLIO", previewBadge: "UKÁZKA APLIKACE",
     heroAlt: "Screenshot Portfylu: vývoj výkonnosti demo portfolia", float: ["Všechno do sebe zapadá.", "Vaše portfolio v jednom pohledu."], caption: "Skutečný screenshot aplikace s demo portfoliem.",
-    ribbon: "PRO VAŠE INVESTIČNÍ KAŽDODENNO", assets: "Akcie & ETF", import: "Import CSV", moreBrokers: "Další brokeři již brzy",
+    ribbon: "PRO VAŠE INVESTIČNÍ KAŽDODENNO", assets: "Akcie & ETF", import: "Import CSV", moreBrokers: "+ 3 další",
     featuresKicker: "MÉNĚ HLEDÁNÍ. VÍCE SOUVISLOSTÍ.", featuresHeading: ["Víte, co vlastníte.", "A jak se tomu daří."], featuresLead: "Od prvního nákupu po portfolio budované roky. Portfyl propojuje čísla do přehledu, ke kterému se budete rádi vracet.",
     features: [
       ["Vývoj, který dává smysl", "Sledujte hodnotu portfolia a jeho výkonnost v čase. Porovnejte svůj vývoj s tržními benchmarky."],
@@ -33,7 +33,7 @@ export const COPY = {
     questions: [
       ["Co je Portfyl?", "Portfyl je aplikace pro přehled a analýzu investičního portfolia. Spojuje pozice, výkonnost, dividendy a informace o společnostech na jednom místě."],
       ["Pro koho je Portfyl určený?", "Pro individuální investory, kteří chtějí lépe rozumět svým akciím a ETF — ať už s investováním začínají, nebo spravují portfolio několik let."],
-      ["Jaké brokery Portfyl podporuje?", "Portfyl pracuje s daty z Trading 212. Další brokeři již brzy. Součástí aplikace je také import transakcí z CSV souborů."],
+      ["Jaké brokery Portfyl podporuje?", "Portfyl načte data z Trading 212, Interactive Brokers a eToro přes API a z exportů Degiro, XTB, Charles Schwab a Fidelity. Transakce lze importovat i z CSV souborů."],
       ["Můžu si už Portfyl vyzkoušet?", "Ano. Živé demo je syntetické, nevyžaduje účet a ukazuje, jak Portfyl funguje bez vašich investičních dat."],
     ],
     closingKicker: "PŘIPRAVUJEME PRO VÁS", closingHeading: ["Více přehledu.", "Více klidu."], closingNote: "Nový pohled na vaše investice. Již brzy.", back: "Zpátky nahoru", footer: "Váš prostor pro investiční přehled.", legal: [["terms", "Obchodní podmínky"], ["privacy", "Ochrana osobních údajů"]], legalLanguage: "cs", legalNavigation: "Právní dokumenty",
@@ -50,7 +50,7 @@ export const COPY = {
     heading: ["Your investments.", "Finally clear."], lead: ["Behind every number is a piece of your future.", "Give your portfolio a space where it all makes sense."],
     cta: "Explore the previews", demoCta: "Try the live demo", heroNote: "Your portfolio, analytics and dividends in one place.", window: "PORTFYL / YOUR PORTFOLIO", previewBadge: "PRODUCT PREVIEW",
     heroAlt: "Portfyl screenshot showing demo portfolio performance", float: ["It all comes together.", "Your portfolio at a glance."], caption: "Real app screenshot with a demo portfolio.",
-    ribbon: "FOR YOUR EVERYDAY INVESTING", assets: "Stocks & ETFs", import: "CSV import", moreBrokers: "More brokers coming soon",
+    ribbon: "FOR YOUR EVERYDAY INVESTING", assets: "Stocks & ETFs", import: "CSV import", moreBrokers: "+ 3 more",
     featuresKicker: "LESS SEARCHING. MORE CONTEXT.", featuresHeading: ["Know what you own.", "And how it is doing."], featuresLead: "From your first purchase to a portfolio built over years. Portfyl brings the numbers together in a view you will enjoy coming back to.",
     features: [
       ["Performance that makes sense", "Track your portfolio value and performance over time. Compare your progress with market benchmarks."],
@@ -68,7 +68,7 @@ export const COPY = {
     questions: [
       ["What is Portfyl?", "Portfyl is an app for tracking and analysing your investment portfolio. It brings holdings, performance, dividends and company information together in one place."],
       ["Who is Portfyl for?", "Individual investors who want to better understand their stocks and ETFs, whether they are just starting out or have managed a portfolio for years."],
-      ["Which brokers does Portfyl support?", "Portfyl works with data from Trading 212. More brokers coming soon. The app also supports importing transactions from CSV files."],
+      ["Which brokers does Portfyl support?", "Portfyl syncs Trading 212, Interactive Brokers and eToro through their APIs and imports exports from Degiro, XTB, Charles Schwab and Fidelity. Transactions can also be imported from CSV files."],
       ["Can I try Portfyl yet?", "Yes. The live demo is synthetic, account-free, and shows how Portfyl works without using your investment data."],
     ],
     closingKicker: "ON THE WAY", closingHeading: ["More clarity.", "More peace of mind."], closingNote: "A fresh perspective on your investments. Coming soon.", back: "Back to top", footer: "Your space for a clearer investment picture.", legal: [["terms", "Terms of Service"], ["privacy", "Privacy Policy"]], legalLanguage: "en", legalNavigation: "Legal documents",
@@ -85,7 +85,7 @@ export const COPY = {
     heading: ["Deine Investments.", "Endlich übersichtlich."], lead: ["Hinter jeder Zahl steckt ein Stück deiner Zukunft.", "Gib deinem Portfolio einen Ort, an dem du es besser verstehst."],
     cta: "Vorschau entdecken", demoCta: "Live-Demo ausprobieren", heroNote: "Dein Portfolio, Analysen und Dividenden an einem Ort.", window: "PORTFYL / DEIN PORTFOLIO", previewBadge: "APP-VORSCHAU",
     heroAlt: "Portfyl-Screenshot mit der Entwicklung eines Demo-Portfolios", float: ["Alles ergibt ein Gesamtbild.", "Dein Portfolio auf einen Blick."], caption: "Echter App-Screenshot mit einem Demo-Portfolio.",
-    ribbon: "FÜR DEINEN INVESTMENTALLTAG", assets: "Aktien & ETFs", import: "CSV-Import", moreBrokers: "Weitere Broker folgen bald",
+    ribbon: "FÜR DEINEN INVESTMENTALLTAG", assets: "Aktien & ETFs", import: "CSV-Import", moreBrokers: "+ 3 weitere",
     featuresKicker: "WENIGER SUCHEN. MEHR VERSTEHEN.", featuresHeading: ["Wisse, was du besitzt.", "Und wie es sich entwickelt."], featuresLead: "Vom ersten Kauf bis zum über Jahre aufgebauten Portfolio. Portfyl verbindet die Zahlen zu einer Übersicht, zu der du gerne zurückkehrst.",
     features: [
       ["Entwicklung, die verständlich wird", "Verfolge den Wert und die Performance deines Portfolios im Zeitverlauf. Vergleiche deine Entwicklung mit Marktbenchmarks."],
@@ -103,7 +103,7 @@ export const COPY = {
     questions: [
       ["Was ist Portfyl?", "Portfyl ist eine App zur Übersicht und Analyse deines Investmentportfolios. Sie vereint Positionen, Performance, Dividenden und Unternehmensinformationen an einem Ort."],
       ["Für wen ist Portfyl gedacht?", "Für Privatanleger, die ihre Aktien und ETFs besser verstehen möchten — ganz gleich, ob sie gerade anfangen oder schon seit Jahren ein Portfolio verwalten."],
-      ["Welche Broker unterstützt Portfyl?", "Portfyl arbeitet mit Daten von Trading 212. Weitere Broker folgen bald. Außerdem lassen sich Transaktionen aus CSV-Dateien importieren."],
+      ["Welche Broker unterstützt Portfyl?", "Portfyl synchronisiert Trading 212, Interactive Brokers und eToro über deren API und importiert Exporte von Degiro, XTB, Charles Schwab und Fidelity. Außerdem lassen sich Transaktionen aus CSV-Dateien importieren."],
       ["Kann ich Portfyl schon ausprobieren?", "Ja. Die Live-Demo ist synthetisch, ohne Konto nutzbar und zeigt Portfyl ohne deine eigenen Investmentdaten."],
     ],
     closingKicker: "WIR BEREITEN ALLES FÜR DICH VOR", closingHeading: ["Mehr Überblick.", "Mehr Gelassenheit."], closingNote: "Ein neuer Blick auf deine Investments. Demnächst.", back: "Nach oben", footer: "Dein Ort für den Überblick über deine Investments.", legal: [["terms", "Nutzungsbedingungen (EN)"], ["privacy", "Datenschutz (EN)"]], legalLanguage: "en", legalNavigation: "Rechtliches",
