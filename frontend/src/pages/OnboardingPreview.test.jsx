@@ -273,11 +273,6 @@ function mount({ initialEntries = [ONBOARDING_PREVIEW_PATH], initialIndex, setti
   );
 }
 
-// The replay starts at the language step, like the real onboarding.
-function continuePastLanguage() {
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-}
-
 describe("OnboardingPreview", () => {
   let fetchSpy;
   let xhrOpenSpy;
@@ -317,9 +312,9 @@ describe("OnboardingPreview", () => {
   it("walks every step and choice locally without any network request or stored state", () => {
     mount();
 
-    expect(screen.getByRole("heading", { name: "Choose your language" })).toBeInTheDocument();
-    continuePastLanguage();
+    // Like the real onboarding, the replay opens on the broker pick.
     expect(screen.getByRole("heading", { name: "Which broker do you use?" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Choose your language" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Trading 212/ }));
     expect(screen.getByRole("heading", { name: /add your first portfolio/i })).toBeInTheDocument();
     // The live region is mounted, and empty, before the first choice so that
@@ -329,7 +324,7 @@ describe("OnboardingPreview", () => {
     fireEvent.click(screen.getByRole("button", { name: "Import your Trading 212 CSV" }));
     expect(screen.getByRole("status")).toHaveTextContent(/opens the import for your trading 212 csv file/i);
 
-    fireEvent.click(screen.getByRole("button", { name: "Explore sample portfolio" }));
+    fireEvent.click(screen.getByRole("button", { name: "Just look around with sample data first" }));
     expect(screen.getByRole("status")).toHaveTextContent(/sample portfolio/i);
 
     fireEvent.click(screen.getByRole("button", { name: "Connect Trading 212" }));
@@ -353,7 +348,6 @@ describe("OnboardingPreview", () => {
 
   it("keeps a single live region and swaps only its content", () => {
     mount();
-    continuePastLanguage();
     fireEvent.click(screen.getByRole("button", { name: /Interactive Brokers/ }));
     const status = screen.getByRole("status");
 
@@ -366,10 +360,9 @@ describe("OnboardingPreview", () => {
 
   it("marks the chosen card as pressed", () => {
     mount();
-    continuePastLanguage();
     fireEvent.click(screen.getByRole("button", { name: /Trading 212/ }));
 
-    const buttons = ["Import your Trading 212 CSV", "Explore sample portfolio", "Connect Trading 212"]
+    const buttons = ["Import your Trading 212 CSV", "Connect Trading 212"]
       .map((name) => screen.getByRole("button", { name }));
     for (const button of buttons) expect(button).toHaveAttribute("aria-pressed", "false");
 
@@ -379,7 +372,6 @@ describe("OnboardingPreview", () => {
     expect(buttons[1]).toHaveClass("outline-brand");
     expect(buttons[1]).toHaveTextContent("Selected");
     expect(buttons[0]).toHaveAttribute("aria-pressed", "false");
-    expect(buttons[2]).toHaveAttribute("aria-pressed", "false");
   });
 
   it("moves focus to its heading when entered from another page", async () => {
@@ -387,7 +379,7 @@ describe("OnboardingPreview", () => {
 
     fireEvent.click(screen.getByRole("link", { name: /replay onboarding/i }));
 
-    const heading = await screen.findByRole("heading", { name: "Choose your language" });
+    const heading = await screen.findByRole("heading", { name: "Which broker do you use?" });
     await waitFor(() => expect(heading).toHaveFocus());
   });
 
@@ -401,6 +393,17 @@ describe("OnboardingPreview", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.queryByRole("heading", { name: "Which broker do you use?" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("location")).toHaveTextContent(PREVIEW_EXIT_PATH);
+  });
+
+  it("shows the language and currency chip, with the currency kept local", () => {
+    mount();
+
+    fireEvent.click(screen.getByRole("button", { name: /^English · / }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Display currency" }));
+    fireEvent.click(document.querySelector('[role="option"][data-value="EUR"]'));
+
+    expect(screen.getByRole("button", { name: "English · EUR" })).toBeInTheDocument();
+    expect(localStorage.getItem("sb_currency")).toBeNull();
   });
 
   it("styles Exit preview as the shared secondary button", () => {

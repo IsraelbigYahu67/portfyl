@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 import Onboarding, { buildOnboardingActions } from "./Onboarding";
 import { ONBOARDING_CHOICE_KEYS, onboardingChoices } from "../components/onboarding/OnboardingView";
 import { findSupportedBroker } from "../lib/onboardingBrokers";
+import { INTENDED_BROKER_KEY, intendedBroker } from "../lib/signupIntent";
 import { TRACKER_HOME } from "../lib/routes";
 import { legacyColorClassesIn } from "../test/legacyClasses";
 import { I18nProvider } from "../i18n/I18nProvider";
@@ -57,12 +58,6 @@ vi.mock("../analytics/useRegisteredActivation", () => ({
 
 
 // Most tests render without an I18nProvider, so the view stays in English.
-function mountPastLanguage() {
-  const view = mount();
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-  return view;
-}
-
 function mount(entry = "/onboarding", { i18n = false } = {}) {
   const routes = (
     <MemoryRouter initialEntries={[entry]}>
@@ -86,6 +81,7 @@ function LocationProbe() {
 describe("Onboarding", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     mocks.createPortfolio.mockResolvedValue({ id: "portfolio-id" });
     mocks.createDemoPortfolio.mockResolvedValue({ id: "demo-id" });
     mocks.createPendingImportPortfolio.mockResolvedValue({ id: "pending-id", activation_state: "pending_import" });
@@ -93,96 +89,53 @@ describe("Onboarding", () => {
     mocks.refetchPortfolios.mockResolvedValue({});
   });
 
-  describe("step 1: language", () => {
+  describe("language and currency chip", () => {
     afterEach(() => localStorage.clear());
 
-    it("starts by asking for the app's language", () => {
+    it("has no separate language step: onboarding opens on the broker pick", () => {
       mount();
 
-      expect(screen.getByRole("heading", { level: 1, name: "Choose your language" })).toBeInTheDocument();
-      expect(screen.getByText("Step 1 of 3")).toBeInTheDocument();
-      for (const name of ["Čeština", "English", "Deutsch", "Français", "Español", "Italiano", "Português", "Polski", "Nederlands"]) {
-        expect(screen.getByRole("button", { name: new RegExp(name) })).toBeInTheDocument();
-      }
-      expect(screen.getByRole("button", { name: /English/ })).toHaveAttribute("aria-pressed", "true");
-    });
-
-    it("switches the app to the picked language, saves it and continues in it", async () => {
-      mount("/onboarding", { i18n: true });
-
-      fireEvent.click(screen.getByRole("button", { name: /Deutsch/ }));
-
-      expect(await screen.findByRole("heading", { level: 1, name: "Wähle deine Sprache" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Deutsch/ })).toHaveAttribute("aria-pressed", "true");
-      expect(localStorage.getItem("portfyl_language")).toBe("de");
-      fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
-      expect(screen.getByRole("heading", { level: 1, name: "Welchen Broker nutzt du?" })).toBeInTheDocument();
-    });
-
-    it("offers the currency only after a language is picked", () => {
-      mount();
-      expect(screen.queryByRole("region", { name: "Show my portfolio in" })).not.toBeInTheDocument();
-
-      fireEvent.click(screen.getByRole("button", { name: /English/ }));
-
-      expect(screen.getByRole("region", { name: "Show my portfolio in" })).toBeInTheDocument();
-    });
-
-    it("offers pounds for English, with 'only in USD' under the options", () => {
-      mount();
-      fireEvent.click(screen.getByRole("button", { name: /English/ }));
-      expect(mocks.setCurrency).toHaveBeenLastCalledWith("GBP");
-
-      const section = screen.getByRole("region", { name: "Show my portfolio in" });
-      const buttons = within(section).getAllByRole("button");
-      expect(buttons).toHaveLength(2);
-      expect(buttons[0]).toHaveTextContent("GBP");
-      expect(buttons[0]).toHaveAttribute("aria-pressed", "true");
-      expect(buttons[1]).toHaveAccessibleName(/^Display only in USD \(you can change this later\)/);
-      expect(buttons[1]).toHaveAttribute("aria-pressed", "false");
-
-      fireEvent.click(buttons[1]);
-      expect(mocks.setCurrency).toHaveBeenLastCalledWith("USD");
-      expect(buttons[0]).toHaveAttribute("aria-pressed", "false");
-      expect(buttons[1]).toHaveAttribute("aria-pressed", "true");
-    });
-
-    it("preselects the local currency of the picked language and keeps USD one click away", async () => {
-      mount("/onboarding", { i18n: true });
-
-      fireEvent.click(screen.getByRole("button", { name: /Čeština/ }));
-      expect(mocks.setCurrency).toHaveBeenLastCalledWith("CZK");
-
-      const section = await screen.findByRole("region", { name: "Zobrazovat portfolio v" });
-      const czk = within(section).getByRole("button", { name: /CZK/ });
-      const usd = within(section).getByRole("button", { name: /^Zobrazovat jen v USD/ });
-      expect(czk).toHaveAttribute("aria-pressed", "true");
-      expect(usd).toHaveAttribute("aria-pressed", "false");
-
-      fireEvent.click(usd);
-      expect(mocks.setCurrency).toHaveBeenLastCalledWith("USD");
-      expect(usd).toHaveAttribute("aria-pressed", "true");
-
-      fireEvent.click(screen.getByRole("button", { name: /Polski/ }));
-      expect(mocks.setCurrency).toHaveBeenLastCalledWith("PLN");
-      fireEvent.click(screen.getByRole("button", { name: /Deutsch/ }));
-      expect(mocks.setCurrency).toHaveBeenLastCalledWith("EUR");
-    });
-
-    it("skips the language step when Leave import returns to a picked broker", () => {
-      mount("/onboarding?broker=trading212");
-
+      expect(screen.getByRole("heading", { level: 1, name: "Which broker do you use?" })).toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "Choose your language" })).not.toBeInTheDocument();
-      expect(screen.getByText("Step 3 of 3 · Trading 212")).toBeInTheDocument();
+    });
+
+    it("shows the language and display currency as a chip", () => {
+      mount();
+
+      expect(screen.getByRole("button", { name: "English · USD" })).toBeInTheDocument();
+    });
+
+    it("switches the app language, saves it and preselects the local currency", async () => {
+      mount("/onboarding", { i18n: true });
+
+      fireEvent.click(screen.getByRole("button", { name: "English · USD" }));
+      fireEvent.click(screen.getByRole("combobox", { name: "Language" }));
+      fireEvent.click(document.querySelector('[role="option"][data-value="de"]'));
+
+      expect(mocks.setCurrency).toHaveBeenLastCalledWith("EUR");
+      expect(await screen.findByRole("heading", { level: 1, name: "Welchen Broker nutzt du?" })).toBeInTheDocument();
+      expect(localStorage.getItem("portfyl_language")).toBe("de");
+    });
+
+    it("lets the visitor pick only a different currency", () => {
+      mount();
+
+      fireEvent.click(screen.getByRole("button", { name: "English · USD" }));
+      fireEvent.click(screen.getByRole("combobox", { name: "Display currency" }));
+      fireEvent.click(document.querySelector('[role="option"][data-value="PLN"]'));
+
+      expect(mocks.setCurrency).toHaveBeenCalledTimes(1);
+      expect(mocks.setCurrency).toHaveBeenLastCalledWith("PLN");
+      expect(screen.getByRole("button", { name: "English · PLN" })).toBeInTheDocument();
     });
   });
 
-  describe("step 2: broker pick", () => {
+  describe("step 1: broker pick", () => {
     it("asks for the broker first and lists supported and unsupported brokers", () => {
-      mountPastLanguage();
+      mount();
 
       expect(screen.getByRole("heading", { level: 1, name: "Which broker do you use?" })).toBeInTheDocument();
-      expect(screen.getByText("Step 2 of 3")).toBeInTheDocument();
+      expect(screen.getByText("Step 1 of 2")).toBeInTheDocument();
       for (const name of ["Trading 212", "Interactive Brokers", "eToro", "Degiro", "XTB", "Charles Schwab", "Fidelity"]) {
         expect(screen.getByRole("button", { name: new RegExp(name) })).toBeInTheDocument();
       }
@@ -191,7 +144,7 @@ describe("Onboarding", () => {
     });
 
     it("filters both lists by the search box", () => {
-      mountPastLanguage();
+      mount();
 
       fireEvent.change(screen.getByLabelText("Search brokers"), { target: { value: "x" } });
 
@@ -201,16 +154,16 @@ describe("Onboarding", () => {
     });
 
     it("moves to step 3 with the picked broker in the URL", () => {
-      mountPastLanguage();
+      mount();
 
       fireEvent.click(screen.getByRole("button", { name: /Trading 212/ }));
 
-      expect(screen.getByText("Step 3 of 3 · Trading 212")).toBeInTheDocument();
+      expect(screen.getByText("Step 2 of 2 · Trading 212")).toBeInTheDocument();
       expect(screen.getByLabelText("location")).toHaveTextContent("/onboarding?broker=trading212");
     });
 
     it("says up front when a listed broker is not supported", () => {
-      mountPastLanguage();
+      mount();
 
       fireEvent.click(screen.getByRole("button", { name: "Robinhood" }));
 
@@ -220,7 +173,7 @@ describe("Onboarding", () => {
     });
 
     it("checks a broker that is not on any list without putting it in the URL", () => {
-      mountPastLanguage();
+      mount();
 
       fireEvent.change(screen.getByLabelText("Search brokers"), { target: { value: "Acme Invest" } });
       fireEvent.click(screen.getByRole("button", { name: "Check this broker" }));
@@ -230,7 +183,7 @@ describe("Onboarding", () => {
     });
 
     it("offers the sample portfolio from the unsupported screen", async () => {
-      mountPastLanguage();
+      mount();
       fireEvent.click(screen.getByRole("button", { name: "Revolut" }));
 
       fireEvent.click(screen.getByRole("button", { name: /look around with sample data/i }));
@@ -241,21 +194,22 @@ describe("Onboarding", () => {
     });
   });
 
-  describe("step 3: tailored choices", () => {
-    it("offers connect, file import and sample data for an API broker", () => {
+  describe("step 2: tailored choices", () => {
+    it("offers connect and file import cards, plus the sample data link, for an API broker", () => {
       mount("/onboarding?broker=ibkr");
 
       expect(screen.getByRole("button", { name: "Connect Interactive Brokers" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Import your Interactive Brokers Flex XML" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Explore sample portfolio" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Just look around with sample data first" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Explore sample portfolio" })).not.toBeInTheDocument();
     });
 
-    it("offers only file import and sample data for a file-only broker", () => {
+    it("offers only file import and the sample data link for a file-only broker", () => {
       mount("/onboarding?broker=xtb");
 
       expect(screen.queryByRole("button", { name: /^connect/i })).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Import your XTB file" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Explore sample portfolio" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Just look around with sample data first" })).toBeInTheDocument();
     });
 
     it("falls back to a Portfyl CSV for an API-only broker", () => {
@@ -314,7 +268,7 @@ describe("Onboarding", () => {
     it("creates a clearly labelled demo and opens its dashboard", async () => {
       mount("/onboarding?broker=trading212");
 
-      fireEvent.click(screen.getByRole("button", { name: /explore sample portfolio/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Just look around with sample data first" }));
 
       await waitFor(() => expect(mocks.createDemoPortfolio).toHaveBeenCalledTimes(1));
       expect(mocks.setCurrentId).toHaveBeenCalledWith("demo-id");
@@ -356,11 +310,98 @@ describe("Onboarding", () => {
       });
       mount("/onboarding?broker=trading212");
 
-      fireEvent.click(screen.getByRole("button", { name: /explore sample portfolio/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Just look around with sample data first" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent("Demo limit reached");
       expect(mocks.recordPortfolioCreated).not.toHaveBeenCalled();
       expect(mocks.recordPortfolioDataImported).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("remembered broker", () => {
+    it("starts at step 2 with the broker from the landing page", () => {
+      localStorage.setItem(INTENDED_BROKER_KEY, "xtb");
+      mount();
+
+      expect(screen.getByText("Step 2 of 2 · XTB")).toBeInTheDocument();
+      expect(screen.getByLabelText("location")).toHaveTextContent("/onboarding?broker=xtb");
+    });
+
+    it("lets a broker in the URL win over the remembered one", () => {
+      localStorage.setItem(INTENDED_BROKER_KEY, "xtb");
+      mount("/onboarding?broker=degiro");
+
+      expect(screen.getByText("Step 2 of 2 · Degiro")).toBeInTheDocument();
+    });
+
+    it("ignores a remembered broker that is not supported", () => {
+      localStorage.setItem(INTENDED_BROKER_KEY, "nope");
+      mount();
+
+      expect(screen.getByRole("heading", { level: 1, name: "Which broker do you use?" })).toBeInTheDocument();
+    });
+
+    it("a broker picked later wins and the remembered one is cleared", async () => {
+      localStorage.setItem(INTENDED_BROKER_KEY, "xtb");
+      mount();
+
+      fireEvent.click(screen.getByRole("button", { name: "Change broker" }));
+      fireEvent.click(screen.getByRole("button", { name: /Degiro/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Import your Degiro file" }));
+
+      expect(await screen.findByText("Import destination")).toBeInTheDocument();
+      expect(screen.getByLabelText("location")).toHaveTextContent("/import?broker=degiro");
+      expect(intendedBroker()).toBeNull();
+    });
+
+    it("does not bring the remembered broker back after Change broker", () => {
+      localStorage.setItem(INTENDED_BROKER_KEY, "xtb");
+      mount();
+
+      fireEvent.click(screen.getByRole("button", { name: "Change broker" }));
+
+      expect(screen.getByRole("heading", { level: 1, name: "Which broker do you use?" })).toBeInTheDocument();
+    });
+
+    it("keeps the remembered broker after the demo", async () => {
+      localStorage.setItem(INTENDED_BROKER_KEY, "xtb");
+      mount();
+
+      fireEvent.click(screen.getByRole("button", { name: "Just look around with sample data first" }));
+
+      expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
+      expect(intendedBroker()).toBe("xtb");
+    });
+
+    it("clears the remembered broker after a blank portfolio", async () => {
+      localStorage.setItem(INTENDED_BROKER_KEY, "xtb");
+      mount();
+
+      fireEvent.click(screen.getByRole("button", { name: /start with a blank portfolio/i }));
+
+      expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
+      expect(intendedBroker()).toBeNull();
+    });
+
+    it("clears the remembered broker after a broker connection portfolio", async () => {
+      localStorage.setItem(INTENDED_BROKER_KEY, "trading212");
+      mount();
+
+      fireEvent.click(screen.getByRole("button", { name: "Connect Trading 212" }));
+
+      expect(await screen.findByText("Settings destination")).toBeInTheDocument();
+      expect(intendedBroker()).toBeNull();
+    });
+
+    it("keeps the remembered broker when creating the portfolio fails", async () => {
+      localStorage.setItem(INTENDED_BROKER_KEY, "xtb");
+      mocks.createPendingImportPortfolio.mockRejectedValueOnce({ response: { data: { detail: "Nope" } } });
+      mount();
+
+      fireEvent.click(screen.getByRole("button", { name: "Import your XTB file" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Nope");
+      expect(intendedBroker()).toBe("xtb");
     });
   });
 
