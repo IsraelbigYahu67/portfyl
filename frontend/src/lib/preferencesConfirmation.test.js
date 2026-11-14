@@ -1,9 +1,12 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  PREFERENCES_CONFIRMED_KEY,
-  confirmPreferences,
-  preferencesConfirmed,
-} from "./preferencesConfirmation";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// The module keeps an in-memory fallback, so load a fresh copy per test.
+let mod;
+
+beforeEach(async () => {
+  vi.resetModules();
+  mod = await import("./preferencesConfirmation");
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -12,28 +15,40 @@ afterEach(() => {
 
 describe("preferencesConfirmation", () => {
   it("uses the portfyl_ key", () => {
-    expect(PREFERENCES_CONFIRMED_KEY).toBe("portfyl_preferences_confirmed");
+    expect(mod.PREFERENCES_CONFIRMED_KEY).toBe("portfyl_preferences_confirmed");
   });
 
   it("is false until confirmed, then true", () => {
-    expect(preferencesConfirmed()).toBe(false);
-    confirmPreferences();
-    expect(preferencesConfirmed()).toBe(true);
-    expect(localStorage.getItem(PREFERENCES_CONFIRMED_KEY)).toBe("1");
+    expect(mod.preferencesConfirmed()).toBe(false);
+    mod.confirmPreferences();
+    expect(mod.preferencesConfirmed()).toBe(true);
+    expect(localStorage.getItem(mod.PREFERENCES_CONFIRMED_KEY)).toBe("1");
   });
 
   it("returns false when storage cannot be read", () => {
-    confirmPreferences();
+    mod.confirmPreferences();
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("blocked");
     });
-    expect(preferencesConfirmed()).toBe(false);
+    expect(mod.preferencesConfirmed()).toBe(false);
   });
 
-  it("does not throw when storage cannot be written", () => {
+  it("remembers the confirmation for this visit when storage cannot be written", () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("blocked");
     });
-    expect(() => confirmPreferences()).not.toThrow();
+    expect(() => mod.confirmPreferences()).not.toThrow();
+    expect(mod.preferencesConfirmed()).toBe(true);
+  });
+
+  it("remembers the confirmation when storage can be neither written nor read", () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    mod.confirmPreferences();
+    expect(mod.preferencesConfirmed()).toBe(true);
   });
 });

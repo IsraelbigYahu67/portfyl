@@ -9,7 +9,7 @@ let confirmedInMemory = false;
 
 export function preferencesConfirmed() {
   try {
-    return localStorage.getItem(PREFERENCES_CONFIRMED_KEY) === "1";
+    return localStorage.getItem(PREFERENCES_CONFIRMED_KEY) === "1" || confirmedInMemory;
   } catch {
     return confirmedInMemory;
   }
