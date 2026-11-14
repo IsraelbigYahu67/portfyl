@@ -13,18 +13,22 @@ import { useAnalytics } from "../analytics/AnalyticsProvider";
 import { ANALYTICS_EVENTS } from "../analytics/eventContract";
 import { getAnalyticsLanguage } from "../analytics/analyticsCopy";
 import { rich, useI18n } from "../i18n/I18nProvider";
+import { hasSavedLanguage } from "../i18n/languages";
+import { readSignupIntent, rememberIntendedBroker } from "../lib/signupIntent";
 
 const MIN_PASSWORD_LENGTH = 8;
 
-// Strict allowlist: only a literal ?source=demo maps to "demo". Any other
-// value (or none) is "direct" -- arbitrary query parameters are never
+// Strict allowlist: only these literal ?source= values map to a surface. Any
+// other value (or none) is "direct" -- arbitrary query parameters are never
 // forwarded into analytics.
+const SOURCE_SURFACES = Object.freeze({ demo: "demo", landing_broker_check: "landing_broker_check" });
 function sourceSurfaceFrom(searchParams) {
-  return searchParams.get("source") === "demo" ? "demo" : "direct";
+  const source = searchParams.get("source");
+  return Object.hasOwn(SOURCE_SURFACES, source) ? SOURCE_SURFACES[source] : "direct";
 }
 
 export default function Register() {
-  const { t, language: appLanguage } = useI18n();
+  const { t, language: appLanguage, setLanguage } = useI18n();
   const navigate = useNavigate();
   const emailId = useId();
   const passwordId = useId();
@@ -53,6 +57,16 @@ export default function Register() {
     capture(ANALYTICS_EVENTS.SIGNUP_STARTED, { source_surface: sourceSurface, language });
     // Fires once per mount of this route -- source_surface/language are
     // fixed for the lifetime of this page view.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // What the landing page or demo told us: the broker is remembered for
+    // onboarding, and the language applies unless the user already chose one.
+    const intent = readSignupIntent(searchParams);
+    if (intent.broker) rememberIntendedBroker(intent.broker);
+    if (intent.lang && !hasSavedLanguage()) setLanguage(intent.lang);
+    // Mount only: the URL is read once per visit to this page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

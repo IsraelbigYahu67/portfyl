@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown } from "lucide-react";
 
+import { BROKER_GUIDE_IMAGES } from "../../lib/brokerGuideImages";
 import { IBKR_FLEX_SECTIONS } from "../../lib/ibkrFlex";
 import { rich, useT } from "../../i18n/I18nProvider";
 
@@ -16,6 +17,15 @@ function guides(t) {
     link: (words) => <Link to="/settings?section=connections" className="text-brand underline">{words}</Link>,
   });
   return [
+    {
+      id: "trading212",
+      name: "Trading 212",
+      file: "CSV",
+      steps: [
+        ink(t("In Trading 212 open <b>History</b> and choose <b>Export history</b>.")),
+        t("Choose the whole period and every data type, then download the CSV and upload it here."),
+      ],
+    },
     {
       id: "ibkr",
       name: "Interactive Brokers",
@@ -83,11 +93,48 @@ function guides(t) {
   ];
 }
 
-const GUIDE_IDS = ["ibkr", "degiro", "xtb", "schwab", "fidelity", "etoro"];
+const GUIDE_IDS = ["trading212", "ibkr", "degiro", "xtb", "schwab", "fidelity", "etoro"];
 
-export default function BrokerGuides({ initialOpen = null }) {
+// The numbered steps, any screenshots, and the closing note of one guide.
+function GuideBody({ guide, t }) {
+  const images = BROKER_GUIDE_IMAGES[guide.id] ?? [];
+  return (
+    <>
+      <ol className="list-decimal space-y-2 pl-5">
+        {guide.steps.map((step, index) => <li key={index}>{step}</li>)}
+      </ol>
+      {guide.note && <p className="mt-3 text-xs">{guide.note}</p>}
+      {images.length > 0 && (
+        <div className="mt-3 space-y-3">
+          {images.map(({ src, alt }) => <img key={src} src={src} alt={t(alt)} loading="lazy" className="rounded-xl" />)}
+        </div>
+      )}
+    </>
+  );
+}
+
+// `only`: a guide id. Renders just that guide, expanded and without the
+// accordion (onboarding step 2 shows the picked broker's guide inline); an
+// unknown id renders nothing.
+export default function BrokerGuides({ initialOpen = null, only = null }) {
   const t = useT();
   const [open, setOpen] = useState(() => (GUIDE_IDS.includes(initialOpen) ? initialOpen : null));
+
+  if (only != null) {
+    const guide = GUIDE_IDS.includes(only) ? guides(t).find(({ id }) => id === only) : null;
+    if (!guide) return null;
+    return (
+      <section aria-labelledby="broker-guide-heading" className="card space-y-3 text-sm text-muted">
+        <h2 id="broker-guide-heading" className="font-semibold text-ink">
+          {t("How to get the file from {broker}", { broker: guide.name })}
+        </h2>
+        <div>
+          <GuideBody guide={guide} t={t} />
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section aria-labelledby="broker-guides-heading" className="card space-y-3">
       <div>
@@ -115,10 +162,7 @@ export default function BrokerGuides({ initialOpen = null }) {
               </button>
               {expanded && (
                 <div id={panelId} className="px-4 pb-4 text-sm text-muted">
-                  <ol className="list-decimal space-y-2 pl-5">
-                    {guide.steps.map((step, index) => <li key={index}>{step}</li>)}
-                  </ol>
-                  {guide.note && <p className="mt-3 text-xs">{guide.note}</p>}
+                  <GuideBody guide={guide} t={t} />
                 </div>
               )}
             </li>

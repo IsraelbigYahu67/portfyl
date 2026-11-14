@@ -2,6 +2,7 @@
 // localStorage only (LANGUAGE_KEY, shared with the landing page) -- no
 // network localization, no IP geolocation.
 import { LANGUAGE_KEY } from "../pages/welcomeCopy";
+import { LANGUAGE_STORAGE_KEY, isAppLanguage } from "../i18n/languages";
 
 export { LANGUAGE_KEY };
 
@@ -37,4 +38,19 @@ export function getDemoLanguage() {
     /* Storage may be unavailable (private browsing, blocked cookies). */
   }
   return "en";
+}
+
+// The language the visitor explicitly chose (on the landing page or in the
+// app), or null. Unlike getDemoLanguage() it has no English fallback, so the
+// registration link only carries a language the visitor actually picked.
+export function getChosenLanguage() {
+  for (const key of [LANGUAGE_KEY, LANGUAGE_STORAGE_KEY]) {
+    try {
+      const saved = localStorage.getItem(key);
+      if (isAppLanguage(saved)) return saved;
+    } catch {
+      /* Storage may be unavailable (private browsing, blocked cookies). */
+    }
+  }
+  return null;
 }

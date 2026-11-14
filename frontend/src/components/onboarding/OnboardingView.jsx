@@ -1,16 +1,12 @@
 import { useId, useState } from "react";
-import { AlertCircle, BarChart3, Check, Link2, Loader2, Upload } from "lucide-react";
+import { AlertCircle, Check, Link2, Loader2, Upload } from "lucide-react";
 
+import BrokerGuides from "../import/BrokerGuides";
 import T212ApiGuide from "../settings/T212ApiGuide";
 import { Badge } from "../ui/Badge";
+import PreferencesChip from "./PreferencesChip";
 import { brokerMethods, filterBrokers, findSupportedBroker } from "../../lib/onboardingBrokers";
 import { translate, useI18n, useT } from "../../i18n/I18nProvider";
-import { APP_LANGUAGES } from "../../i18n/languages";
-import {
-  currencyChoicesForLanguage,
-  currencySymbol,
-  localCurrencyForLanguage,
-} from "../../lib/displayCurrency";
 
 // Pure presentation of the first-run onboarding (docs/prototypes/
 // onboarding-preview.html). It deliberately imports nothing from the API
@@ -19,10 +15,11 @@ import {
 // so signed-in users can walk through it again safely.
 //
 // The flow is controlled by its parent:
-//   step 1  languageChosen false  -> "Choose your language" (+ display currency)
-//   step 2  no brokerKey          -> "Which broker do you use?"
-//   step 2b unsupportedName set   -> "Portfyl doesn't support X yet"
-//   step 3  brokerKey supported   -> choices tailored to that broker
+//   step 1  no brokerKey          -> "Which broker do you use?"
+//   step 1b unsupportedName set   -> "Portfyl doesn't support X yet"
+//   step 2  brokerKey supported   -> choices tailored to that broker
+// The language and display currency are not a step: they are guessed, and
+// shown as a chip (PreferencesChip) the visitor can confirm or change.
 
 // Every page that renders this view keys its handlers by these. The pages'
 // tests compare their handler maps with this list, so a new choice cannot ship
@@ -42,14 +39,9 @@ export function choiceHandler(handlers, key) {
   return () => console.error(`Onboarding choice "${key}" has no handler.`);
 }
 
-// Step 3's cards for `broker`, most direct route first (the primary one).
+// Step 2's cards for `broker`, most direct route first (the primary one). The
+// sample portfolio is not a card: Choices offers it as a quieter link.
 export function onboardingChoices(broker, t = english) {
-  const demo = {
-    key: "demo",
-    icon: BarChart3,
-    title: t("Explore sample portfolio"),
-    description: t("Use clearly labelled sample data. You can replace or clear it at any time."),
-  };
   const fileImport = broker.fileKind
     ? {
       key: "import",
@@ -57,7 +49,12 @@ export function onboardingChoices(broker, t = english) {
       title: broker.api
         ? t("Import your {broker} {fileKind}", { broker: broker.name, fileKind: broker.fileKind })
         : t("Import your {broker} file", { broker: broker.name }),
-      description: `${t(broker.hint)} ${t("You'll see a preview before anything is saved.")}`,
+      // A file-only broker's steps are the export guide under the cards, so
+      // the card keeps just the reassurance; an API broker's card still
+      // carries its one-line hint.
+      description: broker.api
+        ? `${t(broker.hint)} ${t("You'll see a preview before anything is saved.")}`
+        : t("You'll see a preview before anything is saved."),
     }
     : {
       key: "import",
@@ -65,7 +62,7 @@ export function onboardingChoices(broker, t = english) {
       title: t("Import a Portfyl CSV"),
       description: t("Prefer a file? Preview a Portfyl CSV before anything is saved."),
     };
-  if (!broker.api) return [{ ...fileImport, primary: true }, demo];
+  if (!broker.api) return [{ ...fileImport, primary: true }];
   return [
     {
       key: "broker",
@@ -75,7 +72,6 @@ export function onboardingChoices(broker, t = english) {
       primary: true,
     },
     fileImport,
-    demo,
   ];
 }
 
@@ -123,141 +119,18 @@ function BrokerIcon({ broker }) {
 }
 
 
-// The currency's name in the app language ("česká koruna", "Euro"), falling
-// back to the code where Intl.DisplayNames is missing.
-function currencyName(code, language) {
-  try {
-    return new Intl.DisplayNames([language], { type: "currency" }).of(code) || code;
-  } catch {
-    return code;
-  }
-}
-
-
-// Part of step 1: show the portfolio in the local currency of the picked
-// language, or (the option under all the others) only in USD.
-function CurrencyPick({ language, currency, onChange }) {
-  const t = useT();
-  const choices = currencyChoicesForLanguage(language, currency);
-  const usdOnly = currency === "USD";
-
-  return (
-    <section aria-labelledby="onboarding-currency" className="space-y-4">
-      <h2 id="onboarding-currency" className="eyebrow text-center">{t("Show my portfolio in")}</h2>
-      <ul className={`grid gap-4 mx-auto ${choices.length === 1 ? "max-w-xs" : "max-w-lg grid-cols-2"}`}>
-        {choices.map((code) => {
-          const isSelected = currency === code;
-          return (
-            <li key={code}>
-              <button
-                type="button"
-                onClick={() => onChange(code)}
-                aria-pressed={isSelected}
-                className={`card card-interactive w-full h-full flex items-center justify-between gap-3 text-left !p-4 ${
-                  isSelected ? "outline outline-2 outline-offset-4 outline-brand" : ""
-                }`}
-              >
-                <span className="min-w-0">
-                  <span className="block font-semibold text-ink">{currencySymbol(code)} · {code}</span>
-                  <span className="block text-xs text-muted first-letter:uppercase">{currencyName(code, language)}</span>
-                </span>
-                {isSelected && <SelectedBadge />}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      <div className="flex justify-center">
-        <button
-          type="button"
-          onClick={() => onChange("USD")}
-          aria-pressed={usdOnly}
-          className={`card card-interactive inline-flex items-center gap-3 min-h-[44px] !py-2.5 !px-4 text-sm font-medium ${
-            usdOnly ? "outline outline-2 outline-offset-4 outline-brand text-ink" : "text-muted"
-          }`}
-        >
-          {t("Display only in USD (you can change this later)")}
-          {usdOnly && <SelectedBadge />}
-        </button>
-      </div>
-    </section>
-  );
-}
-
-
-// Step 1: the app's language. A click switches the whole view at once, so the
-// user reads the next steps in the language they picked. Picking a language
-// also preselects its local currency; "only in USD" stays one click away.
-function LanguagePick({ onContinue, currency, onCurrencyChange }) {
-  const { language, setLanguage, t } = useI18n();
-  // The currency offer slides in only once the user has clicked a language
-  // (the preselected one counts once clicked).
-  const [languagePicked, setLanguagePicked] = useState(false);
-  const pickLanguage = (code) => {
-    setLanguage(code);
-    setLanguagePicked(true);
-    if (onCurrencyChange) onCurrencyChange(localCurrencyForLanguage(code));
-  };
-
-  return (
-    <div className="space-y-8">
-      <StepHeader eyebrow={t("Step 1 of 3")} title={t("Choose your language")}>
-        {t("Portfyl will use it everywhere in the app. You can change it later in Settings → Preferences.")}
-      </StepHeader>
-
-      <ul className="grid gap-4 grid-cols-2 sm:grid-cols-3" aria-label={t("Languages")}>
-        {APP_LANGUAGES.map(({ code, name }) => {
-          const isSelected = language === code;
-          return (
-            <li key={code}>
-              <button
-                type="button"
-                lang={code}
-                onClick={() => pickLanguage(code)}
-                aria-pressed={isSelected}
-                className={`card card-interactive w-full h-full flex items-center justify-between gap-3 text-left !p-4 ${
-                  isSelected ? "outline outline-2 outline-offset-4 outline-brand" : ""
-                }`}
-              >
-                <span className="min-w-0">
-                  <span className="block font-semibold text-ink">{name}</span>
-                  <span className="block text-xs uppercase text-muted">{code}</span>
-                </span>
-                {isSelected && <SelectedBadge />}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-
-      {onCurrencyChange && languagePicked && (
-        <div className="animate-fade-up">
-          <CurrencyPick language={language} currency={currency} onChange={onCurrencyChange} />
-        </div>
-      )}
-
-      <div className="flex justify-center">
-        <button type="button" onClick={onContinue} className="btn-primary min-h-[44px] px-8">
-          {t("Continue")}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-
-// Step 2: which broker? Checks support before the user invests any effort.
+// Step 1: which broker? Checks support before the user invests any effort.
 function BrokerPick({ onPick, onUnsupported }) {
-  const t = useT();
+  const { language, t } = useI18n();
   const searchId = useId();
   const [query, setQuery] = useState("");
-  const { supported, unsupported } = filterBrokers(query);
+  const { supported, unsupported } = filterBrokers(query, language);
   const typed = query.trim();
   const unknown = typed && !supported.length && !unsupported.length;
 
   return (
     <div className="space-y-8">
-      <StepHeader eyebrow={t("Step 2 of 3")} title={t("Which broker do you use?")}>
+      <StepHeader eyebrow={t("Step 1 of 2")} title={t("Which broker do you use?")}>
         {t("Portfyl reads your trades from your broker, so we check first that yours is supported. Finding out costs nothing.")}
       </StepHeader>
 
@@ -328,9 +201,13 @@ function BrokerPick({ onPick, onUnsupported }) {
 }
 
 
-// Step 2b: the broker can't be read. Say so before the user pays anything.
-function Unsupported({ name, busy, onBack, onDemo, notice }) {
+// Step 1b: the broker can't be read. Say so before the user pays anything.
+// `name` is free text the visitor typed: it only ever reaches the page through
+// t()'s plain-text {name} interpolation and React's escaping, never rich() or
+// raw HTML.
+function Unsupported({ name, busy, onBack, onDemo, notice, onNotify, notifyState }) {
   const t = useT();
+  const sending = notifyState === "sending";
   return (
     <div className="max-w-md mx-auto space-y-6">
       <div className="text-center space-y-3">
@@ -343,6 +220,27 @@ function Unsupported({ name, busy, onBack, onDemo, notice }) {
         </p>
       </div>
       <div className="card space-y-3">
+        {onNotify && notifyState === "sent" && (
+          <p role="status" className="text-sm text-ink text-center">
+            {t("Thanks, we'll e-mail you when {name} is supported.", { name })}
+          </p>
+        )}
+        {onNotify && notifyState !== "sent" && (
+          <>
+            <button
+              type="button"
+              onClick={onNotify}
+              disabled={busy != null || sending}
+              className="btn-primary w-full min-h-[44px] flex items-center justify-center gap-2"
+            >
+              {sending && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
+              {t("Notify me when {name} is supported", { name })}
+            </button>
+            {notifyState === "error" && (
+              <p role="alert" className="text-sm text-loss">{t("We couldn't save that. Please try again.")}</p>
+            )}
+          </>
+        )}
         <button type="button" onClick={onBack} disabled={busy != null} className="btn-ghost w-full min-h-[44px]">{t("Choose another broker")}</button>
         <button type="button" onClick={onDemo} disabled={busy != null} className="btn-ghost w-full min-h-[44px] flex items-center justify-center gap-2">
           {busy === "demo" && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
@@ -355,7 +253,7 @@ function Unsupported({ name, busy, onBack, onDemo, notice }) {
 }
 
 
-// Step 3: how to get this broker's data in.
+// Step 2: how to get this broker's data in.
 function Choices({ broker, busy, selected, onChoose, onChangeBroker, onStartBlank, notice }) {
   const t = useT();
   const selectable = selected !== undefined;
@@ -363,12 +261,12 @@ function Choices({ broker, busy, selected, onChoose, onChangeBroker, onStartBlan
 
   return (
     <div className="space-y-8">
-      <StepHeader eyebrow={t("Step 3 of 3 · {broker}", { broker: broker.name })} title={t("Add your first portfolio")}>
+      <StepHeader eyebrow={t("Step 2 of 2 · {broker}", { broker: broker.name })} title={t("Add your first portfolio")}>
         {t("Good news, {broker} is supported.", { broker: broker.name })}{" "}
         {broker.api ? t("Connect it for automatic sync, or import a file.") : t("Import your export file to get started.")}
       </StepHeader>
 
-      <div className={`grid gap-5 ${choices.length === 2 ? "md:grid-cols-2 max-w-2xl mx-auto" : "md:grid-cols-3"}`}>
+      <div className={`grid gap-5 ${choices.length === 2 ? "md:grid-cols-2 max-w-2xl mx-auto" : "max-w-md mx-auto"}`}>
         {choices.map(({ key, icon: Icon, title, description, primary }) => {
           const isSelected = selectable && selected === key;
           // The selected state is an outline plus a "Selected" badge: Clay
@@ -402,13 +300,30 @@ function Choices({ broker, busy, selected, onChoose, onChangeBroker, onStartBlan
         })}
       </div>
 
+      {!broker.api && (
+        <div className="max-w-2xl mx-auto">
+          <BrokerGuides only={broker.key} />
+        </div>
+      )}
+
       {notice}
 
       {broker.key === "trading212" && <T212ApiGuide className="max-w-2xl mx-auto" />}
 
-      <p className="text-center text-xs text-muted">
-        {t("Sample data is marked as demo data and never mixed into a real import unless you choose to keep it.")}
-      </p>
+      <div className="space-y-2 text-center">
+        <button
+          type="button"
+          onClick={() => onChoose("demo")}
+          disabled={busy != null}
+          className="inline-flex min-h-[44px] items-center justify-center gap-2 text-sm font-medium text-brand hover:underline disabled:opacity-50"
+        >
+          {busy === "demo" && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
+          {t("Just look around with sample data first")}
+        </button>
+        <p className="text-xs text-muted">
+          {t("Sample data is marked as demo data and never mixed into a real import unless you choose to keep it.")}
+        </p>
+      </div>
       <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
         <button type="button" onClick={onChangeBroker} disabled={busy != null} className="min-h-[44px] text-sm font-medium text-brand hover:underline disabled:opacity-50">
           {t("Change broker")}
@@ -424,18 +339,20 @@ function Choices({ broker, busy, selected, onChoose, onChangeBroker, onStartBlan
 
 export default function OnboardingView({
   // Step state, owned by the parent (the real page keeps brokerKey in the URL
-  // so "Leave import" can return to step 3). The language step shows only
-  // when a parent passes languageChosen={false}.
-  languageChosen = true,
-  onLanguageChosen,
-  // The display currency picked in step 1. Without onCurrencyChange the
-  // currency choice is not shown.
+  // so "Leave import" can return to step 2).
+  // The display currency, shown in the language/currency chip. Without
+  // onCurrencyChange the chip is not shown.
   currency = null,
   onCurrencyChange = undefined,
   brokerKey = null,
   onBrokerChange,
   unsupportedName = null,
   onUnsupportedChange,
+  // "Notify me when X is supported" on the unsupported screen. Without
+  // onNotify the button is not shown; notifyState is "idle", "sending",
+  // "sent" or "error".
+  onNotify = undefined,
+  notifyState = "idle",
   onChoose,
   onStartBlank,
   busy = null,
@@ -458,16 +375,15 @@ export default function OnboardingView({
 
   let step;
   let stepKey;
-  if (!languageChosen) {
-    stepKey = "language";
-    step = <LanguagePick onContinue={onLanguageChosen} currency={currency} onCurrencyChange={onCurrencyChange} />;
-  } else if (unsupportedName) {
+  if (unsupportedName) {
     stepKey = "unsupported";
     step = (
       <Unsupported
         name={unsupportedName}
         busy={busy}
         notice={notice}
+        onNotify={onNotify}
+        notifyState={notifyState}
         onBack={() => pickBroker(null)}
         onDemo={() => onChoose("demo")}
       />
@@ -494,8 +410,13 @@ export default function OnboardingView({
     <main
       ref={mainRef}
       tabIndex={mainRef ? -1 : undefined}
-      className={`min-h-screen bg-bg px-6 py-12 flex items-center justify-center ${mainRef ? "!outline-none" : ""}`}
+      className={`relative min-h-screen bg-bg px-6 pb-12 flex items-center justify-center ${onCurrencyChange ? "pt-20" : "pt-12"} ${mainRef ? "!outline-none" : ""}`}
     >
+      {onCurrencyChange && (
+        <div className="absolute right-4 top-4 z-10 md:right-6">
+          <PreferencesChip currency={currency} onCurrencyChange={onCurrencyChange} />
+        </div>
+      )}
       <div className={`w-full space-y-8 ${stepKey === "unsupported" || stepKey === broker?.key ? "max-w-4xl" : "max-w-3xl"}`}>
         {banner}
 

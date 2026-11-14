@@ -16,6 +16,7 @@ from models import (
     BrokerConnection,
     BrokerCorporateAction,
     BrokerCorporateActionApplication,
+    BrokerRequest,
     CashInterestRate,
     DiscordWebhook,
     DividendNotification,
@@ -26,6 +27,7 @@ from models import (
     PriceAlert,
     TradeNote,
     Transaction,
+    User,
     UserSetting,
     Watchlist,
     WatchlistItem,
@@ -151,7 +153,7 @@ def test_export_contains_portable_workspace_data_without_cross_tenant_rows(
         exported_at=EXPORTED_AT,
     )
 
-    assert payload["schema_version"] == 6
+    assert payload["schema_version"] == 7
     assert payload["exported_at"] == "2026-09-07T12:30:00+00:00"
     assert payload["workspace"]["id"] == str(request_context.workspace.public_id)
     assert payload["membership"] == {
@@ -458,7 +460,7 @@ def test_export_includes_corporate_actions_and_applications(db_session, request_
 
     payload = build_workspace_export(db_session, request_context, exported_at=EXPORTED_AT)
 
-    assert payload["schema_version"] == 6
+    assert payload["schema_version"] == 7
     [a] = payload["broker_corporate_actions"]
     assert a["action_type"] == "STOCK_SPLIT"
     assert float(a["ratio_numerator"]) == 10.0
@@ -483,7 +485,7 @@ def test_export_includes_allocation_targets_for_own_portfolios(db_session, reque
 
     payload = build_workspace_export(db_session, request_context, exported_at=EXPORTED_AT)
 
-    assert payload["schema_version"] == 6
+    assert payload["schema_version"] == 7
     [row] = payload["allocation_targets"]
     assert row["portfolio_id"] == str(portfolio.public_id)
     assert row["ticker"] == "VWCE.DE"
@@ -491,3 +493,30 @@ def test_export_includes_allocation_targets_for_own_portfolios(db_session, reque
     assert row["target_pct"] == 62.5
     assert row["display_order"] == 0
     assert "workspace_id" not in row
+
+
+def test_export_includes_broker_requests_of_this_workspace_only(db_session, request_context):
+    other_user = User(firebase_uid="other-export-user", email="other-export@example.com")
+    other_workspace = Workspace(name="Other export workspace")
+    db_session.add_all([other_user, other_workspace])
+    db_session.flush()
+    db_session.add_all([
+        BrokerRequest(
+            workspace_id=request_context.workspace.id, user_id=request_context.user.id,
+            broker_name="Trade Republic",
+        ),
+        BrokerRequest(
+            workspace_id=other_workspace.id, user_id=other_user.id,
+            broker_name="Someone else's broker",
+        ),
+    ])
+    db_session.commit()
+
+    payload = build_workspace_export(db_session, request_context, exported_at=EXPORTED_AT)
+
+    [row] = payload["broker_requests"]
+    assert row["broker_name"] == "Trade Republic"
+    assert row["id"] == str(db_session.query(BrokerRequest).filter_by(
+        workspace_id=request_context.workspace.id).one().public_id)
+    assert set(row) == {"id", "broker_name", "created_at"}
+    assert "Someone else's broker" not in json.dumps(payload)

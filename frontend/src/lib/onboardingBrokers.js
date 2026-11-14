@@ -80,11 +80,40 @@ export function findSupportedBroker(key) {
   return SUPPORTED_BROKERS.find((broker) => broker.key === key) ?? null;
 }
 
+// Which brokers a visitor most likely uses, by app language: the local
+// favourites first (Czech/Polish investors lean on Trading 212 / XTB), the
+// rest of Europe next, English speakers get the international platforms.
+export const BROKER_ORDER_BY_LANGUAGE = Object.freeze({
+  cs: Object.freeze(["trading212", "xtb", "degiro", "ibkr", "etoro", "schwab", "fidelity"]),
+  pl: Object.freeze(["xtb", "trading212", "degiro", "ibkr", "etoro", "schwab", "fidelity"]),
+  de: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro", "schwab", "fidelity"]),
+  fr: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro", "schwab", "fidelity"]),
+  es: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro", "schwab", "fidelity"]),
+  it: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro", "schwab", "fidelity"]),
+  pt: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro", "schwab", "fidelity"]),
+  nl: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro", "schwab", "fidelity"]),
+  en: Object.freeze(["trading212", "ibkr", "etoro", "degiro", "xtb", "schwab", "fidelity"]),
+});
+
+// Supported brokers in the order suited to `language`; an unknown language
+// gets the English order, and a broker missing from the list goes last.
+export function brokersForLanguage(language) {
+  const order = Object.hasOwn(BROKER_ORDER_BY_LANGUAGE, language)
+    ? BROKER_ORDER_BY_LANGUAGE[language]
+    : BROKER_ORDER_BY_LANGUAGE.en;
+  const rank = (broker) => {
+    const index = order.indexOf(broker.key);
+    return index === -1 ? order.length : index;
+  };
+  // Array.prototype.sort is stable, so ties keep SUPPORTED_BROKERS order.
+  return [...SUPPORTED_BROKERS].sort((a, b) => rank(a) - rank(b));
+}
+
 // Case-insensitive name filter for the broker search box.
-export function filterBrokers(query) {
+export function filterBrokers(query, language = "en") {
   const needle = query.trim().toLowerCase();
   return {
-    supported: SUPPORTED_BROKERS.filter((broker) => broker.name.toLowerCase().includes(needle)),
+    supported: brokersForLanguage(language).filter((broker) => broker.name.toLowerCase().includes(needle)),
     unsupported: UNSUPPORTED_BROKERS.filter((name) => name.toLowerCase().includes(needle)),
   };
 }

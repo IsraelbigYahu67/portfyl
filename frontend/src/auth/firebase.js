@@ -79,9 +79,19 @@ export async function signInWithEmailPassword(email, password) {
   return credential.user;
 }
 
+// The continue URL sends the person who clicked the link to /login with a
+// "verified" notice. It must be an authorized Firebase domain (app.portfyl.com
+// and localhost are; see "Google sign-in" in deploy/cloudrun.md).
 export async function sendVerificationEmail(user) {
   const { sendEmailVerification } = await loadFirebaseSdk();
-  await sendEmailVerification(user);
+  await sendEmailVerification(user, { url: `${window.location.origin}/login?verified=1` });
+}
+
+// Re-reads the user from Firebase so a link clicked in another tab or on
+// another device shows up as emailVerified. Resolves to whether it did.
+export async function reloadFirebaseUser(user) {
+  await user.reload();
+  return user.emailVerified === true;
 }
 
 export async function sendPasswordReset(email) {
