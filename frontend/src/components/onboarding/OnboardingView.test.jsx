@@ -1,8 +1,9 @@
 import { createRef } from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import { legacyColorClassesIn } from "../../test/legacyClasses";
 import { SUPPORTED_BROKERS, findSupportedBroker } from "../../lib/onboardingBrokers";
+import { I18nProvider } from "../../i18n/I18nProvider";
 
 import OnboardingView, { ONBOARDING_CHOICE_KEYS, choiceHandler, onboardingChoices } from "./OnboardingView";
 
@@ -52,6 +53,71 @@ describe("OnboardingView", () => {
     renderView();
 
     expect(screen.getByRole("heading", { level: 1, name: "Which broker do you use?" })).toBeInTheDocument();
+    expect(screen.getByText("Step 1 of 2")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Choose your language" })).not.toBeInTheDocument();
+  });
+
+  it("shows the language/currency chip only when a currency handler is passed", () => {
+    const { unmount } = renderView();
+    expect(screen.queryByRole("button", { name: /GBP/ })).not.toBeInTheDocument();
+    unmount();
+
+    renderView({ currency: "GBP", onCurrencyChange: noop });
+    expect(screen.getByRole("button", { name: "English · GBP" })).toBeInTheDocument();
+  });
+
+  it("lists the brokers in the order suited to the app language", async () => {
+    render(
+      <I18nProvider initial="cs">
+        <OnboardingView onBrokerChange={noop} onUnsupportedChange={noop} onChoose={noop} onStartBlank={noop} />
+      </I18nProvider>
+    );
+
+    const supported = await screen.findByRole("region", { name: /Podporovan/ });
+    const names = within(supported).getAllByRole("button").map((button) => button.textContent);
+    expect(names[0]).toMatch(/^Trading 212/);
+    expect(names[1]).toMatch(/^XTB/);
+  });
+
+  it("offers the demo as a link under the cards, not as a card", () => {
+    const onChoose = vi.fn();
+    renderView({ brokerKey: "xtb", onChoose });
+
+    expect(screen.getByText("Step 2 of 2 · XTB")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Explore sample portfolio" })).not.toBeInTheDocument();
+    // XTB has only a file import: one card plus the link.
+    expect(screen.getByRole("button", { name: "Import your XTB file" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Connect/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Just look around with sample data first" }));
+    expect(onChoose).toHaveBeenCalledWith("demo");
+  });
+
+  it("puts the connect card first for an API broker", () => {
+    renderView({ brokerKey: "trading212" });
+
+    const cards = screen.getAllByRole("button", { name: /^(Connect|Import your) Trading 212/ });
+    expect(cards.map((card) => card.getAttribute("aria-label"))).toEqual([
+      "Connect Trading 212",
+      "Import your Trading 212 CSV",
+    ]);
+  });
+
+  it("shows a spinner on the demo link while the demo is being created", () => {
+    renderView({ brokerKey: "xtb", busy: "demo" });
+
+    const link = screen.getByRole("button", { name: "Just look around with sample data first" });
+    expect(link).toBeDisabled();
+    expect(link.querySelector("svg.animate-spin")).not.toBeNull();
+  });
+
+  it("never links to pricing on any step", () => {
+    const steps = [{}, { brokerKey: "trading212" }, { brokerKey: "xtb" }, { unsupportedName: "Robinhood" }];
+    for (const props of steps) {
+      const { container, unmount } = renderView({ currency: "GBP", onCurrencyChange: noop, ...props });
+      expect(container.querySelector('a[href*="pricing"]')).toBeNull();
+      unmount();
+    }
   });
 
   it("shows the Trading 212 API key guide only for Trading 212", () => {
@@ -83,16 +149,16 @@ describe("OnboardingView", () => {
     expect(screen.queryByText("Selected")).not.toBeInTheDocument();
 
     rerender(
-      <OnboardingView brokerKey="ibkr" selected="demo" onBrokerChange={noop} onUnsupportedChange={noop} onChoose={noop} onStartBlank={noop} />
+      <OnboardingView brokerKey="ibkr" selected="broker" onBrokerChange={noop} onUnsupportedChange={noop} onChoose={noop} onStartBlank={noop} />
     );
 
-    const demo = screen.getByRole("button", { name: "Explore sample portfolio" });
-    expect(demo).toHaveAttribute("aria-pressed", "true");
+    const connect = screen.getByRole("button", { name: "Connect Interactive Brokers" });
+    expect(connect).toHaveAttribute("aria-pressed", "true");
     // An outline, not a border or ring: Clay hides .card borders and owns the
     // card box-shadow (index.css), but sets no outline on cards.
-    expect(demo).toHaveClass("outline", "outline-2", "outline-brand");
-    expect(demo).toHaveTextContent("Selected");
-    for (const button of choiceButtons().filter((button) => button !== demo)) {
+    expect(connect).toHaveClass("outline", "outline-2", "outline-brand");
+    expect(connect).toHaveTextContent("Selected");
+    for (const button of choiceButtons().filter((button) => button !== connect)) {
       expect(button).toHaveAttribute("aria-pressed", "false");
       expect(button).not.toHaveClass("outline-brand");
     }
@@ -113,6 +179,15 @@ describe("OnboardingView", () => {
     expect(mainRef.current).toBe(main);
     expect(main).toHaveAttribute("tabindex", "-1");
     expect(main).toHaveClass("!outline-none");
+  });
+});
+
+describe("onboardingChoices", () => {
+  it("leaves the demo out of the cards", () => {
+    expect(onboardingChoices(findSupportedBroker("ibkr")).map(({ key }) => key)).toEqual(["broker", "import"]);
+    expect(onboardingChoices(findSupportedBroker("trading212")).map(({ key }) => key)).toEqual(["broker", "import"]);
+    expect(onboardingChoices(findSupportedBroker("xtb")).map(({ key }) => key)).toEqual(["import"]);
+    expect(ONBOARDING_CHOICE_KEYS).toContain("demo");
   });
 });
 

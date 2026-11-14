@@ -22,7 +22,7 @@ export const PREVIEW_EXIT_PATH = "/settings?section=preferences";
 
 // One outcome per ONBOARDING_CHOICE_KEYS entry, plus "blank" for the separate
 // "Start with a blank portfolio" link (OnboardingPreview.test.jsx checks this).
-// Each takes the broker picked in step 2 (null on the unsupported screen) and
+// Each takes the broker picked in step 1 (null on the unsupported screen) and
 // the translate function (English when left out).
 const english = (text, vars) => translate(null, text, vars);
 export const OUTCOMES = Object.freeze({
@@ -38,7 +38,6 @@ export const OUTCOMES = Object.freeze({
 
 export default function OnboardingPreview() {
   const t = useT();
-  const [languageChosen, setLanguageChosen] = useState(false);
   // Local only: the preview may not reach the currency context in src/App.
   const { language } = useI18n();
   const [currency, setCurrency] = useState(() => readStoredCurrency() ?? localCurrencyForLanguage(language));
@@ -100,8 +99,6 @@ export default function OnboardingPreview() {
   return (
     <OnboardingView
       mainRef={mainRef}
-      languageChosen={languageChosen}
-      onLanguageChosen={() => setLanguageChosen(true)}
       currency={currency}
       onCurrencyChange={setCurrency}
       brokerKey={brokerKey}
