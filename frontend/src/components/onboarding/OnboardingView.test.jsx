@@ -183,6 +183,54 @@ describe("OnboardingView", () => {
     expect(screen.getByText("Notice slot")).toBeInTheDocument();
   });
 
+  describe("notify me on the unsupported screen", () => {
+    const notifyButton = (name = "Revolut") => screen.queryByRole("button", { name: `Notify me when ${name} is supported` });
+
+    it("offers no button without an onNotify handler", () => {
+      renderView({ unsupportedName: "Revolut" });
+
+      expect(notifyButton()).not.toBeInTheDocument();
+    });
+
+    it("shows the notify button first and calls onNotify on click", () => {
+      const onNotify = vi.fn();
+      renderView({ unsupportedName: "Revolut", onNotify });
+
+      const buttons = screen.getAllByRole("button").filter((button) => button.closest("main"));
+      expect(buttons[0]).toBe(notifyButton());
+      expect(buttons[0]).toHaveClass("btn-primary");
+      fireEvent.click(buttons[0]);
+      expect(onNotify).toHaveBeenCalledTimes(1);
+    });
+
+    it("disables the button while sending", () => {
+      renderView({ unsupportedName: "Revolut", onNotify: noop, notifyState: "sending" });
+
+      expect(notifyButton()).toBeDisabled();
+    });
+
+    it("replaces the button with a thank-you status once sent", () => {
+      renderView({ unsupportedName: "Revolut", onNotify: noop, notifyState: "sent" });
+
+      expect(notifyButton()).not.toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent("Thanks, we'll e-mail you when Revolut is supported.");
+    });
+
+    it("shows an alert on error and keeps the button", () => {
+      renderView({ unsupportedName: "Revolut", onNotify: noop, notifyState: "error" });
+
+      expect(screen.getByRole("alert")).toHaveTextContent("We couldn't save that. Please try again.");
+      expect(notifyButton()).toBeEnabled();
+    });
+
+    it("renders a name with markup as plain text", () => {
+      const { container } = renderView({ unsupportedName: "<b>x</b>", onNotify: noop });
+
+      expect(screen.getByText("Notify me when <b>x</b> is supported")).toBeInTheDocument();
+      expect(container.querySelector("b")).toBeNull();
+    });
+  });
+
   it("forwards mainRef to a programmatically focusable <main>", () => {
     const mainRef = createRef();
     renderView({ mainRef });

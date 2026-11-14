@@ -202,8 +202,12 @@ function BrokerPick({ onPick, onUnsupported }) {
 
 
 // Step 1b: the broker can't be read. Say so before the user pays anything.
-function Unsupported({ name, busy, onBack, onDemo, notice }) {
+// `name` is free text the visitor typed: it only ever reaches the page through
+// t()'s plain-text {name} interpolation and React's escaping, never rich() or
+// raw HTML.
+function Unsupported({ name, busy, onBack, onDemo, notice, onNotify, notifyState }) {
   const t = useT();
+  const sending = notifyState === "sending";
   return (
     <div className="max-w-md mx-auto space-y-6">
       <div className="text-center space-y-3">
@@ -216,6 +220,27 @@ function Unsupported({ name, busy, onBack, onDemo, notice }) {
         </p>
       </div>
       <div className="card space-y-3">
+        {onNotify && notifyState === "sent" && (
+          <p role="status" className="text-sm text-ink text-center">
+            {t("Thanks, we'll e-mail you when {name} is supported.", { name })}
+          </p>
+        )}
+        {onNotify && notifyState !== "sent" && (
+          <>
+            <button
+              type="button"
+              onClick={onNotify}
+              disabled={busy != null || sending}
+              className="btn-primary w-full min-h-[44px] flex items-center justify-center gap-2"
+            >
+              {sending && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
+              {t("Notify me when {name} is supported", { name })}
+            </button>
+            {notifyState === "error" && (
+              <p role="alert" className="text-sm text-loss">{t("We couldn't save that. Please try again.")}</p>
+            )}
+          </>
+        )}
         <button type="button" onClick={onBack} disabled={busy != null} className="btn-ghost w-full min-h-[44px]">{t("Choose another broker")}</button>
         <button type="button" onClick={onDemo} disabled={busy != null} className="btn-ghost w-full min-h-[44px] flex items-center justify-center gap-2">
           {busy === "demo" && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
@@ -323,6 +348,11 @@ export default function OnboardingView({
   onBrokerChange,
   unsupportedName = null,
   onUnsupportedChange,
+  // "Notify me when X is supported" on the unsupported screen. Without
+  // onNotify the button is not shown; notifyState is "idle", "sending",
+  // "sent" or "error".
+  onNotify = undefined,
+  notifyState = "idle",
   onChoose,
   onStartBlank,
   busy = null,
@@ -352,6 +382,8 @@ export default function OnboardingView({
         name={unsupportedName}
         busy={busy}
         notice={notice}
+        onNotify={onNotify}
+        notifyState={notifyState}
         onBack={() => pickBroker(null)}
         onDemo={() => onChoose("demo")}
       />
