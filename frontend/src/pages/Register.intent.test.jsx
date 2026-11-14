@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import Register from "./Register";
 import AnalyticsProvider from "../analytics/AnalyticsProvider";
@@ -22,10 +22,12 @@ vi.mock("../auth/firebase", () => ({
   signInWithGoogle: vi.fn(),
 }));
 
+let lastAdapter;
 const HEADING = "Create your Portfyl account";
 
 function renderRegister(path, initial = "en") {
   const adapter = createMemoryAdapter();
+  lastAdapter = adapter;
   const adapterFactory = () => adapter;
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -65,5 +67,17 @@ describe("Register signup intent", () => {
     // Applying the URL's German would have saved it over the user's choice.
     expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("cs");
     expect(screen.queryByRole("heading", { name: de[HEADING] })).not.toBeInTheDocument();
+  });
+
+  test.each([
+    ["/register?source=landing_broker_check", "landing_broker_check"],
+    ["/register?source=demo", "demo"],
+    ["/register?source=landing_hero", "direct"],
+    ["/register?source=%3Cscript%3E", "direct"],
+    ["/register", "direct"],
+  ])("signup_started from %s carries source_surface %s", async (path, surface) => {
+    renderRegister(path);
+    await waitFor(() => expect(lastAdapter.events.map(([name]) => name)).toContain("signup_started"));
+    expect(lastAdapter.events.find(([name]) => name === "signup_started")[1].source_surface).toBe(surface);
   });
 });
