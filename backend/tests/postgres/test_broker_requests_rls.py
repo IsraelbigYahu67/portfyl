@@ -78,14 +78,18 @@ def test_alices_request_is_invisible_to_bob(
 
     # Through a raw query under RLS: each side sees only its own row.
     _as(runtime_session, matrix_tenants.bob)
-    assert [r.broker_name for r in runtime_session.scalars(select(BrokerRequest))] == ["trade republic"]
+    assert sorted(r.broker_name for r in runtime_session.scalars(select(BrokerRequest))) == [
+        "Bob seeded broker", "trade republic",
+    ]
     assert runtime_session.execute(
         text("SELECT count(*) FROM broker_requests WHERE workspace_id = :w"),
         {"w": matrix_tenants.alice.workspace_id},
     ).scalar_one() == 0
     # No rollback here: it would also drop the fixture's SET LOCAL ROLE.
     _as(runtime_session, matrix_tenants.alice)
-    assert [r.broker_name for r in runtime_session.scalars(select(BrokerRequest))] == ["Trade Republic"]
+    assert sorted(r.broker_name for r in runtime_session.scalars(select(BrokerRequest))) == [
+        "Alice seeded broker", "Trade Republic",
+    ]
 
 
 def test_alice_cannot_write_a_row_into_bobs_workspace(
@@ -132,14 +136,16 @@ def test_deleting_the_workspace_removes_its_requests(
     assert alice_client.post("/api/broker-requests", json={"broker_name": "Revolut"}).status_code == 201
     assert bob_client.post("/api/broker-requests", json={"broker_name": "Revolut"}).status_code == 201
     alice_ws, bob_ws = matrix_tenants.alice.workspace_id, matrix_tenants.bob.workspace_id
-    assert _count(postgres_engine, alice_ws) == 1
+    # Each tenant already has one seeded row (tests/postgres/conftest.py).
+    assert _count(postgres_engine, alice_ws) == 2
+    assert _count(postgres_engine, bob_ws) == 2
 
     with Session(postgres_engine) as owner:
         owner.execute(delete(Workspace).where(Workspace.id == alice_ws))
         owner.commit()
 
     assert _count(postgres_engine, alice_ws) == 0
-    assert _count(postgres_engine, bob_ws) == 1  # Bob's row is untouched
+    assert _count(postgres_engine, bob_ws) == 2  # Bob's rows are untouched
 
 
 def test_deleting_the_user_removes_their_requests(

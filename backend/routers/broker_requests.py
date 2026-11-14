@@ -63,6 +63,8 @@ def create_broker_request(
     if existing is not None:
         return JSONResponse({"broker_name": existing.broker_name, "created": False})
 
+    # Count-then-insert is not atomic: two truly concurrent requests can overshoot
+    # the cap by a row or two. Accepted; it only limits abuse.
     count = db.query(func.count(BrokerRequest.id)).filter(
         BrokerRequest.workspace_id == workspace_id,
     ).scalar()
