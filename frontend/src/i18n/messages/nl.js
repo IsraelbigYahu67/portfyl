@@ -1479,4 +1479,8 @@ export default {
   "In Trading 212 open <b>History</b> and choose <b>Export history</b>.": "Open in Trading 212 <b>History</b> en kies <b>Export history</b>.",
   "Choose the whole period and every data type, then download the CSV and upload it here.": "Kies de hele periode en alle gegevenstypen, download de CSV en upload hem hier.",
   "How to get the file from {broker}": "Zo haal je het bestand uit {broker}",
+  // onboarding-flow Task 7
+  "Notify me when {name} is supported": "Laat het me weten als {name} wordt ondersteund",
+  "Thanks, we'll e-mail you when {name} is supported.": "Bedankt, we mailen je zodra {name} wordt ondersteund.",
+  "We couldn't save that. Please try again.": "We konden dit niet opslaan. Probeer het opnieuw.",
 };

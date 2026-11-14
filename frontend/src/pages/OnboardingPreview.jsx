@@ -44,10 +44,12 @@ export default function OnboardingPreview() {
   const [selected, setSelected] = useState(null);
   const [brokerKey, setBrokerKey] = useState(null);
   const [unsupportedName, setUnsupportedName] = useState(null);
+  // "Notify me" only pretends to save: nothing is sent.
+  const [notifyState, setNotifyState] = useState("idle");
   const broker = findSupportedBroker(brokerKey);
   // A new step starts with nothing chosen.
   const changeBroker = (key) => { setSelected(null); setBrokerKey(key); };
-  const changeUnsupported = (name) => { setSelected(null); setUnsupportedName(name); };
+  const changeUnsupported = (name) => { setSelected(null); setNotifyState("idle"); setUnsupportedName(name); };
   const mainRef = useRef(null);
   // The preview renders outside AppShell, so it announces itself: entering it
   // moves focus to its h1 instead of leaving it on <body>.
@@ -105,6 +107,8 @@ export default function OnboardingPreview() {
       onBrokerChange={changeBroker}
       unsupportedName={unsupportedName}
       onUnsupportedChange={changeUnsupported}
+      onNotify={() => setNotifyState("sent")}
+      notifyState={notifyState}
       onChoose={(key) => choiceHandler(choose, key)()}
       onStartBlank={choose.blank}
       banner={banner}

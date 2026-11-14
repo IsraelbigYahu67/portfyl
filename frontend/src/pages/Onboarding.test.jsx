@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 import Onboarding, { buildOnboardingActions } from "./Onboarding";
@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   createDemoPortfolio: vi.fn(),
   createPendingImportPortfolio: vi.fn(),
   activatePortfolio: vi.fn(),
+  requestBrokerSupport: vi.fn(),
   setCurrentId: vi.fn(),
   setCurrency: vi.fn(),
   refetchPortfolios: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock("../api", () => ({
   createDemoPortfolio: mocks.createDemoPortfolio,
   createPendingImportPortfolio: mocks.createPendingImportPortfolio,
   activatePortfolio: mocks.activatePortfolio,
+  requestBrokerSupport: mocks.requestBrokerSupport,
 }));
 
 vi.mock("../App", async () => {
@@ -87,6 +89,7 @@ describe("Onboarding", () => {
     mocks.createPendingImportPortfolio.mockResolvedValue({ id: "pending-id", activation_state: "pending_import" });
     mocks.activatePortfolio.mockResolvedValue({ id: "pending-id", activation_state: "active" });
     mocks.refetchPortfolios.mockResolvedValue({});
+    mocks.requestBrokerSupport.mockResolvedValue({});
   });
 
   describe("language and currency chip", () => {
@@ -191,6 +194,96 @@ describe("Onboarding", () => {
       await waitFor(() => expect(mocks.createDemoPortfolio).toHaveBeenCalledTimes(1));
       expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
       expect(mocks.recordPortfolioCreated).toHaveBeenCalledWith("demo");
+    });
+  });
+
+  describe("notify me for an unsupported broker", () => {
+    // The location probe is an <output>, which is also role "status".
+    const status = {
+      find: () => within(screen.getByRole("main")).findByRole("status"),
+      query: () => within(screen.getByRole("main")).queryByRole("status"),
+    };
+    const notify = (name) => screen.getByRole("button", { name: `Notify me when ${name} is supported` });
+
+    it("saves the request once and then thanks the visitor", async () => {
+      mount();
+      fireEvent.click(screen.getByRole("button", { name: "Revolut" }));
+
+      fireEvent.click(notify("Revolut"));
+
+      expect(await status.find()).toHaveTextContent("Thanks, we'll e-mail you when Revolut is supported.");
+      expect(mocks.requestBrokerSupport).toHaveBeenCalledTimes(1);
+      expect(mocks.requestBrokerSupport).toHaveBeenCalledWith("Revolut");
+      expect(screen.queryByRole("button", { name: /Notify me/ })).not.toBeInTheDocument();
+    });
+
+    it("ignores a second click while the first request is running", async () => {
+      let finish;
+      mocks.requestBrokerSupport.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+      mount();
+      fireEvent.click(screen.getByRole("button", { name: "Revolut" }));
+
+      fireEvent.click(notify("Revolut"));
+      fireEvent.click(notify("Revolut"));
+
+      expect(mocks.requestBrokerSupport).toHaveBeenCalledTimes(1);
+      expect(notify("Revolut")).toBeDisabled();
+      finish({});
+      expect(await status.find()).toBeInTheDocument();
+    });
+
+    it("shows an alert and keeps the button when saving fails, so the visitor can retry", async () => {
+      mocks.requestBrokerSupport.mockRejectedValueOnce(new Error("boom"));
+      mount();
+      fireEvent.click(screen.getByRole("button", { name: "Revolut" }));
+
+      fireEvent.click(notify("Revolut"));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't save that. Please try again.");
+      fireEvent.click(notify("Revolut"));
+      expect(await status.find()).toBeInTheDocument();
+      expect(mocks.requestBrokerSupport).toHaveBeenCalledTimes(2);
+    });
+
+    it("sends a typed name with markup as plain text and shows it literally", async () => {
+      mount();
+      fireEvent.change(screen.getByLabelText("Search brokers"), { target: { value: "<b>x</b>" } });
+      fireEvent.click(screen.getByRole("button", { name: "Check this broker" }));
+
+      expect(screen.getByText("Notify me when <b>x</b> is supported")).toBeInTheDocument();
+      fireEvent.click(notify("<b>x</b>"));
+
+      await waitFor(() => expect(mocks.requestBrokerSupport).toHaveBeenCalledWith("<b>x</b>"));
+    });
+
+    it("starts again from idle when another unsupported broker is picked", async () => {
+      mount();
+      fireEvent.click(screen.getByRole("button", { name: "Revolut" }));
+      fireEvent.click(notify("Revolut"));
+      expect(await status.find()).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Choose another broker" }));
+      fireEvent.click(screen.getByRole("button", { name: "Robinhood" }));
+
+      expect(status.query()).not.toBeInTheDocument();
+      expect(notify("Robinhood")).toBeEnabled();
+    });
+
+    it("does not show a late result for a broker that is no longer on screen", async () => {
+      let finish;
+      mocks.requestBrokerSupport.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+      mount();
+      fireEvent.click(screen.getByRole("button", { name: "Revolut" }));
+      fireEvent.click(notify("Revolut"));
+
+      fireEvent.click(screen.getByRole("button", { name: "Choose another broker" }));
+      fireEvent.click(screen.getByRole("button", { name: "Robinhood" }));
+      finish({});
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(status.query()).not.toBeInTheDocument();
+      expect(notify("Robinhood")).toBeEnabled();
     });
   });
 

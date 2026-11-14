@@ -346,6 +346,19 @@ describe("OnboardingPreview", () => {
     expect(localStorage.length).toBe(0);
   });
 
+  it("pretends to save a notify-me request locally, without any network request", () => {
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: "Robinhood" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Notify me when Robinhood is supported" }));
+
+    expect(screen.getByText("Thanks, we'll e-mail you when Robinhood is supported.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Notify me/ })).not.toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(xhrOpenSpy).not.toHaveBeenCalled();
+    expect(beaconSpy).not.toHaveBeenCalled();
+  });
+
   it("keeps a single live region and swaps only its content", () => {
     mount();
     fireEvent.click(screen.getByRole("button", { name: /Interactive Brokers/ }));

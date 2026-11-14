@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import OnboardingView, { choiceHandler } from "../components/onboarding/OnboardingView";
-import { activatePortfolio, createDemoPortfolio, createPendingImportPortfolio, createPortfolio } from "../api";
+import { activatePortfolio, createDemoPortfolio, createPendingImportPortfolio, createPortfolio, requestBrokerSupport } from "../api";
 import { useCurrency, usePortfolio } from "../App";
 import { TRACKER_HOME } from "../lib/routes";
 import { uniquePortfolioName } from "../lib/brokerPortfolio";
@@ -46,6 +46,12 @@ export default function Onboarding() {
   const [error, setError] = useState(null);
   // In memory, not the URL: it may be free text the user typed.
   const [unsupportedName, setUnsupportedName] = useState(null);
+  // The "notify me" request for unsupportedName. notifyRun changes with every
+  // new unsupportedName, so a slow answer for a broker no longer on screen is
+  // dropped; notifyBusy stops a double click from sending twice.
+  const [notifyState, setNotifyState] = useState("idle");
+  const notifyRun = useRef(0);
+  const notifyBusy = useRef(false);
   // A broker the visitor named on the landing page, remembered across sign-up
   // and e-mail verification. Read once, on the first render, so step 2 shows
   // at once; a broker in the URL wins, and any later pick or "Change broker"
@@ -81,6 +87,25 @@ export default function Onboarding() {
   function changeUnsupported(name) {
     setError(null);
     setUnsupportedName(name);
+    notifyRun.current += 1;
+    notifyBusy.current = false;
+    setNotifyState("idle");
+  }
+
+  async function notifyMe() {
+    if (!unsupportedName || notifyBusy.current) return;
+    const run = notifyRun.current;
+    notifyBusy.current = true;
+    setNotifyState("sending");
+    let result = "sent";
+    try {
+      await requestBrokerSupport(unsupportedName);
+    } catch {
+      result = "error";
+    }
+    if (run !== notifyRun.current) return;
+    notifyBusy.current = false;
+    setNotifyState(result);
   }
 
   async function activate(create, destination, kind) {
@@ -151,6 +176,8 @@ export default function Onboarding() {
       onBrokerChange={changeBroker}
       unsupportedName={unsupportedName}
       onUnsupportedChange={changeUnsupported}
+      onNotify={notifyMe}
+      notifyState={notifyState}
       onChoose={(key) => choiceHandler(actions, key)()}
       onStartBlank={startBlank}
       busy={busy}

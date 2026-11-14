@@ -1479,4 +1479,8 @@ export default {
   "In Trading 212 open <b>History</b> and choose <b>Export history</b>.": "Dans Trading 212, ouvrez <b>History</b> et choisissez <b>Export history</b>.",
   "Choose the whole period and every data type, then download the CSV and upload it here.": "Choisissez toute la période et tous les types de données, téléchargez le CSV puis importez-le ici.",
   "How to get the file from {broker}": "Comment obtenir le fichier de {broker}",
+  // onboarding-flow Task 7
+  "Notify me when {name} is supported": "Me prévenir quand {name} sera pris en charge",
+  "Thanks, we'll e-mail you when {name} is supported.": "Merci, nous vous écrirons dès que {name} sera pris en charge.",
+  "We couldn't save that. Please try again.": "Nous n'avons pas pu enregistrer votre demande. Veuillez réessayer.",
 };

@@ -1479,4 +1479,8 @@ export default {
   "In Trading 212 open <b>History</b> and choose <b>Export history</b>.": "V Trading 212 otevřete <b>History</b> a zvolte <b>Export history</b>.",
   "Choose the whole period and every data type, then download the CSV and upload it here.": "Zvolte celé období a všechny typy dat, stáhněte CSV a nahrajte ho sem.",
   "How to get the file from {broker}": "Jak získat soubor z {broker}",
+  // onboarding-flow Task 7
+  "Notify me when {name} is supported": "Dejte mi vědět, až bude {name} podporován",
+  "Thanks, we'll e-mail you when {name} is supported.": "Děkujeme, pošleme vám e-mail, až bude {name} podporován.",
+  "We couldn't save that. Please try again.": "Tohle se nepodařilo uložit. Zkuste to prosím znovu.",
 };
