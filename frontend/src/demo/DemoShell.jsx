@@ -1,11 +1,10 @@
 import { NavLink } from "react-router-dom";
 import { useDemoData } from "./DemoDataContext";
-import { DEMO_COPY, getDemoLanguage } from "./demoCopy";
+import { DEMO_COPY, getChosenLanguage, getDemoLanguage } from "./demoCopy";
 import { useAnalytics } from "../analytics/AnalyticsProvider";
 import { ANALYTICS_COPY, getAnalyticsLanguage } from "../analytics/analyticsCopy";
 import { ANALYTICS_EVENTS } from "../analytics/eventContract";
-
-const REG_TARGET = `${import.meta.env.VITE_APP_ORIGIN || "https://app.portfyl.com"}/register?source=demo`;
+import { registerUrl } from "../lib/signupIntent";
 
 const NAV_ITEMS = [
   { to: "/demo", end: true, key: "overview" },
@@ -43,7 +42,7 @@ export default function DemoShell({ children }) {
           {t.disclosure} · {t.asOfLabel} {data.asOf}
         </span>
         <a
-          href={REG_TARGET}
+          href={registerUrl({ source: "demo", lang: getChosenLanguage() })}
           className="btn-primary text-sm"
           onClick={() => capture(ANALYTICS_EVENTS.SIGNUP_CTA_CLICKED, { source_surface: "demo", language })}
         >

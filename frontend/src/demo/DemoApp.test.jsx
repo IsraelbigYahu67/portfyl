@@ -78,6 +78,21 @@ describe("DemoShell", () => {
     expect(cta).toHaveAttribute("href", expect.stringContaining("source=demo"));
   });
 
+  it("leaves lang out of the registration link when no language was chosen", async () => {
+    renderAt("/demo");
+    const cta = await screen.findByRole("link", { name: DEMO_COPY.en.createAccount });
+    expect(new URL(cta.getAttribute("href")).searchParams.has("lang")).toBe(false);
+  });
+
+  it("carries the language chosen on the landing page into the registration link", async () => {
+    localStorage.setItem("portfyl_landing_language", "cs");
+    renderAt("/demo");
+    const cta = await screen.findByRole("link", { name: DEMO_COPY.cs.createAccount });
+    const url = new URL(cta.getAttribute("href"));
+    expect(url.searchParams.get("source")).toBe("demo");
+    expect(url.searchParams.get("lang")).toBe("cs");
+  });
+
   it("never surfaces a private-app action word, in any supported language", async () => {
     renderAt("/demo");
     const forbidden = /\b(import|sync|edit|delete|settings|assistant|transaction|refresh)\b/i;
