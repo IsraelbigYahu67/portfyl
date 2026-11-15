@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, Eye, EyeOff, Info, Link as LinkIcon, Loader2, RefreshCw, Unlink } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Loader2, RefreshCw, Unlink } from "lucide-react";
 
 import { connectEtoro, disconnectEtoro, fetchEtoroStatus, setEtoroAutoSync, syncEtoro } from "../../api";
 import { AsyncSection } from "../ui";
@@ -9,6 +9,8 @@ import { Badge } from "../ui/Badge";
 import { getApiErrorMessage } from "../../lib/apiError";
 import { useBrokerPortfolio } from "../../hooks/useBrokerPortfolio";
 import { splitNote } from "../../lib/brokerPortfolio";
+import { EtoroCredentialsForm } from "./brokerCredentialForms";
+import { EtoroKeyGuide } from "./BrokerKeyGuides";
 import { rich, translate, useT } from "../../i18n/I18nProvider";
 
 // Without `t` the messages read in English (tests, non-component callers).
@@ -65,28 +67,11 @@ function SyncOutcome({ result }) {
   );
 }
 
-function KeyGuide() {
-  const t = useT();
-  // eToro's menu and permission names stay as eToro shows them.
-  const ink = (text) => rich(text, { b: (words) => <span className="text-ink">{words}</span> });
-  return (
-    <details className="rounded-lg bg-surface-hover p-4 text-sm">
-      <summary className="cursor-pointer font-medium text-ink">{t("How to create an eToro API key")}</summary>
-      <ol className="mt-3 list-decimal space-y-2 pl-5 text-muted">
-        <li>{ink(t("In eToro open <b>Settings → Trading → API Key Management</b>."))}</li>
-        <li>{ink(t("Create a new key with the <b>Read</b> permission for the <b>Real</b> environment."))}</li>
-        <li>{t("Copy the key and paste it above. Portfyl can only read your account; it cannot trade.")}</li>
-      </ol>
-    </details>
-  );
-}
-
 export default function EtoroConnectionCard({ portfolioId, portfolioName }) {
   const t = useT();
   const queryClient = useQueryClient();
   const brokerPortfolio = useBrokerPortfolio();
   const [userKey, setUserKey] = useState("");
-  const [showKey, setShowKey] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [syncResult, setSyncResult] = useState(null);
@@ -192,15 +177,14 @@ export default function EtoroConnectionCard({ portfolioId, portfolioName }) {
 
         {!connected && configured && (
           <div className="space-y-3">
-            <div>
-              <label htmlFor="etoro-user-key" className="mb-1.5 block text-sm text-muted">{t("eToro API key")}</label>
-              <div className="relative">
-                <input id="etoro-user-key" type={showKey ? "text" : "password"} value={userKey} onChange={(event) => setUserKey(event.target.value)} placeholder={t("Paste your eToro API key (Read, Real)")} autoComplete="off" className="input pr-10 text-sm" />
-                <button type="button" aria-label={showKey ? t("Hide key") : t("Show key")} onClick={() => setShowKey((visible) => !visible)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink">{showKey ? <EyeOff size={16} /> : <Eye size={16} />}</button>
-              </div>
-            </div>
-            <button type="button" onClick={() => connectMutation.mutate()} disabled={!userKey.trim() || busy} className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40">{connectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} />}{t("Connect")}</button>
-            <KeyGuide />
+            <EtoroCredentialsForm
+              values={{ userKey }}
+              onChange={(next) => setUserKey(next.userKey)}
+              onSubmit={() => connectMutation.mutate()}
+              busy={busy}
+              submitting={connectMutation.isPending}
+            />
+            <EtoroKeyGuide />
           </div>
         )}
 
