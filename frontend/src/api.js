@@ -164,6 +164,12 @@ api.interceptors.response.use((response) => response, handleResponseError);
 export const fetchMe = () => api.get("/auth/me").then((r) => r.data);
 export const exchangeSession = (idToken) =>
   api.post("/auth/session", { id_token: idToken }).then((r) => r.data);
+// Portfyl's own verification / password-reset e-mails (backend/routers/auth_email.py).
+// Unauthenticated: the verification one proves the account with the ID token.
+export const requestVerificationEmail = (idToken, lang) =>
+  api.post("/auth/email/verification", { id_token: idToken, lang }).then((r) => r.data);
+export const requestPasswordResetEmail = (email, lang) =>
+  api.post("/auth/email/password-reset", { email, lang }).then((r) => r.data);
 export const logoutSession = () => api.post("/auth/logout").then((r) => r.data);
 export const logoutAllSessions = () => api.post("/auth/logout-all").then((r) => r.data);
 export const fetchCapabilities = () => api.get("/capabilities").then((r) => r.data);

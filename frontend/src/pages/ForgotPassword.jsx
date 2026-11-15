@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { Link } from "react-router-dom";
 import { KeyRound } from "lucide-react";
-import { sendPasswordReset } from "../auth/firebase";
+import { sendPasswordReset } from "../auth/authEmail";
 import { useT } from "../i18n/I18nProvider";
 
 export default function ForgotPassword() {

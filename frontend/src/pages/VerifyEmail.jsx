@@ -7,8 +7,8 @@ import {
   getIdToken,
   mapFirebaseAuthError,
   reloadFirebaseUser,
-  sendVerificationEmail,
 } from "../auth/firebase";
+import { sendVerificationEmail } from "../auth/authEmail";
 import { rich, useT } from "../i18n/I18nProvider";
 import { TRACKER_HOME } from "../lib/routes";
 
