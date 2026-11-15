@@ -56,6 +56,24 @@ class TestRedactsKnownSecretShapes:
         get = "FlexStatementService.GetStatement?q=999&t=123456789012345678901234&v=3"
         assert "123456789012345678901234" not in redact(get)
 
+    def test_redacts_brevo_key_and_one_time_code(self):
+        line = ("api-key: xkeysib-0123abcd-EFgh link "
+                "https://app.portfyl.com/auth/action?mode=verifyEmail&oobCode=AbC-12_x&lang=cs")
+        redacted = redact(line)
+        assert "xkeysib-0123" not in redacted and "AbC-12_x" not in redacted
+        assert "xkeysib-[REDACTED]" in redacted and "oobCode=[REDACTED]" in redacted
+        assert "mode=verifyEmail" in redacted and "lang=cs" in redacted
+
+    def test_one_time_code_is_redacted_wherever_it_sits_in_the_query(self):
+        for line in (
+            "GET /auth/action?oobCode=Zz9_-q&mode=resetPassword",
+            'url="https://x/auth/action?mode=resetPassword&oobCode=Zz9_-q"',
+            "https://x/a?oobCode=Zz9_-q",
+        ):
+            redacted = redact(line)
+            assert "Zz9_-q" not in redacted
+            assert "oobCode=[REDACTED]" in redacted
+
     def test_non_secret_context_is_preserved(self):
         line = "autosync pass: workspace=3f2c job=alerts status=ok items=4"
         assert redact(line) == line
