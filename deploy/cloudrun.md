@@ -646,20 +646,52 @@ change) open Portfyl's own page, `frontend/src/pages/AuthAction.jsx` at
 code, then replaces the long query in the address bar with `/auth/action`.
 
 The project has one action URL for all e-mails, dev included. Switch it
-**only after** a deploy that contains `/auth/action` is live, or every link
-breaks until it is:
+**only after** a deploy that contains `/auth/action` is live **and** the
+Cloudflare Access bypass below is in place, or every link breaks until it is:
 
 1. Run the routine redeploy and open
-   `https://app.portfyl.com/auth/action?mode=verifyEmail&oobCode=x`: it must
-   show Portfyl's "This link didn't work" page.
-2. Firebase console → Authentication → Templates → any template → pencil →
+   `https://app.portfyl.com/auth/action?mode=verifyEmail&oobCode=x` in a
+   browser with no Access session: it must show Portfyl's "This link didn't
+   work" page (verified anonymously on 2026-11-15).
+2. **Cloudflare Access bypass** (done 2026-11-15). `app.portfyl.com` is
+   covered by the Access application `Portfyl private beta`, so a person who
+   opens the e-mail link on a phone without an Access session would be sent to
+   the Cloudflare login. A second, more specific self-hosted application,
+   `Portfyl public auth action` (`c8492312-38ef-45b2-a015-2ac6a9672db3`, policy
+   `e8e5aef0-d53a-44d9-bf25-5ff48db90164`, decision **Bypass**, include
+   Everyone), covers only these paths on `app.portfyl.com`:
+   `/auth/action`, `/assets/*`, `/theme-init.js`, `/portfyl-mark.svg`,
+   `/logo.png`. They are the page itself plus every static file it loads (the
+   SPA shell, its hashed JS/CSS/font chunks under `/assets/`, the theme script,
+   the logo). `/api/*`, `/`, `/login`, `/register` and everything else stay
+   behind the private-beta Access application (checked anonymously: `/`,
+   `/register`, `/api/auth/me`, `/favicon.ico` all still `302` to Access). The
+   page does call `/api/auth/me` on boot; anonymously that is redirected, the
+   call fails, and `AuthAction` renders regardless (it is mounted before the
+   auth checks). `/assets/*` makes the public JS bundle readable without
+   Access; it contains no secrets (same files the cloud SPA serves to every
+   visitor). If a new root file becomes necessary for the page, add its path to
+   this application; keep it to the minimum.
+3. Firebase console → Authentication → Templates → any template → pencil →
    **Customize action URL** → `https://app.portfyl.com/auth/action` → Save.
-   (Same field as the Identity Toolkit config `notification.sendEmail.callbackUri`.)
-3. Register a test account and click the e-mail link: Portfyl's
-   "Your e-mail is verified" page must show.
+   This must be done in the console: the Identity Toolkit API
+   (`PATCH …/admin/v2/projects/portfyl-cloud-fstxby/config` with
+   `updateMask=notification.sendEmail.callbackUri`) answers
+   `400 EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED` for this project, the same as for
+   template subject/body (checked 2026-11-15; config was left unchanged).
+   The current value is
+   `https://portfyl-cloud-fstxby.firebaseapp.com/__/auth/action`.
+4. Register a test account and click the e-mail link, ideally from a device
+   with no Access session: Portfyl's "Your e-mail is verified" page must show.
 
-To roll back, set the action URL back to
-`https://portfyl-cloud-fstxby.firebaseapp.com/__/auth/action`.
+To roll back the action URL, set it back to
+`https://portfyl-cloud-fstxby.firebaseapp.com/__/auth/action` in the same
+console field. To roll back the bypass, delete the Access application
+`Portfyl public auth action` (Zero Trust → Access → Applications, or
+`DELETE /accounts/3916fe593a206440d1e59cc339abff7f/access/apps/c8492312-38ef-45b2-a015-2ac6a9672db3`);
+the `Portfyl private beta` application is untouched and covers the whole host
+again. Delete the bypass only after the action URL is back on Firebase's page,
+or links opened without an Access session break.
 
 Firebase lets this project change only the sender name of these e-mails
 (set to `Portfyl`), not their subject or text

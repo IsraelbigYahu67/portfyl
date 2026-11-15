@@ -85,11 +85,36 @@ The command marks the invite revoked, disables the Portfyl user, revokes all
 Portfyl sessions, and revokes Firebase refresh tokens when a Firebase UID is
 present.
 
+## Public bypass for e-mail action links
+
+Firebase's verify-e-mail and reset-password links must open for someone who has
+no Access session (for example on a phone). A second, more specific Access
+application, `Portfyl public auth action`
+(`c8492312-38ef-45b2-a015-2ac6a9672db3`), has a single **Bypass** policy for
+Everyone (`e8e5aef0-d53a-44d9-bf25-5ff48db90164`, "Public bypass (auth action
+page)") and covers only these paths on `app.portfyl.com`: `/auth/action`,
+`/assets/*`, `/theme-init.js`, `/portfyl-mark.svg` and `/logo.png` (the action
+page and the static files it loads). Everything else, including `/`, `/login`,
+`/register` and all of `/api/*`, stays behind `Portfyl private beta`; the
+bypass admits nobody to the application itself because `/api/auth/session`
+still checks `beta_invites`. Never widen this application to `/api/*` or to the
+whole host. Created 2026-11-15; the Access configuration before the change is
+preserved in the session record, and the existing application was not edited.
+
+Roll back by deleting that one application (`DELETE
+/accounts/<account id>/access/apps/c8492312-38ef-45b2-a015-2ac6a9672db3`, or in
+Zero Trust → Access → Applications). Do it only after the Firebase e-mail
+action URL is set back to
+`https://portfyl-cloud-fstxby.firebaseapp.com/__/auth/action` (see "E-mail
+action links" in `deploy/cloudrun.md`).
+
 ## Validation and rollback
 
 - Anonymous `https://portfyl.com/` must return `200`.
 - Anonymous `https://app.portfyl.com/`, `/register`, and `/api/auth/me` must
   redirect to Cloudflare Access.
+- Anonymous `https://app.portfyl.com/auth/action` must return `200` (the
+  bypass application above).
 - An e-mail absent from `beta_invites` must receive
   `403 {"code":"beta_access_required"}` from the session exchange without
   creating application records.

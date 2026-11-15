@@ -97,16 +97,26 @@ The founder wants:
    broker connect and Google popup sign-in — see the memory/plan files for
    those).
 2. Deploy (routine redeploy in `deploy/cloudrun.md`).
-3. Check `https://app.portfyl.com/auth/action?mode=verifyEmail&oobCode=x`
-   shows Portfyl's "This link didn't work" page.
-4. **Only then** switch the action URL to `https://app.portfyl.com/auth/action`
+3. [x] Check `https://app.portfyl.com/auth/action?mode=verifyEmail&oobCode=x`
+   shows Portfyl's "This link didn't work" page. Done 2026-11-15, anonymously
+   (fresh browser context, no Access session).
+4. [ ] **OPEN: owner must do this in the console.** The API refused
+   (`PATCH …/config?updateMask=notification.sendEmail.callbackUri` returned
+   `400 EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED` on 2026-11-15; config unchanged,
+   still `https://portfyl-cloud-fstxby.firebaseapp.com/__/auth/action`).
+   Console: Authentication → Templates → pencil → Customize action URL.
+   **Only then** switch the action URL to `https://app.portfyl.com/auth/action`
    (console: Authentication → Templates → Customize action URL; or API field
    `notification.sendEmail.callbackUri`). Switching first breaks every link.
-5. End-to-end: register a test account → click link → "Your e-mail is
+5. [ ] End-to-end (owner, real mailbox): register a test account → click link → "Your e-mail is
    verified"; the original tab (VerifyEmail polling) should continue on its
    own. Then forgot-password → link → set new password → log in.
-6. Decide what to do about Cloudflare Access in front of `/auth/action`
-   (see open question 3).
+6. [x] Cloudflare Access in front of `/auth/action`: decided and done
+   2026-11-15 as a path-scoped Bypass application `Portfyl public auth action`
+   (`c8492312-38ef-45b2-a015-2ac6a9672db3`) for `/auth/action`, `/assets/*`,
+   `/theme-init.js`, `/portfyl-mark.svg`, `/logo.png` only; `/`, `/login`,
+   `/register` and `/api/*` stay behind Access (open question 3 resolved for
+   the action page only). See `docs/operations/private-beta-access.md`.
 
 ### B. Portfyl sends its own auth e-mails (the real fix for point 1)
 
