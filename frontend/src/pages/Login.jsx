@@ -7,9 +7,9 @@ import {
   getIdToken,
   isGoogleSignInEnabled,
   mapFirebaseAuthError,
-  sendVerificationEmail,
   signInWithEmailPassword,
 } from "../auth/firebase";
+import { sendVerificationEmail } from "../auth/authEmail";
 import AuthMethodDivider from "../components/auth/AuthMethodDivider";
 import GoogleSignInButton from "../components/auth/GoogleSignInButton";
 import { rich, useT } from "../i18n/I18nProvider";

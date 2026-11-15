@@ -15,14 +15,32 @@ VALID_CLOUD_ENV = {
     "RATE_LIMIT_AUTH_SESSION_WINDOW_SECONDS": "60",
     "RATE_LIMIT_BROKER_SYNC_LIMIT": "5",
     "RATE_LIMIT_BROKER_SYNC_WINDOW_SECONDS": "60",
+    "RATE_LIMIT_AUTH_EMAIL_LIMIT": "10",
+    "RATE_LIMIT_AUTH_EMAIL_WINDOW_SECONDS": "600",
+    "RATE_LIMIT_AUTH_EMAIL_TARGET_LIMIT": "3",
+    "RATE_LIMIT_AUTH_EMAIL_TARGET_WINDOW_SECONDS": "900",
 }
 
 
-def test_load_rate_limit_rules_returns_all_three_rules_when_valid():
+def test_load_rate_limit_rules_returns_all_five_rules_when_valid():
     rules = load_rate_limit_rules(VALID_CLOUD_ENV)
-    assert set(rules) == {"global", "auth_session", "broker_sync"}
+    assert set(rules) == {"global", "auth_session", "broker_sync", "auth_email", "auth_email_target"}
     assert rules["global"] == RateLimitRule(name="global", limit=120, window_seconds=60)
     assert rules["broker_sync"] == RateLimitRule(name="broker_sync", limit=5, window_seconds=60)
+    assert rules["auth_email"] == RateLimitRule(name="auth_email", limit=10, window_seconds=600)
+    assert rules["auth_email_target"] == RateLimitRule(name="auth_email_target", limit=3, window_seconds=900)
+
+
+@pytest.mark.parametrize("missing", [
+    "RATE_LIMIT_AUTH_EMAIL_LIMIT",
+    "RATE_LIMIT_AUTH_EMAIL_WINDOW_SECONDS",
+    "RATE_LIMIT_AUTH_EMAIL_TARGET_LIMIT",
+    "RATE_LIMIT_AUTH_EMAIL_TARGET_WINDOW_SECONDS",
+])
+def test_missing_auth_email_var_fails_closed(missing):
+    env = {k: v for k, v in VALID_CLOUD_ENV.items() if k != missing}
+    with pytest.raises(RuntimeError, match=missing):
+        load_rate_limit_rules(env)
 
 
 @pytest.mark.parametrize("bad_value", ["", "0", "-1", "not-a-number", "  "])

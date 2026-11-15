@@ -17,8 +17,6 @@ vi.mock("../auth/AuthProvider", () => ({
 const firebaseMocks = vi.hoisted(() => ({
   signInWithEmailPassword: vi.fn(),
   registerWithEmailPassword: vi.fn(),
-  sendPasswordReset: vi.fn(() => Promise.resolve()),
-  sendVerificationEmail: vi.fn(() => Promise.resolve()),
   getCurrentFirebaseUser: vi.fn(() => null),
   getIdToken: vi.fn(() => Promise.resolve("id-token-123")),
   mapFirebaseAuthError: vi.fn((err) => err?.code || "Something went wrong. Please try again."),
@@ -27,6 +25,12 @@ const firebaseMocks = vi.hoisted(() => ({
   signInWithGoogle: vi.fn(),
 }));
 vi.mock("../auth/firebase", () => firebaseMocks);
+
+const authEmailMocks = vi.hoisted(() => ({
+  sendPasswordReset: vi.fn(() => Promise.resolve()),
+  sendVerificationEmail: vi.fn(() => Promise.resolve()),
+}));
+vi.mock("../auth/authEmail", () => authEmailMocks);
 
 afterEach(() => localStorage.clear());
 
@@ -80,7 +84,7 @@ describe("Register", () => {
     await waitFor(() =>
       expect(firebaseMocks.registerWithEmailPassword).toHaveBeenCalledWith("new@example.com", "s3cret!123")
     );
-    await waitFor(() => expect(firebaseMocks.sendVerificationEmail).toHaveBeenCalledWith(fakeUser));
+    await waitFor(() => expect(authEmailMocks.sendVerificationEmail).toHaveBeenCalledWith(fakeUser));
     expect(await screen.findByText("Verify email page")).toBeInTheDocument();
   });
 
@@ -255,7 +259,7 @@ describe("Continue with Google", () => {
 
     expect(await screen.findByText("Home")).toBeInTheDocument();
     expect(adapter.events).toContainEqual(["signup_completed", { source_surface: "demo", auth_method: "google" }]);
-    expect(firebaseMocks.sendVerificationEmail).not.toHaveBeenCalled();
+    expect(authEmailMocks.sendVerificationEmail).not.toHaveBeenCalled();
     expect(JSON.stringify(adapter.events)).not.toMatch(/person@gmail\.com/);
   });
 
@@ -307,10 +311,11 @@ describe("ForgotPassword", () => {
     fireEvent.click(screen.getByRole("button", { name: /send reset link/i }));
 
     expect(await screen.findByText(/if an account exists/i)).toBeInTheDocument();
+    expect(authEmailMocks.sendPasswordReset).toHaveBeenCalledWith("real@example.com");
   });
 
   it("shows the same neutral success message even when the reset call fails", async () => {
-    firebaseMocks.sendPasswordReset.mockRejectedValueOnce({ code: "auth/user-not-found" });
+    authEmailMocks.sendPasswordReset.mockRejectedValueOnce({ code: "auth/user-not-found" });
 
     renderAt("/forgot-password");
     fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "ghost@example.com" } });

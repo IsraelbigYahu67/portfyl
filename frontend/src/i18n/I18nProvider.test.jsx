@@ -45,12 +45,14 @@ describe("initialLanguage", () => {
 });
 
 function Probe() {
-  const { language, setLanguage, t } = useI18n();
+  const { language, setLanguage, previewLanguage, t } = useI18n();
   return (
     <>
       <p>{t("Settings")}</p>
       <output>{language}</output>
       <button type="button" onClick={() => setLanguage("cs")}>cs</button>
+      <button type="button" onClick={() => previewLanguage("cs")}>preview cs</button>
+      <button type="button" onClick={() => previewLanguage("xx")}>preview xx</button>
     </>
   );
 }
@@ -71,6 +73,35 @@ describe("I18nProvider", () => {
 
     expect(await screen.findByText("Nastavení")).toBeInTheDocument();
     expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("cs");
+  });
+
+  it("previewLanguage switches the language without saving it", async () => {
+    render(<I18nProvider initial="en"><Probe /></I18nProvider>);
+    expect(screen.getByText("Settings")).toBeInTheDocument();
+
+    await act(async () => screen.getByRole("button", { name: "preview cs" }).click());
+
+    expect(await screen.findByText("Nastavení")).toBeInTheDocument();
+    expect(document.documentElement.lang).toBe("cs");
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBeNull();
+  });
+
+  it("previewLanguage ignores a language the app does not offer", async () => {
+    render(<I18nProvider initial="en"><Probe /></I18nProvider>);
+
+    await act(async () => screen.getByRole("button", { name: "preview xx" }).click());
+
+    expect(screen.getByText("Settings")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("en");
+  });
+
+  it("outside a provider previewLanguage is a harmless no-op", () => {
+    render(<Probe />);
+
+    screen.getByRole("button", { name: "preview cs" }).click();
+
+    expect(screen.getByText("Settings")).toBeInTheDocument();
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBeNull();
   });
 
   it("does not save a language it only guessed", async () => {

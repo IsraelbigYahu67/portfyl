@@ -21,7 +21,6 @@ const firebaseMocks = vi.hoisted(() => ({
   getCurrentFirebaseUser: vi.fn(),
   reloadFirebaseUser: vi.fn(),
   getIdToken: vi.fn(() => Promise.resolve("fresh-token")),
-  sendVerificationEmail: vi.fn(() => Promise.resolve()),
   mapFirebaseAuthError: vi.fn((err) => err?.code || "Something went wrong. Please try again."),
   signInWithEmailPassword: vi.fn(),
   isGoogleSignInEnabled: vi.fn(() => false),
@@ -29,6 +28,10 @@ const firebaseMocks = vi.hoisted(() => ({
   signInWithGoogle: vi.fn(),
 }));
 vi.mock("../auth/firebase", () => firebaseMocks);
+
+vi.mock("../auth/authEmail", () => ({
+  sendVerificationEmail: vi.fn(() => Promise.resolve()),
+}));
 
 const USER = { email: "new@example.com" };
 

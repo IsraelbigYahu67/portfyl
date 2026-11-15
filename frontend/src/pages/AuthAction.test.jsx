@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { I18nProvider } from "../i18n/I18nProvider";
+import { LANGUAGE_STORAGE_KEY } from "../i18n/languages";
 import AuthAction, { safeContinueTarget } from "./AuthAction";
 
 const firebaseMocks = vi.hoisted(() => ({
@@ -10,6 +12,13 @@ const firebaseMocks = vi.hoisted(() => ({
   mapFirebaseAuthError: vi.fn((err) => err?.code || "Something went wrong. Please try again."),
 }));
 vi.mock("../auth/firebase", () => firebaseMocks);
+
+// Whether this device has a language the user chose is decided per test.
+const languageMocks = vi.hoisted(() => ({ hasSavedLanguage: vi.fn(() => false) }));
+vi.mock("../i18n/languages", async (importOriginal) => ({
+  ...(await importOriginal()),
+  hasSavedLanguage: languageMocks.hasSavedLanguage,
+}));
 
 function Where() {
   const location = useLocation();
@@ -30,7 +39,11 @@ function renderAction(search) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  languageMocks.hasSavedLanguage.mockReturnValue(false);
+  document.documentElement.lang = "en";
 });
+
+afterEach(() => localStorage.clear());
 
 test("verifies the e-mail once and cleans the address bar", async () => {
   renderAction("?mode=verifyEmail&oobCode=CODE1&apiKey=KEY&continueUrl=http%3A%2F%2Flocalhost%3A3000%2Flogin%3Fverified%3D1&lang=en");
@@ -85,6 +98,68 @@ test("restores the previous sign-in e-mail", async () => {
   expect(await screen.findByRole("heading", { name: "Your sign-in e-mail is restored" })).toBeInTheDocument();
   expect(firebaseMocks.applyEmailActionCode).toHaveBeenCalledWith("REC1");
   expect(screen.getByText("old@example.com")).toBeInTheDocument();
+});
+
+// The e-mail's language (?lang=) is shown for this visit only, and only on a
+// device where nobody chose a language. These use the real provider, so the
+// page's own language and what is saved are the observable result.
+describe("the link's language", () => {
+  function renderInApp(search) {
+    return render(
+      <I18nProvider initial="en">
+        <MemoryRouter initialEntries={[`/auth/action${search}`]}>
+          <Routes>
+            <Route path="/auth/action" element={<AuthAction />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
+    );
+  }
+
+  test("is used on a device with no saved language, without saving it", async () => {
+    renderInApp("?mode=verifyEmail&oobCode=CODE1&lang=cs");
+
+    expect(await screen.findByRole("heading", { name: "Váš e-mail je ověřený" })).toBeInTheDocument();
+    expect(document.documentElement.lang).toBe("cs");
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBeNull();
+  });
+
+  test("never overrides a saved language", async () => {
+    languageMocks.hasSavedLanguage.mockReturnValue(true);
+    renderInApp("?mode=verifyEmail&oobCode=CODE1&lang=cs");
+
+    expect(await screen.findByRole("heading", { name: "Your e-mail is verified" })).toBeInTheDocument();
+    expect(document.documentElement.lang).toBe("en");
+  });
+
+  test.each([["xx"], [""], ["CS"], ["cs-CZ"]])("ignores a lang that is not an app language (%j)", async (lang) => {
+    renderInApp(`?mode=verifyEmail&oobCode=CODE1&lang=${lang}`);
+
+    expect(await screen.findByRole("heading", { name: "Your e-mail is verified" })).toBeInTheDocument();
+    expect(document.documentElement.lang).toBe("en");
+  });
+
+  test("a link without lang leaves the language alone", async () => {
+    renderInApp("?mode=verifyEmail&oobCode=CODE1");
+
+    expect(await screen.findByRole("heading", { name: "Your e-mail is verified" })).toBeInTheDocument();
+    expect(document.documentElement.lang).toBe("en");
+  });
+
+  test("an error shown for the link is in that language too", async () => {
+    renderInApp("?mode=verifyEmail&lang=cs");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Tento odkaz už neplatí. Možná už byl použit.");
+  });
+
+  test("a Firebase error is in that language too", async () => {
+    // The mocked mapper returns the code, so a dictionary key stands in for
+    // Firebase's message.
+    firebaseMocks.applyEmailActionCode.mockRejectedValueOnce({ code: "Back to login" });
+    renderInApp("?mode=verifyEmail&oobCode=OLD&lang=cs");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Zpět na přihlášení");
+  });
 });
 
 describe("safeContinueTarget", () => {
