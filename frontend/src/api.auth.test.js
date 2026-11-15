@@ -83,6 +83,52 @@ describe("api request context (workspace + CSRF + UUID portfolio ids)", () => {
   });
 });
 
+describe("401 handling", () => {
+  const originalLocation = window.location;
+  let assign;
+
+  beforeEach(() => {
+    assign = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...originalLocation, pathname: "/dashboard", assign },
+    });
+    window.__sbRedirectingToLogin = false;
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
+    window.__sbRedirectingToLogin = false;
+  });
+
+  const unauthorized = (data) => ({ config: { url: "/x", method: "get" }, response: { status: 401, data } });
+
+  it("sends a lost session to the login page", async () => {
+    const error = unauthorized({ code: "authentication_required" });
+    await expect(handleResponseError(error)).rejects.toBe(error);
+    expect(assign).toHaveBeenCalledWith("/login");
+  });
+
+  it("still treats a bare 401 without a body as a lost session", async () => {
+    const error = unauthorized(undefined);
+    await expect(handleResponseError(error)).rejects.toBe(error);
+    expect(assign).toHaveBeenCalledWith("/login");
+  });
+
+  it("keeps the user signed in when a broker rejects their API key", async () => {
+    // routers/broker.py answers a key Trading 212 refused with 401 + detail.
+    const error = unauthorized({ detail: "Invalid API key" });
+    await expect(handleResponseError(error)).rejects.toBe(error);
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("keeps the user signed in when only a fresh re-authentication is missing", async () => {
+    const error = unauthorized({ code: "recent_reauthentication_required" });
+    await expect(handleResponseError(error)).rejects.toBe(error);
+    expect(assign).not.toHaveBeenCalled();
+  });
+});
+
 describe("csrf_failed recovery", () => {
   const csrfError = (config = { url: "/alerts", method: "post" }) => ({
     config,

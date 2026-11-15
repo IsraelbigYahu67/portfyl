@@ -112,6 +112,19 @@ function refreshCsrfOnce() {
   return _csrfRefreshInFlight;
 }
 
+// Only a 401 about Portfyl's own session sends the user to the login page.
+// Session loss carries {code: "authentication_required"} (tenancy.py,
+// routers/auth.py), or no body at all. A route's own 401 is not a lost
+// session: a broker refusing the user's API key answers {detail: "Invalid API
+// key"} (routers/broker.py), and account deletion answers
+// {code: "recent_reauthentication_required"}. The page shows those inline.
+function isSessionLost(error) {
+  if (error?.response?.status !== 401) return false;
+  const data = error.response.data;
+  if (typeof data?.detail === "string") return false;
+  return data?.code === undefined || data.code === "authentication_required";
+}
+
 export async function handleResponseError(error) {
   const config = error?.config;
   if (
@@ -135,7 +148,7 @@ export async function handleResponseError(error) {
       return api.request(config);
     }
   }
-  if (error?.response?.status === 401 && typeof window !== "undefined") {
+  if (isSessionLost(error) && typeof window !== "undefined") {
     if (!window.__sbRedirectingToLogin && !isPublicAuthPath(window.location.pathname)) {
       window.__sbRedirectingToLogin = true;
       window.location.assign("/login");
