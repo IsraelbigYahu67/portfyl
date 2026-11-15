@@ -106,7 +106,12 @@ export function useOnboardingConnect({
       latest.current.onCheckoutReturnHandled?.();
       return result;
     })();
-    checkoutRef.current = { returned, promise };
+    const entry = { returned, promise };
+    checkoutRef.current = entry;
+    // A failed attempt must not be cached: the next load retries it.
+    promise.catch(() => {
+      if (checkoutRef.current === entry) checkoutRef.current = null;
+    });
     return promise;
   }, []);
 

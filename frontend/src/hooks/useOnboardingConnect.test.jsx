@@ -408,6 +408,22 @@ describe("useOnboardingConnect", () => {
     expect(result.current.error).toBeNull();
   });
 
+  it("retries a checkout return whose plan read failed", async () => {
+    const billing = { ...paid, billingEnabled: true, canManageBilling: true };
+    fetchEditionOnboardingPlan.mockRejectedValueOnce(new Error("offline")).mockResolvedValue(billing);
+    confirmCheckout.mockResolvedValue({ checkout_status: "complete" });
+    const { result } = renderConnect({ checkoutReturn: { outcome: "success", sessionId: "cs_1" } });
+
+    await waitFor(() => expect(result.current.phase).toBe("load-error"));
+    expect(confirmCheckout).not.toHaveBeenCalled();
+
+    await act(() => result.current.recheck());
+    await waitFor(() => expect(result.current.phase).not.toBe("load-error"));
+    expect(confirmCheckout).toHaveBeenCalledTimes(1);
+    expect(confirmCheckout).toHaveBeenCalledWith("cs_1");
+    await waitFor(() => expect(result.current.phase).toBe("form"));
+  });
+
   it("drops a late answer after the broker changed", async () => {
     let releaseFirst;
     fetchEditionOnboardingPlan
