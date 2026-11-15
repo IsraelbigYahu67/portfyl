@@ -110,6 +110,11 @@ The founder wants:
 
 ### B. Portfyl sends its own auth e-mails (the real fix for point 1)
 
+> **Designed on 2026-11-15:** see
+> `docs/superpowers/specs/2026-11-15-portfyl-own-emails-design.md` (approach,
+> endpoints, all 12 e-mail structures in three waves). It answers open
+> questions 1, 2, 4 and 5 below. The sketch that follows is the original input.
+
 Goal: branded HTML e-mail, a button instead of a raw URL, in the user's app
 language, sent by Portfyl through Brevo. Sketch to evaluate, not decided:
 
