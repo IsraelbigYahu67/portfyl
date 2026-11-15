@@ -43,6 +43,11 @@ _REDACTION_PATTERNS: list[tuple[re.Pattern, str]] = [
     # IBKR Flex Web Service token, sent as the `t` query parameter (httpx
     # logs every request URL at INFO).
     (re.compile(r"(FlexStatementService\.\w+\?(?:[^\s\"'&]*&)*t=)[^&\s\"']+"), r"\1[REDACTED]"),
+    # Brevo (transactional e-mail) v3 API key.
+    (re.compile(r"xkeysib-[A-Za-z0-9-]+"), "xkeysib-[REDACTED]"),
+    # Firebase one-time code in an e-mail action link (the rest of the link,
+    # e.g. mode= and lang=, stays readable).
+    (re.compile(r"(oobCode=)[^&\s\"']+"), r"\1[REDACTED]"),
 ]
 
 

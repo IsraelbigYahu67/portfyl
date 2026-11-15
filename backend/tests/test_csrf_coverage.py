@@ -25,7 +25,7 @@ _CLOUD_IMPORT_ENV = {
     "RATE_LIMIT_KEY_SECRET": "csrf-coverage-test-secret",
     **{
         f"RATE_LIMIT_{name}_{suffix}": "100" if suffix == "LIMIT" else "60"
-        for name in ("GLOBAL", "AUTH_SESSION", "BROKER_SYNC")
+        for name in ("GLOBAL", "AUTH_SESSION", "BROKER_SYNC", "AUTH_EMAIL", "AUTH_EMAIL_TARGET")
         for suffix in ("LIMIT", "WINDOW_SECONDS")
     },
 }

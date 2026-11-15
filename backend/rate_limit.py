@@ -30,6 +30,13 @@ _RULE_ENV_VARS: dict[str, tuple[str, str]] = {
     "global": ("RATE_LIMIT_GLOBAL_LIMIT", "RATE_LIMIT_GLOBAL_WINDOW_SECONDS"),
     "auth_session": ("RATE_LIMIT_AUTH_SESSION_LIMIT", "RATE_LIMIT_AUTH_SESSION_WINDOW_SECONDS"),
     "broker_sync": ("RATE_LIMIT_BROKER_SYNC_LIMIT", "RATE_LIMIT_BROKER_SYNC_WINDOW_SECONDS"),
+    # Auth e-mails (verification / password reset): per client IP, and per
+    # target (uid or normalized address) so one inbox cannot be flooded.
+    "auth_email": ("RATE_LIMIT_AUTH_EMAIL_LIMIT", "RATE_LIMIT_AUTH_EMAIL_WINDOW_SECONDS"),
+    "auth_email_target": (
+        "RATE_LIMIT_AUTH_EMAIL_TARGET_LIMIT",
+        "RATE_LIMIT_AUTH_EMAIL_TARGET_WINDOW_SECONDS",
+    ),
 }
 
 
@@ -62,9 +69,10 @@ def _require_positive_int(env: Mapping[str, str], var_name: str) -> int:
 
 
 def load_rate_limit_rules(env: Mapping[str, str]) -> dict[str, RateLimitRule]:
-    """Parse and validate all four rules. Cloud requires every one of the
-    eight env vars to be an explicit positive integer -- there is no
-    zero-means-disabled behavior and no silent fallback for a blank value."""
+    """Parse and validate every rule in _RULE_ENV_VARS. Cloud requires every
+    one of their env vars (a limit and a window per rule) to be an explicit
+    positive integer -- there is no zero-means-disabled behavior and no silent
+    fallback for a blank value."""
     return {
         name: RateLimitRule(
             name=name,
