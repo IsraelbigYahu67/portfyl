@@ -11,6 +11,10 @@ Abuse guards, in the order `trial_block_reason` applies them:
 * 3 trials were already granted from the same client IP in 30 days
   (`ip_limit`).
 
+`record_broker_marks` is the decisive broker check: the broker account is
+unknown at registration, so it runs at every import commit and broker sync
+of a workspace whose trial is active.
+
 A failing guard never blocks the account: the workspace simply starts on Free
 and a `trial.withheld` audit event records the reason. Only HMAC fingerprints
 are stored or logged, never the raw e-mail or IP address.
@@ -24,11 +28,12 @@ from __future__ import annotations
 import hashlib
 import hmac
 import ipaddress
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
-from typing import Mapping
+from typing import Callable, Iterable, Mapping, Sequence
 from uuid import UUID, uuid4
 
 from sqlalchemy import delete, func, select
@@ -36,7 +41,9 @@ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.orm import Session
 
 from audit import record_audit_event
-from models import TrialBrokerMark, TrialGrant, TrialIdentity, TrialIpMark
+from models import Membership, TrialBrokerMark, TrialGrant, TrialIdentity, TrialIpMark
+
+logger = logging.getLogger(__name__)
 
 
 TRIAL_DAYS_ENV = "PORTFYL_TRIAL_DAYS"
@@ -53,6 +60,15 @@ EMAIL_REUSED = "email_reused"
 DISPOSABLE_DOMAIN = "disposable_domain"
 IP_LIMIT = "ip_limit"
 EXPIRED = "expired"
+BROKER_ACCOUNT_REUSED = "broker_account_reused"
+HISTORY_REUSED = "history_reused"
+
+HISTORY_SAMPLE = 5  # the oldest ledger rows whose event ids are fingerprinted
+HISTORY_MATCHES_TO_END = 3  # of HISTORY_SAMPLE, so 2 coincidences end nothing
+_ACCOUNT_KIND = "account"
+_HISTORY_KIND = "history"
+# Rows the product itself created; they say nothing about a real broker.
+_NON_BROKER_SOURCES = frozenset({"demo"})
 
 _DISPOSABLE_FILE = Path(__file__).resolve().parent / "data" / "disposable_domains.txt"
 _FINGERPRINT_VERSION = "1"
@@ -331,3 +347,231 @@ def purge_trial_records(db: Session, now: datetime) -> dict[str, int]:
         )
     ).rowcount or 0
     return {"identities": identities, "ip_marks": ip_marks, "broker_marks": broker_marks}
+
+
+# --- broker check ------------------------------------------------------------
+
+
+def _history_fingerprint(key: tuple[str, str, str], env: Mapping[str, str]) -> str:
+    # Length-prefixed fields, like `_hmac`, but one field per key part so no
+    # separator can make two different keys collide.
+    message = b"".join(
+        _encode_field(f) for f in (_FINGERPRINT_VERSION, "broker_history", *key)
+    )
+    return hmac.new(_key(env), message, hashlib.sha256).hexdigest()
+
+
+def oldest_history_keys(
+    rows: Iterable[object], limit: int = HISTORY_SAMPLE
+) -> list[tuple[str, str, str]]:
+    """The `limit` oldest distinct `(source, source_event_stream,
+    source_event_id)` keys of `rows` (dicts or `Transaction`s), oldest first.
+
+    Rows without a full event identity (the native CSV, `sample_portfolio.csv`)
+    and rows the product created itself (the onboarding demo) are never
+    included. Sorting is by `(date, stream, id)` in Python, so a file import
+    and a later read of the stored rows pick the same keys."""
+
+    def field(row: object, name: str):
+        return row.get(name) if isinstance(row, Mapping) else getattr(row, name, None)
+
+    found: dict[tuple[str, str, str], object] = {}
+    for row in rows:
+        source = field(row, "source")
+        stream = field(row, "source_event_stream")
+        event_id = field(row, "source_event_id")
+        if not source or not stream or not event_id or source in _NON_BROKER_SOURCES:
+            continue
+        found.setdefault((str(source), str(stream), str(event_id)), field(row, "date"))
+    ordered = sorted(found, key=lambda k: (str(found[k] or ""), k[1], k[2]))
+    return ordered[:limit]
+
+
+def _foreign_marks(
+    db: Session, fingerprints: Sequence[str], workspace_id: UUID, kind: str
+) -> int:
+    """How many of `fingerprints` already belong to a different workspace or
+    to a deleted one (`workspace_id` NULL)."""
+    if not fingerprints:
+        return 0
+    return db.scalar(
+        select(func.count()).select_from(TrialBrokerMark).where(
+            TrialBrokerMark.fingerprint.in_(list(fingerprints)),
+            TrialBrokerMark.kind == kind,
+            (TrialBrokerMark.workspace_id.is_(None))
+            | (TrialBrokerMark.workspace_id != workspace_id),
+        )
+    ) or 0
+
+
+def _insert_marks(
+    db: Session, fingerprints: Iterable[str], kind: str, workspace_id: UUID, now: datetime
+) -> None:
+    """Remember fingerprints for this workspace; an existing mark (of any
+    workspace) is left as it is, also under a race."""
+    unique = list(dict.fromkeys(fingerprints))
+    if not unique:
+        return
+    if db.get_bind().dialect.name == "postgresql":
+        db.execute(
+            postgresql_insert(TrialBrokerMark)
+            .values([
+                {"fingerprint": f, "kind": kind, "workspace_id": workspace_id, "first_seen_at": now}
+                for f in unique
+            ])
+            .on_conflict_do_nothing(index_elements=[TrialBrokerMark.fingerprint])
+        )
+        return
+    known = set(db.scalars(
+        select(TrialBrokerMark.fingerprint).where(TrialBrokerMark.fingerprint.in_(unique))
+    ))
+    for fingerprint in unique:
+        if fingerprint not in known:
+            db.add(TrialBrokerMark(
+                fingerprint=fingerprint, kind=kind, workspace_id=workspace_id, first_seen_at=now
+            ))
+    db.flush()
+
+
+def _audit_actor(db: Session, workspace_id: UUID, actor_user_id: UUID | None) -> UUID | None:
+    """The user an audit event is attributed to: the caller when known (an
+    import), else the workspace owner (a background sync)."""
+    if actor_user_id is not None:
+        return actor_user_id
+    return db.scalar(
+        select(Membership.user_id)
+        .where(Membership.workspace_id == workspace_id, Membership.status == "active")
+        .order_by(Membership.created_at, Membership.id)
+        .limit(1)
+    )
+
+
+def record_broker_marks(
+    db: Session,
+    *,
+    workspace_id: UUID,
+    account_fingerprints: Sequence[str],
+    oldest_event_keys: Sequence[tuple[str, str, str]],
+    now: datetime,
+    env: Mapping[str, str] | None = None,
+    actor_user_id: UUID | None = None,
+) -> str | None:
+    """The broker check ("Trial rules" item 11).
+
+    Does nothing (returns None) when the workspace has no active trial. Else it
+    ends the trial now when a known account-number fingerprint, or at least 3
+    of the 5 oldest-row fingerprints, already belong to a different or deleted
+    workspace, and returns `"broker_account_reused"` or `"history_reused"`.
+    Either way the fingerprints are remembered for this workspace, so a later
+    trial can be compared against them. The caller's import always completes:
+    only the plan changes. `account_fingerprints` come ready-made from
+    `account_identity.account_fingerprint`; raw account ids and API keys never
+    reach this module. Raises `RuntimeError` when history keys are given and
+    `PORTFYL_TRIAL_FINGERPRINT_KEY` is missing. The caller owns the
+    transaction."""
+    env = os.environ if env is None else env
+    grant = active_trial(db, workspace_id, now)
+    if grant is None:
+        return None
+
+    accounts = list(dict.fromkeys(account_fingerprints))
+    history = list(dict.fromkeys(
+        _history_fingerprint(k, env) for k in list(oldest_event_keys)[:HISTORY_SAMPLE]
+    ))
+
+    reason = None
+    if _foreign_marks(db, accounts, workspace_id, _ACCOUNT_KIND):
+        reason = BROKER_ACCOUNT_REUSED
+    elif _foreign_marks(db, history, workspace_id, _HISTORY_KIND) >= HISTORY_MATCHES_TO_END:
+        reason = HISTORY_REUSED
+
+    _insert_marks(db, accounts, _ACCOUNT_KIND, workspace_id, now)
+    _insert_marks(db, history, _HISTORY_KIND, workspace_id, now)
+    if reason is None:
+        return None
+
+    grant.ended_reason = reason
+    # ck_trial_period_order needs ends_at > started_at, also when the trial
+    # started in this very instant.
+    grant.ends_at = max(_utc(now), _utc(grant.started_at) + timedelta(microseconds=1))
+    db.flush()
+    actor = _audit_actor(db, workspace_id, actor_user_id)
+    if actor is not None:
+        record_audit_event(
+            db,
+            actor_user_id=actor,
+            workspace_id=workspace_id,
+            action="trial.ended_early",
+            target_type="workspace",
+            target_id=str(workspace_id),
+            metadata={"reason": reason},
+        )
+    return reason
+
+
+def _is_real_account_id(broker: str, account_id: object) -> bool:
+    """False for ids that cannot identify a live account: empty or masked ids
+    (a mask would match strangers), and IBKR paper accounts, which anyone can
+    open without limit (their ids start with `D`: DU, DF, DI)."""
+    value = str(account_id or "").strip()
+    if not value or "*" in value:
+        return False
+    return not (broker.strip().lower() == "ibkr" and value.upper().startswith("D"))
+
+
+def check_broker(
+    db: Session,
+    *,
+    workspace_id: UUID,
+    broker: str,
+    environment: str = "live",
+    account_ids: Iterable[object] = (),
+    account_fingerprints: Iterable[str] = (),
+    history_rows: Iterable[object] | Callable[[], Iterable[object]] = (),
+    now: datetime | None = None,
+    actor_user_id: UUID | None = None,
+    env: Mapping[str, str] | None = None,
+) -> str | None:
+    """Best-effort wrapper the import and sync call sites use.
+
+    Cheap when the workspace has no active trial (nothing is computed). It
+    derives account fingerprints with `account_identity.account_fingerprint`
+    (a Trading 212 `demo` environment and IBKR paper or masked ids are
+    skipped), uses the 5 oldest ledger rows only when no account number is
+    available (`history_rows` may be a callable, evaluated only then), and
+    runs inside a SAVEPOINT: any failure is logged and swallowed, because a
+    broken check must never fail the import. Returns the `ended_reason` when
+    it ended the trial."""
+    from account_identity import account_fingerprint
+
+    now = now or datetime.now(timezone.utc)
+    demo = environment.strip().lower() == "demo"
+    try:
+        if active_trial(db, workspace_id, now) is None:
+            return None
+        with db.begin_nested():
+            fingerprints = [] if demo else list(account_fingerprints)
+            if not demo:
+                for account_id in account_ids:
+                    if _is_real_account_id(broker, account_id):
+                        fingerprints.append(account_fingerprint(
+                            broker=broker, environment=environment,
+                            provider_account_id=account_id, env=env,
+                        ))
+            keys: list[tuple[str, str, str]] = []
+            if not demo and not fingerprints:
+                # A callable defers the query until a trial is known to be active.
+                rows = history_rows() if callable(history_rows) else history_rows
+                keys = oldest_history_keys(rows)
+            return record_broker_marks(
+                db,
+                workspace_id=workspace_id,
+                account_fingerprints=fingerprints,
+                oldest_event_keys=keys,
+                now=now,
+                env=env,
+                actor_user_id=actor_user_id,
+            )
+    except Exception:
+        logger.warning("Trial broker check failed; the import is unaffected", exc_info=True)
+        return None

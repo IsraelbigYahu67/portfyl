@@ -5,7 +5,7 @@ deletion semantics (grant cascades, guard rows survive)."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import delete, select, text
@@ -137,3 +137,51 @@ def test_deleting_a_workspace_removes_its_grant_but_keeps_the_guards(postgres_se
     assert postgres_session.get(TrialIdentity, "d" * 64) is not None
     mark = postgres_session.get(TrialBrokerMark, "e" * 64)
     assert mark is not None and mark.workspace_id is None
+
+
+def _provision(session: Session, label: str, ip: str):
+    identity = VerifiedIdentity(
+        uid=f"firebase-bc-{label}", email=f"bc.{label}@example.com",
+        email_verified=True, display_name=None,
+    )
+    user, created = _provision_identity(session, identity, grant_trial=True, client_ip=ip)
+    assert created
+    workspace_id = UUID(session.scalar(text("SELECT current_setting('portfyl.workspace_id')")))
+    return user, workspace_id
+
+
+def test_broker_check_ends_a_repeat_trial_under_rls(runtime_session: Session):
+    """Real PostgreSQL: the runtime role writes the global marks with ON CONFLICT
+    DO NOTHING, sees marks of other workspaces, and ends only the repeat trial."""
+    user_a, ws_a = _provision(runtime_session, "a", "203.0.113.61")
+    user_b, ws_b = _provision(runtime_session, "b", "203.0.113.62")
+    history = [
+        {"source": "t212_csv", "source_event_stream": "csv_export",
+         "source_event_id": f"bc-{n}", "date": NOW.date() + timedelta(days=n)}
+        for n in range(6)
+    ]
+
+    set_rls_context(runtime_session, user_a.id, ws_a)
+    assert trials.check_broker(
+        runtime_session, workspace_id=ws_a, broker="ibkr", account_ids=["U1112223"],
+        actor_user_id=user_a.id,
+    ) is None
+    assert trials.check_broker(
+        runtime_session, workspace_id=ws_a, broker="file", history_rows=history,
+        actor_user_id=user_a.id,
+    ) is None
+    marks = runtime_session.scalars(select(TrialBrokerMark)).all()
+    assert sorted(m.kind for m in marks) == ["account"] + ["history"] * 5
+
+    set_rls_context(runtime_session, user_b.id, ws_b)
+    assert trials.check_broker(
+        runtime_session, workspace_id=ws_b, broker="file", history_rows=history,
+        actor_user_id=user_b.id,
+    ) == "history_reused"
+    grant_b = runtime_session.scalar(select(TrialGrant))  # RLS: only B's own
+    assert grant_b.workspace_id == ws_b and grant_b.ended_reason == "history_reused"
+    event = runtime_session.scalar(select(AuditLog).where(AuditLog.action == "trial.ended_early"))
+    assert event.event_metadata == {"reason": "history_reused"}
+
+    set_rls_context(runtime_session, user_a.id, ws_a)
+    assert runtime_session.scalar(select(TrialGrant)).ended_reason is None

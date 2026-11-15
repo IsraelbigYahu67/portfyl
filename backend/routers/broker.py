@@ -7,6 +7,7 @@ import json
 import backfill_trigger
 import t212_sync
 from account_identity import account_fingerprint
+from trials import check_broker
 from audit import record_audit_event
 from broker_reconciliation import reconcile_positions
 from database import get_db, release_connection
@@ -572,6 +573,17 @@ def connect(
         )
         db.add(connection)
     db.flush()
+    # Free-trial broker check: the account number is the same whatever API key
+    # made the connection. The Trading 212 demo environment is skipped (anyone
+    # can open unlimited demo accounts). Best effort, own savepoint.
+    check_broker(
+        db,
+        workspace_id=portfolio.workspace_id,
+        broker="trading212",
+        environment=environment,
+        account_fingerprints=[candidate_fingerprint],
+        actor_user_id=_context.user.id if _context is not None else None,
+    )
     # A real account makes the onboarding sample data misleading, so it goes
     # away in the same transaction as the connection (see demo_cleanup).
     demo_removed = purge_demo_data(db, portfolio)
