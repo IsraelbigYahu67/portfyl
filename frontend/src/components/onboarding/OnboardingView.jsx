@@ -4,6 +4,7 @@ import { AlertCircle, Check, Link2, Loader2, Upload } from "lucide-react";
 import BrokerGuides from "../import/BrokerGuides";
 import T212ApiGuide from "../settings/T212ApiGuide";
 import { Badge } from "../ui/Badge";
+import ConnectStep from "./ConnectStep";
 import PreferencesChip from "./PreferencesChip";
 import { brokerMethods, filterBrokers, findSupportedBroker } from "../../lib/onboardingBrokers";
 import { translate, useI18n, useT } from "../../i18n/I18nProvider";
@@ -18,6 +19,8 @@ import { translate, useI18n, useT } from "../../i18n/I18nProvider";
 //   step 1  no brokerKey          -> "Which broker do you use?"
 //   step 1b unsupportedName set   -> "Portfyl doesn't support X yet"
 //   step 2  brokerKey supported   -> choices tailored to that broker
+//   step 3  `connect` set, broker has an API -> the connect step (ConnectStep;
+//           the page owns its phase and handlers through the `connect` prop)
 // The language and display currency are not a step: they are guessed, and
 // shown as a chip (PreferencesChip) the visitor can confirm or change.
 
@@ -359,6 +362,9 @@ export default function OnboardingView({
   error = null,
   banner = null,
   notice = null,
+  // Props of the connect step (see ConnectStep). When set and the broker has an
+  // API, the connect step replaces the choices; the preview never passes it.
+  connect = null,
   // Leave undefined for plain action buttons (the real onboarding). A value,
   // null included, makes the choices toggle buttons with aria-pressed, the
   // way the preview uses them.
@@ -388,6 +394,9 @@ export default function OnboardingView({
         onDemo={() => onChoose("demo")}
       />
     );
+  } else if (broker && connect && broker.api) {
+    stepKey = "connect";
+    step = <ConnectStep key={broker.key} broker={broker} connect={connect} busy={busy} />;
   } else if (broker) {
     stepKey = broker.key;
     step = (
@@ -417,7 +426,7 @@ export default function OnboardingView({
           <PreferencesChip currency={currency} onCurrencyChange={onCurrencyChange} />
         </div>
       )}
-      <div className={`w-full space-y-8 ${stepKey === "unsupported" || stepKey === broker?.key ? "max-w-4xl" : "max-w-3xl"}`}>
+      <div className={`w-full space-y-8 ${stepKey === "unsupported" || stepKey === "connect" || stepKey === broker?.key ? "max-w-4xl" : "max-w-3xl"}`}>
         {banner}
 
         {error && (

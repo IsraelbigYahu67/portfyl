@@ -38,7 +38,9 @@ export function IBKRFlexGuide() {
         <Info size={14} className="mt-0.5 shrink-0 text-brand" aria-hidden="true" />
         <span>
           {rich(t("The sync only sees the last 365 days. For older history, run the same query in the portal once per year and upload each XML file on the <link>Import page</link>. Transactions already imported are recognized and skipped."), {
-            link: (words) => <Link to="/import" className="text-brand underline">{words}</Link>,
+            // `to` comes last: the preview's import-graph scan reads a quoted
+            // "import" followed by another quoted string as a side-effect import.
+            link: (words) => <Link className="text-brand underline" to="/import">{words}</Link>,
           })}
         </span>
       </p>
