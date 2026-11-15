@@ -228,8 +228,11 @@ failure must be visible to the operator and must not last:
 - Every failed send is logged at ERROR (kind and error type only), which
   reaches Sentry when `SENTRY_DSN` is set.
 - **Health flag.** After a Brevo authentication failure (`401`/`403`) or
-  three failed sends in a row, the mailer reports itself unavailable for 5
-  minutes (per instance, in memory). During that time both endpoints answer
+  three outage-type failures in a row (timeout, network error, `429`, `5xx`),
+  the mailer reports itself unavailable for 5 minutes (per instance, in
+  memory). A message Brevo itself rejects (any other `4xx`, for example an
+  address it will not accept) is not counted: otherwise anyone able to cause
+  such a rejection could switch e-mail off for everyone. During that time both endpoints answer
   `503 email_unavailable` before looking at the request, and the frontend
   falls back to Firebase. A revoked or wrong key therefore degrades to the old
   e-mails within a few requests instead of silently losing every reset.
