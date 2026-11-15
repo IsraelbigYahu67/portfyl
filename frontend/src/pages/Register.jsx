@@ -5,8 +5,8 @@ import {
   isGoogleSignInEnabled,
   mapFirebaseAuthError,
   registerWithEmailPassword,
-  sendVerificationEmail,
 } from "../auth/firebase";
+import { sendVerificationEmail } from "../auth/authEmail";
 import AuthMethodDivider from "../components/auth/AuthMethodDivider";
 import GoogleSignInButton from "../components/auth/GoogleSignInButton";
 import { useAnalytics } from "../analytics/AnalyticsProvider";

@@ -15,11 +15,14 @@ vi.mock("../auth/AuthProvider", () => ({
 
 vi.mock("../auth/firebase", () => ({
   registerWithEmailPassword: vi.fn(),
-  sendVerificationEmail: vi.fn(),
   mapFirebaseAuthError: vi.fn(() => "Something went wrong. Please try again."),
   isGoogleSignInEnabled: vi.fn(() => false),
   prepareGoogleSignIn: vi.fn(() => Promise.resolve()),
   signInWithGoogle: vi.fn(),
+}));
+
+vi.mock("../auth/authEmail", () => ({
+  sendVerificationEmail: vi.fn(),
 }));
 
 let lastAdapter;
