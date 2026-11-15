@@ -5,12 +5,15 @@ import { COPY, LANGUAGES, LANGUAGE_KEY } from "./welcomeCopy";
 import AnalyticsProvider from "../analytics/AnalyticsProvider";
 import { createMemoryAdapter } from "../analytics/analyticsClient";
 import { sourcePath } from "../test/sourcePath";
+import { APP_ORIGIN, registerUrl } from "../lib/signupIntent";
+import { PLAN_PRICES_CENTS, formatPlanPrice } from "../lib/planPrices";
+import { LANDING_IMAGES } from "../components/landing/landingImages";
 
-function renderWelcome({ initialConsent = "pending", language = "cs" } = {}) {
+function renderWelcome({ initialConsent = "pending", language = "cs", signupOpen = false } = {}) {
   const adapter = createMemoryAdapter();
   const result = render(
     <AnalyticsProvider initialConsent={initialConsent} adapterFactory={() => adapter}>
-      <Welcome language={language} />
+      <Welcome language={language} signupOpen={signupOpen} />
     </AnalyticsProvider>
   );
   return { ...result, adapter };
@@ -27,68 +30,136 @@ it("keeps every declared font-size in Welcome.css at or above the 12px readabili
   expect(subFloor.map((m) => m[0])).toEqual([]);
 });
 
-const LANGUAGE_HREFS = ["/", "/en/", "/de/"];
+it("holds no hex color in Welcome.css: colors come from the Clay tokens", async () => {
+  const css = await readFile(sourcePath(new URL("./Welcome.css", import.meta.url)), "utf-8");
+  expect(css.match(/#[0-9a-fA-F]{3,8}\b/g)).toBeNull();
+});
 
-it("keeps navigation links on-page while exposing the demo, legal pages and language URLs as normal links", () => {
-  renderWelcome({ language: "cs" });
+const IN_PAGE_TARGETS = ["#funkce", "#brokeri", "#cenik", "#otazky"];
+
+describe.each(LANGUAGES)("$name landing page", ({ code }) => {
+  const copy = COPY[code];
+
+  it("has one h1 and a header navigation with exactly four in-page links whose targets exist", () => {
+    renderWelcome({ language: code });
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    const nav = screen.getByRole("navigation", { name: copy.navigation });
+    const links = within(nav).getAllByRole("link");
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(IN_PAGE_TARGETS);
+    expect(links.map((link) => link.textContent)).toEqual(copy.nav);
+    for (const target of IN_PAGE_TARGETS) expect(document.getElementById(target.slice(1))).not.toBeNull();
+  });
+
+  it("links Log in to the app's login page, in the header and in the phone menu", () => {
+    renderWelcome({ language: code });
+    const logins = screen.getAllByRole("link", { name: copy.login });
+    expect(logins.length).toBeGreaterThanOrEqual(2);
+    logins.forEach((link) => expect(link).toHaveAttribute("href", `${APP_ORIGIN}/login`));
+  });
+
+  it("keeps the phone menu in step with the header navigation", () => {
+    const { container } = renderWelcome({ language: code });
+    const menu = container.querySelector("details.welcome-menu");
+    expect(menu).not.toBeNull();
+    const hrefs = within(menu).getAllByRole("link").map((link) => link.getAttribute("href"));
+    expect(hrefs.slice(0, 4)).toEqual(IN_PAGE_TARGETS);
+  });
+
+  it("while signup is closed: demo is the primary action, a beta line shows and no register link exists", () => {
+    const { container } = renderWelcome({ language: code, signupOpen: false });
+    expect(container.querySelector('a[href*="/register"]')).toBeNull();
+    expect(screen.getAllByRole("link", { name: copy.demoCta })[0]).toHaveAttribute("href", "/demo");
+    expect(screen.getByText(copy.status[0])).toBeInTheDocument();
+    expect(container.textContent).not.toContain(copy.trialCta);
+  });
+
+  it("while signup is open: the primary action registers with the trial and the demo is secondary", () => {
+    renderWelcome({ language: code, signupOpen: true });
+    const primary = screen.getByRole("link", { name: copy.trialCta });
+    expect(primary).toHaveAttribute("href", registerUrl({ source: "landing_hero", lang: code }));
+    expect(primary.textContent).toContain("10");
+    expect(screen.getByText(copy.trialNote)).toBeInTheDocument();
+    expect(screen.queryByText(copy.status[0])).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: copy.demoLink })[0]).toHaveAttribute("href", "/demo");
+  });
+
+  it("shows three plans with prices from the shared constant", () => {
+    renderWelcome({ language: code });
+    const pricing = document.getElementById("cenik");
+    expect(within(pricing).getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(["Free", "Investor", "Pro"]);
+    for (const cents of [0, PLAN_PRICES_CENTS.investor, PLAN_PRICES_CENTS.pro]) {
+      expect([...pricing.querySelectorAll(".welcome-price")].map((price) => price.textContent)).toContainEqual(expect.stringContaining(formatPlanPrice(cents, code)));
+    }
+  });
+
+  it("is flat: none of the old decorative classes remain", () => {
+    const { container } = renderWelcome({ language: code, signupOpen: true });
+    expect(container.querySelector(".welcome-eyebrow, .welcome-orbit, .welcome-float")).toBeNull();
+  });
+
+  it("never names the Tax Report, Screener, Options, Polymarket or the removed US brokers", () => {
+    expect(JSON.stringify(copy)).not.toMatch(/Tax|Daň|Steuer|Screener|Options|Polymarket|Schwab|Fidelity/);
+  });
+
+  it("lists every supported broker in the two groups, with no promises of more", () => {
+    renderWelcome({ language: code });
+    const section = document.getElementById("brokeri");
+    for (const name of ["Trading 212", "Interactive Brokers", "eToro", "Degiro", "XTB"]) {
+      expect(section).toHaveTextContent(name);
+    }
+    expect(section).toHaveTextContent(copy.brokers.api);
+    expect(section).toHaveTextContent(copy.brokers.file);
+    expect(section.textContent).not.toMatch(/Schwab|Fidelity|brzy|soon|bald/i);
+    expect(screen.getByRole("searchbox")).toBeInTheDocument();
+    expect(screen.getByText(copy.brokerCheck.title)).toBeInTheDocument();
+  });
+
+  it("renders the page straight from its URL, with legal links, footer and no language gate", () => {
+    renderWelcome({ language: code });
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(copy.heading);
+    expect(screen.getByText(copy.questions[0].q)).toBeInTheDocument();
+    expect(screen.getByText(copy.footer.tagline)).toBeInTheDocument();
+    const legal = screen.getByRole("navigation", { name: copy.legalNavigation });
+    expect(within(legal).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+      `/terms?lang=${copy.legalLanguage}`, `/privacy?lang=${copy.legalLanguage}`,
+    ]);
+    expect(document.documentElement.lang).toBe(code);
+    expect(document.title).toBe(copy.title);
+    // Landing on a URL is not a choice: nothing is saved until the visitor acts.
+    expect(localStorage.getItem(LANGUAGE_KEY)).toBeNull();
+  });
+
+  it("asks what happens after the trial only while signup is open, and never says invite-only then", () => {
+    const closed = renderWelcome({ language: code, signupOpen: false });
+    const closedCount = closed.container.querySelectorAll(".welcome-faq details").length;
+    expect(closed.container.textContent).toContain(copy.questions[0].a);
+    closed.unmount();
+    const open = renderWelcome({ language: code, signupOpen: true });
+    expect(open.container.querySelectorAll(".welcome-faq details").length).toBe(closedCount + 1);
+    expect(open.container.textContent).not.toContain(copy.questions[0].a);
+    expect(open.container.textContent).toContain(copy.questions[0].aOpen);
+  });
+});
+
+it("shows the hero and the two feature screenshots, and no figure for pictures that are not shot yet", () => {
+  const { container } = renderWelcome({ language: "en" });
+  const hero = container.querySelector(".welcome-hero img");
+  expect(hero).toHaveAttribute("src", LANDING_IMAGES.hero.src);
+  expect(hero).toHaveAttribute("width", String(LANDING_IMAGES.hero.width));
+  const featureImages = [...container.querySelectorAll("#funkce img")].map((img) => img.getAttribute("src"));
+  expect(featureImages).toEqual([LANDING_IMAGES.allocation.src, LANDING_IMAGES.stock.src]);
+  expect(container.querySelectorAll("#funkce h3")).toHaveLength(COPY.en.features.length);
+  expect(container.querySelectorAll(".welcome-steps img")).toHaveLength(0);
+});
+
+it("keeps in-page navigation on the page and every other link a normal one", () => {
+  renderWelcome({ language: "cs", signupOpen: true });
+  const origin = APP_ORIGIN.replace(/[.]/g, "\\.");
+  const allowed = [/^#/, /^\/demo$/, /^\/terms\?lang=cs$/, /^\/privacy\?lang=cs$/, /^\/(en\/|de\/)?$/, /^mailto:support@portfyl\.com$/, new RegExp(`^${origin}/(login|register)`)];
   for (const link of screen.getAllByRole("link")) {
     const href = link.getAttribute("href");
-    if (href === "/demo" || href === "/terms?lang=cs" || href === "/privacy?lang=cs" || LANGUAGE_HREFS.includes(href)) continue;
-    expect(href).toMatch(/^#/);
-    expect(document.getElementById(href.slice(1))).not.toBeNull();
+    expect(allowed.some((pattern) => pattern.test(href)), href).toBe(true);
   }
-  const demoLinks = screen.getAllByRole("link", { name: COPY.cs.demoCta });
-  expect(demoLinks).toHaveLength(2);
-  demoLinks.forEach((link) => expect(link).toHaveAttribute("href", "/demo"));
-});
-
-it("switches between portfolio and stock previews", () => {
-  renderWelcome({ language: "cs" });
-  fireEvent.click(screen.getByRole("button", { name: "Detail akcie" }));
-  expect(screen.getByRole("button", { name: "Detail akcie" })).toHaveAttribute("aria-pressed", "true");
-  expect(screen.getByRole("img", { name: /Screenshot detailu akcie/ })).toHaveAttribute("src", "/landing/stock-live-20260911.png");
-  fireEvent.click(screen.getByRole("button", { name: "Složení portfolia" }));
-  expect(screen.getByRole("img", { name: /Screenshot Portfylu s rozložením/ })).toHaveAttribute("src", "/landing/allocation-live-20260911.png");
-  fireEvent.click(screen.getByRole("button", { name: "Přehled portfolia" }));
-  expect(screen.getByRole("img", { name: /Screenshot přehledu hodnoty/ })).toHaveAttribute("src", "/landing/dashboard-live-20260911.png");
-  fireEvent.click(screen.getByRole("button", { name: "Výkonnost" }));
-  expect(screen.getByRole("img", { name: /Screenshot grafu výkonnosti/ })).toHaveAttribute("src", "/landing/performance-live-20260911.png");
-});
-
-it.each(LANGUAGES)("renders the full $name page straight from its URL, with no language gate", ({ code }) => {
-  renderWelcome({ language: code });
-  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(COPY[code].heading[0]);
-  expect(screen.getByText(COPY[code].questions[0][0])).toBeInTheDocument();
-  expect(screen.getByText(COPY[code].footer)).toBeInTheDocument();
-  const legal = screen.getByRole("navigation", { name: COPY[code].legalNavigation });
-  expect(within(legal).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
-    `/terms?lang=${COPY[code].legalLanguage}`, `/privacy?lang=${COPY[code].legalLanguage}`,
-  ]);
-  expect(screen.getAllByRole("link", { name: COPY[code].demoCta })).toHaveLength(2);
-  expect(document.documentElement.lang).toBe(code);
-  expect(document.title).toBe(COPY[code].title);
-  // Landing on a URL is not a choice: nothing is saved until the visitor acts.
-  expect(localStorage.getItem(LANGUAGE_KEY)).toBeNull();
-});
-
-it.each(LANGUAGES)("shows the broker check on the $name page", ({ code }) => {
-  renderWelcome({ language: code });
-  expect(screen.getByRole("heading", { name: COPY[code].brokerCheck.title })).toBeInTheDocument();
-  expect(screen.getByRole("searchbox")).toBeInTheDocument();
-});
-
-it.each(LANGUAGES)("does not claim Trading 212 is the only broker on the $name page", ({ code }) => {
-  const { container } = renderWelcome({ language: code });
-  const faq = COPY[code].questions.find(([question]) => /brokery|brokers|Broker/.test(question))[1];
-  for (const name of ["Trading 212", "Interactive Brokers", "eToro", "Degiro", "XTB"]) {
-    expect(faq).toContain(name);
-  }
-  expect(faq).not.toMatch(/Schwab|Fidelity/);
-  expect(faq).not.toMatch(/brzy|soon|bald/i);
-  const ribbon = container.querySelector(".welcome-ribbon");
-  expect(ribbon).toHaveTextContent("XTB");
-  expect(ribbon).toHaveTextContent(COPY[code].moreBrokers);
-  expect(ribbon.textContent).not.toMatch(/brzy|soon|bald/i);
 });
 
 it("offers the other languages as crawlable links and remembers an explicit switch", () => {
@@ -97,9 +168,9 @@ it("offers the other languages as crawlable links and remembers an explicit swit
   expect(within(switcher).getAllByRole("link").map((link) => [link.getAttribute("href"), link.getAttribute("hreflang")])).toEqual([
     ["/", "cs"], ["/en/", "en"], ["/de/", "de"],
   ]);
-  expect(within(switcher).getByRole("link", { name: "English" })).toHaveAttribute("aria-current", "page");
-  expect(within(switcher).getByRole("link", { name: "Deutsch" })).not.toHaveAttribute("aria-current");
-  fireEvent.click(within(switcher).getByRole("link", { name: "Deutsch" }));
+  expect(within(switcher).getByRole("link", { name: "EN" })).toHaveAttribute("aria-current", "page");
+  expect(within(switcher).getByRole("link", { name: "DE" })).not.toHaveAttribute("aria-current");
+  fireEvent.click(within(switcher).getByRole("link", { name: "DE" }));
   expect(localStorage.getItem(LANGUAGE_KEY)).toBe("de");
 });
 
@@ -107,8 +178,8 @@ it("still works if browser storage is blocked", () => {
   vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("Blocked"); });
   vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("Blocked"); });
   renderWelcome({ language: "cs" });
-  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Vaše investice.");
-  fireEvent.click(screen.getByRole("link", { name: "English" }));
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(COPY.cs.heading);
+  fireEvent.click(within(screen.getByRole("group", { name: COPY.cs.language })).getByRole("link", { name: "EN" }));
 });
 
 describe("suggestedLanguage", () => {
@@ -160,4 +231,15 @@ it("captures demo_started with entry_point=landing_hero on an unmodified hero CT
   expect(window.location.pathname).toBe("/demo");
   // The demo reads the saved language, so entering it keeps the page's language.
   expect(localStorage.getItem(LANGUAGE_KEY)).toBe("cs");
+});
+
+it("captures demo_started with entry_point=landing_closing from the closing call to action", async () => {
+  const { adapter } = renderWelcome({ initialConsent: "accepted", language: "en" });
+  await waitFor(() => expect(adapter.events).toHaveLength(1));
+  const links = screen.getAllByRole("link", { name: COPY.en.demoCta });
+  expect(links).toHaveLength(2);
+  fireEvent.click(links[1], { button: 0 });
+  await waitFor(() =>
+    expect(adapter.events).toContainEqual(["demo_started", { language: "en", entry_point: "landing_closing" }])
+  );
 });

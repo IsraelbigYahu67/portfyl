@@ -13,6 +13,7 @@ import {
 } from "../api";
 import { Badge } from "../components/ui/Badge";
 import { msg, useI18n, useT } from "../i18n/I18nProvider";
+import { PLAN_PRICES_CENTS } from "../lib/planPrices";
 
 
 // Monthly prices in euro cents, VAT included. In billing mode the backend's
@@ -31,7 +32,7 @@ const PLANS = [
     name: "Investor",
     icon: TrendingUp,
     tagline: msg("For long-term investors with several accounts."),
-    monthly: 599,
+    monthly: PLAN_PRICES_CENTS.investor,
     features: [msg("5 portfolios"), msg("2 broker connections"), msg("Complete analytics"), msg("Daily sync")],
   },
   {
@@ -39,7 +40,7 @@ const PLANS = [
     name: "Pro",
     icon: Gem,
     tagline: msg("For active investors who research deeply."),
-    monthly: 999,
+    monthly: PLAN_PRICES_CENTS.pro,
     features: [
       msg("15 portfolios"),
       msg("5 broker connections"),

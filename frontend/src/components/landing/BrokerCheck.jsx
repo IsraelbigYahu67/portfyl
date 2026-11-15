@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { ArrowUpRight } from "lucide-react";
 import { ANALYTICS_EVENTS } from "../../analytics/eventContract";
 import { useOptionalAnalytics } from "../../analytics/AnalyticsProvider";
 import { filterBrokers } from "../../lib/onboardingBrokers";
@@ -53,13 +52,13 @@ export default function BrokerCheck({ copy, language, signupOpen = import.meta.e
     capture(ANALYTICS_EVENTS.BROKER_CHECK_USED, { result: resultKind, language });
   }, [resultKind, selectedKey, language, capture]);
   const demoLink = (className) => (
-    <a className={className} href="/demo" onClick={onDemo}>{copy.demo} <ArrowUpRight size={16} aria-hidden="true" /></a>
+    <a className={className} href="/demo" onClick={onDemo}>{copy.demo}</a>
   );
 
   return (
-    <section className="welcome-broker-check welcome-container" aria-labelledby={titleId}>
+    <div className="welcome-broker-check" role="group" aria-labelledby={titleId}>
       <div className="welcome-broker-panel">
-        <h2 id={titleId}>{copy.title}</h2>
+        <p id={titleId} className="welcome-broker-title">{copy.title}</p>
         <input
           type="search" className="welcome-broker-input" value={query} placeholder={copy.placeholder}
           aria-labelledby={titleId} autoComplete="off" spellCheck={false} maxLength={MAX_TYPED * 2}
@@ -82,12 +81,12 @@ export default function BrokerCheck({ copy, language, signupOpen = import.meta.e
               <p>{copy.supported.replace("{name}", result.broker.name)}</p>
               {signupOpen ? (
                 <div className="welcome-broker-actions">
-                  <a className="welcome-cta" href={registerUrl({ source: "landing_broker_check", broker: result.broker.key, lang: language })}>{copy.signup} <ArrowUpRight size={17} aria-hidden="true" /></a>
-                  {demoLink("welcome-preview-link")}
+                  <a className="welcome-btn" href={registerUrl({ source: "landing_broker_check", broker: result.broker.key, lang: language })}>{copy.signup}</a>
+                  {demoLink("welcome-textlink")}
                 </div>
               ) : (
                 <>
-                  <div className="welcome-broker-actions">{demoLink("welcome-cta")}</div>
+                  <div className="welcome-broker-actions">{demoLink("welcome-btn")}</div>
                   <small>{copy.betaNote}</small>
                 </>
               )}
@@ -96,11 +95,11 @@ export default function BrokerCheck({ copy, language, signupOpen = import.meta.e
           {result?.kind === "unsupported" && (
             <div className="broker-check-result welcome-broker-result">
               <p>{copy.unsupported.replace("{name}", typed)}</p>
-              <div className="welcome-broker-actions">{demoLink("welcome-cta")}</div>
+              <div className="welcome-broker-actions">{demoLink("welcome-btn")}</div>
             </div>
           )}
         </div>
       </div>
-    </section>
+    </div>
   );
 }

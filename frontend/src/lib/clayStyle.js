@@ -5,6 +5,9 @@ import { CLAY_TOKENS } from "./themeTokens";
 // their root instead of retyping values; the theme-clay class then resolves
 // index.css's --clay-* shadows. See DESIGN.md section 10.
 export const CLAY_STYLE = {
+  // The landing's flat page color: the Clay card tint at full opacity, so
+  // screenshots and bands (--bg) stand against it. Public pages only.
+  "--landing-paper": "#FAF5ED",
   "--brand": CLAY_TOKENS.brand,
   "--brand-hover": CLAY_TOKENS.brandHover,
   "--brand-light": CLAY_TOKENS.brandLight,

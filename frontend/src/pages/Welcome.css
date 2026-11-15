@@ -1,286 +1,214 @@
-/* Public landing (portfyl.com) in the app's Clay look. Colors and shadows come
-   only from the Clay tokens Welcome.jsx scopes onto the root (CLAY_STYLE) and
-   the --clay-* shadows index.css defines under .theme-clay; see DESIGN.md. */
+/* Public landing (portfyl.com): flat paper, hairlines, one left-aligned 1120px
+   column. The only raised objects are product screenshots. Colors come only
+   from the Clay tokens Welcome.jsx scopes onto the root (CLAY_STYLE, which
+   includes --landing-paper) and color-mix() tints of them; see DESIGN.md
+   section 10. */
 .welcome {
-  --w-display: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', sans-serif;
-  --w-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --w-tint: color-mix(in srgb, var(--chart-1) 22%, transparent);
-  --w-copper: color-mix(in srgb, var(--chart-2) 16%, transparent);
-  --w-sand: color-mix(in srgb, var(--chart-6) 30%, transparent);
+  --w-display: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  --w-body: 'Inter Variable', Inter, 'Segoe UI', system-ui, sans-serif;
+  --w-mono: 'JetBrains Mono Variable', ui-monospace, Consolas, monospace;
+  --w-line: color-mix(in srgb, var(--muted) 32%, transparent);
+  --w-on-brand: var(--landing-paper);
+  --w-shadow: color-mix(in srgb, var(--ink) 28%, transparent);
   min-height: 100svh;
   color: var(--ink);
-  font-family: 'Inter Variable', Inter, sans-serif;
-  background:
-    radial-gradient(ellipse 70% 50% at 15% -10%, var(--w-tint), transparent 60%),
-    radial-gradient(ellipse 60% 45% at 100% 0%, var(--w-copper), transparent 60%),
-    radial-gradient(ellipse 60% 40% at 50% 100%, var(--w-sand), transparent 60%),
-    var(--bg);
-  overflow: clip;
+  background: var(--landing-paper);
+  font: 400 1.0625rem/1.6 var(--w-body);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
 }
-.welcome-container { width: min(1160px, calc(100% - 64px)); margin-inline: auto; }
-.welcome a { text-decoration: none; color: inherit; }
-.welcome :focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
-.welcome [id] { scroll-margin-top: 120px; }
-.welcome h1, .welcome h2, .welcome h3 { font-family: var(--w-display); }
+.welcome *, .welcome *::before, .welcome *::after { box-sizing: border-box; }
+:where(.welcome) a { color: inherit; text-decoration: none; }
+.welcome :focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; border-radius: 6px; }
+.welcome [id] { scroll-margin-top: 76px; }
+.welcome p { margin: 0; }
+.welcome h1, .welcome h2, .welcome h3, .welcome h4 { margin: 0; font-family: var(--w-display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.12; text-wrap: balance; }
+.welcome h1 { font-size: clamp(2.25rem, 5.2vw, 3.75rem); }
+.welcome h2 { font-size: clamp(1.6rem, 3vw, 2.25rem); }
+.welcome h3 { font-size: 1.125rem; letter-spacing: -0.01em; line-height: 1.3; }
+.welcome-container { width: 100%; max-width: 1120px; margin-inline: auto; padding-inline: 20px; }
+.welcome-muted, .welcome-note, .welcome-caption, .welcome-status { color: var(--muted); }
+.welcome-note, .welcome-status { font-size: 0.875rem; }
+.welcome-status b { color: var(--ink); font-weight: 600; }
 
-/* Header: floating clay pill, like the app's top bar (no glass blur). */
-.welcome-header { position: sticky; top: 14px; z-index: 50; margin-top: 14px; }
-.welcome-nav {
-  min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 24px;
-  padding: 0 14px 0 22px; border-radius: 999px;
-  background: var(--surface-card-elevated); box-shadow: var(--clay-raise);
+/* Buttons and links: one primary pill, everything else is text. */
+.welcome-btn {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 22px; border-radius: 999px;
+  background: var(--brand); color: var(--w-on-brand); font: 600 0.9375rem var(--w-body); white-space: nowrap; transition: background .15s;
 }
-.welcome-logo { display: inline-flex; align-items: center; gap: 9px; font-family: var(--w-display); font-size: 24px; letter-spacing: -0.03em; font-weight: 800; }
-.welcome-logo img { object-fit: contain; }
-.welcome-beta {
-  align-self: center; margin-left: 8px; font-family: 'Inter Variable', Inter, sans-serif; font-size: 12px; font-weight: 700;
-  letter-spacing: 0.08em; color: var(--brand); padding: 5px 10px; border-radius: 999px;
-  background: var(--bg-subtle); box-shadow: var(--clay-inset-sm);
-}
-.welcome-nav nav { display: flex; gap: 6px; font-size: 14px; font-weight: 600; margin-left: auto; }
-.welcome-nav nav a { display: flex; align-items: center; gap: 5px; padding: 10px 16px; border-radius: 999px; color: var(--muted); transition: color .2s, box-shadow .2s, background .2s; }
-.welcome-nav nav a:hover { color: var(--ink); background: var(--surface-card-elevated); box-shadow: var(--clay-raise-sm); }
-.welcome-footer a:hover { color: var(--brand); }
-
-/* Segmented controls reuse the app's SegmentedControl; size them up for a page. */
-.welcome-language-switch { flex-shrink: 0; }
-/* The language options are links (one URL per language), so the generic
-   `.welcome a { color: inherit }` must not flatten their active/idle colors. */
-.welcome-language-switch > button { min-width: 44px; min-height: 36px; padding-inline: 12px; font-size: 13px; }
-.welcome-language-switch > a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 36px; padding-inline: 12px; font-size: 13px; }
-.welcome .welcome-language-switch > a { color: var(--muted); }
-.welcome .welcome-language-switch > a:hover { color: var(--ink); }
-.welcome .welcome-language-switch > a[aria-current="page"] { color: var(--brand); }
-/* Four long labels wrap to two rows in the copy column; a 24px trough reads
-   cleanly on one or two rows where a 999px pill would pinch. */
-.welcome .welcome-preview-switch { flex-wrap: wrap; margin-bottom: 30px; border-radius: 24px; }
-.welcome-preview-switch > button { min-height: 40px; padding-inline: 16px; font-size: 13px; }
-
-/* Hero */
-.welcome-hero { padding-top: 76px; text-align: center; }
-.welcome-eyebrow, .welcome-kicker { font-family: var(--w-display); font-size: 12px; letter-spacing: 0.12em; font-weight: 700; text-transform: uppercase; color: var(--brand); }
-.welcome-eyebrow {
-  display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 9px 16px; border-radius: 999px;
-  background: var(--surface-card-elevated); box-shadow: var(--clay-raise-sm);
-}
-.welcome-eyebrow > span { height: 8px; width: 8px; border-radius: 50%; background: var(--gain); box-shadow: 0 0 0 4px var(--brand-light); }
-.welcome h1 { font-size: clamp(46px, 5.7vw, 78px); line-height: 1.06; letter-spacing: -0.04em; font-weight: 800; margin: 28px 0 22px; }
-.welcome h1 > span, .welcome h2 > span { color: var(--brand); }
-.welcome-lead { color: var(--muted); font-size: 17px; line-height: 1.8; }
-.welcome-cta {
-  display: inline-flex; justify-content: center; align-items: center; gap: 14px; min-height: 48px; padding: 14px 26px;
-  border-radius: 999px; background: var(--brand); color: white; font-size: 14px; font-weight: 700;
-  box-shadow: var(--clay-raise-brand); transition: background .2s, translate .25s var(--w-spring), scale .25s var(--w-spring), box-shadow .2s;
-}
-.welcome-cta:hover { background: var(--brand-hover); translate: 0 -1px; scale: 1.06; }
-.welcome-cta:active { scale: 0.97; box-shadow: var(--clay-inset-sm); }
-.welcome-hero-actions, .welcome-closing-actions { display: flex; align-items: center; justify-content: center; gap: 18px; flex-wrap: wrap; margin-top: 30px; }
-.welcome-preview-link {
-  display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 14px 22px; border-radius: 999px;
-  color: var(--ink); font-size: 14px; font-weight: 700; background: var(--surface-card-elevated); box-shadow: var(--clay-raise-sm);
-  transition: translate .25s var(--w-spring), scale .25s var(--w-spring), box-shadow .2s, color .2s;
-}
-.welcome-preview-link:hover { color: var(--brand); translate: 0 -1px; scale: 1.06; }
-.welcome-preview-link:active { scale: 0.97; box-shadow: var(--clay-inset-sm); }
-.welcome-hero-note { color: var(--muted); font-size: 12px; margin-top: 16px; }
-.welcome-hero-visual { position: relative; margin-top: 60px; padding: 25px 70px 0; }
-
-/* Soft clay blobs behind the hero window, lit from the top-left. */
-.welcome-orbit { position: absolute; border-radius: 50%; pointer-events: none; }
-.welcome-orbit-one { width: 620px; height: 620px; top: -10px; left: -220px; background: radial-gradient(circle at 35% 30%, var(--surface-card-elevated), var(--brand-light) 70%); box-shadow: var(--clay-raise); opacity: .85; }
-.welcome-orbit-two { width: 440px; height: 440px; top: 70px; right: -130px; background: radial-gradient(circle at 35% 30%, var(--surface-card-elevated), var(--w-sand) 75%); box-shadow: var(--clay-raise); opacity: .9; }
-.welcome-window {
-  position: relative; overflow: hidden; padding: 0 10px 10px; border-radius: 28px;
-  background: var(--surface-card-elevated); box-shadow: var(--clay-raise-hover); rotate: -1deg;
-}
-.welcome-window-bar { height: 44px; padding: 0 8px; display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; }
-.welcome-window-dots { display: flex; gap: 6px; padding: 6px 9px; border-radius: 999px; background: var(--bg-subtle); box-shadow: var(--clay-inset-sm); }
-.welcome-window-dots i { display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--surface-card-elevated); box-shadow: var(--clay-raise-sm); }
-.welcome-window-status { color: var(--gain); }
-.welcome-window img { width: 100%; height: auto; display: block; border-radius: 20px; }
-.welcome-float {
-  position: absolute; right: 7px; bottom: 35px; display: flex; align-items: center; gap: 12px; padding: 16px 22px 16px 16px;
-  border-radius: 999px; background: var(--surface-card-elevated); box-shadow: var(--clay-raise);
-  font-size: 13px; font-weight: 700; text-align: left; rotate: 2deg;
-  transition: translate .25s var(--w-spring), scale .25s var(--w-spring), box-shadow .2s;
-}
-.welcome-float:hover { translate: 0 -3px; scale: 1.04; box-shadow: var(--clay-raise-hover); }
-.welcome-float small { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-top: 3px; }
-.welcome-float-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--brand-light); color: var(--brand); box-shadow: var(--clay-inset-sm); }
-.welcome-caption { position: relative; font-size: 12px; color: var(--muted); margin: 26px 0 44px; }
-
-/* Broker ribbon: inset trough with raised chips. */
-.welcome-ribbon { position: relative; padding-block: 8px; }
-.welcome-ribbon > div {
-  display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 12px; padding: 18px 22px;
-  border-radius: 999px; background: var(--bg-subtle); box-shadow: var(--clay-inset-sm); font-size: 14px; font-weight: 600;
-}
-.welcome-ribbon span { padding: 9px 16px; border-radius: 999px; background: var(--surface-card-elevated); box-shadow: var(--clay-raise-sm); }
-.welcome-ribbon span:first-child { padding: 0 8px 0 4px; background: none; box-shadow: none; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
-.welcome-ribbon i { display: none; }
-
-/* Broker check: a raised panel with an inset search trough and chips. */
-.welcome-broker-check { padding-block: 56px 8px; }
-.welcome-broker-panel {
-  display: grid; justify-items: center; gap: 18px; padding: 36px 32px; border-radius: 32px; text-align: center;
-  background: var(--surface-card); box-shadow: var(--clay-raise);
-}
-.welcome .welcome-broker-panel h2 { font-size: clamp(24px, 3vw, 34px); line-height: 1.15; letter-spacing: -0.03em; font-weight: 800; }
-.welcome-broker-input {
-  width: min(460px, 100%); min-height: 48px; padding: 12px 22px; border: 0; border-radius: 999px; text-align: center;
-  background: var(--bg-subtle); box-shadow: var(--clay-inset-sm); color: var(--ink); font: inherit; font-size: 16px; font-weight: 600;
-}
-.welcome-broker-input::placeholder { color: var(--muted); font-weight: 500; }
-.welcome-broker-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; list-style: none; margin: 0; padding: 0; }
-.welcome-broker-chips button {
-  display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 18px 8px 10px; border: 0; border-radius: 999px; cursor: pointer;
-  background: var(--surface-card-elevated); box-shadow: var(--clay-raise-sm); color: var(--ink); font: inherit; font-size: 14px; font-weight: 700;
-  transition: translate .25s var(--w-spring), scale .25s var(--w-spring), box-shadow .2s, color .2s;
-}
-.welcome-broker-chips button:hover { color: var(--brand); translate: 0 -1px; scale: 1.04; }
-.welcome-broker-chips button[aria-pressed="true"] { color: var(--brand); box-shadow: var(--clay-inset-sm); }
-.welcome-broker-chips img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
-.welcome-broker-live { display: grid; justify-items: center; }
-.welcome-broker-result { display: grid; justify-items: center; gap: 14px; max-width: 560px; }
-.welcome-broker-result p { font-size: 16px; line-height: 1.7; font-weight: 600; }
-.welcome-broker-result small { font-size: 12px; line-height: 1.6; color: var(--muted); }
-.welcome-broker-actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 14px; }
-@media (max-width: 760px) {
-  .welcome-broker-panel { padding: 28px 20px; border-radius: 24px; }
-}
-
-/* Features */
-.welcome-features { padding-block: 100px; }
-.welcome-section-heading { display: flex; justify-content: space-between; gap: 40px; align-items: end; margin-bottom: 44px; }
-.welcome-kicker { margin-bottom: 16px; }
-.welcome h2 { font-size: clamp(30px, 3.3vw, 44px); letter-spacing: -0.03em; line-height: 1.15; font-weight: 800; }
-.welcome-section-heading > p { max-width: 360px; font-size: 15px; line-height: 1.8; color: var(--muted); }
-.welcome-feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
-.welcome-feature {
-  padding: 30px; border-radius: 24px; background: var(--surface-card); box-shadow: var(--clay-raise);
-  transition: translate .3s var(--w-spring), scale .3s var(--w-spring), box-shadow .2s;
-}
-.welcome-feature:hover { translate: 0 -4px; scale: 1.01; box-shadow: var(--clay-raise-hover); }
-.welcome-feature-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 34px; }
-.welcome-feature-top svg { box-sizing: content-box; padding: 13px; border-radius: 50%; color: var(--brand); background: var(--brand-light); box-shadow: var(--clay-raise-sm); }
-.welcome-feature-top span { font-family: 'JetBrains Mono Variable', monospace; font-size: 12px; font-weight: 600; color: var(--muted); padding: 6px 10px; border-radius: 999px; background: var(--bg-subtle); box-shadow: var(--clay-inset-sm); }
-.welcome-feature h3 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 12px; }
-.welcome-feature p { font-size: 14px; line-height: 1.8; color: var(--muted); }
-
-/* Showcase */
-.welcome-showcase { padding: 8px 0; }
-.welcome-showcase > .welcome-container { padding: 44px 44px 52px; border-radius: 32px; background: var(--bg-subtle); box-shadow: var(--clay-inset-sm); }
-.welcome-showcase-top { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
-.welcome-showcase-top .welcome-kicker { margin: 0; }
-.welcome-showcase-top > span { font-size: 12px; color: var(--muted); }
-.welcome-showcase-grid { display: grid; grid-template-columns: .85fr 1.15fr; gap: 60px; align-items: center; padding-top: 40px; }
-.welcome-showcase-copy > p { font-size: 15px; line-height: 1.8; color: var(--muted); margin-top: 20px; }
-.welcome-detail-note { display: inline-flex; gap: 9px; align-items: center; font-size: 12px; font-weight: 600; color: var(--brand); margin-top: 30px; padding: 10px 14px; border-radius: 999px; background: var(--surface-card-elevated); box-shadow: var(--clay-raise-sm); }
-.welcome-detail-preview { min-width: 0; }
-.welcome-detail-image { overflow: hidden; padding: 10px; border-radius: 24px; background: var(--surface-card-elevated); box-shadow: var(--clay-raise); }
-.welcome-detail-image img { width: 100%; height: auto; display: block; border-radius: 16px; }
-.welcome-detail-preview figcaption { color: var(--muted); font-size: 12px; margin-top: 16px; text-align: center; }
-
-/* FAQ: each question is a raised clay card. */
-.welcome-faq { padding-block: 100px; display: grid; grid-template-columns: 1fr 1.2fr; gap: 65px; }
-.welcome-questions { display: grid; gap: 16px; }
-.welcome-questions details { border-radius: 20px; background: var(--surface-card); box-shadow: var(--clay-raise); transition: box-shadow .2s; }
-.welcome-questions details:hover { box-shadow: var(--clay-raise-hover); }
-.welcome-questions summary { padding: 20px 20px 20px 24px; display: flex; justify-content: space-between; align-items: center; gap: 18px; list-style: none; cursor: pointer; font-size: 15px; font-weight: 600; border-radius: 20px; }
-.welcome-questions summary::-webkit-details-marker { display: none; }
-.welcome-faq-icon { flex-shrink: 0; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; color: var(--brand); background: var(--surface-card-elevated); box-shadow: var(--clay-raise-sm); transition: rotate .3s var(--w-spring), box-shadow .2s; }
-.welcome-questions details[open] .welcome-faq-icon { rotate: 45deg; box-shadow: var(--clay-inset-sm); }
-.welcome-questions details p { font-size: 14px; color: var(--muted); line-height: 1.8; padding: 0 24px 22px; }
-
-/* Closing panel */
-.welcome-closing {
-  border-radius: 32px; padding: 60px 25px; text-align: center;
-  background: radial-gradient(ellipse at 80% 100%, var(--brand-light), transparent 65%), var(--surface-card);
-  box-shadow: var(--clay-raise);
-}
-.welcome-closing h2 { font-size: 52px; margin-block: 24px 16px; }
-.welcome-closing > p { color: var(--muted); font-size: 14px; }
-.welcome-closing-actions > a:not(.welcome-cta) {
-  display: inline-flex; gap: 12px; align-items: center; min-height: 48px; padding: 12px 20px; border-radius: 999px;
-  font-size: 13px; font-weight: 700; background: var(--surface-card-elevated); box-shadow: var(--clay-raise-sm);
-}
-.welcome-closing-actions > a:not(.welcome-cta):active { box-shadow: var(--clay-inset-sm); }
-
-/* Footer */
-.welcome-footer { min-height: 130px; display: flex; align-items: center; gap: 30px; }
-.welcome-footer .welcome-logo { font-size: 20px; }
-.welcome-footer > span { color: var(--muted); font-size: 12px; }
-.welcome-footer .welcome-preview-link { min-height: 40px; padding: 8px 16px; font-size: 12px; }
-.welcome-footer small { margin-left: auto; color: var(--muted); font-size: 12px; }
-.welcome-footer-legal { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 13px; font-weight: 600; }
-.welcome-skip { position: absolute; top: -100px; left: 20px; padding: 12px 18px; border-radius: 999px; background: var(--surface-card-elevated); box-shadow: var(--clay-raise); z-index: 60; }
+.welcome-btn:hover { background: var(--brand-hover); }
+.welcome-btn-big { min-height: 52px; padding: 0 28px; font-size: 1rem; }
+.welcome-textlink { font-weight: 600; color: var(--brand); text-decoration: underline; text-underline-offset: 4px; }
+.welcome-textlink:hover { color: var(--brand-hover); }
+.welcome-skip { position: absolute; top: -100px; left: 20px; padding: 12px 18px; border-radius: 999px; background: var(--landing-paper); border: 1px solid var(--w-line); z-index: 60; }
 .welcome-skip:focus { top: 10px; }
 
-@media (max-width: 760px) {
-  .welcome-container { width: calc(100% - 32px); }
-  .welcome-header { top: 8px; margin-top: 8px; }
-  .welcome-nav { min-height: 64px; gap: 12px; padding: 10px 10px 10px 16px; border-radius: 28px; }
-  .welcome-nav nav { gap: 2px; font-size: 13px; }
-  .welcome-nav nav a { padding: 10px 12px; }
-  .welcome-beta { display: none; }
-  .welcome-logo { font-size: 21px; }
-  .welcome-logo img { width: 30px; height: 30px; }
-  .welcome-hero { padding-top: 48px; }
-  .welcome h1 { letter-spacing: -0.035em; font-size: clamp(38px, 10vw, 60px); }
-  .welcome-lead { font-size: 15px; }
-  .welcome-desktop-break { display: none; }
-  .welcome-hero-visual { margin-top: 36px; padding: 15px 0 0; }
-  .welcome-orbit-one { width: 360px; height: 360px; left: -160px; }
-  .welcome-orbit-two { width: 260px; height: 260px; right: -110px; }
-  .welcome-window { padding: 0 6px 6px; border-radius: 22px; rotate: none; }
-  .welcome-window img { border-radius: 16px; }
-  .welcome-window-bar { height: 36px; }
-  .welcome-window-status { display: none; }
-  .welcome-float { right: 8px; bottom: -18px; padding: 10px 16px 10px 10px; font-size: 12px; rotate: none; }
-  .welcome-float-icon { width: 30px; height: 30px; }
-  .welcome-caption { margin-top: 38px; }
-  .welcome-ribbon > div { border-radius: 28px; gap: 10px; font-size: 13px; }
-  .welcome-ribbon span:first-child { width: 100%; text-align: center; }
-  .welcome-features, .welcome-faq { padding-block: 64px; }
-  .welcome-section-heading { display: block; }
-  .welcome-section-heading > p { max-width: none; margin-top: 20px; }
-  .welcome-feature-grid { grid-template-columns: 1fr; gap: 24px; }
-  .welcome-feature { padding: 24px; }
-  .welcome-feature-top { margin-bottom: 24px; }
-  .welcome-showcase > .welcome-container { padding: 28px 18px 32px; border-radius: 28px; }
-  .welcome-showcase-top > span { display: none; }
-  .welcome-showcase-grid, .welcome-faq { grid-template-columns: 1fr; gap: 32px; }
-  .welcome-showcase-grid { padding-top: 26px; }
-  .welcome-closing { padding: 44px 20px; border-radius: 28px; }
-  .welcome-closing h2 { font-size: 40px; }
-  .welcome-footer { flex-wrap: wrap; gap: 14px; padding-block: 30px; }
-  .welcome-footer > span { order: 3; width: 100%; }
+/* Header: sticky, 64px, hairline underneath. */
+.welcome-header { position: sticky; top: 0; z-index: 5; background: var(--landing-paper); border-bottom: 1px solid var(--w-line); }
+.welcome-nav { display: flex; align-items: center; gap: 28px; height: 64px; }
+.welcome-logo { display: inline-flex; align-items: center; gap: 9px; font: 700 1.25rem var(--w-display); letter-spacing: -0.02em; }
+.welcome-logo img { object-fit: contain; }
+.welcome-links { display: flex; gap: 26px; margin: 0 auto 0 12px; }
+.welcome-links a, .welcome-login, .welcome-lang a { font-size: 0.9375rem; font-weight: 500; color: var(--muted); }
+.welcome-links a:hover, .welcome-login:hover, .welcome-lang a:hover { color: var(--ink); }
+.welcome-lang { display: flex; gap: 10px; }
+.welcome-lang a { font-size: 0.8125rem; }
+.welcome-lang a[aria-current] { color: var(--ink); font-weight: 600; }
+.welcome-menu { display: none; position: relative; }
+.welcome-menu summary { list-style: none; cursor: pointer; min-height: 44px; display: flex; align-items: center; padding: 0 14px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--w-line); font-size: 0.9375rem; font-weight: 500; }
+.welcome-menu summary::-webkit-details-marker { display: none; }
+.welcome-menu nav {
+  position: absolute; right: 0; top: 52px; width: min(260px, 80vw); display: grid; padding: 8px;
+  background: var(--landing-paper); border: 1px solid var(--w-line); border-radius: 16px;
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--ink) 14%, transparent);
+}
+.welcome-menu nav a { padding: 11px 12px; border-radius: 10px; font-weight: 500; }
+.welcome-menu nav a:hover { background: var(--bg); }
+.welcome-menu nav hr { width: 100%; margin: 6px 0; border: 0; border-top: 1px solid var(--w-line); }
+.welcome-menu-langs { display: flex; flex-wrap: wrap; }
+/* Interim: the legal pages still draw their own plain nav inside this header
+   until they move to LandingHeader (plan Task 4). */
+.welcome-nav > nav:not(.welcome-links) { display: flex; gap: 20px; margin-left: auto; font-size: 0.9375rem; font-weight: 500; color: var(--muted); }
+
+/* Offer of the visitor's own language (after mount only, never a redirect). */
+.welcome-language-suggestion { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding-block: 10px; color: var(--muted); font-size: 0.875rem; }
+.welcome .welcome-language-suggestion a { color: var(--brand); font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+.welcome-language-suggestion button { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; }
+.welcome-language-suggestion button:hover { color: var(--ink); }
+
+/* Hero */
+.welcome-hero { padding-block: clamp(48px, 8vw, 88px) 0; }
+.welcome-hero-text { max-width: 720px; display: grid; gap: 20px; }
+.welcome-lead { max-width: 60ch; color: var(--muted); font-size: clamp(1.0625rem, 1.6vw, 1.25rem); }
+.welcome-cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: 8px; }
+.welcome-hero .welcome-shot { margin-top: clamp(36px, 5vw, 56px); }
+.welcome-caption { margin-top: 10px; font-size: 0.8125rem; }
+
+/* The one raised object: a screenshot. */
+.welcome-shot { margin: 0; overflow: hidden; border: 1px solid var(--w-line); border-radius: 16px; background: var(--bg); box-shadow: 0 24px 60px -24px var(--w-shadow); }
+.welcome-shot img { display: block; width: 100%; height: auto; }
+
+/* Brokers */
+.welcome-brokers { padding-block: 40px; }
+.welcome-brokers dl { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 10px 24px; margin: 0; padding-block: 22px; border-block: 1px solid var(--w-line); }
+.welcome-brokers dt { color: var(--muted); font-size: 0.9375rem; }
+.welcome-brokers dd { margin: 0; font-weight: 500; }
+
+/* Broker check: one quiet line under the list. */
+.welcome-broker-check { padding-top: 22px; }
+.welcome-broker-panel { display: grid; justify-items: start; gap: 12px; }
+.welcome-broker-title { font-size: 0.9375rem; font-weight: 600; }
+.welcome-broker-input {
+  width: min(380px, 100%); min-height: 44px; padding: 0 18px; border: 1px solid var(--w-line); border-radius: 999px;
+  background: transparent; color: var(--ink); font: inherit; font-size: 1rem;
+}
+.welcome-broker-input::placeholder { color: var(--muted); }
+.welcome-broker-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.welcome-broker-chips button {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px 0 10px; border: 1px solid var(--w-line); border-radius: 999px; cursor: pointer;
+  background: transparent; color: var(--ink); font: inherit; font-size: 0.9375rem; font-weight: 500;
+}
+.welcome-broker-chips button:hover { background: var(--bg); }
+.welcome-broker-chips button[aria-pressed="true"] { border-color: var(--brand); color: var(--brand); }
+.welcome-broker-chips img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+.welcome-broker-live { display: grid; }
+.welcome-broker-result { display: grid; justify-items: start; gap: 12px; max-width: 560px; }
+.welcome-broker-result p { font-weight: 500; }
+.welcome-broker-result small { color: var(--muted); font-size: 0.875rem; }
+.welcome-broker-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+
+/* Blocks and headings */
+.welcome-block { padding-block: clamp(56px, 8vw, 96px); }
+.welcome-head { display: grid; gap: 14px; max-width: 640px; margin-bottom: clamp(28px, 4vw, 44px); }
+.welcome-band { background: var(--bg); }
+
+/* Features */
+.welcome-feature { display: grid; gap: 24px; }
+.welcome-feature + .welcome-feature { margin-top: clamp(48px, 6vw, 72px); }
+.welcome-feature-text { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 12px 40px; align-items: start; }
+.welcome-feature-text p { color: var(--muted); }
+.welcome-feature-shots { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 20px; }
+.welcome-feature-shots .welcome-shot { flex: 1 1 100%; min-width: 0; }
+.welcome-feature-shots .welcome-shot-phone { flex: 0 0 auto; width: min(200px, 44%); }
+.welcome-more { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 40px; margin-top: clamp(48px, 6vw, 72px); }
+.welcome-head + .welcome-more { margin-top: 0; }
+.welcome-more > div { display: grid; align-content: start; gap: 8px; padding-block: 20px 4px; border-top: 1px solid var(--w-line); }
+.welcome-more p { color: var(--muted); font-size: 0.9375rem; }
+
+/* How it works + data facts */
+.welcome-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 40px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
+.welcome-steps li { display: grid; align-content: start; gap: 8px; counter-increment: step; }
+.welcome-steps li::before {
+  content: counter(step); display: grid; place-items: center; width: 30px; height: 30px; margin-bottom: 6px; border-radius: 999px;
+  background: var(--ink); color: var(--landing-paper); font: 600 0.875rem var(--w-mono);
+}
+.welcome-steps p { color: var(--muted); font-size: 0.9375rem; }
+.welcome-steps .welcome-shot { margin-top: 8px; }
+.welcome-facts { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: 16px 40px; margin-top: clamp(36px, 5vw, 56px); padding-top: 28px; border-top: 1px solid var(--w-line); }
+.welcome-facts ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.welcome-facts li { position: relative; padding-left: 22px; }
+.welcome-facts li::before {
+  content: ""; position: absolute; left: 2px; top: 0.55em; width: 10px; height: 5px;
+  border-left: 2px solid var(--gain); border-bottom: 2px solid var(--gain); transform: rotate(-45deg);
+}
+
+/* Pricing */
+.welcome-plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--w-line); border-radius: 16px; }
+.welcome-plan { display: grid; align-content: start; gap: 14px; padding: 28px; }
+.welcome-plan + .welcome-plan { border-left: 1px solid var(--w-line); }
+.welcome-price { font: 700 2rem var(--w-display); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.welcome-price span { color: var(--muted); font: 400 0.9375rem var(--w-body); letter-spacing: 0; }
+.welcome-plan ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 0.9375rem; }
+.welcome-plan li { padding-top: 8px; border-top: 1px solid var(--w-line); }
+
+/* FAQ */
+.welcome-faq { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: 24px 40px; padding-top: 0; }
+.welcome-faq details { border-top: 1px solid var(--w-line); }
+.welcome-faq details:last-child { border-bottom: 1px solid var(--w-line); }
+.welcome-faq summary { position: relative; padding: 18px 36px 18px 0; list-style: none; cursor: pointer; font-weight: 600; }
+.welcome-faq summary::-webkit-details-marker { display: none; }
+.welcome-faq summary::after { content: "+"; position: absolute; right: 6px; top: 14px; color: var(--muted); font: 400 1.4rem var(--w-body); }
+.welcome-faq details[open] summary::after { content: "–"; }
+.welcome-faq details p { max-width: 62ch; padding: 0 36px 20px 0; color: var(--muted); }
+
+/* Closing */
+.welcome-closing { border-top: 1px solid var(--w-line); }
+.welcome-closing .welcome-container { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px 40px; padding-block: clamp(44px, 6vw, 72px); }
+.welcome-closing h2 { max-width: 18ch; }
+
+/* Footer */
+.welcome-footer { border-top: 1px solid var(--w-line); color: var(--muted); font-size: 0.875rem; }
+.welcome-footer-grid { display: grid; grid-template-columns: minmax(0, 4fr) repeat(3, minmax(0, 2fr)); gap: 28px 40px; padding-block: 40px; }
+.welcome-footer h4 { margin: 0 0 10px; color: var(--ink); font: 600 0.8125rem var(--w-body); letter-spacing: 0; }
+.welcome-footer ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.welcome-footer nav + ul { margin-top: 8px; }
+.welcome-footer a:hover, .welcome-preview-link:hover { color: var(--ink); text-decoration: underline; }
+.welcome-footer .welcome-logo { margin-bottom: 10px; color: var(--ink); }
+.welcome-footer-about p + p { margin-top: 10px; }
+.welcome-preview-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+/* Interim: the legal pages' footer is still a single flex row (plan Task 4). */
+.welcome-footer.welcome-container { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 28px; padding-block: 28px; }
+.welcome-footer.welcome-container small { margin-left: auto; }
+.welcome-kicker { color: var(--brand); font: 700 0.75rem var(--w-display); letter-spacing: 0.12em; text-transform: uppercase; }
+
+@media (max-width: 860px) {
+  .welcome-links, .welcome-login, .welcome-nav > .welcome-lang { display: none; }
+  .welcome-menu { display: block; }
+  .welcome-nav { gap: 10px; }
+  .welcome-nav .welcome-logo { margin-right: auto; }
+  .welcome-feature-text, .welcome-facts, .welcome-faq { grid-template-columns: minmax(0, 1fr); }
+  .welcome-more, .welcome-steps, .welcome-plans { grid-template-columns: minmax(0, 1fr); }
+  .welcome-plan + .welcome-plan { border-left: 0; border-top: 1px solid var(--w-line); }
+  .welcome-brokers dl { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .welcome-brokers dd { margin-bottom: 10px; }
+  .welcome-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .welcome-footer-about { grid-column: 1 / -1; }
+  .welcome-shot { border-radius: 12px; }
+  .welcome-nav > nav:not(.welcome-links) { gap: 12px; font-size: 0.875rem; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.welcome) { scroll-behavior: smooth; }
 }
 @media (prefers-reduced-motion: reduce) {
   .welcome *, .welcome *::before, .welcome *::after { transition: none !important; }
-  .welcome .welcome-cta:hover, .welcome .welcome-preview-link:hover, .welcome .welcome-float:hover, .welcome .welcome-feature:hover, .welcome .welcome-broker-chips button:hover { translate: none; scale: none; }
-}
-
-/* Offer of the visitor's own language (after mount only, never a redirect):
-   an inset trough under the header, like the broker ribbon. */
-.welcome-language-suggestion {
-  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 16px;
-  margin-top: 14px; padding: 10px 10px 10px 22px; border-radius: 999px;
-  background: var(--bg-subtle); box-shadow: var(--clay-inset-sm); color: var(--muted); font-size: 14px;
-}
-.welcome .welcome-language-suggestion a {
-  display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 999px;
-  background: var(--surface-card-elevated); box-shadow: var(--clay-raise-sm); color: var(--brand); font-weight: 700; font-size: 13px;
-}
-.welcome-language-suggestion button {
-  display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 999px;
-  background: none; border: none; color: var(--muted); cursor: pointer;
-}
-.welcome-language-suggestion button:hover { color: var(--ink); }
-@media (max-width: 760px) {
-  .welcome-nav { flex-wrap: wrap; }
-  .welcome-nav nav { order: 3; width: 100%; justify-content: center; margin: 0; }
-  .welcome-nav nav a:last-child { display: flex; }
-  .welcome-language-switch { margin-left: auto; }
-  .welcome-language-suggestion { border-radius: 24px; padding: 14px 16px; text-align: center; }
 }
