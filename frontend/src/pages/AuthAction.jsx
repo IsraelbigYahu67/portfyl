@@ -8,7 +8,8 @@ import {
   mapFirebaseAuthError,
   verifyResetCode,
 } from "../auth/firebase";
-import { rich, useT } from "../i18n/I18nProvider";
+import { rich, useI18n, useT } from "../i18n/I18nProvider";
+import { hasSavedLanguage, isAppLanguage } from "../i18n/languages";
 
 // Portfyl's own page for the links in Firebase's e-mails (verify e-mail,
 // reset password, undo an e-mail change). The Firebase project's action URL
@@ -28,6 +29,7 @@ function readActionParams(search) {
     mode: params.get("mode"),
     code: params.get("oobCode"),
     continueUrl: params.get("continueUrl"),
+    lang: params.get("lang"),
   };
 }
 
@@ -90,7 +92,7 @@ function BackToLogin() {
 }
 
 export default function AuthAction() {
-  const t = useT();
+  const { t, previewLanguage } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useState(() => readActionParams(location.search));
@@ -108,14 +110,21 @@ export default function AuthAction() {
     // A clean address bar: the long Firebase query is no longer needed.
     if (location.search) navigate(AUTH_ACTION_PATH, { replace: true });
 
+    // The e-mail was written in one language, so the page that follows it is
+    // too, for this visit only. A language the user chose on this device wins.
+    if (isAppLanguage(params.lang) && !hasSavedLanguage()) previewLanguage(params.lang);
+
+    // The error is kept in English and translated where it is drawn: the
+    // language above loads a moment after this runs, and a message translated
+    // here would stay in the language the page started in.
     const { mode, code } = params;
     const fail = (err) => {
-      setError(t(mapFirebaseAuthError(err)));
+      setError(mapFirebaseAuthError(err));
       setStatus("error");
     };
 
     if (!code) {
-      setError(t("This link is no longer valid. It may have been used already."));
+      setError("This link is no longer valid. It may have been used already.");
       setStatus("error");
       return;
     }
@@ -136,7 +145,7 @@ export default function AuthAction() {
         })
         .catch(fail);
     } else {
-      setError(t("This link is no longer valid. It may have been used already."));
+      setError("This link is no longer valid. It may have been used already.");
       setStatus("error");
     }
     // Runs once per page load; params never change.
@@ -189,7 +198,7 @@ export default function AuthAction() {
 
   return (
     <Shell icon={CircleAlert} tone="text-loss" title={t("This link didn't work")}>
-      <p role="alert">{error}</p>
+      <p role="alert">{error && t(error)}</p>
       <BackToLogin />
     </Shell>
   );
