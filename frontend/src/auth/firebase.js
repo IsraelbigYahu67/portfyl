@@ -120,40 +120,115 @@ export async function reauthenticateWithPassword(email, password) {
 // Google sign-in (docs/superpowers/plans/2026-10-12-portfyl-google-sign-in.md)
 // uses a popup, never a redirect: a redirect would need the Firebase session
 // to survive a full page reload, which inMemoryPersistence deliberately
-// prevents. The button is a build-time opt-in so the code can ship before the
-// provider is enabled in the Firebase console.
-export function isGoogleSignInEnabled() {
-  return import.meta.env.VITE_FIREBASE_GOOGLE_SIGN_IN === "true";
+// prevents.
+//
+// The popup is Google's own (Google Identity Services), opened straight on
+// accounts.google.com. Firebase's signInWithPopup is deliberately not used:
+// it first shows a blank "<project>.firebaseapp.com/__/auth/handler" window
+// and makes Google name that host as the app. Google hands back an access
+// token, which Firebase exchanges for the same Firebase user as before.
+//
+// The button is a build-time opt-in, and needs the public OAuth web client ID
+// of the Firebase project's Google provider (see deploy/cloudrun.md).
+function googleClientId() {
+  return (import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID || "").trim();
 }
 
-// The user closing or superseding the popup is a choice, not an error.
-const POPUP_DISMISSED_CODES = new Set(["auth/popup-closed-by-user", "auth/cancelled-popup-request"]);
+export function isGoogleSignInEnabled() {
+  return import.meta.env.VITE_FIREBASE_GOOGLE_SIGN_IN === "true" && googleClientId() !== "";
+}
+
+const GOOGLE_IDENTITY_SCRIPT_URL = "https://accounts.google.com/gsi/client";
+const GOOGLE_SCOPES = "openid email profile";
+
+let _googleOAuth = null;
+let _googleOAuthPromise = null;
+
+function authError(code) {
+  return Object.assign(new Error(code), { code });
+}
+
+function loadGoogleIdentity() {
+  if (!_googleOAuthPromise) {
+    _googleOAuthPromise = new Promise((resolve, reject) => {
+      const existing = window.google?.accounts?.oauth2;
+      if (existing) {
+        resolve(existing);
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = GOOGLE_IDENTITY_SCRIPT_URL;
+      script.async = true;
+      script.onload = () => {
+        const oauth2 = window.google?.accounts?.oauth2;
+        if (oauth2) resolve(oauth2);
+        else reject(authError("auth/internal-error"));
+      };
+      script.onerror = () => {
+        script.remove();
+        reject(authError("auth/network-request-failed"));
+      };
+      document.head.appendChild(script);
+    })
+      .then((oauth2) => {
+        _googleOAuth = oauth2;
+        return oauth2;
+      })
+      .catch((error) => {
+        _googleOAuthPromise = null;
+        throw error;
+      });
+  }
+  return _googleOAuthPromise;
+}
 
 // Browsers only allow a popup while the click's user activation is still
 // live, so a page offering Google sign-in calls this on mount. Once it has
-// resolved, signInWithGoogle/reauthenticateWithGoogle reach signInWithPopup
+// resolved, signInWithGoogle/reauthenticateWithGoogle open Google's popup
 // without awaiting anything first.
 export async function prepareGoogleSignIn() {
-  await Promise.all([readyAuth(), loadFirebaseSdk()]);
+  await Promise.all([readyAuth(), loadFirebaseSdk(), loadGoogleIdentity()]);
 }
 
-function googleProvider(sdk, customParameters) {
-  const provider = new sdk.GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: "select_account", ...customParameters });
-  return provider;
+// Opens Google's account chooser. Resolves to an access token, or null when
+// the person closed the popup or declined. The promise executor runs
+// synchronously, so the popup is requested inside the click.
+function requestGoogleAccessToken(oauth2, loginHint) {
+  return new Promise((resolve, reject) => {
+    const client = oauth2.initTokenClient({
+      client_id: googleClientId(),
+      scope: GOOGLE_SCOPES,
+      prompt: "select_account",
+      ...(loginHint ? { login_hint: loginHint } : {}),
+      callback: (response) => {
+        if (response?.access_token) resolve(response.access_token);
+        else if (response?.error === "access_denied") resolve(null);
+        else reject(authError("auth/internal-error"));
+      },
+      error_callback: (error) => {
+        if (error?.type === "popup_closed") resolve(null);
+        else if (error?.type === "popup_failed_to_open") reject(authError("auth/popup-blocked"));
+        else reject(authError("auth/internal-error"));
+      },
+    });
+    client.requestAccessToken();
+  });
+}
+
+// Resolves to the Firebase credential result, or null on dismissal.
+async function googlePopupSignIn(loginHint) {
+  const auth = _auth || (await readyAuth());
+  const sdk = _sdk || (await loadFirebaseSdk());
+  const oauth2 = _googleOAuth || (await loadGoogleIdentity());
+  const accessToken = await requestGoogleAccessToken(oauth2, loginHint);
+  if (!accessToken) return null;
+  return sdk.signInWithCredential(auth, sdk.GoogleAuthProvider.credential(null, accessToken));
 }
 
 // Resolves to the Firebase user, or null when the person dismissed the popup.
 export async function signInWithGoogle() {
-  const auth = _auth || (await readyAuth());
-  const sdk = _sdk || (await loadFirebaseSdk());
-  try {
-    const credential = await sdk.signInWithPopup(auth, googleProvider(sdk));
-    return credential.user;
-  } catch (error) {
-    if (POPUP_DISMISSED_CODES.has(error?.code)) return null;
-    throw error;
-  }
+  const credential = await googlePopupSignIn();
+  return credential ? credential.user : null;
 }
 
 // Google counterpart of reauthenticateWithPassword for accounts without a
@@ -161,19 +236,11 @@ export async function signInWithGoogle() {
 // match the signed-in Portfyl user, so picking another Google account fails
 // there. Resolves to a fresh ID token, or null when the popup was dismissed.
 export async function reauthenticateWithGoogle(expectedEmail) {
-  const auth = _auth || (await readyAuth());
-  const sdk = _sdk || (await loadFirebaseSdk());
   try {
-    const credential = await sdk.signInWithPopup(
-      auth,
-      googleProvider(sdk, expectedEmail ? { login_hint: expectedEmail } : {}),
-    );
-    return await credential.user.getIdToken(true);
-  } catch (error) {
-    if (POPUP_DISMISSED_CODES.has(error?.code)) return null;
-    throw error;
+    const credential = await googlePopupSignIn(expectedEmail);
+    return credential ? await credential.user.getIdToken(true) : null;
   } finally {
-    if (auth.currentUser) await sdk.signOut(auth);
+    if (_auth?.currentUser) await _sdk.signOut(_auth);
   }
 }
 

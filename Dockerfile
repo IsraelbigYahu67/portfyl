@@ -19,6 +19,9 @@ ARG VITE_FIREBASE_APP_ID
 # The service also needs the runtime env PORTFYL_FIREBASE_AUTH_DOMAIN so the
 # CSP admits Firebase's popup; see deploy/cloudrun.md.
 ARG VITE_FIREBASE_GOOGLE_SIGN_IN=false
+# Public OAuth web client ID of the Firebase project's Google provider. The
+# button stays hidden without it: Google's popup is opened with this ID.
+ARG VITE_GOOGLE_OAUTH_CLIENT_ID=
 ARG VITE_PORTFYL_EDITION=cloud
 # PostHog Cloud EU activation analytics. Both stay EMPTY until the public
 # privacy notice covering PostHog is legally reviewed and published (see
@@ -33,7 +36,8 @@ ENV VITE_PORTFYL_EDITION=$VITE_PORTFYL_EDITION \
     VITE_FIREBASE_AUTH_DOMAIN=$VITE_FIREBASE_AUTH_DOMAIN \
     VITE_FIREBASE_PROJECT_ID=$VITE_FIREBASE_PROJECT_ID \
     VITE_FIREBASE_APP_ID=$VITE_FIREBASE_APP_ID \
-    VITE_FIREBASE_GOOGLE_SIGN_IN=$VITE_FIREBASE_GOOGLE_SIGN_IN
+    VITE_FIREBASE_GOOGLE_SIGN_IN=$VITE_FIREBASE_GOOGLE_SIGN_IN \
+    VITE_GOOGLE_OAUTH_CLIENT_ID=$VITE_GOOGLE_OAUTH_CLIENT_ID
 COPY frontend/ ./
 # The public /terms and /privacy pages import their text from docs/legal/
 # (frontend/src/pages/Legal.jsx), one level above the frontend root.

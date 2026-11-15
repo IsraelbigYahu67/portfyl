@@ -557,9 +557,11 @@ git archive --format=tar -o "$SRC.tar" main
 tar -x -f "$SRC.tar" -C $SRC
 Remove-Item "$SRC.tar"
 $fb = @{}
-Get-Content frontend/.env.local | Where-Object { $_ -match '^(VITE_(?:FIREBASE|POSTHOG)_\w+)=(.*)$' } | ForEach-Object { $fb[$Matches[1]] = $Matches[2].Trim().Trim('"') }
+Get-Content frontend/.env.local | Where-Object { $_ -match '^(VITE_(?:FIREBASE|POSTHOG|GOOGLE)_\w+)=(.*)$' } | ForEach-Object { $fb[$Matches[1]] = $Matches[2].Trim().Trim('"') }
 # A missing flag silently builds Google sign-in off; prod has it on, so require an explicit true/false.
 if ($fb.VITE_FIREBASE_GOOGLE_SIGN_IN -notin @("true", "false")) { throw "frontend/.env.local needs VITE_FIREBASE_GOOGLE_SIGN_IN=true (or =false to turn Google sign-in off)" }
+# Without the client ID the button is hidden even when the flag is true.
+if ($fb.VITE_FIREBASE_GOOGLE_SIGN_IN -eq "true" -and -not $fb.VITE_GOOGLE_OAUTH_CLIENT_ID) { throw "frontend/.env.local needs VITE_GOOGLE_OAUTH_CLIENT_ID (see 'Google sign-in' in deploy/cloudrun.md)" }
 @"
 steps:
 - name: gcr.io/cloud-builders/docker
@@ -569,6 +571,7 @@ steps:
          '--build-arg', 'VITE_FIREBASE_PROJECT_ID=$($fb.VITE_FIREBASE_PROJECT_ID)',
          '--build-arg', 'VITE_FIREBASE_APP_ID=$($fb.VITE_FIREBASE_APP_ID)',
          '--build-arg', 'VITE_FIREBASE_GOOGLE_SIGN_IN=$($fb.VITE_FIREBASE_GOOGLE_SIGN_IN)',
+         '--build-arg', 'VITE_GOOGLE_OAUTH_CLIENT_ID=$($fb.VITE_GOOGLE_OAUTH_CLIENT_ID)',
          '--build-arg', 'VITE_POSTHOG_KEY=$($fb.VITE_POSTHOG_KEY)',
          '--build-arg', 'VITE_POSTHOG_HOST=$($fb.VITE_POSTHOG_HOST)',
          '.']
@@ -590,10 +593,17 @@ the new revision's Cloud Run logs, not with an anonymous `curl`.
 ### Google sign-in
 
 "Continue with Google" is off unless the image is built with
-`VITE_FIREBASE_GOOGLE_SIGN_IN=true`. The redeploy above passes whatever
-`frontend/.env.local` holds and stops if the line is missing, so the button
-can no longer disappear by accident. Prod has had it on since 2026-10-13. See
-`docs/superpowers/plans/2026-10-12-portfyl-google-sign-in.md`. To turn it on:
+`VITE_FIREBASE_GOOGLE_SIGN_IN=true` and `VITE_GOOGLE_OAUTH_CLIENT_ID`. The
+redeploy above passes whatever `frontend/.env.local` holds and stops if either
+line is missing, so the button can no longer disappear by accident. Prod has
+had it on since 2026-10-13. See
+`docs/superpowers/plans/2026-10-12-portfyl-google-sign-in.md`.
+
+Since 2026-11-14 the button opens Google's own popup (Google Identity
+Services) straight on `accounts.google.com`, and Firebase then exchanges
+Google's access token for the Firebase user. Firebase's `signInWithPopup` is
+not used: it showed a blank `portfyl-cloud-fstxby.firebaseapp.com/__/auth/handler`
+window first and made Google name that host as the app. To turn it on:
 
 1. Check that the Firebase console prerequisites are in place in
    `portfyl-cloud-fstxby` (plan T0):
@@ -603,16 +613,26 @@ can no longer disappear by accident. Prod has had it on since 2026-10-13. See
    - the OAuth consent screen is configured;
    - every private tester is a consent-screen Test user, in addition to
      Cloudflare Access and `beta_invites`.
-2. One time only, give the service the auth domain its CSP must admit for
-   Firebase's popup. It must equal `VITE_FIREBASE_AUTH_DOMAIN`. Until it is
-   set, the CSP keeps blocking Google's popup scripts:
+2. In the Google Cloud console of `portfyl-cloud-fstxby` (APIs & Services →
+   Credentials → "Web client (auto created by Google Service)"), add every
+   origin that shows the button to **Authorized JavaScript origins**:
+   `https://app.portfyl.com` and, for local dev, `http://localhost:5173`. An
+   origin that is missing makes Google's popup show `origin_mismatch`. That
+   client's ID (public, ends with `.apps.googleusercontent.com`) is the value
+   of `VITE_GOOGLE_OAUTH_CLIENT_ID`; it must be the client the Firebase Google
+   provider is configured with.
+3. One time only, switch on the CSP sources Google's popup needs
+   (`https://accounts.google.com/gsi/`). Any valid hostname in this variable
+   turns them on; the value itself is no longer put into the policy:
    ```powershell
    gcloud run services update portfyl --region $REGION --project $PROJECT --update-env-vars="PORTFYL_FIREBASE_AUTH_DOMAIN=portfyl-cloud-fstxby.firebaseapp.com"
    ```
-3. Add `VITE_FIREBASE_GOOGLE_SIGN_IN=true` to `frontend/.env.local`. The same
-   line also enables the button in local dev. Then run the routine redeploy.
-4. On `app.portfyl.com`, sign in with Google and check the browser console:
-   there must be no Content-Security-Policy violations.
+4. Add `VITE_FIREBASE_GOOGLE_SIGN_IN=true` and
+   `VITE_GOOGLE_OAUTH_CLIENT_ID=<client id>` to `frontend/.env.local`. The same
+   lines also enable the button in local dev. Then run the routine redeploy.
+5. On `app.portfyl.com`, sign in with Google and check the browser console:
+   there must be no Content-Security-Policy violations, and the popup must
+   open directly on `accounts.google.com`.
 
 To roll back, remove the line or set it to `false` and redeploy. No data
 changes are involved. Leaving `PORTFYL_FIREBASE_AUTH_DOMAIN` set is harmless.
