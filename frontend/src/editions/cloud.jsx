@@ -1,6 +1,6 @@
 import { Layers3 } from "lucide-react";
 import { lazy } from "react";
-import { fetchTestPlan } from "../api";
+import { fetchBillingStatus, fetchTestPlan } from "../api";
 import UpgradePrompt from "../components/UpgradePrompt";
 import { msg } from "../i18n/I18nProvider";
 
@@ -27,3 +27,16 @@ export const fetchEditionDashboardSignals = async () => ({ taxReport: null });
 // /api/capabilities lists what the cloud edition offers at all; the
 // workspace's plan decides which of those it may use right now.
 export const fetchEditionPlanCapabilities = async () => (await fetchTestPlan()).capabilities;
+
+// What the onboarding connect step needs to know before it asks for broker
+// credentials. Reads /api/billing/status rather than /api/test-plans, which is
+// unmounted once billing is on.
+export const fetchEditionOnboardingPlan = async () => {
+  const status = await fetchBillingStatus();
+  return {
+    brokerSync: (status.capabilities ?? []).includes("broker_sync"),
+    billingEnabled: !!status.billing_enabled,
+    canManageBilling: !!status.can_manage_billing,
+    investorMonthlyCents: status.prices?.monthly_cents?.investor ?? null,
+  };
+};

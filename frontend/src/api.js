@@ -112,6 +112,19 @@ function refreshCsrfOnce() {
   return _csrfRefreshInFlight;
 }
 
+// Only a 401 about Portfyl's own session sends the user to the login page.
+// Session loss carries {code: "authentication_required"} (tenancy.py,
+// routers/auth.py), or no body at all. A route's own 401 is not a lost
+// session: a broker refusing the user's API key answers {detail: "Invalid API
+// key"} (routers/broker.py), and account deletion answers
+// {code: "recent_reauthentication_required"}. The page shows those inline.
+function isSessionLost(error) {
+  if (error?.response?.status !== 401) return false;
+  const data = error.response.data;
+  if (typeof data?.detail === "string") return false;
+  return data?.code === undefined || data.code === "authentication_required";
+}
+
 export async function handleResponseError(error) {
   const config = error?.config;
   if (
@@ -135,7 +148,7 @@ export async function handleResponseError(error) {
       return api.request(config);
     }
   }
-  if (error?.response?.status === 401 && typeof window !== "undefined") {
+  if (isSessionLost(error) && typeof window !== "undefined") {
     if (!window.__sbRedirectingToLogin && !isPublicAuthPath(window.location.pathname)) {
       window.__sbRedirectingToLogin = true;
       window.location.assign("/login");
@@ -351,10 +364,16 @@ export const fetchInsiderBuys = () =>
   api.get("/portfolio/insider-buys").then((r) => r.data);
 
 export const fetchT212Status = () => api.get("/broker/trading212/status").then((r) => r.data);
-export const connectT212 = (apiKey, apiSecret) =>
-  api.post("/broker/trading212/connect", { api_key: apiKey, api_secret: apiSecret }).then((r) => r.data);
+// The connect/sync functions below take an options object read by name only, so
+// an event or mutation variable passed by mistake is ignored. Onboarding sets
+// `suppressEntitlementPrompt` to handle a plan 403 itself (no global toast).
+export const connectT212 = (apiKey, apiSecret, { suppressEntitlementPrompt = false } = {}) =>
+  api
+    .post("/broker/trading212/connect", { api_key: apiKey, api_secret: apiSecret }, { suppressEntitlementPrompt })
+    .then((r) => r.data);
 export const disconnectT212 = () => api.delete("/broker/trading212/connect").then((r) => r.data);
-export const syncT212 = () => api.post("/broker/trading212/sync").then((r) => r.data);
+export const syncT212 = ({ suppressEntitlementPrompt = false } = {}) =>
+  api.post("/broker/trading212/sync", undefined, { suppressEntitlementPrompt }).then((r) => r.data);
 export const setT212AutoSync = (enabled) =>
   api.post("/broker/trading212/auto-sync", { enabled }).then((r) => r.data);
 export const fetchT212Positions = (currency = "USD") =>
@@ -369,23 +388,27 @@ export const fetchCombinedSummary = (currency = "USD") =>
 
 // ----- IBKR (Flex Web Service) ---------------------------------------------
 export const fetchIBKRStatus = () => api.get("/broker/ibkr/status").then((r) => r.data);
-export const connectIBKR = (flexToken, queryId) =>
-  api.post("/broker/ibkr/connect", { flex_token: flexToken, query_id: queryId }).then((r) => r.data);
+export const connectIBKR = (flexToken, queryId, { suppressEntitlementPrompt = false } = {}) =>
+  api
+    .post("/broker/ibkr/connect", { flex_token: flexToken, query_id: queryId }, { suppressEntitlementPrompt })
+    .then((r) => r.data);
 export const disconnectIBKR = () => api.delete("/broker/ibkr/connect").then((r) => r.data);
 // The response's `ledger` reports the stock/ETF/dividend/cash import:
 // { status: "imported" | "needs_review" | "deferred" | "sections_missing",
 //   imported, already_present, errors }.
-export const syncIBKR = () => api.post("/broker/ibkr/sync").then((r) => r.data);
+export const syncIBKR = ({ suppressEntitlementPrompt = false } = {}) =>
+  api.post("/broker/ibkr/sync", undefined, { suppressEntitlementPrompt }).then((r) => r.data);
 export const setIBKRAutoSync = (enabled) =>
   api.post("/broker/ibkr/auto-sync", { enabled }).then((r) => r.data);
 
 // ----- eToro (Public API, personal Read key) -----------------------------------
 // Status carries `configured: false` when the server has no eToro app key.
 export const fetchEtoroStatus = () => api.get("/broker/etoro/status").then((r) => r.data);
-export const connectEtoro = (userKey) =>
-  api.post("/broker/etoro/connect", { user_key: userKey }).then((r) => r.data);
+export const connectEtoro = (userKey, { suppressEntitlementPrompt = false } = {}) =>
+  api.post("/broker/etoro/connect", { user_key: userKey }, { suppressEntitlementPrompt }).then((r) => r.data);
 // { status: "imported" | "needs_review", imported, already_present, errors, skipped_reasons }
-export const syncEtoro = () => api.post("/broker/etoro/sync").then((r) => r.data);
+export const syncEtoro = ({ suppressEntitlementPrompt = false } = {}) =>
+  api.post("/broker/etoro/sync", undefined, { suppressEntitlementPrompt }).then((r) => r.data);
 export const setEtoroAutoSync = (enabled) =>
   api.post("/broker/etoro/auto-sync", { enabled }).then((r) => r.data);
 export const disconnectEtoro = () => api.delete("/broker/etoro/connect").then((r) => r.data);

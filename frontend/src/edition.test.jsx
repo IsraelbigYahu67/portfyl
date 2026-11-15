@@ -5,6 +5,7 @@ import {
   EDITION_NAVIGATION as CLOUD_NAVIGATION,
   EDITION_ROUTES as CLOUD_ROUTES,
   fetchEditionDashboardSignals as cloudDashboardSignals,
+  fetchEditionOnboardingPlan as cloudOnboardingPlan,
   fetchEditionPlanCapabilities as cloudPlanCapabilities,
 } from "./editions/cloud";
 import cloudManifestSource from "./editions/cloud.jsx?raw";
@@ -12,6 +13,7 @@ import {
   EDITION_NAVIGATION as LOCAL_NAVIGATION,
   EDITION_ROUTES as LOCAL_ROUTES,
   fetchEditionDashboardSignals as localDashboardSignals,
+  fetchEditionOnboardingPlan as localOnboardingPlan,
   fetchEditionPlanCapabilities as localPlanCapabilities,
 } from "./editions/local";
 import { enabledEditionEntries } from "./editions/filter";
@@ -19,6 +21,12 @@ import { enabledEditionEntries } from "./editions/filter";
 vi.mock("./api", async (importOriginal) => ({
   ...(await importOriginal()),
   fetchTestPlan: vi.fn(async () => ({ plan: "investor", capabilities: ["portfolio_analytics"] })),
+  fetchBillingStatus: vi.fn(async () => ({
+    capabilities: ["portfolio_analytics"],
+    billing_enabled: true,
+    can_manage_billing: true,
+    prices: { currency: "eur", monthly_cents: { investor: 599, pro: 999 } },
+  })),
 }));
 
 vi.mock("./editions/localApi", async (importOriginal) => {
@@ -88,5 +96,20 @@ describe("edition manifests", () => {
   it("narrows capabilities to the workspace plan only in cloud", async () => {
     await expect(localPlanCapabilities()).resolves.toBeNull();
     await expect(cloudPlanCapabilities()).resolves.toEqual(["portfolio_analytics"]);
+  });
+
+  it("resolves the onboarding plan from billing status in cloud and allows everything locally", async () => {
+    await expect(cloudOnboardingPlan()).resolves.toEqual({
+      brokerSync: false,
+      billingEnabled: true,
+      canManageBilling: true,
+      investorMonthlyCents: 599,
+    });
+    await expect(localOnboardingPlan()).resolves.toEqual({
+      brokerSync: true,
+      billingEnabled: false,
+      canManageBilling: false,
+      investorMonthlyCents: null,
+    });
   });
 });

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import OnboardingView, { choiceHandler } from "../components/onboarding/OnboardingView";
-import { activatePortfolio, createDemoPortfolio, createPendingImportPortfolio, createPortfolio, requestBrokerSupport } from "../api";
+import { activatePortfolio, createDemoPortfolio, createPendingImportPortfolio, requestBrokerSupport } from "../api";
 import { useCurrency, usePortfolio } from "../App";
 import { TRACKER_HOME } from "../lib/routes";
-import { uniquePortfolioName } from "../lib/brokerPortfolio";
 import { findSupportedBroker } from "../lib/onboardingBrokers";
+import { clearConnectStep, connectStepBroker, readCheckoutReturn, rememberConnectStep } from "../lib/onboardingConnect";
+import { useOnboardingConnect } from "../hooks/useOnboardingConnect";
 import { clearIntendedBroker, intendedBroker, rememberIntendedBroker } from "../lib/signupIntent";
 import { useRegisteredActivation } from "../analytics/useRegisteredActivation";
 import { useAnalytics } from "../analytics/AnalyticsProvider";
@@ -22,17 +23,13 @@ function errorMessage(error, t) {
 
 // One action per ONBOARDING_CHOICE_KEYS entry (Onboarding.test.jsx checks the
 // two match). Pure: it only builds the closures; nothing runs until a click.
-// `broker` is the supported broker picked in step 1 (null before that).
-export function buildOnboardingActions({ beginImport, activate, broker = null, portfolios = [] }) {
+// `openConnect` opens the connect step inside onboarding; no portfolio is
+// created until the visitor submits credentials.
+export function buildOnboardingActions({ beginImport, activate, openConnect }) {
   return {
     import: beginImport,
     demo: () => activate(createDemoPortfolio, TRACKER_HOME, "demo"),
-    broker: () => activate(
-      // One broker per portfolio: name it after the broker it will sync.
-      () => createPortfolio({ name: broker ? uniquePortfolioName(portfolios, broker.key) : "My portfolio" }),
-      broker ? `/settings?section=connections&broker=${broker.key}` : "/settings?section=connections",
-      "broker",
-    ),
+    broker: openConnect,
   };
 }
 
@@ -41,7 +38,8 @@ export default function Onboarding() {
   const t = useT();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { portfolios, pendingImportPortfolio, setCurrentId, refetchPortfolios } = usePortfolio();
+  const { pathname } = useLocation();
+  const { pendingImportPortfolio, setCurrentId, refetchPortfolios } = usePortfolio();
   const { currency, setCurrency } = useCurrency() ?? {};
   const { recordPortfolioCreated, recordPortfolioDataImported } = useRegisteredActivation();
   const { capture } = useAnalytics();
@@ -59,33 +57,96 @@ export default function Onboarding() {
   // and e-mail verification. Read once, on the first render, so step 2 shows
   // at once; a broker in the URL wins, and any later pick or "Change broker"
   // drops it (changeBroker), so it can never override a newer choice.
-  const [remembered, setRemembered] = useState(() => (searchParams.has("broker") ? null : intendedBroker()));
+  // A connect step left open (closed tab) wins over it and reopens that step.
+  // Stripe's return carries no broker: the checkout effect below finds it.
+  const [checkoutReturn] = useState(() => readCheckoutReturn(searchParams));
+  const [initialBroker] = useState(() => {
+    if (searchParams.has("broker") || checkoutReturn) return { key: null, fromMarker: false };
+    const marker = connectStepBroker();
+    return marker ? { key: marker, fromMarker: true } : { key: intendedBroker(), fromMarker: false };
+  });
+  const [remembered, setRemembered] = useState(initialBroker.key);
+  // True only until the mount effect has put the restored step in the URL.
+  const [restoringConnect, setRestoringConnect] = useState(initialBroker.fromMarker);
   // In the URL, so "Leave import" on the Import page can return to step 2.
   const broker = findSupportedBroker(searchParams.get("broker") ?? remembered);
+  // Stripe returns to /pricing: AppLayout then remounts onboarding at the
+  // right path, so this instance renders nothing meanwhile.
+  const movingCheckoutReturn = Boolean(checkoutReturn) && pathname !== "/onboarding";
 
   // Funnel: one onboarding_step_viewed per step the visitor reaches. The ref
   // holds the last step reported, so a re-render on the same step and React
   // StrictMode's double effect stay silent, while coming back to a step
   // (broker -> choices -> Change broker -> broker) reports it again. The step
   // is only a fixed label; the typed broker name never leaves this page.
-  const step = unsupportedName ? "unsupported" : broker ? "choices" : "broker";
+  const connectWanted = searchParams.get("step") === "connect" || restoringConnect;
+  const step = unsupportedName ? "unsupported" : broker ? (connectWanted && broker.api ? "connect" : "choices") : "broker";
   const reportedStep = useRef(null);
   useEffect(() => {
-    if (reportedStep.current === step) return;
+    if (movingCheckoutReturn || reportedStep.current === step) return;
     reportedStep.current = step;
     capture(ANALYTICS_EVENTS.ONBOARDING_STEP_VIEWED, { step });
-  }, [step, capture]);
+  }, [step, capture, movingCheckoutReturn]);
 
-  // Put the remembered broker in the URL too, so that Leave import and a
-  // reload come back to it.
+  // Put the remembered broker (and a restored connect step) in the URL too, so
+  // that Leave import and a reload come back to it.
   useEffect(() => {
     if (!remembered) return;
     const next = new URLSearchParams(searchParams);
     next.set("broker", remembered);
+    if (initialBroker.fromMarker) next.set("step", "connect");
     setSearchParams(next, { replace: true });
+    setRestoringConnect(false);
     // Only on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A checkout return that landed away from /onboarding moves there with its
+  // parameters, for the remembered broker; without one only the checkout
+  // parameters are dropped. A return that already is on /onboarding but cannot
+  // show the connect step is cleaned up the same way.
+  useEffect(() => {
+    if (!checkoutReturn) return;
+    if (pathname !== "/onboarding") {
+      const key = connectStepBroker() ?? intendedBroker();
+      const next = new URLSearchParams();
+      if (key) {
+        next.set("broker", key);
+        next.set("step", "connect");
+        next.set("checkout", checkoutReturn.outcome);
+        if (checkoutReturn.sessionId) next.set("session_id", checkoutReturn.sessionId);
+      }
+      const query = next.toString();
+      navigate(`/onboarding${query ? `?${query}` : ""}`, { replace: true });
+    } else if (!(broker?.api && searchParams.get("step") === "connect")) {
+      stripCheckoutParams();
+    }
+    // Only on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function stripCheckoutParams() {
+    const next = new URLSearchParams(searchParams);
+    next.delete("checkout");
+    next.delete("session_id");
+    setSearchParams(next, { replace: true });
+  }
+
+  function openConnect() {
+    if (!broker) return;
+    rememberConnectStep(broker.key);
+    const next = new URLSearchParams(searchParams);
+    next.set("broker", broker.key);
+    next.set("step", "connect");
+    setSearchParams(next);
+  }
+
+  function leaveConnect() {
+    clearConnectStep();
+    const next = new URLSearchParams(searchParams);
+    next.delete("step");
+    setSearchParams(next);
+  }
 
   function changeBroker(key) {
     // Only a real pick: null is "Change broker", and a broker restored from
@@ -93,6 +154,7 @@ export default function Onboarding() {
     if (key) capture(ANALYTICS_EVENTS.ONBOARDING_BROKER_PICKED, { broker_key: key });
     setError(null);
     setRemembered(null);
+    clearConnectStep();
     // Storage follows the latest choice, so a stale broker never survives a
     // reload or reaches the sample-data banner after the demo.
     if (key) rememberIntendedBroker(key);
@@ -100,6 +162,7 @@ export default function Onboarding() {
     const next = new URLSearchParams(searchParams);
     if (key) next.set("broker", key);
     else next.delete("broker");
+    next.delete("step");
     setSearchParams(next);
   }
 
@@ -139,10 +202,9 @@ export default function Onboarding() {
       const portfolio = await create();
       setCurrentId(portfolio.id);
       recordPortfolioCreated(kind);
-      // The remembered broker has done its job once a real portfolio exists.
-      // The demo keeps it: the sample-data banner offers "Import your own
-      // portfolio" for that broker.
-      if (kind === "broker") clearIntendedBroker();
+      // The demo keeps the remembered broker: the sample-data banner offers
+      // "Import your own portfolio" for that broker.
+      clearConnectStep();
       // createDemoPortfolio populates its data as part of creation itself --
       // unlike csv/broker, there is no separate later import step for it.
       if (kind === "demo") recordPortfolioDataImported("demo");
@@ -163,6 +225,7 @@ export default function Onboarding() {
       setCurrentId(portfolio.id);
       recordPortfolioCreated("csv");
       clearIntendedBroker();
+      clearConnectStep();
       await refetchPortfolios();
       navigate(broker ? `/import?broker=${broker.key}` : "/import");
     } catch (err) {
@@ -181,6 +244,7 @@ export default function Onboarding() {
       setCurrentId(portfolio.id);
       recordPortfolioCreated("blank");
       clearIntendedBroker();
+      clearConnectStep();
       navigate(TRACKER_HOME);
       await refetchPortfolios();
     } catch (err) {
@@ -190,7 +254,48 @@ export default function Onboarding() {
     }
   }
 
-  const actions = buildOnboardingActions({ beginImport, activate, broker, portfolios });
+  // Keeps today's order: navigate first, so the refetch that removes the
+  // pending-portfolio gate cannot unmount onboarding mid-flight.
+  async function finishConnect({ imported }) {
+    recordPortfolioCreated("broker");
+    if (imported) recordPortfolioDataImported("broker");
+    clearIntendedBroker();
+    clearConnectStep();
+    navigate(TRACKER_HOME);
+    await refetchPortfolios();
+  }
+
+  // The hook only works while the connect step is on screen (null = idle).
+  const connectState = useOnboardingConnect({
+    broker: step === "connect" ? broker : null,
+    pendingPortfolio: pendingImportPortfolio,
+    setCurrentId,
+    checkoutReturn: pathname === "/onboarding" ? checkoutReturn : null,
+    onCheckoutReturnHandled: stripCheckoutParams,
+    onFinished: finishConnect,
+  });
+
+  const actions = buildOnboardingActions({ beginImport, activate, openConnect });
+  const connect = step === "connect"
+    ? {
+      phase: connectState.phase,
+      billingEnabled: connectState.plan?.billingEnabled,
+      canManageBilling: connectState.plan?.canManageBilling,
+      investorMonthlyCents: connectState.plan?.investorMonthlyCents,
+      notice: connectState.notice,
+      error: connectState.error,
+      locked: connectState.locked,
+      onSubmit: connectState.submit,
+      onUpgrade: connectState.upgrade,
+      onRecheck: connectState.recheck,
+      onImportFree: () => beginImport(),
+      onBack: leaveConnect,
+      onChangeBroker: () => changeBroker(null),
+      onDemo: () => activate(createDemoPortfolio, TRACKER_HOME, "demo"),
+    }
+    : null;
+
+  if (movingCheckoutReturn) return null;
 
   return (
     <OnboardingView
@@ -206,6 +311,7 @@ export default function Onboarding() {
       onStartBlank={startBlank}
       busy={busy}
       error={error}
+      connect={connect}
     />
   );
 }

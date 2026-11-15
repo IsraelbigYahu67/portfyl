@@ -30,6 +30,14 @@ export const fetchEditionDashboardSignals = async () => ({
 // narrows the capabilities /api/capabilities returns.
 export const fetchEditionPlanCapabilities = async () => null;
 
+// Local has no plans and no billing: every broker may sync.
+export const fetchEditionOnboardingPlan = async () => ({
+  brokerSync: true,
+  billingEnabled: false,
+  canManageBilling: false,
+  investorMonthlyCents: null,
+});
+
 export function EditionShell() {
   return null;
 }

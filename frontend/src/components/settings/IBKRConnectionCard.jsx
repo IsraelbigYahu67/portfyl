@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
-import { AlertCircle, CheckCircle2, Clock, Eye, EyeOff, Info, Link as LinkIcon, Loader2, RefreshCw, Unlink } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Loader2, RefreshCw, Unlink } from "lucide-react";
 
 import { connectIBKR, disconnectIBKR, fetchIBKRStatus, setIBKRAutoSync, syncIBKR } from "../../api";
 import { AsyncSection } from "../ui";
@@ -10,11 +9,14 @@ import { Badge } from "../ui/Badge";
 import { getApiErrorMessage } from "../../lib/apiError";
 import { useBrokerPortfolio } from "../../hooks/useBrokerPortfolio";
 import { splitNote } from "../../lib/brokerPortfolio";
+import { IBKRCredentialsForm } from "./brokerCredentialForms";
+import { IBKRFlexGuide } from "./BrokerKeyGuides";
 import { rich, translate, useT } from "../../i18n/I18nProvider";
 
 import { IBKR_FLEX_SECTIONS } from "../../lib/ibkrFlex";
 
 export { IBKR_FLEX_SECTIONS };
+export { IBKRFlexGuide } from "./BrokerKeyGuides";
 
 // Without `t` the messages read in English (tests, non-component callers).
 const english = (text, vars) => translate(null, text, vars);
@@ -92,52 +94,12 @@ export function IBKRSyncOutcome({ result }) {
   );
 }
 
-export function IBKRFlexGuide() {
-  const t = useT();
-  // IBKR's menu and option names stay as IBKR shows them, in <b> / <code>.
-  const ink = (text) => rich(text, {
-    b: (words) => <span className="text-ink">{words}</span>,
-    code: (words) => <code className="font-mono text-ink">{words}</code>,
-  });
-  return (
-    <details className="rounded-lg bg-surface-hover p-4 text-sm">
-      <summary className="cursor-pointer font-medium text-ink">{t("How to set up the IBKR Flex Query")}</summary>
-      <ol className="mt-3 list-decimal space-y-2 pl-5 text-muted">
-        <li>{ink(t("In the IBKR portal open <b>Performance & Reports → Flex Queries</b> and create an <b>Activity Flex Query</b>."))}</li>
-        <li>
-          {t("Enable these sections (select all fields in each):")}
-          <ul className="mt-1 list-disc space-y-0.5 pl-5">
-            {IBKR_FLEX_SECTIONS.map(([section, level]) => (
-              <li key={section}><span className="text-ink">{section}</span>{level && ` — ${t(level)}`}</li>
-            ))}
-          </ul>
-        </li>
-        <li>
-          {ink(t("Delivery configuration: format <b>XML</b>, date format <code>yyyyMMdd</code>, time format <code>HHmmss</code>, date/time separator <code>;</code> (semicolon)."))}{" "}
-          {ink(t("Period: <b>Last 365 calendar days</b>."))}
-        </li>
-        <li>{ink(t("Save the query and copy its <b>Query ID</b>. Then open <b>Flex Web Service Configuration</b>, enable it and generate a token."))}</li>
-        <li>{t("Paste the token and Query ID above. Lynx accounts use the same steps.")}</li>
-      </ol>
-      <p className="mt-3 flex items-start gap-2 text-xs text-muted">
-        <Info size={14} className="mt-0.5 shrink-0 text-brand" aria-hidden="true" />
-        <span>
-          {rich(t("The sync only sees the last 365 days. For older history, run the same query in the portal once per year and upload each XML file on the <link>Import page</link>. Transactions already imported are recognized and skipped."), {
-            link: (words) => <Link to="/import" className="text-brand underline">{words}</Link>,
-          })}
-        </span>
-      </p>
-    </details>
-  );
-}
-
 export default function IBKRConnectionCard({ portfolioId, portfolioName }) {
   const t = useT();
   const queryClient = useQueryClient();
   const brokerPortfolio = useBrokerPortfolio();
   const [flexToken, setFlexToken] = useState("");
   const [queryId, setQueryId] = useState("");
-  const [showToken, setShowToken] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [syncResult, setSyncResult] = useState(null);
@@ -234,18 +196,13 @@ export default function IBKRConnectionCard({ portfolioId, portfolioName }) {
 
         {!connected && (
           <div className="space-y-3">
-            <div>
-              <label htmlFor="ibkr-flex-token" className="mb-1.5 block text-sm text-muted">{t("Flex Web Service token")}</label>
-              <div className="relative">
-                <input id="ibkr-flex-token" type={showToken ? "text" : "password"} value={flexToken} onChange={(event) => setFlexToken(event.target.value)} placeholder={t("Paste your Flex Web Service token")} autoComplete="off" className="input pr-10 text-sm" />
-                <button type="button" aria-label={showToken ? t("Hide token") : t("Show token")} onClick={() => setShowToken((visible) => !visible)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink">{showToken ? <EyeOff size={16} /> : <Eye size={16} />}</button>
-              </div>
-            </div>
-            <div>
-              <label htmlFor="ibkr-query-id" className="mb-1.5 block text-sm text-muted">{t("Flex Query ID")}</label>
-              <input id="ibkr-query-id" type="text" inputMode="numeric" value={queryId} onChange={(event) => setQueryId(event.target.value)} placeholder={t("e.g. 123456")} autoComplete="off" className="input text-sm" />
-            </div>
-            <button type="button" onClick={() => connectMutation.mutate()} disabled={!flexToken.trim() || !queryId.trim() || busy} className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40">{connectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} />}{t("Connect")}</button>
+            <IBKRCredentialsForm
+              values={{ flexToken, queryId }}
+              onChange={(next) => { setFlexToken(next.flexToken); setQueryId(next.queryId); }}
+              onSubmit={() => connectMutation.mutate()}
+              busy={busy}
+              submitting={connectMutation.isPending}
+            />
           </div>
         )}
 

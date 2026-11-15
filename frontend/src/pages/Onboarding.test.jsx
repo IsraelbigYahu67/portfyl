@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import Onboarding, { buildOnboardingActions } from "./Onboarding";
 import { ONBOARDING_CHOICE_KEYS, onboardingChoices } from "../components/onboarding/OnboardingView";
 import { findSupportedBroker } from "../lib/onboardingBrokers";
 import { INTENDED_BROKER_KEY, intendedBroker } from "../lib/signupIntent";
+import { CONNECT_STEP_KEY, rememberConnectStep } from "../lib/onboardingConnect";
 import { TRACKER_HOME } from "../lib/routes";
 import { legacyColorClassesIn } from "../test/legacyClasses";
 import { I18nProvider } from "../i18n/I18nProvider";
@@ -23,9 +25,38 @@ const mocks = vi.hoisted(() => ({
   refetchPortfolios: vi.fn(),
   recordPortfolioCreated: vi.fn(() => true),
   recordPortfolioDataImported: vi.fn(() => true),
+  confirmCheckout: vi.fn(),
+  connectEtoro: vi.fn(),
+  connectIBKR: vi.fn(),
+  connectT212: vi.fn(),
+  fetchEtoroStatus: vi.fn(),
+  fetchIBKRStatus: vi.fn(),
+  fetchT212Status: vi.fn(),
+  startCheckout: vi.fn(),
+  syncEtoro: vi.fn(),
+  syncIBKR: vi.fn(),
+  syncT212: vi.fn(),
+  updateTestPlan: vi.fn(),
+  fetchEditionOnboardingPlan: vi.fn(),
+}));
+
+vi.mock("@edition-manifest", () => ({
+  fetchEditionOnboardingPlan: mocks.fetchEditionOnboardingPlan,
 }));
 
 vi.mock("../api", () => ({
+  confirmCheckout: mocks.confirmCheckout,
+  connectEtoro: mocks.connectEtoro,
+  connectIBKR: mocks.connectIBKR,
+  connectT212: mocks.connectT212,
+  fetchEtoroStatus: mocks.fetchEtoroStatus,
+  fetchIBKRStatus: mocks.fetchIBKRStatus,
+  fetchT212Status: mocks.fetchT212Status,
+  startCheckout: mocks.startCheckout,
+  syncEtoro: mocks.syncEtoro,
+  syncIBKR: mocks.syncIBKR,
+  syncT212: mocks.syncT212,
+  updateTestPlan: mocks.updateTestPlan,
   createPortfolio: mocks.createPortfolio,
   createDemoPortfolio: mocks.createDemoPortfolio,
   createPendingImportPortfolio: mocks.createPendingImportPortfolio,
@@ -72,16 +103,20 @@ function mount(entry = "/onboarding", { i18n = false } = {}) {
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/onboarding" element={<><Onboarding /><LocationProbe /></>} />
+        <Route path="/pricing" element={<><Onboarding /><LocationProbe /></>} />
         <Route path={TRACKER_HOME} element={<div>Dashboard destination</div>} />
         <Route path="/import" element={<><div>Import destination</div><LocationProbe /></>} />
         <Route path="/settings" element={<><div>Settings destination</div><LocationProbe /></>} />
       </Routes>
     </MemoryRouter>
   );
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <AnalyticsProvider initialConsent="accepted" adapterFactory={() => analytics}>
-      {i18n ? <I18nProvider initial="en">{routes}</I18nProvider> : routes}
-    </AnalyticsProvider>,
+    <QueryClientProvider client={queryClient}>
+      <AnalyticsProvider initialConsent="accepted" adapterFactory={() => analytics}>
+        {i18n ? <I18nProvider initial="en">{routes}</I18nProvider> : routes}
+      </AnalyticsProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -90,6 +125,10 @@ function LocationProbe() {
   return <output aria-label="location">{location.pathname}{location.search}</output>;
 }
 
+
+const PAID_PLAN = { brokerSync: true, billingEnabled: false, canManageBilling: false, investorMonthlyCents: null };
+const FREE_PLAN = { brokerSync: false, billingEnabled: false, canManageBilling: false, investorMonthlyCents: null };
+const BILLING_PLAN = { brokerSync: false, billingEnabled: true, canManageBilling: true, investorMonthlyCents: 599 };
 
 describe("Onboarding", () => {
   beforeEach(() => {
@@ -101,6 +140,14 @@ describe("Onboarding", () => {
     mocks.activatePortfolio.mockResolvedValue({ id: "pending-id", activation_state: "active" });
     mocks.refetchPortfolios.mockResolvedValue({});
     mocks.requestBrokerSupport.mockResolvedValue({});
+    mocks.fetchEditionOnboardingPlan.mockResolvedValue(PAID_PLAN);
+    mocks.connectT212.mockResolvedValue({});
+    mocks.connectIBKR.mockResolvedValue({});
+    mocks.connectEtoro.mockResolvedValue({});
+    mocks.syncT212.mockResolvedValue({ snapshot: { positions: 0 } });
+    mocks.syncIBKR.mockResolvedValue({ ledger: { imported: 3 } });
+    mocks.syncEtoro.mockResolvedValue({ imported: 2 });
+    mocks.confirmCheckout.mockResolvedValue({ checkout_status: "complete" });
   });
 
   describe("language and currency chip", () => {
@@ -490,17 +537,16 @@ describe("Onboarding", () => {
       expect(mocks.recordPortfolioDataImported).toHaveBeenCalledWith("demo");
     });
 
-    it("creates a portfolio named after the broker before opening its connection", async () => {
+    it("opens the connect step in onboarding instead of Settings", async () => {
       mount("/onboarding?broker=trading212");
 
       fireEvent.click(screen.getByRole("button", { name: "Connect Trading 212" }));
 
-      await waitFor(() => expect(mocks.createPortfolio).toHaveBeenCalledWith({ name: "Trading 212" }));
-      expect(mocks.setCurrentId).toHaveBeenCalledWith("portfolio-id");
-      expect(await screen.findByText("Settings destination")).toBeInTheDocument();
-      expect(screen.getByLabelText("location")).toHaveTextContent("/settings?section=connections&broker=trading212");
-      expect(mocks.recordPortfolioCreated).toHaveBeenCalledWith("broker");
-      expect(mocks.recordPortfolioDataImported).not.toHaveBeenCalled();
+      expect(await screen.findByLabelText("API key ID")).toBeInTheDocument();
+      expect(screen.getByLabelText("location")).toHaveTextContent("/onboarding?broker=trading212&step=connect");
+      expect(mocks.createPortfolio).not.toHaveBeenCalled();
+      expect(mocks.createPendingImportPortfolio).not.toHaveBeenCalled();
+      expect(screen.queryByText("Settings destination")).not.toBeInTheDocument();
     });
 
     it("navigates before the portfolio refetch can unmount onboarding", async () => {
@@ -508,12 +554,14 @@ describe("Onboarding", () => {
       mocks.refetchPortfolios.mockReturnValueOnce(new Promise((resolve) => {
         finishRefetch = resolve;
       }));
-      mount("/onboarding?broker=etoro");
+      mount("/onboarding?broker=etoro&step=connect");
 
-      fireEvent.click(screen.getByRole("button", { name: "Connect eToro" }));
+      fireEvent.change(await screen.findByLabelText("eToro API key"), { target: { value: "ek" } });
+      fireEvent.click(screen.getByRole("button", { name: "Connect" }));
 
-      await waitFor(() => expect(mocks.setCurrentId).toHaveBeenCalledWith("portfolio-id"));
-      expect(await screen.findByText("Settings destination")).toBeInTheDocument();
+      await waitFor(() => expect(mocks.syncEtoro).toHaveBeenCalledTimes(1));
+      expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
+      expect(mocks.refetchPortfolios).toHaveBeenCalledTimes(1);
       finishRefetch({});
     });
 
@@ -621,13 +669,15 @@ describe("Onboarding", () => {
       expect(intendedBroker()).toBeNull();
     });
 
-    it("clears the remembered broker after a broker connection portfolio", async () => {
-      localStorage.setItem(INTENDED_BROKER_KEY, "trading212");
-      mount();
+    it("clears the remembered broker after the connection finishes", async () => {
+      localStorage.setItem(INTENDED_BROKER_KEY, "ibkr");
+      mount("/onboarding?broker=ibkr&step=connect");
 
-      fireEvent.click(screen.getByRole("button", { name: "Connect Trading 212" }));
+      fireEvent.change(await screen.findByLabelText("Flex Web Service token"), { target: { value: "tok" } });
+      fireEvent.change(screen.getByLabelText("Flex Query ID"), { target: { value: "123" } });
+      fireEvent.click(screen.getByRole("button", { name: "Connect" }));
 
-      expect(await screen.findByText("Settings destination")).toBeInTheDocument();
+      expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
       expect(intendedBroker()).toBeNull();
     });
 
@@ -643,8 +693,89 @@ describe("Onboarding", () => {
     });
   });
 
+  describe("connect step", () => {
+    const fillIbkr = async () => {
+      fireEvent.change(await screen.findByLabelText("Flex Web Service token"), { target: { value: "tok" } });
+      fireEvent.change(screen.getByLabelText("Flex Query ID"), { target: { value: "123" } });
+      fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+    };
+    const stepViews = () => analytics.events
+      .filter(([name]) => name === "onboarding_step_viewed")
+      .map(([, props]) => props.step);
+
+    it("connects, syncs and opens the dashboard", async () => {
+      mount("/onboarding?broker=ibkr&step=connect");
+
+      await fillIbkr();
+
+      expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
+      expect(mocks.createPendingImportPortfolio).toHaveBeenCalledTimes(1);
+      expect(mocks.setCurrentId).toHaveBeenCalledWith("pending-id");
+      expect(mocks.activatePortfolio).toHaveBeenCalledWith("pending-id");
+      expect(mocks.recordPortfolioCreated).toHaveBeenCalledWith("broker");
+      expect(mocks.recordPortfolioDataImported).toHaveBeenCalledWith("broker");
+      expect(localStorage.getItem(CONNECT_STEP_KEY)).toBeNull();
+    });
+
+    it("gates a Free workspace and imports for free instead", async () => {
+      mocks.fetchEditionOnboardingPlan.mockResolvedValue(FREE_PLAN);
+      mount("/onboarding?broker=trading212");
+      fireEvent.click(screen.getByRole("button", { name: "Connect Trading 212" }));
+
+      expect(await screen.findByRole("heading", { name: "Automatic sync is part of Investor" })).toBeInTheDocument();
+      expect(localStorage.getItem(CONNECT_STEP_KEY)).not.toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Import your Trading 212 CSV for free" }));
+
+      expect(await screen.findByText("Import destination")).toBeInTheDocument();
+      expect(screen.getByLabelText("location")).toHaveTextContent("/import?broker=trading212");
+      expect(localStorage.getItem(CONNECT_STEP_KEY)).toBeNull();
+    });
+
+    it("goes back from the connect step to the choices", async () => {
+      mount("/onboarding?broker=ibkr&step=connect");
+      await screen.findByLabelText("Flex Web Service token");
+
+      fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+      expect(await screen.findByText("Step 2 of 2 · Interactive Brokers")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Connect Interactive Brokers" })).toBeInTheDocument();
+      expect(screen.getByLabelText("location")).toHaveTextContent(/^\/onboarding\?broker=ibkr$/);
+      expect(localStorage.getItem(CONNECT_STEP_KEY)).toBeNull();
+    });
+
+    it("reopens the connect step after a closed tab", async () => {
+      rememberConnectStep("ibkr");
+
+      mount("/onboarding");
+
+      expect(await screen.findByLabelText("Flex Web Service token")).toBeInTheDocument();
+      expect(screen.getByLabelText("location")).toHaveTextContent("/onboarding?broker=ibkr&step=connect");
+    });
+
+    it("moves a checkout return from /pricing to the connect step", async () => {
+      mocks.fetchEditionOnboardingPlan
+        .mockResolvedValueOnce(BILLING_PLAN)
+        .mockResolvedValue({ ...PAID_PLAN, billingEnabled: true, canManageBilling: true });
+      rememberConnectStep("trading212");
+
+      mount("/pricing?checkout=success&session_id=cs_1");
+
+      expect(await screen.findByLabelText("API key ID")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByLabelText("location")).toHaveTextContent(/^\/onboarding\?broker=trading212&step=connect$/));
+      expect(mocks.confirmCheckout).toHaveBeenCalledTimes(1);
+      expect(mocks.confirmCheckout).toHaveBeenCalledWith("cs_1");
+    });
+
+    it("reports the connect step", async () => {
+      mount("/onboarding?broker=ibkr");
+      fireEvent.click(screen.getByRole("button", { name: "Connect Interactive Brokers" }));
+
+      await waitFor(() => expect(stepViews()).toEqual(["choices", "connect"]));
+    });
+  });
+
   it("wires exactly one action to every onboarding choice", () => {
-    const actions = buildOnboardingActions({ beginImport: vi.fn(), activate: vi.fn(), broker: findSupportedBroker("ibkr") });
+    const actions = buildOnboardingActions({ beginImport: vi.fn(), activate: vi.fn(), openConnect: vi.fn() });
 
     // A choice without an action would render a button that does nothing.
     expect(new Set(Object.keys(actions))).toEqual(new Set(ONBOARDING_CHOICE_KEYS));

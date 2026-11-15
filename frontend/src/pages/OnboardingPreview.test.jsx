@@ -328,7 +328,7 @@ describe("OnboardingPreview", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/sample portfolio/i);
 
     fireEvent.click(screen.getByRole("button", { name: "Connect Trading 212" }));
-    expect(screen.getByRole("status")).toHaveTextContent(/“Trading 212” and opens settings → connections/i);
+    expect(screen.getByRole("status")).toHaveTextContent(/asks for your trading 212 api key and secret right here/i);
 
     fireEvent.click(screen.getByRole("button", { name: /start with a blank portfolio/i }));
     expect(screen.getByRole("status")).toHaveTextContent(/empty portfolio/i);
@@ -368,7 +368,7 @@ describe("OnboardingPreview", () => {
     fireEvent.click(screen.getByRole("button", { name: "Connect Interactive Brokers" }));
 
     expect(screen.getAllByRole("status")).toEqual([status]);
-    expect(status).toHaveTextContent(/settings → connections/i);
+    expect(status).toHaveTextContent(/asks for your interactive brokers flex web service token right here/i);
   });
 
   it("marks the chosen card as pressed", () => {

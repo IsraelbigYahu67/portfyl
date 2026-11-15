@@ -112,12 +112,34 @@ describe("OnboardingView", () => {
   });
 
   it("never links to pricing on any step", () => {
-    const steps = [{}, { brokerKey: "trading212" }, { brokerKey: "xtb" }, { unsupportedName: "Robinhood" }];
+    const connect = {
+      phase: "gated",
+      billingEnabled: true,
+      canManageBilling: true,
+      investorMonthlyCents: 599,
+      notice: null,
+      error: null,
+      locked: false,
+      onSubmit: noop,
+      onUpgrade: noop,
+      onImportFree: noop,
+      onBack: noop,
+      onChangeBroker: noop,
+      onDemo: noop,
+      onRecheck: noop,
+    };
+    const steps = [{}, { brokerKey: "trading212" }, { brokerKey: "trading212", connect }, { brokerKey: "xtb" }, { unsupportedName: "Robinhood" }];
     for (const props of steps) {
       const { container, unmount } = renderView({ currency: "GBP", onCurrencyChange: noop, ...props });
       expect(container.querySelector('a[href*="pricing"]')).toBeNull();
       unmount();
     }
+  });
+
+  it("ignores connect for a file-only broker", () => {
+    renderView({ brokerKey: "xtb", connect: { phase: "form", error: null, locked: false } });
+    expect(screen.getByRole("button", { name: "Import your XTB file" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Connect XTB" })).not.toBeInTheDocument();
   });
 
   it("shows the Trading 212 API key guide only for Trading 212", () => {

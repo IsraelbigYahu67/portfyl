@@ -1,10 +1,11 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { AlertCircle, Briefcase, CheckCircle2, ExternalLink, Eye, EyeOff, History, Link as LinkIcon, Loader2, RefreshCw, Unlink } from "lucide-react";
+import { AlertCircle, Briefcase, CheckCircle2, ExternalLink, History, Loader2, RefreshCw, Unlink } from "lucide-react";
 
 import { connectT212, disconnectT212, setT212AutoSync } from "../api";
 import { useCurrency, usePortfolio } from "../App";
+import { T212CredentialsForm } from "../components/settings/brokerCredentialForms";
 import BrokerPositionSnapshot from "../components/BrokerPositionSnapshot";
 import DataPrivacySettings from "../components/DataPrivacySettings";
 import DiscordSettings from "../components/DiscordSettings";
@@ -153,7 +154,6 @@ function ConnectionsSettings({ headingRef }) {
   const currency = useCurrency()?.currency ?? "USD";
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
-  const [showKey, setShowKey] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [success, setSuccess] = useState(null);
 
@@ -260,18 +260,13 @@ function ConnectionsSettings({ headingRef }) {
           {!connected && (
             <div className="space-y-3">
               <T212ApiGuide />
-              <div>
-                <label htmlFor="t212-api-key" className="mb-1.5 block text-sm text-muted">{t("API key ID")}</label>
-                <div className="relative">
-                  <input id="t212-api-key" type={showKey ? "text" : "password"} value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={t("Paste API key ID here")} className="input pr-10 text-sm" />
-                  <button type="button" aria-label={showKey ? t("Hide API key") : t("Show API key")} onClick={() => setShowKey((visible) => !visible)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink">{showKey ? <EyeOff size={16} /> : <Eye size={16} />}</button>
-                </div>
-              </div>
-              <div>
-                <label htmlFor="t212-api-secret" className="mb-1.5 block text-sm text-muted">{t("Secret key")}</label>
-                <input id="t212-api-secret" type="password" value={apiSecret} onChange={(event) => setApiSecret(event.target.value)} placeholder={t("Paste Secret Key here")} className="input text-sm" />
-              </div>
-              <button type="button" onClick={() => connectMutation.mutate()} disabled={!apiKey.trim() || !apiSecret.trim() || busy} className="btn-primary flex items-center gap-2 text-sm min-h-11 md:min-h-0 disabled:opacity-40">{connectMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <LinkIcon size={16} />}{t("Connect")}</button>
+              <T212CredentialsForm
+                values={{ apiKey, apiSecret }}
+                onChange={(next) => { setApiKey(next.apiKey); setApiSecret(next.apiSecret); }}
+                onSubmit={() => connectMutation.mutate()}
+                busy={busy}
+                submitting={connectMutation.isPending}
+              />
             </div>
           )}
 
