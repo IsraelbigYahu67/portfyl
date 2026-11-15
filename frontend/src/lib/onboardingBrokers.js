@@ -9,8 +9,6 @@ import ibkrIcon from "../assets/brokers/ibkr.png";
 import etoroIcon from "../assets/brokers/etoro.png";
 import degiroIcon from "../assets/brokers/degiro.png";
 import xtbIcon from "../assets/brokers/xtb.png";
-import schwabIcon from "../assets/brokers/schwab.png";
-import fidelityIcon from "../assets/brokers/fidelity.png";
 
 export const SUPPORTED_BROKERS = Object.freeze([
   {
@@ -54,26 +52,15 @@ export const SUPPORTED_BROKERS = Object.freeze([
     fileKind: "XLSX",
     hint: msg("In xStation 5 open Account history → Cash operations and export the whole period to Excel."),
   },
-  {
-    key: "schwab",
-    icon: schwabIcon,
-    api: false,
-    fileKind: "CSV",
-    hint: msg("On schwab.com open Accounts → History → Transactions, select All and Export."),
-  },
-  {
-    key: "fidelity",
-    icon: fidelityIcon,
-    api: false,
-    fileKind: "CSV",
-    hint: msg("On fidelity.com open Activity & Orders, choose the period and Download."),
-  },
 ].map((broker) => Object.freeze({ ...broker, name: BROKER_LABELS[broker.key] })));
 
 // Popular brokers Portfyl cannot read yet. Picking one tells the user up front
 // instead of letting them sign up for nothing.
 export const UNSUPPORTED_BROKERS = Object.freeze([
   "Robinhood", "Revolut", "Coinbase", "Webull", "Trade Republic", "Freetrade", "Moomoo", "E*TRADE",
+  // US-only brokers: importers removed on 2026-11-15 until US demand grows
+  // and real exports can be verified.
+  "Charles Schwab", "Fidelity",
 ]);
 
 export function findSupportedBroker(key) {
@@ -84,15 +71,15 @@ export function findSupportedBroker(key) {
 // favourites first (Czech/Polish investors lean on Trading 212 / XTB), the
 // rest of Europe next, English speakers get the international platforms.
 export const BROKER_ORDER_BY_LANGUAGE = Object.freeze({
-  cs: Object.freeze(["trading212", "xtb", "degiro", "ibkr", "etoro", "schwab", "fidelity"]),
-  pl: Object.freeze(["xtb", "trading212", "degiro", "ibkr", "etoro", "schwab", "fidelity"]),
-  de: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro", "schwab", "fidelity"]),
-  fr: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro", "schwab", "fidelity"]),
-  es: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro", "schwab", "fidelity"]),
-  it: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro", "schwab", "fidelity"]),
-  pt: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro", "schwab", "fidelity"]),
-  nl: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro", "schwab", "fidelity"]),
-  en: Object.freeze(["trading212", "ibkr", "etoro", "degiro", "xtb", "schwab", "fidelity"]),
+  cs: Object.freeze(["trading212", "xtb", "degiro", "ibkr", "etoro"]),
+  pl: Object.freeze(["xtb", "trading212", "degiro", "ibkr", "etoro"]),
+  de: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro"]),
+  fr: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro"]),
+  es: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro"]),
+  it: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro"]),
+  pt: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro"]),
+  nl: Object.freeze(["trading212", "degiro", "ibkr", "xtb", "etoro"]),
+  en: Object.freeze(["trading212", "ibkr", "etoro", "degiro", "xtb"]),
 });
 
 // Supported brokers in the order suited to `language`; an unknown language

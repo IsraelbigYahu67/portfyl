@@ -197,10 +197,12 @@ describe("Onboarding", () => {
 
       expect(screen.getByRole("heading", { level: 1, name: "Which broker do you use?" })).toBeInTheDocument();
       expect(screen.getByText("Step 1 of 2")).toBeInTheDocument();
-      for (const name of ["Trading 212", "Interactive Brokers", "eToro", "Degiro", "XTB", "Charles Schwab", "Fidelity"]) {
+      for (const name of ["Trading 212", "Interactive Brokers", "eToro", "Degiro", "XTB"]) {
         expect(screen.getByRole("button", { name: new RegExp(name) })).toBeInTheDocument();
       }
-      expect(screen.getByRole("button", { name: "Robinhood" })).toBeInTheDocument();
+      for (const name of ["Robinhood", "Charles Schwab", "Fidelity"]) {
+        expect(screen.getByRole("button", { name })).toBeInTheDocument();
+      }
       expect(mocks.createPortfolio).not.toHaveBeenCalled();
     });
 

@@ -8,8 +8,6 @@ export const BROKER_LABELS = {
   etoro: "eToro",
   degiro: "Degiro",
   xtb: "XTB",
-  schwab: "Charles Schwab",
-  fidelity: "Fidelity",
 };
 
 // Sentences are English source text marked for translation and run through

@@ -13,9 +13,10 @@ function mount() {
   return render(<MemoryRouter><BrokerGuides /></MemoryRouter>);
 }
 
-test("lists every phase-1 broker, all collapsed", () => {
+test("lists every supported broker, all collapsed", () => {
   mount();
-  for (const name of ["Trading 212", "Interactive Brokers", "Degiro", "XTB", "Charles Schwab", "Fidelity", "eToro"]) {
+  expect(screen.queryByRole("button", { name: /Schwab|Fidelity/i })).not.toBeInTheDocument();
+  for (const name of ["Trading 212", "Interactive Brokers", "Degiro", "XTB", "eToro"]) {
     const button = screen.getByRole("button", { name: new RegExp(name, "i") });
     expect(button).toHaveAttribute("aria-expanded", "false");
   }

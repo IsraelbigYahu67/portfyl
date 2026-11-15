@@ -6,10 +6,12 @@ from tests.helpers import make_txn
 
 def test_sources_map_to_brokers():
     assert broker_of_source("t212_api") == broker_of_source("t212_csv") == "trading212"
-    for source in ("ibkr", "etoro", "degiro", "xtb", "schwab", "fidelity"):
+    for source in ("ibkr", "etoro", "degiro", "xtb"):
         assert broker_of_source(source) == source
     assert broker_of_source("demo") == "demo"
-    for own in ("csv", "manual", None, ""):
+    # Charles Schwab and Fidelity imports were removed on 2026-11-15; any
+    # rows left with those sources read as the user's own data.
+    for own in ("csv", "manual", None, "", "schwab", "fidelity"):
         assert broker_of_source(own) == "own"
 
 

@@ -335,8 +335,11 @@ describe("Import preview and undo", () => {
   it("accepts XTB spreadsheets and shows the broker export guides until a file is picked", async () => {
     const { container } = mount();
     expect(container.querySelector('input[type="file"]').getAttribute("accept")).toContain(".xlsx");
-    for (const name of ["Degiro", "XTB", "Charles Schwab", "Fidelity"]) {
+    for (const name of ["Degiro", "XTB"]) {
       expect(screen.getAllByText(name).length).toBeGreaterThan(0);
+    }
+    for (const name of ["Charles Schwab", "Fidelity"]) {
+      expect(screen.queryByText(name)).not.toBeInTheDocument();
     }
     expect(screen.getByRole("heading", { name: "How to export from your broker" })).toBeInTheDocument();
     chooseCsv(container);

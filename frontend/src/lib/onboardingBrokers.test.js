@@ -7,13 +7,13 @@ import {
 } from "./onboardingBrokers";
 
 const keys = (brokers) => brokers.map((broker) => broker.key);
-const EN = ["trading212", "ibkr", "etoro", "degiro", "xtb", "schwab", "fidelity"];
-const EU = ["trading212", "degiro", "ibkr", "xtb", "etoro", "schwab", "fidelity"];
+const EN = ["trading212", "ibkr", "etoro", "degiro", "xtb"];
+const EU = ["trading212", "degiro", "ibkr", "xtb", "etoro"];
 
 describe("brokersForLanguage", () => {
   it("orders brokers per language", () => {
-    expect(keys(brokersForLanguage("cs"))).toEqual(["trading212", "xtb", "degiro", "ibkr", "etoro", "schwab", "fidelity"]);
-    expect(keys(brokersForLanguage("pl"))).toEqual(["xtb", "trading212", "degiro", "ibkr", "etoro", "schwab", "fidelity"]);
+    expect(keys(brokersForLanguage("cs"))).toEqual(["trading212", "xtb", "degiro", "ibkr", "etoro"]);
+    expect(keys(brokersForLanguage("pl"))).toEqual(["xtb", "trading212", "degiro", "ibkr", "etoro"]);
     for (const language of ["de", "fr", "es", "it", "pt", "nl"]) {
       expect(keys(brokersForLanguage(language))).toEqual(EU);
     }
@@ -49,11 +49,15 @@ describe("filterBrokers", () => {
 
   it("filters by name within the language order", () => {
     expect(keys(filterBrokers("deg", "cs").supported)).toEqual(["degiro"]);
-    // Substring match, so "de" also finds Fide(de)lity; order follows the language.
-    expect(keys(filterBrokers("de", "cs").supported)).toEqual(["degiro", "fidelity"]);
+    expect(keys(filterBrokers("de", "cs").supported)).toEqual(["degiro"]);
   });
 
   it("still filters unsupported brokers", () => {
     expect(filterBrokers("revo").unsupported).toEqual(["Revolut"]);
+  });
+
+  it("lists the US-only brokers as unsupported", () => {
+    expect(filterBrokers("schwab")).toEqual({ supported: [], unsupported: ["Charles Schwab"] });
+    expect(filterBrokers("fidelity")).toEqual({ supported: [], unsupported: ["Fidelity"] });
   });
 });

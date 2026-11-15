@@ -66,21 +66,6 @@ function guides(t) {
       ],
     },
     {
-      id: "schwab",
-      name: "Charles Schwab",
-      file: "CSV",
-      steps: [
-        ink(t("Open <b>Accounts → History → Transactions</b>, select <b>All</b> and <b>Export</b>.")),
-        t("Export whole quarters: Schwab cuts an export at 1,500 rows."),
-      ],
-    },
-    {
-      id: "fidelity",
-      name: "Fidelity",
-      file: "CSV",
-      steps: [ink(t("Open <b>Activity & Orders</b>, choose the period and click <b>Download</b>."))],
-    },
-    {
       id: "etoro",
       name: "eToro",
       file: t("API key, no file"),
@@ -93,7 +78,7 @@ function guides(t) {
   ];
 }
 
-const GUIDE_IDS = ["trading212", "ibkr", "degiro", "xtb", "schwab", "fidelity", "etoro"];
+const GUIDE_IDS = ["trading212", "ibkr", "degiro", "xtb", "etoro"];
 
 // The numbered steps, any screenshots, and the closing note of one guide.
 function GuideBody({ guide, t }) {

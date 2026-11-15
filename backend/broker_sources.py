@@ -23,8 +23,6 @@ _SOURCE_BROKER = {
     "etoro": "etoro",
     "degiro": "degiro",
     "xtb": "xtb",
-    "schwab": "schwab",
-    "fidelity": "fidelity",
     "demo": "demo",
 }
 # Native Portfyl CSV, manual entries and anything unknown: the user's own data.

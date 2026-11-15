@@ -158,14 +158,16 @@ mockup) and does not override it.
   in `backend/importers/formats/` exposing `FORMAT` (detect + parse to ledger
   row dicts); `importers/registry.py` discovers them, and
   `/portfolio/import-csv/preview|commit` try them before the native/T212 CSV
-  path. Today: IBKR Flex XML, Degiro (Transactions + Account CSV), XTB XLSX,
-  Charles Schwab, Fidelity. Shared helpers: `numbers.py` (locale numbers),
+  path. Today: IBKR Flex XML, Degiro (Transactions + Account CSV), XTB XLSX.
+  US-only brokers (Charles Schwab, Fidelity) were removed on 2026-11-15 and sit
+  in the onboarding `UNSUPPORTED_BROKERS` list until US demand grows and real
+  exports can be verified; git history has the importers. Shared helpers: `numbers.py` (locale numbers),
   `ids.py` (stable event ids), `dividends.py` (one net dividend row after
   withholding tax), `instruments.py` + `openfigi.py` (ISIN/venue → Yahoo ticker;
   unresolved = preview error, never an ISIN as ticker). These imports append
   (only T212 CSV forces replace) and dedupe by `(source, source_event_stream,
-  source_event_id)`; `Transaction.source` is `ibkr`, `etoro`, `degiro`, `xtb`,
-  `schwab` or `fidelity`, shared by file upload and API sync of the same broker.
+  source_event_id)`; `Transaction.source` is `ibkr`, `etoro`, `degiro` or
+  `xtb`, shared by file upload and API sync of the same broker.
   API syncs (IBKR Flex, eToro) write through `ledger_import.insert_new_provider_rows`.
   eToro needs Portfyl's app key in `PORTFYL_ETORO_APP_KEY` (see `deploy/cloudrun.md`).
   All broker fixtures are synthetic until real exports are collected (plan Task 0).

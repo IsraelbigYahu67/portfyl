@@ -33,7 +33,7 @@ export const COPY = {
     questions: [
       ["Co je Portfyl?", "Portfyl je aplikace pro přehled a analýzu investičního portfolia. Spojuje pozice, výkonnost, dividendy a informace o společnostech na jednom místě."],
       ["Pro koho je Portfyl určený?", "Pro individuální investory, kteří chtějí lépe rozumět svým akciím a ETF — ať už s investováním začínají, nebo spravují portfolio několik let."],
-      ["Jaké brokery Portfyl podporuje?", "Portfyl načte data z Trading 212, Interactive Brokers a eToro přes API a z exportů Degiro, XTB, Charles Schwab a Fidelity. Transakce lze importovat i z CSV souborů."],
+      ["Jaké brokery Portfyl podporuje?", "Portfyl načte data z Trading 212, Interactive Brokers a eToro přes API a z exportů Degiro a XTB. Transakce lze importovat i z CSV souborů."],
       ["Můžu si už Portfyl vyzkoušet?", "Ano. Živé demo je syntetické, nevyžaduje účet a ukazuje, jak Portfyl funguje bez vašich investičních dat."],
     ],
     closingKicker: "PŘIPRAVUJEME PRO VÁS", closingHeading: ["Více přehledu.", "Více klidu."], closingNote: "Nový pohled na vaše investice. Již brzy.", back: "Zpátky nahoru", footer: "Váš prostor pro investiční přehled.", legal: [["terms", "Obchodní podmínky"], ["privacy", "Ochrana osobních údajů"]], legalLanguage: "cs", legalNavigation: "Právní dokumenty",
@@ -68,7 +68,7 @@ export const COPY = {
     questions: [
       ["What is Portfyl?", "Portfyl is an app for tracking and analysing your investment portfolio. It brings holdings, performance, dividends and company information together in one place."],
       ["Who is Portfyl for?", "Individual investors who want to better understand their stocks and ETFs, whether they are just starting out or have managed a portfolio for years."],
-      ["Which brokers does Portfyl support?", "Portfyl syncs Trading 212, Interactive Brokers and eToro through their APIs and imports exports from Degiro, XTB, Charles Schwab and Fidelity. Transactions can also be imported from CSV files."],
+      ["Which brokers does Portfyl support?", "Portfyl syncs Trading 212, Interactive Brokers and eToro through their APIs and imports exports from Degiro and XTB. Transactions can also be imported from CSV files."],
       ["Can I try Portfyl yet?", "Yes. The live demo is synthetic, account-free, and shows how Portfyl works without using your investment data."],
     ],
     closingKicker: "ON THE WAY", closingHeading: ["More clarity.", "More peace of mind."], closingNote: "A fresh perspective on your investments. Coming soon.", back: "Back to top", footer: "Your space for a clearer investment picture.", legal: [["terms", "Terms of Service"], ["privacy", "Privacy Policy"]], legalLanguage: "en", legalNavigation: "Legal documents",
@@ -103,7 +103,7 @@ export const COPY = {
     questions: [
       ["Was ist Portfyl?", "Portfyl ist eine App zur Übersicht und Analyse deines Investmentportfolios. Sie vereint Positionen, Performance, Dividenden und Unternehmensinformationen an einem Ort."],
       ["Für wen ist Portfyl gedacht?", "Für Privatanleger, die ihre Aktien und ETFs besser verstehen möchten — ganz gleich, ob sie gerade anfangen oder schon seit Jahren ein Portfolio verwalten."],
-      ["Welche Broker unterstützt Portfyl?", "Portfyl synchronisiert Trading 212, Interactive Brokers und eToro über deren API und importiert Exporte von Degiro, XTB, Charles Schwab und Fidelity. Außerdem lassen sich Transaktionen aus CSV-Dateien importieren."],
+      ["Welche Broker unterstützt Portfyl?", "Portfyl synchronisiert Trading 212, Interactive Brokers und eToro über deren API und importiert Exporte von Degiro und XTB. Außerdem lassen sich Transaktionen aus CSV-Dateien importieren."],
       ["Kann ich Portfyl schon ausprobieren?", "Ja. Die Live-Demo ist synthetisch, ohne Konto nutzbar und zeigt Portfyl ohne deine eigenen Investmentdaten."],
     ],
     closingKicker: "WIR BEREITEN ALLES FÜR DICH VOR", closingHeading: ["Mehr Überblick.", "Mehr Gelassenheit."], closingNote: "Ein neuer Blick auf deine Investments. Demnächst.", back: "Nach oben", footer: "Dein Ort für den Überblick über deine Investments.", legal: [["terms", "Nutzungsbedingungen (EN)"], ["privacy", "Datenschutz (EN)"]], legalLanguage: "en", legalNavigation: "Rechtliches",

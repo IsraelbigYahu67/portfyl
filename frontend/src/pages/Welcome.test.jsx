@@ -80,9 +80,10 @@ it.each(LANGUAGES)("shows the broker check on the $name page", ({ code }) => {
 it.each(LANGUAGES)("does not claim Trading 212 is the only broker on the $name page", ({ code }) => {
   const { container } = renderWelcome({ language: code });
   const faq = COPY[code].questions.find(([question]) => /brokery|brokers|Broker/.test(question))[1];
-  for (const name of ["Trading 212", "Interactive Brokers", "eToro", "Degiro", "XTB", "Charles Schwab", "Fidelity"]) {
+  for (const name of ["Trading 212", "Interactive Brokers", "eToro", "Degiro", "XTB"]) {
     expect(faq).toContain(name);
   }
+  expect(faq).not.toMatch(/Schwab|Fidelity/);
   expect(faq).not.toMatch(/brzy|soon|bald/i);
   const ribbon = container.querySelector(".welcome-ribbon");
   expect(ribbon).toHaveTextContent("XTB");

@@ -48,7 +48,7 @@ function downloadSample() {
 }
 
 // File formats from backend/importers/formats/ besides T212, Native and IBKR.
-const BROKER_FILE_FORMATS = ["Degiro", "XTB", "Charles Schwab", "Fidelity"];
+const BROKER_FILE_FORMATS = ["Degiro", "XTB"];
 
 function FormatBadge({ format }) {
   return <Badge tone={format === "Trading 212" ? "brand" : "neutral"}>{format}</Badge>;
@@ -363,7 +363,7 @@ export default function Import({ focused = false }) {
         <div className="flex items-start gap-2 text-xs text-muted">
           <Info size={14} className="text-brand mt-0.5 shrink-0" />
           <p>
-            {t("Trading 212 exports include the full account history and therefore replace this portfolio. Native CSV files can append new rows or replace the portfolio. Exports from Degiro, XTB, Charles Schwab and Fidelity add new rows; rows already in the portfolio are skipped.")}
+            {t("Trading 212 exports include the full account history and therefore replace this portfolio. Native CSV files can append new rows or replace the portfolio. Exports from Degiro and XTB add new rows; rows already in the portfolio are skipped.")}
           </p>
         </div>
         <div className="flex items-start gap-2 text-xs text-muted">
