@@ -29,7 +29,7 @@ const demoPages = new Set(["overview", "allocation", "analytics", "dividends", "
 const demoSymbols = new Set(["VUAA", "MSFT", "JPM", "JNJ", "XOM", "PG", "AMZN", "CAT", "NEE", "PLD"]);
 const activationPaths = new Set(["three_pages", "stock_after_page"]);
 const authMethods = new Set(["password", "google"]);
-const onboardingSteps = new Set(["broker", "choices", "unsupported"]);
+const onboardingSteps = new Set(["broker", "choices", "connect", "unsupported"]);
 // Supported broker keys come from the registry, never a typed name; an
 // unsupported pick is reported as the fixed marker only.
 const brokerKeys = new Set([...SUPPORTED_BROKERS.map((broker) => broker.key), "unsupported"]);

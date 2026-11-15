@@ -40,7 +40,7 @@ describe("activation event contract", () => {
       expect(sanitizeEvent("onboarding_broker_picked", { broker_key: broker.key }, { strict: true }).properties).toEqual({ broker_key: broker.key });
     }
     expect(sanitizeEvent("onboarding_broker_picked", { broker_key: "unsupported" }, { strict: true }).properties).toEqual({ broker_key: "unsupported" });
-    for (const step of ["broker", "choices", "unsupported"]) {
+    for (const step of ["broker", "choices", "connect", "unsupported"]) {
       expect(sanitizeEvent("onboarding_step_viewed", { step }, { strict: true }).properties).toEqual({ step });
     }
     expect(sanitizeEvent("broker_check_used", { result: "unsupported", language: "de" }, { strict: true }).properties).toEqual({ result: "unsupported", language: "de" });

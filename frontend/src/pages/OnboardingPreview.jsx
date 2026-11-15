@@ -30,9 +30,9 @@ export const OUTCOMES = Object.freeze({
     ? t("Opens the import for your {broker} {fileKind} file. You see a preview of the file and nothing is saved until you confirm it.", { broker: broker.name, fileKind: broker.fileKind })
     : t("Opens the import for a Portfyl CSV. You see a preview of the file and nothing is saved until you confirm it.")),
   demo: (broker, t = english) => t("Creates a clearly labelled sample portfolio and opens the dashboard so you can look around."),
-  broker: (broker, t = english) => (broker
-    ? t("Creates an empty portfolio called “{broker}” and opens Settings → Connections with {broker} first.", { broker: broker.name })
-    : t("Creates an empty portfolio called “{name}” and opens Settings → Connections.", { name: t("My portfolio") })),
+  broker: (broker, t = english) => (broker?.credential
+    ? t("Asks for your {broker} {credential} right here, imports your history and opens the dashboard. Automatic sync is part of the Investor plan; a file import stays free.", { broker: broker.name, credential: t(broker.credential) })
+    : t("Asks for your broker's API key right here, imports your history and opens the dashboard.")),
   blank: (broker, t = english) => t("Creates an empty portfolio and opens the dashboard, ready for manual transactions."),
 });
 
