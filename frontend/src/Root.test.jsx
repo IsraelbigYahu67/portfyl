@@ -20,7 +20,7 @@ function setLocation({ pathname = "/", hostname = "localhost" } = {}) {
 it("serves the public home only in cloud, outside the tracker", async () => {
   render(<MemoryRouter initialEntries={["/"]}><Root /></MemoryRouter>);
   if (HAS_PUBLIC_HOME) {
-    expect(await screen.findByRole("heading", { level: 1, name: /Vaše investice/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: /Všechny akcie a ETF/ })).toBeInTheDocument();
     expect(screen.queryByText("Protected tracker")).not.toBeInTheDocument();
   } else {
     expect(await screen.findByText("Protected tracker")).toBeInTheDocument();
@@ -28,9 +28,9 @@ it("serves the public home only in cloud, outside the tracker", async () => {
 });
 
 it.each([
-  ["/en/", /Your investments/],
-  ["/en", /Your investments/],
-  ["/de/", /Deine Investments/],
+  ["/en/", /All your stocks and ETFs/],
+  ["/en", /All your stocks and ETFs/],
+  ["/de/", /Alle Aktien und ETFs/],
 ])("serves the %s landing in its own language in cloud, regardless of saved preference", async (pathname, heading) => {
   localStorage.setItem("portfyl_landing_language", "cs");
   setLocation({ pathname, hostname: "portfyl.com" });

@@ -314,29 +314,56 @@ cards and tiles still (Allocation does this: its data/text blocks do not move).
 ## 10. Public landing (portfyl.com)
 
 The cloud edition's public home (`pages/Welcome.jsx` + `Welcome.css`; one
-URL per language: `/` Czech, `/en/`, `/de/`, prerendered at build time)
-always renders **Clay**, whatever appearance
-a signed-in user picked. It renders outside `App.jsx`, so `applyAppearance()`
-never runs there: `Welcome.jsx` scopes the `CLAY_TOKENS` variables onto the
-`.welcome` root (`CLAY_STYLE`) and adds `theme-clay`, which resolves the
-`--clay-*` shadows from `index.css`. `Welcome.css` holds no hex colors; tints
-are `color-mix()` of the chart tokens.
+URL per language: `/` Czech, `/en/`, `/de/`, prerendered at build time) is
+**flat and fact-first**, a deliberate break from the app's Clay depth. It always
+uses the warm Clay palette, whatever appearance a signed-in user picked, but
+none of the Clay shapes: no raised cards, no inset troughs, no blobs, no
+pills with dots, no two-tone headings, no decorative icons, no `01/02/03`
+counters, no arrow icons on links. It renders outside `App.jsx`, so
+`applyAppearance()` never runs there: `Welcome.jsx` scopes the `CLAY_TOKENS`
+variables onto the `.welcome` root (`CLAY_STYLE` in `lib/clayStyle.js`) and adds
+`theme-clay`. `Welcome.css` holds no hex colors (a test enforces it); hairlines
+and shadows are `color-mix()` of `--muted` / `--ink`.
 
-Landing-specific pieces: a floating pill header (like `.app-topbar`, without
-blur), soft raised clay blobs behind the hero window, the broker ribbon as an
-inset trough with raised chips, raised 24px feature cards and 20px FAQ cards,
-an inset showcase panel, and the app's `SegmentedControl` for the language and
-preview switches (the preview trough is 24px, not a pill, because it wraps to
-two rows). The language options are links (`href` option, `aria-current` on
-the active one). A visitor whose language differs from the page's gets a
-one-line offer under the header: an inset pill trough like the ribbon, with
-a raised pill link and a dismiss icon button (a 24px trough on phones,
-where it wraps). Same motion rules as section 7, opt-in per element.
+- **Surface:** the page is `--landing-paper` (`#FAF5ED`, the Clay card tint at
+  full opacity; defined once in `clayStyle.js`). Bands (how it works) use `--bg`.
+  Dividers are one hairline, `--w-line` (32% `--muted`). Text is `--ink` and
+  `--muted`; the only brand color is the one primary button, the focus ring
+  (3px `--brand`) and text links.
+- **Layout:** one left-aligned 1120px column (`.welcome-container`, 20px side
+  gutter). Headings are one plain statement in Plus Jakarta Sans 700; the hero
+  is `clamp(2.25rem, 5.2vw, 3.75rem)`, section titles `clamp(1.6rem, 3vw, 2.25rem)`.
+  Body is Inter 17px; sizes are in `rem`, nothing below 12px.
+- **Section order:** header, hero, brokers (two groups plus the quiet broker
+  check), features, how it works with data facts, pricing, FAQ, closing, footer.
+  Each section is a component in `components/landing/`; copy lives only in
+  `pages/welcomeCopy.js` (`cs`, `en`, `de`).
+- **Header** (`LandingHeader`): sticky 64px, hairline underneath: logo, four
+  in-page links (`#funkce #brokeri #cenik #otazky`), CZ EN DE language links
+  (`href` per language, `aria-current`), Log in (to the app) and one primary
+  pill. Below 860px only logo, primary pill and a `<details>` menu stay. Menu
+  and FAQ are native `<details>`, so the prerendered page works without
+  JavaScript. The footer (`LandingFooter`) is four plain columns; both take an
+  `anchorBase` so another public page can link back to the sections.
+- **The one raised object is a screenshot** (`Shot`): 16px radius (12px on
+  phones), hairline border, one soft shadow. Pictures come from `landingImages.js`
+  (English UI, one set for all languages; a `null` entry renders no figure).
+  A feature with a desktop picture is a row (text left, picture below); the rest
+  form a three-column text strip. `phone...` pictures are small insets.
+- **Call to action** follows `VITE_PUBLIC_SIGNUP`: `"true"` gives the primary
+  "try 10 days free" pill to `registerUrl(...)` and a text link to the demo;
+  otherwise the demo is the primary pill, a status line says "closed beta", and
+  no `/register` link exists anywhere on the page.
+- **Pricing** is shown even while billing is off; the numbers come from
+  `lib/planPrices.js` (`PLAN_PRICES_CENTS`, `formatPlanPrice`), shared with
+  `Pricing.jsx`. Three plans sit in one hairline-bordered strip.
+- Motion is minimal: smooth in-page scrolling and a 150ms button color change,
+  both off under `prefers-reduced-motion`.
+
+The language offer (one line under the header, only after mount, never a
+redirect) is plain text with an underlined link and a 44px dismiss button.
 
 The public legal pages `/terms` and `/privacy` (`pages/Legal.jsx` +
-`Legal.css`, cloud only) reuse the landing's Clay root (`lib/clayStyle.js`),
-pill header and footer. The text sits in one raised 24px card with a sticky
-contents list beside it (a collapsible inset well below 1024px). Tables are
-inset wells that stack into labelled cards on phones, so the page never
-scrolls sideways. An unfinished `[[TODO]]` placeholder from `docs/legal/`
-renders as a pending `mark`, tinted like Badge's `warn` tone (`--chart-3`).
+`Legal.css`, cloud only) still use the older Clay card layout; they move to
+`LandingHeader`/`LandingFooter` and a flat text column in the legal-pages task.
+Until then they borrow the header and footer classes above.

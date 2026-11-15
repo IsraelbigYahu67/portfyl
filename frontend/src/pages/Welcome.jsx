@@ -1,40 +1,25 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUpRight, ChartNoAxesCombined, PieChart, CalendarDays, Layers3, Check, Plus, X } from "lucide-react";
-import { COPY, LANGUAGES, LANGUAGE_KEY } from "./welcomeCopy";
+import { X } from "lucide-react";
+import { COPY, LANGUAGES } from "./welcomeCopy";
 import { useAnalytics } from "../analytics/AnalyticsProvider";
-import SegmentedControl from "../components/ui/SegmentedControl";
-import BrokerCheck from "../components/landing/BrokerCheck";
+import LandingHeader from "../components/landing/LandingHeader";
+import LandingHero from "../components/landing/LandingHero";
+import BrokerList from "../components/landing/BrokerList";
+import FeatureList from "../components/landing/FeatureList";
+import HowItWorks from "../components/landing/HowItWorks";
+import PricingTeaser from "../components/landing/PricingTeaser";
+import LandingFaq from "../components/landing/LandingFaq";
+import LandingFooter from "../components/landing/LandingFooter";
+import { isLanguage, rememberLanguage, savedLanguage } from "../components/landing/languagePrefs";
+import { registerUrl } from "../lib/signupIntent";
 import { CLAY_STYLE } from "../lib/clayStyle";
-import { ANALYTICS_COPY } from "../analytics/analyticsCopy";
 import { LANDING_PATHS } from "../lib/routes";
 import { ANALYTICS_EVENTS } from "../analytics/eventContract";
 import { DEMO_SESSION_SCOPE } from "../analytics/useDemoAnalytics";
 import "./Welcome.css";
 import "../fonts.css";
 
-const images = ["allocation", "stock", "dashboard", "performance"];
-const imageSizes = [[1047, 365], [1047, 350], [1047, 345], [1004, 455]];
-const screenshotPath = (name) => `/landing/${name}-live-20260911.png`;
-// Short names of the first supported brokers; the rest is "+ N more"
-// (the full list is lib/onboardingBrokers.js, shown by the broker check).
-const RIBBON_BROKERS = ["Trading 212", "IBKR", "XTB", "Degiro"];
-const icons = [ChartNoAxesCombined, PieChart, CalendarDays];
-
 const SUGGESTION_DISMISSED_KEY = "portfyl_landing_suggestion_dismissed";
-const isLanguage = (code) => LANGUAGES.some((language) => language.code === code);
-
-function savedLanguage() {
-  try {
-    const saved = localStorage.getItem(LANGUAGE_KEY);
-    return isLanguage(saved) ? saved : null;
-  } catch { return null; }
-}
-
-// Only an explicit action saves the language (switcher, banner, demo CTA):
-// the app, demo and legal pages read it. Merely landing on a URL does not.
-function rememberLanguage(code) {
-  try { localStorage.setItem(LANGUAGE_KEY, code); } catch { /* Storage may be unavailable. */ }
-}
 
 // The language to offer a visitor reading `pageLanguage`: their saved choice,
 // else their browser's first supported language (Slovak reads Czech;
@@ -70,7 +55,7 @@ function LanguageSuggestion({ pageLanguage }) {
   return (
     <aside className="welcome-language-suggestion welcome-container" lang={offer.code} aria-label={offer.suggestion}>
       <span>{offer.suggestion}</span>
-      <a href={LANDING_PATHS[offer.code]} hrefLang={offer.code} onClick={() => rememberLanguage(offer.code)}>{offer.action} <ArrowUpRight size={16} aria-hidden="true" /></a>
+      <a href={LANDING_PATHS[offer.code]} hrefLang={offer.code} onClick={() => rememberLanguage(offer.code)}>{offer.action}</a>
       <button type="button" onClick={dismiss} aria-label={offer.dismiss} title={offer.dismiss}><X size={16} aria-hidden="true" /></button>
     </aside>
   );
@@ -94,29 +79,11 @@ function classifyReferrer(referrer) {
   }
 }
 
-function Brand({ children }) {
-  return <><img src="/portfyl-mark.svg" alt="" width="38" height="38" />Portfyl{children}</>;
-}
-
-function Heading({ lines }) {
-  return <>{lines[0]}<br /><span>{lines[1]}</span></>;
-}
-
-function AnalyticsPreferencesLink({ language }) {
-  const { reopenAnalyticsPreferences } = useAnalytics();
-  const t = ANALYTICS_COPY[language];
-  return (
-    <button type="button" onClick={reopenAnalyticsPreferences} className="welcome-preview-link" style={{ background: "none", border: "none", cursor: "pointer" }}>
-      {t.manage}
-    </button>
-  );
-}
-
 // The public home in one language. `language` comes from the URL ("/" = cs,
 // "/en/", "/de/"), so the same URL always renders the same page -- on the
-// server (prerender) and in the browser alike.
-export default function Welcome({ language }) {
-  const [selected, setSelected] = useState(0);
+// server (prerender) and in the browser alike. `signupOpen` decides the call
+// to action: the trial sign-up when VITE_PUBLIC_SIGNUP is "true", else the demo.
+export default function Welcome({ language, signupOpen = import.meta.env.VITE_PUBLIC_SIGNUP === "true" }) {
   const copy = COPY[language];
   const { ready, capture, captureOnce } = useAnalytics();
   const landingViewedRef = useRef(false);
@@ -172,79 +139,30 @@ export default function Welcome({ language }) {
     };
   }
 
-  const preview = copy.previews[selected];
-  const image = images[selected];
+  const onHeroDemo = handleDemoCtaClick("landing_hero");
+  const onClosingDemo = handleDemoCtaClick("landing_closing");
   return (
     <div className="welcome theme-clay" id="nahoru" style={CLAY_STYLE}>
       <a className="welcome-skip" href="#obsah">{copy.skip}</a>
-      <header className="welcome-header"><div className="welcome-nav welcome-container">
-        <a className="welcome-logo" href="#nahoru" aria-label={copy.home}><Brand><span className="welcome-beta">{copy.badge}</span></Brand></a>
-        <nav aria-label={copy.navigation}><a href="#funkce">{copy.nav[0]}</a><a href="#ukazky">{copy.nav[1]}</a><a href="#otazky">{copy.nav[2]} <ArrowUpRight size={14} /></a></nav>
-        <SegmentedControl
-          className="welcome-language-switch"
-          aria-label={copy.language}
-          value={language}
-          onChange={rememberLanguage}
-          options={LANGUAGES.map(({ code, label, name }) => ({ value: code, label: <span lang={code}>{label}</span>, title: name, href: LANDING_PATHS[code], hrefLang: code }))}
-        />
-      </div></header>
+      <LandingHeader copy={copy} language={language} signupOpen={signupOpen} onDemo={onHeroDemo} />
       <LanguageSuggestion pageLanguage={language} />
       <main id="obsah">
-        <section className="welcome-hero welcome-container" aria-labelledby="welcome-title">
-          <div className="welcome-eyebrow"><span />{copy.eyebrow}</div>
-          <h1 id="welcome-title"><Heading lines={copy.heading} /></h1>
-          <p className="welcome-lead">{copy.lead[0]}<br className="welcome-desktop-break" /> {copy.lead[1]}</p>
-          <div className="welcome-hero-actions"><a className="welcome-cta" href="/demo" onClick={handleDemoCtaClick("landing_hero")}>{copy.demoCta} <ArrowUpRight size={17} /></a><a className="welcome-preview-link" href="#ukazky">{copy.cta} <ArrowDown size={17} /></a></div>
-          <p className="welcome-hero-note">{copy.heroNote}</p>
-          <div className="welcome-hero-visual">
-            <div className="welcome-orbit welcome-orbit-one" /><div className="welcome-orbit welcome-orbit-two" />
-            <div className="welcome-window">
-              <div className="welcome-window-bar"><span className="welcome-window-dots"><i /><i /><i /></span><span>{copy.window}</span><span className="welcome-window-status">● &nbsp; {copy.previewBadge}</span></div>
-              <img src={screenshotPath("performance")} alt={copy.heroAlt} width="1004" height="455" fetchPriority="high" />
-            </div>
-            <div className="welcome-float"><span className="welcome-float-icon"><Check size={20} /></span><div>{copy.float[0]}<small>{copy.float[1]}</small></div></div>
-          </div>
-          <p className="welcome-caption">{copy.caption}</p>
-        </section>
-        <div className="welcome-ribbon"><div className="welcome-container"><span>{copy.ribbon}</span><span>{copy.assets}</span>{RIBBON_BROKERS.map((name) => <span key={name}>{name}</span>)}<span>{copy.moreBrokers}</span><i /><span>{copy.import}</span></div></div>
-        <BrokerCheck copy={copy.brokerCheck} language={language} onDemo={handleDemoCtaClick("landing_hero")} />
-        <section className="welcome-features welcome-container" id="funkce" aria-labelledby="features-title">
-          <div className="welcome-section-heading"><div><p className="welcome-kicker">{copy.featuresKicker}</p><h2 id="features-title"><Heading lines={copy.featuresHeading} /></h2></div><p>{copy.featuresLead}</p></div>
-          <div className="welcome-feature-grid">
-            {copy.features.map(([title, description], index) => {
-              const Icon = icons[index];
-              return <article className="welcome-feature" key={index}><div className="welcome-feature-top"><Icon size={24} strokeWidth={1.5} /><span>0{index + 1}</span></div><h3>{title}</h3><p>{description}</p></article>;
-            })}
-          </div>
-        </section>
-        <section className="welcome-showcase" id="ukazky" aria-labelledby="showcase-title">
+        <LandingHero copy={copy} language={language} signupOpen={signupOpen} onDemo={onHeroDemo} />
+        <BrokerList copy={copy} language={language} signupOpen={signupOpen} onDemo={onHeroDemo} />
+        <FeatureList copy={copy} />
+        <HowItWorks copy={copy} />
+        <PricingTeaser copy={copy} language={language} signupOpen={signupOpen} />
+        <LandingFaq copy={copy} signupOpen={signupOpen} />
+        <section className="welcome-closing" aria-labelledby="closing-title">
           <div className="welcome-container">
-            <div className="welcome-showcase-top"><p className="welcome-kicker">{copy.showcaseKicker}</p><span>{copy.showcaseNote}</span></div>
-            <div className="welcome-showcase-grid">
-              <div className="welcome-showcase-copy">
-                <SegmentedControl
-                  className="welcome-preview-switch"
-                  aria-label={copy.selectPreview}
-                  value={selected}
-                  onChange={setSelected}
-                  options={copy.previews.map((item, index) => ({ value: index, label: item.label }))}
-                />
-                <h2 id="showcase-title">{preview.title}</h2><p>{preview.description}</p>
-                <div className="welcome-detail-note"><Layers3 size={18} /><span>{copy.detailNote}</span></div>
-              </div>
-              <figure className="welcome-detail-preview"><div className={`welcome-detail-image welcome-detail-image-${image}`}><img src={screenshotPath(image)} alt={preview.alt} width={imageSizes[selected][0]} height={imageSizes[selected][1]} loading="lazy" /></div><figcaption>{copy.imageCaption}</figcaption></figure>
-            </div>
+            <h2 id="closing-title">{copy.closing}</h2>
+            {signupOpen
+              ? <a className="welcome-btn welcome-btn-big" href={registerUrl({ source: "landing_closing", lang: language })}>{copy.trialCtaShort}</a>
+              : <a className="welcome-btn welcome-btn-big" href="/demo" onClick={onClosingDemo}>{copy.demoCta}</a>}
           </div>
         </section>
-        <section className="welcome-faq welcome-container" id="otazky" aria-labelledby="faq-title">
-          <div><p className="welcome-kicker">{copy.faqKicker}</p><h2 id="faq-title"><Heading lines={copy.faqHeading} /></h2></div>
-          <div className="welcome-questions">
-            {copy.questions.map(([question, answer], index) => <details key={index}><summary>{question}<span className="welcome-faq-icon" aria-hidden="true"><Plus size={18} /></span></summary><p>{answer}</p></details>)}
-          </div>
-        </section>
-        <section className="welcome-closing welcome-container"><div className="welcome-eyebrow"><span />{copy.closingKicker}</div><h2><Heading lines={copy.closingHeading} /></h2><p>{copy.closingNote}</p><div className="welcome-closing-actions"><a className="welcome-cta" href="/demo" onClick={handleDemoCtaClick("landing_closing")}>{copy.demoCta} <ArrowUpRight size={17} /></a><a href="#nahoru">{copy.back} <ArrowUpRight size={16} /></a></div></section>
       </main>
-      <footer className="welcome-footer welcome-container"><a className="welcome-logo" href="#nahoru"><Brand /></a><span>{copy.footer}</span><nav className="welcome-footer-legal" aria-label={copy.legalNavigation}>{copy.legal.map(([page, label]) => <a key={page} href={`/${page}?lang=${copy.legalLanguage}`}>{label}</a>)}</nav><AnalyticsPreferencesLink language={language} /><small suppressHydrationWarning>© {new Date().getFullYear()} Portfyl</small></footer>
+      <LandingFooter copy={copy} language={language} onDemo={handleDemoCtaClick("direct")} />
     </div>
   );
 }
