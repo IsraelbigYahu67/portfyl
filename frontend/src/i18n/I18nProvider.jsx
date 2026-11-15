@@ -54,6 +54,7 @@ async function loadMessages(code) {
 const I18nContext = createContext({
   language: SOURCE_LANGUAGE,
   setLanguage: () => {},
+  previewLanguage: () => {},
   t: (text, vars) => translate(null, text, vars),
 });
 
@@ -82,6 +83,9 @@ export function I18nProvider({ children, initial = initialLanguage }) {
     if (latest.current === code) setState({ language: code, messages, ready: true });
   }, []);
   const setLanguage = useCallback((code) => apply(code, { save: true }), [apply]);
+  // For this visit only, e.g. the language an e-mail link asks for: nothing is
+  // saved, so it never replaces a choice the user makes later.
+  const previewLanguage = useCallback((code) => apply(code, { save: false }), [apply]);
 
   useEffect(() => {
     if (!state.ready) apply(state.language, { save: false });
@@ -96,8 +100,9 @@ export function I18nProvider({ children, initial = initialLanguage }) {
   const value = useMemo(() => ({
     language: state.language,
     setLanguage,
+    previewLanguage,
     t: (text, vars) => translate(state.messages, text, vars),
-  }), [state.language, state.messages, setLanguage]);
+  }), [state.language, state.messages, setLanguage, previewLanguage]);
 
   // Hold the first paint until the dictionary is in, so a Czech user never
   // sees a flash of English. It is one small chunk.
