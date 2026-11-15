@@ -22,7 +22,7 @@ before starting any auth, tenancy, database, or billing work.
   The Screener and Options pages were removed from the frontend on 2026-11-04
   (git history has them); the Screener backend and the `options` router remain.
 - `PORTFYL_EDITION=cloud` — multi-tenant SaaS with Free / Investor EUR 5.99 /
-  Pro EUR 9.99 plans (monthly only, VAT included, no trials). Payments use
+  Pro EUR 9.99 plans (monthly only, VAT included, 10-day Pro trial without a card (`backend/trials.py`)). Payments use
   **Stripe Managed Payments** (Stripe/Link is the merchant of record):
   `backend/routers/billing.py` (Checkout, Customer Portal, signed webhook),
   `backend/billing_sync.py` (projects the re-fetched Stripe Subscription into
@@ -32,7 +32,13 @@ before starting any auth, tenancy, database, or billing work.
   pricing page's no-payment `/api/test-plans` switch is mounted, and once on it
   is unmounted and ignored. Managed Payments checkout cannot show custom text,
   so the immediate-start / 14-day-withdrawal consent is collected on the
-  pricing page and audited (`billing.checkout.created`). Tax Report and
+  pricing page and audited (`billing.checkout.created`). The trial is
+  Portfyl-owned state, not Stripe: `trial_grants` (tenant, RLS) plus global HMAC
+  guard tables `trial_identities` / `trial_ip_marks` / `trial_broker_marks`
+  (migration `0027_free_trial`); env `PORTFYL_TRIAL_DAYS` (default 10, `0` = off)
+  and secret `PORTFYL_TRIAL_FINGERPRINT_KEY` (required while on; see
+  `deploy/cloudrun.md`). `resolve_entitlements` order: live subscription,
+  private test selection, active trial, Free. Tax Report and
   Screener are **permanently excluded from cloud** — not deferred, a deliberate
   product decision (see plan §2, §7, §12).
 - **Workstreams B (PostgreSQL/Alembic foundation), C (Firebase identity,

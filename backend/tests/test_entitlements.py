@@ -45,6 +45,7 @@ def test_cloud_free_resolution_reads_subscription_then_test_plan_setting(test_wo
 
     monkeypatch.delenv("PORTFYL_BILLING_ENABLED", raising=False)
     monkeypatch.setattr(entitlements_module, "_live_subscription", no_subscription)
+    monkeypatch.setattr(entitlements_module, "_trial_state", lambda db, workspace_id, now: (None, None))
     monkeypatch.setattr(entitlements_module, "get_workspace_setting", get_test_setting)
     result = resolve_entitlements(
         DatabaseMustNotBeUsed(),
@@ -155,3 +156,95 @@ def test_cloud_rejects_local_only_capability_before_plan_evaluation(db_session, 
     with pytest.raises(EntitlementDenied) as denied:
         ensure_capability(local, "tax_report", edition=Edition.CLOUD)
     assert denied.value.payload() == {"code": "edition_unavailable", "capability": "tax_report"}
+
+
+# --- the free trial in the resolution order -----------------------------------
+
+TRIAL_ENV = {"PORTFYL_TRIAL_FINGERPRINT_KEY": "test-only-trial-fingerprint-key-0000000001"}
+
+
+def _start_trial(db, workspace):
+    import trials
+
+    grant = trials.grant_trial(
+        db, workspace_id=workspace.id, email="trial@example.com", now=NOW, env=TRIAL_ENV
+    )
+    assert grant is not None
+    return grant
+
+
+def _resolve_with(db, workspace, env):
+    return resolve_entitlements(
+        db, edition=Edition.CLOUD, workspace_id=workspace.id, now=NOW, env=env
+    )
+
+
+def test_live_subscription_wins_over_trial(db_session, test_workspace):
+    from models import Subscription
+
+    _start_trial(db_session, test_workspace)
+    db_session.add(Subscription(
+        workspace_id=test_workspace.id,
+        stripe_subscription_id="sub_x", stripe_customer_id="cus_x", stripe_price_id="price_x",
+        plan="investor", status="active",
+    ))
+    db_session.flush()
+
+    result = _resolve_with(db_session, test_workspace, TRIAL_ENV)
+
+    assert result.plan is PlanTier.INVESTOR
+    assert result.source == "subscription"
+
+
+def test_test_selection_wins_over_trial_when_billing_off(db_session, test_workspace):
+    _start_trial(db_session, test_workspace)
+    set_workspace_setting(
+        db_session, test_workspace.id, PRIVATE_TEST_PLAN_SETTING_KEY, PlanTier.INVESTOR.value
+    )
+
+    result = _resolve_with(db_session, test_workspace, TRIAL_ENV)
+
+    assert result.plan is PlanTier.INVESTOR
+    assert result.source == "test_selection"
+
+
+def test_trial_wins_over_free_when_billing_on(db_session, test_workspace):
+    _start_trial(db_session, test_workspace)
+    env = {**TRIAL_ENV, "PORTFYL_BILLING_ENABLED": "1"}
+    # A stale test selection must not matter once real payments are on.
+    set_workspace_setting(
+        db_session, test_workspace.id, PRIVATE_TEST_PLAN_SETTING_KEY, PlanTier.FREE.value
+    )
+
+    result = _resolve_with(db_session, test_workspace, env)
+
+    assert result.plan is PlanTier.PRO
+    assert result.source == "trial"
+
+
+def test_trial_wins_over_free_when_billing_off_and_no_selection(db_session, test_workspace):
+    _start_trial(db_session, test_workspace)
+
+    result = _resolve_with(db_session, test_workspace, TRIAL_ENV)
+
+    assert result.plan is PlanTier.PRO
+    assert result.source == "trial"
+    assert "advanced_research" in result.capabilities
+
+
+def test_invalid_test_selection_does_not_hide_the_trial(db_session, test_workspace):
+    _start_trial(db_session, test_workspace)
+    set_workspace_setting(db_session, test_workspace.id, PRIVATE_TEST_PLAN_SETTING_KEY, "enterprise")
+
+    assert _resolve_with(db_session, test_workspace, TRIAL_ENV).source == "trial"
+
+
+def test_local_edition_ignores_trial(db_session, test_workspace):
+    _start_trial(db_session, test_workspace)
+
+    result = resolve_entitlements(
+        db_session, edition=Edition.LOCAL, workspace_id=test_workspace.id, now=NOW
+    )
+
+    assert result.source == "local"
+    assert result.payload()["trial_ended_reason"] is None

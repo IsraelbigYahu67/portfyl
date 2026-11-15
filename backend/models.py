@@ -284,6 +284,72 @@ class RateLimitBucket(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
 
 
+class TrialGrant(Base):
+    """The free Pro trial of one workspace (backend/trials.py is the only
+    module that writes it). Tenant table with forced RLS. `ended_reason` is
+    set only when the trial was cut short (broker check); a trial that simply
+    ran out has it NULL and `ends_at` in the past."""
+
+    __tablename__ = "trial_grants"
+    __table_args__ = (
+        CheckConstraint("ends_at > started_at", name="ck_trial_period_order"),
+    )
+
+    id = _uuid_primary_key()
+    public_id = _public_id()
+    workspace_id = Column(
+        Uuid(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    started_at = Column(DateTime(timezone=True), nullable=False)
+    ends_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    ended_reason = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class TrialIdentity(Base):
+    """Global, non-tenant: HMAC of a canonical e-mail that already had a trial.
+    Survives account deletion on purpose (one trial per mailbox, ever); purged
+    after 12 months. Never holds a raw e-mail."""
+
+    __tablename__ = "trial_identities"
+
+    fingerprint = Column(String(64), primary_key=True)
+    granted_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
+
+
+class TrialIpMark(Base):
+    """Global, non-tenant: one row per trial granted from a client IP (HMAC,
+    never the raw address). Counted over 30 days, then purged."""
+
+    __tablename__ = "trial_ip_marks"
+
+    id = _uuid_primary_key()
+    ip_fingerprint = Column(String(64), nullable=False, index=True)
+    granted_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
+
+
+class TrialBrokerMark(Base):
+    """Global, non-tenant: a broker account (or imported-history) fingerprint
+    seen during a trial. `workspace_id` becomes NULL when that workspace is
+    deleted. Written by the broker check; purged after 12 months."""
+
+    __tablename__ = "trial_broker_marks"
+
+    fingerprint = Column(String(64), primary_key=True)
+    kind = Column(String(16), nullable=False)
+    workspace_id = Column(
+        Uuid(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    first_seen_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
+
+
 class UsageReservation(Base):
     __tablename__ = "usage_reservations"
     __table_args__ = (

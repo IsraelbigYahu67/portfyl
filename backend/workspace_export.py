@@ -28,6 +28,7 @@ from models import (
     PriceAlert,
     TradeNote,
     Transaction,
+    TrialGrant,
     Watchlist,
     WatchlistItem,
     WorkspaceSetting,
@@ -35,7 +36,7 @@ from models import (
 from tenancy import RequestContext
 
 
-EXPORT_SCHEMA_VERSION = 7
+EXPORT_SCHEMA_VERSION = 8
 
 _WORKSPACE_PREFERENCE_KEYS = (
     "broker_sync_daily_time",
@@ -223,6 +224,7 @@ def build_workspace_export(
         .where(BrokerRequest.workspace_id == workspace_id)
         .order_by(BrokerRequest.created_at, BrokerRequest.id)
     ).all()
+    trial_grant = db.scalar(select(TrialGrant).where(TrialGrant.workspace_id == workspace_id))
     dividend_notifications = db.scalars(
         select(DividendNotification)
         .where(DividendNotification.workspace_id == workspace_id)
@@ -534,6 +536,13 @@ def build_workspace_export(
             }
             for request in broker_requests
         ],
+        # The free-trial dates of this workspace (null when it never had one);
+        # the global abuse-guard tables hold only HMAC fingerprints, no export.
+        "trial": None if trial_grant is None else {
+            "started_at": _iso(trial_grant.started_at),
+            "ends_at": _iso(trial_grant.ends_at),
+            "ended_reason": trial_grant.ended_reason,
+        },
         "dividend_notifications": [
             {
                 "id": str(notification.public_id),

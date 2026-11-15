@@ -736,6 +736,44 @@ loss of the 14-day withdrawal right) is collected on Portfyl's pricing page
 because Managed Payments checkout cannot show custom text, and the audit log
 records it as `billing.checkout.created` with `consent_version`.
 
+## Free trial (10 days of Pro, no card)
+
+Every new cloud workspace created by registration gets `PORTFYL_TRIAL_DAYS`
+days (default 10) of Pro without a card and without any Stripe object
+(`backend/trials.py`, tables `trial_grants`, `trial_identities`,
+`trial_ip_marks`, `trial_broker_marks`; migration `0027_free_trial`). A live
+subscription always wins; when the trial ends the workspace is Free and
+nothing is deleted.
+
+| Variable | Where | Notes |
+| --- | --- | --- |
+| `PORTFYL_TRIAL_DAYS` | env var | Default `10`; `0` switches the trial off. A negative or non-integer value stops the first registration with an error. |
+| `PORTFYL_TRIAL_FINGERPRINT_KEY` | Secret Manager | **Required while the trial is on** (at least 32 characters): without it registration fails closed. It keys the HMACs of the canonical e-mail and of the client IP, so the trial tables never hold a raw e-mail or IP. Keep it stable: rotating it forgets every used mailbox. |
+
+```powershell
+gcloud secrets create portfyl-trial-fingerprint-key --replication-policy=automatic
+python -c "import secrets; print(secrets.token_urlsafe(32))" | gcloud secrets versions add portfyl-trial-fingerprint-key --data-file=-
+gcloud secrets add-iam-policy-binding portfyl-trial-fingerprint-key --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+# Deploy with the new secret added to the existing ones (and PORTFYL_TRIAL_DAYS only if you change the default):
+gcloud run services update $SERVICE --region $REGION --update-secrets="PORTFYL_TRIAL_FINGERPRINT_KEY=portfyl-trial-fingerprint-key:latest"
+```
+
+Set the secret **before** deploying the image that contains this feature.
+
+Rules the code applies (the withheld cases still create a normal Free
+account, so a false positive costs a real user only the trial): one trial per
+mailbox ever (the canonical e-mail drops `+tags` and, for Gmail, dots and
+`googlemail.com`); no trial for a domain on `backend/data/disposable_domains.txt`
+(CC0 list from `disposable-email-domains`, refreshed by hand); no trial when 3
+trials were already granted from the same client IP (`CF-Connecting-IP`, IPv6
+by /64) within 30 days. Every withheld trial writes a `trial.withheld` audit
+event with only the reason (`email_reused`, `disposable_domain`, `ip_limit`);
+count them to decide whether a card-required trial is ever needed.
+`trial_identities` and `trial_broker_marks` rows are purged after 12 months and
+`trial_ip_marks` after 30 days by the daily `account_deletion_cleanup` job.
+`/api/billing/status` and `/api/test-plans` carry `trial_ended_reason`
+(`null` or `"expired"` today).
+
 ## Ongoing rules
 
 - Scheduler schedules, retry limits, and JSON health matching are versioned

@@ -153,7 +153,7 @@ def test_export_contains_portable_workspace_data_without_cross_tenant_rows(
         exported_at=EXPORTED_AT,
     )
 
-    assert payload["schema_version"] == 7
+    assert payload["schema_version"] == 8
     assert payload["exported_at"] == "2026-09-07T12:30:00+00:00"
     assert payload["workspace"]["id"] == str(request_context.workspace.public_id)
     assert payload["membership"] == {
@@ -460,7 +460,7 @@ def test_export_includes_corporate_actions_and_applications(db_session, request_
 
     payload = build_workspace_export(db_session, request_context, exported_at=EXPORTED_AT)
 
-    assert payload["schema_version"] == 7
+    assert payload["schema_version"] == 8
     [a] = payload["broker_corporate_actions"]
     assert a["action_type"] == "STOCK_SPLIT"
     assert float(a["ratio_numerator"]) == 10.0
@@ -485,7 +485,7 @@ def test_export_includes_allocation_targets_for_own_portfolios(db_session, reque
 
     payload = build_workspace_export(db_session, request_context, exported_at=EXPORTED_AT)
 
-    assert payload["schema_version"] == 7
+    assert payload["schema_version"] == 8
     [row] = payload["allocation_targets"]
     assert row["portfolio_id"] == str(portfolio.public_id)
     assert row["ticker"] == "VWCE.DE"
@@ -520,3 +520,33 @@ def test_export_includes_broker_requests_of_this_workspace_only(db_session, requ
         workspace_id=request_context.workspace.id).one().public_id)
     assert set(row) == {"id", "broker_name", "created_at"}
     assert "Someone else's broker" not in json.dumps(payload)
+
+
+def test_export_includes_the_trial_dates_of_this_workspace_only(db_session, request_context):
+    from datetime import timedelta
+
+    from models import TrialGrant
+
+    other = Workspace(name="Other trial workspace")
+    db_session.add(other)
+    db_session.flush()
+    started = EXPORTED_AT - timedelta(days=3)
+    db_session.add_all([
+        TrialGrant(workspace_id=request_context.workspace.id,
+                   started_at=started, ends_at=started + timedelta(days=10)),
+        TrialGrant(workspace_id=other.id,
+                   started_at=started, ends_at=started + timedelta(days=99)),
+    ])
+    db_session.commit()
+
+    payload = build_workspace_export(db_session, request_context, exported_at=EXPORTED_AT)
+
+    assert set(payload["trial"]) == {"started_at", "ends_at", "ended_reason"}
+    assert payload["trial"]["ended_reason"] is None
+    assert payload["trial"]["ends_at"].startswith((started + timedelta(days=10)).strftime("%Y-%m-%d"))
+
+
+def test_export_has_no_trial_for_a_workspace_that_never_had_one(db_session, request_context):
+    payload = build_workspace_export(db_session, request_context, exported_at=EXPORTED_AT)
+
+    assert payload["trial"] is None

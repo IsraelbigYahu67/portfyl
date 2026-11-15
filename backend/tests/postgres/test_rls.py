@@ -56,6 +56,7 @@ RLS_TABLES = {
     "notification_outbox",
     "billing_customers",
     "subscriptions",
+    "trial_grants",
 }
 
 

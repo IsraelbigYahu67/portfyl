@@ -71,6 +71,7 @@ WORKSPACE_SCOPED_TABLES: tuple[str, ...] = (
     "notification_outbox",
     "billing_customers",
     "subscriptions",
+    "trial_grants",
 )
 
 

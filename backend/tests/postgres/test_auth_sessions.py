@@ -23,6 +23,10 @@ from models import (
     Membership,
     PriceAlert,
     Transaction,
+    TrialBrokerMark,
+    TrialGrant,
+    TrialIdentity,
+    TrialIpMark,
     User,
     Workspace,
 )
@@ -146,12 +150,18 @@ def empty_auth_database(postgres_engine):
         db.execute(delete(BetaInvite))
         db.execute(delete(User))
         db.execute(delete(Workspace))
+        db.execute(delete(TrialIdentity))
+        db.execute(delete(TrialIpMark))
+        db.execute(delete(TrialBrokerMark))
         db.commit()
     yield
     with admin_session(postgres_engine) as db:
         db.execute(delete(BetaInvite))
         db.execute(delete(User))
         db.execute(delete(Workspace))
+        db.execute(delete(TrialIdentity))
+        db.execute(delete(TrialIpMark))
+        db.execute(delete(TrialBrokerMark))
         db.commit()
 
 
@@ -200,6 +210,8 @@ def test_verified_identity_creates_user_workspace_membership_and_session(
     assert "HttpOnly" in response.headers["set-cookie"]
     with admin_session(postgres_engine) as db:
         assert db.scalar(select(func.count()).select_from(User)) == 1
+        # The local edition has no trial.
+        assert db.scalar(select(func.count()).select_from(TrialGrant)) == 0
         assert db.scalar(select(func.count()).select_from(Workspace)) == 1
         assert db.scalar(select(func.count()).select_from(Membership)) == 1
         assert db.scalar(select(func.count()).select_from(AuthSession)) == 1
@@ -272,6 +284,13 @@ def test_cloud_beta_accepts_invite_and_provisions_once(
         assert invite.status == "accepted"
         assert invite.accepted_at is not None
         assert db.scalar(select(func.count()).select_from(User)) == 1
+        # A new cloud workspace starts its 10-day Pro trial in the same
+        # transaction, and the audit trail records nothing withheld.
+        grant = db.scalar(select(TrialGrant))
+        assert grant is not None and grant.ended_reason is None
+        assert grant.ends_at - grant.started_at == timedelta(days=10)
+        assert db.scalar(select(func.count()).select_from(TrialIdentity)) == 1
+        assert db.scalar(select(func.count()).select_from(TrialIpMark)) == 1
 
 
 def test_verified_owner_claims_only_exact_normalized_pending_email(

@@ -672,6 +672,30 @@ class TestAccountDeletionCleanupPass:
         assert result == [{"purged": 1}]
         purge.assert_called_once_with(db_session, identity_admin, now=self.NOW)
 
+    def test_daily_pass_purges_expired_trial_guard_rows(self, db_session, monkeypatch):
+        from datetime import timedelta
+
+        from jobs import account_deletion_cleanup_pass
+        from models import TrialIdentity, TrialIpMark
+
+        monkeypatch.setattr(
+            "account_deletion.purge_due_workspace_deletions",
+            Mock(return_value={
+                "scanned": 0, "purged": 0, "not_due": 0, "shared": 0, "invalid": 0, "errors": 0,
+            }),
+        )
+        db_session.add_all([
+            TrialIdentity(fingerprint="o" * 64, granted_at=self.NOW - timedelta(days=400)),
+            TrialIdentity(fingerprint="n" * 64, granted_at=self.NOW - timedelta(days=10)),
+            TrialIpMark(ip_fingerprint="p" * 64, granted_at=self.NOW - timedelta(days=31)),
+        ])
+        db_session.commit()
+
+        _run(account_deletion_cleanup_pass(db_session, now=self.NOW, identity_admin=object()))
+
+        assert [r.fingerprint for r in db_session.query(TrialIdentity)] == ["n" * 64]
+        assert db_session.query(TrialIpMark).count() == 0
+
     def test_raises_when_any_workspace_failed(self, db_session, monkeypatch):
         from jobs import account_deletion_cleanup_pass
 
