@@ -12,6 +12,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgotPassword";
+import AuthAction, { AUTH_ACTION_PATH } from "./pages/AuthAction";
 import { fetchCapabilities, fetchFxRate, fetchPortfolios, setActivePortfolioId, getActivePortfolioId } from "./api";
 import { ToastProvider } from "./components/ui/Toast";
 import { ConfirmProvider } from "./components/ui/ConfirmDialog";
@@ -358,6 +359,13 @@ function PortfoliosLoadError({ onRetry }) {
 // AuthProvider has resolved a session with both a user and a workspace.
 function AuthGate() {
   const { ready, user, currentWorkspace } = useAuth();
+  const { pathname } = useLocation();
+
+  // E-mail action links (verify e-mail, reset password) work whether or not
+  // this browser is signed in, and need no session to load first.
+  if (pathname === AUTH_ACTION_PATH) {
+    return <AuthAction />;
+  }
 
   if (!ready) {
     return <AuthSplash />;
