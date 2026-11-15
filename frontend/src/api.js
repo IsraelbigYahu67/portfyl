@@ -75,7 +75,7 @@ api.interceptors.request.use(applyRequestInterceptors);
 // Pages reachable while signed out — a 401 here means "not logged in yet",
 // not "session expired", so the response interceptor below must not bounce
 // the user away from them.
-const PUBLIC_AUTH_PATHS = ["/login", "/register", "/verify-email", "/forgot-password"];
+const PUBLIC_AUTH_PATHS = ["/login", "/register", "/verify-email", "/forgot-password", "/auth/action"];
 
 function isPublicAuthPath(pathname) {
   return PUBLIC_AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));

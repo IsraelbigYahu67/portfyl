@@ -100,6 +100,42 @@ export async function sendPasswordReset(email) {
   await sendPasswordResetEmail(auth, email);
 }
 
+// E-mail action links (verify e-mail, reset password, undo an e-mail change)
+// open Portfyl's own /auth/action page (pages/AuthAction.jsx) instead of
+// Firebase's generic one: the project's action URL is
+// https://app.portfyl.com/auth/action (see "E-mail action links" in
+// deploy/cloudrun.md). These four calls are all that page needs.
+export async function applyEmailActionCode(code) {
+  const auth = await readyAuth();
+  const { applyActionCode } = await loadFirebaseSdk();
+  await applyActionCode(auth, code);
+}
+
+// Resolves to { operation, email, previousEmail } without using the code up.
+export async function checkEmailActionCode(code) {
+  const auth = await readyAuth();
+  const { checkActionCode } = await loadFirebaseSdk();
+  const info = await checkActionCode(auth, code);
+  return {
+    operation: info.operation,
+    email: info.data?.email ?? null,
+    previousEmail: info.data?.previousEmail ?? null,
+  };
+}
+
+// Resolves to the e-mail address the reset code belongs to.
+export async function verifyResetCode(code) {
+  const auth = await readyAuth();
+  const { verifyPasswordResetCode } = await loadFirebaseSdk();
+  return verifyPasswordResetCode(auth, code);
+}
+
+export async function confirmNewPassword(code, newPassword) {
+  const auth = await readyAuth();
+  const { confirmPasswordReset } = await loadFirebaseSdk();
+  await confirmPasswordReset(auth, code, newPassword);
+}
+
 export async function getIdToken(user, forceRefresh = false) {
   return user.getIdToken(forceRefresh);
 }
@@ -278,6 +314,8 @@ const ERROR_MESSAGES = {
     msg("This e-mail already has a Portfyl password. Log in with your e-mail and password."),
   "auth/unauthorized-domain": msg("Google sign-in is not available right now."),
   "auth/operation-not-allowed": msg("Google sign-in is not available right now."),
+  "auth/expired-action-code": msg("This link has expired. Request a new one."),
+  "auth/invalid-action-code": msg("This link is no longer valid. It may have been used already."),
 };
 
 // Codes returned by POST /api/auth/session (backend/routers/auth.py).

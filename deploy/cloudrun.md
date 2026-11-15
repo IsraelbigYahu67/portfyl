@@ -637,6 +637,36 @@ window first and made Google name that host as the app. To turn it on:
 To roll back, remove the line or set it to `false` and redeploy. No data
 changes are involved. Leaving `PORTFYL_FIREBASE_AUTH_DOMAIN` set is harmless.
 
+### E-mail action links
+
+The links in Firebase's e-mails (verify e-mail, reset password, undo an e-mail
+change) open Portfyl's own page, `frontend/src/pages/AuthAction.jsx` at
+`/auth/action`, instead of Firebase's generic page on
+`portfyl-cloud-fstxby.firebaseapp.com/__/auth/action`. The page applies the
+code, then replaces the long query in the address bar with `/auth/action`.
+
+The project has one action URL for all e-mails, dev included. Switch it
+**only after** a deploy that contains `/auth/action` is live, or every link
+breaks until it is:
+
+1. Run the routine redeploy and open
+   `https://app.portfyl.com/auth/action?mode=verifyEmail&oobCode=x`: it must
+   show Portfyl's "This link didn't work" page.
+2. Firebase console → Authentication → Templates → any template → pencil →
+   **Customize action URL** → `https://app.portfyl.com/auth/action` → Save.
+   (Same field as the Identity Toolkit config `notification.sendEmail.callbackUri`.)
+3. Register a test account and click the e-mail link: Portfyl's
+   "Your e-mail is verified" page must show.
+
+To roll back, set the action URL back to
+`https://portfyl-cloud-fstxby.firebaseapp.com/__/auth/action`.
+
+Firebase lets this project change only the sender name of these e-mails
+(set to `Portfyl`), not their subject or text
+(`EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED`). A branded, translated e-mail with a
+button needs Portfyl to send it itself: the backend makes the link with the
+Admin SDK (`generate_email_verification_link`) and sends it through Brevo.
+
 ## Stripe Managed Payments (paid plans)
 
 Paid plans use **Stripe Managed Payments**: Stripe, under the Link brand, is
