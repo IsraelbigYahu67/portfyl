@@ -402,8 +402,8 @@ The broker is a data source, not the identity of the whole application.
 | Capability | Free | Investor EUR 4.99 | Pro EUR 7.99 |
 |---|---|---|---|
 | Portfolios | 1 | 5 | 15 |
-| Active positions | 15 | No product limit | No product limit |
-| Transactions | 250 | No product limit | No product limit |
+| Active positions | No product limit (was 15 until 2026-11-14) | No product limit | No product limit |
+| Transactions | No product limit (was 250 until 2026-11-14) | No product limit | No product limit |
 | Manual entry and CSV | Yes | Yes | Yes |
 | Broker connections | 0 | 2 | 5 |
 | Automatic sync | No | Daily | Approximately every six hours |
@@ -417,7 +417,7 @@ The broker is a data source, not the identity of the whole application.
 | Screener | Not available in cloud | Not available in cloud | Not available in cloud |
 | Watchlists | 1 / 15 symbols | 5 | Fair-use high limit |
 | Alerts | 3 | 20 via e-mail/Discord | 100 via e-mail/Discord/push |
-| Options and Polymarket | Summary only | No advanced analytics | Complete analytics |
+| Options and Polymarket | Not sold (dropped from Pro on 2026-11-14; no UI) | Not sold | Not sold |
 | AI assistant | No hosted AI | Bring your own key | 100 hosted messages/month plus BYOK |
 | Raw customer-data export | Always | Always | Always |
 | Support | Documentation | Standard | Priority |

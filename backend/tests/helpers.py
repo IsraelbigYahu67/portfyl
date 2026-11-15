@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date, datetime, timezone
 from uuid import UUID
 
@@ -38,6 +39,25 @@ def make_t212_connection_with_coverage(db, portfolio) -> BrokerConnection:
     db.add(conn)
     db.commit()
     return conn
+
+
+def cap_free_limits(monkeypatch, **caps) -> None:
+    """Give the Free plan test-only caps (e.g. transactions=250).
+
+    Free has no position/transaction limit, but the capacity machinery that
+    enforces such limits is still exercised through these caps.
+    """
+    import entitlements
+    from plans import PlanTier
+
+    real = entitlements.plan_limits
+
+    def capped(env=None):
+        limits = dict(real(env))
+        limits[PlanTier.FREE] = replace(limits[PlanTier.FREE], **caps)
+        return limits
+
+    monkeypatch.setattr(entitlements, "plan_limits", capped)
 
 
 def make_txn(

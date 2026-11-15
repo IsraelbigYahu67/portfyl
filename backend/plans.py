@@ -40,7 +40,9 @@ def _positive_int(env: Mapping[str, str], name: str, default: int) -> int:
 def plan_limits(env: Mapping[str, str] | None = None) -> Mapping[PlanTier, PlanLimits]:
     env = env or {}
     return MappingProxyType({
-        PlanTier.FREE: PlanLimits(1, 15, 250, 0, 1, 15, 3, None),
+        # Positions and transactions are unlimited on every plan, so Free is a
+        # usable tracker; paid plans sell sync, analytics and research.
+        PlanTier.FREE: PlanLimits(1, None, None, 0, 1, 15, 3, None),
         PlanTier.INVESTOR: PlanLimits(
             5,
             None,
