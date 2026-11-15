@@ -1302,6 +1302,16 @@ async def account_deletion_cleanup_pass(
         now=now,
     )
     retention = cleanup_retained_operational_data(db, now=now)
+    from trials import purge_trial_records
+
+    trial_purge = purge_trial_records(db, now or datetime.now(timezone.utc))
+    db.commit()
+    log.info(
+        "trial_records_purge identities=%d ip_marks=%d broker_marks=%d",
+        trial_purge["identities"],
+        trial_purge["ip_marks"],
+        trial_purge["broker_marks"],
+    )
     log.info(
         "account_deletion_cleanup scanned=%d purged=%d not_due=%d shared=%d invalid=%d errors=%d",
         summary["scanned"],

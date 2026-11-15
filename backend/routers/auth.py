@@ -9,7 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from rate_limit import rate_limit
+from rate_limit import client_ip as _client_ip, rate_limit
+import trials
 
 from audit import record_audit_event
 from beta_access import BetaAccessDenied, require_active_invite
@@ -72,9 +73,14 @@ def _refresh_profile(user: User, identity: VerifiedIdentity) -> None:
 def _provision_identity(
     db: Session,
     identity: VerifiedIdentity,
+    *,
+    grant_trial: bool = False,
+    client_ip: str | None = None,
 ) -> tuple[User, bool]:
     """Return the Portfyl user for a verified identity and whether this
-    exchange created it (and its personal workspace)."""
+    exchange created it (and its personal workspace). With `grant_trial` (the
+    cloud edition) a new workspace also gets its free Pro trial, in the same
+    transaction, unless one of the trial guards withholds it."""
     user = db.scalar(select(User).where(User.firebase_uid == identity.uid))
     if user is not None:
         if user.email != identity.email or user.disabled_at is not None:
@@ -123,6 +129,15 @@ def _provision_identity(
     db.flush()
     db.add(membership)
     db.flush()
+    if grant_trial:
+        trials.grant_trial(
+            db,
+            workspace_id=workspace_id,
+            email=identity.email,
+            now=_verified_now(),
+            client_ip=client_ip,
+            actor_user_id=user.id,
+        )
     return user, True
 
 
@@ -203,7 +218,15 @@ def exchange_session(
         except BetaAccessDenied as exc:
             raise AuthAPIError(403, "beta_access_required") from exc
 
-    user, account_created = _provision_identity(db, identity)
+    is_cloud = request.app.state.portfyl_edition is Edition.CLOUD
+    user, account_created = _provision_identity(
+        db,
+        identity,
+        grant_trial=is_cloud,
+        # The auth_session rate-limit dependency has already validated this
+        # trusted Cloudflare header, so it cannot raise here.
+        client_ip=_client_ip(request) if is_cloud else None,
+    )
     issued = create_session(
         db,
         user.id,

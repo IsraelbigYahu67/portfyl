@@ -47,6 +47,7 @@ def test_slow_plan_check_does_not_freeze_other_requests(monkeypatch):
 
     monkeypatch.setattr(entitlements, "get_workspace_setting", slow_setting)
     monkeypatch.setattr(entitlements, "_live_subscription", lambda *_: None)
+    monkeypatch.setattr(entitlements, "_trial_state", lambda *_: (None, None))
 
     app = FastAPI()
     app.state.portfyl_edition = Edition.CLOUD
@@ -291,6 +292,7 @@ def test_slow_database_work_in_an_endpoint_does_not_freeze_other_requests(monkey
     monkeypatch.setattr(alerts_router, "run_check", slow_run_check)
     monkeypatch.setattr(entitlements, "get_workspace_setting", lambda *_: PlanTier.PRO.value)
     monkeypatch.setattr(entitlements, "_live_subscription", lambda *_: None)
+    monkeypatch.setattr(entitlements, "_trial_state", lambda *_: (None, None))
 
     app = FastAPI()
     app.state.portfyl_edition = Edition.CLOUD

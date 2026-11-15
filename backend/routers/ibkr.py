@@ -20,8 +20,10 @@ from entitlements import (
 from logging_setup import redact
 from rate_limit import rate_limit
 from models import BrokerConnection, OptionsTrade, BrokerBalance, Portfolio
+from importers.formats.ibkr_flex import flex_account_ids
 from private_loop import run_on_private_loop
 from tenancy import RequestContext, require_csrf, require_portfolio
+from trials import check_broker
 
 router = APIRouter(prefix="/broker/ibkr", tags=["ibkr"])
 
@@ -752,6 +754,15 @@ async def _run_ibkr_sync(
             imported += 1
         except Exception as e:
             errors.append(f"Failed to insert trade {trade['underlying']} {trade['strike']}: {e}")
+
+    # Free-trial broker check on the account number in the statement (paper
+    # and masked ids are skipped inside). Best effort, own savepoint.
+    check_broker(
+        db,
+        workspace_id=workspace_id,
+        broker="ibkr",
+        account_ids=flex_account_ids(xml_text),
+    )
 
     # Update last_synced_at
     conn.last_synced_at = datetime.utcnow()

@@ -36,6 +36,9 @@ class ParseResult:
     source_events: int
     skipped_reasons: dict[str, int] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
+    # The broker's own account numbers seen in the file (IBKR Flex), for the
+    # free-trial broker check. Never stored raw; see trials.check_broker.
+    account_ids: list[str] = field(default_factory=list)
 
     @property
     def skipped(self) -> int:

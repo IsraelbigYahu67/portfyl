@@ -22,6 +22,7 @@ from edition import CAPABILITY_REGISTRY, CapabilityClass, Edition, edition_allow
 from ledger_mutation import acquire_workspace_ledger_lock
 from models import BrokerConnection, Portfolio, Subscription, UsageCounter, UsageReservation
 from tenancy import RequestContext, RequestContextError, get_request_context, require_portfolio
+from trials import trial_state as _trial_state
 
 
 PRIVATE_TEST_PLAN_SETTING_KEY = "private_test_plan"
@@ -40,6 +41,9 @@ class EffectiveEntitlements:
     cancel_at_period_end: bool
     capabilities: tuple[str, ...]
     limits: PlanLimits
+    # Why a free trial is over: "expired" when it ran out, or the reason it
+    # was cut short; None while it runs or when the workspace never had one.
+    trial_ended_reason: str | None = None
 
     def payload(self) -> dict[str, object]:
         return {
@@ -50,6 +54,7 @@ class EffectiveEntitlements:
             "cancel_at_period_end": self.cancel_at_period_end,
             "capabilities": list(self.capabilities),
             "limits": asdict(self.limits),
+            "trial_ended_reason": self.trial_ended_reason,
         }
 
 
@@ -123,23 +128,42 @@ def resolve_entitlements(
         if paid is not None:
             return paid
 
-    if billing_enabled(env if env is not None else os.environ):
-        # With real payments on, the no-payment test selection must never
-        # grant a paid plan.
-        return _tier_entitlements(PlanTier.FREE, source="free", edition=edition, env=env)
+    # Resolution order: live subscription (above) -> private test selection
+    # (only while billing is off and a valid one is stored) -> active free
+    # trial -> Free.
+    grant, trial_ended_reason = _trial_state(db, workspace_id, now)
 
-    raw_tier = get_workspace_setting(db, workspace_id, PRIVATE_TEST_PLAN_SETTING_KEY)
-    try:
-        tier = PlanTier(raw_tier) if raw_tier else PlanTier.FREE
-    except ValueError:
-        # Fail closed if a stale or manually edited setting contains an
-        # unsupported value.
-        tier = PlanTier.FREE
+    if not billing_enabled(env if env is not None else os.environ):
+        raw_tier = get_workspace_setting(db, workspace_id, PRIVATE_TEST_PLAN_SETTING_KEY)
+        try:
+            tier = PlanTier(raw_tier) if raw_tier else None
+        except ValueError:
+            # Fail closed if a stale or manually edited setting contains an
+            # unsupported value.
+            tier = None
+        if tier is not None:
+            return _tier_entitlements(
+                tier,
+                source="test_selection",
+                edition=edition,
+                env=env,
+                trial_ended_reason=trial_ended_reason,
+            )
+
+    if grant is not None:
+        return _tier_entitlements(
+            PlanTier.PRO,
+            source="trial",
+            edition=edition,
+            env=env,
+            effective_until=_as_utc(grant.ends_at),
+        )
     return _tier_entitlements(
-        tier,
-        source="test_selection" if raw_tier == tier.value else "free",
+        PlanTier.FREE,
+        source="free",
         edition=edition,
         env=env,
+        trial_ended_reason=trial_ended_reason,
     )
 
 
@@ -159,6 +183,7 @@ def _tier_entitlements(
     effective_until: datetime | None = None,
     in_grace: bool = False,
     cancel_at_period_end: bool = False,
+    trial_ended_reason: str | None = None,
 ) -> EffectiveEntitlements:
     capabilities = tuple(
         key for key in CAPABILITY_REGISTRY
@@ -172,6 +197,7 @@ def _tier_entitlements(
         cancel_at_period_end=cancel_at_period_end,
         capabilities=capabilities,
         limits=plan_limits(env)[tier],
+        trial_ended_reason=trial_ended_reason,
     )
 
 

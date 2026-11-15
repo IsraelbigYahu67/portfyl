@@ -50,6 +50,7 @@ from import_undo import (
     undo_status,
 )
 from audit import record_audit_event
+from trials import check_broker
 from portfolio_activation import clear_pending_portfolio
 from importers import registry as import_registry
 from importers.base import ImportFile, validate_rows
@@ -345,6 +346,7 @@ class _ParsedImport:
     mandatory_replace: bool
     t212_covered_through: datetime | None
     skipped_reasons: dict[str, int] = field(default_factory=dict)
+    account_ids: list[str] = field(default_factory=list)
 
 
 def get_instrument_resolver():
@@ -383,6 +385,7 @@ def _parse_plugin_import(plugin, upload: ImportFile) -> _ParsedImport:
         mandatory_replace=False,
         t212_covered_through=None,
         skipped_reasons=dict(result.skipped_reasons),
+        account_ids=list(result.account_ids),
     )
 
 
@@ -1173,6 +1176,16 @@ def commit_import_csv(
                 target_id=str(portfolio.public_id),
                 metadata={"kind": "csv_import"},
             )
+        # Free-trial broker check: the import above is already complete, only
+        # the plan of a repeat trial changes (best effort, own savepoint).
+        check_broker(
+            db,
+            workspace_id=portfolio.workspace_id,
+            broker="ibkr" if parsed.account_ids else "file",
+            account_ids=parsed.account_ids,
+            history_rows=parsed.rows,
+            actor_user_id=context.user.id,
+        )
         db.commit()
     except HTTPException:
         db.rollback()

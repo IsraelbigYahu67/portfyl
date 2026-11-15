@@ -96,6 +96,31 @@ def _ref(el: ET.Element) -> InstrumentRef:
     )
 
 
+def _account_ids(root: ET.Element) -> list[str]:
+    """`FlexStatement@accountId` (else `AccountInformation@accountId`) of every
+    statement, de-duplicated, in file order."""
+    found: dict[str, None] = {}
+    for statement in root.iter("FlexStatement"):
+        info = statement.find("AccountInformation")
+        account_id = (statement.get("accountId")
+                      or (info.get("accountId") if info is not None else None) or "").strip()
+        if account_id:
+            found[account_id] = None
+    return list(found)
+
+
+def flex_account_ids(xml_text: str) -> list[str]:
+    """The account numbers in a Flex statement, or [] when it cannot be parsed
+    (same DOCTYPE/entity guard as `parse_flex_statement`)."""
+    upper = xml_text.upper()
+    if "<!DOCTYPE" in upper or "<!ENTITY" in upper:
+        return []
+    try:
+        return _account_ids(ET.fromstring(xml_text))
+    except ET.ParseError:
+        return []
+
+
 def parse_flex_statement(xml_text: str, resolver: InstrumentResolver) -> ParseResult:
     result = ParseResult(FORMAT_NAME, rows=[], source_events=0)
     upper = xml_text.upper()
@@ -108,6 +133,7 @@ def parse_flex_statement(xml_text: str, resolver: InstrumentResolver) -> ParseRe
         result.errors.append(f"Could not parse IBKR XML: {exc}")
         return result
 
+    result.account_ids = _account_ids(root)
     for statement in root.iter("FlexStatement"):
         info = statement.find("AccountInformation")
         base = ((info.get("currency") if info is not None else None)

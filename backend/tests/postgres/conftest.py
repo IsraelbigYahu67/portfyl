@@ -166,6 +166,7 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
         PriceAlert,
         Subscription,
         TradeNote,
+        TrialGrant,
         AllocationTarget,
         Transaction,
         User,
@@ -367,6 +368,12 @@ def _seed_tenant(db: Session, *, label: str, watchlist_name: str, ids: dict[str,
             status="canceled",
             current_period_end=now,
             ended_at=now,
+        ),
+        # An expired trial, so the matrix tenants stay on Free.
+        TrialGrant(
+            workspace_id=workspace.id,
+            started_at=now - timedelta(days=30),
+            ends_at=now - timedelta(days=20),
         ),
     ])
     db.flush()

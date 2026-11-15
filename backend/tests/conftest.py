@@ -14,6 +14,7 @@ os.environ.setdefault("PORTFYL_EDITION", "local")
 # every developer/CI run to generate one; never used outside PORTFYL_TESTING.
 os.environ.setdefault("PORTFYL_LOCAL_SECRET_KEY", "OmC2HEZsgRV5WF4AjQgE1OZTViBiZm6ILN131PwtgPg=")
 os.environ.setdefault("PORTFYL_ACCOUNT_FINGERPRINT_KEY", "test-only-account-fingerprint-key-0001")
+os.environ.setdefault("PORTFYL_TRIAL_FINGERPRINT_KEY", "test-only-trial-fingerprint-key-0000000001")
 
 # Ensure the backend package is importable.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))

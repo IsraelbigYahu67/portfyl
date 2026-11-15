@@ -28,9 +28,10 @@ from etoro_client import EtoroAuthError, EtoroClient, EtoroRateLimited, field
 from etoro_mapper import SOURCE, map_account
 from importers.base import validate_rows
 from ledger_import import MAX_SYNC_ERRORS, insert_new_provider_rows, ledger_result
-from models import BrokerConnection, Portfolio
+from models import BrokerConnection, Portfolio, Transaction
 from rate_limit import rate_limit
 from tenancy import RequestContext, require_csrf, require_portfolio
+from trials import check_broker
 
 router = APIRouter(prefix="/broker/etoro", tags=["etoro"])
 
@@ -291,6 +292,19 @@ def etoro_sync(db: Session, workspace_id: UUID, portfolio_id: int) -> dict:
             conn.needs_attention = False
             conn.last_error = None
         conn.last_synced_at = datetime.now(timezone.utc)
+        # Free-trial broker check. eToro's API exposes no stable account id
+        # (see "Trial rules" item 11), so it uses the history fingerprint:
+        # the oldest stored eToro rows, not this sync window's rows.
+        check_broker(
+            db,
+            workspace_id=workspace_id,
+            broker="etoro",
+            history_rows=lambda: db.query(Transaction).filter(
+                Transaction.workspace_id == workspace_id,
+                Transaction.portfolio_id == portfolio.id,
+                Transaction.source == SOURCE,
+            ).all(),
+        )
         db.commit()
     return {**ledger, "skipped_reasons": dict(parsed.skipped_reasons)}
 

@@ -89,6 +89,7 @@ Application test names are abbreviated below; each is parametrized by the
 | `allocation-targets` | `GET/PUT /api/allocation-targets` | read 200, write 200 | 404 | `test_own_portfolio_scoped_read_succeeds[allocation-targets]`, `test_own_mutation_succeeds[allocation-targets]`, `test_foreign_portfolio_read_…[allocation-targets]`, `test_foreign_portfolio_mutation_…[allocation-targets]` | `…reads_only_her_own_workspace_rows[allocation_targets]` |
 | `allocation-target-drift` | `GET /api/allocation-targets/drift` | read 200 | 404 | `test_own_portfolio_scoped_read_succeeds[allocation-target-drift]`, `test_foreign_portfolio_read_…[allocation-target-drift]` | — |
 | `broker-requests` | `POST /api/broker-requests` | create 201, repeat of the same name (any case) 200 | not addressable (no id in the API); another workspace's identical name is a separate row, never reported as existing | `test_alices_request_is_invisible_to_bob`, `test_deleting_the_workspace_removes_its_requests` (`tests/postgres/test_broker_requests_rls.py`) | `…reads_only_her_own_workspace_rows[broker_requests]`, `test_alice_cannot_write_a_row_into_bobs_workspace`, `test_unscoped_runtime_session_sees_nothing` |
+| `trial-grants` | not addressable; only surfaced as `source: "trial"` / `trial_ended_reason` in `GET /api/billing/status` and `/api/test-plans` | own plan only | not addressable (no id in the API); the grant is created server-side at registration, never from client input | `test_alice_sees_only_her_own_trial_grant`, `test_alice_cannot_insert_a_trial_for_bobs_workspace`, `test_the_second_trial_per_workspace_is_rejected`, `test_deleting_a_workspace_removes_its_grant_but_keeps_the_guards` (`tests/postgres/test_trial_rls.py`) | `…reads_only_her_own_workspace_rows[trial_grants]`, `test_a_session_without_context_sees_no_trial_grants` |
 | `watchlists` | `GET/POST /api/watchlists`, `PATCH/DELETE /api/watchlists/{uuid}` | list 200, create 200, update 200, delete 200; duplicate name **409** | 404 | `test_own_list_…[watchlists]`, `test_own_create_…[watchlists]`, `test_own_update_succeeds[watchlists]`, `test_own_delete_succeeds[watchlists]`, `test_foreign_resource_uuid_*[watchlists]`, `test_duplicate_watchlist_name_is_409_inside_one_workspace`, `test_the_same_watchlist_name_already_lives_in_both_workspaces` | `…reads_only_her_own_workspace_rows[watchlists]` |
 | `watchlist-items` | `POST /api/watchlists/{uuid}/items`, `DELETE /api/watchlists/{uuid}/items/{uuid}` | create 200, delete 200 | 404 | `test_own_create_…[watchlist-items]`, `test_own_delete_succeeds[watchlist-items]`, `test_foreign_resource_uuid_delete_…[watchlist-items]` | `…reads_only_her_own_workspace_rows[watchlist_items]` |
 | `alerts` | `GET/POST /api/alerts`, `PATCH/DELETE /api/alerts/{uuid}` | list 200, create 200, update 200, delete 200 | 404 | `test_own_list_…[alerts]`, `test_own_create_…[alerts]`, `test_own_update_succeeds[alerts]`, `test_own_delete_succeeds[alerts]`, `test_foreign_resource_uuid_*[alerts]` | `…reads_only_her_own_workspace_rows[price_alerts]` |
@@ -145,8 +146,10 @@ Not every table is workspace-scoped, and not every non-tenant table needs
 RLS. `job_runs` (recurring-job heartbeats), `rate_limit_buckets`
 (fixed-window rate-limit counters,
 `docs/superpowers/specs/2026-09-05-portfyl-rate-limiting-design.md`), and
-`beta_invites` (global identity-admission records) and `stripe_events`
-(Stripe webhook receipts) are
+`beta_invites` (global identity-admission records), `stripe_events`
+(Stripe webhook receipts) and the free-trial guards `trial_identities`,
+`trial_ip_marks` and `trial_broker_marks` (HMAC fingerprints only, never a
+raw e-mail, IP or broker account number) are
 process-wide infrastructure state, never keyed by workspace, and are
 deliberately excluded from `RLS_TABLES` (`tests/postgres/test_rls.py`) and
 `WORKSPACE_SCOPED_TABLES` (`tests/postgres/test_runtime_role.py`). Each
@@ -160,6 +163,7 @@ has all four (`SELECT, INSERT, UPDATE, DELETE`).
 | `job_runs` | `SELECT, INSERT, UPDATE` | absent from `RLS_TABLES`/`WORKSPACE_SCOPED_TABLES` by design (no dedicated grants test) |
 | `rate_limit_buckets` | `SELECT, INSERT, UPDATE, DELETE` | `test_runtime_role_has_exact_grants_on_rate_limit_buckets` (`tests/postgres/test_runtime_role.py`); absent from `RLS_TABLES`/`WORKSPACE_SCOPED_TABLES` by design |
 | `beta_invites` | `SELECT, INSERT, UPDATE, DELETE` | `test_runtime_role_has_exact_grants_on_beta_invites` (`tests/postgres/test_runtime_role.py`); global beta admission, not tenant data |
+| `trial_identities`, `trial_ip_marks`, `trial_broker_marks` | `SELECT, INSERT, UPDATE, DELETE` | `test_runtime_role_can_use_the_global_guard_tables` (`tests/postgres/test_trial_rls.py`); global abuse guards for the trial, purged by the daily `account_deletion_cleanup` job (`trials.purge_trial_records`); `trial_broker_marks.workspace_id` is `ON DELETE SET NULL` |
 | `stripe_events` | `SELECT, INSERT, UPDATE` | `test_runtime_role_has_exact_grants_on_stripe_events` (`tests/postgres/test_runtime_role.py`); global Stripe webhook receipts (Stripe ids only, no payload), deduplicating deliveries |
 
 ## Adding a resource
