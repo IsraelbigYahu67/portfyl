@@ -54,6 +54,23 @@ describe("ConnectStep", () => {
     expect(await legacyColorClassesIn(new URL("./ConnectStep.jsx", import.meta.url))).toEqual([]);
   });
 
+  it("keeps the typed credentials when a failed connect returns to the form", () => {
+    const view = (phase) => (
+      <MemoryRouter>
+        <OnboardingView brokerKey="trading212" connect={connectProps({ phase })} onBrokerChange={noop} onUnsupportedChange={noop} onChoose={noop} onStartBlank={noop} />
+      </MemoryRouter>
+    );
+    const { rerender } = render(view("form"));
+    fireEvent.change(screen.getByLabelText("API key ID"), { target: { value: "key-1" } });
+    fireEvent.change(screen.getByLabelText("Secret key"), { target: { value: "secret-1" } });
+
+    rerender(view("connecting"));
+    rerender(view("form"));
+
+    expect(screen.getByLabelText("API key ID")).toHaveValue("key-1");
+    expect(screen.getByLabelText("Secret key")).toHaveValue("secret-1");
+  });
+
   it("shows the plan gate before any credential field", () => {
     const connect = connectProps({ phase: "gated" });
     renderStep("trading212", connect);

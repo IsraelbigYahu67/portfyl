@@ -142,8 +142,9 @@ function OtherChoices({ connect, disabled }) {
   );
 }
 
-function Form({ broker, connect, disabled }) {
-  const [values, setValues] = useState(EMPTY_CREDENTIALS[broker.key]);
+// The typed values live in ConnectStep, not here: this form unmounts while
+// "connecting", and a failed connect must bring the user back to their input.
+function Form({ broker, connect, disabled, values, setValues }) {
   const CredentialsForm = CREDENTIAL_FORMS[broker.key];
   return (
     <div className="space-y-3">
@@ -156,6 +157,7 @@ function Form({ broker, connect, disabled }) {
 export default function ConnectStep({ broker, connect, busy = null }) {
   const { t } = useI18n();
   const { phase, notice, error } = connect;
+  const [values, setValues] = useState(EMPTY_CREDENTIALS[broker.key]);
   const working = phase === "connecting" || phase === "syncing";
   const disabled = busy != null || working;
 
@@ -165,7 +167,7 @@ export default function ConnectStep({ broker, connect, busy = null }) {
   } else if (phase === "gated") {
     content = <Gated broker={broker} connect={connect} disabled={disabled} />;
   } else if (phase === "form") {
-    content = <Form broker={broker} connect={connect} disabled={disabled} />;
+    content = <Form broker={broker} connect={connect} disabled={disabled} values={values} setValues={setValues} />;
   } else if (phase === "connecting") {
     content = <Progress>{t("Connecting to {broker}…", { broker: broker.name })}</Progress>;
   } else if (phase === "syncing") {
