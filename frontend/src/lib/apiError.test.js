@@ -25,3 +25,21 @@ it("trims useful messages and drops empty validation entries", () => {
   })).toBe("First; Second");
   expect(getApiErrorMessage({ message: "   " }, "Safe fallback")).toBe("Safe fallback");
 });
+
+describe("known broker connection errors", () => {
+  const fakeT = (text) => `CS:${text}`;
+  const withDetail = (detail) => ({ response: { data: { detail } } });
+
+  it("translates a known broker detail through t", () => {
+    expect(getApiErrorMessage(withDetail("Invalid API key"), "Fallback", fakeT)).toBe("CS:Invalid API key");
+  });
+
+  it("still matches a known detail with whitespace around it", () => {
+    expect(getApiErrorMessage(withDetail("  Invalid API key \n"), "Fallback", fakeT)).toBe("CS:Invalid API key");
+  });
+
+  it("leaves an unknown detail untouched and untranslated", () => {
+    expect(getApiErrorMessage(withDetail("Could not reach Trading 212: boom"), "Fallback", fakeT))
+      .toBe("Could not reach Trading 212: boom");
+  });
+});
