@@ -117,8 +117,10 @@ class EmailTransport(Protocol):
 class BrevoTransport:
     """Posts to Brevo's transactional API. Connect 3 s, 5 s otherwise, no retry.
 
-    Health flag: after a 401/403 or ``FAILURE_THRESHOLD`` failed sends in a row
-    the transport reports itself unavailable for ``COOLDOWN_SECONDS``. The state
+    Health flag: after a 401/403, or ``FAILURE_THRESHOLD`` outage-type failures
+    (timeout, network error, 429, 5xx) with no success in between, the transport
+    reports itself unavailable for ``COOLDOWN_SECONDS``. A message Brevo rejects
+    (any other 4xx) is not counted. The state
     is per instance and in memory; endpoints run in the threadpool, hence the lock.
     """
 
@@ -167,9 +169,17 @@ class BrevoTransport:
             self._record_failure("brevo_network")
             raise EmailSendError("brevo_network") from None
 
-        if response.status_code != 201:
-            reason = f"brevo_http_{response.status_code}"
-            self._record_failure(reason, auth=response.status_code in _AUTH_FAILURE_STATUSES)
+        status = response.status_code
+        if status != 201:
+            reason = f"brevo_http_{status}"
+            if status in _AUTH_FAILURE_STATUSES:
+                self._record_failure(reason, auth=True)
+            elif status == 429 or status >= 500:
+                self._record_failure(reason)
+            # Any other answer means Brevo is up and the key works: it refused
+            # this one message (an address it will not accept, say). That says
+            # nothing about the mailer's health, and whoever can cause it must
+            # not be able to switch e-mail off for everyone, so it is not counted.
             raise EmailSendError(reason)
 
         self._record_success()

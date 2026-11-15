@@ -134,6 +134,38 @@ def test_three_failures_in_a_row_switch_off_and_a_success_resets():
     assert not transport.available()
 
 
+@pytest.mark.parametrize("status", [400, 404, 422])
+def test_a_rejected_request_never_switches_the_mailer_off(status):
+    # Brevo answered and the key works: it refused this one message (for
+    # example an address it will not accept). A caller who can cause that must
+    # not be able to switch e-mail off for everyone.
+    transport = _transport(lambda r: httpx.Response(status, json={}))
+    for _ in range(10):
+        with pytest.raises(EmailSendError, match=f"brevo_http_{status}"):
+            transport.send(to="a@b.cz", email=Mail, tag="t")
+        assert transport.available()
+
+
+def test_rejected_requests_do_not_hide_a_real_outage():
+    answers = iter([500, 400, 500, 400, 500])
+    transport = _transport(lambda r: httpx.Response(next(answers), json={}))
+    for _ in range(4):
+        with pytest.raises(EmailSendError):
+            transport.send(to="a@b.cz", email=Mail, tag="t")
+        assert transport.available()
+    with pytest.raises(EmailSendError):
+        transport.send(to="a@b.cz", email=Mail, tag="t")
+    assert not transport.available()
+
+
+def test_three_rate_limited_answers_in_a_row_switch_off():
+    transport = _transport(lambda r: httpx.Response(429, json={}))
+    for _ in range(3):
+        with pytest.raises(EmailSendError):
+            transport.send(to="a@b.cz", email=Mail, tag="t")
+    assert not transport.available()
+
+
 def test_three_hangs_in_a_row_switch_off():
     def handler(request):
         raise httpx.ReadTimeout("slow", request=request)
