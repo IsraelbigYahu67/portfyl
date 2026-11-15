@@ -38,7 +38,7 @@ from rate_limit import (
     rate_limit_exceeded_handler,
     rate_limit_unavailable_handler,
 )
-from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, etoro, options, polymarket, discord, notes, cash, alerts, settings, allocation_targets, broker_requests, capabilities, auth as auth_router
+from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, etoro, options, polymarket, discord, notes, cash, alerts, settings, allocation_targets, broker_requests, capabilities, auth as auth_router, auth_email
 from tenancy import (
     RequestContextError,
     csrf_guard,
@@ -57,6 +57,10 @@ app.state.billing_config = (
     if PORTFYL_EDITION is Edition.CLOUD
     else BillingConfig(enabled=False, app_url="")
 )
+# Portfyl's own verification / password-reset e-mails (Brevo). Built once; never
+# raises and makes no network call -- a missing or broken setting leaves it None
+# and the frontend falls back to Firebase's e-mail.
+app.state.portfyl_mailer = auth_email.build_mailer(os.environ, PORTFYL_EDITION)
 app.add_exception_handler(
     auth_router.AuthAPIError,
     auth_router.auth_api_error_handler,
@@ -168,6 +172,9 @@ async def _stamp_correlation_id(request: Request, call_next):
 _CSRF_DEPENDENCIES = [Depends(csrf_guard)]
 
 app.include_router(auth_router.router, prefix="/api")
+# Unauthenticated, no session cookie, so no CSRF dependency (like /auth/session);
+# rate-limited per IP and per account/address instead.
+app.include_router(auth_email.router, prefix="/api")
 app.include_router(capabilities.build_router(PORTFYL_EDITION), prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 if PORTFYL_EDITION is Edition.CLOUD:
     from routers import billing
