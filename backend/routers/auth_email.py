@@ -13,14 +13,18 @@ Rules this module keeps:
   exception text or audit metadata. Failures are logged as a reason code or an
   exception *class name* only.
 * The password-reset answer never depends on the account: status and body are
-  the same for an existing account, an unknown address, a hit per-address
-  limit, a Firebase error and a Brevo error, and the handler never returns
-  before ``RESET_MIN_SECONDS``.
+  the same for an existing account, an unknown address, a malformed ``email``,
+  a hit per-address limit, a Firebase error and a Brevo error. The handler
+  never returns before ``RESET_MIN_SECONDS`` and answers on a
+  ``RESET_STEP_SECONDS`` grid above it. Every reset makes exactly one Brevo
+  call, a send or else a health probe, so the mailer's health flag (which
+  turns the next answer into a 503) moves the same way for every address.
 """
 
 from __future__ import annotations
 
 import logging
+import math
 import re
 import time
 from dataclasses import dataclass
@@ -35,7 +39,7 @@ from sqlalchemy.orm import Session
 import rate_limit as rate_limit_module
 from audit import record_audit_event
 from beta_access import normalize_email
-from database import get_db, set_rls_context
+from database import get_db, release_connection, set_rls_context
 from edition import Edition
 from emails.catalog import EmailKind, normalize_language
 from emails.links import AccountNotFound, ActionLinkBuilder, ActionLinkError
@@ -59,8 +63,12 @@ router = APIRouter(prefix="/auth/email", tags=["auth"])
 
 # The reset endpoint does not answer sooner than this, measured from the start
 # of its work, so the slower "account exists" path is not visible in the
-# response time. Tests patch ``_now`` and ``_sleep``.
+# response time. Above the floor the answer is rounded up to the next step,
+# so what is left of a difference between the paths is hidden unless it
+# crosses a step boundary. Tests patch ``_now`` and ``_sleep``.
 RESET_MIN_SECONDS = 1.5
+RESET_STEP_SECONDS = 0.5
+MAX_ADDRESS_LENGTH = 320
 _now = time.monotonic
 _sleep = time.sleep
 
@@ -103,7 +111,10 @@ class VerificationRequest(BaseModel):
 
 
 class PasswordResetRequest(BaseModel):
-    email: str = Field(max_length=320)
+    # Accepts anything: a missing, non-string or over-long value is handled as
+    # an invalid address (202, nothing sent), never a 422 that would answer
+    # differently from a well-formed request.
+    email: Any = None
     lang: Any = None
 
 
@@ -212,11 +223,27 @@ def _record_reset_audit(db: Session, address: str, lang: str) -> None:
             pass
 
 
+class _ResetAttempt:
+    """Whether this reset request reached ``transport.send`` (even a send that
+    then failed). A request that did not gets a health probe instead."""
+
+    send_attempted = False
+
+
 def _attempt_password_reset(
-    request: Request, mailer: Mailer, db: Session, raw_address: str, lang: str
+    request: Request, mailer: Mailer, db: Session, raw_address: Any, lang: str,
+    attempt: _ResetAttempt,
 ) -> None:
     kind = EmailKind.PASSWORD_RESET
-    address = normalize_email(raw_address)
+    typed = raw_address.strip() if isinstance(raw_address, str) else None
+    if typed is None or len(typed) > MAX_ADDRESS_LENGTH:
+        log.info("auth_email kind=%s lang=%s outcome=invalid_address", kind.value, lang)
+        return
+
+    # The typed address is what Firebase is asked about, what the e-mail shows
+    # and where it goes. The normalized form is only for the per-address limit
+    # and the ``User`` lookup (``users.email`` is stored normalized).
+    address = normalize_email(typed)
 
     if _is_cloud(request):
         try:
@@ -231,12 +258,12 @@ def _attempt_password_reset(
             )
             return
 
-    if len(address) > 320 or not _PLAUSIBLE_ADDRESS.fullmatch(address):
+    if not _PLAUSIBLE_ADDRESS.fullmatch(typed):
         log.info("auth_email kind=%s lang=%s outcome=invalid_address", kind.value, lang)
         return
 
     try:
-        action_url = mailer.links.password_reset_url(address, lang)
+        action_url = mailer.links.password_reset_url(typed, lang)
     except AccountNotFound:
         log.info("auth_email kind=%s lang=%s outcome=no_account", kind.value, lang)
         return
@@ -247,9 +274,10 @@ def _attempt_password_reset(
         )
         return
 
-    rendered = render(kind, lang, params={"email": address}, action_url=action_url)
+    rendered = render(kind, lang, params={"email": typed}, action_url=action_url)
+    attempt.send_attempted = True
     try:
-        message_id = mailer.transport.send(to=address, email=rendered, tag=kind.value)
+        message_id = mailer.transport.send(to=typed, email=rendered, tag=kind.value)
     except EmailSendError as exc:
         log.error(
             "auth_email kind=%s lang=%s outcome=failed error=%s",
@@ -279,12 +307,36 @@ def send_password_reset_email(
 
     start = _now()
     lang = normalize_language(payload.lang)
+    attempt = _ResetAttempt()
     try:
-        _attempt_password_reset(request, mailer, db, payload.email, lang)
+        _attempt_password_reset(request, mailer, db, payload.email, lang, attempt)
     except Exception as exc:  # noqa: BLE001 - the answer must not depend on any failure
         log.error(
             "auth_email kind=%s lang=%s outcome=failed error=%s",
             EmailKind.PASSWORD_RESET.value, lang, _error_code(exc),
         )
-    _sleep(max(0.0, RESET_MIN_SECONDS - (_now() - start)))
+    if not attempt.send_attempted:
+        # One Brevo call on every path: without it only a reset for an
+        # existing account could move the health flag, and "202 turned into
+        # 503" would reveal the account.
+        try:
+            mailer.transport.probe()
+        except Exception as exc:  # noqa: BLE001 - probe() should not raise; never trust it
+            log.error("auth_email probe failed error=%s", type(exc).__name__)
+
+    # The audit lookup may have left a read transaction open; do not hold a
+    # pooled connection while waiting out the floor.
+    try:
+        release_connection(db)
+    except Exception as exc:  # noqa: BLE001
+        log.error("auth_email release failed error=%s", type(exc).__name__)
+        try:
+            db.rollback()
+        except Exception:  # noqa: BLE001
+            pass
+
+    elapsed = _now() - start
+    steps = math.ceil(elapsed / RESET_STEP_SECONDS - 1e-9)  # 2.0 s stays 2.0 s
+    target = max(RESET_MIN_SECONDS, steps * RESET_STEP_SECONDS)
+    _sleep(max(0.0, target - elapsed))
     return _json(202, {"status": "accepted"})

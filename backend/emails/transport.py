@@ -21,6 +21,7 @@ from edition import Edition
 logger = logging.getLogger("portfyl.emails.transport")
 
 BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+BREVO_ACCOUNT_URL = "https://api.brevo.com/v3/account"
 FAILURE_THRESHOLD = 3
 COOLDOWN_SECONDS = 300
 _TIMEOUT = httpx.Timeout(5.0, connect=3.0)
@@ -113,6 +114,10 @@ class EmailTransport(Protocol):
     def send(self, *, to: str, email: RenderedEmailLike, tag: str) -> str | None:
         """Send one e-mail. Returns the provider's message id, if it gave one."""
 
+    def probe(self) -> None:
+        """Check the provider without sending; a failure moves the health
+        flag like a failed send. Never raises."""
+
 
 class BrevoTransport:
     """Posts to Brevo's transactional API. Connect 3 s, 5 s otherwise, no retry.
@@ -120,8 +125,8 @@ class BrevoTransport:
     Health flag: after a 401/403, or ``FAILURE_THRESHOLD`` outage-type failures
     (timeout, network error, 429, 5xx) with no success in between, the transport
     reports itself unavailable for ``COOLDOWN_SECONDS``. A message Brevo rejects
-    (any other 4xx) is not counted. The state
-    is per instance and in memory; endpoints run in the threadpool, hence the lock.
+    (any other 4xx) is not counted. ``probe`` failures count the same way.
+    The state is per instance and in memory; endpoints run in the threadpool, hence the lock.
     """
 
     def __init__(
@@ -185,6 +190,34 @@ class BrevoTransport:
         self._record_success()
         return _message_id(response)
 
+    def probe(self) -> None:
+        """Ask Brevo whether it is up and the key works, without sending.
+
+        A password reset that sends nothing calls this, so the health flag
+        moves the same way whether or not the asked-for account exists. A
+        failure is counted exactly like a failed send. A good answer changes
+        nothing: only a real send proves that sending works. Never raises.
+        """
+        headers = {"api-key": self._settings.api_key or "", "accept": "application/json"}
+        try:
+            response = self._client.get(BREVO_ACCOUNT_URL, headers=headers, timeout=_TIMEOUT)
+        except httpx.TimeoutException:
+            self._record_failure("brevo_timeout")
+            return
+        except httpx.HTTPError:
+            self._record_failure("brevo_network")
+            return
+        except Exception as exc:  # noqa: BLE001 - a probe must never break its caller
+            logger.error("Mailer probe failed error=%s", type(exc).__name__)
+            return
+
+        status = response.status_code
+        reason = f"brevo_http_{status}"
+        if status in _AUTH_FAILURE_STATUSES:
+            self._record_failure(reason, auth=True)
+        elif status == 429 or status >= 500:
+            self._record_failure(reason)
+
     def _record_success(self) -> None:
         with self._lock:
             self._failures = 0
@@ -221,4 +254,7 @@ class ConsoleTransport:
     def send(self, *, to: str, email: RenderedEmailLike, tag: str) -> str | None:
         print(f"--- e-mail [{tag}] to {to} ---\nSubject: {email.subject}\n\n{email.text}\n---",
               file=self._out, flush=True)
+        return None
+
+    def probe(self) -> None:
         return None

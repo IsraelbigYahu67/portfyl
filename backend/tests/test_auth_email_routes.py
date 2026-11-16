@@ -9,6 +9,7 @@ from __future__ import annotations
 import inspect
 import logging
 
+import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -17,9 +18,9 @@ import rate_limit
 from database import get_db
 from edition import Edition
 from emails.links import AccountNotFound, ActionLinkError
-from emails.transport import EmailSendError
+from emails.transport import BrevoTransport, EmailSendError, MailerSettings
 from firebase_identity import IdentityVerificationError, VerifiedIdentity
-from models import AuditLog
+from models import AuditLog, User
 from rate_limit import (
     InvalidClientIp,
     RateLimitExceeded,
@@ -47,11 +48,17 @@ class FakeTransport:
         self.error = error
         self.sent: list[tuple[str, str]] = []
         self.emails: list = []
+        self.send_calls = 0
+        self.probes = 0
 
     def available(self) -> bool:
         return self.is_available
 
+    def probe(self) -> None:
+        self.probes += 1
+
     def send(self, *, to, email, tag):
+        self.send_calls += 1
         if self.error is not None:
             raise self.error
         self.sent.append((to, tag))
@@ -195,6 +202,37 @@ class Harness:
 
     def reset(self, email=ADDRESS, **body):
         return self.client.post(RESET_URL, json={"email": email, **body}, headers=IP_HEADERS)
+
+    def reset_raw(self, body: dict):
+        return self.client.post(RESET_URL, json=body, headers=IP_HEADERS)
+
+    def use_brevo(self, status: int) -> list[str]:
+        """Swap the fake transport for a real BrevoTransport (real health
+        flag) whose every HTTP call answers ``status``. Returns the list the
+        HTTP methods of those calls are appended to."""
+        calls: list[str] = []
+
+        def handler(request):
+            calls.append(request.method)
+            return httpx.Response(status, json={})
+
+        settings = MailerSettings(
+            api_key="xkeysib-secret", sender_email="noreply@mail.portfyl.com", sender_name="Portfyl",
+            reply_to="support@portfyl.com", app_url="https://app.portfyl.com", console=False)
+        transport = BrevoTransport(settings, client=httpx.Client(transport=httpx.MockTransport(handler)))
+        self.mailer = auth_email.Mailer(transport, self.links)
+        return calls
+
+    def limit_target(self, monkeypatch, error: Exception) -> None:
+        """Make the per-address limiter raise ``error``; the per-IP one works."""
+        real_consume = rate_limit.consume_rate_limit
+
+        def consume(*, rule, identity, now=None):
+            if rule.name == "auth_email_target":
+                raise error
+            return real_consume(rule=rule, identity=identity, now=now)
+
+        monkeypatch.setattr(rate_limit, "consume_rate_limit", consume)
 
 
 @pytest.fixture
@@ -341,11 +379,18 @@ def test_reset_sends_for_an_existing_account(local, clock):
 
 @pytest.mark.parametrize("case", [
     "unknown", "link_error", "send_error", "target_limit_hit", "not_an_address", "unexpected",
+    "limiter_unavailable", "wrong_type", "too_long",
 ])
-def test_reset_answers_the_same_for_every_outcome(make_cloud, clock, case):
+def test_reset_answers_the_same_for_every_outcome(make_cloud, clock, case, monkeypatch):
     cloud = make_cloud(target_limit=1 if case == "target_limit_hit" else 1000)
     email = ADDRESS
     expected_sends = 0
+    if case == "limiter_unavailable":
+        cloud.limit_target(monkeypatch, RateLimitUnavailable("auth_email_target", "OperationalError"))
+    elif case == "wrong_type":
+        email = {"address": ADDRESS}
+    elif case == "too_long":
+        email = "a" * 400 + "@example.com"
     if case == "unknown":
         cloud.links.missing = {ADDRESS}
     elif case == "link_error":
@@ -376,8 +421,241 @@ def test_reset_normalizes_the_address_for_the_limit(make_cloud):
     statuses += [cloud.reset(email="jana@example.com").status_code for _ in range(3)]
 
     assert statuses == [202, 202, 202, 202]
-    assert cloud.transport.sent == [(ADDRESS, "password_reset")] * 3
-    assert cloud.links.calls == [("reset", ADDRESS, "en")] * 3
+    # One bucket for both spellings: the fourth request is over the limit.
+    assert [to for to, _tag in cloud.transport.sent] == ["Jana@Example.com", ADDRESS, ADDRESS]
+    assert len(cloud.links.calls) == 3
+
+
+def test_reset_sends_to_the_typed_address_and_limits_and_audits_the_normalized_one(
+    make_cloud, db_session, monkeypatch, rls_calls,
+):
+    cloud = make_cloud()
+    user = User(firebase_uid="firebase-jana", email=ADDRESS)
+    db_session.add(user)
+    db_session.commit()
+    identities: list[str] = []
+    real_consume = rate_limit.consume_rate_limit
+
+    def consume(*, rule, identity, now=None):
+        identities.append(identity)
+        return real_consume(rule=rule, identity=identity, now=now)
+
+    monkeypatch.setattr(rate_limit, "consume_rate_limit", consume)
+
+    assert cloud.reset(email=" Jana@Example.com ").status_code == 202
+
+    assert cloud.transport.sent == [("Jana@Example.com", "password_reset")]
+    assert cloud.links.calls == [("reset", "Jana@Example.com", "en")]
+    email = cloud.transport.emails[0]
+    assert "Jana@Example.com" in email.text and "Jana@Example.com" in email.html
+    assert ADDRESS not in email.text and ADDRESS not in email.html
+    assert "reset:jana@example.com" in identities
+    assert not any("Jana" in identity for identity in identities)
+    rows = db_session.query(AuditLog).all()
+    assert [row.actor_user_id for row in rows] == [user.id]
+
+
+@pytest.mark.parametrize("body", [
+    {},
+    {"email": None},
+    {"email": 123},
+    {"email": ["jana@example.com"]},
+    {"email": {"a": 1}},
+    {"email": "a" * 400},
+    {"email": "j" * 320 + "@example.com"},
+    {"email": ""},
+    {"email": "   "},
+], ids=["missing", "null", "number", "list", "object", "400-chars", "over-long-address", "empty", "blank"])
+def test_reset_malformed_email_is_accepted_and_sends_nothing(make_cloud, clock, monkeypatch, body, caplog):
+    caplog.set_level(logging.INFO)
+    cloud = make_cloud()
+    target_calls: list[str] = []
+    real_consume = rate_limit.consume_rate_limit
+
+    def consume(*, rule, identity, now=None):
+        if rule.name == "auth_email_target":
+            target_calls.append(identity)
+        return real_consume(rule=rule, identity=identity, now=now)
+
+    monkeypatch.setattr(rate_limit, "consume_rate_limit", consume)
+
+    response = cloud.reset_raw(body)
+
+    assert response.status_code == 202
+    assert response.json() == {"status": "accepted"}
+    assert cloud.transport.send_calls == 0
+    assert cloud.transport.probes == 1
+    assert cloud.links.calls == []  # no Firebase call
+    assert clock.sleeps == [pytest.approx(auth_email.RESET_MIN_SECONDS)]
+    assert "outcome=invalid_address" in caplog.text
+    if not isinstance(body.get("email"), str) or len(body["email"].strip()) > 320:
+        assert target_calls == []  # not a string, or over-long: no limiter call either
+
+
+def test_reset_body_that_is_not_an_object_is_still_422(local):
+    # Cannot depend on an account, so FastAPI's own answer stays (plan residual).
+    response = local.client.post(RESET_URL, json=["jana@example.com"], headers=IP_HEADERS)
+
+    assert response.status_code == 422
+
+
+# --- the health flag moves the same for every address (review focus 1) -------
+
+FLAG_CASES = ["existing", "unknown", "invalid", "wrong_type", "target_limited",
+              "limiter_unavailable", "link_error", "unexpected"]
+
+
+def _flag_case(cloud: Harness, monkeypatch, case: str):
+    """Arrange ``case`` on the harness and return the request to make."""
+    cloud.links.error = None
+    cloud.links.missing = set()
+    monkeypatch.setattr(rate_limit, "consume_rate_limit", _REAL_CONSUME)
+    if case == "unknown":
+        cloud.links.missing = {ADDRESS}
+    elif case == "invalid":
+        return lambda: cloud.reset(email="not an address")
+    elif case == "wrong_type":
+        return lambda: cloud.reset(email=123)
+    elif case == "target_limited":
+        cloud.limit_target(monkeypatch, RateLimitExceeded("auth_email_target", 60))
+    elif case == "limiter_unavailable":
+        cloud.limit_target(monkeypatch, RateLimitUnavailable("auth_email_target", "OperationalError"))
+    elif case == "link_error":
+        cloud.links.error = ActionLinkError("boom")
+    elif case == "unexpected":
+        cloud.links.error = RuntimeError("boom")
+    return lambda: cloud.reset()
+
+
+_REAL_CONSUME = rate_limit.consume_rate_limit
+
+
+@pytest.mark.parametrize("case", FLAG_CASES)
+def test_reset_with_a_rejected_key_switches_the_mailer_off_on_every_path(make_cloud, monkeypatch, case):
+    cloud = make_cloud()
+    calls = cloud.use_brevo(401)
+
+    first = _flag_case(cloud, monkeypatch, case)()
+    second = cloud.reset()
+
+    assert first.status_code == 202
+    assert first.json() == {"status": "accepted"}
+    assert calls == ["POST" if case == "existing" else "GET"]  # exactly one Brevo call
+    assert second.status_code == 503
+    assert second.json() == {"code": "email_unavailable"}
+
+
+@pytest.mark.parametrize("order", [
+    ["existing", "unknown", "invalid"],
+    ["unknown", "target_limited", "existing"],
+    ["invalid", "wrong_type", "unknown"],
+    ["existing", "existing", "link_error"],
+    ["limiter_unavailable", "unexpected", "existing"],
+])
+def test_reset_three_outage_answers_of_any_mix_switch_the_mailer_off(make_cloud, monkeypatch, order):
+    cloud = make_cloud()
+    calls = cloud.use_brevo(503)
+
+    statuses = [_flag_case(cloud, monkeypatch, case)().status_code for case in order]
+    after = _flag_case(cloud, monkeypatch, "existing")()
+
+    assert statuses == [202, 202, 202]
+    assert len(calls) == 3  # one Brevo call per request
+    assert after.status_code == 503
+    assert after.json() == {"code": "email_unavailable"}
+
+
+@pytest.mark.parametrize("case", FLAG_CASES)
+def test_reset_makes_exactly_one_brevo_call_on_every_path(make_cloud, monkeypatch, case):
+    cloud = make_cloud()
+
+    assert _flag_case(cloud, monkeypatch, case)().status_code == 202
+
+    expected = (1, 0) if case == "existing" else (0, 1)
+    assert (cloud.transport.send_calls, cloud.transport.probes) == expected
+
+
+def test_reset_failed_send_is_not_followed_by_a_probe(local):
+    local.transport.error = EmailSendError("brevo_http_500")
+
+    assert local.reset().status_code == 202
+    assert (local.transport.send_calls, local.transport.probes) == (1, 0)
+
+
+def test_reset_a_raising_probe_does_not_change_the_answer(local, clock):
+    def boom():
+        raise RuntimeError(f"probe exploded {ADDRESS}")
+
+    local.transport.probe = boom
+    local.links.missing = {ADDRESS}
+
+    response = local.reset()
+
+    assert response.status_code == 202
+    assert clock.sleeps == [pytest.approx(1.5)]
+
+
+def test_verification_never_probes(local):
+    local.verify()  # sent
+    local.links.error = ActionLinkError("boom")
+    local.verify()  # link error
+    local.links.error = None
+    local.verifier.identities["tok"] = _identity(verified=True)
+    local.verify()  # already verified
+    local.verify(token="not-a-token")
+
+    assert local.transport.probes == 0
+
+
+@pytest.mark.parametrize("work,answer_at", [
+    (0.2, 1.5), (1.5, 1.5), (1.6, 2.0), (2.0, 2.0), (2.01, 2.5), (4.9, 5.0), (9.0, 9.0),
+])
+@pytest.mark.parametrize("path", ["existing", "unknown"])
+def test_reset_answers_on_a_half_second_grid_above_the_floor(local, clock, work, answer_at, path):
+    if path == "unknown":
+        local.links.missing = {ADDRESS}
+    local.links.on_call = lambda: setattr(clock, "t", clock.t + work)
+
+    assert local.reset().status_code == 202
+
+    assert len(clock.sleeps) == 1
+    assert work + clock.sleeps[0] == pytest.approx(answer_at)
+    assert clock.sleeps[0] >= 0.0
+
+
+@pytest.mark.parametrize("case", ["no_portfyl_user", "unknown", "invalid"])
+def test_reset_holds_no_transaction_while_it_waits(local, db_session, monkeypatch, case, rls_calls):
+    if case == "unknown":
+        local.links.missing = {ADDRESS}
+    in_transaction: list[bool] = []
+    monkeypatch.setattr(auth_email, "_sleep", lambda _s: in_transaction.append(db_session.in_transaction()))
+    statements: list[str] = []
+
+    from sqlalchemy import event
+
+    event.listen(db_session.get_bind(), "before_cursor_execute", lambda *args: statements.append(args[2]))
+
+    email = "not an address" if case == "invalid" else ADDRESS
+    assert local.reset(email=email).status_code == 202
+
+    assert in_transaction == [False]
+    if case == "no_portfyl_user":
+        # The lookup did run (Firebase knows the address, Portfyl does not).
+        assert any("FROM users" in statement for statement in statements)
+        assert local.transport.sent == [(ADDRESS, "password_reset")]
+
+
+def test_reset_a_failing_release_does_not_change_the_answer(local, clock, monkeypatch):
+    def boom(_db):
+        raise RuntimeError("database is gone")
+
+    monkeypatch.setattr(auth_email, "release_connection", boom)
+
+    response = local.reset()
+
+    assert response.status_code == 202
+    assert response.json() == {"status": "accepted"}
+    assert clock.sleeps == [pytest.approx(1.5)]
 
 
 def test_reset_always_waits_for_the_minimum_time(local, clock):
@@ -517,7 +795,9 @@ def test_reset_does_not_use_the_database_before_the_outbound_calls(make_cloud, d
 
 
 @pytest.mark.parametrize("endpoint", ["verification", "reset"])
-def test_logs_never_contain_the_address_the_link_or_the_code(make_cloud, caplog, endpoint, rls_calls):
+def test_logs_never_contain_the_address_the_link_or_the_code(
+    make_cloud, caplog, endpoint, rls_calls, monkeypatch,
+):
     caplog.set_level(logging.DEBUG)
     secret_error = RuntimeError(f"boom {ADDRESS} https://x/auth/action?oobCode=C xkeysib-abc123")
     call = (lambda c: c.verify()) if endpoint == "verification" else (lambda c: c.reset())
@@ -533,11 +813,39 @@ def test_logs_never_contain_the_address_the_link_or_the_code(make_cloud, caplog,
     unknown = make_cloud()
     unknown.links.missing = {ADDRESS}
     call(unknown)  # unknown account
+    if endpoint == "reset":
+        malformed = make_cloud()
+        malformed.reset(email=[ADDRESS, "https://x/auth/action?oobCode=C"])  # not a string
+        malformed.reset(email=f"{ADDRESS} https://x/auth/action?oobCode=C")  # not an address
+        malformed.reset(email=ADDRESS + "x" * 400)  # over-long
+        limited = make_cloud()
+        limited.limit_target(monkeypatch, RateLimitExceeded("auth_email_target", 60))
+        call(limited)  # per-address limit hit
+        monkeypatch.setattr(rate_limit, "consume_rate_limit", _REAL_CONSUME)
+        rejected_key = make_cloud()
+        rejected_key.links.missing = {ADDRESS}
+        rejected_key.use_brevo(401)
+        call(rejected_key)  # the probe switches the mailer off and logs it
+        assert "brevo_http_401" in caplog.text
+        broken_probe = make_cloud()
+        broken_probe.links.missing = {ADDRESS}
+        broken_probe.transport.probe = lambda: (_ for _ in ()).throw(secret_error)
+        call(broken_probe)  # a probe that raises, carrying secrets in its text
+        assert "auth_email probe failed error=RuntimeError" in caplog.text
+        assert "outcome=invalid_address" in caplog.text
+        assert "outcome=target_limited" in caplog.text
+        assert "outcome=no_account" in caplog.text
 
     assert "auth_email" in caplog.text  # the lines exist, so this is not vacuous
     assert "brevo_http_500" in caplog.text
+    # httpx's own client logger prints the URL of the faked Brevo call (Brevo's
+    # public endpoint, no key); everything else is checked.
+    logged = "\n".join(
+        record.getMessage() for record in caplog.records if record.name != "httpx"
+    )
+    assert "Mailer switched off" in logged or endpoint == "verification"
     for forbidden in (ADDRESS, "jana@", "oobCode", "xkeysib", "https://", "auth/action"):
-        assert forbidden not in caplog.text, forbidden
+        assert forbidden not in logged, forbidden
 
 
 def test_limits_are_skipped_in_the_local_edition(local):
