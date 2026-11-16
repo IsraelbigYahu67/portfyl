@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
+from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from rate_limit import client_ip as _client_ip, rate_limit
@@ -15,6 +17,7 @@ import trials
 from audit import record_audit_event
 from beta_access import BetaAccessDenied, require_active_invite
 from auth import (
+    _as_utc,
     clear_session_cookie,
     create_session,
     csrf_matches,
@@ -25,8 +28,9 @@ from auth import (
     session_token_from_request,
     set_session_cookie,
 )
-from database import get_db, set_rls_context
+from database import get_db, release_connection, set_rls_context
 from edition import Edition
+from emails.catalog import normalize_language
 from firebase_identity import (
     FirebaseIdentityVerifier,
     IdentityVerificationError,
@@ -36,10 +40,14 @@ from models import AuthSession, Membership, User, Workspace
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+log = logging.getLogger("portfyl.auth")
 
 
 class SessionExchange(BaseModel):
     id_token: str
+    # Optional app language for the password-changed notice. `Any` so garbage
+    # never produces a 422; it is normalised (English fallback) before use.
+    lang: Any = None
 
 
 class AuthAPIError(Exception):
@@ -141,6 +149,71 @@ def _provision_identity(
     return user, True
 
 
+def _read_password_updated_at(
+    verifier: FirebaseIdentityVerifier, uid: str
+) -> datetime | None:
+    """Firebase's "password last changed" time, or None when unknown.
+
+    Best effort: a missing method, a Firebase outage or an unexpected shape
+    means "unknown", which skips detection for this sign-in and can never
+    fail it. The log line carries a reason code only, no identifiers.
+    """
+    try:
+        value = verifier.password_updated_at(uid)
+    except Exception as exc:
+        log.warning(
+            "password_change_detection outcome=lookup_failed error=%s",
+            type(exc).__name__,
+        )
+        return None
+    return _as_utc(value) if isinstance(value, datetime) else None
+
+
+def _observe_password_change(
+    db: Session, user: User, password_updated_at: datetime | None
+) -> bool:
+    """Record Firebase's password time on `user`; True when it moved forward.
+
+    A user without a password (None) is skipped. A NULL stored value is the
+    first sight: store the current time and report no change, so deploying
+    never e-mails existing users. The caller commits.
+    """
+    if password_updated_at is None:
+        return False
+    seen = user.password_changed_seen_at
+    if seen is None:
+        user.password_changed_seen_at = password_updated_at
+        return False
+    if password_updated_at > _as_utc(seen):
+        # Compare-and-set in the database: two sign-ins racing on the same
+        # change both see it as new in Python, but only one UPDATE matches,
+        # so only one revokes, audits and (Task 4) notifies.
+        result = db.execute(
+            update(User)
+            .where(
+                User.id == user.id,
+                User.password_changed_seen_at < password_updated_at,
+            )
+            .values(password_changed_seen_at=password_updated_at)
+            .execution_options(synchronize_session=False)
+        )
+        db.expire(user, ["password_changed_seen_at"])
+        return bool(result.rowcount)
+    return False
+
+
+def _on_password_changed(db: Session, user: User, lang: str) -> None:
+    """Hook called once after the commit that records a password change.
+
+    Deliberately a no-op here: Task 4 of the wave 2 plan fills it in with the
+    best-effort `password_changed` e-mail (`lang` is already normalised;
+    English is the fallback). It runs after the sign-in is committed, and the
+    caller swallows any exception, so it can never fail or undo the sign-in.
+    Do not put e-mail addresses in logs or audit metadata from here.
+    """
+    return None
+
+
 def _account_payload(db: Session, user: User, csrf_token: str) -> dict:
     set_rls_context(db, user_id=user.id, workspace_id=None)
     memberships = db.scalars(
@@ -218,6 +291,12 @@ def exchange_session(
         except BetaAccessDenied as exc:
             raise AuthAPIError(403, "beta_access_required") from exc
 
+    # Firebase's "password last changed" time is not in the ID token; it is one
+    # outbound lookup, so give the pooled connection back first. Unknown
+    # (None) skips detection and never fails the sign-in.
+    release_connection(db)
+    password_updated_at = _read_password_updated_at(verifier, identity.uid)
+
     is_cloud = request.app.state.portfyl_edition is Edition.CLOUD
     user, account_created = _provision_identity(
         db,
@@ -226,6 +305,13 @@ def exchange_session(
         # The auth_session rate-limit dependency has already validated this
         # trusted Cloudflare header, so it cannot raise here.
         client_ip=_client_ip(request) if is_cloud else None,
+    )
+    # A moved password time ends the user's other Portfyl sessions (a reset
+    # does not end them on its own). The session created below is new, so it
+    # is not among those revoked.
+    password_changed = _observe_password_change(db, user, password_updated_at)
+    revoked_other_sessions = (
+        revoke_all_sessions(db, user.id) if password_changed else 0
     )
     issued = create_session(
         db,
@@ -247,7 +333,26 @@ def exchange_session(
             "provider": identity.sign_in_provider or "unknown",
         },
     )
+    if password_changed:
+        record_audit_event(
+            db,
+            actor_user_id=user.id,
+            action="auth.password_changed",
+            target_type="user",
+            target_id=str(user.id),
+            metadata={"revoked_count": revoked_other_sessions},
+        )
     db.commit()
+    if password_changed:
+        # After the commit, so a failing hook can neither undo the sign-in nor
+        # the session revocation.
+        try:
+            _on_password_changed(db, user, normalize_language(payload.lang))
+        except Exception as exc:
+            log.warning(
+                "password_changed_notice outcome=failed error=%s",
+                type(exc).__name__,
+            )
     response = JSONResponse(response_payload, status_code=201)
     set_session_cookie(response, issued.raw_token)
     return response
