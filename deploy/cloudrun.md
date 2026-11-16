@@ -254,7 +254,7 @@ the image in the cloud and pushes it to Artifact Registry; accept the offer
 to create the `cloud-run-source-deploy` repo on the first run.
 
 ```powershell
-gcloud run deploy $SERVICE --source . --region $REGION --allow-unauthenticated --service-account "portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --set-secrets="DATABASE_URL=portfyl-database-url:latest,JOB_DATABASE_URL=portfyl-job-database-url:latest,PORTFYL_EDGE_TOKEN=portfyl-edge-token:latest,RATE_LIMIT_KEY_SECRET=portfyl-rate-limit-key-secret:latest,PORTFYL_ACCOUNT_FINGERPRINT_KEY=portfyl-account-fingerprint-key:latest" --set-env-vars="PORTFYL_EDITION=cloud,PORTFYL_KMS_KEY_NAME=$KMS_KEY,RATE_LIMIT_GLOBAL_LIMIT=120,RATE_LIMIT_GLOBAL_WINDOW_SECONDS=60,RATE_LIMIT_AUTH_SESSION_LIMIT=10,RATE_LIMIT_AUTH_SESSION_WINDOW_SECONDS=60,RATE_LIMIT_BROKER_SYNC_LIMIT=5,RATE_LIMIT_BROKER_SYNC_WINDOW_SECONDS=60" --min-instances=0 --max-instances=5 --cpu=1 --memory=1Gi
+gcloud run deploy $SERVICE --source . --region $REGION --allow-unauthenticated --service-account "portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --set-secrets="DATABASE_URL=portfyl-database-url:latest,JOB_DATABASE_URL=portfyl-job-database-url:latest,PORTFYL_EDGE_TOKEN=portfyl-edge-token:latest,RATE_LIMIT_KEY_SECRET=portfyl-rate-limit-key-secret:latest,PORTFYL_ACCOUNT_FINGERPRINT_KEY=portfyl-account-fingerprint-key:latest,PORTFYL_BREVO_API_KEY=portfyl-brevo-api-key:latest" --set-env-vars="PORTFYL_EDITION=cloud,PORTFYL_KMS_KEY_NAME=$KMS_KEY,RATE_LIMIT_GLOBAL_LIMIT=120,RATE_LIMIT_GLOBAL_WINDOW_SECONDS=60,RATE_LIMIT_AUTH_SESSION_LIMIT=10,RATE_LIMIT_AUTH_SESSION_WINDOW_SECONDS=60,RATE_LIMIT_BROKER_SYNC_LIMIT=5,RATE_LIMIT_BROKER_SYNC_WINDOW_SECONDS=60,RATE_LIMIT_AUTH_EMAIL_LIMIT=10,RATE_LIMIT_AUTH_EMAIL_WINDOW_SECONDS=600,RATE_LIMIT_AUTH_EMAIL_TARGET_LIMIT=3,RATE_LIMIT_AUTH_EMAIL_TARGET_WINDOW_SECONDS=900,PORTFYL_EMAIL_APP_URL=https://app.portfyl.com" --min-instances=0 --max-instances=5 --cpu=1 --memory=1Gi
 ```
 
 Why these flags:
@@ -272,7 +272,12 @@ Why these flags:
   `DB_POOL_TIMEOUT` (default 10s) without a free one; tune them with
   `--update-env-vars` (`backend/database.py`'s `DatabaseSettings`).
 - `--memory=1Gi` gives pandas/numpy/yfinance headroom.
-- The eight `RATE_LIMIT_*` values are the spec's defaults, not
+- `PORTFYL_BREVO_API_KEY` and `PORTFYL_EMAIL_APP_URL` switch on Portfyl's own
+  verification and password-reset e-mails; see "Portfyl e-mails" below. Leave
+  the secret out and the app sends Firebase's e-mails instead.
+- The ten `RATE_LIMIT_*` values (a limit and a window for each of the five
+  rules in `backend/rate_limit.py`; every one is required, a missing one stops
+  the service from starting) are the spec's defaults, not
   evidence-based constants — the spec's own rollout gate requires a
   production-shaped load test before enforcement is trusted; raise any of
   them here (redeploy with `--update-env-vars`) if that load test or real
@@ -695,9 +700,126 @@ or links opened without an Access session break.
 
 Firebase lets this project change only the sender name of these e-mails
 (set to `Portfyl`), not their subject or text
-(`EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED`). A branded, translated e-mail with a
-button needs Portfyl to send it itself: the backend makes the link with the
-Admin SDK (`generate_email_verification_link`) and sends it through Brevo.
+(`EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED`). That is why Portfyl sends the branded,
+translated e-mail with a button itself (next section); Firebase's plain e-mail
+is now only the fallback, and it is the reason the action URL switch above is
+still worth doing.
+
+### Portfyl e-mails
+
+The verification and password-reset e-mails are written and sent by the
+backend (`backend/emails/`, endpoints in `backend/routers/auth_email.py`):
+the Admin SDK issues the one-time code, Portfyl builds its own
+`/auth/action` link from it, renders the e-mail in the user's app language
+(9 languages, copy in `backend/emails/catalog.py` and `locales/`) and posts it
+to Brevo's HTTP API from `Portfyl <noreply@mail.portfyl.com>`. The frontend
+asks the backend first and falls back to Firebase's own e-mail on any failure
+except `429`. Design:
+`docs/superpowers/specs/2026-11-15-portfyl-own-emails-design.md`.
+
+**Order.** The routine redeploy passes no `--set-*` flags, and the code
+refuses to start in the cloud edition without every `RATE_LIMIT_*` value. So
+the four `RATE_LIMIT_AUTH_EMAIL_*` values must be on the service **before or
+with** the first revision that contains this code; a revision deployed without
+them does not start (Cloud Run keeps serving the previous one, but nothing new
+ships). `/auth/action` (the section above, including the Cloudflare Access
+bypass) must be live before any Portfyl-built link is sent.
+
+**Secret.** `portfyl-brevo-api-key` in `portfyl-prod-f6shqb` holds the Brevo
+v3 API key (`xkeysib-…`); it was created on 2026-11-15 and `portfyl-runtime`
+can read it. It is not the SMTP key Firebase uses, and it has no scopes: treat
+it as full access to the Brevo account, keep it in Secret Manager only, rotate
+it if it is ever exposed. In a new project:
+
+```powershell
+gcloud secrets create portfyl-brevo-api-key --replication-policy=automatic
+gcloud secrets versions add portfyl-brevo-api-key --data-file=- # paste the Brevo v3 API key, then Ctrl+Z, Enter
+gcloud secrets add-iam-policy-binding portfyl-brevo-api-key --member "serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role roles/secretmanager.secretAccessor
+```
+
+**One-off update of the running service** (run it before the routine redeploy
+that ships the code; it makes a new revision of the current image, which
+ignores settings it does not know):
+
+```powershell
+gcloud run services update $SERVICE --region $REGION --update-secrets="PORTFYL_BREVO_API_KEY=portfyl-brevo-api-key:latest" --update-env-vars="RATE_LIMIT_AUTH_EMAIL_LIMIT=10,RATE_LIMIT_AUTH_EMAIL_WINDOW_SECONDS=600,RATE_LIMIT_AUTH_EMAIL_TARGET_LIMIT=3,RATE_LIMIT_AUTH_EMAIL_TARGET_WINDOW_SECONDS=900,PORTFYL_EMAIL_APP_URL=https://app.portfyl.com"
+```
+
+In production `$SERVICE` is `portfyl` and `$REGION` is `europe-west1`; add
+`--project portfyl-prod-f6shqb` and set the gcloud configuration per shell as
+in the routine redeploy.
+
+| Setting | Value | Notes |
+|---|---|---|
+| `PORTFYL_BREVO_API_KEY` | secret `portfyl-brevo-api-key` | no key = mailer off |
+| `PORTFYL_EMAIL_APP_URL` | `https://app.portfyl.com` | origin of the links in the e-mails; must be `https` in the cloud edition, or the mailer stays off. Not billing's `PORTFYL_APP_URL`. |
+| `RATE_LIMIT_AUTH_EMAIL_LIMIT` / `_WINDOW_SECONDS` | `10` / `600` | per client IP, both endpoints; **required** |
+| `RATE_LIMIT_AUTH_EMAIL_TARGET_LIMIT` / `_WINDOW_SECONDS` | `3` / `900` | per account (verification) or per address (reset); **required** |
+| `PORTFYL_EMAIL_FROM`, `PORTFYL_EMAIL_FROM_NAME`, `PORTFYL_EMAIL_REPLY_TO` | optional | default `noreply@mail.portfyl.com`, `Portfyl`, `support@portfyl.com` |
+
+Only the four rate-limit values can stop a start. A missing key, or a key
+with a missing or non-`https` `PORTFYL_EMAIL_APP_URL`, logs one ERROR at
+startup and leaves the mailer off: both endpoints answer
+`503 email_unavailable` and the app sends Firebase's e-mails.
+`PORTFYL_EMAIL_TRANSPORT=console` (prints the e-mail to the backend console
+instead of sending it) works outside the cloud edition only.
+
+**Brevo: keep "block unknown IP addresses" off** (in Brevo's security
+settings for authorised IPs; switched off on 2026-11-15). Cloud Run has no fixed outbound IP, so with the block on
+every send is refused with `401`, and the mailer switches itself off.
+
+**When it fails.** A failed send is logged at ERROR as
+`auth_email kind=… lang=… outcome=failed error=…` (a reason code or an
+exception class, never an address, link or code). After a Brevo `401`/`403`,
+or three outage-type failures in a row (timeout, network error, `429`, `5xx`),
+that instance logs `Mailer switched off for 300 s` and answers
+`503 email_unavailable` for five minutes, during which the frontend uses
+Firebase. A full Brevo outage has no fallback: Firebase's e-mails also go out
+through Brevo (SMTP).
+
+**Rollback** (the kill switch; no code change, registration and reset keep
+working with Firebase's plain e-mails):
+
+```powershell
+gcloud run services update $SERVICE --region $REGION --remove-secrets=PORTFYL_BREVO_API_KEY
+```
+
+Leave the four `RATE_LIMIT_AUTH_EMAIL_*` values in place: removing them stops
+the next revision from starting.
+
+**Unblock an address.** If someone says the e-mails stopped coming: Brevo →
+the transactional logs show what happened to the message; an address that
+bounced hard, marked the mail as spam or unsubscribed is on the transactional
+blocked-contacts list (menu names in Brevo change; search its help for
+"blocked contacts"). Remove it there, then have the person ask for the e-mail
+again.
+
+**First real send: checklist** (spec section 11; do it once after the first
+deploy with the key, with a real inbox):
+
+1. Register a test account → the e-mail arrives from `Portfyl
+   <noreply@mail.portfyl.com>`, in the app's language, the button works,
+   `/auth/action` shows "Your e-mail is verified". This also proves the
+   production service account can generate links in the Firebase project
+   (`portfyl-cloud-fstxby`, cross-project).
+2. In the raw message: is the button's `href` Portfyl's URL or a Brevo
+   tracking URL? Is there a `List-Unsubscribe` header? Do SPF, DKIM and DMARC
+   show `pass`?
+3. Forgot password → e-mail → new password → log in.
+4. Leave a reset link for 61 minutes, then open it: if it still works, remove
+   the "1 hour" sentence from the reset e-mail (preheader and text, all nine
+   languages).
+5. Forgot password for an address with no account: same page message, no
+   e-mail.
+6. Remove the secret on a test revision: registration still sends Firebase's
+   e-mail.
+7. Gmail (web and phone), Outlook, Seznam: layout holds, readable with images
+   off and in the client's dark mode.
+
+Not checked until then: whether Brevo rewrites links for click tracking,
+whether it adds `List-Unsubscribe`, and the free plan's daily cap (reported as
+300 e-mails, shared with the Firebase fallback; move to a paid plan before
+public sign-up opens).
 
 ## Stripe Managed Payments (paid plans)
 

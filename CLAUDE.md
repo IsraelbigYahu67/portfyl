@@ -146,7 +146,13 @@ mockup) and does not override it.
   `signInWithCredential`), not Firebase's `signInWithPopup`, which showed a
   `firebaseapp.com` helper window. Portfyl then issues its own opaque, revocable session
   (`backend/auth.py`, `backend/routers/auth.py`). There is no shared
-  `APP_PASSWORD`/`SESSION_SECRET` any more. Unauthenticated `/api` calls get
+  `APP_PASSWORD`/`SESSION_SECRET` any more. The verification and
+  password-reset e-mails are sent by `backend/emails/` through Brevo
+  (`backend/routers/auth_email.py`), with the Firebase client call as the
+  fallback (`frontend/src/auth/authEmail.js`); their copy lives in
+  `backend/emails/catalog.py` + `locales/`. See
+  `docs/superpowers/specs/2026-11-15-portfyl-own-emails-design.md` and
+  "Portfyl e-mails" in `deploy/cloudrun.md`. Unauthenticated `/api` calls get
   401, and the SPA routes to `/login`/`/register` (`frontend/src/auth/`).
   Three settings control the Google button: the build flag
   `VITE_FIREBASE_GOOGLE_SIGN_IN=true`, the build value

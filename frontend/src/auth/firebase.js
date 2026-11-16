@@ -1,9 +1,14 @@
 // Firebase JS SDK browser adapter.
 //
-// Firebase owns credentials, e-mail verification, and password-reset delivery
-// (see docs/superpowers/specs/2026-09-01-portfyl-multiuser-foundation-design.md
-// — "Managed identity, Portfyl-owned authorization"). Portfyl never receives or
-// stores a password hash: this module only ever talks to Firebase Auth, then
+// Firebase owns credentials and the one-time codes for e-mail verification and
+// password reset (see
+// docs/superpowers/specs/2026-09-01-portfyl-multiuser-foundation-design.md
+// — "Managed identity, Portfyl-owned authorization"). It no longer owns
+// delivery of those e-mails when Portfyl's mailer is on: the backend sends
+// them through Brevo, and the two send functions here are only the fallback
+// that ./authEmail.js calls (see
+// docs/superpowers/specs/2026-11-15-portfyl-own-emails-design.md). Portfyl
+// never receives or stores a password hash: this module only ever talks to Firebase Auth, then
 // hands a verified ID token to `exchangeSession()` in ../api.js, which is the
 // only thing that ever reaches our backend.
 //
