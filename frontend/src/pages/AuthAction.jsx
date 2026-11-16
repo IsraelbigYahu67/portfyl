@@ -16,15 +16,20 @@ import { hasSavedLanguage, isAppLanguage } from "../i18n/languages";
 // points here (see "E-mail action links" in deploy/cloudrun.md), so the
 // person never sees Firebase's generic page on firebaseapp.com.
 //
-// Firebase appends ?mode=…&oobCode=…&apiKey=…&continueUrl=…&lang=…. The page
-// reads them once, then replaces the address with a clean /auth/action.
+// Firebase appends ?mode=…&oobCode=…&apiKey=…&continueUrl=…&lang=…. Portfyl's
+// own e-mails put the same parameters in the fragment (#mode=…&oobCode=…),
+// which a browser never sends to a server, so the one-time code stays out of
+// request logs. The page reads them once (fragment first, then query), then
+// replaces the address with a clean /auth/action.
 
 const MIN_PASSWORD_LENGTH = 8;
 
 export const AUTH_ACTION_PATH = "/auth/action";
 
-function readActionParams(search) {
-  const params = new URLSearchParams(search);
+function readActionParams({ search, hash }) {
+  const fragment = new URLSearchParams((hash || "").replace(/^#/, ""));
+  const useFragment = fragment.has("mode") || fragment.has("oobCode");
+  const params = useFragment ? fragment : new URLSearchParams(search);
   return {
     mode: params.get("mode"),
     code: params.get("oobCode"),
@@ -95,7 +100,7 @@ export default function AuthAction() {
   const { t, previewLanguage } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
-  const [params] = useState(() => readActionParams(location.search));
+  const [params] = useState(() => readActionParams(location));
   // working | verified | recovered | reset-form | reset-done | error
   const [status, setStatus] = useState("working");
   const [error, setError] = useState(null);
@@ -107,8 +112,8 @@ export default function AuthAction() {
     if (started.current) return;
     started.current = true;
 
-    // A clean address bar: the long Firebase query is no longer needed.
-    if (location.search) navigate(AUTH_ACTION_PATH, { replace: true });
+    // A clean address bar: the long query or fragment is no longer needed.
+    if (location.search || location.hash) navigate(AUTH_ACTION_PATH, { replace: true });
 
     // The e-mail was written in one language, so the page that follows it is
     // too, for this visit only. A language the user chose on this device wins.

@@ -22,7 +22,7 @@ vi.mock("../i18n/languages", async (importOriginal) => ({
 
 function Where() {
   const location = useLocation();
-  return <output data-testid="where">{location.pathname + location.search}</output>;
+  return <output data-testid="where">{location.pathname + location.search + location.hash}</output>;
 }
 
 function renderAction(search) {
@@ -100,6 +100,53 @@ test("restores the previous sign-in e-mail", async () => {
   expect(screen.getByText("old@example.com")).toBeInTheDocument();
 });
 
+// Portfyl's own links carry the parameters in the fragment (#mode=…), which a
+// browser never sends to a server; Firebase's fallback e-mails use the query.
+describe("parameters in the URL fragment", () => {
+  test("a fragment link verifies the e-mail and cleans the address bar", async () => {
+    renderAction("#mode=verifyEmail&oobCode=FRAG1&continueUrl=http%3A%2F%2Flocalhost%3A3000%2Flogin%3Fverified%3D1&lang=en");
+
+    expect(await screen.findByRole("heading", { name: "Your e-mail is verified" })).toBeInTheDocument();
+    expect(firebaseMocks.applyEmailActionCode).toHaveBeenCalledTimes(1);
+    expect(firebaseMocks.applyEmailActionCode).toHaveBeenCalledWith("FRAG1");
+    expect(screen.getByTestId("where")).toHaveTextContent(/^\/auth\/action$/);
+    expect(screen.getByRole("link", { name: "Continue to Portfyl" })).toHaveAttribute("href", "/login?verified=1");
+  });
+
+  test("a fragment link opens the reset form", async () => {
+    firebaseMocks.verifyResetCode.mockResolvedValueOnce("me@example.com");
+    renderAction("#mode=resetPassword&oobCode=FRAGRESET");
+
+    expect(await screen.findByRole("heading", { name: "Choose a new password" })).toBeInTheDocument();
+    expect(firebaseMocks.verifyResetCode).toHaveBeenCalledWith("FRAGRESET");
+    expect(screen.getByTestId("where")).toHaveTextContent(/^\/auth\/action$/);
+  });
+
+  test("with both present the fragment wins", async () => {
+    renderAction("?mode=resetPassword&oobCode=QUERY#mode=verifyEmail&oobCode=FRAG");
+
+    expect(await screen.findByRole("heading", { name: "Your e-mail is verified" })).toBeInTheDocument();
+    expect(firebaseMocks.applyEmailActionCode).toHaveBeenCalledWith("FRAG");
+    expect(firebaseMocks.verifyResetCode).not.toHaveBeenCalled();
+    expect(screen.getByTestId("where")).toHaveTextContent(/^\/auth\/action$/);
+  });
+
+  test("a fragment with no known key falls back to the query", async () => {
+    renderAction("?mode=verifyEmail&oobCode=QUERY#top");
+
+    expect(await screen.findByRole("heading", { name: "Your e-mail is verified" })).toBeInTheDocument();
+    expect(firebaseMocks.applyEmailActionCode).toHaveBeenCalledWith("QUERY");
+    expect(screen.getByTestId("where")).toHaveTextContent(/^\/auth\/action$/);
+  });
+
+  test("a lone unknown fragment is rejected and removed", async () => {
+    renderAction("#top");
+
+    expect(await screen.findByRole("heading", { name: "This link didn't work" })).toBeInTheDocument();
+    expect(screen.getByTestId("where")).toHaveTextContent(/^\/auth\/action$/);
+  });
+});
+
 // The e-mail's language (?lang=) is shown for this visit only, and only on a
 // device where nobody chose a language. These use the real provider, so the
 // page's own language and what is saved are the observable result.
@@ -118,6 +165,14 @@ describe("the link's language", () => {
 
   test("is used on a device with no saved language, without saving it", async () => {
     renderInApp("?mode=verifyEmail&oobCode=CODE1&lang=cs");
+
+    expect(await screen.findByRole("heading", { name: "Váš e-mail je ověřený" })).toBeInTheDocument();
+    expect(document.documentElement.lang).toBe("cs");
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBeNull();
+  });
+
+  test("is read from the fragment too", async () => {
+    renderInApp("#mode=verifyEmail&oobCode=CODE1&lang=cs");
 
     expect(await screen.findByRole("heading", { name: "Váš e-mail je ověřený" })).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("cs");
