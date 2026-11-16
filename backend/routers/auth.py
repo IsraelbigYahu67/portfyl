@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
@@ -29,8 +30,10 @@ from auth import (
     set_session_cookie,
 )
 from database import get_db, release_connection, set_rls_context
-from edition import Edition
-from emails.catalog import normalize_language
+from edition import Edition, edition_from_env
+from emails.catalog import EmailKind, normalize_language
+from emails.notify import send_account_notice
+from emails.transport import load_mailer_settings
 from firebase_identity import (
     FirebaseIdentityVerifier,
     IdentityVerificationError,
@@ -203,15 +206,32 @@ def _observe_password_change(
 
 
 def _on_password_changed(db: Session, user: User, lang: str) -> None:
-    """Hook called once after the commit that records a password change.
+    """Send the best-effort `password_changed` notice (own-emails wave 2).
 
-    Deliberately a no-op here: Task 4 of the wave 2 plan fills it in with the
-    best-effort `password_changed` e-mail (`lang` is already normalised;
-    English is the fallback). It runs after the sign-in is committed, and the
-    caller swallows any exception, so it can never fail or undo the sign-in.
-    Do not put e-mail addresses in logs or audit metadata from here.
+    Called once, after the commit that records the change, with `lang` already
+    normalised (English fallback). It cannot fail or undo the sign-in: the
+    helper never raises and the caller swallows anything else. The notice goes
+    to the account address; neither the address nor the link reaches a log line
+    or audit metadata from here (the helper logs a kind and a reason code).
     """
-    return None
+    settings = load_mailer_settings(os.environ, edition_from_env(os.environ))
+    address = user.email
+    if settings is None or not address:
+        log.info("password_changed_notice outcome=mailer_off")
+        return
+    # Firebase's own time of the change (what was just stored), not "now".
+    seen_at = user.password_changed_seen_at
+    changed_at = _as_utc(seen_at) if seen_at is not None else datetime.now(timezone.utc)
+    # Nothing is pending after the commit; hand the connection back before the
+    # (up to 5 s) outbound call.
+    release_connection(db)
+    send_account_notice(
+        EmailKind.PASSWORD_CHANGED,
+        to=address,
+        lang=lang,
+        params={"email": address, "datetime": changed_at},
+        action_url=f"{settings.app_url}/forgot-password",
+    )
 
 
 def _account_payload(db: Session, user: User, csrf_token: str) -> dict:
