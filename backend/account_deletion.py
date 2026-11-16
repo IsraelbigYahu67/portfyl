@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 
 from app_settings import set_workspace_setting
 from audit import record_audit_event
+from emails.catalog import SOURCE_LANGUAGE, EmailKind, normalize_language
+from emails.notify import send_account_notice
 from firebase_identity import VerifiedIdentity
 from models import Membership, Subscription, User, Workspace, WorkspaceSetting
 from tenancy import RequestContext, RequestContextError
@@ -33,6 +35,10 @@ class WorkspaceDeletion:
     requested_at: datetime
     execute_after: datetime
     requested_by_user_id: UUID
+    # Language of the e-mails about this request (the backend stores no other
+    # language). Last and defaulted so states stored before wave 2, which have
+    # no such key, still parse (as English).
+    lang: str = SOURCE_LANGUAGE
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -58,6 +64,7 @@ def _parse(raw: str) -> WorkspaceDeletion:
             requested_at=_as_utc(datetime.fromisoformat(data["requested_at"])),
             execute_after=_as_utc(datetime.fromisoformat(data["execute_after"])),
             requested_by_user_id=UUID(data["requested_by_user_id"]),
+            lang=normalize_language(data.get("lang")),
         )
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise RuntimeError("Malformed workspace deletion state") from exc
@@ -112,6 +119,7 @@ def schedule_workspace_deletion(
     identity: VerifiedIdentity,
     confirmation: str,
     now: datetime | None = None,
+    lang: object = None,
 ) -> WorkspaceDeletion:
     now = _as_utc(now or datetime.now(timezone.utc))
     if context.membership.role != "owner":
@@ -154,6 +162,7 @@ def schedule_workspace_deletion(
         requested_at=now,
         execute_after=now + timedelta(days=DELETION_GRACE_DAYS),
         requested_by_user_id=context.user.id,
+        lang=normalize_language(lang),
     )
     set_workspace_setting(
         db,
@@ -171,6 +180,44 @@ def schedule_workspace_deletion(
         metadata={"grace_days": DELETION_GRACE_DAYS},
     )
     return state
+
+
+def send_deletion_scheduled_notice(
+    *,
+    to: str,
+    state: WorkspaceDeletion,
+    mailer: object,
+) -> bool:
+    """Best-effort ``account_deletion_scheduled`` e-mail; call it only after the
+    request is committed. Never raises. The button leads to Settings, where the
+    deletion is cancelled."""
+    try:
+        app_url = getattr(getattr(mailer, "links", None), "_app_url", "")
+        return send_account_notice(
+            EmailKind.ACCOUNT_DELETION_SCHEDULED,
+            to=to,
+            lang=state.lang,
+            params={"email": to, "date": state.execute_after},
+            action_url=f"{app_url}/settings" if app_url else None,
+            mailer=mailer,
+        )
+    except Exception:  # noqa: BLE001 - a notice must never fail the request
+        logger.error("account_deletion notice kind=account_deletion_scheduled failed")
+        return False
+
+
+def _send_account_deleted_notice(*, to: str, lang: str, mailer: object) -> bool:
+    try:
+        return send_account_notice(
+            EmailKind.ACCOUNT_DELETED,
+            to=to,
+            lang=lang,
+            params={"email": to},
+            mailer=mailer,
+        )
+    except Exception:  # noqa: BLE001 - a notice must never fail the purge
+        logger.error("account_deletion notice kind=account_deleted failed")
+        return False
 
 
 def cancel_workspace_deletion(
@@ -250,11 +297,20 @@ def purge_due_workspace_deletions(
     identity_admin,
     *,
     now: datetime | None = None,
+    mailer: object = None,
 ) -> dict[str, int]:
     """Purge due explicit requests, committing each workspace independently.
 
     ``identity_admin`` is the narrow Firebase boundary and must expose
     ``delete_user(uid)``. No plan, trial, or subscription state is consulted.
+
+    When the account itself goes (its last workspace), ``account_deleted`` is
+    e-mailed in the language stored with the request. The address is read
+    before the user row is deleted, but the notice is sent only after the
+    commit: a purge that rolled back (for instance because Firebase failed) and
+    is retried then never mails twice, and never claims a deletion that did
+    not happen. Sending is best effort and cannot fail or undo the purge.
+    ``mailer`` defaults to the process-wide one.
     """
     now = _as_utc(now or datetime.now(timezone.utc))
     summary = {
@@ -331,9 +387,12 @@ def purge_due_workspace_deletions(
                 )
             ) or 0
 
+            farewell: tuple[str, str] | None = None
             db.delete(workspace)
             db.flush()
             if other_memberships == 0:
+                if user.email:
+                    farewell = (user.email, state.lang)
                 user.disabled_at = now
                 db.flush()
                 if user.firebase_uid:
@@ -342,6 +401,10 @@ def purge_due_workspace_deletions(
                 db.flush()
             db.commit()
             summary["purged"] += 1
+            if farewell is not None:
+                _send_account_deleted_notice(
+                    to=farewell[0], lang=farewell[1], mailer=mailer
+                )
         except Exception:
             db.rollback()
             summary["errors"] += 1
