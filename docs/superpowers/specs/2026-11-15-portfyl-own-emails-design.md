@@ -497,9 +497,12 @@ Each wave gets its own implementation plan. Notes that shape those plans:
   Portfyl saw; when it moved, send the notice and revoke the user's other
   Portfyl sessions. Today a password reset does **not** end existing Portfyl
   sessions; wave 2 closes that. Needs one nullable column on `users`.
-- **`account_deleted`** is sent by the purge job just before it deletes the
-  user (the address and language are gone afterwards), directly through the
-  transport, not the outbox.
+- **`account_deleted`** is sent by the purge job once the purge has committed,
+  with the address and language read before the user is deleted (they are gone
+  afterwards), directly through the transport, not the outbox. It is not sent
+  before the delete because Firebase's `delete_user` runs inside the purge
+  transaction: a rollback would leave an account that was already announced as
+  deleted. A crash between the commit and the send loses this one notice.
 - **`account_deletion_scheduled`** is sent inside
   `schedule_workspace_deletion`'s request, like wave 1.
 - **`beta_invite`** is sent by `manage_beta invite --send --lang cs`.

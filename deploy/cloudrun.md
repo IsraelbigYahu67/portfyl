@@ -857,7 +857,7 @@ written before the real-send check below was run.
 |---|---|---|
 | `password_changed` | when `/auth/session` sees that Firebase's "password last changed" time moved (see below) | "That wasn't me" → `/forgot-password` |
 | `account_deletion_scheduled` | in the request that schedules the deletion, after it is committed, to the requesting owner; shows the account address and the deletion date (request time + `DELETION_GRACE_DAYS`, 30 days) | "Keep my account" → Settings, where deletion is cancelled |
-| `account_deleted` | by the daily purge job just before it deletes the user, in the language stored with the deletion request; no button | none |
+| `account_deleted` | by the daily purge job right after the purge committed (address and language are read before the user is deleted), in the language stored with the deletion request; no button | none |
 
 **Best effort.** A notice is attempted only after the state change is
 committed. A missing key, a switched-off mailer or a failed send never fails,
@@ -866,6 +866,13 @@ request or the purge; the cost is only that the notice is not sent. Failures
 are logged with a kind and a reason code, never an address or link. There is
 no outbox and no retry: a notice that was not accepted by Brevo is not sent
 later.
+
+**One shared mailer and health flag.** The three notices use the same mailer
+object as the verification and password-reset endpoints (`main.py` hands
+`app.state.portfyl_mailer` to `emails.notify.set_default_mailer`). When Brevo
+fails and the 5-minute health flag switches the mailer off, it is off for all
+five e-mails at once. A process that does not import `main` (a standalone
+purge CLI) builds its own mailer from the environment and has its own flag.
 
 **Language.** The backend stores none. `account_deletion_scheduled` takes the
 app language from the request and keeps it inside the workspace deletion state
