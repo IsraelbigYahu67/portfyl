@@ -2,7 +2,8 @@
 
 Firebase Admin returns a link on the project's single action URL. We only
 need its ``oobCode``; the link we e-mail points at Portfyl's own ``/auth/action``
-page on the configured app URL instead.
+page on the configured app URL instead, with its parameters in the URL
+fragment (``/auth/action#mode=…&oobCode=…``).
 
 Nothing here puts an e-mail address, a link or a one-time code into an
 exception message: callers log these exceptions, and the original exception
@@ -95,7 +96,10 @@ class ActionLinkBuilder:
         params = {"mode": mode, "oobCode": oob_code, "lang": lang}
         if continue_url is not None:
             params["continueUrl"] = continue_url
-        return f"{self._app_url}/auth/action?{urlencode(params)}"
+        # In the fragment, not the query: a browser never sends the fragment to
+        # a server, so the one-time code stays out of request logs. The page
+        # reads the fragment first and the query second.
+        return f"{self._app_url}/auth/action#{urlencode(params)}"
 
 
 def _oob_code(firebase_link: Any) -> str | None:

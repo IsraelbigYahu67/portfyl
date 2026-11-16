@@ -82,7 +82,7 @@ class FakeLinks:
             raise self.error
         if email in self.missing:
             raise AccountNotFound("no account")
-        return f"https://app.portfyl.com/auth/action?mode={mode}&oobCode=C&lang={lang}"
+        return f"https://app.portfyl.com/auth/action#mode={mode}&oobCode=C&lang={lang}"
 
     def verification_url(self, email: str, lang: str) -> str:
         return self._url("verify", "verifyEmail", email, lang)
