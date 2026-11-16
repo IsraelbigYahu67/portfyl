@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
@@ -15,10 +16,12 @@ from account_deletion import (
     deletion_status_payload,
     get_workspace_deletion,
     schedule_workspace_deletion,
+    send_deletion_scheduled_notice,
 )
-from database import get_db
+from database import get_db, release_connection
 from firebase_identity import FirebaseIdentityVerifier, IdentityVerificationError
 from routers.auth import get_identity_verifier
+from routers.auth_email import Mailer, get_mailer
 from tenancy import (
     RequestContext,
     RequestContextError,
@@ -34,6 +37,9 @@ router = APIRouter(prefix="/account", tags=["account"])
 class DeletionRequestPayload(BaseModel):
     reauth_id_token: str = Field(min_length=1)
     confirmation: str = Field(min_length=1)
+    # The app language, for the confirmation e-mail. Accepts anything: a
+    # garbage value gives English, never a 422.
+    lang: Any = None
 
 
 @router.get("/export", response_class=Response)
@@ -70,6 +76,7 @@ def schedule_deletion(
     db: Session = Depends(get_db),
     context: RequestContext = Depends(require_csrf),
     verifier: FirebaseIdentityVerifier = Depends(get_identity_verifier),
+    mailer: Mailer | None = Depends(get_mailer),
 ) -> dict:
     try:
         identity = verifier.verify_id_token(payload.reauth_id_token)
@@ -78,13 +85,22 @@ def schedule_deletion(
             401,
             "recent_reauthentication_required",
         ) from exc
+    already_scheduled = get_workspace_deletion(db, context.workspace.id) is not None
     state = schedule_workspace_deletion(
         db,
         context,
         identity=identity,
         confirmation=payload.confirmation,
+        lang=payload.lang,
     )
     db.commit()
+    # Only the request that created the state sends the notice; a repeat that
+    # returns the existing one does not. Best effort, after the commit, and the
+    # connection goes back to the pool before the outbound call.
+    if not already_scheduled:
+        recipient = context.user.email
+        release_connection(db)
+        send_deletion_scheduled_notice(to=recipient, state=state, mailer=mailer)
     return deletion_status_payload(state)
 
 

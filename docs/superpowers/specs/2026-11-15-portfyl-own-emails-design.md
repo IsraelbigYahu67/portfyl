@@ -1,6 +1,6 @@
 # Portfyl sends its own e-mails through Brevo — design (2026-11-15)
 
-**Status:** design, waiting for the founder's approval. No code written.
+**Status:** wave 1 (verification, password reset) is implemented on `main`. Wave 2 (account notices) is implemented and merged to `main` (plan `docs/superpowers/plans/2026-11-16-portfyl-own-emails-wave2.md`, done 2026-11-16), not yet deployed; its first-real-send check (section 11 and `deploy/cloudrun.md`) is still open. Wave 3 is design only.
 **Input:** part B of `docs/superpowers/plans/2026-11-15-branded-auth-emails-handoff.md`.
 **Visual preview of every e-mail (Czech and English):**
 https://claude.ai/artifact/Pwh4j9VRmpfhcFPNWCj3iV (private to the founder).
@@ -482,11 +482,11 @@ class EmailContent:              # one e-mail in one language
 
 ## 7. Waves
 
-| Wave | E-mails | Needs | When |
-|---|---|---|---|
-| 1 | `verify_email`, `password_reset` | sections 5–6; no migration | now, after part A is deployed |
-| 2 | `password_changed`, `account_deletion_scheduled`, `account_deleted` | wave 1 sender; a way to learn about a password change (below) | right after wave 1 |
-| 3 | `beta_invite`, `welcome`, `trial_ending`, `trial_ended`, `plan_activated`, `plan_ended`, `broker_reconnect` | stored user language (`users.language`, additive migration), an outbox delivery job | together with the free-trial plan and payments go-live |
+| Wave | E-mails | Needs | When | Status |
+|---|---|---|---|---|
+| 1 | `verify_email`, `password_reset` | sections 5–6; no migration | now, after part A is deployed | implemented |
+| 2 | `password_changed`, `account_deletion_scheduled`, `account_deleted` | wave 1 sender; a way to learn about a password change (below) | right after wave 1 | implemented and merged to `main` (migration `0028_password_changed_seen`); not deployed; real-send check open |
+| 3 | `beta_invite`, `welcome`, `trial_ending`, `trial_ended`, `plan_activated`, `plan_ended`, `broker_reconnect` | stored user language (`users.language`, additive migration), an outbox delivery job | together with the free-trial plan and payments go-live | not started |
 
 Each wave gets its own implementation plan. Notes that shape those plans:
 
@@ -497,9 +497,12 @@ Each wave gets its own implementation plan. Notes that shape those plans:
   Portfyl saw; when it moved, send the notice and revoke the user's other
   Portfyl sessions. Today a password reset does **not** end existing Portfyl
   sessions; wave 2 closes that. Needs one nullable column on `users`.
-- **`account_deleted`** is sent by the purge job just before it deletes the
-  user (the address and language are gone afterwards), directly through the
-  transport, not the outbox.
+- **`account_deleted`** is sent by the purge job once the purge has committed,
+  with the address and language read before the user is deleted (they are gone
+  afterwards), directly through the transport, not the outbox. It is not sent
+  before the delete because Firebase's `delete_user` runs inside the purge
+  transaction: a rollback would leave an account that was already announced as
+  deleted. A crash between the commit and the send loses this one notice.
 - **`account_deletion_scheduled`** is sent inside
   `schedule_workspace_deletion`'s request, like wave 1.
 - **`beta_invite`** is sent by `manage_beta invite --send --lang cs`.
@@ -552,6 +555,8 @@ The "1 hour" sentence stays only if the test in section 11 confirms it;
 otherwise drop it from both the preheader and the text.
 
 ### Wave 2
+
+*Status: implemented and merged to `main`, not yet deployed or sent for real. As built, the language comes from the request (`lang` in the `/auth/session` body and the deletion request, English fallback) and the deletion request's language is kept in the workspace deletion state for `account_deleted`; no stored user language, which stays a wave 3 item.*
 
 **`password_changed`** — when Portfyl sees the password changed.
 Button → `/forgot-password`. Footer: account.

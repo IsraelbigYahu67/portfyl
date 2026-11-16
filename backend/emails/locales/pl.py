@@ -31,10 +31,50 @@ LOCALE = Locale(
             "Twoje hasło pozostaje bez zmian.",
             footer_reason="address",
         ),
+        EmailKind.PASSWORD_CHANGED: EmailContent(
+            subject="Hasło do konta Portfyl zostało zmienione",
+            preheader="Jeśli to Ty, nie musisz nic więcej robić.",
+            heading="Hasło zostało zmienione",
+            paragraphs=(
+                "Hasło do konta **{email}** zostało właśnie zmienione. Jeśli to Ty, nie musisz nic więcej robić.",
+            ),
+            facts=(("Kiedy", "{datetime}"),),
+            button="To nie ja",
+            note="Przyciskiem od razu zresetujesz hasło. Jeśli to nie zadziała, napisz do nas na support@portfyl.com.",
+            footer_reason="account",
+        ),
+        EmailKind.ACCOUNT_DELETION_SCHEDULED: EmailContent(
+            subject="Twoje konto Portfyl zostanie usunięte {date}",
+            preheader="Do tego czasu możesz zmienić zdanie.",
+            heading="Usunięcie konta jest zaplanowane",
+            paragraphs=(
+                "Dostaliśmy prośbę o usunięcie Twojego konta Portfyl wraz ze wszystkimi danymi. Do podanej niżej daty możesz zmienić zdanie.",
+            ),
+            facts=(("Konto", "{email}"), ("Usuniemy je", "{date}")),
+            button="Zachowaj moje konto",
+            note="Jeśli to nie Twoja prośba, anuluj usunięcie przyciskiem i zmień hasło.",
+            footer_reason="account",
+        ),
+        EmailKind.ACCOUNT_DELETED: EmailContent(
+            subject="Twoje konto Portfyl zostało usunięte",
+            preheader="Ostatni e-mail dotyczący tego konta.",
+            heading="Konto zostało usunięte",
+            paragraphs=(
+                "Usunęliśmy konto **{email}** i jego dane, zgodnie z Twoją prośbą. To ostatni e-mail, który w tej sprawie wysyłamy.",
+                "W każdej chwili możesz wrócić i założyć nowe konto.",
+            ),
+            note="Masz pytania? Napisz do nas na support@portfyl.com.",
+            footer_reason="account",
+        ),
     },
     footer_reasons={
         "account": "Dostajesz ten e-mail, ponieważ dotyczy Twojego konta Portfyl.",
         "address": "Dostajesz ten e-mail, ponieważ ktoś wpisał ten adres w Portfylu.",
     },
     footer_help="Potrzebujesz pomocy? support@portfyl.com",
+    months=(
+        "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia", "września", "października", "listopada", "grudnia",
+    ),
+    date_pattern="{day} {month} {year}",
+    datetime_pattern="{date}, {time} UTC",
 )

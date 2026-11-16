@@ -227,6 +227,7 @@ def test_deletion_endpoints_expose_status_schedule_and_cancel(
         db_session,
         request_context,
         Verifier(),
+        None,
     )
     cancelled = cancel_deletion(db_session, request_context)
 

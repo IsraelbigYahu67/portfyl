@@ -65,6 +65,10 @@ class User(Base):
     email = Column(String, nullable=False, unique=True, index=True)
     display_name = Column(String, nullable=True)
     email_verified_at = Column(DateTime(timezone=True), nullable=True)
+    # Firebase's "password last changed" time as Portfyl last saw it at
+    # /auth/session. NULL until the first sight (which notifies nobody) and
+    # for users without a password (Google only).
+    password_changed_seen_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True),

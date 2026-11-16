@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import importlib
 from dataclasses import dataclass
+from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Literal, Mapping
 
@@ -27,6 +28,9 @@ PLACEHOLDERS: frozenset[str] = frozenset(
 class EmailKind(str, Enum):
     VERIFY_EMAIL = "verify_email"
     PASSWORD_RESET = "password_reset"
+    PASSWORD_CHANGED = "password_changed"
+    ACCOUNT_DELETION_SCHEDULED = "account_deletion_scheduled"
+    ACCOUNT_DELETED = "account_deleted"
 
 
 @dataclass(frozen=True)
@@ -51,6 +55,15 @@ class Locale:
     messages: Mapping[EmailKind, EmailContent]
     footer_reasons: Mapping[str, str]  # keys "account" and "address"
     footer_help: str
+    # Date formatting (see ``format_date``). ``date_pattern`` uses {day},
+    # {month} (a name from ``months``) and {year}; ``datetime_pattern`` uses
+    # {date} and {time}. The defaults are English.
+    months: tuple[str, ...] = (
+        "January", "February", "March", "April", "May", "June", "July",
+        "August", "September", "October", "November", "December",
+    )
+    date_pattern: str = "{day} {month} {year}"
+    datetime_pattern: str = "{date}, {time} UTC"
 
 
 ENGLISH = Locale(
@@ -78,6 +91,46 @@ ENGLISH = Locale(
             note="If you didn't ask for this, you can ignore this e-mail. "
             "Your password stays the same.",
             footer_reason="address",
+        ),
+        EmailKind.PASSWORD_CHANGED: EmailContent(
+            subject="Your Portfyl password was changed",
+            preheader="If that was you, there's nothing more to do.",
+            heading="Your password was changed",
+            paragraphs=(
+                "The password for **{email}** was just changed. "
+                "If that was you, there's nothing more to do.",
+            ),
+            facts=(("When", "{datetime}"),),
+            button="That wasn't me",
+            note="The button lets you reset the password right away. "
+            "If it doesn't work, write to support@portfyl.com.",
+            footer_reason="account",
+        ),
+        EmailKind.ACCOUNT_DELETION_SCHEDULED: EmailContent(
+            subject="Your Portfyl account will be deleted on {date}",
+            preheader="You can change your mind until then.",
+            heading="Account deletion is scheduled",
+            paragraphs=(
+                "You asked us to delete your Portfyl account and all its data. "
+                "You can change your mind until the date below.",
+            ),
+            facts=(("Account", "{email}"), ("We delete it on", "{date}")),
+            button="Keep my account",
+            note="If you didn't ask for this, cancel it with the button "
+            "and change your password.",
+            footer_reason="account",
+        ),
+        EmailKind.ACCOUNT_DELETED: EmailContent(
+            subject="Your Portfyl account has been deleted",
+            preheader="The last e-mail about this account.",
+            heading="Your account is deleted",
+            paragraphs=(
+                "We deleted the account **{email}** and its data, as you asked. "
+                "This is the last e-mail we send about it.",
+                "You're welcome to come back and start a new one any time.",
+            ),
+            note="Questions about this? Write to support@portfyl.com.",
+            footer_reason="account",
         ),
     },
     footer_reasons={
@@ -114,3 +167,31 @@ def locale_for(lang: str) -> Locale:
             return ENGLISH
         raise
     return module.LOCALE
+
+
+def _utc(value: date | datetime) -> date | datetime:
+    if isinstance(value, datetime):
+        # A naive datetime is taken as UTC (every Portfyl timestamp is).
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+    return value
+
+
+def format_date(value: date | datetime, lang: str) -> str:
+    """``16 November 2026`` in the language's own pattern; a datetime is
+    shown as its UTC calendar date."""
+    locale = locale_for(lang)
+    value = _utc(value)
+    return locale.date_pattern.format(
+        day=value.day, month=locale.months[value.month - 1], year=value.year
+    )
+
+
+def format_datetime(value: datetime, lang: str) -> str:
+    """``16 November 2026, 14:05 UTC`` in the language's own pattern."""
+    locale = locale_for(lang)
+    value = _utc(value)
+    return locale.datetime_pattern.format(
+        date=format_date(value, lang), time=f"{value.hour:02d}:{value.minute:02d}"
+    )

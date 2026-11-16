@@ -38,6 +38,7 @@ from rate_limit import (
     rate_limit_exceeded_handler,
     rate_limit_unavailable_handler,
 )
+from emails import notify as email_notify
 from routers import portfolio, market, analytics, broker, portfolios, watchlists, benchmarks, ibkr, etoro, options, polymarket, discord, notes, cash, alerts, settings, allocation_targets, broker_requests, capabilities, auth as auth_router, auth_email
 from tenancy import (
     RequestContextError,
@@ -61,6 +62,10 @@ app.state.billing_config = (
 # raises and makes no network call -- a missing or broken setting leaves it None
 # and the frontend falls back to Firebase's e-mail.
 app.state.portfyl_mailer = auth_email.build_mailer(os.environ, PORTFYL_EDITION)
+# The account notices (password changed, deletion scheduled / done) are sent
+# outside the e-mail routes too; share this mailer with them so they use the same
+# transport and the same health flag instead of building a second one.
+email_notify.set_default_mailer(app.state.portfyl_mailer)
 app.add_exception_handler(
     auth_router.AuthAPIError,
     auth_router.auth_api_error_handler,

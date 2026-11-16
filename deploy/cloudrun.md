@@ -844,6 +844,101 @@ whether it adds `List-Unsubscribe`, and the free plan's daily cap (reported as
 300 e-mails, shared with the Firebase fallback; move to a paid plan before
 public sign-up opens).
 
+#### Wave 2: account notices
+
+Wave 2 adds three more e-mails through the same sender, key, switch-off flag
+and logging as above (design: spec sections 7 and 8; plan:
+`docs/superpowers/plans/2026-11-16-portfyl-own-emails-wave2.md`). No new
+secret and no new environment variable.
+This section describes the intended behaviour from the plan and spec; it was
+written before the real-send check below was run.
+
+| E-mail | Sent | Button |
+|---|---|---|
+| `password_changed` | when `/auth/session` sees that Firebase's "password last changed" time moved (see below) | "That wasn't me" → `/forgot-password` |
+| `account_deletion_scheduled` | in the request that schedules the deletion, after it is committed, to the requesting owner; shows the account address and the deletion date (request time + `DELETION_GRACE_DAYS`, 30 days) | "Keep my account" → Settings, where deletion is cancelled |
+| `account_deleted` | by the daily purge job right after the purge committed (address and language are read before the user is deleted), in the language stored with the deletion request; no button | none |
+
+**Best effort.** A notice is attempted only after the state change is
+committed. A missing key, a switched-off mailer or a failed send never fails,
+delays beyond Brevo's 5 s timeout, or rolls back the sign-in, the deletion
+request or the purge; the cost is only that the notice is not sent. Failures
+are logged with a kind and a reason code, never an address or link. There is
+no outbox and no retry: a notice that was not accepted by Brevo is not sent
+later.
+
+**One shared mailer and health flag.** The three notices use the same mailer
+object as the verification and password-reset endpoints (`main.py` hands
+`app.state.portfyl_mailer` to `emails.notify.set_default_mailer`). When Brevo
+fails and the 5-minute health flag switches the mailer off, it is off for all
+five e-mails at once. A process that does not import `main` (a standalone
+purge CLI) builds its own mailer from the environment and has its own flag.
+
+**Language.** The backend stores none. `account_deletion_scheduled` takes the
+app language from the request and keeps it inside the workspace deletion state
+for the purge job; a deletion scheduled before this release has no stored
+language, so its `account_deleted` goes out in English. `password_changed`
+takes an optional `lang` from the `/auth/session` request; missing or
+unrecognised is English.
+
+**Password change detection and session revocation.** A password reset does
+not end Portfyl sessions on its own, because the page that sets the password is
+not the trigger (a Firebase code can be used directly against Firebase).
+Instead, at every `/auth/session` Portfyl reads Firebase's "password last
+changed" time for the user and compares it with
+`users.password_changed_seen_at`. When it moved forward, Portfyl revokes the
+user's **other** Portfyl sessions (the one being created stays), writes the
+audit event `auth.password_changed` (a count of revoked sessions, no address)
+and sends `password_changed`. This is now live: after a password reset or
+change, every other signed-in browser or device of that user is signed out and
+has to sign in again. Details that matter in operation:
+
+- The first sight of a user stores the current value and does nothing else, so
+  the deploy does not e-mail or sign out anyone. A user without a password
+  (Google only) is skipped.
+- Detection is skipped for that sign-in, never failed, when Firebase's lookup
+  fails (logged `password_change_detection outcome=lookup_failed`).
+- Two sign-ins racing on the same change revoke, audit and notify once.
+
+**Migration `0028_password_changed_seen`.** One nullable timestamp column,
+`users.password_changed_seen_at`: additive, no default, no backfill, safe next
+to old instances. As always, run the migration Job
+(`deploy/run-migrations.ps1`, step 5) with the same image **before** the
+service deploy that contains this code; the service refuses to start on a
+mismatch with `EXPECTED_ALEMBIC_HEAD` (`backend/database.py`). Rollback is the
+kill switch above plus the previous image; the extra column is harmless to old
+code.
+
+**First real send, wave 2** (spec section 11; once, with a real inbox, after
+the wave 1 checklist above has passed). Use a throwaway password account:
+
+1. Sign in once, so Portfyl records the current password time. Sign in again
+   in a second browser, so there are two live sessions. No e-mail is sent in
+   either case (first sight).
+2. Forgot password → e-mail → choose a new password → sign in. `password_changed`
+   arrives from `Portfyl <noreply@mail.portfyl.com>` in the app's language with
+   the right time, "That wasn't me" opens `/forgot-password`, and the second
+   browser's session is now signed out (its next `/api` call is `401`). The
+   audit log has one `auth.password_changed` row with no address in it.
+3. Settings → delete account. `account_deletion_scheduled` arrives, shows the
+   account address and a date 30 days ahead, and "Keep my account" opens
+   Settings, where the deletion can be cancelled. Request deletion twice: only
+   one e-mail.
+4. `account_deleted`: wait for the purge, or run the `account_deletion_cleanup`
+   job against a throwaway account whose grace period you have shortened
+   (never against a real account). It arrives once, has no button, names the
+   deleted address and is in the language the deletion was requested in.
+5. The same checks as wave 1 for the raw message: the button `href` (Brevo
+   tracking or Portfyl's URL), headers, SPF/DKIM/DMARC `pass`, and the layout in
+   Gmail, Outlook and Seznam including dark mode.
+6. With the mailer switched off (remove the secret on a test revision), repeat
+   steps 2 and 3: the password change still signs out the other sessions, the
+   deletion is still scheduled and cancellable, nothing fails, and the logs
+   show a reason code only.
+
+Not verified at the time of writing: none of the wave 2 sends has been made
+against real Brevo, and nothing above has been checked on a deployed revision.
+
 ## Stripe Managed Payments (paid plans)
 
 Paid plans use **Stripe Managed Payments**: Stripe, under the Link brand, is

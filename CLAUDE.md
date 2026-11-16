@@ -150,7 +150,11 @@ mockup) and does not override it.
   password-reset e-mails are sent by `backend/emails/` through Brevo
   (`backend/routers/auth_email.py`), with the Firebase client call as the
   fallback (`frontend/src/auth/authEmail.js`); their copy lives in
-  `backend/emails/catalog.py` + `locales/`. See
+  `backend/emails/catalog.py` + `locales/`. Wave 2 adds best-effort
+  `password_changed`, `account_deletion_scheduled` and `account_deleted`
+  notices (`backend/emails/notify.py`), and `/auth/session` now detects a
+  password change (`users.password_changed_seen_at`) and revokes the user's
+  other sessions. See
   `docs/superpowers/specs/2026-11-15-portfyl-own-emails-design.md` and
   "Portfyl e-mails" in `deploy/cloudrun.md`. Unauthenticated `/api` calls get
   401, and the SPA routes to `/login`/`/register` (`frontend/src/auth/`).

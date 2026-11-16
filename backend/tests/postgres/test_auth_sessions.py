@@ -127,6 +127,11 @@ class StubIdentityVerifier:
             ),
         }
         self.revoked_uids: list[str] = []
+        # uid -> Firebase's "password last changed" time (None = no password).
+        self.password_times: dict[str, datetime | None] = {}
+
+    def password_updated_at(self, uid: str) -> datetime | None:
+        return self.password_times.get(uid)
 
     def verify_id_token(self, token: str) -> VerifiedIdentity:
         try:
@@ -720,3 +725,150 @@ def test_main_app_unknown_session_cookie_is_401_not_csrf_403(
 
     assert response.status_code == 401
     assert response.json()["code"] == "authentication_required"
+
+
+# ---------------------------------------------------------------------------
+# Password-change detection (own-emails wave 2, Task 2)
+# ---------------------------------------------------------------------------
+
+PW_T1 = datetime(2026, 11, 1, 9, 0, 0, tzinfo=timezone.utc)
+PW_T2 = PW_T1 + timedelta(days=3)
+
+
+@pytest.fixture
+def password_hook(monkeypatch) -> list[tuple[str, str]]:
+    calls: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        auth_router,
+        "_on_password_changed",
+        lambda db, user, lang: calls.append((user.email, lang)),
+    )
+    return calls
+
+
+def _password_audit_rows(postgres_engine):
+    with admin_session(postgres_engine) as db:
+        return db.scalars(
+            select(AuditLog).where(AuditLog.action == "auth.password_changed")
+        ).all()
+
+
+def test_first_sight_of_the_password_time_notifies_nobody(
+    client: TestClient,
+    verifier: StubIdentityVerifier,
+    postgres_engine,
+    password_hook,
+):
+    verifier.password_times["firebase-alice"] = PW_T1
+
+    assert client.post("/api/auth/session", json={"id_token": "alice-token"}).status_code == 201
+
+    with admin_session(postgres_engine) as db:
+        assert db.scalar(select(User.password_changed_seen_at)) == PW_T1
+    assert password_hook == []
+    assert _password_audit_rows(postgres_engine) == []
+
+
+def test_unchanged_password_time_changes_nothing(
+    client: TestClient,
+    verifier: StubIdentityVerifier,
+    postgres_engine,
+    password_hook,
+):
+    verifier.password_times["firebase-alice"] = PW_T1
+    for _ in range(2):
+        assert client.post("/api/auth/session", json={"id_token": "alice-token"}).status_code == 201
+
+    assert password_hook == []
+    assert _password_audit_rows(postgres_engine) == []
+    with admin_session(postgres_engine) as db:
+        assert db.scalar(select(func.count()).select_from(AuthSession)) == 2
+        assert db.scalar(
+            select(func.count()).select_from(AuthSession).where(AuthSession.revoked_at.is_(None))
+        ) == 2
+
+
+def test_changed_password_revokes_only_this_users_other_sessions(
+    client: TestClient,
+    verifier: StubIdentityVerifier,
+    postgres_engine,
+    password_hook,
+):
+    verifier.password_times["firebase-alice"] = PW_T1
+    first = client.post("/api/auth/session", json={"id_token": "alice-token"})
+    old_token = client.cookies.get("portfyl_session")
+    client.cookies.clear()
+    second = client.post("/api/auth/session", json={"id_token": "alice-token"})
+    older_token = client.cookies.get("portfyl_session")
+    client.cookies.clear()
+    bob = client.post("/api/auth/session", json={"id_token": "bob-google-token"})
+    bob_token = client.cookies.get("portfyl_session")
+    assert {first.status_code, second.status_code, bob.status_code} == {201}
+    assert len({old_token, older_token, bob_token}) == 3
+
+    verifier.password_times["firebase-alice"] = PW_T2
+    client.cookies.clear()
+    changed = client.post(
+        "/api/auth/session", json={"id_token": "alice-token", "lang": "cs"},
+    )
+
+    assert changed.status_code == 201
+    new_token = client.cookies.get("portfyl_session")
+    with admin_session(postgres_engine) as db:
+        assert resolve_session(db, old_token) is None
+        assert resolve_session(db, older_token) is None
+        assert resolve_session(db, new_token) is not None
+        # Another tenant's session is untouched.
+        assert resolve_session(db, bob_token) is not None
+        assert db.scalar(
+            select(User.password_changed_seen_at).where(User.email == "alice@example.com")
+        ) == PW_T2
+    assert client.get("/api/auth/me").status_code == 200
+    assert password_hook == [("alice@example.com", "cs")]
+    audit = _password_audit_rows(postgres_engine)
+    assert len(audit) == 1
+    assert audit[0].event_metadata == {"revoked_count": 2}
+    assert "alice@example.com" not in repr(audit[0].event_metadata)
+    assert audit[0].workspace_id is None
+
+
+def test_google_only_user_is_never_tracked(
+    client: TestClient,
+    verifier: StubIdentityVerifier,
+    postgres_engine,
+    password_hook,
+):
+    verifier.password_times["firebase-bob-google"] = None
+    for _ in range(2):
+        assert client.post("/api/auth/session", json={"id_token": "bob-google-token"}).status_code == 201
+
+    with admin_session(postgres_engine) as db:
+        assert db.scalar(select(User.password_changed_seen_at)) is None
+    assert password_hook == []
+
+
+def test_failing_lookup_and_hook_never_fail_the_sign_in(
+    client: TestClient,
+    verifier: StubIdentityVerifier,
+    postgres_engine,
+    monkeypatch,
+):
+    verifier.password_times["firebase-alice"] = PW_T1
+    assert client.post("/api/auth/session", json={"id_token": "alice-token"}).status_code == 201
+
+    def broken_lookup(uid):
+        raise IdentityVerificationError("firebase unavailable")
+
+    monkeypatch.setattr(verifier, "password_updated_at", broken_lookup)
+    assert client.post("/api/auth/session", json={"id_token": "alice-token"}).status_code == 201
+
+    monkeypatch.delattr(verifier, "password_updated_at")
+    verifier.password_times["firebase-alice"] = PW_T2
+
+    def broken_hook(db, user, lang):
+        raise RuntimeError("mailer exploded")
+
+    monkeypatch.setattr(auth_router, "_on_password_changed", broken_hook)
+    assert client.post("/api/auth/session", json={"id_token": "alice-token"}).status_code == 201
+    # The change was still committed and recorded exactly once.
+    assert len(_password_audit_rows(postgres_engine)) == 1
