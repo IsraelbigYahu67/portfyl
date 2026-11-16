@@ -135,6 +135,7 @@ describe("DataPrivacySettings", () => {
     expect(mocks.scheduleWorkspaceDeletion).toHaveBeenCalledWith({
       reauth_id_token: "fresh-id-token",
       confirmation: "Alice workspace",
+      lang: "en",
     });
     expect(mocks.scheduleWorkspaceDeletion.mock.calls[0][0]).not.toHaveProperty("password");
     expect(await screen.findByText(/scheduled for/i)).toBeInTheDocument();
@@ -188,6 +189,7 @@ describe("DataPrivacySettings", () => {
     expect(mocks.scheduleWorkspaceDeletion).toHaveBeenCalledWith({
       reauth_id_token: "fresh-google-token",
       confirmation: "Alice workspace",
+      lang: "en",
     });
     expect(await screen.findByText(/scheduled for/i)).toBeInTheDocument();
   });

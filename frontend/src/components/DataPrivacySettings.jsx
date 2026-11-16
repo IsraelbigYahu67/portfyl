@@ -17,7 +17,7 @@ import {
   reauthenticateWithPassword,
 } from "../auth/firebase";
 import { useFocusTrap } from "../hooks/useFocusTrap";
-import { rich, useT } from "../i18n/I18nProvider";
+import { rich, useI18n, useT } from "../i18n/I18nProvider";
 import AnalyticsPreferences from "../analytics/AnalyticsPreferences";
 import AuthMethodDivider from "./auth/AuthMethodDivider";
 
@@ -39,6 +39,8 @@ function errorMessage(error, fallback, t) {
 
 export default function DataPrivacySettings() {
   const t = useT();
+  // Sent so the confirmation e-mail is written in the language of the app.
+  const { language } = useI18n();
   const queryClient = useQueryClient();
   const { user, currentWorkspace } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -91,6 +93,7 @@ export default function DataPrivacySettings() {
       return scheduleWorkspaceDeletion({
         reauth_id_token: reauthIdToken,
         confirmation,
+        lang: language,
       });
     },
     onSuccess: (status) => {
