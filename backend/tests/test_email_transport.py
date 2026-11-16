@@ -201,6 +201,115 @@ def test_switching_off_logs_a_reason_code_and_nothing_secret(caplog):
     assert "xkeysib-secret" not in text and "a@b.cz" not in text
 
 
+# --- health probe -----------------------------------------------------------
+
+
+def test_probe_request_shape():
+    seen = {}
+
+    def handler(request):
+        seen["method"], seen["url"] = request.method, str(request.url)
+        seen["headers"], seen["body"] = request.headers, request.content
+        seen["timeout"] = request.extensions["timeout"]
+        return httpx.Response(200, json={"email": "owner@example.com"})
+
+    transport = _transport(handler)
+    assert transport.probe() is None
+    assert seen["method"] == "GET"
+    assert seen["url"] == "https://api.brevo.com/v3/account"
+    assert seen["headers"]["api-key"] == "xkeysib-secret"
+    assert seen["body"] == b""
+    assert seen["timeout"] == {"connect": 3.0, "read": 5.0, "write": 5.0, "pool": 5.0}
+    assert transport.available()
+
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_probe_auth_failure_switches_off_at_once(status):
+    transport = _transport(lambda r: httpx.Response(status))
+    transport.probe()
+    assert not transport.available()
+
+
+@pytest.mark.parametrize("status", [429, 500, 503])
+def test_three_failed_probes_switch_off(status):
+    transport = _transport(lambda r: httpx.Response(status))
+    for _ in range(2):
+        transport.probe()
+        assert transport.available()
+    transport.probe()
+    assert not transport.available()
+
+
+def test_a_successful_probe_does_not_heal_the_flag():
+    # Only a real send proves that sending works (review focus 2).
+    def handler(request):
+        return httpx.Response(200 if request.method == "GET" else 500, json={})
+
+    transport = _transport(handler)
+    for _ in range(2):
+        with pytest.raises(EmailSendError):
+            transport.send(to="a@b.cz", email=Mail, tag="t")
+    transport.probe()
+    assert transport.available()
+    with pytest.raises(EmailSendError):
+        transport.send(to="a@b.cz", email=Mail, tag="t")
+    assert not transport.available()
+
+
+def test_probes_and_sends_share_one_failure_count():
+    transport = _transport(lambda r: httpx.Response(503, json={}))
+    transport.probe()
+    with pytest.raises(EmailSendError):
+        transport.send(to="a@b.cz", email=Mail, tag="t")
+    assert transport.available()
+    transport.probe()
+    assert not transport.available()
+
+
+@pytest.mark.parametrize("status", [400, 404])
+def test_a_rejected_probe_is_not_counted(status):
+    transport = _transport(lambda r: httpx.Response(status))
+    for _ in range(10):
+        transport.probe()
+        assert transport.available()
+
+
+@pytest.mark.parametrize("error", [httpx.ReadTimeout, httpx.ConnectError])
+def test_probe_timeout_and_network_error_are_counted_and_do_not_raise(error):
+    def handler(request):
+        raise error("boom xkeysib-secret", request=request)
+
+    transport = _transport(handler)
+    for _ in range(3):
+        assert transport.available()
+        assert transport.probe() is None
+    assert not transport.available()
+
+
+def test_probe_never_raises_on_an_unforeseen_error():
+    def handler(request):
+        raise RuntimeError("boom xkeysib-secret")
+
+    transport = _transport(handler)
+    assert transport.probe() is None
+    assert transport.available()
+
+
+def test_probe_logs_a_reason_code_and_nothing_secret(caplog):
+    transport = _transport(lambda r: httpx.Response(401, json={"message": "xkeysib-secret a@b.cz"}))
+    with caplog.at_level(logging.DEBUG):
+        transport.probe()
+    text = "\n".join(record.getMessage() for record in caplog.records)
+    assert "brevo_http_401" in text
+    assert "xkeysib-secret" not in text and "a@b.cz" not in text
+
+
+def test_console_transport_probe_is_a_no_op():
+    out = io.StringIO()
+    assert ConsoleTransport(out=out).probe() is None
+    assert out.getvalue() == ""
+
+
 def test_console_transport_prints_subject_and_text():
     out = io.StringIO()
     transport = ConsoleTransport(out=out)
