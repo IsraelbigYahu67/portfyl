@@ -144,7 +144,7 @@ POST /api/auth/email/verification  POST /api/auth/email/password-reset
       │                            │
       ├─ rate limit (IP, then uid / e-mail)
       ├─ Admin SDK: generate link → take oobCode
-      ├─ build Portfyl URL  {PORTFYL_EMAIL_APP_URL}/auth/action?mode=…&oobCode=…&lang=…
+      ├─ build Portfyl URL  {PORTFYL_EMAIL_APP_URL}/auth/action#mode=…&oobCode=…&lang=…
       ├─ render (kind, lang) → subject, html, text
       └─ Brevo API send
 ```
@@ -157,10 +157,21 @@ Firebase client call, so the user still gets an e-mail (the old plain one).
 The backend does not use the link Firebase returns as-is. It parses
 `oobCode` out of it and builds its own URL from `PORTFYL_EMAIL_APP_URL`:
 
-`{PORTFYL_EMAIL_APP_URL}/auth/action?mode=verifyEmail&oobCode=<code>&lang=<lang>`
+`{PORTFYL_EMAIL_APP_URL}/auth/action#mode=verifyEmail&oobCode=<code>&lang=<lang>`
 (`mode=resetPassword` for the reset). For verification it also adds
 `continueUrl={PORTFYL_EMAIL_APP_URL}/login?verified=1`, which `AuthAction.jsx`
 already accepts as same-origin.
+
+The parameters are in the URL **fragment** (`#…`), not the query (changed by
+the 2026-11-16 review fixes; wave 1 first shipped `?…`). A browser never sends
+the fragment to a server, so the one-time code does not reach Cloud Run or
+Cloudflare request logs. `AuthAction.jsx` reads the fragment first (when it
+holds a `mode` or an `oobCode`) and the query second, so links already sent
+and Firebase's own fallback e-mails, which keep the code in the query, still
+open. Residual: those fallback e-mails still put the code in request logs
+until the fallback is removed (5.10 step 5). If a mail client or Brevo's click
+tracking turns out to drop the fragment, revert the one commit that builds
+fragment links; the page keeps reading both forms.
 
 Consequences:
 
@@ -202,7 +213,7 @@ have not registered. Reuse `FirebaseIdentityVerifier.verify_id_token`.
 |---|---|
 | Mailer not configured (checked before looking at the address) | `503 {"code":"email_unavailable"}` |
 | Per-IP limit hit | `429 rate_limit_exceeded` + `Retry-After` |
-| Anything else: unknown address, disabled account, per-address limit hit, Firebase or Brevo error, sent | `202 {"status":"accepted"}` |
+| Anything else: unknown address, disabled account, a missing / non-string / over-long / implausible `email`, per-address limit hit, Firebase or Brevo error, sent | `202 {"status":"accepted"}` |
 
 Anti-enumeration rules:
 
@@ -216,11 +227,22 @@ Anti-enumeration rules:
 - The handler does not return before a fixed minimum time (1.5 s, measured
   from the start of the request) so the slower "account exists" path is not
   visible in the response time. The real work is normally well under that
-  (one Firebase call, one Brevo call). Residual timing differences above the
-  floor are accepted: registration already tells a caller that an address is
-  taken.
+  (one Firebase call, one Brevo call). Above the floor the answer is rounded
+  up to the next 0.5 s step (work of 1.6 s answers at 2.0 s). Residual: a
+  difference smaller than one step can still cross a step boundary; accepted,
+  because registration already tells a caller that an address is taken.
 - `lang` and the address are validated the same way on both paths (malformed
-  input gets the same `202`).
+  input gets the same `202`). `email` is accepted as any JSON value: a
+  missing, non-string or over-long (more than 320 characters after trimming)
+  value is an invalid address, answered `202` with no limiter call, no
+  Firebase call and no send. Residual: a body that is not a JSON object at all
+  still gets FastAPI's `422`; that cannot depend on an account.
+- **Every reset makes exactly one Brevo call.** A path that does not send
+  (invalid address, per-address limit hit or limiter down, unknown account,
+  Firebase error, an unexpected error before the send) makes one health probe
+  instead (`GET /v3/account`, same timeouts, sends nothing). So both kinds of
+  address cost one Firebase call and one Brevo call, and the health flag below
+  moves the same way for every address (see "Health flag").
 
 When a send fails (Firebase or Brevo error) the user is told nothing, so the
 failure must be visible to the operator and must not last:
@@ -236,6 +258,20 @@ failure must be visible to the operator and must not last:
   `503 email_unavailable` before looking at the request, and the frontend
   falls back to Firebase. A revoked or wrong key therefore degrades to the old
   e-mails within a few requests instead of silently losing every reset.
+- **The flag moves the same for every address.** If only real sends moved the
+  flag, then while Brevo is failing only a reset for an *existing* account
+  would move it, and `202` turning into `503 email_unavailable` would reveal
+  the account. The probe of a non-sending reset is therefore counted exactly
+  like a failed send (`401`/`403` at once; timeout, network error, `429`,
+  `5xx` toward the three). A successful probe changes nothing: only a real
+  send proves that sending works, so it neither resets the failure count nor
+  switches the mailer back on. The verification endpoint never probes.
+  Residual: if Brevo's send endpoint fails while its account endpoint works (a
+  partial outage), the probe succeeds and the difference remains for that
+  period; a wrong or revoked key and a full outage, the realistic cases, are
+  closed. Rejected alternative: reset sends do not move the flag at all (no
+  probe needed, but a revoked key would silently lose every reset until a
+  verification e-mail happened to fail).
 
 Behaviour kept from Firebase: an account that signs in with Google only still
 gets a reset link (it lets the person set a password).
@@ -365,6 +401,12 @@ in the same language as the e-mail. A saved choice on the device always wins.
 - Audit row `auth.email.sent` (`metadata: {kind, lang}`) only when a Portfyl
   `User` exists for the address (password reset of an existing user), because
   `actor_user_id` is required. Verification e-mails are log-only.
+- A password reset is sent to, and shows, the address **as typed** (trimmed
+  only): ` Jana@Example.com ` gets its e-mail at `Jana@Example.com`. The
+  normalized form (`jana@example.com`) is used only for the per-address limit
+  bucket and the `User` lookup of the audit row.
+- The handler ends its database transaction before it waits out the minimum
+  response time, so no pooled connection is held during the wait.
 
 ### 5.10 Rollout
 
@@ -483,7 +525,7 @@ support@portfyl.com".
 ### Wave 1
 
 **`verify_email`** — after password registration and on every resend.
-Button → `/auth/action?mode=verifyEmail`. Footer: address.
+Button → `/auth/action#mode=verifyEmail`. Footer: address.
 
 | Part | EN | CS |
 |---|---|---|
@@ -495,7 +537,7 @@ Button → `/auth/action?mode=verifyEmail`. Footer: address.
 | Note | If you didn't create a Portfyl account, you can ignore this e-mail. | Pokud jste si účet v Portfylu nezakládali, tento e-mail můžete ignorovat. |
 
 **`password_reset`** — after the forgot-password form, only if the account
-exists. Button → `/auth/action?mode=resetPassword`. Footer: address.
+exists. Button → `/auth/action#mode=resetPassword`. Footer: address.
 
 | Part | EN | CS |
 |---|---|---|
@@ -675,6 +717,28 @@ Fast suite only; Firebase and Brevo are always faked.
   that `ForgotPassword` shows the same message for every outcome;
   `AuthAction.test.jsx` for `lang` with and without a saved language.
 
+Added by the 2026-11-16 review fixes:
+
+- `BrevoTransport.probe`: request shape; `401` switches the mailer off at
+  once; three outage answers switch it off; a successful probe does not heal
+  the flag; a rejected (`400`) probe is not counted; never raises; no key in
+  the logs.
+- Password-reset endpoint: a missing / `null` / non-string / over-long `email`
+  is `202` with nothing sent; with Brevo answering `401`, the next request is
+  `503` whichever path the first one took (existing, unknown, invalid,
+  limited, Firebase error), and likewise after three `503`s of any mix;
+  exactly one Brevo call per request; the typed address is the recipient while
+  the normalized one keys the limit and the audit lookup; the 0.5 s step; no
+  open transaction during the wait.
+- `links`: the built URL has no query and its fragment carries the parameters;
+  the text part has the full link. `AuthAction.test.jsx`: fragment links,
+  fragment over query, fallback to the query, a clean address bar.
+- PostgreSQL suite (`tests/postgres/test_auth_email_audit.py`), with the
+  handler's session running as `portfyl_runtime`: the `auth.email.sent` row is
+  written under forced RLS, is visible to its user and not to another, is not
+  written for an address without a Portfyl user, and neither it nor a
+  rate-limit bucket key contains the address.
+
 ## 10. Risks
 
 | Risk | What we do |
@@ -705,6 +769,12 @@ Fast suite only; Firebase and Brevo are always faked.
    e-mail.
 7. Gmail (web and phone), Outlook, Seznam: layout holds, readable with images
    off and in the client's dark mode.
+8. The link in the received e-mail has `#` after `/auth/action` and opens the
+   page from Gmail web, Gmail on a phone, Outlook and Seznam; the Cloud Run
+   request log of that revision shows `/auth/action` without a code.
+9. If a mail client or Brevo's click tracking drops the fragment: revert the
+   commit that builds fragment links and redeploy (the page still reads query
+   links).
 
 ## 12. What the founder has to do
 

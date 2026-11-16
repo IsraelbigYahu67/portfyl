@@ -69,6 +69,9 @@ class TestRedactsKnownSecretShapes:
             "GET /auth/action?oobCode=Zz9_-q&mode=resetPassword",
             'url="https://x/auth/action?mode=resetPassword&oobCode=Zz9_-q"',
             "https://x/a?oobCode=Zz9_-q",
+            # Portfyl's own links carry the code in the fragment.
+            "https://app.portfyl.com/auth/action#mode=resetPassword&oobCode=Zz9_-q&lang=cs",
+            "https://app.portfyl.com/auth/action#oobCode=Zz9_-q",
         ):
             redacted = redact(line)
             assert "Zz9_-q" not in redacted
