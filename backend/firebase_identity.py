@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import firebase_admin
 from firebase_admin import auth as firebase_auth
+
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
 class IdentityVerificationError(RuntimeError):
@@ -87,6 +89,41 @@ class FirebaseIdentityVerifier:
             authenticated_at=authenticated_at,
             sign_in_provider=_sign_in_provider(claims),
         )
+
+    def password_updated_at(self, uid: str) -> datetime | None:
+        """When the user's password last changed, or None if they have none.
+
+        Firebase does not put this in the ID token, so it is read with an
+        Admin `get_user` lookup (REST `accounts:lookup`). `UserRecord` has no
+        public property for the lookup field `passwordUpdatedAt` (milliseconds
+        since the epoch), so it is read from the record's raw data; a shape
+        change then reads as "unknown" (None) and detection quietly stops
+        rather than raising. An account that has a password provider but no
+        `passwordUpdatedAt` (older accounts that never changed it) falls back
+        to its creation time, so its first change still moves the value
+        forward. Accounts without a password provider (Google only) are None.
+        """
+        try:
+            record = self._auth_client.get_user(uid, app=self._app)
+        except Exception as exc:
+            raise IdentityVerificationError(
+                "Firebase user lookup failed"
+            ) from exc
+        providers = getattr(record, "provider_data", None) or []
+        if not any(
+            getattr(provider, "provider_id", None) == "password"
+            for provider in providers
+        ):
+            return None
+        raw = getattr(record, "_data", None)
+        millis = raw.get("passwordUpdatedAt") if isinstance(raw, dict) else None
+        if millis is None:
+            metadata = getattr(record, "user_metadata", None)
+            millis = getattr(metadata, "creation_timestamp", None)
+        try:
+            return _EPOCH + timedelta(milliseconds=int(millis))
+        except (TypeError, ValueError, OverflowError):
+            return None
 
     def revoke_refresh_tokens(self, uid: str) -> None:
         try:

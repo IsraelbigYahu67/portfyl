@@ -28,7 +28,7 @@ def test_stripe_billing_models_are_mapped_with_portfyl_owned_trials():
 
 
 def test_expected_alembic_head_adds_t212_account_binding():
-    assert EXPECTED_ALEMBIC_HEAD == "0027_free_trial"
+    assert EXPECTED_ALEMBIC_HEAD == "0028_password_changed_seen"
     assert models.AllocationTarget.__tablename__ == "allocation_targets"
     for column in (
         "cash_next_page_path", "cash_complete", "cash_loaded",

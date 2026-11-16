@@ -79,7 +79,7 @@ class Base(DeclarativeBase):
     pass
 
 
-EXPECTED_ALEMBIC_HEAD = "0027_free_trial"
+EXPECTED_ALEMBIC_HEAD = "0028_password_changed_seen"
 
 
 def assert_alembic_head(
