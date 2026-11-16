@@ -648,7 +648,10 @@ The links in Firebase's e-mails (verify e-mail, reset password, undo an e-mail
 change) open Portfyl's own page, `frontend/src/pages/AuthAction.jsx` at
 `/auth/action`, instead of Firebase's generic page on
 `portfyl-cloud-fstxby.firebaseapp.com/__/auth/action`. The page applies the
-code, then replaces the long query in the address bar with `/auth/action`.
+code, then replaces the long address in the address bar with `/auth/action`.
+It takes its parameters from the URL fragment (`/auth/action#mode=…`, the form
+Portfyl's own e-mails use, see the next section) or, when the fragment holds
+none, from the query (`/auth/action?mode=…`, the form Firebase's e-mails use).
 
 The project has one action URL for all e-mails, dev included. Switch it
 **only after** a deploy that contains `/auth/action` is live **and** the
@@ -657,7 +660,9 @@ Cloudflare Access bypass below is in place, or every link breaks until it is:
 1. Run the routine redeploy and open
    `https://app.portfyl.com/auth/action?mode=verifyEmail&oobCode=x` in a
    browser with no Access session: it must show Portfyl's "This link didn't
-   work" page (verified anonymously on 2026-11-15).
+   work" page (verified anonymously on 2026-11-15). The fragment form,
+   `https://app.portfyl.com/auth/action#mode=verifyEmail&oobCode=x`, must show
+   the same page.
 2. **Cloudflare Access bypass** (done 2026-11-15). `app.portfyl.com` is
    covered by the Access application `Portfyl private beta`, so a person who
    opens the e-mail link on a phone without an Access session would be sent to
@@ -710,7 +715,9 @@ still worth doing.
 The verification and password-reset e-mails are written and sent by the
 backend (`backend/emails/`, endpoints in `backend/routers/auth_email.py`):
 the Admin SDK issues the one-time code, Portfyl builds its own
-`/auth/action` link from it, renders the e-mail in the user's app language
+`/auth/action` link from it (parameters in the URL fragment,
+`/auth/action#mode=…&oobCode=…`, which a browser never sends to a server, so
+the code stays out of request logs), renders the e-mail in the user's app language
 (9 languages, copy in `backend/emails/catalog.py` and `locales/`) and posts it
 to Brevo's HTTP API from `Portfyl <noreply@mail.portfyl.com>`. The frontend
 asks the backend first and falls back to Firebase's own e-mail on any failure
@@ -777,6 +784,15 @@ that instance logs `Mailer switched off for 300 s` and answers
 Firebase. A full Brevo outage has no fallback: Firebase's e-mails also go out
 through Brevo (SMTP).
 
+A password reset that sends nothing (unknown or malformed address, per-address
+limit hit, Firebase error) makes one health probe instead, `GET /v3/account`
+with the same key and timeouts. A failed probe moves the flag exactly like a
+failed send, so the mailer can also switch off with no failed send in the
+logs: the `Mailer switched off` line then follows resets logged as
+`outcome=no_account`, `invalid_address` or `target_limited`. A successful
+probe never switches the mailer back on. This keeps `202` turning into `503`
+from revealing whether an account exists.
+
 **Rollback** (the kill switch; no code change, registration and reset keep
 working with Firebase's plain e-mails):
 
@@ -815,6 +831,13 @@ deploy with the key, with a real inbox):
    e-mail.
 7. Gmail (web and phone), Outlook, Seznam: layout holds, readable with images
    off and in the client's dark mode.
+8. The link in the received e-mail has `#` after `/auth/action` and opens the
+   page from Gmail web, Gmail on a phone, Outlook and Seznam, and the new
+   revision's Cloud Run request log shows `/auth/action` **without** a code.
+9. If a mail client or Brevo's click tracking drops the fragment (the page
+   then shows "This link didn't work"), revert the commit
+   `fix(emails): one-time code in the link's fragment, out of request logs`
+   and redeploy. The page still reads query links, so nothing else changes.
 
 Not checked until then: whether Brevo rewrites links for click tracking,
 whether it adds `List-Unsubscribe`, and the free plan's daily cap (reported as
