@@ -1,6 +1,6 @@
 # Portfyl's Own E-mails, Wave 2 (Account Notices) Implementation Plan
 
-**Status:** plan, execution started 2026-11-16 on the integration branch `feat/own-emails-w2` (cut from `main` after wave 1 and its review fixes A–C).
+**Status:** plan, execution started 2026-11-16 on the integration branch `feat/own-emails-w2` (cut from `main` after wave 1 and its review fixes A–C). Tasks 1 and 2 merged into `feat/own-emails-w2` (wave A). Task 5 documentation written on `feat/own-emails-w2-t5` while Tasks 3 and 4 ran in parallel; the full verification of Task 5 is still open until Tasks 3 and 4 are merged and re-run (a partial run on the Task 1+2 state is recorded in the Task 5 hand-off, not here). Not merged to `main`, not deployed, no real e-mail sent.
 
 **Goal:** Send three more e-mails through the wave 1 sender: `password_changed`, `account_deletion_scheduled`, `account_deleted`. Close the gap that a password reset does not end existing Portfyl sessions.
 
