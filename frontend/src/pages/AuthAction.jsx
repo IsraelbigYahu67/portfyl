@@ -74,13 +74,13 @@ function Shell({ icon: Icon, tone = "text-brand", spin = false, title, children 
 function ContinueButton({ to, children }) {
   if (/^https?:/.test(to)) {
     return (
-      <a href={to} className="btn-primary w-full text-center">
+      <a href={to} className="btn-primary block w-full text-center">
         {children}
       </a>
     );
   }
   return (
-    <Link to={to} className="btn-primary w-full text-center">
+    <Link to={to} className="btn-primary block w-full text-center">
       {children}
     </Link>
   );

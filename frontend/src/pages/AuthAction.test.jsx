@@ -60,6 +60,13 @@ test("verifies the e-mail once and cleans the address bar", async () => {
   expect(screen.getByRole("link", { name: "Continue to Portfyl" })).toHaveAttribute("href", "/login?verified=1");
 });
 
+test("the continue link is a block element, so w-full gives it the full card width", async () => {
+  renderAction("?mode=verifyEmail&oobCode=CODE1&apiKey=KEY&lang=en");
+
+  // `.btn-primary` sets no display and an <a> is inline, which ignores width.
+  expect(await screen.findByRole("link", { name: "Continue to Portfyl" })).toHaveClass("block", "w-full");
+});
+
 test("shows a friendly error for a used or expired link", async () => {
   firebaseMocks.applyEmailActionCode.mockRejectedValueOnce({ code: "auth/invalid-action-code" });
   renderAction("?mode=verifyEmail&oobCode=OLD");
