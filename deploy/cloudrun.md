@@ -1063,14 +1063,23 @@ the live ones for testing.
    gcloud secrets versions add portfyl-stripe-secret-key --data-file=- # paste rk_live_..., then Ctrl+Z, Enter
    ```
 
-2. **Webhook endpoint** with exactly these events (**host not decided
-   yet**: only the `app.portfyl.com` route sends the edge token, so
-   `https://portfyl.com/api/billing/webhook` on the apex would fail closed with
-   `403 untrusted_edge` (see the note at the top), while `app.portfyl.com` sits
-   behind Cloudflare Access, which Stripe cannot log in to; the second option
-   needs an Access bypass limited to `/api/billing/webhook`, like the one for
-   `/auth/action`. Settle this and test a Stripe test event before turning
-   billing on): `checkout.session.completed`,
+2. **Webhook endpoint** `https://app.portfyl.com/api/billing/webhook` (decided
+   2026-11-17; **not** the apex: `portfyl.com/api` fails closed with `403
+   untrusted_edge` because only the `app.portfyl.com` route sends the edge
+   token, and the Access application `Portfyl testing` also covers
+   `portfyl.com/api`). `app.portfyl.com` is behind Cloudflare Access, which
+   Stripe cannot log in to, so a third, narrow Access application, `Portfyl
+   Stripe webhook` (`ad1ed928-ec66-4113-9c10-9f045b4bea2f`, policy
+   `d4159aa9-4f78-491b-b3d4-9856f7a7a2da`, decision **Bypass**, include
+   Everyone), covers only `app.portfyl.com/api/billing/webhook`. What protects
+   that path is Stripe's `Stripe-Signature` check in `stripe_webhook`
+   (`backend/routers/billing.py`; no session, no CSRF, the secret lives in
+   `STRIPE_WEBHOOK_SECRET`). Checked anonymously after creating it: a POST there
+   reaches the app (`503` while billing is off), while `/api/auth/me` and
+   `/api/billing/checkout` still `302` to Access. Never widen this application
+   beyond that one path. Roll back by deleting it (Zero Trust → Access →
+   Applications). Events to select:
+   `checkout.session.completed`,
    `customer.subscription.created`, `customer.subscription.updated`,
    `customer.subscription.deleted`, `customer.subscription.paused`,
    `customer.subscription.resumed`, `invoice.paid`,

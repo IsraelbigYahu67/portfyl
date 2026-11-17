@@ -108,6 +108,16 @@ action URL is set back to
 `https://portfyl-cloud-fstxby.firebaseapp.com/__/auth/action` (see "E-mail
 action links" in `deploy/cloudrun.md`).
 
+## Public bypass for the Stripe webhook
+
+Stripe cannot log in to Access, so a third application, `Portfyl Stripe webhook`
+(`ad1ed928-ec66-4113-9c10-9f045b4bea2f`, one **Bypass** policy for Everyone,
+`d4159aa9-4f78-491b-b3d4-9856f7a7a2da`), covers only
+`app.portfyl.com/api/billing/webhook`. The path is protected by the app's own
+`Stripe-Signature` verification, not by Access. Created 2026-11-17; never widen
+it beyond that one path. Anonymous `/api/auth/me` and `/api/billing/checkout`
+must still redirect to Access. Roll back by deleting that one application.
+
 ## Validation and rollback
 
 - Anonymous `https://portfyl.com/` must return `200`.
