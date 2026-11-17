@@ -858,11 +858,15 @@ def test_limits_are_skipped_in_the_local_edition(local):
 
 def test_the_endpoints_are_plain_functions_and_unauthenticated():
     for endpoint in (auth_email.send_verification_email, auth_email.send_password_reset_email,
-                     auth_email.get_mailer):
+                     auth_email.password_reset_done, auth_email.get_mailer):
         assert not inspect.iscoroutinefunction(endpoint), endpoint.__name__
 
     routes = {route.path: route for route in auth_email.router.routes}
-    assert set(routes) == {"/auth/email/verification", "/auth/email/password-reset"}
+    assert set(routes) == {
+        "/auth/email/verification",
+        "/auth/email/password-reset",
+        "/auth/email/password-reset-done",
+    }
 
 
 # --- build_mailer ---------------------------------------------------------------

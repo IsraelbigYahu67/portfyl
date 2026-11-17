@@ -1,14 +1,19 @@
 """Verification and password-reset e-mails sent by Portfyl through Brevo.
 
-Two unauthenticated endpoints (spec 5.3). They use no session cookie, so like
-``/auth/session`` they carry no CSRF dependency; they are protected by rate
-limits instead (per IP, and per account or address).
+Three unauthenticated endpoints (spec 5.3): the two e-mails, and
+``/password-reset-done``, which the reset page calls after Firebase accepted a
+new password so that Portfyl ends the user's sessions at once (spec 7). They
+use no session cookie, so like ``/auth/session`` they carry no CSRF
+dependency; they are protected by rate limits instead (per IP, and per account
+or address).
 
 Rules this module keeps:
 
-* Both endpoints and every dependency are plain ``def`` (they run in the
-  threadpool). The database session is not used before the outbound Firebase
-  and Brevo calls, so no pooled connection is held while waiting on them.
+* Every endpoint and dependency is a plain ``def`` (they run in the
+  threadpool). No pooled connection is held while waiting on an outbound
+  Firebase or Brevo call or on the timing floor: the e-mail endpoints use the
+  database only after their outbound calls, and ``/password-reset-done``
+  releases its connection before the Firebase lookup.
 * No e-mail address, link, one-time code or key reaches a log line, an
   exception text or audit metadata. Failures are logged as a reason code or an
   exception *class name* only.
@@ -19,6 +24,9 @@ Rules this module keeps:
   ``RESET_STEP_SECONDS`` grid above it. Every reset makes exactly one Brevo
   call, a send or else a health probe, so the mailer's health flag (which
   turns the next answer into a 503) moves the same way for every address.
+* ``/password-reset-done`` follows the same answer rule (always ``202
+  accepted`` after the same floor) and never trusts its caller: it ends
+  sessions only when Firebase's own password time moved past the stored one.
 """
 
 from __future__ import annotations
@@ -55,6 +63,7 @@ from firebase_identity import IdentityVerificationError
 from models import User
 from rate_limit import RateLimitExceeded, RateLimitUnavailable
 from rate_limit import rate_limit as rate_limit_dependency
+from routers import auth as auth_routes
 from routers.auth import AuthAPIError, get_identity_verifier
 
 log = logging.getLogger("portfyl.auth_email")
@@ -324,7 +333,14 @@ def send_password_reset_email(
         except Exception as exc:  # noqa: BLE001 - probe() should not raise; never trust it
             log.error("auth_email probe failed error=%s", type(exc).__name__)
 
-    # The audit lookup may have left a read transaction open; do not hold a
+    return _accepted_after_floor(db, start)
+
+
+def _accepted_after_floor(db: Session, start: float) -> JSONResponse:
+    """The one answer of both reset endpoints: ``202 accepted``, never sooner
+    than ``RESET_MIN_SECONDS`` after ``start`` and on the ``RESET_STEP_SECONDS``
+    grid above it, with no pooled connection held while waiting."""
+    # The account lookup may have left a read transaction open; do not hold a
     # pooled connection while waiting out the floor.
     try:
         release_connection(db)
@@ -340,3 +356,106 @@ def send_password_reset_email(
     target = max(RESET_MIN_SECONDS, steps * RESET_STEP_SECONDS)
     _sleep(max(0.0, target - elapsed))
     return _json(202, {"status": "accepted"})
+
+
+# --- after a password reset ---------------------------------------------------
+
+
+class PasswordResetDoneRequest(BaseModel):
+    # Same leniency as PasswordResetRequest: any value, never a 422.
+    email: Any = None
+    lang: Any = None
+
+
+def _password_reset_done(
+    request: Request, db: Session, verifier: Any, raw_address: Any, lang: str,
+) -> None:
+    """Run the sign-in's password-change detection for the named account.
+
+    The caller's claim that a reset happened is never trusted: only Firebase's
+    own "password last changed" time, compared with the stored value, can end
+    sessions (``routers.auth.record_password_change``). So the worst a caller
+    can do is make Portfyl notice a real change sooner. Every early return is
+    silent; the endpoint answers the same whatever happens here.
+    """
+    typed = raw_address.strip() if isinstance(raw_address, str) else None
+    if typed is None or len(typed) > MAX_ADDRESS_LENGTH:
+        log.info("password_reset_done outcome=invalid_address")
+        return
+    address = normalize_email(typed)
+
+    if _is_cloud(request):
+        try:
+            _consume_target(f"reset-done:{address}")
+        except RateLimitExceeded:
+            log.info("password_reset_done outcome=target_limited")
+            return
+        except RateLimitUnavailable as exc:
+            log.error(
+                "password_reset_done outcome=limiter_unavailable error=%s",
+                exc.original_exception_type,
+            )
+            return
+
+    if not _PLAUSIBLE_ADDRESS.fullmatch(typed):
+        log.info("password_reset_done outcome=invalid_address")
+        return
+
+    # `users` has no tenant policy (sign-in has to find the user before any
+    # RLS identity exists), so this lookup works without a request context.
+    user = db.scalar(select(User).where(User.email == address))
+    if user is None or not user.firebase_uid or user.disabled_at is not None:
+        log.info("password_reset_done outcome=no_tracked_account")
+        return
+    firebase_uid = user.firebase_uid
+
+    # One outbound Firebase lookup: hand the pooled connection back first.
+    release_connection(db)
+    password_updated_at = auth_routes._read_password_updated_at(verifier, firebase_uid)
+    if password_updated_at is None:
+        log.info("password_reset_done outcome=no_password_time")
+        return
+
+    if not auth_routes.record_password_change(
+        db, user, password_updated_at, trigger="password_reset",
+    ):
+        db.commit()  # first sight stores the time; otherwise nothing is pending
+        log.info("password_reset_done outcome=no_change")
+        return
+    db.commit()
+    log.info("password_reset_done outcome=sessions_revoked")
+    auth_routes.notify_password_change(db, user, lang)
+
+
+@router.post(
+    "/password-reset-done",
+    dependencies=[Depends(rate_limit_dependency("auth_email", by="ip"))],
+)
+def password_reset_done(
+    payload: PasswordResetDoneRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    verifier: Any = Depends(get_identity_verifier),
+):
+    """Called once by the reset page after Firebase accepted a new password.
+
+    Ends the user's Portfyl sessions and sends the ``password_changed`` notice
+    now instead of at the next sign-in (which still checks, as the fallback).
+    Unauthenticated and without CSRF like the other two endpoints here. The
+    answer is ``202 accepted`` with the reset endpoint's timing floor for an
+    existing, unknown, Google-only, unchanged or invalid address, a hit
+    per-address limit and any failure. Only the per-IP limit (429, before the
+    body is read) and a malformed JSON body (422) differ, and neither depends
+    on an account. Works with the mailer off: ending sessions does not need it.
+    """
+    start = _now()
+    lang = normalize_language(payload.lang)
+    try:
+        _password_reset_done(request, db, verifier, payload.email, lang)
+    except Exception as exc:  # noqa: BLE001 - the answer must not depend on any failure
+        log.error("password_reset_done outcome=failed error=%s", type(exc).__name__)
+        try:
+            db.rollback()
+        except Exception:  # noqa: BLE001
+            pass
+    return _accepted_after_floor(db, start)
