@@ -841,10 +841,30 @@ deploy with the key, with a real inbox):
    `fix(emails): one-time code in the link's fragment, out of request logs`
    and redeploy. The page still reads query links, so nothing else changes.
 
-Not checked until then: whether Brevo rewrites links for click tracking,
-whether it adds `List-Unsubscribe`, and the free plan's daily cap (reported as
-300 e-mails, shared with the Firebase fallback; move to a paid plan before
-public sign-up opens).
+**Result of the first real send (2026-11-17, production, one test account):**
+
+- Delivered in under a second to the main inbox, in Czech, from `Portfyl
+  <noreply@mail.portfyl.com>`. SPF, DKIM (`mail.portfyl.com`) and DMARC all
+  `pass`. Verify, reset, `password_changed` and `account_deletion_scheduled`
+  all arrived and worked.
+- **Brevo does rewrite the links** for click tracking (tracking domain
+  `sendibt2.com`), so checklist item 2 is answered: the `href` is a Brevo URL,
+  not Portfyl's. The fragment (`#`) survived that redirect in Chrome on a PC
+  (the page opened and showed "Your e-mail is verified"). It is **not yet
+  checked** in Gmail or Outlook on a phone, Outlook or Seznam (items 7 and 8).
+  Brevo has no self-service switch to turn click tracking off for transactional
+  e-mails; turning it off goes through Brevo support (it may need a higher
+  plan). Nobody has contacted support yet. The fallback in item 9 stays valid.
+- Still open: whether Brevo adds `List-Unsubscribe` (item 2), the "1 hour"
+  check (item 4), the no-account reset (item 5), the other mail clients
+  (items 7 and 8), and the free plan's daily cap (reported as 300 e-mails,
+  shared with the Firebase fallback; move to a paid plan before public sign-up
+  opens).
+- **`support@portfyl.com`** is not a mailbox: it is a Cloudflare Email Routing
+  address that forwards to the owner's own inbox. It is the Reply-To of these
+  e-mails. When testing a reply, do not send it from the same address it is
+  forwarded to: Gmail de-duplicates a message you sent to yourself and it
+  appears not to arrive. Use another sender.
 
 #### Wave 2: account notices
 
@@ -1043,9 +1063,14 @@ the live ones for testing.
    gcloud secrets versions add portfyl-stripe-secret-key --data-file=- # paste rk_live_..., then Ctrl+Z, Enter
    ```
 
-2. **Webhook endpoint** `https://portfyl.com/api/billing/webhook` (it goes
-   through Cloudflare, so the edge token rule above applies) with exactly
-   these events: `checkout.session.completed`,
+2. **Webhook endpoint** with exactly these events (**host not decided
+   yet**: only the `app.portfyl.com` route sends the edge token, so
+   `https://portfyl.com/api/billing/webhook` on the apex would fail closed with
+   `403 untrusted_edge` (see the note at the top), while `app.portfyl.com` sits
+   behind Cloudflare Access, which Stripe cannot log in to; the second option
+   needs an Access bypass limited to `/api/billing/webhook`, like the one for
+   `/auth/action`. Settle this and test a Stripe test event before turning
+   billing on): `checkout.session.completed`,
    `customer.subscription.created`, `customer.subscription.updated`,
    `customer.subscription.deleted`, `customer.subscription.paused`,
    `customer.subscription.resumed`, `invoice.paid`,
@@ -1068,7 +1093,10 @@ the live ones for testing.
    can only defer downgrades, while Portfyl books every switch for the
    period end with no proration through `POST /api/billing/change-plan`
    (a two-phase subscription schedule); payment method, name and address
-   updates and invoice history on; return URL `https://portfyl.com/pricing`; terms and privacy
+   updates and invoice history on; return URL `https://app.portfyl.com/pricing`
+   (the app's own origin, as `PORTFYL_APP_URL` below; the session cookie exists
+   only on `app.`, and the app itself sends this URL when it opens a portal
+   session); terms and privacy
    URLs `https://portfyl.com/terms` and `/privacy`. The app creates portal
    sessions without a `configuration`, so whichever configuration is the
    default is used; a sandbox needs its own copy.
@@ -1076,7 +1104,7 @@ the live ones for testing.
 4. **Deploy with billing on** (add to the `gcloud run deploy` in step 6):
 
    ```powershell
-   --update-secrets="STRIPE_SECRET_KEY=portfyl-stripe-secret-key:latest,STRIPE_WEBHOOK_SECRET=portfyl-stripe-webhook-secret:latest" --update-env-vars="PORTFYL_BILLING_ENABLED=1,PORTFYL_APP_URL=https://portfyl.com,PORTFYL_STRIPE_PRICE_INVESTOR=price_1UVX3XDx44VQOSF8UAJ2VYid,PORTFYL_STRIPE_PRICE_PRO=price_1UVXEJDx44VQOSF8UJys5WwI"
+   --update-secrets="STRIPE_SECRET_KEY=portfyl-stripe-secret-key:latest,STRIPE_WEBHOOK_SECRET=portfyl-stripe-webhook-secret:latest" --update-env-vars="PORTFYL_BILLING_ENABLED=1,PORTFYL_APP_URL=https://app.portfyl.com,PORTFYL_STRIPE_PRICE_INVESTOR=price_1UVX3XDx44VQOSF8UAJ2VYid,PORTFYL_STRIPE_PRICE_PRO=price_1UVXEJDx44VQOSF8UJys5WwI"
    ```
 
    `BillingConfig.from_env` (`backend/billing_config.py`) refuses to start
