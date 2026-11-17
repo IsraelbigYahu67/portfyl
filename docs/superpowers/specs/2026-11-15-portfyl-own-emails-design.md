@@ -189,7 +189,11 @@ Firebase's authorized-domains list (`app.portfyl.com` and `localhost` are).
 ### 5.3 Endpoints
 
 Both live in the auth router (`/api/auth/...`, no CSRF dependency, like
-`/auth/session`: they use no session cookie). Both are plain `def`.
+`/auth/session`: they use no session cookie). Both are plain `def`. A third
+endpoint in the same router, `POST /api/auth/email/password-reset-done`, was
+added after wave 2 with the same answer rules as the reset endpoint and the
+same rate-limit rules; it sends no wave 1 e-mail (see section 7, "Revocation
+timing").
 
 **`POST /api/auth/email/verification`** — body `{ "id_token": str, "lang": str }`
 
@@ -495,8 +499,39 @@ Each wave gets its own implementation plan. Notes that shape those plans:
   Portfyl. The reliable signal is on the server: at `/auth/session`, compare
   Firebase's "password last changed" time for the user with the last value
   Portfyl saw; when it moved, send the notice and revoke the user's other
-  Portfyl sessions. Today a password reset does **not** end existing Portfyl
-  sessions; wave 2 closes that. Needs one nullable column on `users`.
+  Portfyl sessions. Before wave 2 a password reset did **not** end existing
+  Portfyl sessions; wave 2 closes that. Needs one nullable column on `users`.
+- **Revocation timing (added 2026-11-17).** Detection only at `/auth/session`
+  left a gap: between a reset and the user's next sign-in, an existing Portfyl
+  session (an attacker's, say) stayed valid, because Portfyl sessions are
+  opaque, server-side and not tied to Firebase tokens. So the page *may* be a
+  **hint**, never the trigger: after `confirmPasswordReset` succeeds, Portfyl's
+  action page makes one fire-and-forget call,
+  `POST /api/auth/email/password-reset-done` `{ "email", "lang" }`. The
+  backend ignores the claim itself: it looks the Portfyl user up by the
+  normalised address, reads Firebase's "password last changed" time (Admin
+  `get_user`, the same lookup as at sign-in) and runs the very same detection
+  (`routers/auth.py` `record_password_change`, shared with `/auth/session`).
+  Only a time newer than the stored one revokes, and then **all** of the
+  user's sessions (the caller has none), audits `auth.password_changed`
+  (`trigger: password_reset`; the sign-in writes `trigger: sign_in`) and sends
+  the notice after the commit. The compare-and-set makes the later sign-in
+  find nothing new, so it neither notifies nor revokes again. The first-sight
+  rule is unchanged: a NULL stored value is recorded and nothing else happens,
+  here as at sign-in (only an unauthenticated hint arrives here, and a user
+  who has not signed in since `0028` has no earlier value to compare with).
+  Anti-enumeration as for the reset endpoint (5.3): always
+  `202 {"status":"accepted"}` on the same 1.5 s / 0.5 s timing floor, for an
+  existing, unknown, Google-only, unchanged or malformed address, a hit
+  per-address limit and any failure; only the per-IP `429` (before the body
+  is read) and a non-JSON `422` differ, independent of any account. Limits
+  reuse existing rules, so no new environment variable: per IP the
+  `auth_email` rule, per address `auth_email_target` with the bucket identity
+  `reset-done:<normalised address>`. The mailer is not needed: with it off,
+  sessions still end. The sign-in check stays as the fallback for every case
+  the hint misses (a skipped call, a reset made on Firebase's own page, an
+  exhausted per-address budget). See "Portfyl e-mails" in `deploy/cloudrun.md`
+  for the residual risks.
 - **`account_deleted`** is sent by the purge job once the purge has committed,
   with the address and language read before the user is deleted (they are gone
   afterwards), directly through the transport, not the outbox. It is not sent
