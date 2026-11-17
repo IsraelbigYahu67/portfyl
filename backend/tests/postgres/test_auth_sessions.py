@@ -827,7 +827,7 @@ def test_changed_password_revokes_only_this_users_other_sessions(
     assert password_hook == [("alice@example.com", "cs")]
     audit = _password_audit_rows(postgres_engine)
     assert len(audit) == 1
-    assert audit[0].event_metadata == {"revoked_count": 2}
+    assert audit[0].event_metadata == {"revoked_count": 2, "trigger": "sign_in"}
     assert "alice@example.com" not in repr(audit[0].event_metadata)
     assert audit[0].workspace_id is None
 

@@ -1,10 +1,11 @@
 import * as api from "../api";
 import * as firebase from "./firebase";
-import { sendPasswordReset, sendVerificationEmail } from "./authEmail";
+import { reportPasswordReset, sendPasswordReset, sendVerificationEmail } from "./authEmail";
 
 vi.mock("../api", () => ({
   requestVerificationEmail: vi.fn(),
   requestPasswordResetEmail: vi.fn(),
+  reportPasswordResetDone: vi.fn(),
 }));
 vi.mock("./firebase", () => ({
   sendVerificationEmail: vi.fn(),
@@ -102,5 +103,41 @@ describe("sendPasswordReset", () => {
     api.requestPasswordResetEmail.mockRejectedValue(httpError(500));
     firebase.sendPasswordReset.mockRejectedValue(firebaseError);
     await expect(sendPasswordReset("jana@example.com")).rejects.toBe(firebaseError);
+  });
+});
+
+// After Firebase accepted a new password, the backend is told so it can end
+// the user's Portfyl sessions now. Best effort: nothing about it may reach the
+// page, and Firebase has no equivalent to fall back to.
+describe("reportPasswordReset", () => {
+  it("tells the backend once, with the address and language", async () => {
+    api.reportPasswordResetDone.mockResolvedValue({ status: "accepted" });
+    await reportPasswordReset("me@example.com", "de");
+    expect(api.reportPasswordResetDone).toHaveBeenCalledTimes(1);
+    expect(api.reportPasswordResetDone).toHaveBeenCalledWith("me@example.com", "de");
+  });
+
+  it("defaults to the app language", async () => {
+    api.reportPasswordResetDone.mockResolvedValue({ status: "accepted" });
+    await reportPasswordReset("me@example.com");
+    expect(api.reportPasswordResetDone).toHaveBeenCalledWith("me@example.com", "cs");
+  });
+
+  it.each([
+    ["a 429", () => Promise.reject(httpError(429))],
+    ["a 500", () => Promise.reject(httpError(500))],
+    ["a 404 from an older backend", () => Promise.reject(httpError(404))],
+    ["no network", () => Promise.reject(new Error("Network Error"))],
+    ["a synchronous throw", () => { throw new Error("boom"); }],
+  ])("never rejects, not even on %s", async (_label, impl) => {
+    api.reportPasswordResetDone.mockImplementation(impl);
+    await expect(reportPasswordReset("me@example.com", "en")).resolves.toBeUndefined();
+    expect(firebase.sendPasswordReset).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing without an address", async () => {
+    await expect(reportPasswordReset(null, "en")).resolves.toBeUndefined();
+    await expect(reportPasswordReset("", "en")).resolves.toBeUndefined();
+    expect(api.reportPasswordResetDone).not.toHaveBeenCalled();
   });
 });

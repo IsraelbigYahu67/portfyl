@@ -264,7 +264,7 @@ def test_changed_password_writes_one_audit_event_without_the_address(harness):
         if row.action == "auth.password_changed"
     ]
     assert len(events) == 1
-    assert set(events[0].event_metadata) == {"revoked_count"}
+    assert events[0].event_metadata == {"revoked_count": 1, "trigger": "sign_in"}
     assert ADDRESS not in repr(events[0].event_metadata)
     assert events[0].target_type == "user"
 

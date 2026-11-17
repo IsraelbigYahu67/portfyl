@@ -205,6 +205,58 @@ def _observe_password_change(
     return False
 
 
+def record_password_change(
+    db: Session,
+    user: User,
+    password_updated_at: datetime | None,
+    *,
+    trigger: str,
+) -> bool:
+    """React to a moved Firebase password time; True when this call did.
+
+    The one detection both callers share: `/auth/session` (trigger
+    `sign_in`) and the password-reset-done endpoint in `routers/auth_email.py`
+    (trigger `password_reset`). When the time moved forward past the stored
+    value (first sight and an unchanged or older time do nothing, see
+    `_observe_password_change`), it ends **every** live Portfyl session of the
+    user and stages the `auth.password_changed` audit row. `/auth/session`
+    creates its new session afterwards, so that one is not among them.
+
+    The compare-and-set in `_observe_password_change` makes this happen once
+    per change, whichever caller sees it first. The caller commits, then calls
+    `notify_password_change`. `auth_sessions` and `users` carry no tenant
+    policy; the audit row is user-scoped (`workspace_id` NULL), which the
+    forced `audit_logs` policy accepts only for the user's own RLS identity, so
+    that identity is set here.
+    """
+    if not _observe_password_change(db, user, password_updated_at):
+        return False
+    revoked = revoke_all_sessions(db, user.id)
+    set_rls_context(db, user_id=user.id, workspace_id=None)
+    record_audit_event(
+        db,
+        actor_user_id=user.id,
+        action="auth.password_changed",
+        target_type="user",
+        target_id=str(user.id),
+        metadata={"revoked_count": revoked, "trigger": trigger},
+    )
+    return True
+
+
+def notify_password_change(db: Session, user: User, lang: str) -> None:
+    """Send the `password_changed` notice after the commit that recorded the
+    change. Never raises: a failing notice can undo neither the caller's
+    answer nor the revocation."""
+    try:
+        _on_password_changed(db, user, lang)
+    except Exception as exc:
+        log.warning(
+            "password_changed_notice outcome=failed error=%s",
+            type(exc).__name__,
+        )
+
+
 def _on_password_changed(db: Session, user: User, lang: str) -> None:
     """Send the best-effort `password_changed` notice (own-emails wave 2).
 
@@ -327,11 +379,11 @@ def exchange_session(
         client_ip=_client_ip(request) if is_cloud else None,
     )
     # A moved password time ends the user's other Portfyl sessions (a reset
-    # does not end them on its own). The session created below is new, so it
-    # is not among those revoked.
-    password_changed = _observe_password_change(db, user, password_updated_at)
-    revoked_other_sessions = (
-        revoke_all_sessions(db, user.id) if password_changed else 0
+    # does not end them on its own; the reset page's call to
+    # /auth/email/password-reset-done usually got there first). The session
+    # created below is new, so it is not among those revoked.
+    password_changed = record_password_change(
+        db, user, password_updated_at, trigger="sign_in",
     )
     issued = create_session(
         db,
@@ -353,26 +405,11 @@ def exchange_session(
             "provider": identity.sign_in_provider or "unknown",
         },
     )
-    if password_changed:
-        record_audit_event(
-            db,
-            actor_user_id=user.id,
-            action="auth.password_changed",
-            target_type="user",
-            target_id=str(user.id),
-            metadata={"revoked_count": revoked_other_sessions},
-        )
     db.commit()
     if password_changed:
         # After the commit, so a failing hook can neither undo the sign-in nor
         # the session revocation.
-        try:
-            _on_password_changed(db, user, normalize_language(payload.lang))
-        except Exception as exc:
-            log.warning(
-                "password_changed_notice outcome=failed error=%s",
-                type(exc).__name__,
-            )
+        notify_password_change(db, user, normalize_language(payload.lang))
     response = JSONResponse(response_payload, status_code=201)
     set_session_cookie(response, issued.raw_token)
     return response

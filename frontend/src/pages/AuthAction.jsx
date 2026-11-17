@@ -8,6 +8,7 @@ import {
   mapFirebaseAuthError,
   verifyResetCode,
 } from "../auth/firebase";
+import { reportPasswordReset } from "../auth/authEmail";
 import { rich, useI18n, useT } from "../i18n/I18nProvider";
 import { hasSavedLanguage, isAppLanguage } from "../i18n/languages";
 
@@ -210,7 +211,7 @@ export default function AuthAction() {
 }
 
 function ResetPasswordForm({ code, email, onDone }) {
-  const t = useT();
+  const { t, language } = useI18n();
   const passwordId = useId();
   const confirmId = useId();
   const [password, setPassword] = useState("");
@@ -232,6 +233,9 @@ function ResetPasswordForm({ code, email, onDone }) {
     setSubmitting(true);
     try {
       await confirmNewPassword(code, password);
+      // Lets Portfyl end the account's sessions now rather than at the next
+      // sign-in. Not awaited, and its outcome never reaches this page.
+      reportPasswordReset(email, language).catch(() => {});
       onDone();
     } catch (err) {
       setError(t(mapFirebaseAuthError(err)));

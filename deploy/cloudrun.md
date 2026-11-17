@@ -760,14 +760,16 @@ in the routine redeploy.
 |---|---|---|
 | `PORTFYL_BREVO_API_KEY` | secret `portfyl-brevo-api-key` | no key = mailer off |
 | `PORTFYL_EMAIL_APP_URL` | `https://app.portfyl.com` | origin of the links in the e-mails; must be `https` in the cloud edition, or the mailer stays off. Not billing's `PORTFYL_APP_URL`. |
-| `RATE_LIMIT_AUTH_EMAIL_LIMIT` / `_WINDOW_SECONDS` | `10` / `600` | per client IP, both endpoints; **required** |
-| `RATE_LIMIT_AUTH_EMAIL_TARGET_LIMIT` / `_WINDOW_SECONDS` | `3` / `900` | per account (verification) or per address (reset); **required** |
+| `RATE_LIMIT_AUTH_EMAIL_LIMIT` / `_WINDOW_SECONDS` | `10` / `600` | per client IP, shared by the two e-mail endpoints and `/auth/email/password-reset-done`; **required** |
+| `RATE_LIMIT_AUTH_EMAIL_TARGET_LIMIT` / `_WINDOW_SECONDS` | `3` / `900` | per account (verification) or per address (reset, and separately reset-done); **required** |
 | `PORTFYL_EMAIL_FROM`, `PORTFYL_EMAIL_FROM_NAME`, `PORTFYL_EMAIL_REPLY_TO` | optional | default `noreply@mail.portfyl.com`, `Portfyl`, `support@portfyl.com` |
 
 Only the four rate-limit values can stop a start. A missing key, or a key
 with a missing or non-`https` `PORTFYL_EMAIL_APP_URL`, logs one ERROR at
-startup and leaves the mailer off: both endpoints answer
-`503 email_unavailable` and the app sends Firebase's e-mails.
+startup and leaves the mailer off: both e-mail endpoints answer
+`503 email_unavailable` and the app sends Firebase's e-mails
+(`/auth/email/password-reset-done`, wave 2 below, still ends sessions; it
+needs no mailer).
 `PORTFYL_EMAIL_TRANSPORT=console` (prints the e-mail to the backend console
 instead of sending it) works outside the cloud edition only.
 
@@ -855,7 +857,7 @@ written before the real-send check below was run.
 
 | E-mail | Sent | Button |
 |---|---|---|
-| `password_changed` | when `/auth/session` sees that Firebase's "password last changed" time moved (see below) | "That wasn't me" → `/forgot-password` |
+| `password_changed` | when Portfyl sees that Firebase's "password last changed" time moved: right after a reset on Portfyl's own page (`/auth/email/password-reset-done`), otherwise at the next `/auth/session` (see below) | "That wasn't me" → `/forgot-password` |
 | `account_deletion_scheduled` | in the request that schedules the deletion, after it is committed, to the requesting owner; shows the account address and the deletion date (request time + `DELETION_GRACE_DAYS`, 30 days) | "Keep my account" → Settings, where deletion is cancelled |
 | `account_deleted` | by the daily purge job right after the purge committed (address and language are read before the user is deleted), in the language stored with the deletion request; no button | none |
 
@@ -878,8 +880,9 @@ purge CLI) builds its own mailer from the environment and has its own flag.
 app language from the request and keeps it inside the workspace deletion state
 for the purge job; a deletion scheduled before this release has no stored
 language, so its `account_deleted` goes out in English. `password_changed`
-takes an optional `lang` from the `/auth/session` request; missing or
-unrecognised is English.
+takes an optional `lang` from the `/auth/session` or
+`/auth/email/password-reset-done` request (the reset page sends the language
+the page is shown in); missing or unrecognised is English.
 
 **Password change detection and session revocation.** A password reset does
 not end Portfyl sessions on its own, because the page that sets the password is
@@ -900,6 +903,58 @@ has to sign in again. Details that matter in operation:
   fails (logged `password_change_detection outcome=lookup_failed`).
 - Two sign-ins racing on the same change revoke, audit and notify once.
 
+**Right after a reset: `POST /api/auth/email/password-reset-done`.** Waiting
+for the next sign-in left a gap: between a reset and the user's next sign-in,
+an existing Portfyl session (say, an attacker's) stayed valid, because Portfyl
+sessions are server-side and not tied to Firebase tokens. Now, once Firebase
+has accepted the new password, Portfyl's reset page (`/auth/action`) makes one
+fire-and-forget call with the account address and the page language.
+
+- **The call is not trusted.** The backend finds the Portfyl user by the
+  normalised address, asks Firebase (Admin `get_user`) for the "password last
+  changed" time and runs the same detection as `/auth/session` (shared code,
+  `routers/auth.py` `record_password_change`). Only a time newer than
+  `users.password_changed_seen_at` ends sessions, and then it ends **all** of
+  the user's sessions (the caller has none), writes `auth.password_changed`
+  with `trigger: password_reset` (a sign-in writes `trigger: sign_in`) and
+  sends `password_changed`. The later sign-in finds nothing new: no second
+  e-mail, its own new session stays. A first sight (stored value NULL) stores
+  the time and does nothing else, exactly as at sign-in. A Google-only
+  account, a disabled user and a user that never signed in are skipped.
+- **One answer for everyone.** `202 {"status":"accepted"}` for an existing,
+  unknown, Google-only, unchanged or malformed address, a hit per-address
+  limit, a limiter outage, a Firebase error and any other failure, and never
+  sooner than the reset endpoint's floor (1.5 s, then 0.5 s steps). It does
+  not need the mailer: with the mailer off, sessions still end. Only the
+  per-IP limit (`429`, before the body is read) and a body that is not JSON
+  (`422`) differ, and neither depends on an account.
+- **Rate limits: no new variable.** Per IP it shares the existing
+  `auth_email` rule (`RATE_LIMIT_AUTH_EMAIL_*`) with the two e-mail
+  endpoints; per address it uses the existing `auth_email_target` rule
+  (`RATE_LIMIT_AUTH_EMAIL_TARGET_*`) in its own bucket (`reset-done:` plus the
+  address, stored as an HMAC). This release needs no new environment variable,
+  secret or migration.
+- **Logs** carry an outcome code only:
+  `password_reset_done outcome=sessions_revoked|no_change|no_tracked_account|no_password_time|invalid_address|target_limited|limiter_unavailable|failed`.
+
+Residual risks, all of which fall back to the sign-in check above:
+
+- The call is best effort. If it never arrives (the browser closes first, an
+  older cached page, a reset made directly against Firebase's own page or
+  API), an existing session stays valid until the user's next sign-in, as
+  before this release.
+- A user whose stored value is still NULL (has not signed in since `0028` was
+  deployed) gets first-sight treatment: the reset is recorded, but no session
+  ends and no e-mail goes out, as at sign-in.
+- Anyone who knows an address can use up its per-address budget (3 calls per
+  15 minutes) so that the page's call is skipped; the
+  sessions then end at the next sign-in. The call can never end sessions or
+  send an e-mail without a real password change.
+- Timing: a call that finds a real change does more work (revocation and one
+  Brevo send) and can answer one 0.5 s step later. It only shows that this
+  address's password was just changed, and the same call has already ended
+  the sessions.
+
 **Migration `0028_password_changed_seen`.** One nullable timestamp column,
 `users.password_changed_seen_at`: additive, no default, no backfill, safe next
 to old instances. As always, run the migration Job
@@ -915,11 +970,14 @@ the wave 1 checklist above has passed). Use a throwaway password account:
 1. Sign in once, so Portfyl records the current password time. Sign in again
    in a second browser, so there are two live sessions. No e-mail is sent in
    either case (first sight).
-2. Forgot password → e-mail → choose a new password → sign in. `password_changed`
-   arrives from `Portfyl <noreply@mail.portfyl.com>` in the app's language with
-   the right time, "That wasn't me" opens `/forgot-password`, and the second
-   browser's session is now signed out (its next `/api` call is `401`). The
-   audit log has one `auth.password_changed` row with no address in it.
+2. Forgot password → e-mail → choose a new password, and **do not sign in
+   yet**. Right after "Password changed" appears, both browsers' sessions are
+   signed out (their next `/api` call is `401`), and `password_changed` arrives
+   from `Portfyl <noreply@mail.portfyl.com>` in the page's language with the
+   right time; "That wasn't me" opens `/forgot-password`. The audit log has one
+   `auth.password_changed` row with `trigger: password_reset` and no address in
+   it, and the request log shows `POST /api/auth/email/password-reset-done`
+   answered `202`. Now sign in: no second e-mail, no second audit row.
 3. Settings → delete account. `account_deletion_scheduled` arrives, shows the
    account address and a date 30 days ahead, and "Keep my account" opens
    Settings, where the deletion can be cancelled. Request deletion twice: only

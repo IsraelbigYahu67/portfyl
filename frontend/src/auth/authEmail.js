@@ -8,7 +8,7 @@
 // deploy, 5xx, an unreadable token) means "the backend did not send", so
 // Firebase does.
 
-import { requestPasswordResetEmail, requestVerificationEmail } from "../api";
+import { reportPasswordResetDone, requestPasswordResetEmail, requestVerificationEmail } from "../api";
 import { initialLanguage } from "../i18n/languages";
 import {
   sendPasswordReset as firebaseSendPasswordReset,
@@ -47,4 +47,18 @@ export async function sendPasswordReset(email) {
     if (isTooManyRequests(error)) return;
   }
   await firebaseSendPasswordReset(email);
+}
+
+// After Firebase accepted a new password: ask the backend to end the
+// account's Portfyl sessions now instead of at the next sign-in (spec section
+// 7). The backend checks with Firebase and never takes this call's word for
+// it. Best effort and fire-and-forget: it never rejects and has no fallback
+// (the next sign-in still checks).
+export async function reportPasswordReset(email, lang = initialLanguage()) {
+  if (!email) return;
+  try {
+    await reportPasswordResetDone(email, lang);
+  } catch {
+    // Nothing to tell the person; the sign-in check is the fallback.
+  }
 }
