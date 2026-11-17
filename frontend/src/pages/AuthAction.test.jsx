@@ -13,6 +13,11 @@ const firebaseMocks = vi.hoisted(() => ({
 }));
 vi.mock("../auth/firebase", () => firebaseMocks);
 
+const authEmailMocks = vi.hoisted(() => ({
+  reportPasswordReset: vi.fn(() => Promise.resolve()),
+}));
+vi.mock("../auth/authEmail", () => authEmailMocks);
+
 // Whether this device has a language the user chose is decided per test.
 const languageMocks = vi.hoisted(() => ({ hasSavedLanguage: vi.fn(() => false) }));
 vi.mock("../i18n/languages", async (importOriginal) => ({
@@ -89,6 +94,53 @@ test("resets the password with the code from the link", async () => {
 
   expect(await screen.findByRole("heading", { name: "Password changed" })).toBeInTheDocument();
   expect(firebaseMocks.confirmNewPassword).toHaveBeenCalledWith("RESET1", "long-enough-1");
+});
+
+// After a successful reset the backend is told once, so it can end the
+// account's Portfyl sessions now. The page never waits for that call.
+describe("after the new password is saved", () => {
+  async function savePassword(search = "?mode=resetPassword&oobCode=RESET1") {
+    firebaseMocks.verifyResetCode.mockResolvedValueOnce("me@example.com");
+    renderAction(search);
+    expect(await screen.findByRole("heading", { name: "Choose a new password" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("New password"), { target: { value: "long-enough-1" } });
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "long-enough-1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save new password" }));
+  }
+
+  test("the backend is told once, with the address and the page language", async () => {
+    await savePassword();
+
+    expect(await screen.findByRole("heading", { name: "Password changed" })).toBeInTheDocument();
+    expect(authEmailMocks.reportPasswordReset).toHaveBeenCalledTimes(1);
+    expect(authEmailMocks.reportPasswordReset).toHaveBeenCalledWith("me@example.com", "en");
+    expect(firebaseMocks.confirmNewPassword.mock.invocationCallOrder[0]).toBeLessThan(
+      authEmailMocks.reportPasswordReset.mock.invocationCallOrder[0],
+    );
+  });
+
+  test("the page does not wait for the backend", async () => {
+    authEmailMocks.reportPasswordReset.mockReturnValueOnce(new Promise(() => {}));
+    await savePassword();
+
+    expect(await screen.findByRole("heading", { name: "Password changed" })).toBeInTheDocument();
+  });
+
+  test("a failing call changes nothing on the page", async () => {
+    authEmailMocks.reportPasswordReset.mockImplementationOnce(() => Promise.reject(new Error("offline")));
+    await savePassword();
+
+    expect(await screen.findByRole("heading", { name: "Password changed" })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  test("nothing is sent when Firebase refused the new password", async () => {
+    firebaseMocks.confirmNewPassword.mockRejectedValueOnce({ code: "auth/expired-action-code" });
+    await savePassword();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("auth/expired-action-code");
+    expect(authEmailMocks.reportPasswordReset).not.toHaveBeenCalled();
+  });
 });
 
 test("restores the previous sign-in e-mail", async () => {

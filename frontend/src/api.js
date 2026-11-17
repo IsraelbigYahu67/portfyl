@@ -183,6 +183,8 @@ export const requestVerificationEmail = (idToken, lang) =>
   api.post("/auth/email/verification", { id_token: idToken, lang }).then((r) => r.data);
 export const requestPasswordResetEmail = (email, lang) =>
   api.post("/auth/email/password-reset", { email, lang }).then((r) => r.data);
+export const reportPasswordResetDone = (email, lang) =>
+  api.post("/auth/email/password-reset-done", { email, lang }).then((r) => r.data);
 export const logoutSession = () => api.post("/auth/logout").then((r) => r.data);
 export const logoutAllSessions = () => api.post("/auth/logout-all").then((r) => r.data);
 export const fetchCapabilities = () => api.get("/capabilities").then((r) => r.data);
