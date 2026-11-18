@@ -24,7 +24,9 @@
 - Na ukázce je vždy vidět štítek „Ukázkové portfolio“ a věta „Vymyšlená čísla, ne skutečné výnosy.“
 - Analytika: nová událost `landing_minidemo_used` `{ demo: "allocation"|"dividends", language }`, nejvýš jednou na ukázku a načtení stránky, jen po skutečném kliknutí (ne po pouhém najetí myší).
 - Bez backendu, bez DB, bez migrací, bez změn `package.json`/lockfilů, `App.jsx` ani `api.js`. Tax Report / Screener se nikde nezmiňují.
-- Rozpočet velikosti (gzip, `node scripts/measure-initial-bundle.mjs dist <entry>` po `npm run build:cloud`): `initial_combined_gzip_bytes` pro entry `src/pages/Welcome.jsx` smí celkem (S1 + S3) narůst nejvýš o **5 KiB**. Pro entry `index.html` se nesmí změnit o víc než **0,2 KiB**.
+- Rozpočet velikosti (gzip, `node scripts/measure-initial-bundle.mjs dist <entry>` po `npm run build:cloud`): obě entry, `src/pages/Welcome.jsx` i `index.html`, mají **stejný rozpočet**. `initial_combined_gzip_bytes` smí u každé z nich narůst celkem (S1 + S3) nejvýš o **5 KiB**: S1 nejvýš o 2,5 KiB a S3 nejvýš o 2,5 KiB, u každé entry zvlášť.
+  - Proč i `index.html`: `welcomeCopy.js` importuje také `analytics/analyticsCopy.js` (texty souhlasu s analytikou), který je v hlavním balíčku. Celý text úvodní stránky proto leží v `index-*.js`, ne v chunku Welcome. Nový blok `miniDemos` (cs, en, de) tak zvětší `index.html` zhruba o 1,5 až 2 KiB gzip, a to je v pořádku. Texty zůstávají ve `welcomeCopy.js`, jak říká schválený rozsah. Samostatný modul s texty se **nezavádí**.
+  - `index.html` je ve statickém grafu Welcome, takže nárůst textů se objeví v obou číslech, ale do rozpočtu každé entry se počítá jen jednou (5 KiB platí pro každou entry samostatně, nesčítají se).
 
 ## Review Focus
 
@@ -132,11 +134,11 @@ Přesné texty:
 - [ ] **Step 11: Spustit test a ověřit, že padá.** Spustit `cd frontend && npx vitest run --mode edition-local src/pages/welcomeCopy.test.js`. Očekávaný výsledek: FAIL.
 - [ ] **Step 12: Doplnit `miniDemos` do `cs`, `en`, `de`** přesně podle tabulek výš. Do komentáře „Shape of one language“ přidat řádek o `miniDemos`.
 - [ ] **Step 13: Ověřit testy a celou sadu.** Spustit `cd frontend && npx vitest run --mode edition-local src/pages/welcomeCopy.test.js src/pages/Welcome.test.jsx src/analytics && npm test && npm run test:cloud`. Očekávaný výsledek: vše PASS (test zakázaných slov ve `Welcome.test.jsx` hlídá i nový blok).
-- [ ] **Step 14: Změřit znovu.** Stejné příkazy jako v kroku 5. Nárůst pro entry `src/pages/Welcome.jsx` smí být nejvýš 2,5 KiB. Pro `index.html` platí změna nejvýš 0,2 KiB.
+- [ ] **Step 14: Změřit znovu.** Stejné příkazy jako v kroku 5. Nárůst smí být nejvýš 2,5 KiB pro entry `src/pages/Welcome.jsx` a nejvýš 2,5 KiB pro entry `index.html` (každá zvlášť). Očekává se, že obě čísla narostou zhruba stejně (asi 1,5 až 2 KiB), protože texty jsou v hlavním chunku `index-*.js` (viz Global Constraints).
 - [ ] **Step 15: Upravit dokumentaci.** V `docs/operations/posthog-activation-analytics.md` doplnit do seznamu povolených událostí `landing_minidemo_used` (vlastnosti `demo`, `language`) a hodnotu `entry_point` `landing_minidemo`. Počet v nadpisu opravit podle skutečného počtu v `ANALYTICS_EVENTS`.
 - [ ] **Step 16: Commitnout** soubory z výčtu se zprávou `feat(landing): texty a analytika pro malá dema na úvodní stránce`. Do těla commitu dát naměřená čísla `před → po` pro obě entry.
 
-**Hotovo, když:** všechny čtyři testované soubory jsou zelené, `npm test` i `npm run test:cloud` projdou, nárůst velikosti je v rozpočtu a čísla jsou v těle commitu.
+**Hotovo, když:** všechny čtyři testované soubory jsou zelené, `npm test` i `npm run test:cloud` projdou, nárůst velikosti je u obou entry nejvýš 2,5 KiB a čísla `před → po` pro obě entry jsou v těle commitu.
 
 ---
 
@@ -273,7 +275,8 @@ Markup schránky (statický stav, stejný na serveru i v klientu):
   - Volitelně ověřit vzhled: `npx vite --mode edition-cloud --port 5181` (vlastní port) a Playwright na `http://localhost:5181/`. Šířky 1280 a 360px, kontroluje se, že stránka nemá vodorovný posuv, že je jen jeden stín v řádku, že klávesnice (Tab, Enter) ovládá ukázky a že `prefers-reduced-motion` funguje.
 - [ ] **Step 10: Změřit znovu a porovnat.**
   - Spustit `node scripts/measure-initial-bundle.mjs dist src/pages/Welcome.jsx` a `node scripts/measure-initial-bundle.mjs dist`.
-  - Nárůst S3 pro Welcome je nejvýš 2,5 KiB (celkem s S1 nejvýš 5 KiB) a `index.html` nejvýš 0,2 KiB.
+  - Nárůst S3 je nejvýš 2,5 KiB pro Welcome a nejvýš 2,5 KiB pro `index.html`. Celkem s S1 je to u každé entry nejvýš 5 KiB proti základu z commitu S1.
+  - S3 by `index.html` měl zvětšit jen nepatrně (`MiniDemoSlot`, `FeatureList` a `miniDemos.css` patří do chunku Welcome). Větší nárůst je signál, že se ukázka nebo její data dostala do hlavního balíčku. Pak se musí najít příčina pomocí kontroly manifestu níže, i když je číslo v rozpočtu.
   - `excluded_dynamic_imports` pro Welcome obsahuje `src/components/landing/MiniAllocation.jsx` a `src/components/landing/MiniDividends.jsx`.
   - V `dist/.vite/manifest.json` se `src/demo/demoPortfolio.js` nesmí objevit v rekurzivním `imports` grafu Welcome. Kontrola: `node -e` s `collectInitialAssets` z `scripts/measure-initial-bundle.mjs` a výpisem klíčů navštívených položek, nebo ručně procházením `imports`.
 - [ ] **Step 11: Upravit `DESIGN.md` §10.** Přidat odstavec o malých ukázkách:
@@ -303,7 +306,7 @@ Spouští se na sloučené větvi `feature/landing-mini-demos` po vlně 2 (po p�
 3. `cd frontend && node --test scripts/measure-initial-bundle.test.mjs scripts/prerender.test.mjs`
 4. `cd frontend && npm run build`: local build.
 5. `cd frontend && npm run build:cloud`: cloud build + prerender (`validateMarkup` musí projít pro `/`, `/en/` i `/de/`).
-6. `cd frontend && node scripts/measure-initial-bundle.mjs dist src/pages/Welcome.jsx && node scripts/measure-initial-bundle.mjs dist`: porovnání se základem z commitu S1 (rozpočet z Global Constraints).
+6. `cd frontend && node scripts/measure-initial-bundle.mjs dist src/pages/Welcome.jsx && node scripts/measure-initial-bundle.mjs dist`: porovnání se základem z commitu S1. Každá z obou entry smí proti základu narůst nejvýš o 5 KiB (rozpočet z Global Constraints).
 7. `grep -c "welcome-minidemo-live" frontend/dist/prerendered/index.html` vrátí `0` a `grep -c "Ukázkové portfolio" frontend/dist/prerendered/index.html` vrátí `2`.
 
 Backendové sady (`pytest`) se nespouští: změna nesahá na backend, DB, migrace ani `EXPECTED_ALEMBIC_HEAD`.
