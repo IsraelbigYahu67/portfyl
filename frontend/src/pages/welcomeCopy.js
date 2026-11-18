@@ -12,6 +12,10 @@ export const LANGUAGES = [
 //   features[]   { title, text, images: [LANDING_IMAGES key...], alts: [alt per image] }.
 //                A feature whose first picture exists is shown as a row with its
 //                screenshots, the others as a short text column.
+//   features[].demo  which live mini demo sits under the feature
+//                (components/landing/miniDemoRegistry.js MINI_DEMO_KINDS).
+//   miniDemo     frame labels plus the labels of the five demos; same keys in
+//                all three languages (Welcome.test.jsx compares them).
 //   steps[]      { title, text }, dataFacts[] strings.
 //   questions[]  { q, a, aOpen?, signupOnly? }. `aOpen` replaces `a` and
 //                `signupOnly` hides the question, unless signup is open
@@ -41,35 +45,71 @@ export const COPY = {
     features: [
       {
         title: "Rozložení podle pozic, sektorů a měn",
+        demo: "allocation",
         text: "U každé pozice vidíte její váhu a hodnotu. Hned poznáte, jestli vám jedna akcie nebo jeden sektor netvoří příliš velkou část portfolia.",
         images: ["allocation", "sectors", "phoneAllocation", "phoneDashboard"],
         alts: ["Screenshot Portfylu: rozložení pozic ukázkového portfolia", "Screenshot Portfylu: rozložení portfolia podle sektorů a měn", "Screenshot Portfylu v telefonu: rozložení pozic", "Screenshot Portfylu v telefonu: přehled portfolia"],
       },
       {
         title: "Detail každé akcie",
+        demo: "stock",
         text: "Cena, P/E, zisk na akcii, dividendový výnos a roční rozpětí vedle sebe. Ocenění počítáme z pětiletého průměru P/E, ne z jednoho dne.",
         images: ["stock", "valuation"],
         alts: ["Screenshot Portfylu: detail akcie s cenou a klíčovými ukazateli", "Screenshot Portfylu: vývoj P/E za pět let s průměrnou čárou"],
       },
       {
         title: "Výkonnost proti indexům",
+        demo: "performance",
         text: "Porovnejte svůj výsledek s S&P 500, NASDAQ 100 nebo STOXX 50 za týden, rok i celou historii.",
         images: ["analytics"],
         alts: ["Screenshot Portfylu: výkonnost portfolia proti indexům"],
       },
       {
         title: "Dividendy měsíc po měsíci",
+        demo: "dividends",
         text: "Kolik přišlo, od koho a jak příjem roste. Částky jsou v čisté výši, po srážce u zdroje.",
         images: ["dividends"],
         alts: ["Screenshot Portfylu: dividendy po měsících"],
       },
       {
         title: "Více portfolií, jedna měna",
+        demo: "portfolios",
         text: "Účty u různých brokerů vedle sebe. Vše přepočtené do měny, kterou si zvolíte.",
         images: [],
         alts: [],
       },
     ],
+    // Live mini demos under each feature (components/landing/MiniDemoSlot.jsx).
+    // badge, disclaimer, loading, unavailable and openDemo sit in the prerendered
+    // HTML, so they hold no digit; the rest shows only in the live demo.
+    miniDemo: {
+      badge: "Ukázkové portfolio", disclaimer: "Vymyšlená čísla, ne skutečné výnosy.",
+      loading: "Ukázka se načítá.", unavailable: "Ukázku se nepodařilo načíst. Zkuste stránku obnovit.", openDemo: "Otevřít celou ukázku",
+      allocation: {
+        title: "Rozložení portfolia", groupingAria: "Seskupit podle",
+        groupings: { holdings: "Pozice", sectors: "Sektory", currencies: "Měny" },
+        tableCaption: "Rozložení ukázkového portfolia", columns: { name: "Název", value: "Hodnota", weight: "Váha" },
+      },
+      stock: {
+        pickAria: "Vybrat akcii", pe: "P/E", fivePe: "Pětiletý průměr P/E", forwardPe: "Předpokládané P/E", vsAverage: "P/E proti průměru",
+        historyTitle: "Vývoj P/E za pět let", tableCaption: "P/E ukázkové akcie po čtvrtletích",
+        disclaimer: "Ocenění vychází z pětiletého průměru P/E, ne z dnešní hodnoty.",
+      },
+      performance: {
+        title: "Výkonnost portfolia", modeAria: "Zobrazit jako", modes: { value: "Hodnota", growth: "Růst" },
+        totalReturn: "Výnos portfolia", benchmarkReturn: "Výnos indexu S&P 500",
+        tableCaption: "Měsíční vývoj ukázkového portfolia a indexu", columns: { date: "Měsíc", value: "Portfolio", benchmark: "S&P 500" },
+      },
+      dividends: {
+        viewAria: "Zobrazit dividendy", received: "Přijaté", upcoming: "Očekávané", receivedTotal: "Přijato celkem", upcomingTotal: "Očekáváno celkem",
+        tableCaption: "Dividendy ukázkového portfolia po měsících", columns: { month: "Měsíc", amount: "Částka" },
+      },
+      portfolios: {
+        currencyAria: "Měna zobrazení", portfolioNames: { long: "Dlouhodobé", dividend: "Dividendové", growth: "Růstové" },
+        ratesNote: "Pevný ukázkový kurz: 1 EUR = 25 Kč, 1 USD = 23 Kč.",
+        tableCaption: "Ukázková portfolia", columns: { name: "Portfolio", value: "Hodnota", weight: "Podíl" },
+      },
+    },
     howHeading: "Jak dostanete svá data dovnitř",
     steps: [
       { title: "Vyberte brokera", text: "Trading 212, IBKR a eToro připojíte klíčem API. U ostatních nahrajete export, který si stáhnete z jejich webu.", image: "onboardingBrokers", alt: "Screenshot Portfylu: výběr brokera" },
@@ -129,35 +169,68 @@ export const COPY = {
     features: [
       {
         title: "Allocation by position, sector and currency",
+        demo: "allocation",
         text: "For each position you see its weight and value. You can tell at once if one stock or one sector makes up too much of your portfolio.",
         images: ["allocation", "sectors", "phoneAllocation", "phoneDashboard"],
         alts: ["Portfyl screenshot: allocation of a sample portfolio by position", "Portfyl screenshot: portfolio breakdown by sector and currency", "Portfyl screenshot on a phone: allocation by position", "Portfyl screenshot on a phone: portfolio overview"],
       },
       {
         title: "Detail of every stock",
+        demo: "stock",
         text: "Price, P/E, earnings per share, dividend yield and the yearly range side by side. We value a stock against its five-year average P/E, not a single day.",
         images: ["stock", "valuation"],
         alts: ["Portfyl screenshot: stock detail with price and key figures", "Portfyl screenshot: five-year P/E history with the average line"],
       },
       {
         title: "Performance against indexes",
+        demo: "performance",
         text: "Compare your result with the S&P 500, NASDAQ 100 or STOXX 50 over a week, a year or the whole history.",
         images: ["analytics"],
         alts: ["Portfyl screenshot: portfolio performance against indexes"],
       },
       {
         title: "Dividends month by month",
+        demo: "dividends",
         text: "How much came in, from whom, and how your income is growing. Amounts are shown net, after withholding at source.",
         images: ["dividends"],
         alts: ["Portfyl screenshot: dividends by month"],
       },
       {
         title: "Several portfolios, one currency",
+        demo: "portfolios",
         text: "Accounts at different brokers side by side. Everything converted into the currency you choose.",
         images: [],
         alts: [],
       },
     ],
+    miniDemo: {
+      badge: "Sample portfolio", disclaimer: "Made-up numbers, not real returns.",
+      loading: "The example is loading.", unavailable: "The example could not be loaded. Try reloading the page.", openDemo: "Open the full example",
+      allocation: {
+        title: "Portfolio allocation", groupingAria: "Group by",
+        groupings: { holdings: "Positions", sectors: "Sectors", currencies: "Currencies" },
+        tableCaption: "Allocation of the sample portfolio", columns: { name: "Name", value: "Value", weight: "Weight" },
+      },
+      stock: {
+        pickAria: "Choose a stock", pe: "P/E", fivePe: "Five-year average P/E", forwardPe: "Forward P/E", vsAverage: "P/E against the average",
+        historyTitle: "P/E over five years", tableCaption: "P/E of the sample stock by quarter",
+        disclaimer: "The valuation uses the five-year average P/E, not today's value.",
+      },
+      performance: {
+        title: "Portfolio performance", modeAria: "Show as", modes: { value: "Value", growth: "Growth" },
+        totalReturn: "Portfolio return", benchmarkReturn: "S&P 500 return",
+        tableCaption: "Monthly progress of the sample portfolio and the index", columns: { date: "Month", value: "Portfolio", benchmark: "S&P 500" },
+      },
+      dividends: {
+        viewAria: "Show dividends", received: "Received", upcoming: "Expected", receivedTotal: "Received in total", upcomingTotal: "Expected in total",
+        tableCaption: "Dividends of the sample portfolio by month", columns: { month: "Month", amount: "Amount" },
+      },
+      portfolios: {
+        currencyAria: "Display currency", portfolioNames: { long: "Long-term", dividend: "Dividend", growth: "Growth" },
+        ratesNote: "Fixed sample rate: 1 EUR = 25 CZK, 1 USD = 23 CZK.",
+        tableCaption: "Sample portfolios", columns: { name: "Portfolio", value: "Value", weight: "Share" },
+      },
+    },
     howHeading: "How your data gets in",
     steps: [
       { title: "Choose your broker", text: "Trading 212, IBKR and eToro connect with an API key. For the others you upload an export that you download from their website.", image: "onboardingBrokers", alt: "Portfyl screenshot: choosing a broker" },
@@ -217,35 +290,68 @@ export const COPY = {
     features: [
       {
         title: "Aufteilung nach Positionen, Branchen und Währungen",
+        demo: "allocation",
         text: "Bei jeder Position siehst du Gewicht und Wert. So erkennst du sofort, ob eine Aktie oder eine Branche einen zu großen Teil deines Portfolios ausmacht.",
         images: ["allocation", "sectors", "phoneAllocation", "phoneDashboard"],
         alts: ["Portfyl-Screenshot: Aufteilung eines Beispielportfolios nach Positionen", "Portfyl-Screenshot: Portfolio nach Branchen und Währungen", "Portfyl-Screenshot im Telefon: Aufteilung nach Positionen", "Portfyl-Screenshot im Telefon: Portfolio-Übersicht"],
       },
       {
         title: "Details zu jeder Aktie",
+        demo: "stock",
         text: "Kurs, KGV, Gewinn je Aktie, Dividendenrendite und Jahresspanne nebeneinander. Die Bewertung berechnen wir aus dem Fünfjahresdurchschnitt des KGV, nicht aus einem einzelnen Tag.",
         images: ["stock", "valuation"],
         alts: ["Portfyl-Screenshot: Aktiendetails mit Kurs und Kennzahlen", "Portfyl-Screenshot: KGV der letzten fünf Jahre mit Durchschnittslinie"],
       },
       {
         title: "Performance gegen Indizes",
+        demo: "performance",
         text: "Vergleiche dein Ergebnis mit dem S&P 500, NASDAQ 100 oder STOXX 50 über eine Woche, ein Jahr oder die ganze Historie.",
         images: ["analytics"],
         alts: ["Portfyl-Screenshot: Portfolio-Performance gegen Indizes"],
       },
       {
         title: "Dividenden Monat für Monat",
+        demo: "dividends",
         text: "Wie viel eingegangen ist, von wem und wie dein Einkommen wächst. Die Beträge sind netto, nach dem Abzug an der Quelle.",
         images: ["dividends"],
         alts: ["Portfyl-Screenshot: Dividenden nach Monaten"],
       },
       {
         title: "Mehrere Portfolios, eine Währung",
+        demo: "portfolios",
         text: "Konten bei verschiedenen Brokern nebeneinander. Alles umgerechnet in die Währung deiner Wahl.",
         images: [],
         alts: [],
       },
     ],
+    miniDemo: {
+      badge: "Beispielportfolio", disclaimer: "Erfundene Zahlen, keine echten Renditen.",
+      loading: "Das Beispiel wird geladen.", unavailable: "Das Beispiel konnte nicht geladen werden. Lade die Seite bitte neu.", openDemo: "Ganzes Beispiel öffnen",
+      allocation: {
+        title: "Aufteilung des Portfolios", groupingAria: "Gruppieren nach",
+        groupings: { holdings: "Positionen", sectors: "Branchen", currencies: "Währungen" },
+        tableCaption: "Aufteilung des Beispielportfolios", columns: { name: "Bezeichnung", value: "Wert", weight: "Gewicht" },
+      },
+      stock: {
+        pickAria: "Aktie auswählen", pe: "KGV", fivePe: "Fünfjahresdurchschnitt des KGV", forwardPe: "Erwartetes KGV", vsAverage: "KGV gegenüber dem Durchschnitt",
+        historyTitle: "KGV über fünf Jahre", tableCaption: "KGV der Beispielaktie nach Quartalen",
+        disclaimer: "Die Bewertung nutzt den Fünfjahresdurchschnitt des KGV, nicht den heutigen Wert.",
+      },
+      performance: {
+        title: "Performance des Portfolios", modeAria: "Darstellen als", modes: { value: "Wert", growth: "Wachstum" },
+        totalReturn: "Rendite des Portfolios", benchmarkReturn: "Rendite des S&P 500",
+        tableCaption: "Monatlicher Verlauf des Beispielportfolios und des Index", columns: { date: "Monat", value: "Portfolio", benchmark: "S&P 500" },
+      },
+      dividends: {
+        viewAria: "Dividenden anzeigen", received: "Erhaltene", upcoming: "Erwartete", receivedTotal: "Insgesamt erhalten", upcomingTotal: "Insgesamt erwartet",
+        tableCaption: "Dividenden des Beispielportfolios nach Monaten", columns: { month: "Monat", amount: "Betrag" },
+      },
+      portfolios: {
+        currencyAria: "Anzeigewährung", portfolioNames: { long: "Langfristig", dividend: "Dividenden", growth: "Wachstum" },
+        ratesNote: "Fester Beispielkurs: 1 EUR = 25 CZK, 1 USD = 23 CZK.",
+        tableCaption: "Beispielportfolios", columns: { name: "Portfolio", value: "Wert", weight: "Anteil" },
+      },
+    },
     howHeading: "So kommen deine Daten hinein",
     steps: [
       { title: "Broker wählen", text: "Trading 212, IBKR und eToro verbindest du mit einem API-Schlüssel. Bei den anderen lädst du einen Export hoch, den du auf deren Website herunterlädst.", image: "onboardingBrokers", alt: "Portfyl-Screenshot: Broker auswählen" },

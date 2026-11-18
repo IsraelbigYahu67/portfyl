@@ -149,7 +149,7 @@ export default function Welcome({ language, signupOpen = import.meta.env.VITE_PU
       <main id="obsah">
         <LandingHero copy={copy} language={language} signupOpen={signupOpen} onDemo={onHeroDemo} />
         <BrokerList copy={copy} language={language} signupOpen={signupOpen} onDemo={onHeroDemo} />
-        <FeatureList copy={copy} />
+        <FeatureList copy={copy} language={language} />
         <HowItWorks copy={copy} />
         <PricingTeaser copy={copy} language={language} signupOpen={signupOpen} />
         <LandingFaq copy={copy} signupOpen={signupOpen} />

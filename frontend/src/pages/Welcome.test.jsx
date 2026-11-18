@@ -19,8 +19,14 @@ function renderWelcome({ initialConsent = "pending", language = "cs", signupOpen
   return { ...result, adapter };
 }
 
-beforeEach(() => { localStorage.clear(); sessionStorage.clear(); });
-afterEach(() => vi.restoreAllMocks());
+// The mini demos load when their frame nears the screen; a crossing never
+// happens in these tests, so every frame stays on its placeholder.
+beforeEach(() => {
+  localStorage.clear();
+  sessionStorage.clear();
+  vi.stubGlobal("IntersectionObserver", class { observe() {} disconnect() {} unobserve() {} takeRecords() { return []; } });
+});
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 it("keeps every declared font-size in Welcome.css at or above the 12px readability floor", async () => {
   const assetUrl = new URL("./Welcome.css", import.meta.url);
@@ -33,6 +39,18 @@ it("keeps every declared font-size in Welcome.css at or above the 12px readabili
 it("holds no hex color in Welcome.css: colors come from the Clay tokens", async () => {
   const css = await readFile(sourcePath(new URL("./Welcome.css", import.meta.url)), "utf-8");
   expect(css.match(/#[0-9a-fA-F]{3,8}\b/g)).toBeNull();
+});
+
+it("does not let the landing's heading, paragraph and link rules reach into a mini demo", async () => {
+  const css = await readFile(sourcePath(new URL("./Welcome.css", import.meta.url)), "utf-8");
+  const guard = ":where(:not(.welcome-minidemo-app *))";
+  for (const selector of [".welcome :is(h1,h2,h3,h4)", ".welcome p", ":where(.welcome) a"]) {
+    expect(css, selector).toContain(`${selector}${guard}`);
+  }
+  // Any other rule that styles a bare heading or paragraph of .welcome must carry the guard too.
+  const bare = css.split(/\r?\n/).filter((line) => /^(\.welcome|:where\(\.welcome\)) (:is\(h1|h[1-4]\b|p\b|a\b)/.test(line));
+  expect(bare.length).toBeGreaterThanOrEqual(6);
+  for (const line of bare) expect(line, line).toContain(guard);
 });
 
 const IN_PAGE_TARGETS = ["#funkce", "#brokeri", "#cenik", "#otazky"];
@@ -155,7 +173,7 @@ it("shows the hero and the two feature screenshots, and no figure for pictures t
 it("keeps in-page navigation on the page and every other link a normal one", () => {
   renderWelcome({ language: "cs", signupOpen: true });
   const origin = APP_ORIGIN.replace(/[.]/g, "\\.");
-  const allowed = [/^#/, /^\/demo$/, /^\/terms\?lang=cs$/, /^\/privacy\?lang=cs$/, /^\/(en\/|de\/)?$/, /^mailto:support@portfyl\.com$/, new RegExp(`^${origin}/(login|register)`)];
+  const allowed = [/^#/, /^\/demo$/, /^\/demo\/(allocation|analytics|dividends|stock\/[A-Z]+)$/, /^\/terms\?lang=cs$/, /^\/privacy\?lang=cs$/, /^\/(en\/|de\/)?$/, /^mailto:support@portfyl\.com$/, new RegExp(`^${origin}/(login|register)`)];
   for (const link of screen.getAllByRole("link")) {
     const href = link.getAttribute("href");
     expect(allowed.some((pattern) => pattern.test(href)), href).toBe(true);
@@ -242,4 +260,55 @@ it("captures demo_started with entry_point=landing_closing from the closing call
   await waitFor(() =>
     expect(adapter.events).toContainEqual(["demo_started", { language: "en", entry_point: "landing_closing" }])
   );
+});
+
+const shapeOf = (value) => (value && typeof value === "object"
+  ? Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, shapeOf(inner)]))
+  : typeof value);
+
+describe("mini demo copy", () => {
+  const kinds = ["allocation", "stock", "performance", "dividends", "portfolios"];
+
+  it("has the same keys in all three languages, and every text is filled", () => {
+    for (const code of ["en", "de"]) expect(shapeOf(COPY[code].miniDemo), code).toEqual(shapeOf(COPY.cs.miniDemo));
+    for (const { code } of LANGUAGES) {
+      const empty = [];
+      (function walk(value, path) {
+        if (value && typeof value === "object") Object.entries(value).forEach(([key, inner]) => walk(inner, `${path}.${key}`));
+        else if (typeof value !== "string" || !value.trim()) empty.push(path);
+      })(COPY[code].miniDemo, `${code}.miniDemo`);
+      expect(empty).toEqual([]);
+    }
+  });
+
+  it("gives the five features their demo in the planned order", () => {
+    for (const { code } of LANGUAGES) expect(COPY[code].features.map((feature) => feature.demo), code).toEqual(kinds);
+  });
+
+  it("keeps the texts that reach the prerendered HTML free of digits", () => {
+    for (const { code } of LANGUAGES) {
+      const { badge, disclaimer, loading, unavailable, openDemo } = COPY[code].miniDemo;
+      for (const text of [badge, disclaimer, loading, unavailable, openDemo]) expect(text, `${code}: ${text}`).not.toMatch(/\d/);
+    }
+  });
+
+  it("names the sample data and the made-up numbers in each language", () => {
+    expect(COPY.cs.miniDemo.badge).toBe("Ukázkové portfolio");
+    expect(COPY.cs.miniDemo.disclaimer).toBe("Vymyšlená čísla, ne skutečné výnosy.");
+    expect(COPY.en.miniDemo.badge).toBe("Sample portfolio");
+    expect(COPY.en.miniDemo.disclaimer).toBe("Made-up numbers, not real returns.");
+    expect(COPY.de.miniDemo.badge).toBe("Beispielportfolio");
+    expect(COPY.de.miniDemo.disclaimer).toBe("Erfundene Zahlen, keine echten Renditen.");
+  });
+
+  it.each(LANGUAGES)("renders five labeled frames in the page for $name", ({ code }) => {
+    const { container } = renderWelcome({ language: code });
+    const frames = [...container.querySelectorAll("#funkce figure.welcome-minidemo")];
+    expect(frames.map((frame) => frame.dataset.minidemo)).toEqual(kinds);
+    for (const frame of frames) {
+      expect(frame).toHaveTextContent(COPY[code].miniDemo.badge);
+      expect(frame).toHaveTextContent(COPY[code].miniDemo.disclaimer);
+    }
+    expect(container.querySelector(".welcome-more")).toBeNull();
+  });
 });

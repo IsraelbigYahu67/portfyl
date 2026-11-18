@@ -5,6 +5,7 @@ import eventContractSource from "./eventContract.js?raw";
 
 const validEvents = [
   ["landing_viewed", { language: " en ", referrer_class: "search", utm_source: "newsletter", utm_medium: "email", utm_campaign: "launch" }],
+  ["landing_minidemo_used", { minidemo: "stock", language: "de" }],
   ["demo_started", { language: "cs", entry_point: "landing_hero" }],
   ["demo_page_viewed", { demo_page: "overview", language: "de" }],
   ["demo_stock_viewed", { demo_symbol: "MSFT" }],
@@ -106,6 +107,18 @@ describe("activation event contract", () => {
               : "demo_started";
     expect(() => sanitizeEvent(event, properties, { strict: true })).toThrow();
     expect(sanitizeEvent(event, properties, { strict: false })).toBeNull();
+  });
+
+  it("accepts landing_minidemo_used for each of the five mini demos and rejects anything else", () => {
+    for (const minidemo of ["allocation", "stock", "performance", "dividends", "portfolios"]) {
+      expect(sanitizeEvent("landing_minidemo_used", { minidemo, language: "cs" }, { strict: true }).properties).toEqual({ minidemo, language: "cs" });
+    }
+    expect(() => sanitizeEvent("landing_minidemo_used", { minidemo: "overview", language: "cs" }, { strict: true })).toThrow(/minidemo/);
+    expect(sanitizeEvent("landing_minidemo_used", { minidemo: "overview", language: "cs" }, { strict: false })).toBeNull();
+    expect(() => sanitizeEvent("landing_minidemo_used", { minidemo: "stock" }, { strict: true })).toThrow(/language/);
+    expect(sanitizeEvent("landing_minidemo_used", { minidemo: "stock" }, { strict: false })).toBeNull();
+    expect(() => sanitizeEvent("landing_minidemo_used", { minidemo: "stock", language: "fr" }, { strict: true })).toThrow(/language/);
+    expect(() => sanitizeEvent("landing_minidemo_used", { minidemo: "stock", language: "en", symbol: "MSFT" }, { strict: true })).toThrow(/symbol/);
   });
 
   it("rejects unknown fields and unsafe values in strict mode", () => {

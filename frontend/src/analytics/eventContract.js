@@ -2,6 +2,7 @@ import { SUPPORTED_BROKERS } from "../lib/onboardingBrokers";
 
 export const ANALYTICS_EVENTS = Object.freeze({
   LANDING_VIEWED: "landing_viewed",
+  LANDING_MINIDEMO_USED: "landing_minidemo_used",
   DEMO_STARTED: "demo_started",
   DEMO_PAGE_VIEWED: "demo_page_viewed",
   DEMO_STOCK_VIEWED: "demo_stock_viewed",
@@ -20,6 +21,7 @@ export const ANALYTICS_EVENTS = Object.freeze({
 });
 
 const languages = new Set(["cs", "en", "de"]);
+const miniDemoKinds = new Set(["allocation", "stock", "performance", "dividends", "portfolios"]);
 const referrerClasses = new Set(["direct", "search", "social", "referral", "internal", "unknown"]);
 const sourceTypes = new Set(["demo", "csv", "broker"]);
 const creationPaths = new Set(["blank", "demo", "csv", "broker"]);
@@ -48,6 +50,7 @@ function integerField(value, { min, max }) {
 
 const fields = Object.freeze({
   language: (value) => stringField(value, { values: languages }),
+  minidemo: (value) => stringField(value, { values: miniDemoKinds }),
   referrer_class: (value) => stringField(value, { values: referrerClasses }),
   utm_source: (value) => stringField(value, { max: 120 }),
   utm_medium: (value) => stringField(value, { max: 120 }),
@@ -68,6 +71,7 @@ const fields = Object.freeze({
 
 const schemas = Object.freeze({
   [ANALYTICS_EVENTS.LANDING_VIEWED]: ["language", "referrer_class", "utm_source", "utm_medium", "utm_campaign"],
+  [ANALYTICS_EVENTS.LANDING_MINIDEMO_USED]: ["minidemo", "language"],
   [ANALYTICS_EVENTS.DEMO_STARTED]: ["language", "entry_point"],
   [ANALYTICS_EVENTS.DEMO_PAGE_VIEWED]: ["demo_page", "language"],
   [ANALYTICS_EVENTS.DEMO_STOCK_VIEWED]: ["demo_symbol"],
