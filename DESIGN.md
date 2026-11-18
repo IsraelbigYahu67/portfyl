@@ -335,7 +335,8 @@ and shadows are `color-mix()` of `--muted` / `--ink`.
   is `clamp(2.25rem, 5.2vw, 3.75rem)`, section titles `clamp(1.6rem, 3vw, 2.25rem)`.
   Body is Inter 17px; sizes are in `rem`, nothing below 12px.
 - **Section order:** header, hero, brokers (two groups plus the quiet broker
-  check), features, how it works with data facts, pricing, FAQ, closing, footer.
+  check), features (rows, each with its mini demo), how it works with data
+  facts, pricing, FAQ, closing, footer.
   Each section is a component in `components/landing/`; copy lives only in
   `pages/welcomeCopy.js` (`cs`, `en`, `de`).
 - **Header** (`LandingHeader`): sticky 64px, hairline underneath: logo, four
@@ -345,11 +346,28 @@ and shadows are `color-mix()` of `--muted` / `--ink`.
   and FAQ are native `<details>`, so the prerendered page works without
   JavaScript. The footer (`LandingFooter`) is four plain columns; both take an
   `anchorBase` so another public page can link back to the sections.
-- **The one raised object is a screenshot** (`Shot`): 16px radius (12px on
-  phones), hairline border, one soft shadow. Pictures come from `landingImages.js`
-  (English UI, one set for all languages; a `null` entry renders no figure).
-  A feature with a desktop picture is a row (text left, picture below); the rest
-  form a three-column text strip. `phone...` pictures are small insets.
+- **The only raised objects are a screenshot or a mini demo frame.** A screenshot
+  (`Shot`) has a 16px radius (12px on phones), a hairline border and one soft
+  shadow. Pictures come from `landingImages.js` (English UI, one set for all
+  languages; a `null` entry renders no figure). A mini demo (`MiniDemoSlot`,
+  one per feature, `MINI_DEMO_KINDS`) uses the same frame
+  (`.welcome-minidemo`), and inside it draws the app's own components in the
+  app's Clay tokens: `APP_CLAY_SCOPE` (`components/landing/minidemo/appClayScope.js`,
+  a test keeps it equal to the warm branch of `applyAppearance()`) on
+  `.welcome-minidemo-app`, plus the app's dictionary for the page's language
+  (`I18nProvider`, not saved). The landing rules for headings, paragraphs,
+  links and focus rings do not apply inside it (`Welcome.css` ends those
+  selectors in `:where(:not(.welcome-minidemo-app *))`), so the app components
+  look as they do in the app. The HTML holds only the frame's label ("Sample
+  portfolio / Made-up numbers, not real returns.", always visible, no digit in
+  any prerendered text), the feature's screenshot or a short text as the
+  placeholder and a link to the full demo page; the live demo is a lazy chunk
+  loaded when the frame comes within 200px of the screen, so Recharts and the
+  sample data stay out of the page's static graph (`scripts/landing-bundle-guard.mjs`
+  checks that, the +5 KiB gzip limits and the five frames per prerendered page).
+  A feature with a demo is a row (text left, frame below); without one, a
+  feature with a desktop picture is a row and the rest form a three-column text
+  strip. `phone...` pictures are small insets in those old rows only.
 - **Call to action** follows `VITE_PUBLIC_SIGNUP`: `"true"` gives the primary
   "try 10 days free" pill to `registerUrl(...)` and a text link to the demo;
   otherwise the demo is the primary pill, a status line says "closed beta", and
