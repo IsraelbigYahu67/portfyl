@@ -1,59 +1,28 @@
-import PerformanceChart from "../../components/PerformanceChart";
+import { useState } from "react";
+import PerformancePanel from "../../components/showcase/PerformancePanel";
 import KpiBox from "../../components/ui/KpiBox";
 import { SectionHeader } from "../../components/ui/SectionHeader";
 import { formatPercent } from "../../lib/format";
+import { calculateMetrics } from "../../components/showcase/showcaseMath";
 import { useDemoData } from "../DemoDataContext";
 
-const PERIODS_PER_YEAR = 52;
+const MODES = [
+  { value: "value", label: "Value" },
+  { value: "growth", label: "Growth %" },
+];
 
-function finite(value) {
-  return Number.isFinite(value) ? value : 0;
-}
-
-function calculateMetrics(performance) {
-  const values = performance.map((point) => point.value);
-  const weeklyReturns = values.slice(1).map((value, index) => finite(value / values[index] - 1));
-  const totalReturn = finite(values.at(-1) / values[0] - 1);
-  const annualizedReturn = finite((1 + totalReturn) ** (PERIODS_PER_YEAR / weeklyReturns.length) - 1);
-  const mean = weeklyReturns.reduce((sum, value) => sum + value, 0) / weeklyReturns.length;
-  const variance = weeklyReturns.length > 1
-    ? weeklyReturns.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (weeklyReturns.length - 1)
-    : 0;
-  const volatility = finite(Math.sqrt(variance) * Math.sqrt(PERIODS_PER_YEAR));
-  const sharpe = volatility === 0 ? 0 : finite(annualizedReturn / volatility);
-
-  let peak = values[0];
-  let maximumDrawdown = 0;
-  for (const value of values) {
-    peak = Math.max(peak, value);
-    maximumDrawdown = Math.min(maximumDrawdown, finite(value / peak - 1));
-  }
-
-  const months = new Map();
-  for (const point of performance) {
-    const key = point.date.slice(0, 7);
-    const period = months.get(key) || { key, first: point.value, last: point.value };
-    period.last = point.value;
-    months.set(key, period);
-  }
-  const monthReturns = [...months.values()].map((month) => ({
-    ...month,
-    pct: finite(month.last / month.first - 1),
-  }));
-  const bestMonth = monthReturns.reduce((best, month) => month.pct > best.pct ? month : best, monthReturns[0]);
-  const worstMonth = monthReturns.reduce((worst, month) => month.pct < worst.pct ? month : worst, monthReturns[0]);
-
-  return {
-    totalReturn, annualizedReturn, volatility, sharpe, maximumDrawdown, bestMonth, worstMonth,
-    growth: performance.map((point) => ({
-      ...point,
-      pnl_pct: finite(point.value / values[0] - 1) * 100,
-    })),
-  };
-}
+const LABELS = {
+  title: "Portfolio vs S&P 500",
+  modeAria: "Chart mode",
+  totalReturn: "Total return",
+  benchmarkReturn: "S&P 500 return",
+  tableCaption: "Portfolio and S&P 500 by month",
+  columns: { date: "Month", value: "Portfolio value", benchmark: "S&P 500" },
+};
 
 export default function DemoAnalytics() {
   const data = useDemoData();
+  const [mode, setMode] = useState("growth");
   const metrics = calculateMetrics(data.performance);
   const benchmarkFinal = data.benchmarks.sp500.at(-1)?.pct ?? 0;
 
@@ -78,17 +47,18 @@ export default function DemoAnalytics() {
         </div>
       </section>
 
-      <section className="card p-5" aria-labelledby="demo-comparison-heading">
-        <SectionHeader><span id="demo-comparison-heading">Portfolio vs S&amp;P 500</span></SectionHeader>
-        <p className="financial-meta text-muted">Synthetic portfolio and benchmark values, shown for demonstration only.</p>
-        <PerformanceChart
-          data={metrics.growth}
-          mode="growth"
-          currency="USD"
-          benchmarks={data.benchmarks}
-          benchmarkMeta={data.benchmarkMeta}
-        />
-      </section>
+      <PerformancePanel
+        performance={data.performance}
+        benchmarks={data.benchmarks}
+        benchmarkMeta={data.benchmarkMeta}
+        currency="USD"
+        mode={mode}
+        onModeChange={setMode}
+        modes={MODES}
+        labels={LABELS}
+        showKpis={false}
+        intro={<p className="financial-meta text-muted mb-3">Synthetic portfolio and benchmark values, shown for demonstration only.</p>}
+      />
     </div>
   );
 }

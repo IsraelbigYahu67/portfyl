@@ -1,25 +1,29 @@
+import { useState } from "react";
+import DividendsPanel from "../../components/showcase/DividendsPanel";
+import { quarterKey, sumBy } from "../../components/showcase/showcaseMath";
 import KpiBox from "../../components/ui/KpiBox";
 import { SectionHeader } from "../../components/ui/SectionHeader";
 import { formatMoney, formatPercent, formatShortDate } from "../../lib/format";
 import { useDemoData } from "../DemoDataContext";
 
-function quarterKey(date) {
-  const year = date.slice(0, 4);
-  const quarter = Math.floor((Number(date.slice(5, 7)) - 1) / 3) + 1;
-  return `${year} Q${quarter}`;
-}
+const VIEWS = [
+  { value: "received", label: "Received" },
+  { value: "upcoming", label: "Upcoming" },
+];
 
-function sumBy(rows, keyFor) {
-  const groups = new Map();
-  for (const row of rows) {
-    const key = keyFor(row);
-    groups.set(key, (groups.get(key) || 0) + row.amount);
-  }
-  return [...groups.entries()].map(([key, amount]) => ({ key, amount })).sort((a, b) => b.key.localeCompare(a.key));
-}
+const LABELS = {
+  received: "Dividends received",
+  upcoming: "Upcoming payments",
+  receivedTotal: "So far this year",
+  upcomingTotal: "Next 12 months",
+  viewAria: "Dividend view",
+  tableCaption: "Synthetic dividends by month",
+  columns: { month: "Month", amount: "Amount" },
+};
 
 export default function DemoDividends() {
   const data = useDemoData();
+  const [view, setView] = useState("received");
   const dividends = [...data.dividends].sort((a, b) => b.date.localeCompare(a.date) || a.symbol.localeCompare(b.symbol));
   const quarters = sumBy(dividends, (row) => quarterKey(row.date));
   const byPayer = sumBy(dividends, (row) => row.symbol).sort((a, b) => b.amount - a.amount);
@@ -37,6 +41,16 @@ export default function DemoDividends() {
         <KpiBox label="Dividend events" value={String(dividends.length)} />
         <KpiBox label="Dividend payers" value={String(byPayer.length)} />
       </div>
+
+      <DividendsPanel
+        dividends={data.dividends}
+        asOf={data.asOf}
+        currency="USD"
+        view={view}
+        onViewChange={setView}
+        views={VIEWS}
+        labels={LABELS}
+      />
 
       <section className="card p-5" aria-labelledby="quarterly-dividends-heading">
         <SectionHeader><span id="quarterly-dividends-heading">Quarterly synthetic income</span></SectionHeader>
