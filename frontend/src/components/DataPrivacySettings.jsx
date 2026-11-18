@@ -1,12 +1,12 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Download, Loader2, Trash2, X } from "lucide-react";
 
 import {
   cancelWorkspaceDeletion,
+  deleteWorkspaceNow,
   downloadWorkspaceExport,
   fetchDeletionStatus,
-  scheduleWorkspaceDeletion,
 } from "../api";
 import { useAuth } from "../auth/AuthProvider";
 import {
@@ -22,16 +22,23 @@ import AnalyticsPreferences from "../analytics/AnalyticsPreferences";
 import AuthMethodDivider from "./auth/AuthMethodDivider";
 
 
+// How long the warning keeps "continue" disabled, so the consequences are read
+// before the typed confirmation and the password are asked for.
+const WARNING_SECONDS = 10;
+
+
 function errorMessage(error, fallback, t) {
   const body = error?.response?.data;
   const code = body?.code || body?.detail?.code;
   const messages = {
-    workspace_owner_required: t("Only the workspace owner can schedule deletion."),
-    workspace_has_other_members: t("Remove other workspace members before scheduling deletion."),
+    workspace_owner_required: t("Only the workspace owner can delete the workspace."),
+    workspace_has_other_members: t("Remove other workspace members before deleting."),
     workspace_confirmation_mismatch: t("The workspace name does not match."),
     recent_reauthentication_required: t("Confirm your identity again and retry."),
     reauthentication_identity_mismatch: t("The signed-in identity does not match this account."),
-    email_verification_required: t("Verify your e-mail before scheduling deletion."),
+    email_verification_required: t("Verify your e-mail before deleting."),
+    active_subscription: t("Cancel your subscription first, then delete the workspace."),
+    account_deletion_unavailable: t("Deletion could not be completed right now. Nothing was deleted; try again in a moment."),
   };
   return messages[code] || fallback;
 }
@@ -42,20 +49,37 @@ export default function DataPrivacySettings() {
   // Sent so the confirmation e-mail is written in the language of the app.
   const { language } = useI18n();
   const queryClient = useQueryClient();
-  const { user, currentWorkspace } = useAuth();
+  const { user, currentWorkspace, accountDeleted, reloadAccount } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [step, setStep] = useState("warning");
+  const [secondsLeft, setSecondsLeft] = useState(WARNING_SECONDS);
   const [confirmation, setConfirmation] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
   const deleteButtonRef = useRef(null);
   const confirmationInputRef = useRef(null);
-  const closeDialog = () => setDialogOpen(false);
+  const warningCancelRef = useRef(null);
+  const closeDialog = () => {
+    setDialogOpen(false);
+    setStep("warning");
+    setSecondsLeft(WARNING_SECONDS);
+  };
   const dialogRef = useFocusTrap({
     active: dialogOpen,
     onEscape: closeDialog,
-    initialFocusRef: confirmationInputRef,
+    initialFocusRef: warningCancelRef,
     restoreFocusRef: deleteButtonRef,
   });
+
+  useEffect(() => {
+    if (!dialogOpen || step !== "warning" || secondsLeft <= 0) return undefined;
+    const timer = setTimeout(() => setSecondsLeft((seconds) => seconds - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [dialogOpen, step, secondsLeft]);
+
+  useEffect(() => {
+    if (dialogOpen && step === "confirm") confirmationInputRef.current?.focus();
+  }, [dialogOpen, step]);
   const queryKey = ["workspace-deletion", currentWorkspace?.id];
   // Either proof is equivalent to the backend: it only checks that a fresh
   // Firebase token belongs to this user. Offering both avoids having to know
@@ -84,30 +108,34 @@ export default function DataPrivacySettings() {
     onError: (err) => setError(errorMessage(err, t("Failed to prepare the workspace export."), t)),
   });
 
-  const scheduleMutation = useMutation({
+  const deleteMutation = useMutation({
     mutationFn: async (method) => {
       const reauthIdToken = method === "google"
         ? await reauthenticateWithGoogle(user.email)
         : await reauthenticateWithPassword(user.email, password);
       if (!reauthIdToken) return null; // Google popup dismissed
-      return scheduleWorkspaceDeletion({
+      return deleteWorkspaceNow({
         reauth_id_token: reauthIdToken,
         confirmation,
         lang: language,
       });
     },
-    onSuccess: (status) => {
-      if (!status) return;
-      queryClient.setQueryData(queryKey, status);
+    onSuccess: (result) => {
+      if (!result) return;
       setPassword("");
       setConfirmation("");
-      setDialogOpen(false);
       setError(null);
+      closeDialog();
+      // The server has already erased the data. With the last workspace the
+      // account went too, so the session is over; otherwise re-read the
+      // account so the deleted workspace drops out of the list.
+      if (result.account_deleted) accountDeleted();
+      else reloadAccount().catch(() => {});
     },
     onError: (err) => {
       const message = err?.code?.startsWith?.("auth/")
         ? t(mapFirebaseAuthError(err))
-        : errorMessage(err, t("Could not schedule workspace deletion."), t);
+        : errorMessage(err, t("Could not delete the workspace."), t);
       setError(message);
     },
   });
@@ -115,10 +143,7 @@ export default function DataPrivacySettings() {
   const cancelMutation = useMutation({
     mutationFn: cancelWorkspaceDeletion,
     onSuccess: () => {
-      queryClient.setQueryData(queryKey, {
-        scheduled: false,
-        grace_days: deletion?.grace_days || 30,
-      });
+      queryClient.setQueryData(queryKey, { scheduled: false });
       setError(null);
     },
     onError: (err) => setError(errorMessage(err, t("Could not cancel workspace deletion."), t)),
@@ -127,9 +152,9 @@ export default function DataPrivacySettings() {
   if (!currentWorkspace) return null;
 
   const confirmationMatches = confirmation === currentWorkspace.name;
-  const canSchedule = confirmationMatches && password.length > 0 && !scheduleMutation.isPending;
-  const canScheduleWithGoogle = confirmationMatches && !scheduleMutation.isPending;
-  const pendingMethod = scheduleMutation.isPending ? scheduleMutation.variables : null;
+  const canDelete = confirmationMatches && password.length > 0 && !deleteMutation.isPending;
+  const canDeleteWithGoogle = confirmationMatches && !deleteMutation.isPending;
+  const pendingMethod = deleteMutation.isPending ? deleteMutation.variables : null;
 
   return (
     <div className="bg-surface-card border border-surface-border rounded-xl p-6 space-y-5">
@@ -188,7 +213,7 @@ export default function DataPrivacySettings() {
             </p>
           ) : (
             <p className="text-xs text-muted mt-1">
-              {t("Starts a {days}-day grace period. You can cancel at any time before the deadline.", { days: deletion?.grace_days || 30 })}
+              {t("Erases this workspace and its data immediately. This cannot be undone.")}
             </p>
           )}
         </div>
@@ -208,6 +233,8 @@ export default function DataPrivacySettings() {
           <button
             type="button"
             onClick={() => {
+              setStep("warning");
+              setSecondsLeft(WARNING_SECONDS);
               setDialogOpen(true);
               setError(null);
               // Warm Firebase up so the Google popup opens straight from the
@@ -235,10 +262,10 @@ export default function DataPrivacySettings() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 id="delete-workspace-title" className="text-lg font-semibold text-loss">
-                  {t("Schedule workspace deletion")}
+                  {t("Delete workspace permanently")}
                 </h3>
                 <p id="delete-workspace-description" className="text-sm text-muted mt-1">
-                  {t("Portfyl waits 30 days before permanent deletion. Access and export remain available during the grace period.")}
+                  {t("This happens immediately and cannot be undone. Read the consequences before you continue.")}
                 </p>
               </div>
               <button
@@ -251,51 +278,84 @@ export default function DataPrivacySettings() {
               </button>
             </div>
 
-            <label className="block text-sm text-muted">
-              {t("Type {name} to confirm", { name: currentWorkspace.name })}
-              <input
-                ref={confirmationInputRef}
-                type="text"
-                value={confirmation}
-                onChange={(event) => setConfirmation(event.target.value)}
-                autoComplete="off"
-                className="input mt-1.5 focus:border-loss"
-              />
-            </label>
-            <label className="block text-sm text-muted">
-              {t("Password")}
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                autoComplete="current-password"
-                className="input mt-1.5 focus:border-loss"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() => scheduleMutation.mutate("password")}
-              disabled={!canSchedule}
-              className="btn-primary !bg-loss hover:!bg-loss/90 w-full flex items-center justify-center gap-2 min-h-11 md:min-h-0 text-sm disabled:opacity-40"
-            >
-              {pendingMethod === "password" && <Loader2 size={16} className="animate-spin" />}
-              {t("Schedule deletion")}
-            </button>
-            {googleEnabled && (
+            {step === "warning" ? (
               <>
-                <AuthMethodDivider />
-                <p className="text-xs text-muted">
-                  {t("Signed up with Google? Confirm with your Google account instead of a password.")}
-                </p>
+                <ul className="list-disc pl-5 space-y-2 text-sm text-ink">
+                  <li>{t("All portfolios, transactions, notes, alerts and settings in this workspace are erased at once.")}</li>
+                  <li>{t("Connected broker keys and saved integrations are removed.")}</li>
+                  <li>{t("If this is your last workspace, your Portfyl account and sign-in are deleted too, and you are signed out.")}</li>
+                  <li>{t("Portfyl cannot restore anything afterwards, not even on request. Download the export first if you want a copy.")}</li>
+                </ul>
+                <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+                  <button
+                    ref={warningCancelRef}
+                    type="button"
+                    onClick={closeDialog}
+                    className="btn-ghost flex items-center justify-center text-sm font-medium min-h-11 md:min-h-0"
+                  >
+                    {t("Cancel")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStep("confirm")}
+                    disabled={secondsLeft > 0}
+                    className="btn-primary !bg-loss hover:!bg-loss/90 flex items-center justify-center gap-2 min-h-11 md:min-h-0 text-sm disabled:opacity-40"
+                  >
+                    {secondsLeft > 0
+                      ? t("Continue in {seconds} s", { seconds: secondsLeft })
+                      : t("I understand, continue")}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <label className="block text-sm text-muted">
+                  {t("Type {name} to confirm", { name: currentWorkspace.name })}
+                  <input
+                    ref={confirmationInputRef}
+                    type="text"
+                    value={confirmation}
+                    onChange={(event) => setConfirmation(event.target.value)}
+                    autoComplete="off"
+                    className="input mt-1.5 focus:border-loss"
+                  />
+                </label>
+                <label className="block text-sm text-muted">
+                  {t("Password")}
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    autoComplete="current-password"
+                    className="input mt-1.5 focus:border-loss"
+                  />
+                </label>
                 <button
                   type="button"
-                  onClick={() => scheduleMutation.mutate("google")}
-                  disabled={!canScheduleWithGoogle}
-                  className="btn-ghost text-loss w-full flex items-center justify-center gap-2 min-h-11 md:min-h-0 text-sm font-semibold disabled:opacity-40"
+                  onClick={() => deleteMutation.mutate("password")}
+                  disabled={!canDelete}
+                  className="btn-primary !bg-loss hover:!bg-loss/90 w-full flex items-center justify-center gap-2 min-h-11 md:min-h-0 text-sm disabled:opacity-40"
                 >
-                  {pendingMethod === "google" && <Loader2 size={16} className="animate-spin" />}
-                  {t("Confirm with Google")}
+                  {pendingMethod === "password" && <Loader2 size={16} className="animate-spin" />}
+                  {t("Delete permanently now")}
                 </button>
+                {googleEnabled && (
+                  <>
+                    <AuthMethodDivider />
+                    <p className="text-xs text-muted">
+                      {t("Signed up with Google? Confirm with your Google account instead of a password.")}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => deleteMutation.mutate("google")}
+                      disabled={!canDeleteWithGoogle}
+                      className="btn-ghost text-loss w-full flex items-center justify-center gap-2 min-h-11 md:min-h-0 text-sm font-semibold disabled:opacity-40"
+                    >
+                      {pendingMethod === "google" && <Loader2 size={16} className="animate-spin" />}
+                      {t("Confirm with Google")}
+                    </button>
+                  </>
+                )}
               </>
             )}
           </div>

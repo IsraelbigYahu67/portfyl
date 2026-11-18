@@ -121,9 +121,9 @@ companies is at https://www.dataprivacyframework.gov.
 | Analytics data (with consent) | at most 1 year |
 
 **Deleting your account:** go to Settings → Data & privacy. For security, we
-first ask you to sign in again. Deletion takes place after a 30-day period during which you can cancel it; all account
-data is then removed from the database and disappears from backups no later
-than the period stated above.
+first ask you to sign in again and to confirm the deletion after a warning. Deletion takes place
+immediately and cannot be undone; all account data is removed from the database at once and
+disappears from backups no later than the period stated above.
 
 Cancelling a subscription **does not delete** your account – it only moves
 to the Free plan.

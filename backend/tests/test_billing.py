@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 import routers.billing as billing_router
-from account_deletion import schedule_workspace_deletion
+from account_deletion import delete_workspace_now
 from billing_config import BillingConfig
 from billing_sync import BillingDataError, apply_subscription, fetch_subscription_state, subscription_id_from_event
 from database import get_db
@@ -710,7 +710,8 @@ def test_renewing_subscription_blocks_workspace_deletion(db_session, request_con
         authenticated_at=datetime.now(timezone.utc) - timedelta(minutes=1),
     )
     with pytest.raises(RequestContextError) as exc:
-        schedule_workspace_deletion(
-            db_session, request_context, identity=identity, confirmation=request_context.workspace.name,
+        delete_workspace_now(
+            db_session, request_context, identity=identity,
+            confirmation=request_context.workspace.name, identity_admin=object(),
         )
     assert exc.value.code == "active_subscription"

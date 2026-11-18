@@ -103,12 +103,13 @@ nutné přepsat čl. 4.3 a před prvním stržením uživatele upozornit.
 
 ### 5. Rychlost smazání dat
 
-Dnešní kód maže účet **až po 30denní lhůtě**, během níž lze smazání zrušit
-(ochrana před omylem nebo zneužitím účtu). Zálohy databáze (Neon PITR) dnes
-drží 6 hodin; pro veřejný provoz plán počítá s nejméně 7 dny. Provozovatel
-chce mazat co nejdříve. **Možnosti:** (a) zkrátit lhůtu na 7 dní, (b) mazat
-ihned po novém přihlášení a potvrzení. V zásadách je místo
-`[[ROZHODNOUT]]`; změna kódu je samostatný úkol.
+Od 2026-11-18 kód maže účet **okamžitě** (rozhodl provozovatel): po novém
+přihlášení, napsání názvu pracovního prostoru a upozornění s 10sekundovým
+časovačem. Odvolání není možné; žádná ochranná lhůta neexistuje (dříve 30 dní).
+Pouze žádosti naplánované před touto změnou dokončuje denní úloha. Zálohy
+databáze (Neon PITR) dnes drží 6 hodin; pro veřejný provoz plán počítá
+s nejméně 7 dny, a právě tuto dobu musí zásady uvádět jako dobu, po kterou
+smazaná data mohou zůstat v záloze.
 
 ### 6. Identifikační údaje provozovatele
 

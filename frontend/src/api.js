@@ -211,7 +211,8 @@ export const requestBrokerSupport = (brokerName) =>
 export const fetchDeletionStatus = () =>
   api.get("/settings/account/deletion").then((r) => r.data);
 
-export const scheduleWorkspaceDeletion = (payload) =>
+// Erases the workspace immediately (and the account with its last workspace).
+export const deleteWorkspaceNow = (payload) =>
   api.post("/settings/account/deletion", payload).then((r) => r.data);
 
 export const cancelWorkspaceDeletion = () =>

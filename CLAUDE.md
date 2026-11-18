@@ -151,12 +151,20 @@ mockup) and does not override it.
   (`backend/routers/auth_email.py`), with the Firebase client call as the
   fallback (`frontend/src/auth/authEmail.js`); their copy lives in
   `backend/emails/catalog.py` + `locales/`. Wave 2 adds best-effort
-  `password_changed`, `account_deletion_scheduled` and `account_deleted`
-  notices (`backend/emails/notify.py`), and `/auth/session` now detects a
+  `password_changed` and `account_deleted` notices (and
+  `account_deletion_scheduled`, no longer sent: see below)
+  (`backend/emails/notify.py`), and `/auth/session` now detects a
   password change (`users.password_changed_seen_at`) and revokes the user's
   other sessions. See
   `docs/superpowers/specs/2026-11-15-portfyl-own-emails-design.md` and
-  "Portfyl e-mails" in `deploy/cloudrun.md`. Unauthenticated `/api` calls get
+  "Portfyl e-mails" in `deploy/cloudrun.md`. **Account deletion is immediate** (since 2026-11-18): `POST
+  /api/settings/account/deletion` re-authenticates, checks the typed workspace
+  name, then erases the workspace (and the user and Firebase identity with its
+  last workspace) in the same request, `backend/account_deletion.py`
+  `delete_workspace_now`. There is no grace period or undo; the UI shows a
+  warning with a 10 s countdown first. Only requests scheduled under the old
+  30-day rule are still finished by the daily purge job, and
+  `DELETE .../deletion` cancels those. Unauthenticated `/api` calls get
   401, and the SPA routes to `/login`/`/register` (`frontend/src/auth/`).
   Three settings control the Google button: the build flag
   `VITE_FIREBASE_GOOGLE_SIGN_IN=true`, the build value

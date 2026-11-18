@@ -120,9 +120,10 @@ EU-U.S. Data Privacy Framework je na https://www.dataprivacyframework.gov.
 | Analytická data (se souhlasem) | nejvýše 1 rok |
 
 **Smazání účtu:** Účet smažete v Nastavení → Data a soukromí. Z
-bezpečnostních důvodů vás nejprve požádáme o nové přihlášení. Smazání
-proběhne po 30denní lhůtě, během níž ho můžete zrušit; poté jsou všechna data účtu odstraněna z databáze a ze záloh
-zmizí nejpozději po uplynutí doby uvedené výše.
+bezpečnostních důvodů vás nejprve požádáme o nové přihlášení a po upozornění
+o potvrzení smazání. Smazání proběhne okamžitě a nelze je vrátit zpět; všechna
+data účtu jsou ihned odstraněna z databáze a ze záloh zmizí nejpozději po
+uplynutí doby uvedené výše.
 
 Zrušení předplatného účet **nemaže** – účet se jen přepne na tarif Free.
 
