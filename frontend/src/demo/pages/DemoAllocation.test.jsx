@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import DemoAllocation from "./DemoAllocation";
@@ -36,5 +36,23 @@ describe("DemoAllocation", () => {
     expect(screen.getByText("10 sectors")).toBeInTheDocument();
     expect(screen.getByRole("table", { name: "Allocation details" })).toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("regroups the allocation when another grouping is chosen", () => {
+    renderAllocation();
+
+    const holdings = screen.getByRole("button", { name: "Holdings" });
+    const currencies = screen.getByRole("button", { name: "Currencies" });
+    expect(holdings).toHaveAttribute("aria-pressed", "true");
+    expect(currencies).toHaveAttribute("aria-pressed", "false");
+    expect(within(screen.getByRole("table", { name: "Allocation details" })).getAllByRole("row")).toHaveLength(11);
+
+    fireEvent.click(currencies);
+
+    expect(currencies).toHaveAttribute("aria-pressed", "true");
+    expect(holdings).toHaveAttribute("aria-pressed", "false");
+    const rows = within(screen.getByRole("table", { name: "Allocation details" })).getAllByRole("row");
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toHaveTextContent("USD");
   });
 });

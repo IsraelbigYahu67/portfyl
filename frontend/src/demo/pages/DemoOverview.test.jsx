@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import DemoOverview from "./DemoOverview";
@@ -32,7 +32,9 @@ describe("DemoOverview", () => {
     expect(screen.getByText(/final value \$105,000\.00/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "VUAA" })).toHaveAttribute("href", "/demo/stock/VUAA");
     expect(screen.getByRole("link", { name: "MSFT" })).toHaveAttribute("href", "/demo/stock/MSFT");
-    expect(screen.getAllByRole("row")).toHaveLength(11);
+    // Header row + ten holdings; the performance panel's text table has its own rows.
+    expect(within(screen.getByRole("table", { name: "Synthetic portfolio holdings" })).getAllByRole("row")).toHaveLength(11);
+    expect(screen.getByRole("group", { name: "Chart mode" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Portfolio performance summary" })).toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();
   });

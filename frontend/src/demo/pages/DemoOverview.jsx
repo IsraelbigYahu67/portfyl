@@ -1,35 +1,30 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import PortfolioHero from "../../components/PortfolioHero";
-import PerformanceChart from "../../components/PerformanceChart";
 import MetricCard from "../../components/MetricCard";
+import PerformancePanel from "../../components/showcase/PerformancePanel";
+import { buildSummary } from "../../components/showcase/showcaseMath";
 import { SectionHeader } from "../../components/ui/SectionHeader";
 import { formatMoney, formatPercent } from "../../lib/format";
 import { useDemoData } from "../DemoDataContext";
 
-function buildSummary(data) {
-  const lastPoint = data.performance.at(-1);
-  const previousPoint = data.performance.at(-2) || lastPoint;
-  const totalValue = data.holdings.reduce((sum, holding) => sum + holding.marketValue, 0);
-  const totalInvested = lastPoint.invested;
-  const totalPnl = totalValue - data.transactions.reduce((sum, transaction) => sum + transaction.amount, 0);
-  const dayChange = lastPoint.value - previousPoint.value;
-  const dayChangePercent = previousPoint.value === 0 ? 0 : (dayChange / previousPoint.value) * 100;
+const MODES = [
+  { value: "value", label: "Value" },
+  { value: "growth", label: "Growth %" },
+];
 
-  return {
-    net_worth: totalValue + data.cash,
-    total_value: totalValue,
-    cash: data.cash,
-    total_invested: totalInvested,
-    total_pnl: totalPnl,
-    total_dividends: data.dividendTotal,
-    holdings_count: data.holdings.length,
-    day_change: dayChange,
-    day_change_percent: dayChangePercent,
-  };
-}
+const LABELS = {
+  title: "Portfolio performance",
+  modeAria: "Chart mode",
+  totalReturn: "Total return",
+  benchmarkReturn: "S&P 500 return",
+  tableCaption: "Portfolio and S&P 500 by month",
+  columns: { date: "Month", value: "Portfolio value", benchmark: "S&P 500" },
+};
 
 export default function DemoOverview() {
   const data = useDemoData();
+  const [mode, setMode] = useState("value");
   const summary = buildSummary(data);
 
   return (
@@ -41,22 +36,26 @@ export default function DemoOverview() {
 
       <PortfolioHero summary={summary} loading={false} currency="USD" series={data.performance} />
 
-      <section aria-labelledby="demo-performance-heading" className="card p-5">
-        <SectionHeader><span id="demo-performance-heading">Portfolio performance</span></SectionHeader>
-        <div
-          role="region"
-          aria-label="Portfolio performance summary"
-          className="financial-meta text-muted"
-        >
-          Synthetic weekly portfolio values since {data.performance[0].date}; final value {formatMoney(summary.net_worth, "USD")}.
-        </div>
-        <PerformanceChart
-          data={data.performance}
-          currency="USD"
-          benchmarks={data.benchmarks}
-          benchmarkMeta={data.benchmarkMeta}
-        />
-      </section>
+      <PerformancePanel
+        performance={data.performance}
+        benchmarks={data.benchmarks}
+        benchmarkMeta={data.benchmarkMeta}
+        currency="USD"
+        mode={mode}
+        onModeChange={setMode}
+        modes={MODES}
+        labels={LABELS}
+        showKpis={false}
+        intro={(
+          <div
+            role="region"
+            aria-label="Portfolio performance summary"
+            className="financial-meta text-muted mb-3"
+          >
+            Synthetic weekly portfolio values since {data.performance[0].date}; final value {formatMoney(summary.net_worth, "USD")}.
+          </div>
+        )}
+      />
 
       <section aria-labelledby="demo-holdings-heading">
         <SectionHeader><span id="demo-holdings-heading">Holdings</span></SectionHeader>
