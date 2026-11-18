@@ -122,8 +122,8 @@ function weightsOf(values) {
 // Every holding of every sample portfolio with `marketValue` converted to
 // `displayCurrency` (at the fixed sample rate). `currency` stays the currency
 // the holding is quoted in, so grouping by currency still shows all of them.
-export function showcaseHoldings(displayCurrency) {
-  const rows = SHOWCASE_PORTFOLIOS.flatMap((portfolio) => portfolio.holdings.map((item) => ({
+export function showcaseHoldings(displayCurrency, portfolios = SHOWCASE_PORTFOLIOS) {
+  const rows = portfolios.flatMap((portfolio) => portfolio.holdings.map((item) => ({
     ...item,
     portfolioKey: portfolio.key,
     marketValue: convertAmount(item.marketValue, item.currency, displayCurrency),
@@ -133,9 +133,9 @@ export function showcaseHoldings(displayCurrency) {
 }
 
 // Net worth of each sample portfolio (positions + cash) in `displayCurrency`.
-export function portfolioTotals(displayCurrency) {
-  const holdings = showcaseHoldings(displayCurrency);
-  const rows = SHOWCASE_PORTFOLIOS.map((portfolio) => {
+export function portfolioTotals(displayCurrency, portfolios = SHOWCASE_PORTFOLIOS) {
+  const holdings = showcaseHoldings(displayCurrency, portfolios);
+  const rows = portfolios.map((portfolio) => {
     const positions = holdings
       .filter((row) => row.portfolioKey === portfolio.key)
       .reduce((sum, row) => sum + row.marketValue, 0);
