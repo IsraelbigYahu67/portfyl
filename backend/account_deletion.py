@@ -1,17 +1,25 @@
-"""Durable state machine for verified, grace-period workspace deletion."""
+"""Verified, immediate workspace (and, with its last workspace, account) deletion.
+
+``delete_workspace_now`` is the only way to start a deletion: it checks the same
+guards as before (owner, typed name, fresh re-authentication, sole member, no
+renewing subscription) and then erases the data in the same request. There is
+no grace period and no undo. The deferred state machine below
+(``get_workspace_deletion``, ``cancel_workspace_deletion`` and
+``purge_due_workspace_deletions``) remains only to finish requests that were
+scheduled under the earlier 30-day rule; nothing creates new ones.
+"""
 
 from __future__ import annotations
 
 import json
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app_settings import set_workspace_setting
 from audit import record_audit_event
 from emails.catalog import SOURCE_LANGUAGE, EmailKind, normalize_language
 from emails.notify import send_account_notice
@@ -22,7 +30,6 @@ from tenancy import RequestContext, RequestContextError
 
 DELETION_SETTING_KEY = "privacy.workspace_deletion"
 DELETION_STATE_VERSION = 1
-DELETION_GRACE_DAYS = 30
 MAX_REAUTH_AGE = timedelta(minutes=5)
 MAX_REAUTH_FUTURE_SKEW = timedelta(minutes=1)
 
@@ -45,15 +52,6 @@ def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
-
-
-def _serialize(state: WorkspaceDeletion) -> str:
-    return json.dumps({
-        **asdict(state),
-        "requested_at": state.requested_at.isoformat(),
-        "execute_after": state.execute_after.isoformat(),
-        "requested_by_user_id": str(state.requested_by_user_id),
-    }, separators=(",", ":"))
 
 
 def _parse(raw: str) -> WorkspaceDeletion:
@@ -112,16 +110,14 @@ def _validate_reauthentication(
         raise RequestContextError(403, "recent_reauthentication_required")
 
 
-def schedule_workspace_deletion(
+def _validate_deletion_request(
     db: Session,
     context: RequestContext,
-    *,
     identity: VerifiedIdentity,
     confirmation: str,
-    now: datetime | None = None,
-    lang: object = None,
-) -> WorkspaceDeletion:
-    now = _as_utc(now or datetime.now(timezone.utc))
+    *,
+    now: datetime,
+) -> None:
     if context.membership.role != "owner":
         raise RequestContextError(403, "workspace_owner_required")
     if confirmation != context.workspace.name:
@@ -153,60 +149,92 @@ def schedule_workspace_deletion(
     if renewing is not None:
         raise RequestContextError(409, "active_subscription")
 
-    existing = get_workspace_deletion(db, context.workspace.id)
-    if existing is not None:
-        return existing
 
-    state = WorkspaceDeletion(
-        version=DELETION_STATE_VERSION,
-        requested_at=now,
-        execute_after=now + timedelta(days=DELETION_GRACE_DAYS),
-        requested_by_user_id=context.user.id,
+@dataclass(frozen=True)
+class DeletionResult:
+    """Outcome of an immediate deletion.
+
+    ``farewell`` is ``(address, language)`` when the account itself went with
+    its last workspace, else ``None``. It is read before the user row is
+    deleted so the notice can be sent after the commit.
+    """
+
+    account_deleted: bool
+    farewell: tuple[str, str] | None = None
+
+
+def _erase_workspace(
+    db: Session,
+    *,
+    workspace: Workspace,
+    user: User,
+    identity_admin,
+    now: datetime,
+    lang: str,
+) -> DeletionResult:
+    """Delete the workspace and, if it was the user's last, the user and their
+    Firebase identity. Flushes but never commits: the caller owns the
+    transaction, so a Firebase failure rolls everything back.
+    """
+    other_memberships = db.scalar(
+        select(func.count())
+        .select_from(Membership)
+        .where(
+            Membership.user_id == user.id,
+            Membership.workspace_id != workspace.id,
+        )
+    ) or 0
+
+    farewell: tuple[str, str] | None = None
+    db.delete(workspace)
+    db.flush()
+    if other_memberships == 0:
+        if user.email:
+            farewell = (user.email, lang)
+        user.disabled_at = now
+        db.flush()
+        if user.firebase_uid:
+            identity_admin.delete_user(user.firebase_uid)
+        db.delete(user)
+        db.flush()
+    return DeletionResult(account_deleted=other_memberships == 0, farewell=farewell)
+
+
+def delete_workspace_now(
+    db: Session,
+    context: RequestContext,
+    *,
+    identity: VerifiedIdentity,
+    confirmation: str,
+    identity_admin,
+    now: datetime | None = None,
+    lang: object = None,
+) -> DeletionResult:
+    """Validate and erase the caller's workspace immediately.
+
+    Same guards as the old scheduled flow. Nothing is committed here: the
+    endpoint commits, then sends the ``account_deleted`` notice from the
+    result. There is no audit row to write, because audit rows are scoped to
+    the workspace and the user being deleted and would be deleted with them.
+    """
+    now = _as_utc(now or datetime.now(timezone.utc))
+    _validate_deletion_request(db, context, identity, confirmation, now=now)
+    # Same RLS context the cleanup job uses, so the deletes below pass the
+    # policies on the workspace and the user.
+    _set_cleanup_context(db, context.workspace.id, context.user.id)
+    result = _erase_workspace(
+        db,
+        workspace=context.workspace,
+        user=context.user,
+        identity_admin=identity_admin,
+        now=now,
         lang=normalize_language(lang),
     )
-    set_workspace_setting(
-        db,
-        context.workspace.id,
-        DELETION_SETTING_KEY,
-        _serialize(state),
-    )
-    record_audit_event(
-        db,
-        actor_user_id=context.user.id,
-        workspace_id=context.workspace.id,
-        action="account.deletion.scheduled",
-        target_type="workspace",
-        target_id=str(context.workspace.public_id),
-        metadata={"grace_days": DELETION_GRACE_DAYS},
-    )
-    return state
+    logger.info("workspace deleted immediately account_deleted=%s", result.account_deleted)
+    return result
 
 
-def send_deletion_scheduled_notice(
-    *,
-    to: str,
-    state: WorkspaceDeletion,
-    mailer: object,
-) -> bool:
-    """Best-effort ``account_deletion_scheduled`` e-mail; call it only after the
-    request is committed. Never raises. The button leads to Settings, where the
-    deletion is cancelled."""
-    try:
-        app_url = getattr(getattr(mailer, "links", None), "_app_url", "")
-        return send_account_notice(
-            EmailKind.ACCOUNT_DELETION_SCHEDULED,
-            to=to,
-            lang=state.lang,
-            params={"email": to, "date": state.execute_after},
-            action_url=f"{app_url}/settings" if app_url else None,
-            mailer=mailer,
-        )
-    except Exception:  # noqa: BLE001 - a notice must never fail the request
-        logger.error("account_deletion notice kind=account_deletion_scheduled failed")
-        return False
-
-
-def _send_account_deleted_notice(*, to: str, lang: str, mailer: object) -> bool:
+def send_account_deleted_notice(*, to: str, lang: str, mailer: object) -> bool:
     try:
         return send_account_notice(
             EmailKind.ACCOUNT_DELETED,
@@ -247,12 +275,11 @@ def cancel_workspace_deletion(
 
 def deletion_status_payload(state: WorkspaceDeletion | None) -> dict:
     if state is None:
-        return {"scheduled": False, "grace_days": DELETION_GRACE_DAYS}
+        return {"scheduled": False}
     return {
         "scheduled": True,
         "requested_at": state.requested_at.isoformat(),
         "execute_after": state.execute_after.isoformat(),
-        "grace_days": DELETION_GRACE_DAYS,
     }
 
 
@@ -378,31 +405,19 @@ def purge_due_workspace_deletions(
                 db.rollback()
                 continue
 
-            other_memberships = db.scalar(
-                select(func.count())
-                .select_from(Membership)
-                .where(
-                    Membership.user_id == user.id,
-                    Membership.workspace_id != workspace_id,
-                )
-            ) or 0
-
-            farewell: tuple[str, str] | None = None
-            db.delete(workspace)
-            db.flush()
-            if other_memberships == 0:
-                if user.email:
-                    farewell = (user.email, state.lang)
-                user.disabled_at = now
-                db.flush()
-                if user.firebase_uid:
-                    identity_admin.delete_user(user.firebase_uid)
-                db.delete(user)
-                db.flush()
+            result = _erase_workspace(
+                db,
+                workspace=workspace,
+                user=user,
+                identity_admin=identity_admin,
+                now=now,
+                lang=state.lang,
+            )
+            farewell = result.farewell
             db.commit()
             summary["purged"] += 1
             if farewell is not None:
-                _send_account_deleted_notice(
+                send_account_deleted_notice(
                     to=farewell[0], lang=farewell[1], mailer=mailer
                 )
         except Exception:

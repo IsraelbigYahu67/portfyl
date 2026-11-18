@@ -1,7 +1,8 @@
-"""Verified, reversible workspace deletion workflow."""
+"""Immediate, verified workspace deletion (and the legacy deferred cleanup)."""
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -9,19 +10,19 @@ import pytest
 from sqlalchemy import select
 
 from account_deletion import (
-    DELETION_GRACE_DAYS,
     cancel_workspace_deletion,
+    delete_workspace_now,
+    deletion_status_payload,
     get_workspace_deletion,
     purge_due_workspace_deletions,
-    schedule_workspace_deletion,
 )
 from firebase_identity import VerifiedIdentity
-from models import AuditLog, Membership, Workspace, WorkspaceSetting
+from models import Membership, User, Workspace, WorkspaceSetting
 from routers.account import (
     DeletionRequestPayload,
     cancel_deletion,
+    delete_workspace,
     get_deletion_status,
-    schedule_deletion,
 )
 from routers.settings import router as settings_router
 from tenancy import RequestContextError
@@ -42,51 +43,64 @@ def _identity(context, *, authenticated_at=NOW - timedelta(minutes=1), **overrid
     return VerifiedIdentity(**values)
 
 
-def test_fresh_verified_owner_can_schedule_thirty_day_grace(
-    db_session,
-    request_context,
-):
-    state = schedule_workspace_deletion(
-        db_session,
-        request_context,
-        identity=_identity(request_context),
-        confirmation=request_context.workspace.name,
+class RecordingIdentityAdmin:
+    def __init__(self, error=None):
+        self.deleted_uids = []
+        self.error = error
+
+    def delete_user(self, uid):
+        if self.error:
+            raise self.error
+        self.deleted_uids.append(uid)
+
+
+def _delete_now(db, context, *, admin=None, confirmation=None, **identity_overrides):
+    return delete_workspace_now(
+        db,
+        context,
+        identity=_identity(context, **identity_overrides),
+        confirmation=context.workspace.name if confirmation is None else confirmation,
+        identity_admin=admin or RecordingIdentityAdmin(),
         now=NOW,
     )
+
+
+def test_verified_owner_deletes_workspace_and_account_at_once(db_session, request_context):
+    workspace_id = request_context.workspace.id
+    user_id = request_context.user.id
+    firebase_uid = request_context.user.firebase_uid
+    admin = RecordingIdentityAdmin()
+
+    result = _delete_now(db_session, request_context, admin=admin)
     db_session.commit()
 
-    assert DELETION_GRACE_DAYS == 30
-    assert state.requested_at == NOW
-    assert state.execute_after == NOW + timedelta(days=30)
-    assert get_workspace_deletion(db_session, request_context.workspace.id) == state
-    audit = db_session.scalar(
-        select(AuditLog).where(AuditLog.action == "account.deletion.scheduled")
-    )
-    assert audit is not None
-    assert audit.workspace_id == request_context.workspace.id
-    assert audit.event_metadata == {"grace_days": 30}
+    assert result.account_deleted is True
+    assert result.farewell == (request_context.user.email, "en")
+    assert db_session.get(Workspace, workspace_id) is None
+    assert db_session.get(User, user_id) is None
+    assert admin.deleted_uids == [firebase_uid]
 
 
-def test_repeated_schedule_keeps_original_deadline(db_session, request_context):
-    first = schedule_workspace_deletion(
-        db_session,
-        request_context,
-        identity=_identity(request_context),
-        confirmation=request_context.workspace.name,
-        now=NOW,
-    )
-    second = schedule_workspace_deletion(
-        db_session,
-        request_context,
-        identity=_identity(request_context, authenticated_at=NOW + timedelta(days=1)),
-        confirmation=request_context.workspace.name,
-        now=NOW + timedelta(days=1),
-    )
+def test_delete_keeps_account_when_another_workspace_remains(db_session, request_context):
+    deleting_id = request_context.workspace.id
+    kept = Workspace(id=uuid4(), name="Kept workspace")
+    db_session.add(kept)
+    db_session.flush()
+    db_session.add(Membership(
+        user_id=request_context.user.id, workspace_id=kept.id, role="owner", status="active",
+    ))
+    db_session.commit()
+    admin = RecordingIdentityAdmin()
 
-    assert second == first
-    assert len(db_session.scalars(
-        select(AuditLog).where(AuditLog.action == "account.deletion.scheduled")
-    ).all()) == 1
+    result = _delete_now(db_session, request_context, admin=admin)
+    db_session.commit()
+
+    assert result.account_deleted is False
+    assert result.farewell is None
+    assert db_session.get(Workspace, deleting_id) is None
+    assert db_session.get(Workspace, kept.id) is not None
+    assert db_session.get(User, request_context.user.id) is not None
+    assert admin.deleted_uids == []
 
 
 @pytest.mark.parametrize(
@@ -100,86 +114,65 @@ def test_repeated_schedule_keeps_original_deadline(db_session, request_context):
         ({}, "wrong workspace", "workspace_confirmation_mismatch"),
     ],
 )
-def test_schedule_rejects_unverified_or_mismatching_confirmation(
-    db_session,
-    request_context,
-    identity_overrides,
-    confirmation,
-    code,
+def test_delete_rejects_unverified_or_mismatching_confirmation(
+    db_session, request_context, identity_overrides, confirmation, code,
 ):
+    admin = RecordingIdentityAdmin()
+
     with pytest.raises(RequestContextError) as exc_info:
-        schedule_workspace_deletion(
-            db_session,
-            request_context,
-            identity=_identity(request_context, **identity_overrides),
-            confirmation=(
-                request_context.workspace.name if confirmation is None else confirmation
-            ),
-            now=NOW,
+        _delete_now(
+            db_session, request_context, admin=admin,
+            confirmation=confirmation, **identity_overrides,
         )
 
     assert exc_info.value.code == code
-    assert get_workspace_deletion(db_session, request_context.workspace.id) is None
+    assert db_session.get(Workspace, request_context.workspace.id) is not None
+    assert admin.deleted_uids == []
 
 
-def test_schedule_requires_owner_role(db_session, request_context):
+def test_delete_requires_owner_role(db_session, request_context):
     request_context.membership.role = "member"
 
     with pytest.raises(RequestContextError) as exc_info:
-        schedule_workspace_deletion(
-            db_session,
-            request_context,
-            identity=_identity(request_context),
-            confirmation=request_context.workspace.name,
-            now=NOW,
-        )
+        _delete_now(db_session, request_context)
 
     assert exc_info.value.code == "workspace_owner_required"
+    assert db_session.get(Workspace, request_context.workspace.id) is not None
 
 
-def test_schedule_refuses_workspace_with_another_active_member(
-    db_session,
-    request_context,
-):
+def test_delete_refuses_workspace_with_another_active_member(db_session, request_context):
     other_user_id = uuid4()
-    from models import User
-
     db_session.add(User(
-        id=other_user_id,
-        firebase_uid="firebase-other-member",
-        email="other-member@example.com",
+        id=other_user_id, firebase_uid="firebase-other-member", email="other-member@example.com",
     ))
     db_session.add(Membership(
-        user_id=other_user_id,
-        workspace_id=request_context.workspace.id,
-        role="member",
-        status="active",
+        user_id=other_user_id, workspace_id=request_context.workspace.id,
+        role="member", status="active",
     ))
     db_session.flush()
 
     with pytest.raises(RequestContextError) as exc_info:
-        schedule_workspace_deletion(
-            db_session,
-            request_context,
-            identity=_identity(request_context),
-            confirmation=request_context.workspace.name,
-            now=NOW,
-        )
+        _delete_now(db_session, request_context)
 
     assert exc_info.value.code == "workspace_has_other_members"
+    assert db_session.get(Workspace, request_context.workspace.id) is not None
 
 
-def test_cancel_removes_only_current_workspace_request_and_audits(
-    db_session,
-    request_context,
-):
-    schedule_workspace_deletion(
-        db_session,
-        request_context,
-        identity=_identity(request_context),
-        confirmation=request_context.workspace.name,
-        now=NOW,
-    )
+def test_failed_identity_deletion_leaves_everything_for_a_rollback(db_session, request_context):
+    db_session.commit()
+    with pytest.raises(RuntimeError):
+        _delete_now(
+            db_session, request_context,
+            admin=RecordingIdentityAdmin(error=RuntimeError("firebase unavailable")),
+        )
+    db_session.rollback()
+
+    assert db_session.get(Workspace, request_context.workspace.id) is not None
+    assert db_session.get(User, request_context.user.id) is not None
+
+
+def test_cancel_removes_only_current_workspace_request_and_audits(db_session, request_context):
+    _schedule(db_session, request_context)
     other_workspace = Workspace(id=uuid4(), name="Other workspace")
     db_session.add(other_workspace)
     db_session.flush()
@@ -200,42 +193,89 @@ def test_cancel_removes_only_current_workspace_request_and_audits(
         WorkspaceSetting.key == "privacy.workspace_deletion",
     ))
     assert other is not None
+    from models import AuditLog
     actions = db_session.scalars(select(AuditLog.action)).all()
     assert actions.count("account.deletion.cancelled") == 1
 
 
-def test_deletion_endpoints_expose_status_schedule_and_cancel(
-    db_session,
-    request_context,
-):
-    identity = _identity(
-        request_context,
-        authenticated_at=datetime.now(timezone.utc),
-    )
+def test_status_payload_has_no_grace_period():
+    assert deletion_status_payload(None) == {"scheduled": False}
+
+
+def test_delete_endpoint_erases_now_and_clears_the_session_cookie(db_session, request_context):
+    from fastapi import Response
+
+    identity = _identity(request_context, authenticated_at=datetime.now(timezone.utc))
+    admin = RecordingIdentityAdmin()
+    workspace_id = request_context.workspace.id
 
     class Verifier:
         def verify_id_token(self, token):
             assert token == "fresh-firebase-token"
             return identity
 
-    initial = get_deletion_status(db_session, request_context)
-    scheduled = schedule_deletion(
+        def delete_user(self, uid):
+            admin.delete_user(uid)
+
+    response = Response()
+    body = delete_workspace(
         DeletionRequestPayload(
             reauth_id_token="fresh-firebase-token",
             confirmation=request_context.workspace.name,
         ),
+        response,
         db_session,
         request_context,
         Verifier(),
         None,
     )
-    cancelled = cancel_deletion(db_session, request_context)
 
-    assert initial == {"scheduled": False, "grace_days": 30}
-    assert scheduled["scheduled"] is True
-    assert scheduled["grace_days"] == 30
-    assert scheduled["execute_after"]
-    assert cancelled.status_code == 204
+    assert body == {"deleted": True, "account_deleted": True}
+    assert db_session.get(Workspace, workspace_id) is None
+    assert admin.deleted_uids == [identity.uid]
+    assert "set-cookie" in response.headers  # the session cookie is expired
+
+
+def test_delete_endpoint_maps_identity_provider_failure_to_503_and_keeps_data(
+    db_session, request_context,
+):
+    from fastapi import Response
+
+    db_session.commit()
+    identity = _identity(request_context, authenticated_at=datetime.now(timezone.utc))
+
+    class Verifier:
+        def verify_id_token(self, token):
+            return identity
+
+        def delete_user(self, uid):
+            raise RuntimeError("firebase unavailable")
+
+    with pytest.raises(RequestContextError) as exc_info:
+        delete_workspace(
+            DeletionRequestPayload(
+                reauth_id_token="t", confirmation=request_context.workspace.name,
+            ),
+            Response(),
+            db_session,
+            request_context,
+            Verifier(),
+            None,
+        )
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.code == "account_deletion_unavailable"
+    assert db_session.get(Workspace, request_context.workspace.id) is not None
+    assert db_session.get(User, request_context.user.id) is not None
+
+
+def test_status_and_cancel_endpoints_still_serve_legacy_requests(db_session, request_context):
+    assert get_deletion_status(db_session, request_context) == {"scheduled": False}
+    _schedule(db_session, request_context)
+    status = get_deletion_status(db_session, request_context)
+    assert status["scheduled"] is True and status["execute_after"]
+    assert "grace_days" not in status
+    assert cancel_deletion(db_session, request_context).status_code == 204
 
 
 def test_deletion_routes_are_mounted_below_settings():
@@ -244,11 +284,7 @@ def test_deletion_routes_are_mounted_below_settings():
     app = FastAPI()
     app.include_router(settings_router, prefix="/api")
     paths = app.openapi()["paths"]
-    assert set(paths["/api/settings/account/deletion"]) == {
-        "get",
-        "post",
-        "delete",
-    }
+    assert set(paths["/api/settings/account/deletion"]) == {"get", "post", "delete"}
 
 
 class RecordingIdentityAdmin:
@@ -263,15 +299,21 @@ class RecordingIdentityAdmin:
 
 
 def _schedule(db, context):
-    state = schedule_workspace_deletion(
-        db,
-        context,
-        identity=_identity(context),
-        confirmation=context.workspace.name,
-        now=NOW,
-    )
+    """A request left over from the old 30-day rule (nothing creates these any
+    more); the cleanup job must still finish them."""
+    state = {
+        "version": 1,
+        "requested_at": NOW.isoformat(),
+        "execute_after": (NOW + timedelta(days=30)).isoformat(),
+        "requested_by_user_id": str(context.user.id),
+    }
+    db.add(WorkspaceSetting(
+        workspace_id=context.workspace.id,
+        key="privacy.workspace_deletion",
+        value=json.dumps(state),
+    ))
     db.commit()
-    return state
+    return get_workspace_deletion(db, context.workspace.id)
 
 
 def test_cleanup_never_purges_before_grace_deadline(db_session, request_context):

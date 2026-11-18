@@ -184,6 +184,23 @@ export function AuthProvider({ children }) {
     finishSignOut();
   }, [finishSignOut]);
 
+  // The server erased the signed-in account (its last workspace was deleted)
+  // and already cleared the session cookie, so there is nothing to revoke:
+  // just forget the local state, which sends the app back to the login screen.
+  const accountDeleted = useCallback(() => {
+    clearAccount();
+    analytics.reset();
+  }, [clearAccount, analytics.reset]);
+
+  // A workspace was deleted but the user keeps another one: re-read the
+  // account so the deleted workspace disappears from the list and the next
+  // one becomes current.
+  const reloadAccount = useCallback(async () => {
+    const payload = await fetchMe();
+    applyAccount(payload);
+    return payload;
+  }, [applyAccount]);
+
   const selectWorkspace = useCallback(
     (workspaceId) => {
       const match = workspaces.find((w) => w.id === workspaceId);
@@ -210,9 +227,11 @@ export function AuthProvider({ children }) {
       loginWithIdToken,
       logout,
       logoutAll,
+      accountDeleted,
+      reloadAccount,
       selectWorkspace,
     }),
-    [ready, user, workspaces, currentWorkspace, csrfToken, loginWithIdToken, logout, logoutAll, selectWorkspace]
+    [ready, user, workspaces, currentWorkspace, csrfToken, loginWithIdToken, logout, logoutAll, accountDeleted, reloadAccount, selectWorkspace]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

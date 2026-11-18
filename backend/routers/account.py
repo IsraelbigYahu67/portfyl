@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -13,11 +14,12 @@ from sqlalchemy.orm import Session
 
 from account_deletion import (
     cancel_workspace_deletion,
+    delete_workspace_now,
     deletion_status_payload,
     get_workspace_deletion,
-    schedule_workspace_deletion,
-    send_deletion_scheduled_notice,
+    send_account_deleted_notice,
 )
+from auth import clear_session_cookie
 from database import get_db, release_connection
 from firebase_identity import FirebaseIdentityVerifier, IdentityVerificationError
 from routers.auth import get_identity_verifier
@@ -30,6 +32,8 @@ from tenancy import (
 )
 from workspace_export import build_workspace_export
 
+
+logger = logging.getLogger("portfyl.account")
 
 router = APIRouter(prefix="/account", tags=["account"])
 
@@ -70,14 +74,20 @@ def get_deletion_status(
     )
 
 
-@router.post("/deletion", status_code=202)
-def schedule_deletion(
+@router.post("/deletion")
+def delete_workspace(
     payload: DeletionRequestPayload,
+    response: Response,
     db: Session = Depends(get_db),
     context: RequestContext = Depends(require_csrf),
     verifier: FirebaseIdentityVerifier = Depends(get_identity_verifier),
     mailer: Mailer | None = Depends(get_mailer),
 ) -> dict:
+    """Erase the caller's workspace now. No grace period, no undo.
+
+    When it was the user's last workspace the account goes with it (and its
+    Firebase identity), so the session cookie is cleared as well.
+    """
     try:
         identity = verifier.verify_id_token(payload.reauth_id_token)
     except IdentityVerificationError as exc:
@@ -85,23 +95,34 @@ def schedule_deletion(
             401,
             "recent_reauthentication_required",
         ) from exc
-    already_scheduled = get_workspace_deletion(db, context.workspace.id) is not None
-    state = schedule_workspace_deletion(
-        db,
-        context,
-        identity=identity,
-        confirmation=payload.confirmation,
-        lang=payload.lang,
-    )
-    db.commit()
-    # Only the request that created the state sends the notice; a repeat that
-    # returns the existing one does not. Best effort, after the commit, and the
-    # connection goes back to the pool before the outbound call.
-    if not already_scheduled:
-        recipient = context.user.email
+    try:
+        result = delete_workspace_now(
+            db,
+            context,
+            identity=identity,
+            confirmation=payload.confirmation,
+            identity_admin=verifier,
+            lang=payload.lang,
+        )
+        db.commit()
+    except RequestContextError:
+        raise
+    except Exception as exc:
+        # Most likely the identity provider refused the delete. Nothing was
+        # committed, so the data is intact and the user can simply retry.
+        db.rollback()
+        logger.exception("Immediate workspace deletion failed; rolled back")
+        raise RequestContextError(503, "account_deletion_unavailable") from exc
+    if result.account_deleted:
+        clear_session_cookie(response)
+    if result.farewell is not None:
+        # After the commit, best effort, and the connection goes back to the
+        # pool before the outbound call.
         release_connection(db)
-        send_deletion_scheduled_notice(to=recipient, state=state, mailer=mailer)
-    return deletion_status_payload(state)
+        send_account_deleted_notice(
+            to=result.farewell[0], lang=result.farewell[1], mailer=mailer
+        )
+    return {"deleted": True, "account_deleted": result.account_deleted}
 
 
 @router.delete("/deletion", status_code=204)
