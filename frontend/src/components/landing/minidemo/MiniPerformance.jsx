@@ -1,12 +1,32 @@
+import { useCallback, useMemo, useState } from "react";
+import PerformancePanel from "../../showcase/PerformancePanel";
+import { demoPortfolio } from "../../../demo/demoPortfolio";
 import AppScope from "./AppScope";
+import { performanceLabels, performanceModes } from "./miniDemoLabels";
 
-// Placeholder body of the "Performance" mini demo; the live content (the app's own
-// components on the sample data) arrives in plan section S3. No numbers and
-// no charts here, so this chunk stays light.
-export default function MiniPerformance({ language, copy }) {
+// Performance mini demo: the sample portfolio against the S&P 500 in the
+// app's own chart, as growth in percent first, or as value.
+export default function MiniPerformance({ language, copy, onUse }) {
+  const [mode, setMode] = useState("growth");
+  const labels = useMemo(() => performanceLabels(copy), [copy]);
+  const modes = useMemo(() => performanceModes(copy), [copy]);
+  const change = useCallback((value) => {
+    setMode(value);
+    onUse?.();
+  }, [onUse]);
+
   return (
     <AppScope language={language}>
-      <div className="card p-5"><p className="text-muted">{copy.loading}</p></div>
+      <PerformancePanel
+        performance={demoPortfolio.performance}
+        benchmarks={demoPortfolio.benchmarks}
+        benchmarkMeta={demoPortfolio.benchmarkMeta}
+        currency={demoPortfolio.currency}
+        mode={mode}
+        onModeChange={change}
+        modes={modes}
+        labels={labels}
+      />
     </AppScope>
   );
 }

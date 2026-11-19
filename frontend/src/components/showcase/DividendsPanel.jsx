@@ -27,7 +27,7 @@ export default function DividendsPanel({ dividends, asOf, currency, view, onView
   const half = isUpcoming ? upcoming : received;
 
   return (
-    <section className="card p-5 min-w-0">
+    <section className="card p-5 max-sm:p-4 min-w-0">
       <div className="flex justify-end mb-4">
         <SegmentedControl aria-label={labels.viewAria} value={view} onChange={onViewChange} options={views} />
       </div>

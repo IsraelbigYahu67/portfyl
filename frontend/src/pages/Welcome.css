@@ -96,11 +96,11 @@
 .welcome-minidemo-label { color: var(--muted); font-size: 0.8125rem; line-height: 1.4; }
 .welcome-minidemo-label strong { color: var(--ink); font-weight: 600; }
 .welcome-minidemo-body { min-width: 0; }
-.welcome-minidemo[data-minidemo="allocation"] .welcome-minidemo-body { min-height: 26rem; }
-.welcome-minidemo[data-minidemo="stock"] .welcome-minidemo-body { min-height: 28rem; }
-.welcome-minidemo[data-minidemo="performance"] .welcome-minidemo-body { min-height: 27rem; }
+.welcome-minidemo[data-minidemo="allocation"] .welcome-minidemo-body { min-height: 34rem; }
+.welcome-minidemo[data-minidemo="stock"] .welcome-minidemo-body { min-height: 59rem; }
+.welcome-minidemo[data-minidemo="performance"] .welcome-minidemo-body { min-height: 30rem; }
 .welcome-minidemo[data-minidemo="dividends"] .welcome-minidemo-body { min-height: 24rem; }
-.welcome-minidemo[data-minidemo="portfolios"] .welcome-minidemo-body { min-height: 24rem; }
+.welcome-minidemo[data-minidemo="portfolios"] .welcome-minidemo-body { min-height: 26rem; }
 .welcome-minidemo-placeholder { display: grid; gap: 12px; align-content: start; }
 .welcome-minidemo-placeholder img { display: block; width: 100%; height: auto; border-radius: 10px; }
 .welcome-minidemo-text { color: var(--muted); font-size: 0.9375rem; }

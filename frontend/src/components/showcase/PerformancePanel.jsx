@@ -52,7 +52,7 @@ export default function PerformancePanel({
   const rows = useMemo(() => monthEnds(performance), [performance]);
 
   return (
-    <section className="card p-5 min-w-0">
+    <section className="card p-5 max-sm:p-4 min-w-0">
       <SectionHeader
         action={(
           <SegmentedControl aria-label={labels.modeAria} value={mode} onChange={onModeChange} options={modes} />

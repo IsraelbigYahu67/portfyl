@@ -1,12 +1,33 @@
+import { useCallback, useMemo, useState } from "react";
+import AllocationPanel from "../../showcase/AllocationPanel";
+import { showcaseHoldings } from "../../showcase/showcaseData";
 import AppScope from "./AppScope";
+import { allocationGroupings, allocationLabels, defaultCurrency } from "./miniDemoLabels";
 
-// Placeholder body of the "Allocation" mini demo; the live content (the app's own
-// components on the sample data) arrives in plan section S3. No numbers and
-// no charts here, so this chunk stays light.
-export default function MiniAllocation({ language, copy }) {
+// Allocation mini demo: the app's own donut and breakdown list on the sample
+// portfolios, in the currency of the page's language. Opens grouped by
+// position; every change of the switch reports a use.
+export default function MiniAllocation({ language, copy, onUse }) {
+  const [grouping, setGrouping] = useState("holdings");
+  const currency = defaultCurrency(language);
+  const holdings = useMemo(() => showcaseHoldings(currency), [currency]);
+  const labels = useMemo(() => allocationLabels(copy), [copy]);
+  const groupings = useMemo(() => allocationGroupings(copy), [copy]);
+  const change = useCallback((value) => {
+    setGrouping(value);
+    onUse?.();
+  }, [onUse]);
+
   return (
     <AppScope language={language}>
-      <div className="card p-5"><p className="text-muted">{copy.loading}</p></div>
+      <AllocationPanel
+        holdings={holdings}
+        currency={currency}
+        grouping={grouping}
+        groupings={groupings}
+        onGroupingChange={change}
+        labels={labels}
+      />
     </AppScope>
   );
 }
