@@ -54,8 +54,8 @@ export default function PortfoliosPanel({
         <SegmentedControl aria-label={labels.currencyAria} value={displayCurrency} onChange={onCurrencyChange} options={currencies} />
       </div>
       <PortfolioHero summary={summary} loading={false} currency={displayCurrency} series={[]} />
-      <section className="card p-5 min-w-0">
-        <div className="min-w-0 overflow-x-auto">
+      <section className="card p-5 max-sm:p-4 min-w-0">
+        <div className="min-w-0 overflow-x-auto [&_.financial-data.w-24]:w-auto max-sm:[&_li]:gap-2 max-sm:[&_li>span:first-child]:w-[4.5rem]">
           <AllocationBreakdownList rows={rows} currency={displayCurrency} />
         </div>
         <p className="financial-meta text-muted mt-4">{labels.ratesNote}</p>

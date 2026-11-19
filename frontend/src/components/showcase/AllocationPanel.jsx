@@ -26,7 +26,7 @@ export default function AllocationPanel({ holdings, currency, grouping, grouping
   );
 
   return (
-    <section className="card p-5 min-w-0">
+    <section className="card p-5 max-sm:p-4 min-w-0">
       <SectionHeader
         action={(
           <SegmentedControl
@@ -39,7 +39,10 @@ export default function AllocationPanel({ holdings, currency, grouping, grouping
       >
         {labels.title}
       </SectionHeader>
-      <AllocationChart holdings={chartRows} currency={currency} />
+      {/* A long legend (one entry per position) would crowd the donut out on a phone; the list below names every row. */}
+      <div className={rows.length > 8 ? "max-sm:[&_.recharts-legend-wrapper]:hidden" : undefined}>
+        <AllocationChart holdings={chartRows} currency={currency} />
+      </div>
       <table className="sr-only">
         <caption>{labels.tableCaption}</caption>
         <thead>
@@ -55,7 +58,7 @@ export default function AllocationPanel({ holdings, currency, grouping, grouping
           ))}
         </tbody>
       </table>
-      <div className="mt-4 min-w-0 overflow-x-auto">
+      <div className="mt-4 min-w-0 overflow-x-auto [&_.financial-data.w-24]:w-auto max-sm:[&_li]:gap-2 max-sm:[&_li>span:first-child]:w-[4.5rem]">
         <AllocationBreakdownList rows={rows} currency={currency} />
       </div>
     </section>
