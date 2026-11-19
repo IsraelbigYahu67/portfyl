@@ -101,6 +101,8 @@ it.each([
   // jsdom's navigator.language is en-US, so the English text is served.
   setLocation({ pathname, hostname });
   render(<MemoryRouter initialEntries={[pathname]}><Root /></MemoryRouter>);
-  expect(await screen.findByRole("heading", { level: 1, name: title })).toBeInTheDocument();
+  // Role queries are slow in jsdom, and this runs right after the heavy
+  // landing renders; under a full parallel run the default 1 s window flaked.
+  expect(await screen.findByRole("heading", { level: 1, name: title }, { timeout: 5000 })).toBeInTheDocument();
   expect(screen.queryByText("Protected tracker")).not.toBeInTheDocument();
 });
