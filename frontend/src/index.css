@@ -487,6 +487,16 @@
   backdrop-filter: blur(14px);
 }
 .app-bottomnav { padding-bottom: env(safe-area-inset-bottom); }
+/* Dialog panels (Modal, the delete-workspace dialog) float over page text, so
+   they are fully opaque: the warm themes' translucent --surface-card is laid
+   over the solid page colour, with no glass overlay or blur. Unlayered, so it
+   wins over the .card / bg-surface-card utilities. */
+.dialog-panel {
+  background-color: var(--bg);
+  background-image: linear-gradient(var(--surface-card-elevated), var(--surface-card-elevated));
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
 /* The bar's sliding highlight (BottomNavBar): Clay presses it into the bar. */
 .theme-clay .bottomnav-pill { background: var(--brand-light); box-shadow: var(--clay-inset-sm); }
 

@@ -266,7 +266,10 @@ cards and tiles still (Allocation does this: its data/text blocks do not move).
   `components/ui/Modal.jsx`: an overlay plus a `.card` panel with
   `role="dialog"`, `aria-modal`, `aria-labelledby={titleId}`, focus trapped and
   restored to the opener (`useFocusTrap`), closing on Escape or a backdrop
-  click, and no transform motion under reduced motion.
+  click, and no transform motion under reduced motion. The panel carries
+  `.dialog-panel` (`index.css`): fully opaque, the translucent
+  `--surface-card-elevated` laid over the solid `--bg`, so page text never
+  shows through. Any hand-built dialog panel must use the same class.
 - Keyboard focus: 3px brand outline with 2px offset (Clay), 2px elsewhere.
 - Touch targets at least 44px on mobile; right-align numbers in tables.
 - **Phone shell (below `lg`)**: a sticky top bar, flush with the top edge of the

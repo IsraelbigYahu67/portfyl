@@ -257,7 +257,7 @@ export default function DataPrivacySettings() {
             aria-modal="true"
             aria-labelledby="delete-workspace-title"
             aria-describedby="delete-workspace-description"
-            className="w-full max-w-md bg-surface-card border border-surface-border rounded-xl p-6 shadow-2xl space-y-4"
+            className="dialog-panel w-full max-w-md border border-surface-border rounded-xl p-6 shadow-2xl space-y-4"
           >
             <div className="flex items-start justify-between gap-4">
               <div>

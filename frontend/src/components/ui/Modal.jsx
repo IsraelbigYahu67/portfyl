@@ -24,7 +24,7 @@ export function Modal({ open, onClose, titleId, initialFocusRef, className = "",
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`card w-full max-w-md max-h-[90vh] overflow-y-auto motion-safe:animate-fade-up ${className}`}
+        className={`card dialog-panel w-full max-w-md max-h-[90vh] overflow-y-auto motion-safe:animate-fade-up ${className}`}
       >
         {children}
       </div>
