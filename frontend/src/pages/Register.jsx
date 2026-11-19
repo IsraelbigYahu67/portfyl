@@ -21,7 +21,7 @@ const MIN_PASSWORD_LENGTH = 8;
 // Strict allowlist: only these literal ?source= values map to a surface. Any
 // other value (or none) is "direct" -- arbitrary query parameters are never
 // forwarded into analytics.
-const SOURCE_SURFACES = Object.freeze({ demo: "demo", landing_broker_check: "landing_broker_check" });
+const SOURCE_SURFACES = Object.freeze({ landing_broker_check: "landing_broker_check" });
 function sourceSurfaceFrom(searchParams) {
   const source = searchParams.get("source");
   return Object.hasOwn(SOURCE_SURFACES, source) ? SOURCE_SURFACES[source] : "direct";
@@ -61,7 +61,7 @@ export default function Register() {
   }, []);
 
   useEffect(() => {
-    // What the landing page or demo told us: the broker is remembered for
+    // What the landing page told us: the broker is remembered for
     // onboarding, and the language applies unless the user already chose one.
     const intent = readSignupIntent(searchParams);
     if (intent.broker) rememberIntendedBroker(intent.broker);

@@ -14,16 +14,17 @@ export const DEFAULT_LANGUAGE = "en";
 
 // Paths crawlers should skip. The tracker paths are also behind Cloudflare
 // Access and the API needs a session; listing them keeps crawl budget on the
-// public pages. /demo stays out until market-data rights cover public display
-// (SEO plan, decision O3).
-export const DISALLOWED_PATHS = ["/api/", "/demo", "/dashboard", "/login", "/register", "/onboarding", "/settings"];
+// public pages. The retired /demo is deliberately not listed: the server
+// answers it with a 301 to the home page and a crawler has to be allowed to see
+// that.
+export const DISALLOWED_PATHS = ["/api/", "/dashboard", "/login", "/register", "/onboarding", "/settings"];
 
 // Search snippets: about 150 characters, claims limited to what the landing
 // itself says (Trading 212 and CSV import, no Tax Report or Screener).
 const DESCRIPTIONS = {
-  cs: "Portfyl je přehled investičního portfolia: výkonnost, rozložení a dividendy akcií a ETF na jednom místě. Import z Trading 212 i CSV. Vyzkoušejte živé demo.",
-  en: "Portfyl brings your stock and ETF portfolio together: performance, allocation and dividends in one clear view. Import from Trading 212 or CSV. Try the live demo.",
-  de: "Portfyl zeigt dein Aktien- und ETF-Portfolio übersichtlich: Performance, Aufteilung und Dividenden an einem Ort. Import aus Trading 212 oder CSV. Live-Demo testen.",
+  cs: "Portfyl je přehled investičního portfolia: výkonnost, rozložení a dividendy akcií a ETF na jednom místě. Import z Trading 212 i CSV. Vyzkoušejte interaktivní ukázky.",
+  en: "Portfyl shows your stock and ETF portfolio: performance, allocation and dividends in one clear view. Import from Trading 212 or CSV. Try the interactive examples.",
+  de: "Portfyl zeigt dein Aktien- und ETF-Portfolio: Performance, Aufteilung und Dividenden. Import aus Trading 212 oder CSV. Probiere die interaktiven Beispiele aus.",
 };
 
 const OG_LOCALES = { cs: "cs_CZ", en: "en_GB", de: "de_DE" };

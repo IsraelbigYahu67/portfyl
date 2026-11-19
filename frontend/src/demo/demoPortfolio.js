@@ -1,7 +1,8 @@
 import { assertDemoPortfolio } from "./validateDemoPortfolio";
 
-// Synthetic, versioned, fully client-side demo portfolio for the public
-// /demo/* routes. No field here is derived from a real user's data, a live
+// Synthetic, versioned, fully client-side sample portfolio. It feeds the mini
+// examples on the landing page (components/showcase); the public /demo/* pages
+// it was built for are retired. No field here is derived from a real user's data, a live
 // quote, or a real brokerage account -- see
 // docs/superpowers/plans/2026-09-19-portfyl-public-demo.md's "Fixed product
 // decisions" for the approved asset list, weights, and as-of date.

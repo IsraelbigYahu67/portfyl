@@ -67,9 +67,9 @@ function mount({ initialConsent = "accepted" } = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const clearSpy = vi.spyOn(qc, "clear");
   const adapter = createMemoryAdapter();
-  // Stable reference across the test's lifetime -- see useDemoAnalytics.test.jsx's
-  // note on why an inline arrow here would cause AnalyticsProvider to reset on
-  // every rerender (its effect depends on [consent, adapterFactory]).
+  // Stable reference across the test's lifetime: an inline arrow here would
+  // cause AnalyticsProvider to reset on every rerender (its effect depends on
+  // [consent, adapterFactory]).
   const adapterFactory = () => adapter;
   const utils = render(
     <QueryClientProvider client={qc}>

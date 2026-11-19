@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { HAS_PUBLIC_HOME, isDemoPath, isTrackerHost, landingLanguage, legalPage } from "./lib/routes";
+import { HAS_PUBLIC_HOME, isRetiredDemoPath, isTrackerHost, landingLanguage, legalPage } from "./lib/routes";
 import RouteBoundary from "./components/layout/RouteBoundary";
 import AnalyticsProvider, { useAnalytics } from "./analytics/AnalyticsProvider";
 import ConsentBanner from "./analytics/ConsentBanner";
@@ -7,8 +7,18 @@ import AnalyticsPreferences from "./analytics/AnalyticsPreferences";
 
 const Tracker = lazy(() => import("./TrackerBootstrap"));
 const Welcome = HAS_PUBLIC_HOME ? lazy(() => import("./pages/Welcome")) : null;
-const Demo = HAS_PUBLIC_HOME ? lazy(() => import("./demo/DemoBootstrap")) : null;
 const Legal = lazy(() => import("./pages/Legal"));
+
+const LOADING = <div role="status" className="min-h-screen flex items-center justify-center">Loading Portfyl…</div>;
+
+// The public /demo is retired (the server answers it with a 301 to the home
+// page). This is the safety net for in-app navigation and for hosts without
+// the backend: it sends the visitor home and shows the same status text as
+// the Suspense fallback until the browser has moved.
+function RetiredDemo() {
+  useEffect(() => { window.location.replace("/"); }, []);
+  return LOADING;
+}
 
 // Renders the pending-consent banner and a reopenable preferences panel.
 // Lives inside AnalyticsProvider so both can call useAnalytics(); rendered
@@ -45,21 +55,22 @@ export default function Root({ location }) {
     return () => window.removeEventListener('popstate', updatePath);
   }, []);
   const trackerHost = isTrackerHost(location?.hostname ?? window.location.hostname);
-  // Public visitors do not download the tracker or mount private data providers.
-  const showDemo = isDemoPath(pathname) && !trackerHost;
+  // Public visitors do not download the tracker or mount private data providers,
+  // and a retired /demo address never reaches the tracker either.
+  const retiredDemo = isRetiredDemoPath(pathname) && !trackerHost;
   // "/", "/en/" and "/de/" are the public home in Czech, English and German.
   const welcomeLanguage = trackerHost ? null : landingLanguage(pathname);
   const showWelcome = Boolean(welcomeLanguage);
   // /terms and /privacy stay public on every host (see legalPage).
   const legal = legalPage(pathname);
-  const routeKey = legal ? 'legal' : showDemo ? 'demo' : showWelcome ? 'welcome' : 'tracker';
-  // AnalyticsProvider wraps everything, outside the demo/welcome/tracker
+  const routeKey = legal ? 'legal' : retiredDemo ? 'retired-demo' : showWelcome ? 'welcome' : 'tracker';
+  // AnalyticsProvider wraps everything, outside the welcome/tracker
   // selection and outside AuthProvider (which lives inside the lazy
   // Tracker/App.jsx tree), so consent survives route switches and never
   // depends on an authenticated session.
   return <AnalyticsProvider>
-    <RouteBoundary key={routeKey}><Suspense fallback={<div role="status" className="min-h-screen flex items-center justify-center">Loading Portfyl…</div>}>
-      {legal ? <Legal page={legal} /> : showDemo ? <Demo /> : showWelcome ? <Welcome language={welcomeLanguage} /> : <Tracker />}
+    <RouteBoundary key={routeKey}><Suspense fallback={LOADING}>
+      {legal ? <Legal page={legal} /> : retiredDemo ? <RetiredDemo /> : showWelcome ? <Welcome language={welcomeLanguage} /> : <Tracker />}
     </Suspense></RouteBoundary>
     {/* On a landing page the consent text follows the page language. */}
     <AnalyticsOverlay language={welcomeLanguage} />

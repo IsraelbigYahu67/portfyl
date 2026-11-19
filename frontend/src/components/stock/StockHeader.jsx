@@ -1,8 +1,9 @@
 import { Building2, Globe, TrendingDown, TrendingUp } from "lucide-react";
 
 // This identity header is shared by the authenticated stock route and the
-// anonymous demo. It is intentionally presentational, so public routes do
-// not inherit StockDetail's query-owning sections or their API imports.
+// landing page's anonymous mini examples. It is intentionally presentational,
+// so public pages do not inherit StockDetail's query-owning sections or their
+// API imports.
 export function StockHeader({ data, trailing = null }) {
   const positive = data.change_percent == null || data.change_percent >= 0;
   const currency = data.currency === "EUR" ? "€" : data.currency === "GBP" ? "£" : "$";

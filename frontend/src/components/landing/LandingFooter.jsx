@@ -11,9 +11,9 @@ function AnalyticsPreferencesLink({ language }) {
   return <button type="button" className="welcome-preview-link" onClick={reopenAnalyticsPreferences}>{ANALYTICS_COPY[language].manage}</button>;
 }
 
-// Four columns: about, product, legal, contact. `anchorBase` and `onDemo`
-// work as in LandingHeader.
-export default function LandingFooter({ copy, language, onDemo, anchorBase = "" }) {
+// Four columns: about, product, legal, contact. `anchorBase` works as in
+// LandingHeader.
+export default function LandingFooter({ copy, language, anchorBase = "" }) {
   const others = LANGUAGES.filter(({ code }) => code !== language);
   return (
     <footer className="welcome-footer">
@@ -27,7 +27,7 @@ export default function LandingFooter({ copy, language, onDemo, anchorBase = "" 
           <h4>{copy.footer.product}</h4>
           <ul>
             {NAV_TARGETS.slice(0, 3).map((id, index) => <li key={id}><a href={`${anchorBase}#${id}`}>{copy.nav[index]}</a></li>)}
-            <li><a href="/demo" onClick={onDemo}>{copy.footer.demo}</a></li>
+            <li><a href={`${anchorBase}#funkce`}>{copy.footer.examples}</a></li>
           </ul>
         </div>
         <div>

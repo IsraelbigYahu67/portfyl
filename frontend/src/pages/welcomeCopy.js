@@ -27,18 +27,18 @@ export const COPY = {
     title: "Portfyl — Všechny akcie a ETF v jednom přehledu", skip: "Přejít na obsah", home: "Portfyl, úvod", navigation: "Hlavní navigace",
     menu: "Menu", menuNavigation: "Navigace v telefonu", language: "Jazyk stránky",
     nav: ["Funkce", "Brokeři", "Ceník", "Časté otázky"], login: "Přihlásit se",
-    status: ["Uzavřená beta.", "Demo je otevřené všem."],
+    status: ["Uzavřená beta.", "Ukázky funkcí jsou otevřené všem."],
     heading: "Všechny akcie a ETF v jednom přehledu.",
     lead: "Portfyl načte obchody od vašeho brokera a spočítá výkonnost, rozložení a dividendy celého portfolia. Bez tabulek v Excelu.",
     trialCta: "Vyzkoušet 10 dní zdarma", trialCtaShort: "Vyzkoušet zdarma", trialNote: "10 dní plánu Pro zdarma. Bez platební karty.",
-    demoCta: "Vyzkoušet živé demo", demoCtaShort: "Vyzkoušet demo", demoLink: "Prohlédnout demo", demoNote: "Bez registrace. Běží na ukázkových datech.",
+    examplesCta: "Vyzkoušet ukázky", examplesCtaShort: "Ukázky", examplesNote: "Bez registrace. Vymyšlená čísla.",
     heroAlt: "Screenshot Portfylu: vývoj výkonnosti ukázkového portfolia",
     caption: "Skutečná obrazovka aplikace s ukázkovým portfoliem. Obrázky ukazují anglické rozhraní.",
     brokers: { api: "Napojení přes API", file: "Import ze souboru", custom: "vlastní CSV" },
     brokerCheck: {
       title: "Nevidíte svého brokera?", placeholder: "Např. XTB, Trading 212…",
-      supported: "{name} podporujeme. Svoje data nahrajete hned po registraci.", signup: "Založit účet zdarma", demo: "Prohlédnout demo",
-      betaNote: "Portfyl je teď v uzavřené betě. Demo si ale můžete projít hned.",
+      supported: "{name} podporujeme. Svoje data nahrajete hned po registraci.", signup: "Založit účet zdarma", examples: "Vyzkoušet ukázky",
+      betaNote: "Portfyl je teď v uzavřené betě. Ukázky u funkcí si ale můžete vyzkoušet hned.",
       unsupported: "{name} zatím neumíme načíst. Podívejte se aspoň na ukázkové portfolio.",
     },
     featuresHeading: "Co v Portfylu uvidíte",
@@ -80,11 +80,11 @@ export const COPY = {
       },
     ],
     // Live mini demos under each feature (components/landing/MiniDemoSlot.jsx).
-    // badge, disclaimer, loading, unavailable and openDemo sit in the prerendered
+    // badge, disclaimer, loading and unavailable sit in the prerendered
     // HTML, so they hold no digit; the rest shows only in the live demo.
     miniDemo: {
       badge: "Ukázkové portfolio", disclaimer: "Vymyšlená čísla, ne skutečné výnosy.",
-      loading: "Ukázka se načítá.", unavailable: "Ukázku se nepodařilo načíst. Zkuste stránku obnovit.", openDemo: "Otevřít celou ukázku",
+      loading: "Ukázka se načítá.", unavailable: "Ukázku se nepodařilo načíst. Zkuste stránku obnovit.",
       allocation: {
         title: "Rozložení portfolia", groupingAria: "Seskupit podle",
         groupings: { holdings: "Pozice", sectors: "Sektory", currencies: "Měny" },
@@ -135,8 +135,8 @@ export const COPY = {
     questions: [
       {
         q: "Můžu si Portfyl vyzkoušet už teď?",
-        a: "Ano. Živé demo běží na ukázkovém portfoliu a nepotřebujete k němu účet. Registrace jsou zatím jen na pozvánku.",
-        aOpen: "Ano. Živé demo běží na ukázkovém portfoliu a nepotřebujete k němu účet. Vlastní účet si založíte zdarma a prvních 10 dní máte plán Pro.",
+        a: "Ano. U každé funkce je ukázka na vymyšlených datech a nepotřebujete k ní účet. Registrace jsou zatím jen na pozvánku.",
+        aOpen: "Ano. U každé funkce je ukázka na vymyšlených datech a nepotřebujete k ní účet. Vlastní účet si založíte zdarma a prvních 10 dní máte plán Pro.",
       },
       { q: "Umí Portfyl za mě obchodovat?", a: "Ne. Portfyl data od brokera pouze čte a zobrazuje. Nákupy a prodeje děláte dál u svého brokera." },
       { q: "Co když můj broker v seznamu není?", a: "Transakce můžete nahrát ve vlastním souboru CSV. Další brokery průběžně přidáváme." },
@@ -144,25 +144,25 @@ export const COPY = {
       { q: "Co se stane po 10 dnech?", a: "Účet přejde na plán Free. Data zůstanou, jen nad limit Free budou pouze ke čtení.", signupOnly: true },
     ],
     closing: "Podívejte se, jak vypadá portfolio v Portfylu.",
-    footer: { tagline: "Přehled investičního portfolia pro akcie a ETF.", product: "Produkt", legal: "Právní", contact: "Kontakt", demo: "Živé demo" },
+    footer: { tagline: "Přehled investičního portfolia pro akcie a ETF.", product: "Produkt", legal: "Právní", contact: "Kontakt", examples: "Ukázky" },
     legal: [["terms", "Obchodní podmínky"], ["privacy", "Ochrana osobních údajů"]], legalLanguage: "cs", legalNavigation: "Právní dokumenty",
   },
   en: {
     title: "Portfyl — All your stocks and ETFs in one view", skip: "Skip to content", home: "Portfyl, home", navigation: "Main navigation",
     menu: "Menu", menuNavigation: "Phone navigation", language: "Page language",
     nav: ["Features", "Brokers", "Pricing", "FAQ"], login: "Log in",
-    status: ["Closed beta.", "The demo is open to everyone."],
+    status: ["Closed beta.", "The feature examples are open to everyone."],
     heading: "All your stocks and ETFs in one view.",
     lead: "Portfyl reads the trades from your broker and calculates performance, allocation and dividends for the whole portfolio. No spreadsheets.",
     trialCta: "Try it free for 10 days", trialCtaShort: "Try it free", trialNote: "10 days of the Pro plan for free. No card needed.",
-    demoCta: "Try the live demo", demoCtaShort: "Try the demo", demoLink: "See the demo", demoNote: "No sign-up. Runs on sample data.",
+    examplesCta: "Try the live examples", examplesCtaShort: "Examples", examplesNote: "No sign-up. Made-up numbers.",
     heroAlt: "Portfyl screenshot: performance of a sample portfolio",
     caption: "A real screen from the app with a sample portfolio. The pictures show the English interface.",
     brokers: { api: "Connected through the API", file: "Import from a file", custom: "your own CSV" },
     brokerCheck: {
       title: "Don't see your broker?", placeholder: "e.g. XTB, Trading 212…",
-      supported: "{name} is supported. You can bring your data right after signing up.", signup: "Create a free account", demo: "Open the demo",
-      betaNote: "Portfyl is in private beta right now, but you can explore the demo straight away.",
+      supported: "{name} is supported. You can bring your data right after signing up.", signup: "Create a free account", examples: "Try the live examples",
+      betaNote: "Portfyl is in private beta right now, but you can try the examples under each feature straight away.",
       unsupported: "We can't read {name} yet. Take a look at the sample portfolio instead.",
     },
     featuresHeading: "What you will see in Portfyl",
@@ -205,7 +205,7 @@ export const COPY = {
     ],
     miniDemo: {
       badge: "Sample portfolio", disclaimer: "Made-up numbers, not real returns.",
-      loading: "The example is loading.", unavailable: "The example could not be loaded. Try reloading the page.", openDemo: "Open the full example",
+      loading: "The example is loading.", unavailable: "The example could not be loaded. Try reloading the page.",
       allocation: {
         title: "Portfolio allocation", groupingAria: "Group by",
         groupings: { holdings: "Positions", sectors: "Sectors", currencies: "Currencies" },
@@ -256,8 +256,8 @@ export const COPY = {
     questions: [
       {
         q: "Can I try Portfyl right now?",
-        a: "Yes. The live demo runs on a sample portfolio and needs no account. Sign-ups are invite-only for now.",
-        aOpen: "Yes. The live demo runs on a sample portfolio and needs no account. You can create your own account for free and have the Pro plan for the first 10 days.",
+        a: "Yes. Each feature has an example on made-up data, and you need no account for it. Sign-ups are invite-only for now.",
+        aOpen: "Yes. Each feature has an example on made-up data, and you need no account for it. You can create your own account for free and have the Pro plan for the first 10 days.",
       },
       { q: "Can Portfyl trade for me?", a: "No. Portfyl only reads and shows the data from your broker. You still buy and sell at your broker." },
       { q: "What if my broker is not on the list?", a: "You can upload your transactions in your own CSV file. We keep adding more brokers." },
@@ -265,25 +265,25 @@ export const COPY = {
       { q: "What happens after 10 days?", a: "The account moves to the Free plan. Your data stays, only what is over the Free limit becomes read-only.", signupOnly: true },
     ],
     closing: "See what a portfolio looks like in Portfyl.",
-    footer: { tagline: "Portfolio overview for stocks and ETFs.", product: "Product", legal: "Legal", contact: "Contact", demo: "Live demo" },
+    footer: { tagline: "Portfolio overview for stocks and ETFs.", product: "Product", legal: "Legal", contact: "Contact", examples: "Examples" },
     legal: [["terms", "Terms of Service"], ["privacy", "Privacy Policy"]], legalLanguage: "en", legalNavigation: "Legal documents",
   },
   de: {
     title: "Portfyl — Alle Aktien und ETFs in einer Übersicht", skip: "Zum Inhalt springen", home: "Portfyl, Startseite", navigation: "Hauptnavigation",
     menu: "Menü", menuNavigation: "Navigation im Telefon", language: "Sprache der Seite",
     nav: ["Funktionen", "Broker", "Preise", "Häufige Fragen"], login: "Anmelden",
-    status: ["Geschlossene Beta.", "Die Demo steht allen offen."],
+    status: ["Geschlossene Beta.", "Die Funktionsbeispiele stehen allen offen."],
     heading: "Alle Aktien und ETFs in einer Übersicht.",
     lead: "Portfyl liest die Trades von deinem Broker ein und berechnet Performance, Aufteilung und Dividenden für das ganze Portfolio. Ohne Excel-Tabellen.",
     trialCta: "10 Tage kostenlos testen", trialCtaShort: "Kostenlos testen", trialNote: "10 Tage Pro-Tarif gratis. Ohne Zahlungskarte.",
-    demoCta: "Live-Demo ausprobieren", demoCtaShort: "Demo ausprobieren", demoLink: "Demo ansehen", demoNote: "Ohne Registrierung. Läuft mit Beispieldaten.",
+    examplesCta: "Beispiele ausprobieren", examplesCtaShort: "Beispiele", examplesNote: "Ohne Registrierung. Erfundene Zahlen.",
     heroAlt: "Portfyl-Screenshot: Entwicklung eines Beispielportfolios",
     caption: "Ein echter Bildschirm der App mit einem Beispielportfolio. Die Bilder zeigen die englische Oberfläche.",
     brokers: { api: "Anbindung per API", file: "Import aus einer Datei", custom: "eigene CSV-Datei" },
     brokerCheck: {
       title: "Dein Broker fehlt?", placeholder: "z. B. XTB, Trading 212…",
-      supported: "{name} wird unterstützt. Deine Daten importierst du direkt nach der Registrierung.", signup: "Kostenloses Konto erstellen", demo: "Demo öffnen",
-      betaNote: "Portfyl ist gerade in einer geschlossenen Beta – die Demo kannst du aber sofort ansehen.",
+      supported: "{name} wird unterstützt. Deine Daten importierst du direkt nach der Registrierung.", signup: "Kostenloses Konto erstellen", examples: "Beispiele ausprobieren",
+      betaNote: "Portfyl ist gerade in einer geschlossenen Beta – die Beispiele bei den Funktionen kannst du aber sofort ausprobieren.",
       unsupported: "{name} können wir noch nicht einlesen. Sieh dir stattdessen das Beispielportfolio an.",
     },
     featuresHeading: "Das siehst du in Portfyl",
@@ -326,7 +326,7 @@ export const COPY = {
     ],
     miniDemo: {
       badge: "Beispielportfolio", disclaimer: "Erfundene Zahlen, keine echten Renditen.",
-      loading: "Das Beispiel wird geladen.", unavailable: "Das Beispiel konnte nicht geladen werden. Lade die Seite bitte neu.", openDemo: "Ganzes Beispiel öffnen",
+      loading: "Das Beispiel wird geladen.", unavailable: "Das Beispiel konnte nicht geladen werden. Lade die Seite bitte neu.",
       allocation: {
         title: "Aufteilung des Portfolios", groupingAria: "Gruppieren nach",
         groupings: { holdings: "Positionen", sectors: "Branchen", currencies: "Währungen" },
@@ -377,8 +377,8 @@ export const COPY = {
     questions: [
       {
         q: "Kann ich Portfyl schon jetzt ausprobieren?",
-        a: "Ja. Die Live-Demo läuft mit einem Beispielportfolio, ein Konto brauchst du dafür nicht. Registrierungen gibt es vorerst nur auf Einladung.",
-        aOpen: "Ja. Die Live-Demo läuft mit einem Beispielportfolio, ein Konto brauchst du dafür nicht. Ein eigenes Konto legst du kostenlos an und hast die ersten 10 Tage den Pro-Tarif.",
+        a: "Ja. Bei jeder Funktion gibt es ein Beispiel mit erfundenen Daten, ein Konto brauchst du dafür nicht. Registrierungen gibt es vorerst nur auf Einladung.",
+        aOpen: "Ja. Bei jeder Funktion gibt es ein Beispiel mit erfundenen Daten, ein Konto brauchst du dafür nicht. Ein eigenes Konto legst du kostenlos an und hast die ersten 10 Tage den Pro-Tarif.",
       },
       { q: "Kann Portfyl für mich handeln?", a: "Nein. Portfyl liest die Daten deines Brokers nur und zeigt sie an. Kaufen und Verkaufen machst du weiterhin bei deinem Broker." },
       { q: "Was, wenn mein Broker nicht in der Liste steht?", a: "Du kannst deine Transaktionen in einer eigenen CSV-Datei hochladen. Weitere Broker fügen wir laufend hinzu." },
@@ -386,7 +386,7 @@ export const COPY = {
       { q: "Was passiert nach 10 Tagen?", a: "Das Konto wechselt in den Free-Tarif. Deine Daten bleiben erhalten, nur was über dem Free-Limit liegt, ist nur noch lesbar.", signupOnly: true },
     ],
     closing: "Sieh dir an, wie ein Portfolio in Portfyl aussieht.",
-    footer: { tagline: "Portfolio-Übersicht für Aktien und ETFs.", product: "Produkt", legal: "Rechtliches", contact: "Kontakt", demo: "Live-Demo" },
+    footer: { tagline: "Portfolio-Übersicht für Aktien und ETFs.", product: "Produkt", legal: "Rechtliches", contact: "Kontakt", examples: "Beispiele" },
     legal: [["terms", "Nutzungsbedingungen (EN)"], ["privacy", "Datenschutz (EN)"]], legalLanguage: "en", legalNavigation: "Rechtliches",
   },
 };

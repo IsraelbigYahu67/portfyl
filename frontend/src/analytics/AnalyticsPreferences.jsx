@@ -6,8 +6,7 @@ const STATUS_KEY = { accepted: "statusAccepted", rejected: "statusRejected", pen
 
 // Reopenable panel for changing an already-made consent choice. Rendered
 // wherever a "Manage analytics"/"Analytics preferences" entry point exists
-// (Welcome footer, DemoShell footer, the authenticated Data & Privacy
-// settings section); AnalyticsProvider owns whether it is currently open.
+// (Welcome footer, the authenticated Data & Privacy settings section); AnalyticsProvider owns whether it is currently open.
 export default function AnalyticsPreferences({ onClose, language }) {
   const { consent, acceptAnalytics, rejectAnalytics } = useAnalytics();
   const t = ANALYTICS_COPY[ANALYTICS_COPY[language] ? language : getAnalyticsLanguage()];

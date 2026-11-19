@@ -20,10 +20,12 @@ export const landingLanguage = (pathname) => {
   return match ? match[1] : null;
 };
 
-// The public read-only demo (portfyl.com/demo/*) only exists in the cloud
-// edition, and only on the marketing host -- isTrackerHost() callers gate
-// that separately so a visitor can never reach it from app.portfyl.com.
-export const isDemoPath = (pathname) =>
+// The public read-only demo (portfyl.com/demo/*) is retired: the landing page
+// shows live mini examples instead. The server answers /demo and /demo/* with a
+// 301 to the home page; Root.jsx sends a client-side navigation there the same
+// way. Cloud edition only, and isTrackerHost() callers gate the marketing host
+// separately so app.portfyl.com is never redirected.
+export const isRetiredDemoPath = (pathname) =>
   HAS_PUBLIC_HOME && (pathname === "/demo" || pathname.startsWith("/demo/"));
 
 // Legal pages (both editions; Settings -> Data & Privacy links them). They

@@ -361,7 +361,8 @@ and shadows are `color-mix()` of `--muted` / `--ink`.
   look as they do in the app. The HTML holds only the frame's label ("Sample
   portfolio / Made-up numbers, not real returns.", always visible, no digit in
   any prerendered text), the feature's screenshot or a short text as the
-  placeholder and a link to the full demo page; the live demo is a lazy chunk
+  placeholder, with no link under the frame (there is no separate demo page
+  any more); the live demo is a lazy chunk
   loaded when the frame comes within 200px of the screen, so Recharts and the
   sample data stay out of the page's static graph (`scripts/landing-bundle-guard.mjs`
   checks that, the +5 KiB gzip limits and the five frames per prerendered page).
@@ -369,9 +370,16 @@ and shadows are `color-mix()` of `--muted` / `--ink`.
   feature with a desktop picture is a row and the rest form a three-column text
   strip. `phone...` pictures are small insets in those old rows only.
 - **Call to action** follows `VITE_PUBLIC_SIGNUP`: `"true"` gives the primary
-  "try 10 days free" pill to `registerUrl(...)` and a text link to the demo;
-  otherwise the demo is the primary pill, a status line says "closed beta", and
-  no `/register` link exists anywhere on the page.
+  "try 10 days free" pill to `registerUrl(...)` and a secondary text link
+  "Try the live examples" to `#funkce`; otherwise "Try the live examples"
+  (`copy.examplesCta`, in the header `examplesCtaShort`) is the primary pill in
+  the hero, header and closing and scrolls to the features with the mini
+  demos, a status line says "closed beta", and no `/register` link exists
+  anywhere on the page. Nothing on the page links to `/demo`: the public demo
+  is retired (the server answers `/demo` and `/demo/*` with a 301 to `/`, and
+  `Root.jsx` does the same for a client-side navigation), so the examples are
+  the only way to try the product without an account. Clicking the examples
+  button is an in-page jump: no analytics event, no navigation.
 - **Pricing** is shown even while billing is off; the numbers come from
   `lib/planPrices.js` (`PLAN_PRICES_CENTS`, `formatPlanPrice`), shared with
   `Pricing.jsx`. Three plans sit in one hairline-bordered strip.

@@ -1,4 +1,4 @@
-// What a visitor told us on the landing page or in the demo before signing up
+// What a visitor told us on the landing page before signing up
 // (their broker, their language), carried through registration in the URL and
 // remembered on this device until the first portfolio exists.
 import { isAppLanguage } from "../i18n/languages";

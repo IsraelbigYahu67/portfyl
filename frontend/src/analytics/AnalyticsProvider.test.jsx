@@ -7,9 +7,9 @@ function Probe() {
   const analytics = useAnalytics();
   return <>
     <div data-testid="state">{analytics.consent}:{String(analytics.ready)}</div>
-    <button type="button" onClick={() => analytics.capture("demo_started", { language: "en", entry_point: "direct" })}>Capture</button>
-    <button type="button" onClick={() => analytics.captureOnce("scope-a", "demo_started", { language: "en", entry_point: "direct" })}>CaptureOnceA</button>
-    <button type="button" onClick={() => analytics.captureOnce("scope-b", "demo_started", { language: "en", entry_point: "direct" })}>CaptureOnceB</button>
+    <button type="button" onClick={() => analytics.capture("landing_viewed", { language: "en", referrer_class: "direct", utm_source: "none", utm_medium: "none", utm_campaign: "none" })}>Capture</button>
+    <button type="button" onClick={() => analytics.captureOnce("scope-a", "landing_viewed", { language: "en", referrer_class: "direct", utm_source: "none", utm_medium: "none", utm_campaign: "none" })}>CaptureOnceA</button>
+    <button type="button" onClick={() => analytics.captureOnce("scope-b", "landing_viewed", { language: "en", referrer_class: "direct", utm_source: "none", utm_medium: "none", utm_campaign: "none" })}>CaptureOnceB</button>
     <button type="button" onClick={() => analytics.identify("user-42")}>Identify</button>
     <button type="button" onClick={() => analytics.reset()}>Reset</button>
     <button type="button" onClick={() => analytics.acceptAnalytics()}>Accept</button>
@@ -41,7 +41,7 @@ describe("AnalyticsProvider", () => {
     await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("accepted:true"));
     await act(() => screen.getByRole("button", { name: "Capture" }).click());
     expect(adapterFactory).toHaveBeenCalledTimes(1);
-    expect(adapter.events).toEqual([["demo_started", { language: "en", entry_point: "direct" }]]);
+    expect(adapter.events).toEqual([["landing_viewed", { language: "en", referrer_class: "direct", utm_source: "none", utm_medium: "none", utm_campaign: "none" }]]);
   });
 
   it("sends nothing after rejected consent", async () => {

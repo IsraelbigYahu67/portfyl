@@ -1,6 +1,5 @@
 import { LANDING_IMAGES } from "./landingImages";
 import MiniDemoSlot from "./MiniDemoSlot";
-import { DEMO_HREFS } from "./miniDemoRegistry";
 import Shot from "./Shot";
 
 const isPhone = (key) => key.startsWith("phone");
@@ -32,7 +31,6 @@ export default function FeatureList({ copy, language }) {
               language={language}
               copy={copy.miniDemo}
               pictures={pictures.filter((picture) => !isPhone(picture.key))}
-              demoHref={DEMO_HREFS[feature.demo]}
             />
           ) : (
             <div className="welcome-feature-shots">

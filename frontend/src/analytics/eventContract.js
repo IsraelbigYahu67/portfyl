@@ -3,10 +3,6 @@ import { SUPPORTED_BROKERS } from "../lib/onboardingBrokers";
 export const ANALYTICS_EVENTS = Object.freeze({
   LANDING_VIEWED: "landing_viewed",
   LANDING_MINIDEMO_USED: "landing_minidemo_used",
-  DEMO_STARTED: "demo_started",
-  DEMO_PAGE_VIEWED: "demo_page_viewed",
-  DEMO_STOCK_VIEWED: "demo_stock_viewed",
-  DEMO_ACTIVATION_REACHED: "demo_activation_reached",
   SIGNUP_CTA_CLICKED: "signup_cta_clicked",
   SIGNUP_STARTED: "signup_started",
   SIGNUP_COMPLETED: "signup_completed",
@@ -25,11 +21,7 @@ const miniDemoKinds = new Set(["allocation", "stock", "performance", "dividends"
 const referrerClasses = new Set(["direct", "search", "social", "referral", "internal", "unknown"]);
 const sourceTypes = new Set(["demo", "csv", "broker"]);
 const creationPaths = new Set(["blank", "demo", "csv", "broker"]);
-const sourceSurfaces = new Set(["landing_hero", "landing_closing", "landing_broker_check", "demo", "direct"]);
-const entryPoints = new Set(["landing_hero", "landing_closing", "direct"]);
-const demoPages = new Set(["overview", "allocation", "analytics", "dividends", "stock"]);
-const demoSymbols = new Set(["VUAA", "MSFT", "JPM", "JNJ", "XOM", "PG", "AMZN", "CAT", "NEE", "PLD"]);
-const activationPaths = new Set(["three_pages", "stock_after_page"]);
+const sourceSurfaces = new Set(["landing_hero", "landing_closing", "landing_broker_check", "direct"]);
 const authMethods = new Set(["password", "google"]);
 const onboardingSteps = new Set(["broker", "choices", "connect", "unsupported"]);
 // Supported broker keys come from the registry, never a typed name; an
@@ -44,10 +36,6 @@ function stringField(value, { max = 80, values } = {}) {
   return values && !values.has(normalized) ? null : normalized;
 }
 
-function integerField(value, { min, max }) {
-  return Number.isFinite(value) && Number.isInteger(value) && value >= min && value <= max ? value : null;
-}
-
 const fields = Object.freeze({
   language: (value) => stringField(value, { values: languages }),
   minidemo: (value) => stringField(value, { values: miniDemoKinds }),
@@ -55,11 +43,6 @@ const fields = Object.freeze({
   utm_source: (value) => stringField(value, { max: 120 }),
   utm_medium: (value) => stringField(value, { max: 120 }),
   utm_campaign: (value) => stringField(value, { max: 120 }),
-  entry_point: (value) => stringField(value, { values: entryPoints }),
-  demo_page: (value) => stringField(value, { values: demoPages }),
-  demo_symbol: (value) => stringField(value, { values: demoSymbols }),
-  activation_path: (value) => stringField(value, { values: activationPaths }),
-  distinct_demo_pages: (value) => integerField(value, { min: 2, max: 5 }),
   source_surface: (value) => stringField(value, { values: sourceSurfaces }),
   creation_path: (value) => stringField(value, { values: creationPaths }),
   source_type: (value) => stringField(value, { values: sourceTypes }),
@@ -72,10 +55,6 @@ const fields = Object.freeze({
 const schemas = Object.freeze({
   [ANALYTICS_EVENTS.LANDING_VIEWED]: ["language", "referrer_class", "utm_source", "utm_medium", "utm_campaign"],
   [ANALYTICS_EVENTS.LANDING_MINIDEMO_USED]: ["minidemo", "language"],
-  [ANALYTICS_EVENTS.DEMO_STARTED]: ["language", "entry_point"],
-  [ANALYTICS_EVENTS.DEMO_PAGE_VIEWED]: ["demo_page", "language"],
-  [ANALYTICS_EVENTS.DEMO_STOCK_VIEWED]: ["demo_symbol"],
-  [ANALYTICS_EVENTS.DEMO_ACTIVATION_REACHED]: ["activation_path", "distinct_demo_pages"],
   [ANALYTICS_EVENTS.SIGNUP_CTA_CLICKED]: ["source_surface", "language"],
   [ANALYTICS_EVENTS.SIGNUP_STARTED]: ["source_surface", "language"],
   [ANALYTICS_EVENTS.SIGNUP_COMPLETED]: ["source_surface", "auth_method"],
