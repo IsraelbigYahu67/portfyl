@@ -6,7 +6,9 @@ services:
       POSTGRES_USER: portfyl_dev
       POSTGRES_PASSWORD: portfyl_dev
     ports:
-      - "55432:5432"
+      # Host port 15432 is below Windows' dynamic port range (49152+), so Hyper-V/WinNAT
+      # can never reserve it. 55432 was reserved on some boots and Docker failed to bind.
+      - "15432:5432"
     volumes:
       - portfyl_dev_pgdata:/var/lib/postgresql/data
     healthcheck:

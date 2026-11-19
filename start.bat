@@ -9,7 +9,7 @@ if exist "%~dp0.env" (
 
 if not defined PORTFYL_EDITION set "PORTFYL_EDITION=local"
 
-REM Local PostgreSQL runs in Docker (deploy\docker-compose.postgres-dev.yml, port 55432).
+REM Local PostgreSQL runs in Docker (deploy\docker-compose.postgres-dev.yml, port 15432).
 REM Start Docker Desktop if the daemon is not up yet, then bring the DB container up.
 docker info >nul 2>&1 && goto :docker_ready
 echo Docker is not running - starting Docker Desktop...

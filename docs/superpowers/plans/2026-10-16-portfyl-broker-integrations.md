@@ -1889,7 +1889,7 @@ Přidat `backend/tests/postgres/test_ibkr_ledger_postgres.py`: dva
 isolation matrix nevidí Aliciny IBKR řádky (vzor v existujících
 `tests/postgres/` testech, fixture `matrix_client` / alice/bob setup).
 
-Run: `cd backend && TEST_DATABASE_URL=postgresql://<user>:<pw>@localhost:55432/portfyl_test_ibkr python -m pytest tests/postgres/ -v`
+Run: `cd backend && TEST_DATABASE_URL=postgresql://<user>:<pw>@localhost:15432/portfyl_test_ibkr python -m pytest tests/postgres/ -v`
 Expected: PASS
 
 - [ ] **Step 7: Commit**
