@@ -45,12 +45,13 @@ before starting any auth, tenancy, database, or billing work.
   `User → Membership → Workspace` tenancy, UUID API IDs, forced PostgreSQL
   RLS), and D (KMS/Fernet encrypted secrets, external Cloud Scheduler jobs,
   redacted logging, dead-letter state, audit log, and subsystem health) are
-  DONE** — see
-  `docs/superpowers/plans/2026-09-01-portfyl-multiuser-foundation.md` for the
-  B/C record and `docs/superpowers/plans/2026-09-04-portfyl-secrets-jobs.md`
-  for D. The **technical edition/capability boundary is also
-  DONE** — see `docs/superpowers/plans/2026-09-03-portfyl-edition-boundary.md`.
-  Cloud does not register or bundle Tax Report/Screener; local keeps Tax Report.
+  DONE** — the finished plans were deleted on 2026-11-18; see
+  `docs/finished.md` and git history
+  (`git log --diff-filter=D -- docs/superpowers/plans/<file>`) for the B/C
+  (`2026-09-01-portfyl-multiuser-foundation`) and D
+  (`2026-09-04-portfyl-secrets-jobs`) records. The **technical
+  edition/capability boundary is also DONE**
+  (`2026-09-03-portfyl-edition-boundary`, same place). Cloud does not register or bundle Tax Report/Screener; local keeps Tax Report.
   **Everything in the rest of this file now describes
   that implemented state**, not the old single-user SQLite one. What's
   **still pending**: Workstream A's external product/data validation and
@@ -64,10 +65,10 @@ before starting any auth, tenancy, database, or billing work.
   `deploy/cloudrun.md` for the runbook, `docs/operations/sqlite-to-neon-migration.md`
   for the one-off owner data import, and
   `docs/operations/neon-backup-restore.md` for the PITR restore drill.
-- The kickoff prompt for the now-completed Workstreams B + C work is at
-  `docs/superpowers/plans/2026-09-01-portfyl-multiuser-foundation-prompt.md`
-  (historical reference — useful for *why* a given file looks the way it
-  does, not a to-do list).
+- The kickoff prompt for the now-completed Workstreams B + C work
+  (`2026-09-01-portfyl-multiuser-foundation-prompt`) was deleted with the other
+  finished plans; it is in git history (historical reference — useful for
+  *why* a given file looks the way it does, not a to-do list).
 
 ## Frontend changes: read `DESIGN.md` first
 
