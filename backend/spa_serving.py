@@ -7,9 +7,12 @@ module maps a request to one of:
 
 * a prerendered public page -- indexable only on the public marketing host;
 * a real file in ``dist/`` (assets, images, robots.txt, sitemap.xml);
+* a 301 to ``/`` for the retired public demo: ``/demo`` and ``/demo/*``
+  (removed 2026-11-18, the landing page has mini demos instead), with the
+  query string kept, on every host except the private tracker;
 * the empty app shell ``dist/index.html`` -- always ``noindex``: it is the
-  tracker, auth screens, the demo, legal drafts or an unknown path, none of
-  which should appear in search results.
+  tracker, auth screens, legal drafts or an unknown path, none of which
+  should appear in search results.
 
 Every response on a host other than the public one (the private tracker
 ``app.portfyl.com``, the raw ``*.run.app`` URL, localhost) is ``noindex``, and
@@ -30,6 +33,8 @@ NOINDEX = "noindex, nofollow"
 _PRIVATE_BUILD_PREFIXES = (f"{PRERENDERED_DIR}/", ".vite/")
 DISALLOW_ALL_ROBOTS = "User-agent: *\nDisallow: /\n"
 _NO_CACHE = "no-cache"
+# The public demo is gone; its old URLs are redirected, never served.
+RETIRED_DEMO_PREFIX = "demo"
 
 
 @dataclass(frozen=True)
@@ -74,12 +79,21 @@ def _prerendered_page(full_path: str, dist: str) -> tuple[str, bool] | None:
     return (found, full_path == "" or full_path.endswith("/")) if found else None
 
 
+def _is_retired_demo(full_path: str) -> bool:
+    """/demo and /demo/..., but not /demolition, /demos or /demo.png."""
+    return full_path == RETIRED_DEMO_PREFIX or full_path.startswith(f"{RETIRED_DEMO_PREFIX}/")
+
+
 def resolve(full_path: str, dist: str, *, host: str, query: str = "") -> SpaTarget:
     public = host == PUBLIC_HOST
     host_headers = {} if public else {"X-Robots-Tag": NOINDEX}
 
     if not public and full_path == "robots.txt":
         return SpaTarget(body=DISALLOW_ALL_ROBOTS, media_type="text/plain", headers={"Cache-Control": _NO_CACHE, **host_headers})
+
+    if host != TRACKER_HOST and _is_retired_demo(full_path):
+        # One hop to the home page, query kept (utm_* of old campaigns).
+        return SpaTarget(redirect="/" + (f"?{query}" if query else ""), headers=host_headers)
 
     if host != TRACKER_HOST:
         page = _prerendered_page(full_path, dist)

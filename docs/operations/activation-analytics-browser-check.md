@@ -18,10 +18,44 @@ dark where the page in question is themeable.
 
 ## Pages in scope
 
-Landing (`/`), all demo routes (`/demo`, `/demo/allocation`,
-`/demo/analytics`, `/demo/dividends`, `/demo/stock/:ticker`), Register
-(direct and `?source=demo`), Onboarding, Import, Dashboard, Settings
-(Connections and Data & Privacy sections), and logout.
+Landing in all three languages (`/`, `/en/`, `/de/`) with its five mini
+demos, Register (direct, and a landing CTA so `source_surface` is a landing
+value), Onboarding, Import, Dashboard, Settings (Connections and Data &
+Privacy sections), and logout.
+
+The public `/demo` no longer exists (retired 2026-11-18 or later); the server
+answers `/demo` and `/demo/*` with a 301 to `/`. Check once that
+`/demo/allocation?utm_source=x` ends on `/?utm_source=x` and that no request
+to `eu.i.posthog.com` fires on the way.
+
+## Mini demos on the landing page
+
+Repeat on `/`, `/en/` and `/de/` (the `language` property must match the
+page) with PostHog's live debugger open. The five mini demos are
+`allocation`, `stock`, `performance`, `dividends` and `portfolios`; the event
+is `landing_minidemo_used` with exactly the properties `minidemo` and
+`language` (see `docs/operations/posthog-activation-analytics.md` §4).
+
+- [ ] **Accepted consent.** Accept the banner, scroll to each mini demo and
+      use its control (for example switch a `SegmentedControl` option). Each
+      mini demo produces exactly one `landing_minidemo_used`, five in total
+      per language, each with its own `minidemo` value.
+- [ ] **Second interaction sends nothing.** Using the same mini demo again
+      (other options, repeated clicks) sends no further event until the page
+      is reloaded; after a reload the first interaction sends it once more.
+- [ ] **No event without interaction.** Scrolling a mini demo into view,
+      which loads it lazily, sends nothing.
+- [ ] **Rejected or untouched banner.** Use all five mini demos: zero
+      requests to `eu.i.posthog.com`, no PostHog key in `localStorage` and no
+      `portfyl_captured_once:*` entry (the mini demos must not mark anything
+      as sent without consent).
+- [ ] **Payload.** Open one `/e/` request body: only `minidemo` and
+      `language` (plus PostHog's own envelope), no portfolio figures from the
+      made-up data.
+
+Visual, accessibility and bundle-size checks of the mini demos are a
+separate checklist (`docs/operations/landing-minidemo-check.md`, added with
+the mini-demo work).
 
 ## Per-page checks
 

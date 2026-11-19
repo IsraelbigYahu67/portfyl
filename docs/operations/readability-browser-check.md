@@ -6,9 +6,10 @@ sub-floor source patterns (`text-[8-11px]` utilities, CSS `font-size` below
 12px) — it cannot see computed browser contrast, real layout overflow, or
 keyboard focus. Run this checklist before any release that touches
 typography, theme tokens, or chart styling, and re-run it after
-`docs/superpowers/plans/2026-09-19-portfyl-public-demo.md` and
-`docs/superpowers/plans/2026-09-19-portfyl-activation-analytics.md` add new
-public/demo surfaces.
+`docs/superpowers/plans/2026-11-18-portfyl-landing-mini-dema-5-smazat-demo.md`
+and `docs/superpowers/plans/2026-09-19-portfyl-activation-analytics.md` add
+new public surfaces. (The public `/demo` pages from the 2026-09-19 plan were
+retired on 2026-11-18 or later; their old URLs redirect to `/`.)
 
 ## Viewports
 
@@ -28,7 +29,9 @@ light**, **Classic dark**.
 
 ## Representative pages
 
-- Public landing (`/`)
+- Public landing (`/`, `/en/`, `/de/`), including each of its five mini
+  demos (allocation, stock detail, performance, dividends, portfolios) in
+  their loaded state, not only the static placeholder
 - Login, Register, Forgot password, Verify email
 - Onboarding, Import (CSV preview step)
 - Dashboard, Allocation, Analytics

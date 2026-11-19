@@ -1,10 +1,10 @@
 # PostHog Cloud EU: activation analytics runbook
 
-Last updated: 2026-09-19
+Last updated: 2026-11-19
 
 This document is the operational runbook for the consent-gated PostHog Cloud
-EU integration that measures Portfyl's public-demo and registered-user
-activation funnels. It complements
+EU integration that measures Portfyl's landing-page mini demos and
+registered-user activation funnels. It complements
 `docs/compliance/data-processing-inventory.md` (the compliance record) with
 the concrete setup, allow-list, funnels, and verification steps an operator
 needs to actually run this safely.
@@ -70,7 +70,7 @@ of what a visitor chooses in the consent banner.
 | Exceptions | 100,000 (unused — exception autocapture stays disabled) |
 | Surveys | 1,500 (unused — surveys stay disabled) |
 
-Portfyl only ever sends the 12 allow-listed **analytics events** below —
+Portfyl only ever sends the 13 allow-listed **analytics events** below —
 every other free-tier resource category is left completely unused by
 design, which is what keeps this sustainably inside the free tier as usage
 grows.
@@ -103,7 +103,7 @@ the production blocker is lifted. Note that changing a Cloud Run *service's* run
 environment variables has **no effect** on these two values, since Vite has
 already baked them into the built JS by the time the container runs.
 
-## 4. The 12-event allow-list
+## 4. The 13-event allow-list
 
 The full contract lives in `frontend/src/analytics/eventContract.js`
 (frozen; do not modify without updating this document and re-running the
@@ -114,17 +114,34 @@ allow-list is enforced in code, not just documented convention.
 | Event | Properties | Fires when |
 |---|---|---|
 | `landing_viewed` | `language`, `referrer_class`, `utm_source`, `utm_medium`, `utm_campaign` | The public landing page (`Welcome.jsx`) is viewed, once analytics is ready |
-| `demo_started` | `language`, `entry_point` (`landing_hero`\|`landing_closing`\|`direct`) | A visitor enters `/demo/*` |
-| `demo_page_viewed` | `demo_page`, `language` | Each distinct demo page/route is viewed (deduped per page) |
-| `demo_stock_viewed` | `demo_symbol` (one of the 10 fixture tickers) | A demo stock detail page is viewed |
-| `demo_activation_reached` | `activation_path` (`three_pages`\|`stock_after_page`), `distinct_demo_pages` | The demo activation milestone is reached (once per session) |
-| `signup_cta_clicked` | `source_surface`, `language` | The registration CTA is clicked from the landing page or demo shell |
-| `signup_started` | `source_surface` (`landing_hero`\|`landing_closing`\|`demo`\|`direct`), `language` | The `/register` route mounts |
+| `landing_minidemo_used` | `minidemo` (`allocation`\|`stock`\|`performance`\|`dividends`\|`portfolios`), `language` (`cs`\|`en`\|`de`) | A visitor first uses the controls of one of the five mini demos on `/`, `/en/` or `/de/`. At most once per mini demo per page load, and only with accepted consent |
+| `signup_cta_clicked` | `source_surface` (`landing_hero`\|`landing_closing`\|`landing_broker_check`\|`direct`), `language` | The registration CTA is clicked on the landing page |
+| `signup_started` | `source_surface` (`landing_hero`\|`landing_closing`\|`landing_broker_check`\|`direct`), `language` | The `/register` route mounts |
 | `signup_completed` | `source_surface`, `auth_method` (`password`\|`google`) | Password: Firebase account creation succeeds, before navigating to `/verify-email`. Google: the first Google sign-in's session exchange reports `account_created`, before navigating to the tracker |
 | `portfolio_created` | `creation_path` (`blank`\|`demo`\|`csv`\|`broker`) | A portfolio is created in Onboarding, after the create call succeeds |
 | `portfolio_data_imported` | `source_type` (`demo`\|`csv`\|`broker`) | Data actually lands in a portfolio (demo creation, a committed CSV import, or a broker sync with `total_imported > 0`) |
 | `dashboard_first_value_rendered` | `source_type` | The first populated Dashboard render occurs once an import source and a rendered dashboard both exist |
 | `user_activation_reached` | `source_type` | Fires immediately after `dashboard_first_value_rendered`, once per user/workspace |
+| `onboarding_step_viewed`, `onboarding_broker_picked`, `broker_check_used`, `broker_request_sent` | `step`; `broker_key`; `result` + `language`; none | Onboarding and broker-check events, described in `docs/operations/onboarding-funnel.md` |
+
+`demo` in `creation_path` and `source_type` is the **onboarding demo
+portfolio** (`POST /portfolios/demo`, created inside the app for an empty
+workspace). It is unrelated to the retired public `/demo` and stays.
+
+### Retired: the public `/demo` (removed 2026-11-18 or later)
+
+The account-free public demo (`/demo`, `/demo/*`) was replaced by five mini
+demos on the landing page and deleted; the server answers its old URLs with a
+301 to `/` (`backend/spa_serving.py`, query string kept). The events that only
+existed for it are gone from the contract and are rejected by
+`sanitizeEvent()`: `demo_started`, `demo_page_viewed`, `demo_stock_viewed`,
+`demo_activation_reached`, and with them the properties `entry_point`,
+`demo_page`, `demo_symbol`, `activation_path`, `distinct_demo_pages` and the
+value `demo` of `source_surface` (`/register?source=demo` now counts as
+`direct`). Events already stored in PostHog under those names stay there only
+as history: do not build new insights on them, and do not compare their
+volumes with `landing_minidemo_used`, which measures something smaller (one
+control used on one mini demo, not a multi-page visit).
 
 ### Forbidden data — never sent, by design
 
@@ -143,8 +160,9 @@ checked against this list during verification (§5) and monitoring (§6):
   figure
 - Free-text notes, CSV file contents, or broker credentials
 - Raw query-string values beyond the strict allow-listed enums above (e.g.
-  `Register.jsx` only ever derives `demo` or `direct` from `?source=`, never
-  forwarding the literal query string)
+  `Register.jsx` only ever maps `?source=` onto an allow-listed
+  `source_surface`, falling back to `direct`, never forwarding the literal
+  query string)
 
 ## 5. Identity model
 
@@ -173,9 +191,9 @@ Run this whenever the event contract, consent flow, or identity wiring
 changes, using PostHog's live event debugger (Activity → Live events) with
 `portfyl.com`/`app.portfyl.com` open in a real or test browser:
 
-1. **Accept path** — accept the consent banner, walk the demo and/or
-   register; confirm each expected event arrives with only its allow-listed
-   properties (§4) and nothing else.
+1. **Accept path** — accept the consent banner, use each of the five mini
+   demos on the landing page and/or register; confirm each expected event
+   arrives with only its allow-listed properties (§4) and nothing else.
 2. **Reject path** — reject consent, repeat the same walk; confirm **zero**
    requests reach `eu.i.posthog.com` and no `ph_*` cookie/localStorage entry
    exists.
@@ -208,8 +226,13 @@ changes, using PostHog's live event debugger (Activity → Live events) with
 
 Create and save exactly these three funnels in PostHog (Insights → Funnel):
 
-1. **Demo activation:** `landing_viewed` → `demo_started` →
-   `demo_activation_reached` → `signup_cta_clicked`
+1. **Mini demos to signup:** `landing_viewed` → `landing_minidemo_used` →
+   `signup_cta_clicked` → `signup_started`. Break down by `minidemo` on the
+   second step to see which of the five demos leads to registration, and
+   compare the period after the public `/demo` was retired (2026-11-18 or
+   later) with the period before it, using `signup_cta_clicked` and
+   `signup_started` as the common ground (the old demo events are not
+   comparable, see §4).
 2. **Signup completion:** `signup_cta_clicked` → `signup_started` →
    `signup_completed`
 3. **Registered activation:** `signup_completed` →
@@ -223,7 +246,7 @@ above is lifted and the two Vite variables are actually set), check weekly:
 
 - **Event volume** — total events/week, trending toward but comfortably
   under the 1,000,000/month allowance (§2).
-- **Unexpected-property audit** — spot check a sample of each of the 12
+- **Unexpected-property audit** — spot check a sample of each of the 13
   event types in the live debugger against §4; the schema should make this
   structurally impossible, but verify anyway.
 - **Funnel sanity** — the three funnels in §7 should show plausible,
