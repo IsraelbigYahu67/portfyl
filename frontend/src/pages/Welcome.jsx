@@ -15,7 +15,6 @@ import { registerUrl } from "../lib/signupIntent";
 import { CLAY_STYLE } from "../lib/clayStyle";
 import { LANDING_PATHS } from "../lib/routes";
 import { ANALYTICS_EVENTS } from "../analytics/eventContract";
-import { DEMO_SESSION_SCOPE } from "../analytics/useDemoAnalytics";
 import "./Welcome.css";
 import "../fonts.css";
 
@@ -82,10 +81,11 @@ function classifyReferrer(referrer) {
 // The public home in one language. `language` comes from the URL ("/" = cs,
 // "/en/", "/de/"), so the same URL always renders the same page -- on the
 // server (prerender) and in the browser alike. `signupOpen` decides the call
-// to action: the trial sign-up when VITE_PUBLIC_SIGNUP is "true", else the demo.
+// to action: the trial sign-up when VITE_PUBLIC_SIGNUP is "true", else the
+// examples under the features (#funkce).
 export default function Welcome({ language, signupOpen = import.meta.env.VITE_PUBLIC_SIGNUP === "true" }) {
   const copy = COPY[language];
-  const { ready, capture, captureOnce } = useAnalytics();
+  const { ready, capture } = useAnalytics();
   const landingViewedRef = useRef(false);
 
   useEffect(() => {
@@ -121,34 +121,14 @@ export default function Welcome({ language, signupOpen = import.meta.env.VITE_PU
     }
   }, [ready, language, capture]);
 
-  // Same-tab, unmodified click: swap to the demo without a full reload.
-  // Modified clicks (new tab/window, download, etc.) fall through to the
-  // plain href="/demo" anchor and record entry_point="direct" once the demo
-  // mounts, via the same session-scoped captureOnce key.
-  function handleDemoCtaClick(entryPoint) {
-    return (event) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-        return;
-      }
-      // The demo reads the saved language; entering it from this page is a choice.
-      rememberLanguage(language);
-      event.preventDefault();
-      captureOnce(DEMO_SESSION_SCOPE, ANALYTICS_EVENTS.DEMO_STARTED, { language, entry_point: entryPoint });
-      window.history.pushState(null, "", "/demo");
-      window.dispatchEvent(new PopStateEvent("popstate"));
-    };
-  }
-
-  const onHeroDemo = handleDemoCtaClick("landing_hero");
-  const onClosingDemo = handleDemoCtaClick("landing_closing");
   return (
     <div className="welcome theme-clay" id="nahoru" style={CLAY_STYLE}>
       <a className="welcome-skip" href="#obsah">{copy.skip}</a>
-      <LandingHeader copy={copy} language={language} signupOpen={signupOpen} onDemo={onHeroDemo} />
+      <LandingHeader copy={copy} language={language} signupOpen={signupOpen} />
       <LanguageSuggestion pageLanguage={language} />
       <main id="obsah">
-        <LandingHero copy={copy} language={language} signupOpen={signupOpen} onDemo={onHeroDemo} />
-        <BrokerList copy={copy} language={language} signupOpen={signupOpen} onDemo={onHeroDemo} />
+        <LandingHero copy={copy} language={language} signupOpen={signupOpen} />
+        <BrokerList copy={copy} language={language} signupOpen={signupOpen} />
         <FeatureList copy={copy} language={language} />
         <HowItWorks copy={copy} />
         <PricingTeaser copy={copy} language={language} signupOpen={signupOpen} />
@@ -158,11 +138,11 @@ export default function Welcome({ language, signupOpen = import.meta.env.VITE_PU
             <h2 id="closing-title">{copy.closing}</h2>
             {signupOpen
               ? <a className="welcome-btn welcome-btn-big" href={registerUrl({ source: "landing_closing", lang: language })}>{copy.trialCtaShort}</a>
-              : <a className="welcome-btn welcome-btn-big" href="/demo" onClick={onClosingDemo}>{copy.demoCta}</a>}
+              : <a className="welcome-btn welcome-btn-big" href="#funkce">{copy.examplesCta}</a>}
           </div>
         </section>
       </main>
-      <LandingFooter copy={copy} language={language} onDemo={handleDemoCtaClick("direct")} />
+      <LandingFooter copy={copy} language={language} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 // Localized strings for the consent banner and analytics preferences panel.
-// Language is read from the same localStorage key the landing page and demo
-// use -- no network localization, no IP geolocation.
+// Language is read from the same localStorage key the landing page and the
+// legal pages use -- no network localization, no IP geolocation.
 import { LANGUAGE_KEY } from "../pages/welcomeCopy";
 
 export { LANGUAGE_KEY };

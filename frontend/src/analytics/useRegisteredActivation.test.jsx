@@ -26,8 +26,8 @@ const names = (adapter) => adapter.events.map(([name]) => name);
 
 function setup({ initialConsent = "accepted" } = {}) {
   const adapter = createMemoryAdapter();
-  // Stable reference -- see useDemoAnalytics.test.jsx's note on why an inline
-  // arrow here would reset AnalyticsProvider's adapter on every rerender.
+  // Stable reference: an inline arrow here would reset AnalyticsProvider's
+  // adapter on every rerender.
   const adapterFactory = () => adapter;
   const hook = renderHook(() => useRegisteredActivation(), {
     wrapper: ({ children }) => (

@@ -12,7 +12,7 @@ export const NAV_TARGETS = ["funkce", "brokeri", "cenik", "otazky"];
 // Sticky 64px header: logo, four section links, language links, Log in and
 // one primary button. Below 860px only the logo, the button and a <details>
 // menu remain (no JavaScript needed, so it works in the prerendered HTML).
-export default function LandingHeader({ copy, language, signupOpen, onDemo, anchorBase = "" }) {
+export default function LandingHeader({ copy, language, signupOpen, anchorBase = "" }) {
   const target = (id) => `${anchorBase}#${id}`;
   const closeMenu = (event) => event.currentTarget.closest("details")?.removeAttribute("open");
   const others = LANGUAGES.filter(({ code }) => code !== language);
@@ -34,7 +34,7 @@ export default function LandingHeader({ copy, language, signupOpen, onDemo, anch
         <a className="welcome-login" href={`${APP_ORIGIN}/login`}>{copy.login}</a>
         {signupOpen
           ? <a className="welcome-btn" href={registerUrl({ source: "landing_hero", lang: language })}>{copy.trialCtaShort}</a>
-          : <a className="welcome-btn" href="/demo" onClick={onDemo}>{copy.demoCtaShort}</a>}
+          : <a className="welcome-btn" href={target("funkce")}>{copy.examplesCtaShort}</a>}
         <details className="welcome-menu">
           <summary>{copy.menu}</summary>
           <nav aria-label={copy.menuNavigation}>

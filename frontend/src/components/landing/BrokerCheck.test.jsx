@@ -9,7 +9,7 @@ import { registerUrl } from "../../lib/signupIntent";
 const copy = COPY.cs.brokerCheck;
 
 function renderCheck(props = {}) {
-  return render(<BrokerCheck copy={copy} language="cs" onDemo={() => {}} {...props} />);
+  return render(<BrokerCheck copy={copy} language="cs" {...props} />);
 }
 
 function type(value) {
@@ -22,16 +22,16 @@ it("tells a visitor their broker is supported and links to registration with the
   expect(screen.getByText(copy.supported.replace("{name}", "XTB"))).toBeInTheDocument();
   const signup = screen.getByRole("link", { name: copy.signup });
   expect(signup).toHaveAttribute("href", registerUrl({ source: "landing_broker_check", broker: "xtb", lang: "cs" }));
-  expect(screen.getByRole("link", { name: copy.demo })).toHaveAttribute("href", "/demo");
+  expect(screen.getByRole("link", { name: copy.examples })).toHaveAttribute("href", "#funkce");
 });
 
-it("offers the demo and the beta note, but no register link, while signup is closed", () => {
+it("offers the examples and the beta note, but no register link, while signup is closed", () => {
   renderCheck({ signupOpen: false });
   type("xtb");
   expect(screen.getByText(copy.supported.replace("{name}", "XTB"))).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: copy.signup })).not.toBeInTheDocument();
-  expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/demo"]);
-  expect(screen.getByRole("link", { name: copy.demo })).toBeInTheDocument();
+  expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["#funkce"]);
+  expect(screen.getByRole("link", { name: copy.examples })).toBeInTheDocument();
   expect(screen.getByText(copy.betaNote)).toBeInTheDocument();
 });
 
@@ -41,11 +41,11 @@ it("keeps signup closed by default (private beta)", () => {
   expect(screen.getByText(copy.betaNote)).toBeInTheDocument();
 });
 
-it("says an unsupported broker is not readable yet and points to the demo", () => {
+it("says an unsupported broker is not readable yet and points to the examples", () => {
   renderCheck({ signupOpen: true });
   type("Revolut");
   expect(screen.getByText(copy.unsupported.replace("{name}", "Revolut"))).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: copy.demo })).toHaveAttribute("href", "/demo");
+  expect(screen.getByRole("link", { name: copy.examples })).toHaveAttribute("href", "#funkce");
   expect(screen.queryByRole("link", { name: copy.signup })).not.toBeInTheDocument();
 });
 
@@ -75,19 +75,22 @@ it("offers chips for several matches and a click selects one", () => {
   );
 });
 
-it("calls onDemo when the demo link is clicked", () => {
-  const onDemo = vi.fn();
-  renderCheck({ onDemo });
-  type("Revolut");
-  fireEvent.click(screen.getByRole("link", { name: copy.demo }));
-  expect(onDemo).toHaveBeenCalledTimes(1);
+it("never links to the retired demo page, whatever the result", () => {
+  for (const signupOpen of [false, true]) {
+    const { unmount } = renderCheck({ signupOpen });
+    for (const value of ["xtb", "Revolut"]) {
+      type(value);
+      expect(screen.getAllByRole("link").map((link) => link.getAttribute("href")).filter((href) => /^\/demo/.test(href))).toEqual([]);
+    }
+    unmount();
+  }
 });
 
 test("renders the same HTML on the server", () => {
   const html = renderToString(<BrokerCheck copy={copy} language="cs" />);
   expect(html).toContain(copy.title);
   expect(html).not.toContain("broker-check-result");
-  expect(html).not.toContain("/demo");
+  expect(html).not.toMatch(/\/demo/);
   expect(renderToString(<BrokerCheck copy={copy} language="cs" />)).toBe(html);
 });
 
@@ -96,7 +99,7 @@ describe("broker_check_used analytics", () => {
     const adapter = createMemoryAdapter();
     render(
       <AnalyticsProvider initialConsent="accepted" adapterFactory={() => adapter}>
-        <BrokerCheck copy={copy} language={language} onDemo={() => {}} />
+        <BrokerCheck copy={copy} language={language} />
       </AnalyticsProvider>,
     );
     const used = () => adapter.events.filter(([name]) => name === "broker_check_used");

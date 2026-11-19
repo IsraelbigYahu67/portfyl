@@ -83,22 +83,53 @@ describe.each(LANGUAGES)("$name landing page", ({ code }) => {
     expect(hrefs.slice(0, 4)).toEqual(IN_PAGE_TARGETS);
   });
 
-  it("while signup is closed: demo is the primary action, a beta line shows and no register link exists", () => {
+  it("while signup is closed: the examples are the primary action in hero, header and closing, a beta line shows and no register link exists", () => {
     const { container } = renderWelcome({ language: code, signupOpen: false });
     expect(container.querySelector('a[href*="/register"]')).toBeNull();
-    expect(screen.getAllByRole("link", { name: copy.demoCta })[0]).toHaveAttribute("href", "/demo");
+    const hero = container.querySelector(".welcome-hero");
+    const header = container.querySelector(".welcome-header");
+    const closing = container.querySelector(".welcome-closing");
+    expect(within(hero).getByRole("link", { name: copy.examplesCta })).toHaveAttribute("href", "#funkce");
+    expect(within(hero).getByText(copy.examplesNote)).toBeInTheDocument();
+    expect(within(header).getByRole("link", { name: copy.examplesCtaShort })).toHaveAttribute("href", "#funkce");
+    expect(within(closing).getByRole("link", { name: copy.examplesCta })).toHaveAttribute("href", "#funkce");
     expect(screen.getByText(copy.status[0])).toBeInTheDocument();
     expect(container.textContent).not.toContain(copy.trialCta);
   });
 
-  it("while signup is open: the primary action registers with the trial and the demo is secondary", () => {
-    renderWelcome({ language: code, signupOpen: true });
+  it("while signup is open: the primary action registers with the trial and a text link to the examples is secondary", () => {
+    const { container } = renderWelcome({ language: code, signupOpen: true });
     const primary = screen.getByRole("link", { name: copy.trialCta });
     expect(primary).toHaveAttribute("href", registerUrl({ source: "landing_hero", lang: code }));
     expect(primary.textContent).toContain("10");
     expect(screen.getByText(copy.trialNote)).toBeInTheDocument();
     expect(screen.queryByText(copy.status[0])).not.toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: copy.demoLink })[0]).toHaveAttribute("href", "/demo");
+    const secondary = within(container.querySelector(".welcome-hero")).getByRole("link", { name: copy.examplesCta });
+    expect(secondary).toHaveAttribute("href", "#funkce");
+    expect(secondary).toHaveClass("welcome-textlink");
+  });
+
+  it.each([false, true])("has no link to the retired /demo and never mentions a demo page (signupOpen=%s)", (signupOpen) => {
+    const { container } = renderWelcome({ language: code, signupOpen });
+    const hrefs = [...container.querySelectorAll("a[href]")].map((link) => link.getAttribute("href"));
+    expect(hrefs.filter((href) => /^\/demo/.test(href))).toEqual([]);
+    expect(container.textContent).not.toMatch(/\bdemo\b/i);
+    expect(copy.status.join(" ")).not.toMatch(/demo/i);
+  });
+
+  it("points the broker check and the footer at the examples, not at a demo page", () => {
+    const { container } = renderWelcome({ language: code });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "xtb" } });
+    expect(within(container.querySelector(".welcome-broker-check")).getByRole("link", { name: copy.brokerCheck.examples })).toHaveAttribute("href", "#funkce");
+    expect(within(container.querySelector("footer")).getByRole("link", { name: copy.footer.examples })).toHaveAttribute("href", "#funkce");
+  });
+
+  it("no longer carries any of the retired demo texts", () => {
+    const retired = ["demoCta", "demoCtaShort", "demoLink", "demoNote"];
+    for (const key of retired) expect(copy, key).not.toHaveProperty(key);
+    expect(copy.brokerCheck).not.toHaveProperty("demo");
+    expect(copy.footer).not.toHaveProperty("demo");
+    expect(copy.miniDemo).not.toHaveProperty("openDemo");
   });
 
   it("shows three plans with prices from the shared constant", () => {
@@ -173,7 +204,7 @@ it("shows the hero and the two feature screenshots, and no figure for pictures t
 it("keeps in-page navigation on the page and every other link a normal one", () => {
   renderWelcome({ language: "cs", signupOpen: true });
   const origin = APP_ORIGIN.replace(/[.]/g, "\\.");
-  const allowed = [/^#/, /^\/demo$/, /^\/demo\/(allocation|analytics|dividends|stock\/[A-Z]+)$/, /^\/terms\?lang=cs$/, /^\/privacy\?lang=cs$/, /^\/(en\/|de\/)?$/, /^mailto:support@portfyl\.com$/, new RegExp(`^${origin}/(login|register)`)];
+  const allowed = [/^#/, /^\/terms\?lang=cs$/, /^\/privacy\?lang=cs$/, /^\/(en\/|de\/)?$/, /^mailto:support@portfyl\.com$/, new RegExp(`^${origin}/(login|register)`)];
   for (const link of screen.getAllByRole("link")) {
     const href = link.getAttribute("href");
     expect(allowed.some((pattern) => pattern.test(href)), href).toBe(true);
@@ -236,30 +267,24 @@ it("captures landing_viewed once analytics is ready, never before, in the page's
   ]);
 });
 
-it("captures demo_started with entry_point=landing_hero on an unmodified hero CTA click, without a full navigation", async () => {
+it.each([
+  ["hero", 0],
+  ["closing", 1],
+])("sends no analytics event and keeps the path when the %s examples button is clicked", async (_where, index) => {
   const { adapter } = renderWelcome({ initialConsent: "accepted", language: "cs" });
   await waitFor(() => expect(adapter.events).toHaveLength(1)); // landing_viewed
+  const pathname = window.location.pathname;
 
-  const heroCta = screen.getAllByRole("link", { name: COPY.cs.demoCta })[0];
-  fireEvent.click(heroCta, { button: 0 });
-
-  await waitFor(() =>
-    expect(adapter.events).toContainEqual(["demo_started", { language: "cs", entry_point: "landing_hero" }])
-  );
-  expect(window.location.pathname).toBe("/demo");
-  // The demo reads the saved language, so entering it keeps the page's language.
-  expect(localStorage.getItem(LANGUAGE_KEY)).toBe("cs");
-});
-
-it("captures demo_started with entry_point=landing_closing from the closing call to action", async () => {
-  const { adapter } = renderWelcome({ initialConsent: "accepted", language: "en" });
-  await waitFor(() => expect(adapter.events).toHaveLength(1));
-  const links = screen.getAllByRole("link", { name: COPY.en.demoCta });
+  const links = screen.getAllByRole("link", { name: COPY.cs.examplesCta });
   expect(links).toHaveLength(2);
-  fireEvent.click(links[1], { button: 0 });
-  await waitFor(() =>
-    expect(adapter.events).toContainEqual(["demo_started", { language: "en", entry_point: "landing_closing" }])
-  );
+  fireEvent.click(links[index], { button: 0 });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  expect(adapter.events).toHaveLength(1);
+  expect(adapter.events[0][0]).toBe("landing_viewed");
+  expect(window.location.pathname).toBe(pathname);
+  // Following the button is not a language choice: nothing is saved.
+  expect(localStorage.getItem(LANGUAGE_KEY)).toBeNull();
 });
 
 const shapeOf = (value) => (value && typeof value === "object"
@@ -287,8 +312,8 @@ describe("mini demo copy", () => {
 
   it("keeps the texts that reach the prerendered HTML free of digits", () => {
     for (const { code } of LANGUAGES) {
-      const { badge, disclaimer, loading, unavailable, openDemo } = COPY[code].miniDemo;
-      for (const text of [badge, disclaimer, loading, unavailable, openDemo]) expect(text, `${code}: ${text}`).not.toMatch(/\d/);
+      const { badge, disclaimer, loading, unavailable } = COPY[code].miniDemo;
+      for (const text of [badge, disclaimer, loading, unavailable]) expect(text, `${code}: ${text}`).not.toMatch(/\d/);
     }
   });
 

@@ -31,7 +31,7 @@ function resolve(query, language) {
 // "Is your broker supported?" on the public landing page. Renders the same
 // markup on the server and the client: all state starts empty, and nothing
 // here touches window or storage.
-export default function BrokerCheck({ copy, language, signupOpen = import.meta.env.VITE_PUBLIC_SIGNUP === "true", onDemo }) {
+export default function BrokerCheck({ copy, language, signupOpen = import.meta.env.VITE_PUBLIC_SIGNUP === "true" }) {
   const [query, setQuery] = useState("");
   const titleId = useId();
   const { typed, matches, result } = resolve(query, language);
@@ -51,8 +51,9 @@ export default function BrokerCheck({ copy, language, signupOpen = import.meta.e
     lastReported.current = identity;
     capture(ANALYTICS_EVENTS.BROKER_CHECK_USED, { result: resultKind, language });
   }, [resultKind, selectedKey, language, capture]);
-  const demoLink = (className) => (
-    <a className={className} href="/demo" onClick={onDemo}>{copy.demo}</a>
+  // The examples sit under the features, on the same page.
+  const examplesLink = (className) => (
+    <a className={className} href="#funkce">{copy.examples}</a>
   );
 
   return (
@@ -82,11 +83,11 @@ export default function BrokerCheck({ copy, language, signupOpen = import.meta.e
               {signupOpen ? (
                 <div className="welcome-broker-actions">
                   <a className="welcome-btn" href={registerUrl({ source: "landing_broker_check", broker: result.broker.key, lang: language })}>{copy.signup}</a>
-                  {demoLink("welcome-textlink")}
+                  {examplesLink("welcome-textlink")}
                 </div>
               ) : (
                 <>
-                  <div className="welcome-broker-actions">{demoLink("welcome-btn")}</div>
+                  <div className="welcome-broker-actions">{examplesLink("welcome-btn")}</div>
                   <small>{copy.betaNote}</small>
                 </>
               )}
@@ -95,7 +96,7 @@ export default function BrokerCheck({ copy, language, signupOpen = import.meta.e
           {result?.kind === "unsupported" && (
             <div className="broker-check-result welcome-broker-result">
               <p>{copy.unsupported.replace("{name}", typed)}</p>
-              <div className="welcome-broker-actions">{demoLink("welcome-btn")}</div>
+              <div className="welcome-broker-actions">{examplesLink("welcome-btn")}</div>
             </div>
           )}
         </div>

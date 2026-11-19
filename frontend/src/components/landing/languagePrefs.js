@@ -9,8 +9,8 @@ export function savedLanguage() {
   } catch { return null; }
 }
 
-// Only an explicit action saves the language (switcher, banner, demo CTA):
-// the app, demo and legal pages read it. Merely landing on a URL does not.
+// Only an explicit action saves the language (switcher, banner): the app and
+// the legal pages read it. Merely landing on a URL does not.
 export function rememberLanguage(code) {
   try { localStorage.setItem(LANGUAGE_KEY, code); } catch { /* Storage may be unavailable. */ }
 }

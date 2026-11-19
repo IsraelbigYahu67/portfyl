@@ -2,7 +2,8 @@ import { render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import FeatureList from "./FeatureList";
 import { LANDING_IMAGES } from "./landingImages";
-import { DEMO_HREFS, MINI_DEMO_KINDS } from "./miniDemoRegistry";
+import * as registry from "./miniDemoRegistry";
+import { MINI_DEMO_KINDS } from "./miniDemoRegistry";
 import { COPY, LANGUAGES } from "../../pages/welcomeCopy";
 
 // The real set has no phone picture yet; this one does, to prove that the
@@ -42,15 +43,18 @@ describe.each(LANGUAGES)("$name feature list", ({ code }) => {
     expect(container.querySelector(".welcome-more")).toBeNull();
   });
 
-  it("labels every frame and links it to its full demo page", () => {
+  it("labels every frame and links nothing under it (there is no full demo page any more)", () => {
     const { container } = render(<FeatureList copy={copy} language={code} />);
     for (const frame of container.querySelectorAll("figure.welcome-minidemo")) {
       expect(frame).toHaveTextContent(copy.miniDemo.badge);
       expect(frame).toHaveTextContent(copy.miniDemo.disclaimer);
-      const link = frame.querySelector("a");
-      expect(link).toHaveTextContent(copy.miniDemo.openDemo);
-      expect(link).toHaveAttribute("href", DEMO_HREFS[frame.dataset.minidemo]);
+      expect(frame.querySelector("a")).toBeNull();
     }
+    expect([...container.querySelectorAll("a[href]")].filter((link) => /^\/demo/.test(link.getAttribute("href")))).toEqual([]);
+  });
+
+  it("does not export the old demo page links from the registry", () => {
+    expect(registry.DEMO_HREFS).toBeUndefined();
   });
 });
 

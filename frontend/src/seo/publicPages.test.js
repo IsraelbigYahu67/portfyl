@@ -20,7 +20,16 @@ it.each(PUBLIC_PAGES)("gives $path a snippet-sized description and the page's ow
   expect(page.description.length).toBeGreaterThanOrEqual(110);
   expect(page.description.length).toBeLessThanOrEqual(165);
   expect(page.description).not.toMatch(/tax|daň|steuer|screener/i);
+  // The public demo is retired: the snippet promises the examples on the page.
+  expect(page.description).not.toMatch(/demo/i);
   expect(existsSync(publicFile(page.ogImage))).toBe(true);
+});
+
+it("promises interactive examples in each language", () => {
+  const byLanguage = Object.fromEntries(PUBLIC_PAGES.map((page) => [page.language, page.description]));
+  expect(byLanguage.cs).toContain("Vyzkoušejte interaktivní ukázky.");
+  expect(byLanguage.en).toContain("Try the interactive examples.");
+  expect(byLanguage.de).toContain("Probiere die interaktiven Beispiele aus.");
 });
 
 it("links every language version reciprocally, with English as x-default", () => {
@@ -67,4 +76,12 @@ it("lets search crawlers in, keeps training crawlers and private paths out, and 
   expect(robots).not.toMatch(/Googlebot|SeznamBot|OAI-SearchBot|PerplexityBot|Claude-SearchBot/);
   expect(robots).toContain("Sitemap: https://portfyl.com/sitemap.xml");
   for (const page of PUBLIC_PAGES) expect(DISALLOWED_PATHS.some((path) => page.path.startsWith(path))).toBe(false);
+});
+
+// /demo is answered with a 301 to the home page. A crawler must be allowed to
+// fetch it to see that redirect, so it is neither disallowed nor listed.
+it("neither disallows nor lists the retired /demo", () => {
+  expect(DISALLOWED_PATHS.filter((path) => /^\/demo/.test(path))).toEqual([]);
+  expect(robotsTxt()).not.toMatch(/\/demo/);
+  expect(sitemapXml(PUBLIC_PAGES, "2026-11-19")).not.toMatch(/\/demo/);
 });

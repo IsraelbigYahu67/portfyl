@@ -36,9 +36,9 @@ afterEach(() => localStorage.clear());
 
 function renderAt(path, { initialConsent = "accepted" } = {}) {
   const adapter = createMemoryAdapter();
-  // Stable reference across the test's lifetime -- see useDemoAnalytics.test.jsx's
-  // note on why an inline arrow here would cause AnalyticsProvider to reset on
-  // every rerender (its effect depends on [consent, adapterFactory]).
+  // Stable reference across the test's lifetime: an inline arrow here would
+  // cause AnalyticsProvider to reset on every rerender (its effect depends on
+  // [consent, adapterFactory]).
   const adapterFactory = () => adapter;
   const result = render(
     <MemoryRouter initialEntries={[path]}>
@@ -107,13 +107,21 @@ describe("Register", () => {
     );
   });
 
-  it("captures signup_started with source_surface=demo for ?source=demo, and never forwards other params", async () => {
-    const { adapter } = renderAt("/register?source=demo&utm_source=evil&foo=bar");
+  it("captures signup_started with source_surface=landing_broker_check for that ?source, and never forwards other params", async () => {
+    const { adapter } = renderAt("/register?source=landing_broker_check&utm_source=evil&foo=bar");
     await waitFor(() =>
-      expect(adapter.events).toContainEqual(["signup_started", { source_surface: "demo", language: "en" }])
+      expect(adapter.events).toContainEqual(["signup_started", { source_surface: "landing_broker_check", language: "en" }])
     );
     const [, properties] = adapter.events.find(([name]) => name === "signup_started");
     expect(Object.keys(properties).sort()).toEqual(["language", "source_surface"]);
+  });
+
+  it("falls back to direct for ?source=demo: the public /demo is retired", async () => {
+    const { adapter } = renderAt("/register?source=demo");
+    await waitFor(() =>
+      expect(adapter.events).toContainEqual(["signup_started", { source_surface: "direct", language: "en" }])
+    );
+    expect(JSON.stringify(adapter.events)).not.toContain('"demo"');
   });
 
   it("falls back to direct for an unrecognized ?source value", async () => {
@@ -127,7 +135,7 @@ describe("Register", () => {
     const fakeUser = { email: "new@example.com" };
     firebaseMocks.registerWithEmailPassword.mockResolvedValueOnce(fakeUser);
 
-    const { adapter } = renderAt("/register?source=demo");
+    const { adapter } = renderAt("/register?source=landing_broker_check");
     fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "new@example.com" } });
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "s3cret!123" } });
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "s3cret!123" } });
@@ -135,7 +143,7 @@ describe("Register", () => {
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() =>
-      expect(adapter.events).toContainEqual(["signup_completed", { source_surface: "demo", auth_method: "password" }])
+      expect(adapter.events).toContainEqual(["signup_completed", { source_surface: "landing_broker_check", auth_method: "password" }])
     );
     expect(await screen.findByText("Verify email page")).toBeInTheDocument();
 
@@ -253,12 +261,12 @@ describe("Continue with Google", () => {
   it("records a first Google sign-in as a signup and skips e-mail verification", async () => {
     authMocks.loginWithIdToken.mockResolvedValue({ account_created: true });
 
-    const { adapter } = renderAt("/register?source=demo");
+    const { adapter } = renderAt("/register?source=landing_broker_check");
     fireEvent.click(screen.getByRole("checkbox", { name: /18 or older/i }));
     fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
 
     expect(await screen.findByText("Home")).toBeInTheDocument();
-    expect(adapter.events).toContainEqual(["signup_completed", { source_surface: "demo", auth_method: "google" }]);
+    expect(adapter.events).toContainEqual(["signup_completed", { source_surface: "landing_broker_check", auth_method: "google" }]);
     expect(authEmailMocks.sendVerificationEmail).not.toHaveBeenCalled();
     expect(JSON.stringify(adapter.events)).not.toMatch(/person@gmail\.com/);
   });

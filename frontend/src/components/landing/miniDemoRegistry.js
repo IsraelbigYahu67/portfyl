@@ -13,13 +13,3 @@ export const MINI_DEMOS = Object.freeze({
   dividends: lazy(() => import("./minidemo/MiniDividends.jsx")),
   portfolios: lazy(() => import("./minidemo/MiniPortfolios.jsx")),
 });
-
-// Where the full demo page of each feature lives (until the public /demo is
-// retired, plan wave 3).
-export const DEMO_HREFS = Object.freeze({
-  allocation: "/demo/allocation",
-  stock: "/demo/stock/MSFT",
-  performance: "/demo/analytics",
-  dividends: "/demo/dividends",
-  portfolios: "/demo",
-});

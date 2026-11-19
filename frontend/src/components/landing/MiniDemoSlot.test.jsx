@@ -26,7 +26,7 @@ function LiveStub({ language, copy, onUse }) {
 
 const copy = COPY.cs.miniDemo;
 const pictures = [{ key: "allocation", image: { src: "/landing/allocation.png", width: 1047, height: 365 }, alt: "Obrazek rozlozeni" }];
-const slot = (props = {}) => <MiniDemoSlot kind="allocation" language="cs" copy={copy} pictures={pictures} demoHref="/demo/allocation" {...props} />;
+const slot = (props = {}) => <MiniDemoSlot kind="allocation" language="cs" copy={copy} pictures={pictures} {...props} />;
 
 let observers;
 function stubIntersectionObserver() {
@@ -56,15 +56,15 @@ function silenceWindowErrors() {
 }
 
 describe("MiniDemoSlot, static render", () => {
-  it("prints the badge, the disclaimer, the screenshot and the link, with no digit in its text and no chart", () => {
+  it("prints the badge, the disclaimer and the screenshot, with no digit in its text and no chart", () => {
     const spy = vi.fn();
     vi.stubGlobal("IntersectionObserver", spy);
     const html = renderToString(slot());
     expect(html).toContain(copy.badge);
     expect(html).toContain(copy.disclaimer);
     expect(html).toContain('src="/landing/allocation.png"');
-    expect(html).toContain(copy.openDemo);
-    expect(html).toContain('href="/demo/allocation"');
+    expect(html).not.toContain('<a ');
+    expect(html).not.toMatch(/\/demo/);
     expect(html).toMatch(/^<figure class="welcome-minidemo" data-minidemo="allocation"/);
     expect(html.replace(/<[^>]*>/g, " ").replace(/&#?\w+;/g, "")).not.toMatch(/\d/);
     expect(html).not.toMatch(/recharts/i);
@@ -112,13 +112,13 @@ describe("MiniDemoSlot, in the browser", () => {
     expect(screen.getByTestId("live")).toHaveAttribute("lang", "cs");
   });
 
-  it("keeps the label and the link while the demo is shown", async () => {
+  it("keeps the label while the demo is shown, and never adds a link under it", async () => {
     render(slot());
     await intersect();
     await screen.findByTestId("live");
     expect(screen.getByText(copy.badge)).toBeInTheDocument();
     expect(screen.getByText(copy.disclaimer)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: copy.openDemo })).toHaveAttribute("href", "/demo/allocation");
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("starts the demo after mount where IntersectionObserver does not exist", async () => {
@@ -176,10 +176,5 @@ describe("MiniDemoSlot, in the browser", () => {
     act(() => screen.getByRole("button", { name: "change" }).click());
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(adapter.events).toEqual([]);
-  });
-
-  it("omits the link when no demoHref is given", () => {
-    render(slot({ demoHref: undefined }));
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

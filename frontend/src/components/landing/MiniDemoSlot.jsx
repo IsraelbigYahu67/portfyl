@@ -33,7 +33,7 @@ class DemoBoundary extends Component {
 // in the browser only the label and the placeholder exist (`active` starts
 // false); the demo is imported and drawn once the frame comes within 200px of
 // the screen. Nothing here reads `window` or time while rendering.
-export default function MiniDemoSlot({ kind, language, copy, pictures = [], demoHref }) {
+export default function MiniDemoSlot({ kind, language, copy, pictures = [] }) {
   const [active, setActive] = useState(false);
   const frame = useRef(null);
   const { reportUse } = useMiniDemoAnalytics(kind, language);
@@ -68,7 +68,6 @@ export default function MiniDemoSlot({ kind, language, copy, pictures = [], demo
           </DemoBoundary>
         ) : placeholder}
       </div>
-      {demoHref && <p className="welcome-minidemo-more"><a className="welcome-textlink" href={demoHref}>{copy.openDemo}</a></p>}
     </figure>
   );
 }

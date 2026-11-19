@@ -26,7 +26,7 @@ describe("analytics adapters", () => {
   it("keeps the no-op adapter non-throwing", async () => {
     const adapter = createNoopAdapter();
     await expect(adapter.init()).resolves.toBe(false);
-    await expect(adapter.capture("demo_started", {})).resolves.toBe(false);
+    await expect(adapter.capture("landing_viewed", {})).resolves.toBe(false);
     await expect(adapter.identify("opaque-user")).resolves.toBe(false);
     await expect(adapter.reset()).resolves.toBe(false);
     await expect(adapter.shutdown()).resolves.toBe(false);
@@ -35,10 +35,10 @@ describe("analytics adapters", () => {
   it("records ordered events and reset state in the memory adapter", async () => {
     const adapter = createMemoryAdapter();
     await adapter.init();
-    await adapter.capture("demo_started", { language: "en", entry_point: "direct" });
+    await adapter.capture("landing_viewed", { language: "en", referrer_class: "direct", utm_source: "none", utm_medium: "none", utm_campaign: "none" });
     await adapter.identify("opaque-user");
     await adapter.reset();
-    expect(adapter.events).toEqual([["demo_started", { language: "en", entry_point: "direct" }]]);
+    expect(adapter.events).toEqual([["landing_viewed", { language: "en", referrer_class: "direct", utm_source: "none", utm_medium: "none", utm_campaign: "none" }]]);
     expect(adapter.identifiedId).toBeNull();
     expect(adapter.resetCount).toBe(1);
     adapter.clear();
@@ -74,11 +74,11 @@ describe("analytics adapters", () => {
       persistence: "localStorage+cookie",
       secure_cookie: true,
     });
-    await adapter.capture("demo_started", { language: "en", entry_point: "direct" });
+    await adapter.capture("landing_viewed", { language: "en", referrer_class: "direct", utm_source: "none", utm_medium: "none", utm_campaign: "none" });
     await adapter.identify("opaque-user");
     await adapter.reset();
     await adapter.shutdown();
-    expect(posthog.capture).toHaveBeenCalledWith("demo_started", { language: "en", entry_point: "direct" });
+    expect(posthog.capture).toHaveBeenCalledWith("landing_viewed", { language: "en", referrer_class: "direct", utm_source: "none", utm_medium: "none", utm_campaign: "none" });
     expect(posthog.identify).toHaveBeenCalledWith("opaque-user");
     expect(posthog.reset).toHaveBeenCalledOnce();
     expect(posthog.shutdown).toHaveBeenCalledOnce();
@@ -88,7 +88,7 @@ describe("analytics adapters", () => {
     const importPostHog = vi.fn(async () => ({ default: posthogDouble() }));
     const adapter = loadPostHogAdapter({ ...acceptedConfig, consent: "rejected" }, { importPostHog });
     await expect(adapter.init()).resolves.toBe(false);
-    await expect(adapter.capture("demo_started", {})).resolves.toBe(false);
+    await expect(adapter.capture("landing_viewed", {})).resolves.toBe(false);
     await expect(adapter.identify("opaque-user")).resolves.toBe(false);
     expect(importPostHog).not.toHaveBeenCalled();
   });
@@ -106,6 +106,6 @@ describe("analytics adapters", () => {
     capturePosthog.capture.mockImplementation(() => { throw new Error("capture failed"); });
     const captureFailure = loadPostHogAdapter(acceptedConfig, { importPostHog: async () => ({ default: capturePosthog }) });
     await captureFailure.init();
-    await expect(captureFailure.capture("demo_started", {})).resolves.toBe(false);
+    await expect(captureFailure.capture("landing_viewed", {})).resolves.toBe(false);
   });
 });

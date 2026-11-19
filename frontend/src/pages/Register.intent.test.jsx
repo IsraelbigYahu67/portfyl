@@ -74,7 +74,7 @@ describe("Register signup intent", () => {
 
   test.each([
     ["/register?source=landing_broker_check", "landing_broker_check"],
-    ["/register?source=demo", "demo"],
+    ["/register?source=demo", "direct"], // the public /demo is retired
     ["/register?source=landing_hero", "direct"],
     ["/register?source=%3Cscript%3E", "direct"],
     ["/register", "direct"],
