@@ -48,6 +48,8 @@ class Harness:
 
         monkeypatch.setattr(auth_router, "set_rls_context", lambda *a, **k: None)
         monkeypatch.setattr(auth_router, "require_active_invite", lambda db, email: None)
+        # The cloud rate limit looks its rule up before consuming it.
+        monkeypatch.setitem(rate_limit.RATE_LIMIT_RULES, "auth_session", None)
         monkeypatch.setattr(rate_limit, "consume_rate_limit", lambda **k: None)
 
         real_release = auth_router.release_connection
