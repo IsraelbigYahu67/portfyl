@@ -175,8 +175,15 @@ api.interceptors.response.use((response) => response, handleResponseError);
 // ----- Auth/session/account (not portfolio-scoped) --------------------------
 
 export const fetchMe = () => api.get("/auth/me").then((r) => r.data);
-export const exchangeSession = (idToken) =>
-  api.post("/auth/session", { id_token: idToken }).then((r) => r.data);
+// `turnstileToken` is sent only on the retry after the server asked for a bot
+// check (`bot_check_required`), so a normal exchange posts exactly `{ id_token }`.
+export const exchangeSession = (idToken, { turnstileToken } = {}) =>
+  api
+    .post("/auth/session", {
+      id_token: idToken,
+      ...(turnstileToken ? { turnstile_token: turnstileToken } : {}),
+    })
+    .then((r) => r.data);
 // Portfyl's own verification / password-reset e-mails (backend/routers/auth_email.py).
 // Unauthenticated: the verification one proves the account with the ID token.
 export const requestVerificationEmail = (idToken, lang) =>

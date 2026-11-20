@@ -562,7 +562,7 @@ git archive --format=tar -o "$SRC.tar" main
 tar -x -f "$SRC.tar" -C $SRC
 Remove-Item "$SRC.tar"
 $fb = @{}
-Get-Content frontend/.env.local | Where-Object { $_ -match '^(VITE_(?:FIREBASE|POSTHOG|GOOGLE)_\w+)=(.*)$' } | ForEach-Object { $fb[$Matches[1]] = $Matches[2].Trim().Trim('"') }
+Get-Content frontend/.env.local | Where-Object { $_ -match '^(VITE_(?:FIREBASE|POSTHOG|GOOGLE|TURNSTILE)_\w+)=(.*)$' } | ForEach-Object { $fb[$Matches[1]] = $Matches[2].Trim().Trim('"') }
 # A missing flag silently builds Google sign-in off; prod has it on, so require an explicit true/false.
 if ($fb.VITE_FIREBASE_GOOGLE_SIGN_IN -notin @("true", "false")) { throw "frontend/.env.local needs VITE_FIREBASE_GOOGLE_SIGN_IN=true (or =false to turn Google sign-in off)" }
 # Without the client ID the button is hidden even when the flag is true.
@@ -577,6 +577,7 @@ steps:
          '--build-arg', 'VITE_FIREBASE_APP_ID=$($fb.VITE_FIREBASE_APP_ID)',
          '--build-arg', 'VITE_FIREBASE_GOOGLE_SIGN_IN=$($fb.VITE_FIREBASE_GOOGLE_SIGN_IN)',
          '--build-arg', 'VITE_GOOGLE_OAUTH_CLIENT_ID=$($fb.VITE_GOOGLE_OAUTH_CLIENT_ID)',
+         '--build-arg', 'VITE_TURNSTILE_SITE_KEY=$($fb.VITE_TURNSTILE_SITE_KEY)',
          '--build-arg', 'VITE_POSTHOG_KEY=$($fb.VITE_POSTHOG_KEY)',
          '--build-arg', 'VITE_POSTHOG_HOST=$($fb.VITE_POSTHOG_HOST)',
          '.']
@@ -1168,8 +1169,80 @@ event with only the reason (`email_reused`, `disposable_domain`, `ip_limit`);
 count them to decide whether a card-required trial is ever needed.
 `trial_identities` and `trial_broker_marks` rows are purged after 12 months and
 `trial_ip_marks` after 30 days by the daily `account_deletion_cleanup` job.
-`/api/billing/status` and `/api/test-plans` carry `trial_ended_reason`
-(`null` or `"expired"` today).
+`/api/billing/status` and `/api/test-plans` carry `trial_ended_reason`:
+`null` (running, or never had one), `"expired"`, `"broker_account_reused"` and
+`"history_reused"` (cut short by the broker check), and `"not_eligible"` (a
+guard withheld the trial at registration; the workspace setting
+`trial_withheld` = `1` records it, and the app tells the visitor without
+saying which guard fired).
+
+> **Production on 2026-11-19:** `PORTFYL_TRIAL_DAYS=0` and no
+> `PORTFYL_TRIAL_FINGERPRINT_KEY` (no `portfyl-trial-fingerprint-key` secret
+> exists yet). That is harmless while the value is `0`. **Raising
+> `PORTFYL_TRIAL_DAYS` above 0 (or unsetting it, which means 10) without the
+> secret makes every new registration fail with a 500.** Create the secret
+> first.
+
+**Go-live order for public sign-up:** (1) the trial fingerprint key, (2) the
+Turnstile secret and site key ("Sign-up bot check" below), (3)
+`PORTFYL_TRIAL_DAYS` unset or `10`, (4) build with `VITE_PUBLIC_SIGNUP=true`,
+(5) only then open Cloudflare Access.
+
+## Sign-up bot check (Cloudflare Turnstile)
+
+A brand-new Portfyl identity must pass a Cloudflare Turnstile challenge.
+It is **on demand**: `/auth/session` (`backend/routers/auth.py`) asks for a
+token only when the exchange would create a new user, answering
+`403 bot_check_required`; the SPA (`AuthProvider` + `auth/BotCheckDialog.jsx`)
+then shows the widget once and retries with `turnstile_token`. Existing users
+never load Turnstile. A rejected token or a Cloudflare outage answers
+`403 bot_check_failed` and **creates nothing**. The Firebase account itself and
+the verification e-mail request are not covered (see the trial plan's "Open
+risks").
+
+| Variable | Where | Notes |
+| --- | --- | --- |
+| `PORTFYL_TURNSTILE_SECRET` | Secret Manager | Cloudflare's secret key for the widget. Setting it turns the check on and adds `https://challenges.cloudflare.com` to the CSP `script-src` and `frame-src` (`backend/security_headers.py`). Needs `PORTFYL_APP_URL` (the siteverify answer must name that hostname and the action `signup`). |
+| `PORTFYL_TURNSTILE_DISABLED` | env var | `1` runs the cloud edition **without** the check (one WARNING at startup). Use it only until the secret exists. |
+| `PORTFYL_TURNSTILE_TEST_KEYS` | env var | `1` allows Cloudflare's dummy secrets (`1x0000...`, `2x0000...`, `3x0000...`) for local and test runs. Never set it in production. |
+| `VITE_TURNSTILE_SITE_KEY` | build arg | The public site key, compiled into the SPA. Empty: the dialog says the check is unavailable and new sign-ups cannot finish. |
+
+**The cloud image refuses to start** without `PORTFYL_TURNSTILE_SECRET` or an
+explicit `PORTFYL_TURNSTILE_DISABLED=1` (and with both set). Cloud Run then
+keeps the previous revision serving, so nothing goes down, but the deploy
+fails. **Before the first deploy of an image that contains this feature, set
+one of the two** (the disable flag is the interim choice).
+
+1. In the Cloudflare dashboard (Turnstile), create a widget in **managed**
+   mode for the hostname `app.portfyl.com` (owner action). Keep the site key
+   and the secret key.
+2. Store the secret and let the runtime account read it:
+
+```powershell
+gcloud secrets create portfyl-turnstile-secret --replication-policy=automatic
+"<secret key from the Cloudflare dashboard>" | gcloud secrets versions add portfyl-turnstile-secret --data-file=-
+gcloud secrets add-iam-policy-binding portfyl-turnstile-secret --member="serviceAccount:portfyl-runtime@$PROJECT_ID.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+# Add it to the existing secrets and drop the interim flag:
+gcloud run services update $SERVICE --region $REGION --update-secrets="PORTFYL_TURNSTILE_SECRET=portfyl-turnstile-secret:latest" --remove-env-vars=PORTFYL_TURNSTILE_DISABLED
+```
+
+3. Put `VITE_TURNSTILE_SITE_KEY=<site key>` in `frontend/.env.local` and
+   redeploy with the "Routine redeploy" commands above (the regex and the
+   `--build-arg` already carry it).
+
+**Local development:** use Cloudflare's dummy keys. In the backend shell set
+`PORTFYL_TURNSTILE_SECRET=1x0000000000000000000000000000000AA` and
+`PORTFYL_TURNSTILE_TEST_KEYS=1` (cloud edition only; local never checks), and
+build the frontend with `VITE_TURNSTILE_SITE_KEY=1x00000000000000000000AA`
+(always passes; `2x00000000000000000000AB` always blocks,
+`3x00000000000000000000FF` forces an interactive challenge). Dummy tokens skip
+the action and hostname comparison.
+
+**Cloudflare Access is unaffected:** the widget runs in the browser against
+`challenges.cloudflare.com`, and siteverify is an outbound call from Cloud
+Run. But Access must not be opened for public sign-up before Turnstile is on:
+check `GET /health` for `checks.turnstile.status` = `ok` (`disabled` means no
+check; `test` means dummy keys).
 
 ## Ongoing rules
 

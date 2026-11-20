@@ -31,11 +31,20 @@ vi.mock("./firebase", () => ({
   signOutFirebaseClient: firebaseMocks.signOutFirebaseClient,
 }));
 
-afterEach(() => localStorage.clear());
+// The real widget loads Cloudflare's script; the dialog only needs its token.
+vi.mock("./TurnstileWidget", () => ({
+  default: ({ onToken }) => <button onClick={() => onToken("tok")}>solve-challenge</button>,
+}));
+
+afterEach(() => {
+  localStorage.clear();
+  vi.unstubAllEnvs();
+});
 
 function Probe() {
   const auth = useAuth();
   const [signOutError, setSignOutError] = useState("");
+  const [loginError, setLoginError] = useState("");
   return (
     <div>
       <span data-testid="signout-error">{signOutError}</span>
@@ -46,6 +55,12 @@ function Probe() {
       <span data-testid="workspace">{auth.currentWorkspace?.id ?? ""}</span>
       <span data-testid="csrf">{auth.csrfToken ?? ""}</span>
       <button onClick={() => auth.loginWithIdToken("id-token-123")}>login</button>
+      <span data-testid="login-error">{loginError}</span>
+      <button
+        onClick={() => auth.loginWithIdToken("id-token-123").catch((e) => setLoginError(e?.response?.data?.code ?? "other"))}
+      >
+        login-safe
+      </button>
       <button onClick={() => auth.logout()}>logout</button>
       <button onClick={() => auth.logoutAll()}>logout-all</button>
       <button onClick={() => auth.selectWorkspace("w2")}>switch-workspace</button>
@@ -129,6 +144,101 @@ describe("AuthProvider", () => {
     expect(firebaseMocks.signOutFirebaseClient).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("email").textContent).toBe("bob@example.com");
     expect(screen.getByTestId("workspace").textContent).toBe("w2");
+  });
+
+  describe("new-account bot check", () => {
+    const botCheckRequired = { response: { status: 403, data: { code: "bot_check_required" } } };
+    const account = {
+      user: { id: "u3", email: "carol@example.com" },
+      workspaces: [{ id: "w3", name: "Carol's workspace", role: "owner" }],
+      csrf_token: "csrf-3",
+    };
+
+    async function mountSignedOut() {
+      vi.stubEnv("VITE_TURNSTILE_SITE_KEY", "1x00000000000000000000AA");
+      apiMocks.fetchMe.mockRejectedValueOnce({ response: { status: 401 } });
+      mount();
+      await waitFor(() => expect(screen.getByTestId("ready").textContent).toBe("true"));
+    }
+
+    it("shows the challenge once and retries the exchange with its token", async () => {
+      await mountSignedOut();
+      apiMocks.exchangeSession.mockRejectedValueOnce(botCheckRequired).mockResolvedValueOnce(account);
+
+      await act(async () => {
+        screen.getByRole("button", { name: "login" }).click();
+      });
+      expect(await screen.findByRole("dialog", { name: "One quick check" })).toBeInTheDocument();
+      await act(async () => {
+        screen.getByRole("button", { name: "solve-challenge" }).click();
+      });
+
+      await waitFor(() => expect(screen.getByTestId("email").textContent).toBe("carol@example.com"));
+      expect(apiMocks.exchangeSession).toHaveBeenNthCalledWith(1, "id-token-123");
+      expect(apiMocks.exchangeSession).toHaveBeenNthCalledWith(2, "id-token-123", { turnstileToken: "tok" });
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("rethrows the original error when the challenge is cancelled", async () => {
+      await mountSignedOut();
+      apiMocks.exchangeSession.mockRejectedValueOnce(botCheckRequired);
+
+      await act(async () => {
+        screen.getByRole("button", { name: "login-safe" }).click();
+      });
+      await act(async () => {
+        screen.getByRole("button", { name: "Cancel" }).click();
+      });
+
+      await waitFor(() => expect(screen.getByTestId("login-error").textContent).toBe("bot_check_required"));
+      expect(apiMocks.exchangeSession).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("passes a rejected token on to the caller after the single retry", async () => {
+      await mountSignedOut();
+      apiMocks.exchangeSession
+        .mockRejectedValueOnce(botCheckRequired)
+        .mockRejectedValueOnce({ response: { status: 403, data: { code: "bot_check_failed" } } });
+
+      await act(async () => {
+        screen.getByRole("button", { name: "login-safe" }).click();
+      });
+      await act(async () => {
+        screen.getByRole("button", { name: "solve-challenge" }).click();
+      });
+
+      await waitFor(() => expect(screen.getByTestId("login-error").textContent).toBe("bot_check_failed"));
+      expect(apiMocks.exchangeSession).toHaveBeenCalledTimes(2);
+    });
+
+    it("never shows the challenge when the first exchange succeeds", async () => {
+      await mountSignedOut();
+      apiMocks.exchangeSession.mockResolvedValueOnce(account);
+
+      await act(async () => {
+        screen.getByRole("button", { name: "login" }).click();
+      });
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(apiMocks.exchangeSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("says the check is unavailable when the build has no site key", async () => {
+      vi.stubEnv("VITE_TURNSTILE_SITE_KEY", "");
+      apiMocks.fetchMe.mockRejectedValueOnce({ response: { status: 401 } });
+      mount();
+      await waitFor(() => expect(screen.getByTestId("ready").textContent).toBe("true"));
+      apiMocks.exchangeSession.mockRejectedValueOnce(botCheckRequired);
+
+      await act(async () => {
+        screen.getByRole("button", { name: "login-safe" }).click();
+      });
+
+      expect(await screen.findByText(/sign-up check is not available right now/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "solve-challenge" })).not.toBeInTheDocument();
+      expect(document.querySelector('script[src*="challenges.cloudflare.com"]')).toBeNull();
+    });
   });
 
   it("clears account state and calls the backend on logout", async () => {

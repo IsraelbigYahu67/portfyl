@@ -297,6 +297,8 @@ it.each([
   [{ response: { data: { code: "identity_conflict" } } }, /different sign-in method/],
   [{ response: { data: { code: "beta_access_required" } } }, /private beta invitation/],
   [{ response: { data: { code: "email_verification_required" } } }, /not verified yet/],
+  [{ response: { data: { code: "bot_check_failed" } } }, /sign-up check did not pass/],
+  [{ response: { data: { code: "bot_check_required" } } }, /sign-up check did not pass/],
   [{ code: "auth/something-new" }, /Something went wrong/],
 ])("maps %o to actionable copy", async (error, message) => {
   const { mapFirebaseAuthError } = await import("./firebase");

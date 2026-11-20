@@ -10,6 +10,7 @@ import {
 } from "../api";
 import { signOutFirebaseClient } from "./firebase";
 import { useAnalytics } from "../analytics/AnalyticsProvider";
+import BotCheckDialog from "./BotCheckDialog";
 
 const AuthContext = createContext(null);
 
@@ -129,9 +130,47 @@ export function AuthProvider({ children }) {
     }
   }, [analytics.ready, analytics.consent, analytics.identify, user?.id, currentWorkspace?.id]);
 
+  // The new-account bot check. The server asks for it (`bot_check_required`)
+  // only when an exchange would create a new account. One dialog serves every
+  // caller waiting at that moment (VerifyEmail polls), via the shared promise.
+  const botCheck = useRef(null);
+  const [botCheckOpen, setBotCheckOpen] = useState(false);
+
+  const askBotCheck = useCallback(() => {
+    if (!botCheck.current) {
+      let resolve;
+      const promise = new Promise((done) => {
+        resolve = done;
+      });
+      botCheck.current = { promise, resolve };
+      setBotCheckOpen(true);
+    }
+    return botCheck.current.promise;
+  }, []);
+
+  // `token` is the Turnstile token, or null when the person cancelled.
+  const finishBotCheck = useCallback((token) => {
+    const pending = botCheck.current;
+    botCheck.current = null;
+    setBotCheckOpen(false);
+    pending?.resolve(token);
+  }, []);
+
+  const cancelBotCheck = useCallback(() => finishBotCheck(null), [finishBotCheck]);
+
   const loginWithIdToken = useCallback(
     async (idToken) => {
-      const payload = await exchangeSession(idToken);
+      let payload;
+      try {
+        payload = await exchangeSession(idToken);
+      } catch (error) {
+        if (error?.response?.data?.code !== "bot_check_required") throw error;
+        const turnstileToken = await askBotCheck();
+        // Cancelled: the caller gets the original error. One retry only; a
+        // `bot_check_failed` on it is the caller's to show.
+        if (!turnstileToken) throw error;
+        payload = await exchangeSession(idToken, { turnstileToken });
+      }
       applyAccount(payload);
       // The backend session cookie is now the durable credential; the
       // Firebase client session served its one purpose (proving the e-mail)
@@ -144,7 +183,7 @@ export function AuthProvider({ children }) {
       }
       return payload;
     },
-    [applyAccount]
+    [applyAccount, askBotCheck]
   );
 
   // The local sign-out only happens once the server has really ended the
@@ -234,5 +273,10 @@ export function AuthProvider({ children }) {
     [ready, user, workspaces, currentWorkspace, csrfToken, loginWithIdToken, logout, logoutAll, accountDeleted, reloadAccount, selectWorkspace]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <BotCheckDialog open={botCheckOpen} onToken={finishBotCheck} onCancel={cancelBotCheck} />
+    </AuthContext.Provider>
+  );
 }

@@ -1,5 +1,6 @@
 import {
   api,
+  exchangeSession,
   fetchHistory,
   applyRequestInterceptors,
   configureRequestContext,
@@ -8,6 +9,22 @@ import {
   getActivePortfolioId,
   setActivePortfolioId,
 } from "./api";
+
+describe("exchangeSession", () => {
+  it("posts exactly { id_token } for a normal exchange", async () => {
+    const post = vi.spyOn(api, "post").mockResolvedValue({ data: {} });
+    await exchangeSession("id-token-123");
+    expect(post).toHaveBeenCalledWith("/auth/session", { id_token: "id-token-123" });
+    post.mockRestore();
+  });
+
+  it("adds turnstile_token only when one is given", async () => {
+    const post = vi.spyOn(api, "post").mockResolvedValue({ data: {} });
+    await exchangeSession("id-token-123", { turnstileToken: "tok" });
+    expect(post).toHaveBeenCalledWith("/auth/session", { id_token: "id-token-123", turnstile_token: "tok" });
+    post.mockRestore();
+  });
+});
 
 it('passes cancellation to stock history', async () => {
   const get = vi.spyOn(api, 'get').mockResolvedValue({ data: {} });
