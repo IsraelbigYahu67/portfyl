@@ -29,6 +29,8 @@ vi.mock("./api", async () => {
   return {
     ...actual,
     fetchCapabilities: mocks.fetchCapabilities,
+    // The cloud shell's trial banner reads the billing status.
+    fetchBillingStatus: () => Promise.resolve({ plan: "free", source: "free", trial_ended_reason: null }),
     fetchFxRate: () => Promise.resolve({ rate: 20 }),
     fetchPortfolios: mocks.fetchPortfolios,
   };
