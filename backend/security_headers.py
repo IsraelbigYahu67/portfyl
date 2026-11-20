@@ -22,6 +22,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+import turnstile
+
 AUTH_DOMAIN_ENV = "PORTFYL_FIREBASE_AUTH_DOMAIN"
 # The four sources Google documents for Google Identity Services under a CSP.
 GOOGLE_IDENTITY_SCRIPT = "https://accounts.google.com/gsi/client"
@@ -49,6 +51,7 @@ def _frame_ancestors(env: Mapping[str, str] | None) -> str:
 
 def build_content_security_policy(env: Mapping[str, str] | None = None) -> str:
     google_sign_in = firebase_auth_domain(env) is not None
+    bot_check = turnstile.csp_enabled(os.environ if env is None else env)
     script_src = "script-src 'self'"
     style_src = "style-src 'self' 'unsafe-inline'"
     connect_src = (
@@ -59,6 +62,9 @@ def build_content_security_policy(env: Mapping[str, str] | None = None) -> str:
         script_src += f" {GOOGLE_IDENTITY_SCRIPT}"
         style_src += f" {GOOGLE_IDENTITY_STYLE}"
         connect_src += f" {GOOGLE_IDENTITY_PATH}"
+    if bot_check:
+        # Cloudflare Turnstile (new-account check): its script and its frame.
+        script_src += f" {turnstile.CSP_SOURCE}"
     directives = [
         "default-src 'self'",
         script_src,
@@ -67,8 +73,11 @@ def build_content_security_policy(env: Mapping[str, str] | None = None) -> str:
         "font-src 'self' data:",
         connect_src,
     ]
-    if google_sign_in:
-        directives.append(f"frame-src {GOOGLE_IDENTITY_PATH}")
+    frame_sources = ([GOOGLE_IDENTITY_PATH] if google_sign_in else []) + (
+        [turnstile.CSP_SOURCE] if bot_check else []
+    )
+    if frame_sources:
+        directives.append("frame-src " + " ".join(frame_sources))
     directives += [
         "object-src 'none'",
         "base-uri 'self'",
