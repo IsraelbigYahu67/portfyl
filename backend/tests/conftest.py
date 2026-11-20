@@ -15,6 +15,9 @@ os.environ.setdefault("PORTFYL_EDITION", "local")
 os.environ.setdefault("PORTFYL_LOCAL_SECRET_KEY", "OmC2HEZsgRV5WF4AjQgE1OZTViBiZm6ILN131PwtgPg=")
 os.environ.setdefault("PORTFYL_ACCOUNT_FINGERPRINT_KEY", "test-only-account-fingerprint-key-0001")
 os.environ.setdefault("PORTFYL_TRIAL_FINGERPRINT_KEY", "test-only-trial-fingerprint-key-0000000001")
+# Tests that import main in the cloud edition would otherwise stop at startup:
+# the cloud edition fails closed without a Turnstile secret.
+os.environ.setdefault("PORTFYL_TURNSTILE_DISABLED", "1")
 
 # Ensure the backend package is importable.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))

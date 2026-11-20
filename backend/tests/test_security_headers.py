@@ -159,6 +159,32 @@ def test_middleware_stamps_the_auth_domain_policy():
     assert "frame-src https://accounts.google.com/gsi/" in response.headers["content-security-policy"]
 
 
+TURNSTILE_ENV = {"PORTFYL_EDITION": "cloud", "PORTFYL_TURNSTILE_SECRET": "x" * 40}
+
+
+def test_turnstile_secret_admits_cloudflare_script_and_frame_only():
+    policy = build_content_security_policy(TURNSTILE_ENV)
+    assert _directive(policy, "script-src") == "script-src 'self' https://challenges.cloudflare.com"
+    assert _directive(policy, "frame-src") == "frame-src https://challenges.cloudflare.com"
+    assert "challenges.cloudflare.com" not in _directive(policy, "connect-src")
+    assert "unsafe-eval" not in policy
+
+
+def test_turnstile_and_google_share_frame_src():
+    policy = build_content_security_policy({**TURNSTILE_ENV, **AUTH_ENV})
+    assert _directive(policy, "frame-src") == (
+        "frame-src https://accounts.google.com/gsi/ https://challenges.cloudflare.com"
+    )
+    assert _directive(policy, "script-src") == (
+        "script-src 'self' https://accounts.google.com/gsi/client https://challenges.cloudflare.com"
+    )
+
+
+def test_turnstile_is_not_admitted_without_the_secret_or_outside_cloud():
+    for env in ({"PORTFYL_EDITION": "cloud"}, {"PORTFYL_EDITION": "local", "PORTFYL_TURNSTILE_SECRET": "x" * 40}):
+        assert "cloudflare" not in build_content_security_policy(env)
+
+
 def test_script_src_never_allows_inline_scripts():
     for env in (NO_ENV, AUTH_ENV):
         script_src = _directive(build_content_security_policy(env), "script-src")

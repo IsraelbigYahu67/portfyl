@@ -17,6 +17,7 @@ def test_health_is_ok_when_database_and_all_job_passes_are_fresh(db_session):
     assert result["status"] == "ok"
     assert result["checks"]["database"]["status"] == "ok"
     assert result["checks"]["scheduler"]["status"] == "ok"
+    assert result["checks"]["turnstile"] == {"status": "disabled"}
 
 
 def test_health_names_a_stale_job(db_session):
@@ -63,6 +64,7 @@ def test_health_names_database_failure_without_leaking_exception_text():
     assert result == {
         "status": "degraded",
         "checks": {
+            "turnstile": {"status": "disabled"},
             "database": {"status": "error", "error_type": "RuntimeError"},
             "scheduler": {"status": "unavailable"},
         },
