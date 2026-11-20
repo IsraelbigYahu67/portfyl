@@ -115,6 +115,33 @@ def test_provisioning_a_new_workspace_grants_one_trial_under_rls(runtime_session
     assert user.id != other_user.id
 
 
+def test_withheld_registration_writes_marker_under_rls(
+    matrix_tenants: MatrixTenants, runtime_session: Session
+):
+    from app_settings import get_workspace_setting
+
+    first, first_ws = _provision(runtime_session, "wm1", "203.0.113.71")
+    second = VerifiedIdentity(
+        uid="firebase-wm-2", email="bc.wm1+again@example.com",  # same canonical e-mail
+        email_verified=True, display_name=None,
+    )
+    second_user, created = _provision_identity(
+        runtime_session, second, grant_trial=True, client_ip="203.0.113.72"
+    )
+    assert created
+    second_ws = UUID(runtime_session.scalar(text("SELECT current_setting('portfyl.workspace_id')")))
+
+    # The runtime role wrote the marker and the withheld workspace reads it.
+    assert get_workspace_setting(runtime_session, second_ws, "trial_withheld") == "1"
+    assert trials.trial_state(runtime_session, second_ws, NOW) == (None, "not_eligible")
+    assert get_workspace_setting(runtime_session, first_ws, "trial_withheld") is None
+
+    # Another tenant's context cannot read it.
+    _as(runtime_session, matrix_tenants.alice)
+    assert get_workspace_setting(runtime_session, second_ws, "trial_withheld") is None
+    assert second_user.id != first.id
+
+
 def test_deleting_a_workspace_removes_its_grant_but_keeps_the_guards(postgres_session: Session):
     workspace = Workspace(id=uuid4(), name="Doomed")
     postgres_session.add(workspace)

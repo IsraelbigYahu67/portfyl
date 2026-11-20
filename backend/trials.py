@@ -15,8 +15,10 @@ Abuse guards, in the order `trial_block_reason` applies them:
 unknown at registration, so it runs at every import commit and broker sync
 of a workspace whose trial is active.
 
-A failing guard never blocks the account: the workspace simply starts on Free
-and a `trial.withheld` audit event records the reason. Only HMAC fingerprints
+A failing guard never blocks the account: the workspace simply starts on Free,
+a `trial.withheld` audit event records the reason, and the workspace setting
+`trial_withheld` = "1" makes `trial_state` report `"not_eligible"` so the app
+can say a trial was already used (never which guard fired). Only HMAC fingerprints
 are stored or logged, never the raw e-mail or IP address.
 
 All functions are plain synchronous code (no `async def`): they run in the
@@ -40,6 +42,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.orm import Session
 
+from app_settings import get_workspace_setting, set_workspace_setting
 from audit import record_audit_event
 from models import Membership, TrialBrokerMark, TrialGrant, TrialIdentity, TrialIpMark
 
@@ -62,6 +65,8 @@ IP_LIMIT = "ip_limit"
 EXPIRED = "expired"
 BROKER_ACCOUNT_REUSED = "broker_account_reused"
 HISTORY_REUSED = "history_reused"
+NOT_ELIGIBLE = "not_eligible"
+TRIAL_WITHHELD_SETTING = "trial_withheld"
 
 HISTORY_SAMPLE = 5  # the oldest ledger rows whose event ids are fingerprinted
 HISTORY_MATCHES_TO_END = 3  # of HISTORY_SAMPLE, so 2 coincidences end nothing
@@ -237,6 +242,9 @@ def _insert_identity(db: Session, fingerprint: str, now: datetime) -> bool:
 def _record_withheld(
     db: Session, *, workspace_id: UUID, actor_user_id: UUID | None, reason: str
 ) -> None:
+    # The marker lets the UI tell "trial withheld" from "trials are off"; it
+    # carries no reason, so nothing reveals which guard fired.
+    set_workspace_setting(db, workspace_id, TRIAL_WITHHELD_SETTING, "1")
     if actor_user_id is None:
         return
     record_audit_event(
@@ -314,9 +322,12 @@ def trial_state(
 ) -> tuple[TrialGrant | None, str | None]:
     """`(active grant, ended reason)` from one query. The reason is None while
     a trial runs or none existed; otherwise the stored `ended_reason` when the
-    trial was cut short, else `"expired"`."""
+    trial was cut short, else `"expired"`. A workspace without any grant whose
+    trial was withheld at registration reports `"not_eligible"`."""
     grant = _grant_for(db, workspace_id)
     if grant is None:
+        if get_workspace_setting(db, workspace_id, TRIAL_WITHHELD_SETTING) == "1":
+            return None, NOT_ELIGIBLE
         return None, None
     if _is_active(grant, now):
         return grant, None
