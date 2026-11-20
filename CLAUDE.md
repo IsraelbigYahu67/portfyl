@@ -166,6 +166,12 @@ mockup) and does not override it.
   30-day rule are still finished by the daily purge job, and
   `DELETE .../deletion` cancels those. Unauthenticated `/api` calls get
   401, and the SPA routes to `/login`/`/register` (`frontend/src/auth/`).
+  A brand-new identity also passes Cloudflare Turnstile **on demand**:
+  `/auth/session` answers `bot_check_required` only when it would create a
+  user, and `AuthProvider` shows `auth/BotCheckDialog.jsx` once and retries
+  (`backend/turnstile.py`). The cloud image fails closed at startup without
+  `PORTFYL_TURNSTILE_SECRET` or an explicit `PORTFYL_TURNSTILE_DISABLED=1`; see
+  "Sign-up bot check" in `deploy/cloudrun.md`.
   Three settings control the Google button: the build flag
   `VITE_FIREBASE_GOOGLE_SIGN_IN=true`, the build value
   `VITE_GOOGLE_OAUTH_CLIENT_ID`, and the runtime

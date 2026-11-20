@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Check, CreditCard, FlaskConical, Gem, LoaderCircle, Sprout, TrendingUp } from "lucide-react";
+import { AlertTriangle, Check, Clock, CreditCard, FlaskConical, Gem, LoaderCircle, Sprout, TrendingUp } from "lucide-react";
 
 import {
   changePlan,
@@ -13,7 +13,9 @@ import {
 } from "../api";
 import { Badge } from "../components/ui/Badge";
 import { msg, useI18n, useT } from "../i18n/I18nProvider";
+import { BILLING_STATUS_KEY } from "../lib/billingStatusQuery";
 import { PLAN_PRICES_CENTS } from "../lib/planPrices";
+import { trialMessage, trialState } from "../lib/trial";
 
 
 // Monthly prices in euro cents, VAT included. In billing mode the backend's
@@ -141,6 +143,27 @@ function Notice({ icon: Icon, title, children }) {
         <div className="mt-0.5 text-sm text-muted">{children}</div>
       </div>
     </div>
+  );
+}
+
+
+// The trial, in the page's own words: the countdown while it runs, why it
+// ended, or that none was given. Renders nothing when there is no trial story.
+function TrialNotice({ status }) {
+  const { t, language } = useI18n();
+  const state = trialState(status);
+  if (state.phase === "none") return null;
+  if (state.phase === "active") {
+    return (
+      <Notice icon={Clock} title={t("Pro trial until {date}", { date: longDate(state.endsAt, language) })}>
+        {t("When the trial ends, the account moves to the Free plan unless you subscribe. Nothing is charged automatically.")}
+      </Notice>
+    );
+  }
+  return (
+    <Notice icon={Clock} title={t("Trial")}>
+      {trialMessage(state, t)}
+    </Notice>
   );
 }
 
@@ -330,10 +353,14 @@ function PaidPlans({ status, onStatusChange }) {
       <div className="grid gap-6 md:grid-cols-3">
         {PLANS.map((plan) => {
           const price = plan.id === "free" ? 0 : prices[plan.id] ?? plan.monthly;
-          const isCurrent = status.plan === plan.id;
+          // A trial is not a plan the workspace pays for: its Pro card stays
+          // buyable, so the visitor can convert.
+          const onTrial = status.source === "trial";
+          const isCurrent = status.plan === plan.id && !onTrial;
           const isScheduled = subscription?.scheduled_plan === plan.id;
           let action;
           let badge = isCurrent && <Badge tone="brand">{t("Current plan")}</Badge>;
+          if (onTrial && status.plan === plan.id) badge = <Badge tone="brand">{t("Trial")}</Badge>;
           if (isCurrent && subscription?.scheduled_plan) {
             // A switch is booked: offer to stay on the current plan instead.
             action = (
@@ -455,6 +482,7 @@ export default function Pricing({ planSwitching = true }) {
             : t("Your payment is being processed. Your plan will switch shortly."),
         );
         queryClient.invalidateQueries({ queryKey: ["plan-capabilities"] });
+        queryClient.invalidateQueries({ queryKey: BILLING_STATUS_KEY });
         return;
       }
       if (!active) return;
@@ -497,11 +525,15 @@ export default function Pricing({ planSwitching = true }) {
         </p>
       )}
 
+      {status && <TrialNotice status={status} />}
+
       {status && billing && (
         <PaidPlans
           status={status}
           onStatusChange={(next) => {
             setStatus(next);
+            queryClient.invalidateQueries({ queryKey: ["plan-capabilities"] });
+            queryClient.invalidateQueries({ queryKey: BILLING_STATUS_KEY });
             setMessage(
               next.subscription?.scheduled_plan
                 ? t("Booked: {plan} starts when your current period ends.", { plan: planName(next.subscription.scheduled_plan) })
@@ -517,6 +549,7 @@ export default function Pricing({ planSwitching = true }) {
             setTestPlan(plan);
             // The dashboard picks its paid widgets from the plan's capabilities.
             queryClient.invalidateQueries({ queryKey: ["plan-capabilities"] });
+            queryClient.invalidateQueries({ queryKey: BILLING_STATUS_KEY });
           }}
         />
       )}

@@ -1,7 +1,7 @@
 import { Layers3 } from "lucide-react";
 import { lazy } from "react";
-import { fetchBillingStatus, fetchTestPlan } from "../api";
-import UpgradePrompt from "../components/UpgradePrompt";
+import { fetchBillingStatus } from "../api";
+import CloudShell from "../components/billing/CloudShell";
 import { msg } from "../i18n/I18nProvider";
 
 // Plan comparison, Stripe billing and the private-test plan switch. The local
@@ -13,7 +13,7 @@ export const EDITION_ROUTES = Object.freeze([
 export const EDITION_NAVIGATION = Object.freeze([
   { to: "/pricing", label: msg("Plans"), icon: Layers3, capability: "settings", preload: loadPricing },
 ]);
-export const EditionShell = UpgradePrompt;
+export const EditionShell = CloudShell;
 
 // The desktop-side mobile preview exists only in the local edition.
 export const EditionAppFrame = ({ children }) => children;
@@ -26,7 +26,10 @@ export const fetchEditionDashboardSignals = async () => ({ taxReport: null });
 
 // /api/capabilities lists what the cloud edition offers at all; the
 // workspace's plan decides which of those it may use right now.
-export const fetchEditionPlanCapabilities = async () => (await fetchTestPlan()).capabilities;
+// Read from /api/billing/status, which exists in every cloud mode: /api/test-plans
+// is unmounted once billing is on and would 404 here (every workspace, paid or
+// trial, then fell back to the Free widgets).
+export const fetchEditionPlanCapabilities = async () => (await fetchBillingStatus()).capabilities;
 
 // What the onboarding connect step needs to know before it asks for broker
 // credentials. Reads /api/billing/status rather than /api/test-plans, which is

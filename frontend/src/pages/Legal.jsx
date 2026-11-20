@@ -1,15 +1,16 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+﻿import { Fragment, useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import termsCs from "../../../docs/legal/podminky-uzivani-cs.md?raw";
 import termsEn from "../../../docs/legal/terms-of-service-en.md?raw";
 import privacyCs from "../../../docs/legal/zasady-ochrany-osobnich-udaju-cs.md?raw";
 import privacyEn from "../../../docs/legal/privacy-policy-en.md?raw";
-import { LANGUAGE_KEY } from "./welcomeCopy";
-import { useAnalytics } from "../analytics/AnalyticsProvider";
-import { ANALYTICS_COPY } from "../analytics/analyticsCopy";
+import { COPY as LANDING_COPY, LANGUAGE_KEY } from "./welcomeCopy";
+import LandingHeader from "../components/landing/LandingHeader";
+import LandingFooter from "../components/landing/LandingFooter";
 import SegmentedControl from "../components/ui/SegmentedControl";
 import { CLAY_STYLE } from "../lib/clayStyle";
 import { splitLegalDocument } from "../lib/legalMarkdown";
+import { LANDING_PATHS } from "../lib/routes";
 import "./Welcome.css";
 import "./Legal.css";
 import "../fonts.css";
@@ -32,7 +33,6 @@ const COPY = {
     navigation: "Právní dokumenty",
     language: "Jazyk stránky",
     skip: "Přejít na obsah",
-    home: "Portfyl — úvod",
     back: "Zpět na úvod",
     contents: "Obsah",
     draftTitle: "Pracovní verze.",
@@ -46,7 +46,6 @@ const COPY = {
     navigation: "Legal documents",
     language: "Page language",
     skip: "Skip to content",
-    home: "Portfyl — home",
     back: "Back to home",
     contents: "Contents",
     draftTitle: "Working draft.",
@@ -123,26 +122,17 @@ function Block({ block, t }) {
   }
 }
 
-function Brand() {
-  return <><img src="/portfyl-mark.svg" alt="" width="38" height="38" />Portfyl</>;
-}
-
-function AnalyticsPreferencesLink({ language }) {
-  const { reopenAnalyticsPreferences } = useAnalytics();
-  return (
-    <button type="button" onClick={reopenAnalyticsPreferences} className="welcome-preview-link" style={{ background: "none", border: "none", cursor: "pointer" }}>
-      {ANALYTICS_COPY[language].manage}
-    </button>
-  );
-}
-
 function Contents({ sections }) {
   return <ol>{sections.map(({ id, text }) => <li key={id}><a href={`#${id}`}>{text}</a></li>)}</ol>;
 }
 
-export default function Legal({ page }) {
+// The landing's own header and footer (the section links lead back to the
+// landing page in the same language) around one flat text column.
+export default function Legal({ page, signupOpen = import.meta.env.VITE_PUBLIC_SIGNUP === "true" }) {
   const [language, setLanguage] = useState(initialLegalLanguage);
   const t = COPY[language];
+  const landing = LANDING_COPY[language];
+  const anchorBase = LANDING_PATHS[language];
   const doc = useMemo(() => splitLegalDocument(SOURCES[page][language]), [page, language]);
 
   useEffect(() => {
@@ -162,53 +152,39 @@ export default function Legal({ page }) {
 
   const docLink = (target) => `/${target}?lang=${language}`;
   return (
-    <div className="welcome theme-clay legal" style={CLAY_STYLE}>
+    <div className="welcome theme-clay legal" id="nahoru" style={CLAY_STYLE}>
       <a className="welcome-skip" href="#obsah">{t.skip}</a>
-      <header className="welcome-header"><div className="welcome-nav welcome-container">
-        <a className="welcome-logo" href="/" aria-label={t.home}><Brand /></a>
-        <nav aria-label={t.navigation}>
-          {["terms", "privacy"].map((target) => (
-            <a key={target} href={docLink(target)} aria-current={target === page ? "page" : undefined}>{t[target]}</a>
-          ))}
-        </nav>
-        <SegmentedControl
-          className="welcome-language-switch"
-          aria-label={t.language}
-          value={language}
-          onChange={chooseLanguage}
-          options={LEGAL_LANGUAGES.map((code) => ({ value: code, label: <span lang={code}>{code === "cs" ? "CZ" : "EN"}</span>, title: code === "cs" ? "Čeština" : "English" }))}
-        />
-      </div></header>
-      <div className="legal-layout welcome-container">
-        <aside className="legal-toc legal-toc-aside" aria-labelledby="legal-toc-title">
-          <p id="legal-toc-title" className="welcome-kicker">{t.contents}</p>
+      <LandingHeader copy={landing} language={language} signupOpen={signupOpen} anchorBase={anchorBase} />
+      <main id="obsah" className="legal-text welcome-container" lang={language}>
+        <div className="legal-tools">
+          <a className="legal-back" href={anchorBase}><ArrowLeft size={16} aria-hidden="true" />{t.back}</a>
+          <nav className="legal-doc-links" aria-label={t.navigation}>
+            {["terms", "privacy"].map((target) => (
+              <a key={target} href={docLink(target)} aria-current={target === page ? "page" : undefined}>{t[target]}</a>
+            ))}
+          </nav>
+          <SegmentedControl
+            className="welcome-language-switch"
+            aria-label={t.language}
+            value={language}
+            onChange={chooseLanguage}
+            options={LEGAL_LANGUAGES.map((code) => ({ value: code, label: <span lang={code}>{code === "cs" ? "CZ" : "EN"}</span>, title: code === "cs" ? "Čeština" : "English" }))}
+          />
+        </div>
+        <h1>{doc.title}</h1>
+        {doc.pendingCount > 0 && (
+          <div className="legal-draft" role="note"><strong>{t.draftTitle}</strong> {t.draft}</div>
+        )}
+        <details className="legal-toc">
+          <summary>{t.contents}</summary>
           <Contents sections={doc.sections} />
-        </aside>
-        <main id="obsah" className="legal-card" lang={language}>
-          <a className="legal-back" href="/"><ArrowLeft size={16} aria-hidden="true" />{t.back}</a>
-          <h1>{doc.title}</h1>
-          {doc.pendingCount > 0 && (
-            <div className="legal-draft" role="note"><strong>{t.draftTitle}</strong> {t.draft}</div>
-          )}
-          <details className="legal-toc legal-toc-mobile">
-            <summary>{t.contents}</summary>
-            <Contents sections={doc.sections} />
-          </details>
-          <article className="legal-body">
-            {doc.blocks.map((block, index) => <Block key={index} block={block} t={t} />)}
-          </article>
-          <p className="legal-contact">{t.questions} <a href="mailto:support@portfyl.com">support@portfyl.com</a>.</p>
-        </main>
-      </div>
-      <footer className="welcome-footer welcome-container">
-        <a className="welcome-logo" href="/"><Brand /></a>
-        <nav className="legal-footer-links" aria-label={t.navigation}>
-          <a href={docLink("terms")}>{t.terms}</a>
-          <a href={docLink("privacy")}>{t.privacy}</a>
-        </nav>
-        <AnalyticsPreferencesLink language={language} />
-        <small>© {new Date().getFullYear()} Portfyl</small>
-      </footer>
+        </details>
+        <article className="legal-body">
+          {doc.blocks.map((block, index) => <Block key={index} block={block} t={t} />)}
+        </article>
+        <p className="legal-contact">{t.questions} <a href="mailto:support@portfyl.com">support@portfyl.com</a>.</p>
+      </main>
+      <LandingFooter copy={landing} language={language} anchorBase={anchorBase} />
     </div>
   );
 }

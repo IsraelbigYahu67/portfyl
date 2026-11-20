@@ -22,6 +22,11 @@ ARG VITE_FIREBASE_GOOGLE_SIGN_IN=false
 # Public OAuth web client ID of the Firebase project's Google provider. The
 # button stays hidden without it: Google's popup is opened with this ID.
 ARG VITE_GOOGLE_OAUTH_CLIENT_ID=
+# Public Cloudflare Turnstile site key for the new-account bot check (see
+# "Sign-up bot check" in deploy/cloudrun.md). Empty = the challenge dialog says
+# the check is unavailable; the service secret PORTFYL_TURNSTILE_SECRET is
+# runtime only and never baked in.
+ARG VITE_TURNSTILE_SITE_KEY=
 ARG VITE_PORTFYL_EDITION=cloud
 # PostHog Cloud EU activation analytics. Both stay EMPTY until the public
 # privacy notice covering PostHog is legally reviewed and published (see
@@ -37,7 +42,8 @@ ENV VITE_PORTFYL_EDITION=$VITE_PORTFYL_EDITION \
     VITE_FIREBASE_PROJECT_ID=$VITE_FIREBASE_PROJECT_ID \
     VITE_FIREBASE_APP_ID=$VITE_FIREBASE_APP_ID \
     VITE_FIREBASE_GOOGLE_SIGN_IN=$VITE_FIREBASE_GOOGLE_SIGN_IN \
-    VITE_GOOGLE_OAUTH_CLIENT_ID=$VITE_GOOGLE_OAUTH_CLIENT_ID
+    VITE_GOOGLE_OAUTH_CLIENT_ID=$VITE_GOOGLE_OAUTH_CLIENT_ID \
+    VITE_TURNSTILE_SITE_KEY=$VITE_TURNSTILE_SITE_KEY
 COPY frontend/ ./
 # The public /terms and /privacy pages import their text from docs/legal/
 # (frontend/src/pages/Legal.jsx), one level above the frontend root.
