@@ -65,6 +65,11 @@ immediately to support@portfyl.com.
 address – we use it for important account notices and changes to these
 terms.
 
+3.5 To protect the Service from automated sign-ups, creating a new account
+may require an automated bot check (Cloudflare Turnstile). It is shown only
+when a new account is created. `[[LAWYER: confirm that this check needs no
+separate consent; see notes, point 10.]]`
+
 ## 4. Plans and free trial
 
 4.1 The Service is offered as a **Free** plan and the paid **Investor** and
@@ -74,16 +79,29 @@ where applicable.
 
 4.2 Paid plans are paid **monthly**.
 
-4.3 A new User may try a paid plan once **free of charge for 10 days**. When
-the trial ends, the account **automatically switches to the Free plan**
-unless you explicitly order a subscription. A trial never turns into a paid
-subscription by itself, and your data is not deleted when it ends.
+4.3 A new account may try the **Pro** plan once **free of charge**. The
+length of the trial is shown at registration (currently 10 days). No payment
+card is needed and nothing is charged automatically. When the trial ends, the
+account **switches to the Free plan** unless you explicitly order a
+subscription. A trial never turns into a paid subscription by itself, and your
+data is not deleted when it ends.
 `[[DECIDE: if the trial requires a payment card and converts automatically,
 this clause must be rewritten and the User reminded before the first
 charge.]]`
 
 4.4 When you move to a lower plan or to Free, your data is kept; features
 beyond the new plan simply become unavailable.
+
+4.5 **One trial per person.** The trial may be withheld at registration, or
+ended early, when the same e-mail mailbox, network address, broker account or
+transaction history already had a trial in another Portfyl account. The
+account itself is not affected: it stays on the Free plan and you can order a
+paid plan at any time. We do not say which of these signals applied.
+`[[LAWYER: is withholding or ending a trial on these signals compatible with
+consumer law and with the landing claim "every new account gets 10 days"?]]`
+
+4.6 After the trial, or on the Free plan, your data is kept. Items beyond the
+Free limits become read-only (as in 4.4) until you subscribe or remove them.
 
 ## 5. Payments and subscriptions
 

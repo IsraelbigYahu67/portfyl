@@ -35,6 +35,7 @@ have not appointed a Data Protection Officer because we are not required to.
 | **Broker requests** | brokers you ask us to support (the name you typed), linked to your account | you |
 | **Subscription data** | plan, period, subscription status, customer and transaction IDs at the Payment Partner, country | the Payment Partner; **we never receive your card number** |
 | **Technical and security data** | IP address, browser type, hashed session tokens, last sign-in time, security records (audit log), feature usage counts | automatically when you use the Service |
+| **Trial abuse-prevention records** | keyed hashes (HMAC-SHA256 with a secret key) of your canonical e-mail address (lower-case, without a `+tag`, Gmail dots folded), of your IP address (IPv6 reduced to its /64), of your broker account numbers and of the identifiers of your 5 oldest imported transactions; a marker that a trial was withheld. The raw values are not stored | derived by us at registration and when you import or sync broker data |
 | **Support communication** | the content of e-mails you send us | you |
 | **Analytics (consent only)** | pseudonymous app-usage events – after sign-in we link them to an internal account identifier, not to your e-mail or name; see Section 8 | automatically, only if you consent |
 
@@ -55,6 +56,7 @@ how the Service works.
 | Creating and managing your account and providing the Service (calculations, imports, broker sync, notifications) | **performance of a contract** – Art. 6(1)(b) |
 | Managing your subscription and communicating about it | **performance of a contract** – Art. 6(1)(b) |
 | Securing the Service, preventing abuse, protecting the separation of users' data, handling incidents, error records | **legitimate interest** in secure operation – Art. 6(1)(f) |
+| Offering one free trial per person (recognising that the same mailbox, network, broker account or transaction history already had one) | **legitimate interest** in protecting the free trial from abuse – Art. 6(1)(f) `[[LAWYER: balancing test; are keyed hashes pseudonymous personal data here?]]` |
 | Handling complaints, questions and requests to exercise your rights | **contract** / **legal obligation** – Art. 6(1)(b) and (c) |
 | Meeting tax and accounting obligations | **legal obligation** – Art. 6(1)(c) |
 | Protecting our legal claims | **legitimate interest** – Art. 6(1)(f) |
@@ -77,7 +79,7 @@ data processing agreement:
 | Google Cloud (Google Cloud EMEA Ltd. / Google LLC) | application hosting (Cloud Run), encryption keys, operational logs, scheduled jobs | EU – Belgium (`europe-west1`); support may access from the US |
 | Google Firebase Authentication | registration, sign-in, e-mail verification, Google sign-in | EU/US |
 | Neon Inc. | database (PostgreSQL) and backups | EU – Frankfurt `[[VERIFY]]` |
-| Cloudflare, Inc. | DNS, encrypted connections (TLS), attack protection | global network |
+| Cloudflare, Inc. | DNS, encrypted connections (TLS), attack protection, and a bot check when a new account is created (Turnstile) `[[LAWYER: processor or independent controller; DPA]]` | global network |
 | PostHog Inc. (PostHog Cloud EU) | usage analytics – **only with your consent** | EU – Frankfurt |
 
 **Independent controllers** – these process data under their own policies:
@@ -116,6 +118,9 @@ companies is at https://www.dataprivacyframework.gov.
 | Session records | 30 days after expiry or sign-out |
 | Security records (audit log) | while your account exists; deleted with it |
 | Broker requests (the broker names you ask us to support) | while your account exists; deleted together with your account |
+| Trial records: hashes of e-mail address and broker data | 12 months, and they are kept after account deletion so the same person cannot repeat the trial `[[LAWYER: Art. 17 erasure vs. keeping the hash after deletion]]` |
+| Trial record: hash of the IP address | 30 days |
+| Trial record of the workspace (start, end, reason, withheld marker) | deleted with the account |
 | Support communication | 1 year after resolution |
 | Payment records | kept by the Payment Partner; we keep subscription records for as long as tax law requires `[[LAWYER: add period]]` |
 | Analytics data (with consent) | at most 1 year |
@@ -147,7 +152,7 @@ You have the right to:
 
 **Right to object.** You may object at any time, at support@portfyl.com, to
 processing we carry out on the basis of legitimate interest (security,
-protection of legal claims). We will stop that processing unless we show
+protection of legal claims, the trial abuse-prevention records above). We will stop that processing unless we show
 compelling legitimate grounds that override your interests.
 
 Send requests to **support@portfyl.com**. We will reply within one month; in
@@ -187,6 +192,12 @@ pseudonym), not to your e-mail or name. We never collect your e-mail, name,
 portfolio contents, transactions, amounts or notes. Session recording is
 disabled. **If you reject analytics or have not yet decided, we send nothing
 to PostHog**, and no analytics cookies or storage are created.
+
+When a new account is created, the Cloudflare Turnstile bot check runs in
+your browser (Cloudflare's script and frame, `challenges.cloudflare.com`) and
+we verify its one-time result with Cloudflare, passing it your IP address.
+Nothing is stored by Portfyl for it. `[[LAWYER: does Turnstile's device check
+fall under the ePrivacy "strictly necessary" exemption?]]`
 
 We do not use advertising or third-party tracking cookies.
 

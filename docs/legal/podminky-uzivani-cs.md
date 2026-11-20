@@ -63,6 +63,12 @@ support@portfyl.com.
 3.4 V registraci uvádějte pravdivé údaje, zejména funkční e-mail – posíláme na
 něj důležitá oznámení o účtu a o změnách podmínek.
 
+3.5 Abychom Službu chránili před automatizovanými registracemi, může být při
+vytvoření nového účtu vyžadována automatická kontrola, zda nejste robot
+(Cloudflare Turnstile). Zobrazí se jen při vytvoření nového účtu.
+`[[PRÁVNÍK: potvrdit, že tato kontrola nevyžaduje samostatný souhlas; viz
+poznámky, bod 10.]]`
+
 ## 4. Tarify a zkušební období
 
 4.1 Služba se nabízí v tarifu **Free** (zdarma) a v placených tarifech
@@ -72,16 +78,31 @@ včetně DPH, pokud se uplatní.
 
 4.2 Placené tarify se platí **měsíčně**.
 
-4.3 Nový uživatel může placený tarif jednou vyzkoušet **zdarma na 10 dní**.
-Po skončení zkušebního období se účet **automaticky přepne na tarif Free**,
-pokud si předplatné výslovně neobjednáte. Zkušební období se automaticky
-nemění v placené předplatné a vaše data se jeho skončením nemažou.
+4.3 Nový účet může tarif **Pro** jednou vyzkoušet **zdarma**. Délka
+zkušebního období se zobrazí při registraci (nyní 10 dní). Platební karta není
+potřeba a nic se automaticky neúčtuje. Po skončení zkušebního období se účet
+**přepne na tarif Free**, pokud si předplatné výslovně neobjednáte. Zkušební
+období se samo nemění v placené předplatné a vaše data se jeho skončením
+nemažou.
 `[[ROZHODNOUT: pokud bude zkušební období vyžadovat platební kartu a
 automaticky přecházet v placené předplatné, je nutné tento článek přepsat a
 Uživatele před prvním stržením upozornit.]]`
 
 4.4 Při přechodu na nižší tarif nebo Free zůstanou vaše data zachována; funkce
 nad rámec nového tarifu pouze přestanou být dostupné.
+
+4.5 **Jedno zkušební období na osobu.** Zkušební období nemusíme při
+registraci přiznat, nebo ho můžeme předčasně ukončit, pokud už stejnou
+e-mailovou schránku, síťovou adresu, účet u brokera nebo stejnou historii
+transakcí použil jiný účet Portfyl. Samotný účet tím není dotčen: zůstává na
+tarifu Free a placený tarif si můžete objednat kdykoli. Neuvádíme, který z
+těchto signálů se uplatnil. `[[PRÁVNÍK: je odepření nebo ukončení zkušebního
+období na základě těchto signálů v souladu se spotřebitelským právem a s tvrzením
+na úvodní stránce „každý nový účet dostane 10 dní“?]]`
+
+4.6 Po skončení zkušebního období, nebo v tarifu Free, zůstanou vaše data
+zachována. Položky nad limity tarifu Free budou jen ke čtení (jako v čl. 4.4),
+dokud si nezvolíte předplatné nebo je neodstraníte.
 
 ## 5. Platby a předplatné
 

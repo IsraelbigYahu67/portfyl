@@ -33,6 +33,7 @@ nejmenovali, protože nám tato povinnost nevzniká. `[[PRÁVNÍK: ověřit]]`
 | **Požadavky na brokery** | brokeři, které nás požádáte podporovat (název, který jste napsali), propojení s vaším účtem | od vás |
 | **Údaje o předplatném** | tarif, období, stav předplatného, identifikátor zákazníka a transakce u Platebního partnera, země | od Platebního partnera; **číslo karty nikdy nedostáváme** |
 | **Technické a bezpečnostní údaje** | IP adresa, typ prohlížeče, otisky (hashe) přihlašovacích relací, čas posledního přihlášení, bezpečnostní záznamy (audit log), počty použití funkcí | automaticky při používání Služby |
+| **Záznamy proti zneužití zkušebního období** | klíčované otisky (HMAC-SHA256 s tajným klíčem) kanonického e-mailu (malá písmena, bez `+tagu`, u Gmailu bez teček), IP adresy (IPv6 zkrácená na /64), čísel účtů u brokerů a identifikátorů 5 nejstarších importovaných transakcí; značka, že zkušební období nebylo přiznáno. Samotné hodnoty neukládáme | vytváříme je my při registraci a při importu či synchronizaci dat od brokera |
 | **Komunikace s podporou** | obsah e-mailů, které nám pošlete | od vás |
 | **Analytika (jen se souhlasem)** | pseudonymní události o používání aplikace – po přihlášení je spojujeme s interním identifikátorem účtu, nikoli s e-mailem ani jménem; viz čl. 8 | automaticky, pouze pokud souhlasíte |
 
@@ -52,6 +53,7 @@ nemá vliv.
 | Vytvoření a správa účtu, poskytování Služby (výpočty, importy, synchronizace s brokerem, upozornění) | **plnění smlouvy** – čl. 6 odst. 1 písm. b) |
 | Správa předplatného a komunikace o něm | **plnění smlouvy** – čl. 6 odst. 1 písm. b) |
 | Zabezpečení Služby, prevence zneužití, ochrana oddělení dat uživatelů, řešení incidentů, chybové záznamy | **oprávněný zájem** na bezpečném provozu – čl. 6 odst. 1 písm. f) |
+| Nabídnutí jednoho zkušebního období na osobu (rozpoznání, že stejná schránka, síť, účet u brokera nebo historie transakcí už zkušební období měly) | **oprávněný zájem** na ochraně zkušebního období před zneužitím – čl. 6 odst. 1 písm. f) `[[PRÁVNÍK: test vyváženosti; jsou klíčované otisky zde pseudonymizovanými osobními údaji?]]` |
 | Vyřizování reklamací, dotazů a uplatňování práv | **plnění smlouvy** / **právní povinnost** – čl. 6 odst. 1 písm. b) a c) |
 | Plnění daňových a účetních povinností | **právní povinnost** – čl. 6 odst. 1 písm. c) |
 | Ochrana našich právních nároků | **oprávněný zájem** – čl. 6 odst. 1 písm. f) |
@@ -74,7 +76,7 @@ základě smlouvy o zpracování osobních údajů:
 | Google Cloud (Google Cloud EMEA Ltd. / Google LLC) | hosting aplikace (Cloud Run), šifrovací klíče, provozní záznamy, plánované úlohy | EU – Belgie (`europe-west1`); podpora může přistupovat z USA |
 | Google Firebase Authentication | registrace, přihlášení, ověření e-mailu, přihlášení přes Google | EU/USA |
 | Neon Inc. | databáze (PostgreSQL) a zálohy | EU – Frankfurt `[[OVĚŘIT]]` |
-| Cloudflare, Inc. | DNS, šifrované spojení (TLS), ochrana proti útokům | globální síť |
+| Cloudflare, Inc. | DNS, šifrované spojení (TLS), ochrana proti útokům a kontrola proti robotům při vytvoření nového účtu (Turnstile) `[[PRÁVNÍK: zpracovatel, nebo samostatný správce; DPA]]` | globální síť |
 | PostHog Inc. (PostHog Cloud EU) | analytika používání – **jen pokud udělíte souhlas** | EU – Frankfurt |
 
 **Samostatní správci** – tyto subjekty zpracovávají údaje podle vlastních
@@ -115,6 +117,9 @@ EU-U.S. Data Privacy Framework je na https://www.dataprivacyframework.gov.
 | Záznamy o přihlašovacích relacích | 30 dní po vypršení nebo odhlášení |
 | Bezpečnostní záznamy (audit log) | po dobu existence účtu, smažou se spolu s ním |
 | Požadavky na brokery (názvy brokerů, které nás požádáte podporovat) | po dobu existence účtu, smažou se spolu s ním |
+| Záznamy o zkušebním období: otisky e-mailu a údajů o brokerovi | 12 měsíců; zůstávají i po smazání účtu, aby stejná osoba nemohla zkušební období opakovat `[[PRÁVNÍK: výmaz podle čl. 17 vs. uchování otisku po smazání]]` |
+| Záznam o zkušebním období: otisk IP adresy | 30 dní |
+| Záznam o zkušebním období pracovního prostoru (začátek, konec, důvod, značka odepření) | smaže se spolu s účtem |
 | Komunikace s podporou | 1 rok od vyřízení |
 | Doklady o platbách | uchovává Platební partner; my údaje o předplatném po dobu, kterou vyžadují daňové předpisy `[[PRÁVNÍK: doplnit lhůtu]]` |
 | Analytická data (se souhlasem) | nejvýše 1 rok |
@@ -143,7 +148,8 @@ Máte právo:
   170 00 Praha 7, `https://uoou.gov.cz`.
 
 **Právo vznést námitku.** Proti zpracování, které provádíme na základě
-oprávněného zájmu (zabezpečení, ochrana právních nároků), můžete kdykoli
+oprávněného zájmu (zabezpečení, ochrana právních nároků, výše uvedené
+záznamy proti zneužití zkušebního období), můžete kdykoli
 vznést námitku na support@portfyl.com. Zpracování ukončíme, pokud
 neprokážeme závažné oprávněné důvody, které převažují nad vašimi zájmy.
 
@@ -185,6 +191,12 @@ e-mail, jméno, obsah portfolia, transakce, částky ani poznámky. Nahrávání
 obrazovky je vypnuté. **Pokud analytiku odmítnete nebo se ještě
 nerozhodnete, do PostHogu neodesíláme nic** a žádné analytické cookies ani
 úložiště se nevytvářejí.
+
+Při vytvoření nového účtu běží ve vašem prohlížeči kontrola proti robotům
+Cloudflare Turnstile (skript a rám Cloudflare, `challenges.cloudflare.com`) a
+jednorázový výsledek ověřujeme u Cloudflare, kterému předáváme vaši IP adresu.
+Portfyl si k tomu nic neukládá. `[[PRÁVNÍK: spadá kontrola zařízení v
+Turnstile pod výjimku „nezbytně nutné“ podle ePrivacy?]]`
 
 Reklamní ani sledovací cookies třetích stran nepoužíváme.
 
