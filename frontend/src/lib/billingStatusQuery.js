@@ -6,7 +6,8 @@ export const BILLING_STATUS_KEY = ["billing-status"];
 
 export const billingStatusQuery = {
   queryKey: BILLING_STATUS_KEY,
-  queryFn: fetchBillingStatus,
+  // Read the export when the query runs, not when this module loads.
+  queryFn: () => fetchBillingStatus(),
   staleTime: 60_000,
   retry: false,
 };
