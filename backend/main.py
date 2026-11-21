@@ -30,6 +30,7 @@ from error_monitoring import configure_sentry
 from cloud_gate import CloudApiGateMiddleware
 from security_headers import SecurityHeadersMiddleware
 import spa_serving
+import turnstile
 from rate_limit import (
     InvalidClientIp,
     RateLimitExceeded,
@@ -58,6 +59,10 @@ app.state.billing_config = (
     if PORTFYL_EDITION is Edition.CLOUD
     else BillingConfig(enabled=False, app_url="")
 )
+# Sign-up bot check (Cloudflare Turnstile). Fails closed at import: the cloud
+# edition needs PORTFYL_TURNSTILE_SECRET, or an explicit
+# PORTFYL_TURNSTILE_DISABLED=1; local is always off.
+app.state.turnstile_config = turnstile.TurnstileConfig.from_env(os.environ, PORTFYL_EDITION)
 # Portfyl's own verification / password-reset e-mails (Brevo). Built once; never
 # raises and makes no network call -- a missing or broken setting leaves it None
 # and the frontend falls back to Firebase's e-mail.
@@ -289,7 +294,7 @@ def health(db=Depends(get_db)):
     from sqlalchemy import select, text
     from models import JobRun
 
-    checks: dict[str, dict] = {}
+    checks: dict[str, dict] = {"turnstile": turnstile.health_check(app.state.turnstile_config)}
     try:
         db.execute(text("SELECT 1"))
         checks["database"] = {"status": "ok"}

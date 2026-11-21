@@ -393,6 +393,10 @@ The language offer (one line under the header, only after mount, never a
 redirect) is plain text with an underlined link and a 44px dismiss button.
 
 The public legal pages `/terms` and `/privacy` (`pages/Legal.jsx` +
-`Legal.css`, cloud only) still use the older Clay card layout; they move to
-`LandingHeader`/`LandingFooter` and a flat text column in the legal-pages task.
-Until then they borrow the header and footer classes above.
+`Legal.css`, cloud only) use the landing's `LandingHeader` and `LandingFooter`
+(section links lead back to the landing in the page's language, via
+`anchorBase`) around one flat text column: at most 800px wide on
+`--landing-paper`, no card, no shadow, hairline `--w-line` borders only. A row
+above the title holds the back link, the Terms/Privacy links and the CZ/EN
+`SegmentedControl`; the draft banner and one collapsible contents list follow.
+Tables get a hairline border and stack into labelled blocks below 760px.

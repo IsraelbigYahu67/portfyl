@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from rate_limit import client_ip as _client_ip, rate_limit
 import trials
+import turnstile
 
 from audit import record_audit_event
 from beta_access import BetaAccessDenied, require_active_invite
@@ -51,6 +52,10 @@ class SessionExchange(BaseModel):
     # Optional app language for the password-changed notice. `Any` so garbage
     # never produces a 422; it is normalised (English fallback) before use.
     lang: Any = None
+    # Cloudflare Turnstile token, asked for only when this exchange would
+    # create a new identity. `Any` so a wrong type reads as "missing"
+    # (bot_check_required) instead of a 422.
+    turnstile_token: Any = None
 
 
 class AuthAPIError(Exception):
@@ -150,6 +155,31 @@ def _provision_identity(
             actor_user_id=user.id,
         )
     return user, True
+
+
+def _needs_bot_check(db: Session, identity: VerifiedIdentity) -> bool:
+    """True when `_provision_identity` would create a new user for `identity`:
+    neither the Firebase uid nor the e-mail is known. Existing users are never
+    challenged. Read-only."""
+    if db.scalar(select(User.id).where(User.firebase_uid == identity.uid)) is not None:
+        return False
+    return db.scalar(select(User.id).where(User.email == identity.email)) is None
+
+
+def _verify_bot_check(
+    config: turnstile.TurnstileConfig, payload: "SessionExchange", request: Request
+) -> None:
+    """Raise `bot_check_required` (no usable token) or `bot_check_failed`."""
+    token = payload.turnstile_token
+    if not isinstance(token, str) or not token.strip():
+        raise AuthAPIError(403, "bot_check_required")
+    # The auth_session rate-limit dependency has already validated the trusted
+    # Cloudflare header, so this cannot raise here.
+    reason = turnstile.verify_signup_token(config, token, remote_ip=_client_ip(request))
+    if reason is not None:
+        # Reason code only: never the token, the secret or the identity.
+        log.warning("turnstile_check outcome=%s", reason)
+        raise AuthAPIError(403, "bot_check_failed")
 
 
 def _read_password_updated_at(
@@ -363,13 +393,29 @@ def exchange_session(
         except BetaAccessDenied as exc:
             raise AuthAPIError(403, "beta_access_required") from exc
 
+    is_cloud = request.app.state.portfyl_edition is Edition.CLOUD
+
+    # Bot check, on demand: only an exchange that would create a new identity
+    # needs a Turnstile token. The lookup happens before the connection is
+    # handed back; the siteverify call after it. An app without a config (a
+    # bare test harness) behaves as "off"; main.py always sets one, and it
+    # fails closed at startup in the cloud edition.
+    bot_check = getattr(request.app.state, "turnstile_config", None)
+    needs_bot_check = (
+        is_cloud
+        and bot_check is not None
+        and bot_check.mode != "off"
+        and _needs_bot_check(db, identity)
+    )
+
     # Firebase's "password last changed" time is not in the ID token; it is one
     # outbound lookup, so give the pooled connection back first. Unknown
     # (None) skips detection and never fails the sign-in.
     release_connection(db)
+    if needs_bot_check:
+        _verify_bot_check(bot_check, payload, request)
     password_updated_at = _read_password_updated_at(verifier, identity.uid)
 
-    is_cloud = request.app.state.portfyl_edition is Edition.CLOUD
     user, account_created = _provision_identity(
         db,
         identity,

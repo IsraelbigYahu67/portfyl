@@ -239,6 +239,17 @@ def test_invalid_test_selection_does_not_hide_the_trial(db_session, test_workspa
     assert _resolve_with(db_session, test_workspace, TRIAL_ENV).source == "trial"
 
 
+def test_not_eligible_payload_is_free(db_session, test_workspace):
+    set_workspace_setting(db_session, test_workspace.id, "trial_withheld", "1")
+    env = {**TRIAL_ENV, "PORTFYL_BILLING_ENABLED": "1"}
+
+    payload = _resolve_with(db_session, test_workspace, env).payload()
+
+    assert payload["plan"] == "free"
+    assert payload["source"] == "free"
+    assert payload["trial_ended_reason"] == "not_eligible"
+
+
 def test_local_edition_ignores_trial(db_session, test_workspace):
     _start_trial(db_session, test_workspace)
 

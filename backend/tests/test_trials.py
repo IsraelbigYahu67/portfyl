@@ -169,6 +169,55 @@ def test_trial_days_zero_grants_nothing(db_session, test_workspace):
     assert db_session.scalar(select(func.count()).select_from(TrialIdentity)) == 0
 
 
+def test_withheld_trial_marks_workspace_not_eligible(db_session, test_workspace):
+    from app_settings import get_workspace_setting
+
+    assert _grant(db_session, test_workspace, "jan@gmail.com") is not None
+    other = _workspace(db_session)
+    assert _grant(db_session, other, "j.a.n+2@gmail.com") is None
+    assert trials.trial_state(db_session, other.id, T) == (None, "not_eligible")
+    assert get_workspace_setting(db_session, other.id, "trial_withheld") == "1"
+    # The workspace that got the trial is not marked.
+    assert get_workspace_setting(db_session, test_workspace.id, "trial_withheld") is None
+
+
+def test_withheld_marker_written_even_without_actor(db_session, test_workspace):
+    from app_settings import get_workspace_setting
+
+    _grant(db_session, test_workspace, "jan@gmail.com")
+    other = _workspace(db_session)
+    assert _grant(db_session, other, "j.a.n+2@gmail.com", actor_user_id=None) is None
+    assert get_workspace_setting(db_session, other.id, "trial_withheld") == "1"
+    assert db_session.scalar(
+        select(func.count()).select_from(AuditLog).where(AuditLog.action == "trial.withheld")
+    ) == 0
+
+
+def test_trial_days_zero_keeps_running_trials_and_marks_nothing(db_session, test_workspace):
+    from app_settings import get_workspace_setting
+
+    assert _grant(db_session, test_workspace) is not None
+    off = {**ENV, "PORTFYL_TRIAL_DAYS": "0"}
+    other = _workspace(db_session)
+    assert trials.grant_trial(
+        db_session, workspace_id=other.id, email="b@example.com", now=T, env=off
+    ) is None
+    assert trials.trial_state(db_session, other.id, T) == (None, None)
+    assert get_workspace_setting(db_session, other.id, "trial_withheld") is None
+    # The earlier grant keeps running to its ends_at.
+    grant, reason = trials.trial_state(db_session, test_workspace.id, T + timedelta(days=5))
+    assert grant is not None and reason is None
+
+
+def test_expired_reason_wins_over_marker(db_session, test_workspace):
+    from app_settings import set_workspace_setting
+
+    _grant(db_session, test_workspace)
+    set_workspace_setting(db_session, test_workspace.id, "trial_withheld", "1")
+    grant, reason = trials.trial_state(db_session, test_workspace.id, T + timedelta(days=11))
+    assert grant is None and reason == "expired"
+
+
 def test_trial_days_setting():
     assert trials.trial_days({}) == 10
     assert trials.trial_days({"PORTFYL_TRIAL_DAYS": ""}) == 10

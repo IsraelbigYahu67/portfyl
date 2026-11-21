@@ -9,6 +9,7 @@ import {
   fetchEditionPlanCapabilities as cloudPlanCapabilities,
 } from "./editions/cloud";
 import cloudManifestSource from "./editions/cloud.jsx?raw";
+import localManifestSource from "./editions/local.jsx?raw";
 import {
   EDITION_NAVIGATION as LOCAL_NAVIGATION,
   EDITION_ROUTES as LOCAL_ROUTES,
@@ -96,6 +97,15 @@ describe("edition manifests", () => {
   it("narrows capabilities to the workspace plan only in cloud", async () => {
     await expect(localPlanCapabilities()).resolves.toBeNull();
     await expect(cloudPlanCapabilities()).resolves.toEqual(["portfolio_analytics"]);
+  });
+
+  it("reads the cloud plan from billing status and keeps the trial UI out of local", async () => {
+    const api = await import("./api");
+    await cloudPlanCapabilities();
+    expect(api.fetchBillingStatus).toHaveBeenCalled();
+    expect(cloudManifestSource).not.toContain("fetchTestPlan");
+    expect(cloudManifestSource).toContain("CloudShell");
+    expect(localManifestSource).not.toMatch(/TrialBanner|CloudShell|billingStatusQuery/);
   });
 
   it("resolves the onboarding plan from billing status in cloud and allows everything locally", async () => {

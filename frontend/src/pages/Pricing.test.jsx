@@ -103,6 +103,7 @@ describe("Pricing in the no-payment test mode", () => {
     await waitFor(() => expect(updateTestPlan).toHaveBeenCalledWith("investor"));
     expect(await screen.findByText("Current test plan")).toBeInTheDocument();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["plan-capabilities"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["billing-status"] });
     expect(startCheckout).not.toHaveBeenCalled();
   });
 
@@ -134,6 +135,45 @@ describe("Pricing with Stripe payments", () => {
 
     await waitFor(() => expect(startCheckout).toHaveBeenCalledWith("pro"));
     await waitFor(() => expect(window.location.assign).toHaveBeenCalledWith("https://checkout.stripe.test/cs_1"));
+  });
+
+  it("lets a trial workspace buy Pro and marks the Pro card as the trial", async () => {
+    fetchBillingStatus.mockResolvedValue(billingStatus({
+      plan: "pro",
+      source: "trial",
+      effective_until: "2026-11-28T12:00:00+00:00",
+    }));
+    startCheckout.mockResolvedValue({ url: "https://checkout.stripe.test/cs_2" });
+    render(<Pricing />);
+
+    expect(await screen.findByText("Pro trial until November 28, 2026")).toBeInTheDocument();
+    expect(screen.getByText(/Nothing is charged automatically/)).toBeInTheDocument();
+    const pro = screen.getByRole("region", { name: "Pro" });
+    expect(within(pro).getByText("Trial")).toBeInTheDocument();
+    expect(within(pro).queryByText("Current plan")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Free" })).queryByText("Current plan")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /lose my 14-day right of withdrawal/i }));
+    const upgrade = within(pro).getByRole("button", { name: "Upgrade to Pro" });
+    expect(upgrade).toBeEnabled();
+    fireEvent.click(upgrade);
+
+    await waitFor(() => expect(startCheckout).toHaveBeenCalledWith("pro"));
+  });
+
+  it("explains why a trial ended early", async () => {
+    fetchBillingStatus.mockResolvedValue(billingStatus({ trial_ended_reason: "broker_account_reused" }));
+    render(<Pricing />);
+
+    expect(await screen.findByText(/this broker account already had a free trial/)).toBeInTheDocument();
+  });
+
+  it("shows no trial notice when trials are off", async () => {
+    fetchBillingStatus.mockResolvedValue(billingStatus({ trial_ended_reason: null }));
+    render(<Pricing />);
+
+    await screen.findByRole("button", { name: "Upgrade to Pro" });
+    expect(screen.queryByText(/trial/i)).not.toBeInTheDocument();
   });
 
   it("books a plan switch for the next period instead of charging now", async () => {

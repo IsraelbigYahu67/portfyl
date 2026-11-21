@@ -1,6 +1,6 @@
 # Právní dokumenty Portfyl – otevřené body a poznámky pro právníka
 
-Stav k 2026-10-28. Návrhy v této složce jsou **pracovní verze 0.1** a nesmí se
+Stav k 2026-11-19. Návrhy v této složce jsou **pracovní verze 0.1** a nesmí se
 zveřejnit, dokud nejsou vyřešeny body označené **BLOKUJE** a texty
 nezkontroluje český advokát (viz brána ve
 [../compliance/private-test-legal-status.md](../compliance/private-test-legal-status.md)).
@@ -101,7 +101,13 @@ skončení se účet přepne na Free (bez automatického stržení peněz). Poku
 zkušební období vyžadovalo kartu a automaticky přecházelo v předplatné, je
 nutné přepsat čl. 4.3 a před prvním stržením uživatele upozornit.
 
+Od 2026-11-19 je zkušebním tarifem **Pro**. Podmínky (čl. 4.3, 4.5, 4.6)
+popisují i to, že zkušební období lze nepřiznat nebo předčasně ukončit, pokud
+stejná schránka, síť, účet u brokera nebo historie transakcí už zkušební období
+měly. Technické řešení a otevřené otázky jsou v bodě 10.
+
 ### 5. Rychlost smazání dat
+
 
 Od 2026-11-18 kód maže účet **okamžitě** (rozhodl provozovatel): po novém
 přihlášení, napsání názvu pracovního prostoru a upozornění s 10sekundovým
@@ -157,3 +163,43 @@ poskytovatele dat a podle jeho licence upravit čl. 9.3 a 10 podmínek.
   v čl. 8. Vyžadují kontrolu právníkem, zejména zda je lze uvádět mezi
   nezbytným úložištěm bez souhlasu.
 - Pověřenec pro ochranu osobních údajů: potvrdit, že není povinný.
+- Změny z 2026-11-19 (česká i anglická verze): zkušební období Pro, klíčované
+  otisky proti jeho zneužití (čl. 2, 3, 6, 7 zásad), kontrola Cloudflare
+  Turnstile při vytvoření účtu (čl. 4 a 8 zásad, čl. 3.5 podmínek) a čl. 4.3,
+  4.5, 4.6 podmínek. Otázky jsou v bodě 10.
+
+### 10. Ochrana zkušební doby (HMAC otisky, Turnstile)
+
+Co kód dělá (podklad: [../compliance/data-processing-inventory.md](../compliance/data-processing-inventory.md)):
+nové pracovní prostory dostanou 10 dní tarifu Pro bez karty. Aby šlo zkušební
+období využít jen jednou na osobu, ukládáme jen klíčované otisky (HMAC-SHA256),
+nikdy surový e-mail, IP adresu ani číslo účtu u brokera: kanonický e-mail
+(12 měsíců, zůstává i po smazání účtu), IP adresu (30 dní), čísla účtů u
+brokerů a identifikátory 5 nejstarších transakcí (12 měsíců). Při shodě se
+zkušební období nepřizná, nebo se předčasně ukončí; účet zůstává na Free. Při
+vytvoření nového účtu navíc běží kontrola Cloudflare Turnstile.
+
+Otevřené otázky:
+
+1. Test vyváženosti pro oprávněný zájem (čl. 6 odst. 1 písm. f) GDPR) u
+   záznamů proti zneužití zkušebního období.
+2. Jsou klíčované otisky (HMAC) osobními údaji, a jak se uchování otisku e-mailu
+   a účtu u brokera po smazání účtu snáší s právem na výmaz (čl. 17 GDPR)?
+3. Čl. 22 GDPR: je automatizované nepřiznání nebo ukončení zkušebního období
+   rozhodnutím s významnými účinky?
+4. Transparentnost: zkontrolovat znění v aplikaci. Banner a stránka Ceník
+   používají tyto čtyři anglické věty (a jejich překlady do 8 jazyků):
+   „This account starts on the Free plan, because a free trial was already used
+   for this e-mail address or network.“; „Your Pro trial ended early, because
+   this broker account already had a free trial in another Portfyl account. Your
+   data stays; anything over the Free limits is read-only.“; „Your Pro trial
+   ended early, because the same transaction history already had a free trial in
+   another Portfyl account. Your data stays; anything over the Free limits is
+   read-only.“; „When the trial ends, the account moves to the Free plan unless
+   you subscribe. Nothing is charged automatically.“
+5. Spotřebitelské právo: tvrzení na úvodní stránce „každý nový účet dostane
+   10 dní“ vs. nepřiznání zkušebního období (čl. 4.5 podmínek).
+6. Role Cloudflare u Turnstile (zpracovatel, nebo samostatný správce), DPA, a
+   zda kontrola zařízení spadá pod výjimku „nezbytně nutné“ podle ePrivacy.
+7. Minimalizace údajů u otisků historie transakcí (5 nejstarších transakcí,
+   shoda alespoň 3 z 5).

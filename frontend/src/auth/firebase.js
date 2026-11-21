@@ -331,6 +331,10 @@ const BACKEND_ERROR_MESSAGES = {
   // Login.jsx handles this for passwords with a resend flow; a Google
   // account whose address Google itself has not verified ends up here.
   email_verification_required: msg("This e-mail address is not verified yet."),
+  // The new-account bot check (AuthProvider asks once; these are what is left
+  // when the person cancels it or Cloudflare rejects the token).
+  bot_check_failed: msg("The sign-up check did not pass. Please try again."),
+  bot_check_required: msg("The sign-up check did not pass. Please try again."),
 };
 
 export function mapFirebaseAuthError(error) {
