@@ -29,14 +29,43 @@ The full local-edition suite was run once before `e2a7330`; after it, the
 affected files (`Root`, `Legal`, `TrialBanner`) and the whole cloud suite were
 run again.
 
+## Lighthouse (Step 4), run on 2026-11-21
+
+Merged `main` (`f5c6665`), `npm run build:cloud`, served from `dist/` by a small
+static server that mimics `backend/spa_serving.py` (prerendered `/`, `/en/`,
+`/de/`, the SPA shell for everything else, gzip). Chrome DevTools MCP
+Lighthouse, navigation mode.
+
+| Page | Accessibility mobile / desktop | Best practices | SEO |
+|---|---|---|---|
+| `/` (cs) | 95 / 92 | 100 | 100 |
+| `/en/` | 99 / 99 | 100 | 100 |
+| `/terms?lang=cs` | 98 / 98 | 100 | 92 |
+
+Accessibility is at least 90 everywhere. This tool does not compute the
+Performance score, so that number is **not recorded**. A performance trace of
+`/en/` (mobile viewport, 4x CPU slowdown, Fast 4G) gave **LCP 1.0 s** and
+**CLS 0.11**. Findings, none of them in the trial work:
+
+- **Mobile CLS** is just above the 0.1 limit in the trace. A separate Lighthouse
+  run on `/en/` measured 0.345 on mobile (0.045 on desktop). Not investigated.
+- **Cookie banner contrast** (`ConsentBanner`): 4.34:1 for the body text and the
+  "Odmítnout" button, 3.76:1 for "Přijmout analytiku", 3.57:1 for the
+  "Podrobnosti" link (4.5:1 needed). On desktop the link also relies on color
+  alone (`link-in-text-block`).
+- **Footer heading order**: `footer.welcome-footer` starts with an `h4` without
+  an `h3` before it (all three pages).
+- **`/terms?lang=cs`**: no meta description (SEO 92). The CZ/EN buttons have an
+  `aria-label` ("Čeština", "English") that does not contain the visible text.
+
 ## Not done (needs the owner or a real browser session)
 
-- **Step 4, Lighthouse** (`/`, `/en/`, `/terms?lang=cs`, mobile and desktop,
-  at least 90 for performance and accessibility): not run. No Lighthouse tool
-  was available in this session.
-- **Step 5, live walkthrough (a to i)**: not run. It needs Firebase test
-  accounts (register, verify e-mail, Google), which this session cannot create,
-  plus Playwright screenshots. What the automated tests cover instead:
+- **Step 4, Lighthouse**: done above, except the numeric Performance score.
+- **Step 5, live walkthrough (a to i)**: not run. The project has no Firebase
+  emulator (nothing in `backend/`, `frontend/src/auth/` or `start.bat`), so a
+  walkthrough needs real Firebase accounts (register, verify e-mail, Google),
+  which an agent cannot create, plus Playwright screenshots. What the
+  automated tests cover instead:
   Turnstile on-demand check and every failure code (`test_turnstile.py`,
   `test_auth_session_turnstile.py`), the dialog and one retry
   (`AuthProvider.test.jsx`), the withheld marker under real RLS, the banner for
@@ -45,7 +74,7 @@ run again.
   narrowing to Free widgets, the startup refusal (h), and the local edition
   visually (i).
 - **Step 6, moving both plans to `docs/finished.md`** and ticking Tasks 1c, 3, 4
-  and 6 of the 2026-11-15 plan: left undone because Steps 4 and 5 are open.
+  and 6 of the 2026-11-15 plan: left undone because Step 5 is open.
 
 ## Before anything is deployed
 
