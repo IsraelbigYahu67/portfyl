@@ -61,7 +61,9 @@ Performance score, so that number is **not recorded**. A performance trace of
 ## Not done (needs the owner or a real browser session)
 
 - **Step 4, Lighthouse**: done above, except the numeric Performance score.
-- **Step 5, live walkthrough (a to i)**: not run. The project has no Firebase
+- **Step 5, live walkthrough (a to i)**: not run; the full procedure, with the
+  expected right and wrong outcomes per scenario, is in
+  `2026-11-21-free-trial-live-walkthrough.md`. The project has no Firebase
   emulator (nothing in `backend/`, `frontend/src/auth/` or `start.bat`), so a
   walkthrough needs real Firebase accounts (register, verify e-mail, Google),
   which an agent cannot create, plus Playwright screenshots. What the
