@@ -400,3 +400,15 @@ The public legal pages `/terms` and `/privacy` (`pages/Legal.jsx` +
 above the title holds the back link, the Terms/Privacy links and the CZ/EN
 `SegmentedControl`; the draft banner and one collapsible contents list follow.
 Tables get a hairline border and stack into labelled blocks below 760px.
+
+Public content pages (guides, broker pages, explainers; `pages/content/ContentPage.jsx`
++ `ContentPage.css`, cloud only, registered in `src/seo/pages/index.js`) use
+the same `LandingHeader` and `LandingFooter` (language links lead to the page's
+sibling versions, else to that language's landing) around one flat article
+column at most 720px wide on `--landing-paper`: one H1 in Plus Jakarta Sans
+(`clamp(1.9rem, 4.2vw, 2.75rem)`), Inter 17px body at line-height 1.75, h2/h3
+scaled down from the landing's, links `--brand` and underlined, hairline
+`--w-line` table rules. The "not investment advice" note is a flat tinted
+block (`--chart-3` at 16%, as the legal draft banner), the call to action a
+hairline-topped row like the landing's closing band. No cards, shadows or hex
+colors (`ContentPage.test.jsx` checks both the hex rule and the 12px floor).

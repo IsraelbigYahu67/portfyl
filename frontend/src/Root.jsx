@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { HAS_PUBLIC_HOME, isRetiredDemoPath, isTrackerHost, landingLanguage, legalPage } from "./lib/routes";
+import { HAS_PUBLIC_HOME, contentPageFor, isRetiredDemoPath, isTrackerHost, landingLanguage, legalPage } from "./lib/routes";
+import { CONTENT_PAGES } from "./seo/pages";
 import RouteBoundary from "./components/layout/RouteBoundary";
 import AnalyticsProvider, { useAnalytics } from "./analytics/AnalyticsProvider";
 import ConsentBanner from "./analytics/ConsentBanner";
@@ -8,6 +9,7 @@ import AnalyticsPreferences from "./analytics/AnalyticsPreferences";
 const Tracker = lazy(() => import("./TrackerBootstrap"));
 const Welcome = HAS_PUBLIC_HOME ? lazy(() => import("./pages/Welcome")) : null;
 const Legal = lazy(() => import("./pages/Legal"));
+const ContentRoute = HAS_PUBLIC_HOME ? lazy(() => import("./pages/content/ContentRoute")) : null;
 
 const LOADING = <div role="status" className="min-h-screen flex items-center justify-center">Loading Portfyl…</div>;
 
@@ -47,7 +49,9 @@ function AnalyticsOverlay({ language }) {
 
 // `location` is only passed by the build-time prerender
 // (src/entry-prerender.jsx), which has no window; the browser reads its own.
-export default function Root({ location }) {
+// `contentPages` replaces the content-page registry (src/seo/pages/index.js);
+// only tests pass it, to render a fixture page.
+export default function Root({ location, contentPages }) {
   const [pathname, setPathname] = useState(() => location?.pathname ?? window.location.pathname);
   useEffect(() => {
     const updatePath = () => setPathname(window.location.pathname);
@@ -61,18 +65,21 @@ export default function Root({ location }) {
   // "/", "/en/" and "/de/" are the public home in Czech, English and German.
   const welcomeLanguage = trackerHost ? null : landingLanguage(pathname);
   const showWelcome = Boolean(welcomeLanguage);
+  // Registered content pages (guides, explainers) are public like the landing
+  // pages, and never rendered on the tracker host.
+  const contentPage = trackerHost || showWelcome ? null : contentPageFor(pathname, contentPages);
   // /terms and /privacy stay public on every host (see legalPage).
   const legal = legalPage(pathname);
-  const routeKey = legal ? 'legal' : retiredDemo ? 'retired-demo' : showWelcome ? 'welcome' : 'tracker';
+  const routeKey = legal ? 'legal' : retiredDemo ? 'retired-demo' : showWelcome ? 'welcome' : contentPage ? `content:${contentPage.path}` : 'tracker';
   // AnalyticsProvider wraps everything, outside the welcome/tracker
   // selection and outside AuthProvider (which lives inside the lazy
   // Tracker/App.jsx tree), so consent survives route switches and never
   // depends on an authenticated session.
   return <AnalyticsProvider>
     <RouteBoundary key={routeKey}><Suspense fallback={LOADING}>
-      {legal ? <Legal page={legal} /> : retiredDemo ? <RetiredDemo /> : showWelcome ? <Welcome language={welcomeLanguage} /> : <Tracker />}
+      {legal ? <Legal page={legal} /> : retiredDemo ? <RetiredDemo /> : showWelcome ? <Welcome language={welcomeLanguage} /> : contentPage && ContentRoute ? <ContentRoute page={contentPage} pages={contentPages ?? CONTENT_PAGES} /> : <Tracker />}
     </Suspense></RouteBoundary>
-    {/* On a landing page the consent text follows the page language. */}
-    <AnalyticsOverlay language={welcomeLanguage} />
+    {/* On a landing or content page the consent text follows the page language. */}
+    <AnalyticsOverlay language={welcomeLanguage ?? contentPage?.language ?? null} />
   </AnalyticsProvider>;
 }

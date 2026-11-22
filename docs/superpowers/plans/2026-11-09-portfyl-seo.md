@@ -225,6 +225,38 @@ HTML. Writing articles before A1–A6 are fixed would be wasted effort.
   `/en/`, `/dashboard` and `https://app.portfyl.com/robots.txt` against the
   rules above. Then submit `https://portfyl.com/sitemap.xml` in S1.
 
+- **Wave 2 step A built (2026-11-22): the content-page infrastructure, with
+  no real page yet.** `src/seo/pages/index.js` is the registry (`CONTENT_PAGES`,
+  empty; its header comment is the author contract). A page is a metadata
+  file `src/seo/pages/<name>.js` (`path`, `language`, `title`, `description`,
+  `targetQuery`, `lastmod`, `body`, optional `heading`, `group`, `ogImage`,
+  `noindex`, `adviceNote`) plus a body component
+  `src/pages/content/bodies/<name>.jsx`, rendered inside the shared
+  `pages/content/ContentPage.jsx` layout (one H1, header with language links
+  and a link back to the landing, "last updated", "not investment advice"
+  note, call to action, footer with legal links). `seo/contentPages.js`
+  validates every entry (lowercase `/slug/` path with the language prefix,
+  not an app path, title/description length, real `lastmod`, one language
+  per hreflang group) and `publicPages.js` merges the result into
+  `PUBLIC_PAGES`, so prerender, `sitemap.xml`, `robots.txt` and hreflang all
+  come from the one list. A single-language page points hreflang and
+  `x-default` at itself; siblings in one `group` use the existing logic
+  (English is `x-default`). A `noindex` page is prerendered with
+  `<meta name="robots" content="noindex, nofollow">` and left out of the
+  sitemap and hreflang. Head tags gain `og:type` article, `article:modified_time`
+  and JSON-LD `Article` (publisher, `inLanguage`, `dateModified`; no author,
+  no `datePublished`). `Root.jsx` renders a registered page by path
+  (`contentPageFor`, trailing-slash tolerant, never on the tracker host) and
+  `main.jsx` hydrates it. `prerender.mjs` writes
+  `dist/prerendered/<path>/index.html`, links the page's chunk CSS and fails
+  the build for a page without exactly one `<h1>`, a title, a description or
+  a canonical link, one that renders the loading fallback, or one with an
+  inline script (JSON-LD excepted). `spa_serving.py` needed only hardening:
+  `/slug` redirects 301 to `/slug/` like `/en`, `slug//`, uppercase and dot
+  segments never alias a page. Tests use fixture pages passed in as an
+  override (`src/test/contentFixtures.jsx`); the real registry stays empty.
+  Next: step B, the first real pages (S6-S10).
+
 ## 5. Work plan
 
 The tasks are grouped into waves. Tasks inside a wave touch disjoint files (see

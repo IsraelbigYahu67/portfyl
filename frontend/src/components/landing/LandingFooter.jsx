@@ -13,7 +13,7 @@ function AnalyticsPreferencesLink({ language }) {
 
 // Four columns: about, product, legal, contact. `anchorBase` works as in
 // LandingHeader.
-export default function LandingFooter({ copy, language, anchorBase = "" }) {
+export default function LandingFooter({ copy, language, anchorBase = "", languagePaths = LANDING_PATHS }) {
   const others = LANGUAGES.filter(({ code }) => code !== language);
   return (
     <footer className="welcome-footer">
@@ -43,7 +43,7 @@ export default function LandingFooter({ copy, language, anchorBase = "" }) {
             <li><a href="mailto:support@portfyl.com">support@portfyl.com</a></li>
             <li>
               {others.map(({ code, name }, index) => (
-                <span key={code}>{index > 0 && " · "}<a href={LANDING_PATHS[code]} hrefLang={code} lang={code} onClick={() => rememberLanguage(code)}>{name}</a></span>
+                <span key={code}>{index > 0 && " · "}<a href={languagePaths[code]} hrefLang={code} lang={code} onClick={() => rememberLanguage(code)}>{name}</a></span>
               ))}
             </li>
           </ul>

@@ -12,7 +12,9 @@ export const NAV_TARGETS = ["funkce", "brokeri", "cenik", "otazky"];
 // Sticky 64px header: logo, four section links, language links, Log in and
 // one primary button. Below 860px only the logo, the button and a <details>
 // menu remain (no JavaScript needed, so it works in the prerendered HTML).
-export default function LandingHeader({ copy, language, signupOpen, anchorBase = "" }) {
+// `languagePaths` maps each language to the URL its link leads to: the landing
+// pages by default, a content page's sibling versions on a content page.
+export default function LandingHeader({ copy, language, signupOpen, anchorBase = "", languagePaths = LANDING_PATHS }) {
   const target = (id) => `${anchorBase}#${id}`;
   const closeMenu = (event) => event.currentTarget.closest("details")?.removeAttribute("open");
   const others = LANGUAGES.filter(({ code }) => code !== language);
@@ -26,7 +28,7 @@ export default function LandingHeader({ copy, language, signupOpen, anchorBase =
         <div className="welcome-lang" role="group" aria-label={copy.language}>
           {LANGUAGES.map(({ code, label, name }) => (
             <a
-              key={code} href={LANDING_PATHS[code]} hrefLang={code} lang={code} title={name}
+              key={code} href={languagePaths[code]} hrefLang={code} lang={code} title={name}
               aria-current={code === language ? "page" : undefined} onClick={() => rememberLanguage(code)}
             >{label}</a>
           ))}
@@ -43,7 +45,7 @@ export default function LandingHeader({ copy, language, signupOpen, anchorBase =
             <a href={`${APP_ORIGIN}/login`}>{copy.login}</a>
             <span className="welcome-menu-langs">
               {others.map(({ code, name }) => (
-                <a key={code} href={LANDING_PATHS[code]} hrefLang={code} lang={code} onClick={() => rememberLanguage(code)}>{name}</a>
+                <a key={code} href={languagePaths[code]} hrefLang={code} lang={code} onClick={() => rememberLanguage(code)}>{name}</a>
               ))}
             </span>
           </nav>

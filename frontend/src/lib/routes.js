@@ -1,3 +1,5 @@
+import { CONTENT_PAGES } from "../seo/pages";
+
 export const HAS_PUBLIC_HOME = import.meta.env.VITE_PORTFYL_EDITION === "cloud";
 export const TRACKER_HOME = HAS_PUBLIC_HOME ? "/dashboard" : "/";
 
@@ -18,6 +20,16 @@ export const landingLanguage = (pathname) => {
   if (pathname === "/") return "cs";
   const match = /^\/(en|de)\/?$/.exec(pathname);
   return match ? match[1] : null;
+};
+
+// The registered content page at `pathname`, or null. Pages live in
+// src/seo/pages/index.js; their canonical path ends in "/", and like the
+// landing pages the form without the slash is the same page (the server 301s
+// it). Cloud only by default; `pages` is the override tests inject fixtures
+// through.
+export const contentPageFor = (pathname, pages = HAS_PUBLIC_HOME ? CONTENT_PAGES : []) => {
+  const path = pathname.endsWith("/") ? pathname : `${pathname}/`;
+  return pages.find((page) => page.path === path) ?? null;
 };
 
 // The public read-only demo (portfyl.com/demo/*) is retired: the landing page

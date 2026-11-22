@@ -1,0 +1,58 @@
+/* Public content pages (guides, broker pages, explainers). Builds on
+   Welcome.css (the landing header and footer, the Clay root) and, like it,
+   holds no hex colors: only the Clay tokens ContentPage.jsx scopes onto the
+   root and color-mix() tints of them. Flat paper, one reading column, no card
+   and no shadow. See DESIGN.md section 10. */
+/* flow-root keeps the sticky header's margin inside the warm root. */
+.content-page { display: flow-root; }
+.content-main { padding-block: 24px 56px; }
+.content-back {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--muted); font-size: 0.875rem; font-weight: 600;
+}
+.welcome .content-back:hover { color: var(--brand); }
+
+/* One reading column: about 70 characters per line at body size. */
+.content-article { max-width: 720px; margin-top: 12px; }
+.welcome .content-article h1 { font-size: clamp(1.9rem, 4.2vw, 2.75rem); line-height: 1.12; }
+.content-updated { margin-top: 14px; color: var(--muted); font-size: 0.875rem; }
+
+.content-body { margin-top: 28px; font-size: 1.0625rem; line-height: 1.75; }
+.welcome .content-body h2 { margin: 2.4em 0 0.6em; font-size: clamp(1.4rem, 2.6vw, 1.75rem); line-height: 1.22; scroll-margin-top: 88px; }
+.welcome .content-body h3 { margin: 1.8em 0 0.5em; font-size: 1.1875rem; line-height: 1.3; scroll-margin-top: 88px; }
+.welcome .content-body > :first-child { margin-top: 0; }
+.welcome .content-body p { margin: 0 0 1em; }
+.content-body ul, .content-body ol { margin: 0 0 1.1em; padding-left: 1.4em; }
+.content-body ul { list-style: disc; }
+.content-body ol { list-style: decimal; }
+.content-body li { margin-bottom: 0.4em; padding-left: 0.2em; }
+.content-body li::marker { color: var(--brand); }
+.content-body strong { font-weight: 700; }
+.welcome .content-body a { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.welcome .content-body a:hover { color: var(--brand-hover); }
+.content-body code { padding: 1px 7px; border-radius: 8px; font-family: var(--w-mono); font-size: 0.875rem; background: var(--bg-subtle); overflow-wrap: anywhere; }
+.content-body blockquote { margin: 0 0 1.1em; padding: 12px 18px; border-radius: 16px; color: var(--muted); background: var(--bg-subtle); }
+.content-body blockquote p:last-child { margin-bottom: 0; }
+.content-body img, .content-body figure { max-width: 100%; margin-inline: 0; }
+.content-body figure { margin-block: 1.4em; }
+.content-body figcaption { margin-top: 8px; color: var(--muted); font-size: 0.875rem; line-height: 1.5; }
+.content-body table { width: 100%; margin: 0 0 1.2em; border-collapse: collapse; font-size: 0.9375rem; line-height: 1.5; }
+.content-body th, .content-body td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--w-line); text-align: left; vertical-align: top; }
+.content-body th { color: var(--ink); font-weight: 600; }
+
+/* "Not investment advice": a quiet note, set off by hairlines, not a card. */
+.content-note {
+  margin-top: 40px; padding: 14px 18px; border-radius: 16px; font-size: 0.9375rem; line-height: 1.6;
+  background: color-mix(in srgb, var(--chart-3) 16%, transparent);
+}
+
+/* The call to action reads like the landing's closing band. */
+.content-cta {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px 40px;
+  max-width: 720px; margin-top: clamp(40px, 6vw, 64px); padding-top: 28px; border-top: 1px solid var(--w-line);
+}
+.welcome .content-cta h2 { font-size: clamp(1.3rem, 2.4vw, 1.6rem); }
+.content-cta p { margin-top: 6px; }
+
+@media (max-width: 640px) {
+  .content-body table { display: block; overflow-x: auto; }
+}

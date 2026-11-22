@@ -2,8 +2,11 @@
 index. See docs/superpowers/plans/2026-11-09-portfyl-seo.md (Wave 1, S3).
 
 The cloud build prerenders the public pages into ``dist/prerendered/``
-(``frontend/scripts/prerender.mjs``): ``/`` (Czech), ``/en/``, ``/de/``. This
-module maps a request to one of:
+(``frontend/scripts/prerender.mjs``): the landing pages ``/`` (Czech), ``/en/``,
+``/de/`` and every registered content page (``/<slug>/``, ``/en/<slug>/``; the
+registry is ``frontend/src/seo/pages/index.js``). No page list lives here: a
+page is public exactly when its ``index.html`` was built. This module maps a
+request to one of:
 
 * a prerendered public page -- indexable only on the public marketing host;
 * a real file in ``dist/`` (assets, images, robots.txt, sitemap.xml);
@@ -68,15 +71,21 @@ def _inside(dist: str, relative: str) -> str | None:
     return None
 
 
-def _prerendered_page(full_path: str, dist: str) -> tuple[str, bool] | None:
-    """(file, has_trailing_slash) of the prerendered page for this path, if
-    any. "" is the root; "en" and "en/" both find dist/prerendered/en/."""
+def _prerendered_page(full_path: str, dist: str) -> tuple[str, str] | None:
+    """(file, canonical path) of the prerendered page for this path, if any.
+    "" is the root; "en" and "en/" both find dist/prerendered/en/, whose
+    canonical path is "en/". Content pages nest the same way ("slug/",
+    "en/slug/"). An empty segment ("a//b") or one starting with a dot never
+    names a page, and neither does an uppercase letter (built paths are
+    lowercase; this keeps case-insensitive file systems from adding aliases), so
+    a page has no alias URL besides the slashless one."""
     stripped = full_path.strip("/")
-    if stripped and ("." in stripped.split("/")[-1] or stripped.startswith(".")):
-        return None  # looks like a file, never a page directory
-    relative = os.path.join(PRERENDERED_DIR, stripped, "index.html") if stripped else os.path.join(PRERENDERED_DIR, "index.html")
+    segments = stripped.split("/") if stripped else []
+    if stripped != stripped.lower() or any(not segment or segment.startswith(".") for segment in segments) or (segments and "." in segments[-1]):
+        return None  # looks like a file or a traversal, never a page directory
+    relative = os.path.join(PRERENDERED_DIR, *segments, "index.html")
     found = _inside(dist, relative)
-    return (found, full_path == "" or full_path.endswith("/")) if found else None
+    return (found, f"{stripped}/" if stripped else "") if found else None
 
 
 def _is_retired_demo(full_path: str) -> bool:
@@ -98,10 +107,10 @@ def resolve(full_path: str, dist: str, *, host: str, query: str = "") -> SpaTarg
     if host != TRACKER_HOST:
         page = _prerendered_page(full_path, dist)
         if page:
-            file, canonical_form = page
-            if not canonical_form:
+            file, canonical = page
+            if full_path != canonical:
                 # "/en" -> "/en/": one URL per page, the one in canonical/hreflang.
-                location = f"/{full_path}/" + (f"?{query}" if query else "")
+                location = f"/{canonical}" + (f"?{query}" if query else "")
                 return SpaTarget(redirect=location, headers=host_headers)
             return SpaTarget(file=file, headers={"Cache-Control": _NO_CACHE, **host_headers})
 

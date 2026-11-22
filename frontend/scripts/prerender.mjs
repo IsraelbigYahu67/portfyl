@@ -2,14 +2,16 @@
 // `npm run build:cloud` after the client build).
 //
 //   1. SSR-builds src/entry-prerender.jsx into .prerender/ (git-ignored).
-//   2. Renders every page in src/seo/publicPages.js to HTML and writes it,
-//      with its head metadata and the CSS of the chunks it uses, into
-//      dist/prerendered/<path>/index.html. dist/index.html stays the empty
-//      app shell: the backend serves it for every non-public path.
+//   2. Renders every page in src/seo/publicPages.js (the landing pages plus
+//      the content pages registered in src/seo/pages/index.js) to HTML and
+//      writes it, with its head metadata and the CSS of the chunks it uses,
+//      into dist/prerendered/<path>/index.html. dist/index.html stays the
+//      empty app shell: the backend serves it for every non-public path.
 //   3. Writes dist/robots.txt and dist/sitemap.xml from the same page list.
 //
-// The build fails when a page renders without content or with an inline
-// script (the CSP allows script-src 'self' only).
+// The build fails when a page lacks one <h1>, a title, a description or a
+// canonical link, renders the loading fallback, or contains an inline script
+// (the CSP allows script-src 'self' only; JSON-LD data blocks are not code).
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -45,9 +47,42 @@ export function collectChunkAssets(manifest, entry) {
 }
 
 export function validateMarkup(pagePath, markup) {
-  if (!/<h1[\s>]/.test(markup)) throw new Error(`Prerendered ${pagePath} has no <h1>; did it render the fallback?`);
+  const headings = markup.match(/<h1[\s>]/g) || [];
+  if (headings.length === 0) throw new Error(`Prerendered ${pagePath} has no <h1>; did it render the fallback?`);
+  if (headings.length > 1) throw new Error(`Prerendered ${pagePath} has ${headings.length} <h1> elements; a page has one.`);
   if (/<script/i.test(markup)) throw new Error(`Prerendered ${pagePath} contains an inline <script>, which the CSP blocks.`);
   if (markup.includes('Loading Portfyl')) throw new Error(`Prerendered ${pagePath} rendered the loading fallback.`);
+}
+
+// The finished file: the head metadata every public page needs, and no
+// script that is code but not a file (src=...). JSON-LD is data and allowed.
+export function validateDocument(pagePath, html) {
+  if (!/<title>[^<]*\S[^<]*<\/title>/.test(html)) throw new Error(`Prerendered ${pagePath} has no <title>.`);
+  if (!/<meta name="description" content="[^"]*[^"\s][^"]*"/.test(html)) throw new Error(`Prerendered ${pagePath} has no meta description.`);
+  if (!/<link rel="canonical" href="https:\/\/[^"]+"/.test(html)) throw new Error(`Prerendered ${pagePath} has no canonical link.`);
+  if (/<script\b(?![^>]*\bsrc=)(?![^>]*\btype="application\/ld\+json")/i.test(html)) {
+    throw new Error(`Prerendered ${pagePath} contains an inline <script>, which the CSP blocks.`);
+  }
+}
+
+// Union of chunk asset lists; the first occurrence wins, so dependencies
+// keep their order.
+export function mergeAssets(...sets) {
+  return {
+    css: [...new Set(sets.flatMap((set) => set.css))],
+    modules: [...new Set(sets.flatMap((set) => set.modules))],
+  };
+}
+
+// The stylesheets and modules a page needs. A landing page uses the Welcome
+// chunk; a content page the shared ContentRoute chunk plus its body chunk,
+// when `body` names a file under src/pages/content/bodies/.
+export function assetsForPage(manifest, page, landingAssets) {
+  if (page.kind !== 'content') return landingAssets;
+  const route = collectChunkAssets(manifest, CONTENT_CHUNK);
+  return typeof page.body === 'string'
+    ? mergeAssets(route, collectChunkAssets(manifest, `${CONTENT_BODIES}${page.body}.jsx`))
+    : route;
 }
 
 // The page's own stylesheets and modules go last in <head>, after the
@@ -74,6 +109,8 @@ export function injectPage(template, { language, head, markup, css, modules }) {
 }
 
 const WELCOME_CHUNK = 'src/pages/Welcome.jsx';
+const CONTENT_CHUNK = 'src/pages/content/ContentRoute.jsx';
+const CONTENT_BODIES = 'src/pages/content/bodies/';
 
 export async function prerender({ root = resolve(dirname(fileURLToPath(import.meta.url)), '..') } = {}) {
   const dist = resolve(root, 'dist');
@@ -89,12 +126,13 @@ export async function prerender({ root = resolve(dirname(fileURLToPath(import.me
     const server = await import(pathToFileURL(resolve(ssrOut, 'entry-prerender.js')).href);
     const template = readFileSync(resolve(dist, 'index.html'), 'utf8');
     const manifest = JSON.parse(readFileSync(resolve(dist, '.vite/manifest.json'), 'utf8'));
-    const assets = collectChunkAssets(manifest, WELCOME_CHUNK);
+    const landingAssets = collectChunkAssets(manifest, WELCOME_CHUNK);
     rmSync(resolve(dist, PRERENDER_DIR), { recursive: true, force: true });
     for (const page of server.PUBLIC_PAGES) {
       const markup = await server.render(page.path);
       validateMarkup(page.path, markup);
-      const html = injectPage(template, { language: page.language, head: server.headTags(page), markup, ...assets });
+      const html = injectPage(template, { language: page.language, head: server.headTags(page), markup, ...assetsForPage(manifest, page, landingAssets) });
+      validateDocument(page.path, html);
       const target = resolve(dist, PRERENDER_DIR, outputPath(page.path));
       mkdirSync(dirname(target), { recursive: true });
       writeFileSync(target, html);

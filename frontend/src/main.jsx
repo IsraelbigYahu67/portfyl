@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import Root from "./Root";
-import { isTrackerHost, landingLanguage } from "./lib/routes";
+import { contentPageFor, isTrackerHost, landingLanguage } from "./lib/routes";
 import { initErrorMonitoring } from "./errorMonitoring";
 import "./index.css";
 
@@ -13,12 +13,12 @@ const app = (
     <Root />
   </React.StrictMode>
 );
-// Public pages arrive prerendered (scripts/prerender.mjs): adopt that HTML
-// instead of replacing it. Anything else ships the empty shell; should a
-// prerendered page ever reach a route that renders something different (a
+// Public pages (the landing pages and the registered content pages) arrive
+// prerendered (scripts/prerender.mjs): adopt that HTML instead of replacing it.
+// Anything else ships the empty shell; should a prerendered page ever reach a route that renders something different (a
 // stale cache, the tracker host), start clean rather than hydrate a mismatch.
 const prerendered = container.hasChildNodes()
-  && Boolean(landingLanguage(window.location.pathname))
+  && Boolean(landingLanguage(window.location.pathname) || contentPageFor(window.location.pathname))
   && !isTrackerHost(window.location.hostname);
 if (prerendered) {
   ReactDOM.hydrateRoot(container, app);

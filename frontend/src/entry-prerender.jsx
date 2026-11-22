@@ -8,10 +8,10 @@ import { Writable } from "node:stream";
 import Root from "./Root";
 
 export { PUBLIC_PAGES, headTags, robotsTxt, sitemapXml } from "./seo/publicPages";
-
 export const PRERENDER_HOSTNAME = "portfyl.com";
 
-export function render(pathname) {
+// `contentPages` overrides the content-page registry; only tests pass it.
+export function render(pathname, { contentPages } = {}) {
   return new Promise((resolve, reject) => {
     let html = "";
     const sink = new Writable({
@@ -19,7 +19,7 @@ export function render(pathname) {
       final(callback) { resolve(html); callback(); },
     });
     const stream = renderToPipeableStream(
-      <StrictMode><Root location={{ pathname, hostname: PRERENDER_HOSTNAME }} /></StrictMode>,
+      <StrictMode><Root location={{ pathname, hostname: PRERENDER_HOSTNAME }} contentPages={contentPages} /></StrictMode>,
       {
         onAllReady() { stream.pipe(sink); },
         onShellError: reject,

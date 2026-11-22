@@ -138,7 +138,9 @@ mockup) and does not override it.
   (`scripts/prerender.mjs` → `dist/prerendered/`, `robots.txt`, `sitemap.xml`).
   `backend/spa_serving.py` decides which file a path gets and what is
   `noindex`; see `docs/superpowers/plans/2026-11-09-portfyl-seo.md`. A new
-  public page goes in `publicPages.js`, nowhere else.
+  public page goes in `publicPages.js`, nowhere else; a content page (guide,
+  explainer) is registered in `frontend/src/seo/pages/index.js` (its header
+  comment is the contract) and reaches `publicPages.js` from there.
   The Dockerfile always uses the cloud build. See the SPA fallback at the
   bottom of `main.py`.
 - **Login**: Firebase Authentication verifies identity, by e-mail/password or

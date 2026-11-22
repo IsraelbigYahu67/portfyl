@@ -1,13 +1,15 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import Root from "./Root";
-import { HAS_PUBLIC_HOME, TRACKER_HOME } from "./lib/routes";
+import { HAS_PUBLIC_HOME, TRACKER_HOME, contentPageFor } from "./lib/routes";
+import { FIXTURE_PAGES, fixtureCs, fixtureEn } from "./test/contentFixtures";
 
 vi.mock("./TrackerBootstrap", () => ({ default: () => <div>Protected tracker</div> }));
 // Cloud's Root lazy-loads Welcome; load it during collection (untimed) so the
 // first test doesn't spend its findBy window on the cold module graph.
 if (HAS_PUBLIC_HOME) await import("./pages/Welcome");
 if (HAS_PUBLIC_HOME) await import("./pages/Legal");
+if (HAS_PUBLIC_HOME) await import("./pages/content/ContentRoute");
 beforeEach(() => { localStorage.clear(); window.history.replaceState({}, '', '/'); });
 afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -105,4 +107,51 @@ it.each([
   // landing renders; under a full parallel run the default 1 s window flaked.
   expect(await screen.findByRole("heading", { level: 1, name: title }, { timeout: 5000 })).toBeInTheDocument();
   expect(screen.queryByText("Protected tracker")).not.toBeInTheDocument();
+});
+
+// Content pages: the real registry is empty, so a fixture registry is passed in.
+describe("content pages", () => {
+  const renderContent = (pathname, { hostname = "portfyl.com", contentPages = FIXTURE_PAGES } = {}) => {
+    setLocation({ pathname, hostname });
+    return render(<MemoryRouter initialEntries={[pathname]}><Root contentPages={contentPages} /></MemoryRouter>);
+  };
+
+  it("finds a registered page by path, with or without the trailing slash, and nothing else", () => {
+    expect(contentPageFor(fixtureCs.path, FIXTURE_PAGES)).toBe(fixtureCs);
+    expect(contentPageFor(fixtureCs.path.slice(0, -1), FIXTURE_PAGES)).toBe(fixtureCs);
+    expect(contentPageFor("/en/fixture-portfolio-tracker", FIXTURE_PAGES)).toBe(fixtureEn);
+    for (const path of ["/", "/en/", "/fixture-sledovani-portfolia/extra/", "/fixture-sledovani/", "/dashboard", "/en/fixture-sledovani-portfolia/"]) {
+      expect(contentPageFor(path, FIXTURE_PAGES), path).toBeNull();
+    }
+    // Registered pages are public only in cloud: the real registry is not consulted in local.
+    expect(contentPageFor("/fixture-sledovani-portfolia/")).toBeNull();
+  });
+
+  it.skipIf(!HAS_PUBLIC_HOME).each([fixtureCs.path, fixtureCs.path.slice(0, -1)])("serves a registered page at %s in the shared layout, without the tracker", async (pathname) => {
+    renderContent(pathname);
+    expect(await screen.findByRole("heading", { level: 1, name: fixtureCs.title }, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByText("Fixture body paragraph about tracking a portfolio.")).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent("Nejde o investiční poradenství.");
+    expect(screen.queryByText("Protected tracker")).not.toBeInTheDocument();
+  });
+
+  it.skipIf(!HAS_PUBLIC_HOME)("serves the English sibling in English and links the language versions to each other", async () => {
+    renderContent(fixtureEn.path);
+    expect(await screen.findByRole("heading", { level: 1, name: fixtureEn.title }, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent("Not investment advice.");
+    const language = screen.getAllByRole("group", { name: "Page language" })[0];
+    expect(language.querySelector('a[hreflang="cs"]')).toHaveAttribute("href", fixtureCs.path);
+    expect(language.querySelector('a[hreflang="de"]')).toHaveAttribute("href", "/de/");
+  });
+
+  it("never serves a registered page on the tracker host", async () => {
+    renderContent(fixtureCs.path, { hostname: "app.portfyl.com" });
+    expect(await screen.findByText("Protected tracker")).toBeInTheDocument();
+  });
+
+  it("leaves an unregistered path to the tracker", async () => {
+    renderContent("/fixture-neexistuje/");
+    expect(await screen.findByText("Protected tracker")).toBeInTheDocument();
+  });
 });

@@ -192,3 +192,122 @@ def test_the_spa_fallback_route_applies_the_rules_end_to_end(dist):
     assert "x-robots-tag" not in landing.headers
     assert redirect.status_code == 301 and redirect.headers["location"] == "/de/?x=1"
     assert tracker.headers["x-robots-tag"] == spa_serving.NOINDEX and "Vaše" not in tracker.text
+
+
+# Content pages (guides, broker pages, explainers): prerendered by the cloud
+# build into prerendered/<path>/, exactly like the landing pages. The server
+# keeps no list of them; a page is public when its index.html exists.
+CONTENT_PAGES = {
+    "sledovani-portfolia-trading-212": "Sledování portfolia",
+    "en/trading-212-portfolio-tracker": "Trading 212 portfolio tracker",
+}
+
+
+@pytest.fixture
+def content_dist(dist):
+    for path, heading in CONTENT_PAGES.items():
+        directory = pathlib.Path(dist) / "prerendered" / path
+        directory.mkdir(parents=True)
+        (directory / "index.html").write_text(f"<h1>{heading}</h1>", encoding="utf-8")
+    return dist
+
+
+def _is_app_shell(response, dist):
+    return pathlib.Path(response.path) == pathlib.Path(dist) / "index.html"
+
+
+@pytest.mark.parametrize("slug", CONTENT_PAGES)
+def test_content_pages_are_prerendered_and_indexable_on_the_public_host(content_dist, slug):
+    response = _spa_file_response(f"{slug}/", content_dist, host=PUBLIC)
+
+    assert response.path.replace("\\", "/").endswith(f"prerendered/{slug}/index.html")
+    assert "x-robots-tag" not in response.headers
+    assert response.headers["cache-control"] == "no-cache"
+
+
+@pytest.mark.parametrize(("slug", "query", "location"), [
+    ("sledovani-portfolia-trading-212", "", "/sledovani-portfolia-trading-212/"),
+    ("en/trading-212-portfolio-tracker", "utm_source=x", "/en/trading-212-portfolio-tracker/?utm_source=x"),
+])
+def test_a_content_page_has_one_url_the_slashless_form_redirects(content_dist, slug, query, location):
+    response = _spa_file_response(slug, content_dist, host=PUBLIC, query=query)
+
+    assert response.status_code == 301
+    assert response.headers["location"] == location
+    assert "x-robots-tag" not in response.headers
+
+
+@pytest.mark.parametrize("path", ["sledovani-portfolia-trading-212//", "en/trading-212-portfolio-tracker///"])
+def test_extra_trailing_slashes_redirect_to_the_one_url(content_dist, path):
+    response = _spa_file_response(path, content_dist, host=PUBLIC)
+
+    assert response.status_code == 301
+    assert response.headers["location"] == f"/{path.rstrip('/')}/"
+
+
+@pytest.mark.parametrize("host", [PREVIEW_HOST, "localhost", ""])
+def test_content_pages_render_but_are_noindex_on_other_hosts(content_dist, host):
+    page = _spa_file_response("en/trading-212-portfolio-tracker/", content_dist, host=host)
+    redirect = _spa_file_response("sledovani-portfolia-trading-212", content_dist, host=host)
+
+    assert page.path.replace("\\", "/").endswith("prerendered/en/trading-212-portfolio-tracker/index.html")
+    assert page.headers["x-robots-tag"] == spa_serving.NOINDEX
+    assert redirect.status_code == 301
+    assert redirect.headers["x-robots-tag"] == spa_serving.NOINDEX
+
+
+@pytest.mark.parametrize("path", ["sledovani-portfolia-trading-212/", "sledovani-portfolia-trading-212", "en/trading-212-portfolio-tracker/"])
+def test_the_tracker_host_never_gets_content_pages(content_dist, path):
+    response = _spa_file_response(path, content_dist, host=spa_serving.TRACKER_HOST)
+
+    assert response.status_code == 200
+    assert _is_app_shell(response, content_dist)
+    assert response.headers["x-robots-tag"] == spa_serving.NOINDEX
+
+
+@pytest.mark.parametrize("path", [
+    "neexistuje/",                                    # not built, so not public
+    "Sledovani-Portfolia-Trading-212/",               # one lowercase URL only
+    "sledovani-portfolia-trading-212/extra/",         # a page has no sub-URLs
+    "sledovani-portfolia-trading-212.html",           # looks like a file
+    "en/sledovani-portfolia-trading-212/",            # the language prefix is part of the path
+    "en//trading-212-portfolio-tracker/",             # empty segment
+    "en/./trading-212-portfolio-tracker/",            # dot segment
+    "prerendered/sledovani-portfolia-trading-212/",   # build output is never a URL
+    "prerendered/sledovani-portfolia-trading-212/index.html",
+    "en/trading-212-portfolio-tracker/index.html",
+])
+def test_only_the_exact_built_path_is_a_content_page(content_dist, path):
+    response = _spa_file_response(path, content_dist, host=PUBLIC)
+
+    assert response.status_code == 200
+    assert _is_app_shell(response, content_dist)
+    assert response.headers["x-robots-tag"] == spa_serving.NOINDEX
+
+
+def test_content_pages_do_not_change_the_landing_or_demo_rules(content_dist):
+    landing = spa_serving.resolve("en/", content_dist, host=PUBLIC)
+    demo = spa_serving.resolve("demo/allocation", content_dist, host=PUBLIC)
+
+    assert landing.file.replace("\\", "/").endswith("prerendered/en/index.html")
+    assert demo.redirect == "/"
+
+
+def test_the_spa_fallback_route_serves_content_pages_end_to_end(content_dist):
+    app = FastAPI()
+
+    @app.get("/{full_path:path}")
+    def spa(full_path: str, request: Request):
+        return _spa_file_response(full_path, content_dist, host=spa_serving.request_host(request.headers), query=request.url.query)
+
+    client = TestClient(app)
+    page = client.get("/en/trading-212-portfolio-tracker/", headers={"host": "portfyl.com"})
+    redirect = client.get("/sledovani-portfolia-trading-212?x=1", headers={"host": "portfyl.com"}, follow_redirects=False)
+    tracker = client.get("/sledovani-portfolia-trading-212/", headers={"host": "portfyl-1.run.app", "x-forwarded-host": "app.portfyl.com"})
+    unknown = client.get("/sledovani-portfolia/", headers={"host": "portfyl.com"})
+
+    assert page.status_code == 200 and "Trading 212 portfolio tracker" in page.text
+    assert "x-robots-tag" not in page.headers
+    assert redirect.status_code == 301 and redirect.headers["location"] == "/sledovani-portfolia-trading-212/?x=1"
+    assert tracker.headers["x-robots-tag"] == spa_serving.NOINDEX and "Sledování" not in tracker.text
+    assert unknown.headers["x-robots-tag"] == spa_serving.NOINDEX and "Sledování" not in unknown.text
