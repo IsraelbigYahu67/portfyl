@@ -32,6 +32,7 @@ import argparse
 import ast
 import json
 import re
+import subprocess
 import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -202,6 +203,34 @@ def rel(p: Path) -> str:
     return p.relative_to(ROOT).as_posix()
 
 
+# Never read these, even when git is unavailable: env files, keys, bytecode.
+NEVER_READ = re.compile(r"(^|/)(\.env[^/]*|[^/]*\.(pem|key|p12|pyc)|__pycache__/.*)$", re.I)
+_git_visible_cache: list[set[str] | None] = []
+
+
+def _git_visible() -> set[str] | None:
+    """Repo-relative paths git tracks or would track; git-ignored files are left out."""
+    if not _git_visible_cache:
+        try:
+            out = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+                                 cwd=ROOT, capture_output=True, timeout=60)
+            ok = out.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            ok = False
+        _git_visible_cache.append(
+            {s for s in out.stdout.decode("utf-8", "replace").split("\0") if s} if ok else None)
+    return _git_visible_cache[0]
+
+
+def visible(p: Path) -> bool:
+    """Only files git would commit become notes, so local secrets (deploy/.env.*) never leak in."""
+    r = rel(p)
+    if NEVER_READ.search(r):
+        return False
+    vis = _git_visible()
+    return vis is None or r in vis
+
+
 def first_paragraph(text: str | None, limit: int = 400) -> str:
     if not text:
         return ""
@@ -223,6 +252,8 @@ def safe_text(s: str) -> str:
 def backend_files() -> list[Path]:
     out = []
     for p in sorted(BACKEND.rglob("*.py")):
+        if not visible(p):
+            continue
         r = p.relative_to(BACKEND).as_posix()
         if r.startswith(("tests/", "alembic/", ".venv/")) or "__pycache__" in r or "site-packages" in r:
             continue
@@ -442,7 +473,7 @@ def build_db(notes: dict[str, Note], cls_to_table, table_doc, table_line) -> Non
         )
         notes[table_note(t)].link("Defined in", "models")
 
-    versions = sorted((BACKEND / "alembic" / "versions").glob("*.py"))
+    versions = sorted(p for p in (BACKEND / "alembic" / "versions").glob("*.py") if visible(p))
     tables = set(cls_to_table.values())
     for p in versions:
         text = p.read_text(encoding="utf-8", errors="replace")
@@ -501,7 +532,7 @@ LEAD_COMMENT = re.compile(r"^\s*(?:/\*\*?(.*?)\*/|((?:[ \t]*//[^\n]*\n)+))", re.
 def frontend_files() -> list[Path]:
     out = []
     for p in sorted(FRONTEND_SRC.rglob("*")):
-        if p.suffix not in (".js", ".jsx") or ".test." in p.name:
+        if p.suffix not in (".js", ".jsx") or ".test." in p.name or not visible(p):
             continue
         r = p.relative_to(FRONTEND_SRC).as_posix()
         if r.startswith("test/"):
@@ -683,7 +714,7 @@ def build_ops(notes: dict[str, Note]) -> list[tuple[Note, Path]]:
                          if p.is_file() and "node_modules" not in p.parts and p.name not in OPS_SKIP)
     scan: list[tuple[Note, Path]] = []
     for p in candidates:
-        if not p.exists():
+        if not p.exists() or not visible(p):
             continue
         r = rel(p)
         group = next((g for g in OPS_GROUPS if r.startswith(g)), None)
@@ -764,7 +795,7 @@ def doc_targets(notes: dict[str, Note]) -> list[tuple[str, re.Pattern, str]]:
 def scan_docs(notes: dict[str, Note], extra: list[tuple[Note, Path]]) -> int:
     pats = doc_targets(notes)
     docs = [p for p in sorted(DOCS.rglob("*.md"))
-            if not p.relative_to(DOCS).as_posix().startswith(("architecture/", ".obsidian"))]
+            if not p.relative_to(DOCS).as_posix().startswith(("architecture/", ".obsidian")) and visible(p)]
     for p in docs:
         text = p.read_text(encoding="utf-8", errors="replace")
         link = p.relative_to(DOCS).with_suffix("").as_posix()
