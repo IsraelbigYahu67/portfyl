@@ -144,7 +144,11 @@ export function splitLegalDocument(source) {
   const blocks = parseLegalMarkdown(source);
   const titleIndex = blocks.findIndex((block) => block.type === "heading" && block.level === 1);
   const title = titleIndex >= 0 ? blocks[titleIndex].text : "";
-  const body = blocks.filter((block, index) => index !== titleIndex && !(block.type === "quote" && index === titleIndex + 1));
+  // A closing "## Related" section links the file into the repo's architecture
+  // graph (Obsidian wikilinks). It is not legal text, so it never reaches the page.
+  const relatedIndex = blocks.findIndex((block) => block.type === "heading" && block.level === 2 && block.text.trim() === "Related");
+  const visible = relatedIndex >= 0 ? blocks.slice(0, relatedIndex) : blocks;
+  const body = visible.filter((block, index) => index !== titleIndex && !(block.type === "quote" && index === titleIndex + 1));
   const used = new Set();
   const sections = [];
   body.forEach((block) => {

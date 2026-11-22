@@ -14,7 +14,7 @@ generated: true
 Markdown outside the vault; its top headings are listed below.
 
 **Hub:** [[Frontend structure]] · [[Deploy and operations]]
-**Source:** `DESIGN.md` (403 lines)
+**Source:** `DESIGN.md` (415 lines)
 
 ## Headings
 - Portfyl design system (source of truth for the live app)

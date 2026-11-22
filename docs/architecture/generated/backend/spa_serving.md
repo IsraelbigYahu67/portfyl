@@ -14,7 +14,7 @@ generated: true
 How the built SPA (frontend/dist) is served, and what search engines may index. See docs/superpowers/plans/2026-11-09-portfyl-seo.md (Wave 1, S3).
 
 **Hub:** [[Deploy and operations]] · [[Backend]]
-**Source:** `backend/spa_serving.py` (117 lines)
+**Source:** `backend/spa_serving.py` (126 lines)
 
 ## Mentioned in docs
 - [[operations/posthog-activation-analytics]]

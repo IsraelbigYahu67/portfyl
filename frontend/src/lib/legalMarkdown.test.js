@@ -62,4 +62,10 @@ describe("splitLegalDocument", () => {
     expect(doc.sections).toEqual([{ id: "1-kdo-sluzbu-provozuje", text: "1. Kdo službu provozuje" }]);
     expect(doc.pendingCount).toBe(1);
   });
+
+  it("drops the closing Related section that only serves the architecture graph", () => {
+    const doc = splitLegalDocument("# Title\n\n## 1. Kdo službu provozuje\n\nText\n\n## Related\n\n- Hub: [[Portfyl]]\n");
+    expect(doc.sections).toEqual([{ id: "1-kdo-sluzbu-provozuje", text: "1. Kdo službu provozuje" }]);
+    expect(JSON.stringify(doc.blocks)).not.toMatch(/Related|\[\[/);
+  });
 });

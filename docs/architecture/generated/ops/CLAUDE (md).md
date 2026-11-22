@@ -14,7 +14,7 @@ generated: true
 Markdown outside the vault; its top headings are listed below.
 
 **Hub:** [[Deploy and operations]]
-**Source:** `CLAUDE.md` (397 lines)
+**Source:** `CLAUDE.md` (399 lines)
 
 ## Headings
 - Portfyl

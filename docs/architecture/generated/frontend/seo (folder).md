@@ -12,9 +12,11 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Frontend structure]]
-**Source:** `frontend/src/seo/` (150 lines)
+**Source:** `frontend/src/seo/` (373 lines)
 
 ## Files
+- `frontend/src/seo/contentPages.js`: Validation and defaults for the content-page registry (src/seo/pages/index.js). Pure data in, pure data out: publicPages.js merges the result into PUBLIC_PAGES, and pages/content/ContentRoute.jsx reads it to render. A bad entry throws here, so the prerender (and with it `npm run build:cloud`) fails…
+- `frontend/src/seo/pages/index.js`: The registry of public content pages (guides, broker and feature pages, explainers, trust pages) on portfyl.com. It is EMPTY on purpose until a page is written and reviewed by a person: nothing here is a placeholder.
 - `frontend/src/seo/publicPages.js`: The single list of public, indexable pages on portfyl.com and their head metadata. The build-time prerender (scripts/prerender.mjs) renders exactly these, writes sitemap.xml and robots.txt from them, and the backend serves a prerendered file only when one exists -- so a page missing here is not pub…
 
 ## Imports

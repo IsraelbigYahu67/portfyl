@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Frontend structure]]
-**Source:** `frontend/src/components/landing/` (876 lines)
+**Source:** `frontend/src/components/landing/` (878 lines)
 
 ## Files
 - `frontend/src/components/landing/Brand.jsx`

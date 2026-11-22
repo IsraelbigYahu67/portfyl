@@ -1,6 +1,6 @@
 {
   "generator": "scripts/build_obsidian_architecture.py",
-  "notes": 341,
+  "notes": 343,
   "hubs": [
     "Account deletion and data lifecycle",
     "Alerts and integrations",
@@ -33,7 +33,7 @@
     "frontend/folder": 18,
     "frontend/hook": 12,
     "frontend/lib": 47,
-    "frontend/page": 23,
+    "frontend/page": 25,
     "ops/folder": 1,
     "ops/ops": 22
   }

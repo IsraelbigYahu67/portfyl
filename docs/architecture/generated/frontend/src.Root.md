@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Frontend structure]]
-**Source:** `frontend/src/Root.jsx` (79 lines)
+**Source:** `frontend/src/Root.jsx` (86 lines)
 
 ## Imports
 - [[analytics (folder)]]
@@ -20,6 +20,8 @@ generated: true
 - [[lib.routes]]
 - [[pages.Legal]]
 - [[pages.Welcome]]
+- [[pages.content.ContentRoute]]
+- [[seo (folder)]]
 - [[src.TrackerBootstrap]]
 
 ## Mentioned in docs

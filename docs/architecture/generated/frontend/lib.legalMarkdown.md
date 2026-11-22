@@ -14,5 +14,5 @@ generated: true
 A small Markdown reader for the legal texts in docs/legal/ (the public /terms and /privacy pages). It understands only what those files use: headings, paragraphs, "- " lists, pipe tables, block quotes, **bold**, *italic*, `code`, [links](url) and a trailing "\" hard line break. A code span holding …
 
 **Hub:** [[Frontend structure]]
-**Source:** `frontend/src/lib/legalMarkdown.js` (170 lines)
+**Source:** `frontend/src/lib/legalMarkdown.js` (174 lines)
 **Exports:** `resolveLegalHref`, `parseInline`, `slugifyHeading`, `parseLegalMarkdown`, `splitLegalDocument`
