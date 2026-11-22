@@ -74,15 +74,20 @@ it("Clay hides appearance and accent palette", () => {
   expect(screen.getByRole("heading", { name: "Display currency" })).toBeInTheDocument();
 });
 
-it("keeps appearance and accent palette for Classic and Premium", () => {
-  for (const style of ["glass", "neu"]) {
-    context.themeStyle = style;
-    const { unmount } = renderPreferences();
-    expect(screen.getByRole("heading", { name: "Appearance" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Accent palette" })).toBeInTheDocument();
-    expect(screen.queryByText("Clay uses its own light palette.")).not.toBeInTheDocument();
-    unmount();
-  }
+it("shows appearance and the accent palette for Classic", () => {
+  renderPreferences();
+  expect(screen.getByRole("heading", { name: "Appearance" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Accent palette" })).toBeInTheDocument();
+});
+
+it("Premium keeps appearance but hides the accent palette", () => {
+  context.themeStyle = "neu";
+  renderPreferences();
+
+  expect(screen.getByRole("heading", { name: "Appearance" })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Accent palette" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Theme: Soft Iris" })).not.toBeInTheDocument();
+  expect(screen.queryByText("Clay uses its own light palette.")).not.toBeInTheDocument();
 });
 
 it("renders the accent palette choices as pills", () => {
