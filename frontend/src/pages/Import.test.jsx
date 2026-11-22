@@ -158,6 +158,18 @@ describe("Import preview and undo", () => {
     expect(mocks.commitImportCSV).not.toHaveBeenCalled();
   });
 
+  it("offers 'Replace existing portfolio' only when the portfolio is not empty", async () => {
+    const regular = mount();
+    chooseCsv(regular.container);
+    expect(await screen.findByRole("checkbox", { name: /replace existing portfolio/i })).toBeInTheDocument();
+    regular.unmount();
+
+    const first = mount({ focused: true });
+    chooseCsv(first.container);
+    expect(await screen.findByRole("button", { name: /preview import/i })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /replace existing portfolio/i })).not.toBeInTheDocument();
+  });
+
   it("shows the language and currency chip only on the onboarding import", () => {
     const { unmount } = mount({ focused: true });
     expect(screen.getByRole("button", { name: /English · CZK/ })).toBeInTheDocument();
@@ -195,7 +207,10 @@ describe("Import preview and undo", () => {
 
     expect(await screen.findByRole("heading", { level: 1, name: "Import your XTB file" })).toBeInTheDocument();
     expect(screen.getByText(/drop your xtb xlsx file here/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^XTB/ })).toHaveAttribute("aria-expanded", "true");
+    // Only the picked broker's guide is shown, not the accordion of all brokers.
+    expect(screen.getByRole("heading", { name: "How to get the file from XTB" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "How to export from your broker" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Degiro/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /leave import/i }));
     expect(screen.getByLabelText("location")).toHaveTextContent("/onboarding");
   });

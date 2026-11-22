@@ -131,6 +131,8 @@ export default function Import({ focused = false }) {
   splitRef.current = split;
   const stageIndex = { select: 0, preview: 1, confirm: 2, result: 3 }[stage];
   const onboardingPending = current?.activation_state === "pending_import" || pendingImportPortfolio?.id === current?.id;
+  // The very first import goes into an empty portfolio: there is nothing to replace.
+  const isFirstImport = focused || onboardingPending;
 
   const invalidatePortfolio = (includePortfolios = true) => queryClient.invalidateQueries({
     predicate: (query) => includePortfolios || query.queryKey[0] !== "portfolios",
@@ -408,23 +410,25 @@ export default function Import({ focused = false }) {
 
       {file && !preview && !result && (
         <div className="space-y-3">
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={replace}
-              onChange={(event) => {
-                setReplace(event.target.checked);
-                setPreview(null);
-                setStage("select");
-                setError(null);
-              }}
-              className="mt-0.5 accent-brand w-4 h-4"
-            />
-            <span>
-              <span className="text-sm font-medium">{t("Replace existing portfolio")}</span>
-              <span className="block text-xs text-muted mt-0.5">{t("The preview will show exactly what would be removed.")}</span>
-            </span>
-          </label>
+          {!isFirstImport && (
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={replace}
+                onChange={(event) => {
+                  setReplace(event.target.checked);
+                  setPreview(null);
+                  setStage("select");
+                  setError(null);
+                }}
+                className="mt-0.5 accent-brand w-4 h-4"
+              />
+              <span>
+                <span className="text-sm font-medium">{t("Replace existing portfolio")}</span>
+                <span className="block text-xs text-muted mt-0.5">{t("The preview will show exactly what would be removed.")}</span>
+              </span>
+            </label>
+          )}
           <button onClick={() => previewMutation.mutate()} className="btn-primary w-full" disabled={previewMutation.isPending}>
             {previewMutation.isPending ? t("Preparing preview…") : t("Preview import")}
           </button>
@@ -433,7 +437,7 @@ export default function Import({ focused = false }) {
 
       </div>
 
-      {!file && <BrokerGuides initialOpen={broker?.key} />}
+      {!file && (broker ? <BrokerGuides only={broker.key} /> : <BrokerGuides />)}
       </div>
       </>}
 
