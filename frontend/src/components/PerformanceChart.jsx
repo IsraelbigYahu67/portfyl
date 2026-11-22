@@ -50,6 +50,32 @@ function GrowthLineLayer({ xAxisMap, yAxisMap, series }) {
   );
 }
 
+// The fill gradient must be anchored to the plot's own pixels (userSpaceOnUse),
+// not to the Area's bounding box: that box only spans the data's min..max, so a
+// percentage offset computed from the axis domain landed above the 0% axis and
+// tinted the gain area red. The hard colour stop sits exactly on y = 0.
+function GrowthFillGradient({ yAxisMap, domain }) {
+  const yScale = yAxisMap && Object.values(yAxisMap)[0]?.scale;
+  if (!yScale) return null;
+
+  const top = yScale(domain[1]);
+  const bottom = yScale(domain[0]);
+  const zero = yScale(0);
+  if (![top, bottom, zero].every(Number.isFinite) || bottom === top) return null;
+  const zeroOffset = Math.min(1, Math.max(0, (zero - top) / (bottom - top)));
+
+  return (
+    <defs>
+      <linearGradient id="colorGrowth" gradientUnits="userSpaceOnUse" x1="0" y1={top} x2="0" y2={bottom}>
+        <stop offset="0" stopColor="#638B70" stopOpacity={0.42} />
+        <stop offset={zeroOffset} stopColor="#7C9A7F" stopOpacity={0.04} />
+        <stop offset={zeroOffset} stopColor="#B17C74" stopOpacity={0.04} />
+        <stop offset="1" stopColor="#B17C74" stopOpacity={0.42} />
+      </linearGradient>
+    </defs>
+  );
+}
+
 function CustomTooltip({ active, payload, label, currency, benchmarkMeta, mode }) {
   const t = useT();
   if (!active || !payload?.length) return null;
@@ -131,7 +157,6 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
     ...benchmarkMeta.map((benchmark) => point[`bench_${benchmark.key}`]),
   ]).filter(Number.isFinite);
   const { domain: growthDomain, ticks: growthTicks } = buildPercentAxis(growthValues);
-  const growthZeroOffset = (growthDomain[1] / (growthDomain[1] - growthDomain[0])) * 100;
 
   const fmtAxis = (v) => {
     const { prefix = "", suffix = "" } = currencyParts(currency);
@@ -154,12 +179,6 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
             <linearGradient id="colorInvested" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor={NEUTRAL_COLOR} stopOpacity={0.15} />
               <stop offset="95%" stopColor={NEUTRAL_COLOR} stopOpacity={0} />
-            </linearGradient>
-            <linearGradient id="colorGrowth" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#638B70" stopOpacity={0.42} />
-              <stop offset={`${growthZeroOffset}%`} stopColor="#7C9A7F" stopOpacity={0.04} />
-              <stop offset={`${growthZeroOffset}%`} stopColor="#B17C74" stopOpacity={0.04} />
-              <stop offset="100%" stopColor="#B17C74" stopOpacity={0.42} />
             </linearGradient>
           </defs>
           <CartesianGrid stroke={GRID_STROKE} vertical={false} />
@@ -195,9 +214,10 @@ export default function PerformanceChart({ data, currency = "USD", mode = "value
                   return <span style={LEGEND_TEXT_STYLE}>{v}</span>;
                 }}
               />
+              <Customized component={(chartProps) => <GrowthFillGradient {...chartProps} domain={growthDomain} />} />
               <Area
                 yAxisId="pct"
-                type="monotone"
+                type="linear"
                 dataKey="pnl_pct"
                 baseValue={0}
                 stroke="none"
