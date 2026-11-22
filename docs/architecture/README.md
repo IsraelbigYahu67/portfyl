@@ -47,15 +47,24 @@ hubs and code notes.
 From the repo root (Python 3.12+, standard library only, no install needed):
 
 ```
-python scripts/build_obsidian_architecture.py          # rewrite architecture/generated/
-python scripts/build_obsidian_architecture.py --check  # counts only, writes nothing
-python scripts/build_obsidian_architecture.py --report # notes / orphans / unresolved links in docs/
+python scripts/build_obsidian_architecture.py           # update architecture/generated/
+python scripts/build_obsidian_architecture.py --verify  # exit 1 if generated/ is out of date
+python scripts/build_obsidian_architecture.py --check   # counts only, writes nothing
+python scripts/build_obsidian_architecture.py --report  # notes / orphans / unresolved links in docs/
 ```
 
-The script deletes and rewrites **only** `architecture/generated/`. Hub
-notes and the existing docs are never touched. Do not edit generated notes
-by hand; change the script (for example `HUB_RULES` to move a module to
-another hub) and rerun it.
+The script changes **only** `architecture/generated/`, and only the files
+whose content changes. Hub notes and the existing docs are never touched. Do
+not edit generated notes by hand; change the script (for example `HUB_RULES`
+to move a module to another hub) and rerun it.
+
+**Automatic refresh:** the Claude Code Stop hook in `.claude/settings.json`
+runs `scripts/obsidian_graph_hook.py` whenever a Claude session finishes a
+reply. If code, docs or deploy files changed since its last run in that
+worktree, it updates `generated/` and shows "Architecture graph: N file(s)
+refreshed". Codex and manual edits have no hook: run the script yourself
+before committing. On a merge conflict inside `generated/`, take either
+side and rerun the script.
 
 ## Graph settings
 

@@ -13,6 +13,28 @@ tokens it names. If your change alters the look (palette, radii, motion),
 update `DESIGN.md` in the same change. `.stitch/DESIGN.md` is a historical
 mockup spec and does not override it.
 
+## Architecture map (Obsidian graph): read it, keep it current
+
+`docs/` is an Obsidian vault that maps the whole codebase
+(`docs/architecture/README.md`).
+
+- **Finding things:** start at `docs/architecture/hubs/Portfyl.md` (root
+  hub), then the area hub, then the generated note for a file:
+  `docs/architecture/generated/<backend|frontend|db|ops>/<name>.md`. Each
+  note lists imports, importers, frontend callers, endpoints, tables and the
+  docs that mention it. To answer "what uses X?", grep `docs/architecture/`
+  for `[[X]]`. The code wins if a note disagrees.
+- **After changing code:** there is no hook for Codex, so before every commit
+  run `python scripts/build_obsidian_architecture.py` (check with `--verify`,
+  which exits 1 when stale) and commit the `docs/architecture/generated/`
+  changes with your code. Never edit generated notes by hand. On a merge
+  conflict inside `generated/`, take either side and rerun the script.
+- **Hand-written parts you update yourself:** the hub in
+  `docs/architecture/hubs/` when you change how its area works. For a new
+  feature area, add a hub and a regex in `HUB_RULES` in the script. A new doc
+  ends with a `## Related` section linking at least one hub. `--report` lists
+  orphans and broken links.
+
 ## Database migration invariant
 
 Every Alembic migration change must keep the application's expected schema

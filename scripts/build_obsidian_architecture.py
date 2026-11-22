@@ -14,10 +14,16 @@ file into ``docs/architecture/generated/``. Links come from the real code:
 Every generated note also links up to one or more hand-written hub notes in
 ``docs/architecture/hubs/`` (see HUB_RULES below).
 
-Standard library only. Re-runnable: it deletes and rewrites only the
-``generated/`` folder; hub notes and existing docs are never touched.
+Standard library only. Re-runnable: it only changes files inside the
+``generated/`` folder (and only the ones whose content changes); hub notes and
+existing docs are never touched.
 
-Usage (from the repo root):  python scripts/build_obsidian_architecture.py
+Usage (from the repo root):
+    python scripts/build_obsidian_architecture.py            # update generated/
+    python scripts/build_obsidian_architecture.py --verify   # exit 1 if out of date
+    python scripts/build_obsidian_architecture.py --report   # orphans / broken links
+The Claude Code Stop hook ``scripts/obsidian_graph_hook.py`` runs the update
+automatically when code or docs changed.
 """
 
 from __future__ import annotations
@@ -26,7 +32,6 @@ import argparse
 import ast
 import json
 import re
-import shutil
 import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -716,33 +721,43 @@ def build_ops(notes: dict[str, Note]) -> list[tuple[Note, Path]]:
 # Docs mentions
 # ==========================================================================
 
-def doc_targets(notes: dict[str, Note]) -> list[tuple[re.Pattern, str]]:
-    """(regex, note name) pairs used to find code mentions in markdown."""
-    pats: list[tuple[re.Pattern, str]] = []
+def doc_targets(notes: dict[str, Note]) -> list[tuple[str, re.Pattern, str]]:
+    """(literal, regex, note name) triples used to find code mentions in markdown.
+
+    ``literal`` is a plain substring every match of ``regex`` contains; testing
+    ``literal in text`` first skips most regex searches (much faster).
+    """
+    pats: list[tuple[str, re.Pattern, str]] = []
+
+    def add(literal: str, pattern: str, target: str) -> None:
+        pats.append((literal, re.compile(pattern), target))
+
     basename_count: dict[str, list[str]] = defaultdict(list)
     for n in notes.values():
         if n.layer == "backend" and n.kind != "folder":
             src = n.source
-            pats.append((re.compile(re.escape(src)), n.name))
+            add(src, re.escape(src), n.name)
             inner = src[len("backend/"):]
             if "/" in inner:
-                pats.append((re.compile(r"(?<![\w/])" + re.escape(inner) + r"\b"), n.name))
+                add(inner, r"(?<![\w/])" + re.escape(inner) + r"\b", n.name)
             basename_count[Path(src).name].append(n.name)
         elif n.layer == "frontend" and n.kind != "folder":
             src = n.source
-            pats.append((re.compile(re.escape(src) + "|" + re.escape(src[len("frontend/"):])), n.name))
+            inner = src[len("frontend/"):]
+            add(inner, re.escape(src) + "|" + re.escape(inner), n.name)
             basename_count[Path(src).name].append(n.name)
         elif n.kind == "migration":
-            pats.append((re.compile(r"\b" + re.escape(n.name) + r"\b"), n.name))
+            add(n.name, r"\b" + re.escape(n.name) + r"\b", n.name)
         elif n.layer == "ops":
-            pats.append((re.compile(r"(?<![\w/])" + re.escape(n.source) + r"\b"), n.name))
+            add(n.source, r"(?<![\w/])" + re.escape(n.source) + r"\b", n.name)
         elif n.kind == "folder" and n.source.endswith("/"):
-            pats.append((re.compile(re.escape(n.source.rstrip("/")) + "/"), n.name))
+            lit = n.source.rstrip("/") + "/"
+            add(lit, re.escape(lit), n.name)
     for base, names in basename_count.items():
         top = [nm for nm in names if notes[nm].source == f"backend/{base}"]
         target = top[0] if top else (names[0] if len(names) == 1 else None)
         if target and base not in ("index.js", "utils.js", "constants.js"):
-            pats.append((re.compile(r"(?<![\w/.-])" + re.escape(base) + r"\b"), target))
+            add(base, r"(?<![\w/.-])" + re.escape(base) + r"\b", target)
     return pats
 
 
@@ -753,14 +768,14 @@ def scan_docs(notes: dict[str, Note], extra: list[tuple[Note, Path]]) -> int:
     for p in docs:
         text = p.read_text(encoding="utf-8", errors="replace")
         link = p.relative_to(DOCS).with_suffix("").as_posix()
-        for target in {t for rx, t in pats if rx.search(text)}:
+        for target in {t for lit, rx, t in pats if lit in text and rx.search(text)}:
             notes[target].link("Mentioned in docs", link)
     for note, p in extra:
         if p.suffix != ".md":
             continue
         text = p.read_text(encoding="utf-8", errors="replace")
-        for rx, target in pats:
-            if target != note.name and rx.search(text):
+        for lit, rx, target in pats:
+            if target != note.name and lit in text and rx.search(text):
                 note.link("Mentions code", target)
     return len(docs)
 
@@ -917,15 +932,11 @@ def print_report() -> None:
                 print(f"    unresolved in {k}: {', '.join(v[:6])}{' …' if len(v) > 6 else ''}")
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description="Generate Obsidian architecture notes for Portfyl.")
-    ap.add_argument("--check", action="store_true", help="print stats only, write nothing")
-    ap.add_argument("--report", action="store_true", help="only report notes/orphans/unresolved links in docs/")
-    args = ap.parse_args()
-    if args.report:
-        print_report()
-        return 0
+class GenerationError(RuntimeError):
+    pass
 
+
+def build_notes() -> tuple[dict[str, Note], int]:
     notes: dict[str, Note] = {}
     cls_to_table, table_doc, table_line = parse_models()
     router_routes = build_backend(notes, cls_to_table)
@@ -938,13 +949,16 @@ def main() -> int:
     for nm in notes:
         lower[nm.lower()].append(nm)
         if BAD_SUFFIX.search(nm):
-            print(f"ERROR: note name ends like a file extension: {nm}", file=sys.stderr)
-            return 1
+            raise GenerationError(f"note name ends like a file extension: {nm}")
     dupes = [v for v in lower.values() if len(v) > 1]
     if dupes:
-        print(f"ERROR: duplicate note names: {dupes}", file=sys.stderr)
-        return 1
+        raise GenerationError(f"duplicate note names: {dupes}")
+    return notes, ndocs
 
+
+def generate(verbose: bool = True) -> dict[Path, str]:
+    """Render every generated file in memory: {absolute path: content}."""
+    notes, ndocs = build_notes()
     existing = set(notes)
     hub_names = sorted({h for n in notes.values() for h in hubs_for(n)})
     missing_hubs = [h for h in hub_names if not (HUBS_DIR / f"{h}.md").exists()]
@@ -952,28 +966,93 @@ def main() -> int:
     counts: dict[str, int] = defaultdict(int)
     for n in notes.values():
         counts[f"{n.layer}/{n.kind}"] += 1
-    print(f"notes: {len(notes)}  docs scanned: {ndocs}")
-    for k in sorted(counts):
-        print(f"  {k}: {counts[k]}")
+    if verbose:
+        print(f"notes: {len(notes)}  docs scanned: {ndocs}")
+        for k in sorted(counts):
+            print(f"  {k}: {counts[k]}")
     if missing_hubs:
-        print("hub notes not written yet:", ", ".join(missing_hubs))
-    if args.check:
-        return 0
+        print("hub notes not written yet:", ", ".join(missing_hubs), file=sys.stderr)
 
-    if OUT.exists():
-        shutil.rmtree(OUT)
-    for n in notes.values():
-        d = OUT / n.layer
-        d.mkdir(parents=True, exist_ok=True)
-        (d / f"{n.name}.md").write_text(render(n, existing), encoding="utf-8")
+    files = {OUT / n.layer / f"{n.name}.md": render(n, existing) for n in notes.values()}
     manifest = {
         "generator": "scripts/build_obsidian_architecture.py",
         "notes": len(notes),
         "hubs": hub_names,
         "by_kind": dict(sorted(counts.items())),
     }
-    (OUT / "_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    print(f"wrote {len(notes)} notes to {rel(OUT)}/")
+    files[OUT / "_manifest.json"] = json.dumps(manifest, indent=2) + "\n"
+    return files
+
+
+def _on_disk() -> set[Path]:
+    if not OUT.exists():
+        return set()
+    return {p for p in OUT.rglob("*") if p.is_file() and (p.suffix == ".md" or p.name == "_manifest.json")}
+
+
+def _read(p: Path) -> str | None:
+    try:
+        return p.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+def diff_generated(files: dict[Path, str]) -> dict[str, list[Path]]:
+    """Compare rendered files with docs/architecture/generated/ on disk."""
+    disk = _on_disk()
+    return {
+        "missing": sorted(p for p in files if p not in disk),
+        "stale": sorted(p for p in files if p in disk and _read(p) != files[p]),
+        "extra": sorted(disk - set(files)),
+    }
+
+
+def write_generated(verbose: bool = False) -> int:
+    """Bring generated/ up to date, touching only files that change. Returns the number changed."""
+    files = generate(verbose=verbose)
+    d = diff_generated(files)
+    for p in d["missing"] + d["stale"]:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(files[p], encoding="utf-8")
+    for p in d["extra"]:
+        p.unlink()
+    for folder in sorted((p for p in OUT.rglob("*") if p.is_dir()), reverse=True):
+        if not any(folder.iterdir()):
+            folder.rmdir()
+    return sum(len(v) for v in d.values())
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Generate Obsidian architecture notes for Portfyl.")
+    ap.add_argument("--check", action="store_true", help="print stats only, write nothing")
+    ap.add_argument("--verify", action="store_true",
+                    help="exit 1 if docs/architecture/generated/ is out of date; write nothing")
+    ap.add_argument("--report", action="store_true", help="only report notes/orphans/unresolved links in docs/")
+    args = ap.parse_args()
+    if args.report:
+        print_report()
+        return 0
+    try:
+        if args.check:
+            generate()
+            return 0
+        if args.verify:
+            d = diff_generated(generate(verbose=False))
+            bad = sum(len(v) for v in d.values())
+            for kind, paths in d.items():
+                for p in paths:
+                    print(f"  {kind}: {rel(p)}")
+            if bad:
+                print(f"architecture graph is out of date ({bad} files); "
+                      "run: python scripts/build_obsidian_architecture.py")
+                return 1
+            print("architecture graph is up to date")
+            return 0
+        changed = write_generated(verbose=True)
+    except GenerationError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    print(f"updated {changed} files in {rel(OUT)}/" if changed else f"{rel(OUT)}/ already up to date")
     return 0
 
 

@@ -14,12 +14,13 @@ generated: true
 Markdown outside the vault; its top headings are listed below.
 
 **Hub:** [[Deploy and operations]]
-**Source:** `CLAUDE.md` (371 lines)
+**Source:** `CLAUDE.md` (397 lines)
 
 ## Headings
 - Portfyl
 - In-progress: multi-user SaaS conversion
 - Frontend changes: read `DESIGN.md` first
+- Architecture map (Obsidian graph): read it, keep it current
 - Stack
 - Run it
 - Architecture & conventions (read before editing)

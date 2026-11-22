@@ -15,7 +15,8 @@ docs/operations/control-files/
 docs/operations/code-stats.html
 
 # local agent state / worktrees
-.claude/
+.claude/*
+!.claude/settings.json
 .worktrees/
 
 # editor/os noise
