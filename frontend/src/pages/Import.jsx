@@ -144,19 +144,23 @@ export default function Import({ focused = false }) {
 
   const previewMutation = useMutation({
     mutationFn: async () => {
-      let data = await previewImportCSV(file, replace);
+      let previewedReplace = replace;
+      let data = await previewImportCSV(file, previewedReplace);
       if (!keepCurrentRef.current && !splitRef.current && data.broker) {
         const session = await brokerPortfolio.open(data.broker);
         if (session?.created) {
           setSplit(session);
           splitRef.current = session;
           // The new portfolio is empty: append, nothing to replace.
-          data = await previewImportCSV(file, false);
+          previewedReplace = false;
+          data = await previewImportCSV(file, previewedReplace);
         } else if (session?.blocked) {
           data = { ...data, split_blocked: session };
         }
       }
-      return data;
+      // The backend recomputes the preview on commit and compares preview_id,
+      // so the commit must send the replace value this preview was made with.
+      return { ...data, previewed_replace: previewedReplace };
     },
     onSuccess: (data) => {
       setPreview(data);
@@ -171,7 +175,7 @@ export default function Import({ focused = false }) {
   });
 
   const commitMutation = useMutation({
-    mutationFn: () => commitImportCSV(file, preview.preview_id, replace),
+    mutationFn: () => commitImportCSV(file, preview.preview_id, preview.previewed_replace ?? replace),
     onSuccess: (data) => {
       setResult({ ...data, portfolio_name: splitRef.current?.created?.name ?? null });
       setSplit(null);

@@ -392,6 +392,31 @@ describe("Import preview and undo", () => {
       expect(mocks.deletePortfolio).not.toHaveBeenCalled();
     });
 
+    it("commits with the replace value its preview was computed with", async () => {
+      portfolios(["trading212"]);
+      mocks.previewImportCSV.mockResolvedValue(XTB_PREVIEW);
+      mocks.createPortfolio.mockResolvedValue({ id: "new-id", name: "XTB" });
+      mocks.commitImportCSV.mockResolvedValue({
+        imported: 3, duplicates_skipped: 0, projected: 3, mode: "append", format: "XTB (xStation)",
+        undo: { available: true, expires_at: "2026-09-08T12:00:00+00:00", imported: 3, mode: "append" },
+      });
+      const { container } = mount();
+      const file = new File(["PK"], "xtb.xlsx");
+      fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [file] } });
+      // "Replace" stays ticked, but the new portfolio is empty: the preview is
+      // recomputed with replace=false, and the commit must agree with it.
+      fireEvent.click(await screen.findByRole("checkbox", { name: /replace existing portfolio/i }));
+      fireEvent.click(await screen.findByRole("button", { name: /preview import/i }));
+      await screen.findByRole("status", { name: "New portfolio" });
+      expect(mocks.previewImportCSV.mock.calls[0][1]).toBe(true);
+      expect(mocks.previewImportCSV.mock.calls[1][1]).toBe(false);
+
+      fireEvent.click(await screen.findByRole("button", { name: /continue to confirm/i }));
+      fireEvent.click(await screen.findByRole("button", { name: /^import 3 transactions$/i }));
+
+      await waitFor(() => expect(mocks.commitImportCSV).toHaveBeenCalledWith(file, "xtb-1", false));
+    });
+
     it("removes the new portfolio again when the preview is cancelled", async () => {
       portfolios(["trading212"]);
       mocks.previewImportCSV.mockResolvedValue(XTB_PREVIEW);
