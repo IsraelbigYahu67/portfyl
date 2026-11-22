@@ -456,3 +456,9 @@ documents are listed where found.
   https://zh.semrush.com/website/parqet.com/overview
 - Trading 212 community demand for trackers: https://community.trading212.com/t/trading-212-dividend-tracker/74823
 - Czech tax content landscape (why tax is deferred): https://www.e15.cz/zdaneni-akcii-dividend-danove-priznani-2026
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Deploy and operations]]
+- Code: [[spa_serving]] · [[seo (folder)]] · [[src.entry-prerender]] · [[pages.Welcome]] · [[pages.Legal]] · [[frontend.vite.config (js)]]
+- Docs: [[operations/2026-09-10-public-landing]]

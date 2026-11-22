@@ -1262,3 +1262,9 @@ Create `docs/superpowers/plans/ux-05-screener-jobs-verification.md` containing: 
 git add docs/superpowers/plans/ux-05-screener-jobs-verification.md
 git commit -m "docs: record phase 5 (screener jobs) verification results"
 ```
+
+## Related
+
+- Architecture: [[Jobs and Cloud Scheduler]] · [[Backend]] · [[Edition boundary]]
+- Code: [[services.screener_jobs]] · [[universes]] · [[private_loop]] · [[routers.local_features]]
+- Docs: [[superpowers/plans/ux-05-screener-jobs-verification]] · [[superpowers/specs/2026-09-13-portfyl-ux-product-coherence-design]]

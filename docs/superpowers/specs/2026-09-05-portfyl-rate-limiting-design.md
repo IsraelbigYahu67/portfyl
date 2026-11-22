@@ -377,3 +377,8 @@ global middleware exhausts the current per-instance database pool
 - The production-shaped load test satisfies the numeric latency, pool, and
   lock gates in the observability section before enforcement is declared
   complete.
+
+## Related
+
+- Architecture: [[Secrets and security]] · [[Backend]]
+- Code: [[rate_limit]] · [[rate_limit_buckets (table)]] · [[0012_rate_limit_buckets]] · [[edge_trust]] · [[security_headers]]

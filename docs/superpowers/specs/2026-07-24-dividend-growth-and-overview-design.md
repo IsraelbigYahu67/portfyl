@@ -300,3 +300,8 @@ full `compute_dividend_growth` dict for one ticker, **including** `payments` and
 - Combined TWR/performance chart on Overview.
 - Any push/email notification channel (Discord remains the only one).
 - Dividend safety scoring beyond the raw payout ratio.
+
+## Related
+
+- Architecture: [[Portfolio analytics]] · [[Frontend structure]]
+- Code: [[dividend_growth]] · [[pages.Dividends]] · [[routers.analytics]]

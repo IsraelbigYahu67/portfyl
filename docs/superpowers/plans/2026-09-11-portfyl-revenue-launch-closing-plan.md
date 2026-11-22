@@ -331,3 +331,8 @@ accompanies for the same sequence with less cross-referencing.
    Cloudflare, and a push of `.github/workflows/ci.yml` to `main` so it
    actually starts gating PRs.
 7. Only after 1-6: flip the pricing page live and widen beta access (§2.5).
+
+## Related
+
+- Architecture: [[Portfyl]] · [[Billing and Stripe]] · [[Deploy and operations]]
+- Docs: [[superpowers/plans/2026-09-01-portfyl-saas-monetization]] · [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]] · [[superpowers/specs/2026-09-05-portfyl-plans-without-payments-design]]

@@ -902,3 +902,9 @@ def test_purge_empties_the_three_tables(market_store_db, capsys):
 ## Not in this plan (each needs its own, after the founder decisions in spec §16)
 
 Wave 2 of the spec (dividends/earnings/insider/statement snapshots, `ticker_attrs`, `jobs._next_dividend_info`), the cloud foundation (`market_request`, `market_fill`, admission caps, `pending`), and the Twelve Data wave (adapter, aliases, budget, `market_tick`, `market_daily`, seed, shadow mode).
+
+## Related
+
+- Architecture: [[Market data]] · [[Database and migrations]]
+- Code: [[market_data]] · [[cache]] · [[fx]] · [[alphavantage_client]]
+- Docs: [[superpowers/specs/2026-11-08-portfyl-market-data-cache-design]] · [[superpowers/specs/2026-11-08-portfyl-market-data-cache-review]] · [[superpowers/plans/2026-11-09-portfyl-market-data-cache]]

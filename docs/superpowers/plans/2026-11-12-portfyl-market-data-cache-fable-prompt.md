@@ -225,3 +225,9 @@ Do not run `alembic`, start dev servers, touch `requirements*`, migrations or ap
 
 Do not ask the user questions during the run unless you are truly blocked; record your assumptions in the
 review instead. Quality over speed: a smaller set of well-evidenced findings beats a long list of guesses.
+
+## Related
+
+- Architecture: [[Market data]]
+- Code: [[market_data]] · [[cache]]
+- Docs: [[superpowers/plans/2026-11-09-portfyl-market-data-cache]] · [[superpowers/plans/2026-11-12-portfyl-market-data-cache]] · [[superpowers/specs/2026-11-08-portfyl-market-data-cache-review]]

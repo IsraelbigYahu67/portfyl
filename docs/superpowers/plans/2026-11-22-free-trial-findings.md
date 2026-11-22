@@ -66,3 +66,9 @@ chce `ends_at > started_at`. Je třeba posunout i `started_at`
   nebo `PORTFYL_TURNSTILE_DISABLED=1`, vytvořit secret `portfyl-trial-fingerprint-key`
   před zvýšením `PORTFYL_TRIAL_DAYS` nad 0 (produkce jede s `0`) a nechat advokáta zkontrolovat
   koncepty (`docs/legal/poznamky-pro-pravnika.md`, bod 10).
+
+## Related
+
+- Architecture: [[Free trial]] · [[Billing and Stripe]] · [[Testing]]
+- Code: [[trials]] · [[lib.trial]] · [[entitlements]] · [[0027_free_trial]] · [[trial_grants (table)]] · [[trial_identities (table)]] · [[trial_ip_marks (table)]] · [[trial_broker_marks (table)]]
+- Docs: [[superpowers/plans/2026-11-15-portfyl-landing-redesign-free-trial]]

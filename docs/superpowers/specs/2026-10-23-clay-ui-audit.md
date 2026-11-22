@@ -102,3 +102,9 @@ exercised. Each finding has an ID that the fix plan
 - **X1** Valuation models use current and sector-median P/E
   (`backend/routers/market.py:426-428`), while CLAUDE.md says valuation uses the
   5-year average P/E. Not a UI fix; decide separately.
+
+## Related
+
+- Architecture: [[Frontend structure]]
+- Code: [[lib.clayStyle]] · [[lib.themeTokens]] · [[DESIGN (md)]]
+- Docs: [[superpowers/plans/2026-10-23-clay-ui-fixes]]

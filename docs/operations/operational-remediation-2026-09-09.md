@@ -153,3 +153,9 @@ claim human attendance or a legal notification decision.
 
 See [scheduler and monitoring runbook](scheduler-monitoring.md) for exact
 checks, failure handling, and image-tag maintenance.
+
+## Related
+
+- Architecture: [[Jobs and Cloud Scheduler]] · [[Deploy and operations]]
+- Code: [[jobs]] · [[routers.internal_jobs]] · [[purge_account_deletions]] · [[data_retention]] · [[job_runs (table)]]
+- Docs: [[operations/operational-verification-2026-09-09]] · [[operations/scheduler-monitoring]]

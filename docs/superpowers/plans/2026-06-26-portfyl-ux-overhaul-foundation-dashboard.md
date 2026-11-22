@@ -1360,3 +1360,8 @@ git commit -m "fix(dashboard): a11y focus + responsive polish from QA sweep"
 **Placeholder scan:** every code step contains complete code except Tasks 9–11, which are explicitly framed as *mechanical application / recharts edits* with a worked example (Task 9 Step 3) and an exact per-widget table — no "TBD"/"add error handling"/"similar to Task N" hand-waves. Task 1 Step 3 and Task 4 Step 3 call out the two easy-to-miss gotchas inline (vitest/config import; `useRef` casing).
 
 **Type consistency:** `formatMoney(n, currency)`, `formatPercent(n, opts)`, `formatCompact(n, currency)`, `formatNumber(n, digits)` used consistently in Tasks 3/5/7/9. `useCountUp(target, {duration, enabled})` defined Task 4, consumed Task 7. `<DeltaPill value pct currency size>`, `<SectionHeader icon action>`, `<Skeleton w h rounded>`/`SkeletonRows`/`SkeletonChart`/`SkeletonMetric`, `<EmptyState icon title hint action>` defined Task 5, consumed Tasks 7/9. Backend `aggregate_day_change(rows)` + `_two_day_closes(tickers)` defined and consumed within Task 6; summary keys `day_change`/`day_change_percent` produced Task 6, consumed Task 7. Consistent throughout.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Portfolio analytics]]
+- Code: [[pages.Dashboard]] · [[components.DashboardGrid]] · [[components.PortfolioHero]] · [[components.MetricCard]] · [[components.HeroSparkline]] · [[lib.themeTokens]] · [[DESIGN (md)]]

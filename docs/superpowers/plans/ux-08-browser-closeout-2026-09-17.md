@@ -334,3 +334,9 @@ byte cost is already negligible.
 This measurement was local-edition only; cloud edition's Dashboard uses the
 same endpoints behind the same (now-fixed) middleware, so the same reduction
 applies, but a separate cloud-edition browser pass was not run.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Testing]]
+- Code: [[pages.Import]] · [[pages.Onboarding]] · [[components.layout (folder)]]
+- Docs: [[superpowers/plans/ux-07-product-flows-verification]] · [[superpowers/plans/ux-08-assistant-performance-verification]]

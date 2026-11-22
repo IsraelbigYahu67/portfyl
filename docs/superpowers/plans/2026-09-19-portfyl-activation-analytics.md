@@ -411,3 +411,9 @@ git commit -m "docs: add activation analytics operations and privacy gate"
 - [ ] Confirm the PostHog live debugger receives each approved event at most where expected, with no extra properties.
 - [ ] Confirm no payment card is attached and production variables remain unset until the privacy gate is closed.
 - [ ] Use `superpowers:verification-before-completion` and report actual command outputs before declaring the roadmap complete.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Secrets and security]]
+- Code: [[src.TrackerBootstrap]] · [[src.main]] · [[security_headers]] · [[pages.Welcome]]
+- Docs: [[superpowers/specs/2026-09-19-portfyl-public-demo-activation-readability-design]] · [[operations/posthog-activation-analytics]]

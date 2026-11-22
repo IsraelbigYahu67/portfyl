@@ -373,3 +373,9 @@ safe recovery branch, and its timestamp/result are recorded in the runbook.
 Every implementation task follows test-first red/green/refactor cycles. No
 traffic migration occurs until schema migration, data reconciliation, auth,
 tenant isolation, RLS, and restore checks have passed.
+
+## Related
+
+- Architecture: [[Tenancy and RLS]] · [[Auth and sessions]] · [[Database and migrations]]
+- Code: [[tenancy]] · [[firebase_identity]] · [[auth]] · [[0001_multiuser_schema]] · [[0002_tenant_rls]] · [[models]] · [[users (table)]] · [[workspaces (table)]]
+- Docs: [[superpowers/plans/2026-09-01-portfyl-saas-monetization]] · [[security/tenant-isolation-matrix]]

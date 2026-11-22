@@ -148,3 +148,9 @@ verification and the PostgreSQL integration suite remain outstanding and
 are not claimed as done here — do not treat this session's work as
 release-ready until a follow-up session with real preview/DB/PostHog access
 completes the items above.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Onboarding and CSV import]]
+- Code: [[src.TrackerBootstrap]] · [[components.landing (folder)]]
+- Docs: [[operations/posthog-activation-analytics]]

@@ -282,3 +282,8 @@ Not needed: pricing and FAQ (built into the page as text), social preview images
 - **Market data in public screenshots.** The pictures show real tickers and prices. That is the same exposure as today's landing, but it belongs to the open market-data-rights question (Workstream A).
 - **Trial abuse.** Scripts are stopped by Turnstile (item 12); aliases and disposable mailboxes by items 3 and 9; a repeat trial with a new real mailbox by the broker check (item 11) as soon as the same account or history is imported. What remains: someone who never imports their real portfolio during the trial, or imports a different file each time. That person gets little from a portfolio app, so we accept it; `trial.withheld` and `trial.ended_early` counts tell us if a card-required trial is ever needed.
 - **Legal text** for the trial and for the e-mail hash needs the lawyer before public signup opens.
+
+## Related
+
+- Architecture: [[Free trial]] · [[Frontend structure]] · [[Billing and Stripe]]
+- Code: [[trials]] · [[lib.trial]] · [[0027_free_trial]] · [[trial_grants (table)]] · [[pages.Welcome]] · [[components.landing (folder)]] · [[pages.Pricing]]

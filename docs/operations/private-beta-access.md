@@ -145,3 +145,9 @@ must still redirect to Access. Roll back by deleting that one application.
 - Authenticated edge check: beta root `200`; beta `/api/auth/me` reached the
   backend and returned the expected `401` without a Portfyl session. The
   temporary verification credential and policy were removed afterward.
+
+## Related
+
+- Architecture: [[Auth and sessions]] · [[Deploy and operations]]
+- Code: [[beta_access]] · [[manage_beta]] · [[beta_invites (table)]] · [[0013_private_beta_invites]] · [[deploy.manage-beta-tester (ps1)]] · [[edge_trust]]
+- Docs: [[compliance/private-test-legal-status]]

@@ -292,3 +292,8 @@ I hereby give notice that I withdraw from my contract for the Portfyl service
 Name: …………………………… \
 Account e-mail: …………………………… \
 Date: ……………………………
+
+## Related
+
+- Architecture: [[Portfyl]] · [[Billing and Stripe]] · [[Account deletion and data lifecycle]]
+- Docs: [[legal/podminky-uzivani-cs]]

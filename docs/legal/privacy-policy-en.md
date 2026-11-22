@@ -214,3 +214,9 @@ operational logs.
 We may update this policy. We will tell you about material changes in advance
 by e-mail or in the app. The current version is always at
 https://portfyl.com/privacy.
+
+## Related
+
+- Architecture: [[Account deletion and data lifecycle]] · [[Secrets and security]] · [[Portfyl]]
+- Code: [[data_retention]] · [[workspace_export]] · [[account_deletion]]
+- Docs: [[legal/zasady-ochrany-osobnich-udaju-cs]] · [[compliance/data-processing-inventory]]

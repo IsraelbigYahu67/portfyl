@@ -662,3 +662,9 @@ git commit -m "docs(ux): record assistant and performance closeout"
 - The stock intent delay is measured with fake timers and the browser network panel. Startup allowlist tests make reintroducing an all-page sweep an explicit contract change.
 - The bundle gate measures the recursive static entry graph. Dynamic chunks improve startup only when they leave that graph, and the final byte totals decide acceptance.
 - This plan adds no database schema/state, new provider, investment recommendation behavior, service worker, or speculative infrastructure.
+
+## Related
+
+- Architecture: [[Backend]] · [[Secrets and security]]
+- Code: [[0024_remove_ai_assistant]] · [[main]]
+- Docs: [[superpowers/plans/ux-08-assistant-performance-verification]] · [[superpowers/plans/ux-08-browser-closeout-2026-09-17]]

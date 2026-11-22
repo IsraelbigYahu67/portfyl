@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "type": "file",
+      "ctime": 1795363200000,
+      "path": "architecture/hubs/Portfyl.md",
+      "title": "Portfyl (architecture root)"
+    },
+    {
+      "type": "file",
+      "ctime": 1795363200000,
+      "path": "architecture/README.md",
+      "title": "How the architecture notes work"
+    }
+  ]
+}

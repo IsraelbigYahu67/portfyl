@@ -82,3 +82,9 @@ remaining operator-attended exercise or legal notification decision gate.
 | Name the controller and notification decision owner | Product/legal | Before external users |
 | Establish public support/status and approved customer-message paths | Product/operator | Before external users |
 | Set and fund a public-beta recovery objective beyond the private-test six-hour history | Product/operator | Before public beta |
+
+## Related
+
+- Architecture: [[Secrets and security]] · [[Deploy and operations]]
+- Code: [[audit]] · [[error_monitoring]] · [[logging_setup]]
+- Docs: [[operations/security-incident-response]] · [[operations/scheduler-monitoring]]

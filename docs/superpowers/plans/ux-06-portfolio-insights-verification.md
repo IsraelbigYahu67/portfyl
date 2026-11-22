@@ -82,3 +82,9 @@ failure recovery was not fault-injected during this live run.
   fetching it in Task 6. The endpoint remains for Allocation.
 - Allocation's chart/list for `account` renders only when the payload supplies
   an `accounts` dimension; no synthetic account grouping was added.
+
+## Related
+
+- Architecture: [[Portfolio analytics]] · [[Testing]]
+- Code: [[pages.Allocation]] · [[pages.Analytics]] · [[allocation_targets]] · [[routers.allocation_targets]] · [[components.AllocationTargets]] · [[components.DashboardAttention]] · [[lib.portfolioAlerts]]
+- Docs: [[superpowers/specs/2026-09-13-portfyl-ux-product-coherence-design]] · [[superpowers/plans/2026-09-13-portfyl-ux-overhaul-roadmap]]

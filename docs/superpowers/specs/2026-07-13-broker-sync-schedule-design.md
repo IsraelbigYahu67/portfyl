@@ -109,3 +109,8 @@ One new "Auto-sync schedule" card:
 - Timezone picker UI.
 - Guaranteed-time execution on Cloud Run scale-to-zero (would need Cloud
   Scheduler; catch-up covers the daily-import use case).
+
+## Related
+
+- Architecture: [[Broker importers and sync]] · [[Jobs and Cloud Scheduler]]
+- Code: [[components.SyncScheduleSettings]] · [[broker_sources]] · [[jobs]] · [[routers.broker]] · [[routers.settings]] · [[hooks.useT212Sync]]

@@ -107,3 +107,9 @@ back/forward was exercised on Transactions.
   Phase 8.
 - The paged endpoint's `type` filter validates against `TRADE_TYPES` and
   returns 422 for unknown types, slightly stricter than the plan's sketch.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Backend]]
+- Code: [[pages.Transactions]] · [[pages.Watchlists]] · [[routers.portfolio]] · [[routers.watchlists]]
+- Docs: [[superpowers/specs/2026-09-13-portfyl-ux-product-coherence-design]] · [[superpowers/plans/2026-09-13-portfyl-ux-overhaul-roadmap]]

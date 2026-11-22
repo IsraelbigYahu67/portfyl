@@ -99,3 +99,9 @@ přišlo s datem +30 dní. Odpověď z Gmailu na `support@portfyl.com` byla Clou
 - Nastavení uživatele: odpovídat česky nebo anglicky; **začínat každou zprávu jeho jménem**. Jméno
   se v této session nikdy nezjistilo (z cesty a adresy lze jen odhadovat) — příště se na něj zeptat.
 - Uživatel je zvyklý schvalovat po částech; rozhodnutí o produktu (lhůta mazání, Brevo tarif) jsou na něm.
+
+## Related
+
+- Architecture: [[Emails]] · [[Auth and sessions]]
+- Code: [[emails.notify]] · [[emails.transport]] · [[routers.auth_email]] · [[0028_password_changed_seen]] · [[auth.authEmail]]
+- Docs: [[superpowers/specs/2026-11-15-portfyl-own-emails-design]] · [[superpowers/plans/2026-11-16-portfyl-own-emails-wave2]] · [[superpowers/plans/2026-11-15-branded-auth-emails-handoff]]

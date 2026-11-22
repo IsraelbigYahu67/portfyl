@@ -1144,3 +1144,9 @@ At minimum:
   https://help.snowball-analytics.com/yodlee/
 - Snowball T212 incremental CSV guidance:
   https://help.snowball-analytics.com/import-trading212/
+
+## Related
+
+- Architecture: [[Broker importers and sync]] · [[Database and migrations]]
+- Code: [[t212_sync]] · [[broker_sources]] · [[broker_reconciliation]] · [[broker_positions (table)]] · [[broker_sync_runs (table)]] · [[0014_broker_positions]] · [[0015_broker_sync_runs]] · [[components.BrokerPositionSnapshot]]
+- Docs: [[operations/2026-09-21-t212-snapshot-first-sync-session]]

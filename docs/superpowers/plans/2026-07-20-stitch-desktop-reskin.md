@@ -813,3 +813,8 @@ git commit -m "docs: note the Stitch design-token system as the frontend's visua
 - **Placeholder scan**: core/high-leverage files (T1–T6, Sidebar, MetricCard, chartTheme.js) have complete, exact code. Page-sweep tasks (T7) intentionally use a mapping-table + screenshot-verification format instead of enumerating ~1,114 individual className diffs — that volume makes per-line diffs redundant with just doing the mechanical replacement; the table is unambiguous and complete as a specification.
 - **Type/token consistency**: every task references only the token table defined once at the top (no task invents a new hex outside it) — `--surface-card-elevated`, `--chart-1..8`, `--glass-*` are each defined exactly once (T1) and consumed identically everywhere else. `MetricCard`'s prop shape (T5) is preserved, not renamed, so existing call sites in Analytics/TaxReport need no signature changes.
 - **Known judgment calls**: reconciled DESIGN.md's internal frontmatter/prose contradiction via pixel-sampling the actual screenshots rather than guessing; kept existing light-mode green/purple brand hex unchanged (already proven, no Stitch light reference to contradict them); made light mode hue-neutral across accents to mirror how dark mode already works (a deliberate small improvement, not scope creep — same mechanism, one fewer special case); excluded Discord's brand color from re-skinning; kept the destructive-action red in `ConfirmDialog` fixed rather than tying it to `--loss` (different semantic meaning).
+
+## Related
+
+- Architecture: [[Frontend structure]]
+- Code: [[DESIGN (md)]] · [[lib.themeTokens]] · [[components.layout (folder)]] · [[src.App]]

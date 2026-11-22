@@ -40,3 +40,7 @@ frontend/.prerender/
 
 # Email
 FMP_EMAIL.txt
+
+# Obsidian: per-user window layout (graph colors/bookmarks in docs/.obsidian are shared)
+docs/.obsidian/workspace.json
+docs/.obsidian/workspace-mobile.json

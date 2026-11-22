@@ -183,3 +183,9 @@ A new tenant table with no RLS policy fails
 `test_rls.py::test_all_tenant_tables_enable_and_force_rls`; a new table with a
 policy but no application predicate fails nothing automatically — which is why
 step 1 is not optional.
+
+## Related
+
+- Architecture: [[Tenancy and RLS]] · [[Auth and sessions]] · [[Testing]]
+- Code: [[tenancy]] · [[0002_tenant_rls]] · [[models]] · [[backend.tests.postgres.conftest (py)]] · [[workspaces (table)]] · [[memberships (table)]]
+- Docs: [[superpowers/specs/2026-09-01-portfyl-multiuser-foundation-design]]

@@ -42,3 +42,7 @@ Plné znění každého z nich je v historii gitu (`git log --diff-filter=D -- d
 - `2026-11-19-portfyl-free-trial-completion` – dokončení 10denního trialu Pro (banner, Turnstile, právní texty); plán je jen na nezmergnuté větvi `docs/free-trial-completion-plan`, výsledek je v `2026-11-22-free-trial-findings.md`.
 - `2026-11-19-free-trial-verification` – důkazy z testů, buildů a Lighthouse pro trial (2026-11-20 a 21).
 - `2026-11-21-free-trial-live-walkthrough` – ruční živý průchod scénářů a až i, všechny prošly 2026-11-22; nálezy mimo trial jsou v `2026-11-22-free-trial-findings.md`.
+
+## Related
+
+- Architecture: [[Portfyl]] · [[Deploy and operations]]

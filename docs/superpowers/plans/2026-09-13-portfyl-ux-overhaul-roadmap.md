@@ -72,3 +72,8 @@ new-identity onboarding run) — none block normal engineering work on top of `m
 If a phase must be reverted before final integration, revert the whole phase commit
 range so frontend and API contracts stay aligned. Resume from the last merged phase;
 never skip ahead and silently recreate a predecessor's interface.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Portfyl]]
+- Docs: [[superpowers/specs/2026-09-13-portfyl-ux-product-coherence-design]] · [[superpowers/plans/2026-09-13-ux-05-screener-jobs]] · [[superpowers/plans/2026-09-13-ux-08-assistant-performance]]

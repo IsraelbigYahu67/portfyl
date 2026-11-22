@@ -186,3 +186,7 @@ stable.
 - Real-time streaming quotes.
 - News-causality claims without a contracted news source and citation model.
 - Persisted/shared backtest scenarios in the first Portfolio Lab release.
+
+## Related
+
+- Architecture: [[Portfolio analytics]] · [[Portfyl]]

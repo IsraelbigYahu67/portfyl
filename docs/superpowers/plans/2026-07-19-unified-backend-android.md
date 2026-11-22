@@ -891,3 +891,8 @@ cd /c/Users/tomzo/claude/ptf_m/portfyl-mobile && git add README.md && git commit
 - **Test-style honesty:** backend tests call router functions directly (no TestClient) per repo convention — middleware behavior is smoke-tested with `curl`, not pytest.
 - **Type consistency:** `safe_next` (T3) used by both login handlers; `check_scheduler_token` reused verbatim from the existing IBKR pattern; `TWA_SHA256_FINGERPRINT` name identical in T5 and T8; `frontend-mobile/dist` path identical in T3 (`_MDIST`) and T6 (COPY target).
 - **Known judgment calls:** the 512px icon is an upscale until Stitch assets arrive; `us-central1` chosen for strict $0 (swap to `europe-west1` for ~cents/month and lower latency); alerts/dividends included in the tick so no prod feature silently dies.
+
+## Related
+
+- Architecture: [[Deploy and operations]] · [[Backend]]
+- Code: [[main]] · [[spa_serving]] · [[Dockerfile]] · [[deploy.cloudrun (md)]]

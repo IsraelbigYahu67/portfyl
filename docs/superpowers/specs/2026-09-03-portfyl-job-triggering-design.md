@@ -258,3 +258,9 @@ three expected keys.
 - `POST /api/jobs/run` without a valid token returns 403; an unknown `job`
   returns 400; a valid call with a valid token runs and returns 200.
 - `POST /api/ibkr/scheduler-sync` returns 404 (removed).
+
+## Related
+
+- Architecture: [[Jobs and Cloud Scheduler]] · [[Deploy and operations]]
+- Code: [[jobs]] · [[routers.internal_jobs]] · [[job_runs (table)]] · [[0003_job_workspace_enumeration]] · [[private_loop]] · [[deploy.operations (json)]]
+- Docs: [[operations/scheduler-monitoring]]

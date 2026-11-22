@@ -2245,3 +2245,9 @@ all ─► V1
 
 A1 comes first because the user's capture is the long pole. A3–A5 and C1–C4
 proceed while G1 waits.
+
+## Related
+
+- Architecture: [[Broker importers and sync]] · [[Database and migrations]]
+- Code: [[t212_corporate_actions]] · [[t212_incremental]] · [[t212_cash]] · [[broker_corporate_actions (table)]] · [[0020_broker_corporate_actions]] · [[0021_t212_history_coverage]] · [[0022_t212_cash_stream]]
+- Docs: [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]

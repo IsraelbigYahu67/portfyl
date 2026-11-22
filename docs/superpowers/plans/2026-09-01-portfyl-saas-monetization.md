@@ -1077,3 +1077,9 @@ Secrets + external jobs   Unified onboarding
 
 This order deliberately prevents billing and acquisition work from getting
 ahead of edition isolation, authorization, data rights, and calculation trust.
+
+## Related
+
+- Architecture: [[Portfyl]] · [[Edition boundary]] · [[Billing and Stripe]]
+- Code: [[edition]] · [[entitlements]] · [[plans]] · [[tenancy]] · [[routers.billing]] · [[trials]]
+- Docs: [[superpowers/specs/2026-09-01-portfyl-multiuser-foundation-design]]

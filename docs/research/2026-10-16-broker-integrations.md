@@ -305,3 +305,9 @@ nepokrývá. Pro nás ne.
 - Webull OpenAPI: https://developer.webull.com/apis/docs/connect-api
 - Robinhood CSV: https://www.tradervue.com/site/2022/09/16/robinhood-csv
 - Flanks / getquin: https://by.linkedin.com/in/unsav
+
+## Related
+
+- Architecture: [[Broker importers and sync]] · [[Onboarding and CSV import]]
+- Code: [[importers.registry]] · [[importers.formats.ibkr_flex]] · [[importers.formats.degiro_transactions]] · [[importers.formats.xtb]] · [[etoro_client]] · [[importers.openfigi]] · [[ledger_import]]
+- Docs: [[superpowers/plans/2026-10-16-portfyl-broker-integrations]]

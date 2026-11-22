@@ -831,3 +831,9 @@ be written under `docs/superpowers/plans/`. Each task will identify exact files,
 complete test code or assertions, commands, expected failures/passes, browser checks,
 and a small commit boundary so a lower-cost execution model does not need to redesign
 the solution while implementing it.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Portfyl]]
+- Code: [[src.App]] · [[lib.routes]] · [[lib.apiError]] · [[src.api]]
+- Docs: [[superpowers/plans/2026-09-13-portfyl-ux-overhaul-roadmap]]

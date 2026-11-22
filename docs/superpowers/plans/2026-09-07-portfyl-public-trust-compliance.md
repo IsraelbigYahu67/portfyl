@@ -165,3 +165,9 @@ React/Vite route tests, pytest, Vitest.
   LF-to-CRLF working-copy advisory remains non-fatal.
 - No legal identity, public terms, privacy notice, processor contract, or
   qualified legal approval was fabricated or implied.
+
+## Related
+
+- Architecture: [[Secrets and security]] · [[Account deletion and data lifecycle]]
+- Code: [[pages.Legal]] · [[lib.legalMarkdown]] · [[data_retention]] · [[security_headers]] · [[account_deletion]]
+- Docs: [[superpowers/specs/2026-09-07-portfyl-public-trust-compliance-design]]

@@ -596,3 +596,8 @@ GROUP BY workspace_id, portfolio_id;
 
 V PostgreSQL platí `'NaN'::float8 = 'NaN'::float8`, takže `IN` NaN najde.
 `NULL` se nevybere.
+
+## Related
+
+- Architecture: [[Backend]] · [[Testing]] · [[Secrets and security]]
+- Code: [[tenancy]] · [[routers.auth]] · [[routers.discord]] · [[routers.internal_jobs]] · [[cache]] · [[routers.portfolio]] · [[schemas]]

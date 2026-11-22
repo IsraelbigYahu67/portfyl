@@ -127,3 +127,9 @@ ensure the source remains available for a new migration job or redeployment.
 - [Uptime JSON response matching](https://docs.cloud.google.com/monitoring/uptime-checks/response-validation).
 - [Monitoring policy examples](https://docs.cloud.google.com/monitoring/alerts/policies-in-json).
 - [Artifact Registry cleanup policies](https://docs.cloud.google.com/artifact-registry/docs/repositories/cleanup-policy).
+
+## Related
+
+- Architecture: [[Jobs and Cloud Scheduler]] · [[Deploy and operations]]
+- Code: [[jobs]] · [[routers.internal_jobs]] · [[job_runs (table)]] · [[deploy.operations (json)]] · [[deploy.monitoring-policies (json)]] · [[deploy.cloudrun (md)]]
+- Docs: [[operations/operational-remediation-2026-09-09]]

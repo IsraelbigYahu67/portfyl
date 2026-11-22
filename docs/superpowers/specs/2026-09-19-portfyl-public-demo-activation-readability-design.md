@@ -434,3 +434,9 @@ Readability and shared-component extraction comes first so the demo launches on
 the corrected visual foundation. Analytics comes last so events are attached to
 stable route and activation boundaries rather than temporary implementation
 details.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Onboarding and CSV import]]
+- Code: [[demo (folder)]] · [[components.landing (folder)]] · [[src.TrackerBootstrap]] · [[pages.Welcome]]
+- Docs: [[superpowers/plans/2026-09-19-portfyl-activation-analytics]] · [[operations/posthog-activation-analytics]]
