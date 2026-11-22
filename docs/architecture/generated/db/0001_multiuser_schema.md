@@ -41,4 +41,6 @@ multiuser schema
 - [[workspaces (table)]]
 
 ## Mentioned in docs
+- [[seo/content-drafts/porovnani-portfolia-s-indexem]]
+- [[seo/content-drafts/vykonnost-portfolia-vs-benchmark]]
 - [[superpowers/specs/2026-09-01-portfyl-multiuser-foundation-design]]

@@ -16,3 +16,8 @@ The currencies the signed-in app can show the portfolio in. The backend converts
 **Hub:** [[Portfolio analytics]]
 **Source:** `frontend/src/lib/displayCurrency.js` (75 lines)
 **Exports:** `DISPLAY_CURRENCIES`, `CURRENCY_STORAGE_KEY`, `isDisplayCurrency`, `localCurrencyForLanguage`, `currencyChoicesForLanguage`, `currencySymbol`, `readStoredCurrency`, `saveCurrency`, `initialDisplayCurrency`, `convertFromUsd`
+
+## Mentioned in docs
+- [[seo/content-drafts/rozlozeni-portfolia]]
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
+- [[seo/content-drafts/vykonnost-portfolia-vs-benchmark]]

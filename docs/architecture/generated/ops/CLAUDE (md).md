@@ -78,6 +78,7 @@ Markdown outside the vault; its top headings are listed below.
 ## Mentioned in docs
 - [[compliance/2026-11-06-privacy-notice-review]]
 - [[operations/2026-09-21-t212-snapshot-first-sync-session]]
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
 - [[superpowers/plans/2026-06-26-portfyl-ux-overhaul-foundation-dashboard]]
 - [[superpowers/plans/2026-07-18-portfyl-mobile]]
 - [[superpowers/plans/2026-07-19-unified-backend-android]]

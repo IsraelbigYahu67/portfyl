@@ -43,6 +43,7 @@ Axios client: injects `portfolio_id`, `X-Workspace-ID` and `X-CSRF-Token` (see P
 
 ## Mentioned in docs
 - [[operations/2026-09-21-t212-snapshot-first-sync-session]]
+- [[seo/content-drafts/twr-vs-xirr]]
 - [[superpowers/plans/2026-07-18-portfyl-mobile]]
 - [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
 - [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]

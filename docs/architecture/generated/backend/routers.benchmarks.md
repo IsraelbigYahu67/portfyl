@@ -38,6 +38,8 @@ Benchmark management + portfolio-vs-benchmark comparison.
 - [[transactions (table)]]
 
 ## Mentioned in docs
+- [[seo/content-drafts/porovnani-portfolia-s-indexem]]
+- [[seo/content-drafts/vykonnost-portfolia-vs-benchmark]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]
 - [[superpowers/specs/2026-11-08-portfyl-market-data-cache-design]]
 - [[superpowers/specs/2026-11-08-portfyl-market-data-cache-review]]

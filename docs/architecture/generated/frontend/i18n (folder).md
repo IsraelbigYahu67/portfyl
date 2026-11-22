@@ -27,6 +27,9 @@ generated: true
 - `frontend/src/i18n/messages/pt.js`: Portuguese (European). Keys are the English source text (see ../languages.js for the glossary of anglicisms that stay in English).
 
 ## Mentioned in docs
+- [[seo/content-drafts/rozlozeni-portfolia]]
+- [[seo/content-drafts/sledovani-dividend]]
+- [[seo/content-drafts/vykonnost-portfolia-vs-benchmark]]
 - [[superpowers/plans/2026-11-06-portfyl-app-languages]]
 - [[superpowers/plans/2026-11-09-portfyl-market-data-cache]]
 - [[superpowers/plans/2026-11-12-portfyl-market-data-cache]]

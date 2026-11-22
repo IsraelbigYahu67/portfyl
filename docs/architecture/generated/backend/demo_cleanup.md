@@ -34,3 +34,4 @@ Remove onboarding sample data once a real broker account is connected.
 
 ## Mentioned in docs
 - [[finished]]
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]

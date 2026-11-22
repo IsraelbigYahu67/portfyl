@@ -45,6 +45,7 @@ generated: true
 - [[workspaces (table)]]
 
 ## Mentioned in docs
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
 - [[superpowers/plans/2026-09-01-portfyl-saas-monetization]]
 - [[superpowers/plans/2026-11-18-portfyl-landing-mini-dema-5-smazat-demo]]
 - [[superpowers/specs/2026-07-03-portfyl-merge-design]]

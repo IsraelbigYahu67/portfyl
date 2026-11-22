@@ -18,5 +18,7 @@ Cash ledger: pure balance/interest math + the trade/cash type discriminator.
 
 ## Mentioned in docs
 - [[research/t212-cash-transaction-encoding]]
+- [[seo/content-drafts/sledovani-dividend]]
+- [[seo/content-drafts/vykonnost-portfolia-vs-benchmark]]
 - [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]
 - [[superpowers/specs/2026-07-24-dividend-growth-and-overview-design]]

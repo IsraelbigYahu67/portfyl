@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Frontend structure]]
-**Source:** `frontend/src/components/settings/` (1050 lines)
+**Source:** `frontend/src/components/settings/` (1053 lines)
 
 ## Files
 - `frontend/src/components/settings/BottomNavSetting.jsx`
@@ -46,4 +46,5 @@ generated: true
 - [[routers.portfolio]]
 
 ## Mentioned in docs
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
 - [[superpowers/plans/2026-10-23-clay-ui-fixes]]

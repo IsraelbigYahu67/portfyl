@@ -16,3 +16,6 @@ Pure derivations for the dashboard's summary cards (design variant A). Kept out 
 **Hub:** [[Portfolio analytics]]
 **Source:** `frontend/src/lib/dashboardSummaries.js` (119 lines)
 **Exports:** `summarizePassiveIncome`, `splitDividendForecast`, `buildCompositionRows`, `snapshotNetWorth`
+
+## Mentioned in docs
+- [[seo/content-drafts/yield-on-cost]]

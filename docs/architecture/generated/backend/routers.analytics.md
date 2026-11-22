@@ -42,6 +42,10 @@ generated: true
 
 ## Mentioned in docs
 - [[research/t212-cash-transaction-encoding]]
+- [[seo/content-drafts/rozlozeni-portfolia]]
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
+- [[seo/content-drafts/twr-vs-xirr]]
+- [[seo/content-drafts/vykonnost-portfolia-vs-benchmark]]
 - [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]
 - [[superpowers/plans/2026-11-09-portfyl-market-data-cache]]

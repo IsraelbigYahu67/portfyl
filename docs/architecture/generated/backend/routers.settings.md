@@ -37,5 +37,6 @@ Workspace-scoped settings. Currently just the broker auto-sync schedule; fronten
 - [[audit_logs (table)]]
 
 ## Mentioned in docs
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]
 - [[superpowers/specs/2026-07-13-broker-sync-schedule-design]]

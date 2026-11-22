@@ -45,6 +45,9 @@ generated: true
 - [[routers.portfolio]]
 
 ## Mentioned in docs
+- [[seo/content-drafts/porovnani-portfolia-s-indexem]]
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
+- [[seo/content-drafts/vykonnost-portfolia-vs-benchmark]]
 - [[superpowers/plans/2026-06-26-portfyl-ux-overhaul-foundation-dashboard]]
 - [[superpowers/plans/2026-07-18-portfyl-mobile]]
 - [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]

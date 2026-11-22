@@ -50,6 +50,7 @@ Background job passes, driven by the periodic pollers in main.py.
 ## Mentioned in docs
 - [[finished]]
 - [[operations/2026-09-21-t212-snapshot-first-sync-session]]
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
 - [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
 - [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]
 - [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]

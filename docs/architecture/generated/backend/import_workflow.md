@@ -17,4 +17,5 @@ Pure CSV import comparison primitives.
 **Source:** `backend/import_workflow.py` (283 lines)
 
 ## Mentioned in docs
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]

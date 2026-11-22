@@ -17,4 +17,5 @@ Per-portfolio target allocation: validation and drift.
 **Source:** `backend/allocation_targets.py` (165 lines)
 
 ## Mentioned in docs
+- [[seo/content-drafts/rozlozeni-portfolia]]
 - [[superpowers/specs/2026-11-08-portfyl-market-data-cache-design]]

@@ -51,6 +51,7 @@ generated: true
 
 ## Mentioned in docs
 - [[research/2026-10-16-broker-integrations]]
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
 - [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]
 - [[superpowers/plans/2026-09-24-t212-corporate-actions-incremental-sync]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]

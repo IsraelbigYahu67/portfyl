@@ -20,3 +20,6 @@ Brokers offered on the first-run onboarding (pages/Onboarding.jsx). Keys are the
 ## Imports
 - [[i18n (folder)]]
 - [[lib.brokerPortfolio]]
+
+## Mentioned in docs
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]

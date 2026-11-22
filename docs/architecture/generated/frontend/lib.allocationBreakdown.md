@@ -16,3 +16,6 @@ Composition rows for the Allocation page. One helper maps the selected category 
 **Hub:** [[Portfolio analytics]]
 **Source:** `frontend/src/lib/allocationBreakdown.js` (55 lines)
 **Exports:** `allocationRows`, `boundedAllocationRows`
+
+## Mentioned in docs
+- [[seo/content-drafts/rozlozeni-portfolia]]

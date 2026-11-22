@@ -34,4 +34,5 @@ Target allocation per portfolio (plan 2026-10-10).
 - [[portfolios (table)]]
 
 ## Mentioned in docs
+- [[seo/content-drafts/rozlozeni-portfolia]]
 - [[superpowers/specs/2026-11-08-portfyl-market-data-cache-review]]

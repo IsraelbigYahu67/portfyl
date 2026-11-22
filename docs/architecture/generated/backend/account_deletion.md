@@ -32,6 +32,7 @@ Verified, immediate workspace (and, with its last workspace, account) deletion.
 - [[workspaces (table)]]
 
 ## Mentioned in docs
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
 - [[superpowers/plans/2026-10-12-portfyl-google-sign-in]]
 - [[superpowers/plans/2026-11-15-portfyl-landing-redesign-free-trial]]
 - [[superpowers/plans/2026-11-16-portfyl-own-emails-wave2]]

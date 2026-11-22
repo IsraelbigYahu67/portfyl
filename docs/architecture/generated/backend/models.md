@@ -20,6 +20,7 @@ generated: true
 
 ## Mentioned in docs
 - [[operations/billing-verification-2026-09-05]]
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
 - [[superpowers/plans/2026-09-01-portfyl-saas-monetization]]
 - [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
 - [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]

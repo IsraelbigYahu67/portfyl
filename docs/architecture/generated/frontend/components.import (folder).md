@@ -23,4 +23,5 @@ generated: true
 - [[lib.ibkrFlex]]
 
 ## Mentioned in docs
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
 - [[superpowers/plans/2026-10-16-portfyl-broker-integrations]]

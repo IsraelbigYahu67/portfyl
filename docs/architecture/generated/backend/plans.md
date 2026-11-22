@@ -17,6 +17,10 @@ Provider-neutral cloud plan capabilities and resource limits.
 **Source:** `backend/plans.py` (102 lines)
 
 ## Mentioned in docs
+- [[seo/content-drafts/rozlozeni-portfolia]]
+- [[seo/content-drafts/sledovani-dividend]]
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
+- [[seo/content-drafts/vykonnost-portfolia-vs-benchmark]]
 - [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]
 - [[superpowers/plans/2026-09-11-portfyl-revenue-launch-closing-plan]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]

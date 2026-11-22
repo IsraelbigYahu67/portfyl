@@ -24,6 +24,7 @@ Per-ticker dividend-growth analytics: annual DPS series, growth streak, CAGR, Yo
 
 ## Mentioned in docs
 - [[finished]]
+- [[seo/content-drafts/sledovani-dividend]]
 - [[superpowers/plans/2026-11-09-portfyl-market-data-cache]]
 - [[superpowers/plans/2026-11-12-portfyl-market-data-cache-fable-prompt]]
 - [[superpowers/specs/2026-07-24-dividend-growth-and-overview-design]]

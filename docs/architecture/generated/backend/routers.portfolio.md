@@ -78,6 +78,13 @@ generated: true
 ## Mentioned in docs
 - [[operations/2026-09-21-t212-snapshot-first-sync-session]]
 - [[research/t212-corporate-action-encoding]]
+- [[seo/content-drafts/porovnani-portfolia-s-indexem]]
+- [[seo/content-drafts/rozlozeni-portfolia]]
+- [[seo/content-drafts/sledovani-dividend]]
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
+- [[seo/content-drafts/twr-vs-xirr]]
+- [[seo/content-drafts/vykonnost-portfolia-vs-benchmark]]
+- [[seo/content-drafts/yield-on-cost]]
 - [[superpowers/plans/2026-06-26-portfyl-ux-overhaul-foundation-dashboard]]
 - [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
 - [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]

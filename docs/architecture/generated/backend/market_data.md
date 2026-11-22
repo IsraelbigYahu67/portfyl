@@ -22,6 +22,8 @@ Bounded, cached access to yfinance ``.info``.
 - [[ticker_map]]
 
 ## Mentioned in docs
+- [[seo/content-drafts/sledovani-dividend]]
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]
 - [[superpowers/plans/2026-11-09-portfyl-market-data-cache]]
 - [[superpowers/plans/2026-11-12-portfyl-market-data-cache]]

@@ -29,5 +29,6 @@ Workspace-scoped, single-use recovery point for the latest CSV import.
 - [[workspace_settings (table)]]
 
 ## Mentioned in docs
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
 - [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]
 - [[superpowers/plans/2026-09-24-t212-corporate-actions-incremental-sync]]

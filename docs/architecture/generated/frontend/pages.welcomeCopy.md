@@ -17,6 +17,10 @@ generated: true
 
 ## Mentioned in docs
 - [[ideas]]
+- [[seo/content-drafts/rozlozeni-portfolia]]
+- [[seo/content-drafts/sledovani-dividend]]
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
+- [[seo/content-drafts/vykonnost-portfolia-vs-benchmark]]
 - [[superpowers/plans/2026-11-06-portfyl-app-languages]]
 - [[superpowers/plans/2026-11-09-portfyl-seo]]
 - [[superpowers/plans/2026-11-15-portfyl-landing-redesign-free-trial]]

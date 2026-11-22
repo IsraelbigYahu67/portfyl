@@ -32,6 +32,7 @@ generated: true
 - [[routers.portfolio]]
 
 ## Mentioned in docs
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
 - [[superpowers/plans/2026-07-18-portfyl-mobile]]
 - [[superpowers/plans/2026-09-19-portfyl-activation-analytics]]
 - [[superpowers/plans/2026-10-16-portfyl-broker-integrations]]

@@ -28,6 +28,9 @@ generated: true
 - [[routers.benchmarks]]
 
 ## Mentioned in docs
+- [[seo/content-drafts/porovnani-portfolia-s-indexem]]
+- [[seo/content-drafts/twr-vs-xirr]]
+- [[seo/content-drafts/vykonnost-portfolia-vs-benchmark]]
 - [[superpowers/plans/2026-07-18-portfyl-mobile]]
 - [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]
 - [[superpowers/plans/2026-10-23-clay-ui-fixes]]

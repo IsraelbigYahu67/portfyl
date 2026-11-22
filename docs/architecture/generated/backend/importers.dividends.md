@@ -17,4 +17,5 @@ Collapse a broker's gross-dividend and withholding-tax legs into one net ledger 
 **Source:** `backend/importers/dividends.py` (85 lines)
 
 ## Mentioned in docs
+- [[seo/content-drafts/yield-on-cost]]
 - [[superpowers/plans/2026-10-16-portfyl-broker-integrations]]

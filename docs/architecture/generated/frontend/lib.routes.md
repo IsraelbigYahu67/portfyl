@@ -20,5 +20,6 @@ generated: true
 
 ## Mentioned in docs
 - [[ideas]]
+- [[seo/content-drafts/sledovani-portfolia-trading-212]]
 - [[superpowers/plans/2026-11-09-portfyl-seo]]
 - [[superpowers/plans/2026-11-18-portfyl-landing-mini-dema-5-smazat-demo]]
