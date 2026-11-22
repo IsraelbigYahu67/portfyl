@@ -169,10 +169,10 @@ Legal + docs (Task 4), screenshots (Task 5), verification (Task 6): listed in th
 
 **Files:** see "File structure → Bot check". Depends on Task 1 (shares `routers/auth.py`) and on Task 3 (hands over `i18n/messages`). Branch `feat/turnstile`. Use the `cloudflare:turnstile-spin` skill; create the Turnstile widget for `app.portfyl.com` and `localhost` through the Cloudflare plugin (managed mode).
 
-- [ ] **Step 1: Failing tests.** `test_turnstile.py`: a new identity without a token → `403 bot_check_failed` and no `User` row; with a token that siteverify accepts → provisioned; a wrong `action` or hostname → 403; an existing user without a token → session issued; secret unset → check skipped and health reports `disabled`; local edition never checks. Siteverify is stubbed, never called for real. CSP test expects `https://challenges.cloudflare.com` in `script-src` and `frame-src`. Frontend: register and login pages send `turnstile_token` with the session exchange; the widget is not rendered when `VITE_TURNSTILE_SITE_KEY` is empty.
-- [ ] **Step 2: Implement** `turnstile.py` (sync `httpx`, 5 s timeout; a timeout counts as failure), the check in `/auth/session` just before `_provision_identity`, the widget, the CSP and the health entry.
-- [ ] **Step 3: Strings** for `bot_check_failed` in all nine `i18n/messages` files.
-- [ ] **Step 4: Run** the fast suite, `npm test`, `npm run test:cloud`, `npm run build`, `npm run build:cloud`. Document both settings in `deploy/cloudrun.md`. Commit `feat(auth): Cloudflare Turnstile on new sign-ups`.
+- [x] **Step 1: Failing tests.** `test_turnstile.py`: a new identity without a token → `403 bot_check_failed` and no `User` row; with a token that siteverify accepts → provisioned; a wrong `action` or hostname → 403; an existing user without a token → session issued; secret unset → check skipped and health reports `disabled`; local edition never checks. Siteverify is stubbed, never called for real. CSP test expects `https://challenges.cloudflare.com` in `script-src` and `frame-src`. Frontend: register and login pages send `turnstile_token` with the session exchange; the widget is not rendered when `VITE_TURNSTILE_SITE_KEY` is empty.
+- [x] **Step 2: Implement** `turnstile.py` (sync `httpx`, 5 s timeout; a timeout counts as failure), the check in `/auth/session` just before `_provision_identity`, the widget, the CSP and the health entry.
+- [x] **Step 3: Strings** for `bot_check_failed` in all nine `i18n/messages` files.
+- [x] **Step 4: Run** the fast suite, `npm test`, `npm run test:cloud`, `npm run build`, `npm run build:cloud`. Document both settings in `deploy/cloudrun.md`. Commit `feat(auth): Cloudflare Turnstile on new sign-ups`.
 
 ### Task 2: Landing structure, copy and styles
 
@@ -209,22 +209,22 @@ Legal + docs (Task 4), screenshots (Task 5), verification (Task 6): listed in th
 - Consumes: `/billing/status` and `/test-plans` payload fields `plan`, `source`, `effective_until`, `trial_ended_reason` (produced by Task 1b; build against the field even if 1b is not merged yet).
 - Produces `frontend/src/lib/trial.js`: `trialState(entitlements, now) -> { phase: "none" | "active" | "ended", daysLeft: number | null }`. `daysLeft = Math.ceil((effective_until - now) / 86_400_000)`; `phase === "ended"` when the stored key `portfyl_trial_until` is in the past and `source !== "trial"` and `plan === "free"`.
 
-- [ ] **Step 1: Failing tests `lib/trial.test.js`**: 10 days left → `{active, 10}`; 23 hours left → `{active, 1}` and the banner text is the "ends today" message; 1 second after the end with `source: "free"` → `ended`; subscription source → `none`.
-- [ ] **Step 2: Failing tests `TrialBanner.test.jsx`**: active → text with days left and a link to `/pricing`; ended → one notice with "See plans" and a dismiss button that writes `portfyl_trial_ended_seen`; with `trial_ended_reason` `broker_account_reused` or `history_reused` the notice says the trial was already used for this broker account; never rendered in the local edition.
-- [ ] **Step 3: Failing test in `api.auth.test.js`**: a `403` with `code: "plan_upgrade_required"` invalidates the `plan-capabilities` query once.
-- [ ] **Step 4: Implement** `trial.js`, `TrialBanner.jsx` (uses `Badge` tone `brand`, no new colors), mount it in the app shell above page content, add the 403 handling in `api.js`.
-- [ ] **Step 5: `Pricing.jsx`**: during a trial show "Pro trial until {date}" above the plans and mark Pro as current; plan buttons stay enabled.
-- [ ] **Step 6: Add the new strings to all nine files in `frontend/src/i18n/messages/`.**
-- [ ] **Step 7: Run** `npm test`, `npm run test:cloud`, `npm run build`, `npm run build:cloud`. Commit `feat(billing): trial banner and pricing state`.
+- [x] **Step 1: Failing tests `lib/trial.test.js`**: 10 days left → `{active, 10}`; 23 hours left → `{active, 1}` and the banner text is the "ends today" message; 1 second after the end with `source: "free"` → `ended`; subscription source → `none`.
+- [x] **Step 2: Failing tests `TrialBanner.test.jsx`**: active → text with days left and a link to `/pricing`; ended → one notice with "See plans" and a dismiss button that writes `portfyl_trial_ended_seen`; with `trial_ended_reason` `broker_account_reused` or `history_reused` the notice says the trial was already used for this broker account; never rendered in the local edition.
+- [x] **Step 3: Failing test in `api.auth.test.js`**: a `403` with `code: "plan_upgrade_required"` invalidates the `plan-capabilities` query once.
+- [x] **Step 4: Implement** `trial.js`, `TrialBanner.jsx` (uses `Badge` tone `brand`, no new colors), mount it in the app shell above page content, add the 403 handling in `api.js`.
+- [x] **Step 5: `Pricing.jsx`**: during a trial show "Pro trial until {date}" above the plans and mark Pro as current; plan buttons stay enabled.
+- [x] **Step 6: Add the new strings to all nine files in `frontend/src/i18n/messages/`.**
+- [x] **Step 7: Run** `npm test`, `npm run test:cloud`, `npm run build`, `npm run build:cloud`. Commit `feat(billing): trial banner and pricing state`.
 
 ### Task 4: Legal pages and legal text
 
 **Files:** `frontend/src/pages/Legal.jsx`, `Legal.css`, `Legal.test.jsx`, `docs/legal/podminky-uzivani-cs.md`, `docs/legal/terms-of-service-en.md`, `docs/legal/zasady-ochrany-osobnich-udaju-cs.md`, `docs/legal/privacy-policy-en.md`, `docs/legal/poznamky-pro-pravnika.md`. Depends on Task 2.
 
-- [ ] **Step 1:** `Legal.jsx` renders `LandingHeader` and `LandingFooter`; the text card becomes a flat column with the sticky contents list. Update `Legal.test.jsx` for the new header links.
-- [ ] **Step 2:** Terms (cs, en): add the trial clause from "Trial rules" items 1, 2, 6, 7, marked `[[TODO]]` for lawyer review.
-- [ ] **Step 3:** Privacy (cs, en): add the trial identity record (keyed hash of the canonical e-mail, of the broker account number and of the 5 oldest imported transactions, kept 12 months and surviving account deletion; keyed hash of the client IP, kept 30 days; purpose: one trial per person, legitimate interest in preventing abuse; Cloudflare Turnstile as processor for the bot check at registration), marked `[[TODO]]`. Add both points to `poznamky-pro-pravnika.md`.
-- [ ] **Step 4:** Run the frontend test and build commands from Task 2 Step 6. Commit `feat(legal): flat legal pages, trial terms`.
+- [x] **Step 1:** `Legal.jsx` renders `LandingHeader` and `LandingFooter`; the text card becomes a flat column with the sticky contents list. Update `Legal.test.jsx` for the new header links.
+- [x] **Step 2:** Terms (cs, en): add the trial clause from "Trial rules" items 1, 2, 6, 7, marked `[[TODO]]` for lawyer review.
+- [x] **Step 3:** Privacy (cs, en): add the trial identity record (keyed hash of the canonical e-mail, of the broker account number and of the 5 oldest imported transactions, kept 12 months and surviving account deletion; keyed hash of the client IP, kept 30 days; purpose: one trial per person, legitimate interest in preventing abuse; Cloudflare Turnstile as processor for the bot check at registration), marked `[[TODO]]`. Add both points to `poznamky-pro-pravnika.md`.
+- [x] **Step 4:** Run the frontend test and build commands from Task 2 Step 6. Commit `feat(legal): flat legal pages, trial terms`.
 
 ### Task 5: Screenshots, social images, docs
 
@@ -239,11 +239,11 @@ Depends on the owner's files in `frontend/public/landing/raw/` (see "Screenshot 
 
 ### Task 6: Integration and verification
 
-- [ ] **Step 1:** Merge `feat/free-trial`, `feat/free-trial-broker`, `feat/turnstile` and `feat/landing-redesign` into one integration branch off current `main`; resolve conflicts in `Pricing.jsx`.
-- [ ] **Step 2:** Backend: fast suite on Python 3.12 and 3.14, PostgreSQL suite, `alembic heads` equals `EXPECTED_ALEMBIC_HEAD`, backend starts.
-- [ ] **Step 3:** Frontend: `npm test`, `npm run test:cloud`, `npm run build`, `npm run build:cloud`, once with `VITE_PUBLIC_SIGNUP=true` and once without.
+- [x] **Step 1:** Merge `feat/free-trial`, `feat/free-trial-broker`, `feat/turnstile` and `feat/landing-redesign` into one integration branch off current `main`; resolve conflicts in `Pricing.jsx`.
+- [x] **Step 2:** Backend: fast suite on Python 3.12 and 3.14, PostgreSQL suite, `alembic heads` equals `EXPECTED_ALEMBIC_HEAD`, backend starts.
+- [x] **Step 3:** Frontend: `npm test`, `npm run test:cloud`, `npm run build`, `npm run build:cloud`, once with `VITE_PUBLIC_SIGNUP=true` and once without.
 - [ ] **Step 4:** In a browser at 1440×900 and 390×844, all three languages: no horizontal scroll, header one row on phone, every nav link scrolls to its section, screenshots legible, keyboard focus visible. Lighthouse on `/`: performance and accessibility at least 90.
-- [ ] **Step 5:** Register a fresh account locally: banner shows 10 days; set `ends_at` to the past in the test database: app shows the ended notice and Free limits; register again with the same e-mail after deleting the account: no trial; a second account (other e-mail) importing the first account's IBKR file: trial ends with the broker notice; a new sign-up with the Turnstile test key that always fails: `bot_check_failed`.
+- [x] **Step 5:** Register a fresh account locally: banner shows 10 days; set `ends_at` to the past in the test database: app shows the ended notice and Free limits; register again with the same e-mail after deleting the account: no trial; a second account (other e-mail) importing the first account's IBKR file: trial ends with the broker notice; a new sign-up with the Turnstile test key that always fails: `bot_check_failed`.
 - [ ] **Step 6:** Deploy order: migration Job (`deploy/run-migrations.ps1`) → set `PORTFYL_TRIAL_FINGERPRINT_KEY` and `PORTFYL_TURNSTILE_SECRET` → build with `VITE_TURNSTILE_SITE_KEY` → service deploy. Ask the owner before deploying.
 
 ---
