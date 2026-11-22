@@ -9,31 +9,52 @@
   "colorGroups": [
     {
       "query": "path:architecture/hubs",
-      "color": { "a": 1, "rgb": 14721072 }
+      "color": {
+        "a": 1,
+        "rgb": 14721072
+      }
     },
     {
       "query": "path:architecture/generated/backend",
-      "color": { "a": 1, "rgb": 4882388 }
+      "color": {
+        "a": 1,
+        "rgb": 4882388
+      }
     },
     {
       "query": "path:architecture/generated/db",
-      "color": { "a": 1, "rgb": 10181046 }
+      "color": {
+        "a": 1,
+        "rgb": 10181046
+      }
     },
     {
       "query": "path:architecture/generated/frontend",
-      "color": { "a": 1, "rgb": 4173418 }
+      "color": {
+        "a": 1,
+        "rgb": 4173418
+      }
     },
     {
       "query": "path:architecture/generated/ops",
-      "color": { "a": 1, "rgb": 14704698 }
+      "color": {
+        "a": 1,
+        "rgb": 14704698
+      }
     },
     {
       "query": "path:superpowers",
-      "color": { "a": 1, "rgb": 6269096 }
+      "color": {
+        "a": 1,
+        "rgb": 6269096
+      }
     },
     {
       "query": "path:operations OR path:security OR path:compliance OR path:legal OR path:research OR file:finished OR file:ideas",
-      "color": { "a": 1, "rgb": 13922208 }
+      "color": {
+        "a": 1,
+        "rgb": 13922208
+      }
     }
   ],
   "collapse-display": false,
@@ -46,6 +67,6 @@
   "repelStrength": 14,
   "linkStrength": 0.6,
   "linkDistance": 120,
-  "scale": 0.35,
+  "scale": 0.06461814179050328,
   "close": false
 }
