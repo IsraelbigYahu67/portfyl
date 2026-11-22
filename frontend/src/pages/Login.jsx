@@ -89,13 +89,6 @@ export default function Login() {
           </p>
         )}
 
-        {isGoogleSignInEnabled() && (
-          <div className="space-y-4">
-            <GoogleSignInButton />
-            <AuthMethodDivider />
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="card space-y-4" noValidate>
           <div className="space-y-1.5">
             <label htmlFor={emailId} className="eyebrow">{t("E-mail")}</label>
@@ -167,6 +160,13 @@ export default function Login() {
             </Link>
           </div>
         </form>
+
+        {isGoogleSignInEnabled() && (
+          <div className="space-y-4">
+            <AuthMethodDivider />
+            <GoogleSignInButton />
+          </div>
+        )}
       </div>
     </div>
   );

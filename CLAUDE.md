@@ -83,6 +83,32 @@ If your change alters the look (palette, radii, motion), update `DESIGN.md` in
 the same change. The older `.stitch/DESIGN.md` is historical (periwinkle
 mockup) and does not override it.
 
+## Architecture map (Obsidian graph): read it, keep it current
+
+`docs/` is an Obsidian vault that maps the whole codebase
+(`docs/architecture/README.md`).
+
+- **Finding things:** before searching the code blind, look at the map.
+  Start at `docs/architecture/hubs/Portfyl.md` (root hub), then the area hub
+  (Auth, Billing, Tenancy, Jobs, Importers, ...), then the generated note for
+  a file: `docs/architecture/generated/<backend|frontend|db|ops>/<name>.md`
+  (names like `routers.billing`, `pages.Pricing`, `users (table)`,
+  `0027_free_trial`). Each note lists imports, importers, frontend callers,
+  endpoints, tables and the docs that mention it. To answer "what uses X?",
+  grep `docs/architecture/` for `[[X]]`. The code wins if a note disagrees.
+- **After changing code:** generated notes come from
+  `python scripts/build_obsidian_architecture.py`. A Stop hook
+  (`.claude/settings.json`) runs it automatically when you finish a reply.
+  Still run it (or `--verify`, which exits 1 when stale) before committing,
+  and commit the `docs/architecture/generated/` changes with your code.
+  Never edit generated notes by hand. On a merge conflict inside
+  `generated/`, take either side and rerun the script.
+- **Hand-written parts you update yourself:** the hub in
+  `docs/architecture/hubs/` when you change how its area works (flow, rules,
+  key files). For a new feature area, add a hub and a regex in `HUB_RULES`
+  in the script. A new doc ends with a `## Related` section linking at least
+  one hub. `--report` lists orphans and broken links.
+
 ## Stack
 
 - **Backend**: FastAPI + SQLAlchemy 2.0, **PostgreSQL (Neon in prod) via

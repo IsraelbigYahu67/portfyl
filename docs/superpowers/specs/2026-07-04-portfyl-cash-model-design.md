@@ -239,3 +239,8 @@ its own asset-class slice/row so cash drag is visible.
   `\.type ==` / `for t in transactions`); the list in §1 is the known set.
 - Decide table-rebuild vs `$CASH` sentinel for the `ticker` NOT NULL relaxation during
   the plan, based on how invasive the rebuild helper is.
+
+## Related
+
+- Architecture: [[Portfolio analytics]] · [[Database and migrations]]
+- Code: [[cash_ledger]] · [[broker_cash]] · [[routers.cash]] · [[pages.Cash]] · [[components.CashBalanceChart]] · [[cash_interest_rates (table)]] · [[transactions (table)]]

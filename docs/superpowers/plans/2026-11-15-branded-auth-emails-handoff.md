@@ -185,3 +185,9 @@ language, sent by Portfyl through Brevo. Sketch to evaluate, not decided:
   `X-Goog-User-Project: portfyl-cloud-fstxby` (gcloud account
   `support@portfyl.com`).
 - Design rules for the e-mail and page: `DESIGN.md` (palette §3, components §8).
+
+## Related
+
+- Architecture: [[Emails]] · [[Auth and sessions]]
+- Code: [[emails.links]] · [[emails.render]] · [[emails.transport]] · [[routers.auth_email]] · [[auth.authEmail]] · [[pages.AuthAction]]
+- Docs: [[superpowers/specs/2026-11-15-portfyl-own-emails-design]]

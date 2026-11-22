@@ -94,3 +94,9 @@ Required coverage:
 - Every viewport: no page-level horizontal overflow, clipped primary action, unexpected console error, or unexpected failed request.
 
 Run both `edition-local` and `edition-cloud` browser passes against the phase worktree servers on ports 8001/5174 as specified in the implementation plan.
+
+## Related
+
+- Architecture: [[Onboarding and CSV import]] · [[Frontend structure]]
+- Code: [[pages.Onboarding]] · [[pages.Import]] · [[import_workflow]] · [[pages.Welcome]]
+- Docs: [[superpowers/specs/2026-09-13-portfyl-ux-product-coherence-design]] · [[superpowers/plans/2026-09-13-portfyl-ux-overhaul-roadmap]]

@@ -126,3 +126,8 @@ strings, and broker/IBKR/eToro/Discord menu paths and permission names.
 - `npm run build` and `npm run build:cloud` succeed; one chunk per language.
 - Browser check still to do: both browser automation profiles were held by
   other sessions on 2026-11-06.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Onboarding and CSV import]]
+- Code: [[i18n (folder)]] · [[pages.Settings]] · [[pages.Onboarding]] · [[emails.locales (folder)]]

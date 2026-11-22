@@ -38,3 +38,9 @@ Both findings have regression coverage in the shared primitive, focus-trap, draw
 
 - Both Vite builds retain the known warning that the main application chunk exceeds 500 kB. Bundle splitting remains scheduled for the roadmap's performance work.
 - The AuthProvider negative-context test intentionally logs the caught React error stack while passing.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Testing]]
+- Code: [[components.layout (folder)]] · [[hooks.useFocusTrap]] · [[hooks.useMediaQuery]] · [[hooks.useRouteFocusAnnouncer]]
+- Docs: [[superpowers/specs/2026-09-13-portfyl-ux-product-coherence-design]] · [[superpowers/plans/2026-09-13-portfyl-ux-overhaul-roadmap]]

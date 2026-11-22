@@ -223,3 +223,9 @@ Thank you.
 
 Sending this enquiry is a representational external action and is deliberately
 not performed by this repository task.
+
+## Related
+
+- Architecture: [[Market data]] · [[Portfolio analytics]]
+- Code: [[market_data]] · [[cache]] · [[alphavantage_client]] · [[edgar_client]] · [[fx]]
+- Docs: [[superpowers/specs/2026-11-08-portfyl-market-data-cache-design]]

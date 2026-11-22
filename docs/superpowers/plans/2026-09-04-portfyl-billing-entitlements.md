@@ -641,3 +641,9 @@ Still external and therefore deliberately not represented as complete:
   https://docs.stripe.com/customer-management/integrate-customer-portal
 - Stripe automatic tax in Checkout:
   https://docs.stripe.com/tax/checkout
+
+## Related
+
+- Architecture: [[Billing and Stripe]] · [[Edition boundary]]
+- Code: [[entitlements]] · [[plans]] · [[billing_config]] · [[0010_billing_entitlements]] · [[subscriptions (table)]] · [[usage_counters (table)]] · [[usage_reservations (table)]]
+- Docs: [[superpowers/plans/2026-09-01-portfyl-saas-monetization]]

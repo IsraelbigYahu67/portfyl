@@ -115,37 +115,6 @@ export default function Register() {
           </p>
         </div>
 
-        <div className="flex items-start gap-2">
-          <input
-            id={agreeId}
-            type="checkbox"
-            className="mt-0.5 h-4 w-4 shrink-0"
-            checked={agreed}
-            onChange={(e) => setAgreed(e.target.checked)}
-          />
-          <label htmlFor={agreeId} className="text-xs text-muted">
-            {rich(t("I am 18 or older and I accept the <terms>Terms of Service</terms> and have read the <privacy>Privacy Policy</privacy>."), {
-              terms: (words) => (
-                <a href={`/terms?lang=${legalLang}`} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                  {words}{legalSuffix}
-                </a>
-              ),
-              privacy: (words) => (
-                <a href={`/privacy?lang=${legalLang}`} target="_blank" rel="noreferrer" className="text-brand hover:underline">
-                  {words}{legalSuffix}
-                </a>
-              ),
-            })}
-          </label>
-        </div>
-
-        {isGoogleSignInEnabled() && (
-          <div className="space-y-4">
-            <GoogleSignInButton sourceSurface={sourceSurface} disabled={!agreed} />
-            <AuthMethodDivider />
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="card space-y-4" noValidate>
           <div className="space-y-1.5">
             <label htmlFor={emailId} className="eyebrow">{t("E-mail")}</label>
@@ -206,6 +175,37 @@ export default function Register() {
             })}
           </p>
         </form>
+
+        {isGoogleSignInEnabled() && (
+          <div className="space-y-4">
+            <AuthMethodDivider />
+            <GoogleSignInButton sourceSurface={sourceSurface} disabled={!agreed} />
+          </div>
+        )}
+
+        <div className="flex items-start gap-2">
+          <input
+            id={agreeId}
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 shrink-0"
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+          />
+          <label htmlFor={agreeId} className="text-xs text-muted">
+            {rich(t("I am 18 or older and I accept the <terms>Terms of Service</terms> and have read the <privacy>Privacy Policy</privacy>."), {
+              terms: (words) => (
+                <a href={`/terms?lang=${legalLang}`} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+                  {words}{legalSuffix}
+                </a>
+              ),
+              privacy: (words) => (
+                <a href={`/privacy?lang=${legalLang}`} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+                  {words}{legalSuffix}
+                </a>
+              ),
+            })}
+          </label>
+        </div>
       </div>
     </div>
   );

@@ -158,3 +158,9 @@ above: (1) `walletImpact` is ignored for split legs and both legs must carry
 equal values, otherwise `needs_review`; (2) only the verified reverse-split
 encoding is mapped, anything else stays `needs_review`. Mapper may be
 implemented against this record.
+
+## Related
+
+- Architecture: [[Broker importers and sync]]
+- Code: [[t212_corporate_actions]] · [[t212_incremental]] · [[broker_corporate_actions (table)]] · [[broker_corporate_action_applications (table)]] · [[0020_broker_corporate_actions]]
+- Docs: [[superpowers/plans/2026-09-24-t212-corporate-actions-incremental-sync]]

@@ -15,7 +15,8 @@ docs/operations/control-files/
 docs/operations/code-stats.html
 
 # local agent state / worktrees
-.claude/
+.claude/*
+!.claude/settings.json
 .worktrees/
 
 # editor/os noise
@@ -40,3 +41,7 @@ frontend/.prerender/
 
 # Email
 FMP_EMAIL.txt
+
+# Obsidian: per-user window layout (graph colors/bookmarks in docs/.obsidian are shared)
+docs/.obsidian/workspace.json
+docs/.obsidian/workspace-mobile.json

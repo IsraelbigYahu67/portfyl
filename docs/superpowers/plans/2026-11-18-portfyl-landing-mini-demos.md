@@ -379,3 +379,9 @@ Backendové sady (`pytest`) se nespouští: změna nesahá na backend, DB, migra
   }
 ]
 ```
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Portfyl]]
+- Code: [[pages.Welcome]] · [[components.landing (folder)]] · [[demo (folder)]] · [[components.showcase (folder)]]
+- Docs: [[superpowers/plans/2026-11-18-portfyl-landing-mini-dema-5-smazat-demo]] · [[operations/landing-minidemo-check]]

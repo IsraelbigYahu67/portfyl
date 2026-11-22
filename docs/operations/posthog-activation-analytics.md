@@ -271,3 +271,9 @@ above is lifted and the two Vite variables are actually set), check weekly:
   (`portfyl_analytics_consent`) and state machine.
 - `frontend/src/analytics/AnalyticsProvider.jsx` — the consent-gated
   provider, adapter selection, and identity lifecycle.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Onboarding and CSV import]] · [[Secrets and security]]
+- Code: [[src.TrackerBootstrap]] · [[security_headers]] · [[components.landing (folder)]]
+- Docs: [[operations/activation-analytics-browser-check]] · [[operations/onboarding-funnel]] · [[superpowers/specs/2026-09-19-portfyl-public-demo-activation-readability-design]]

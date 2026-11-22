@@ -179,3 +179,9 @@ Scale-to-zero Cloud Run (free tier ≈ 2 M requests, 180 k vCPU-s, 360 k GiB-s p
 - Coverage: new project, billing, secrets, KMS, Firebase, Worker/Cloudflare, scheduler, rollback, trial expiry, credit ideas, sandbox isolation — each has a task.
 - Placeholders: `NEW_ACCOUNT_EMAIL`, `NEW_BILLING_ID`, `$NEW`, `<KEY_LOCATION>` are real unknowns resolved in Tasks 0/3, not TODOs.
 - Decided: variant A (Firebase + KMS stay), apex via Worker, account `support@portfyl.com`. Still open: region europe-west1 vs. europe-west3 (default: keep europe-west1).
+
+## Related
+
+- Architecture: [[Deploy and operations]] · [[Secrets and security]]
+- Code: [[deploy.cloudrun (md)]] · [[deploy.run-migrations (ps1)]] · [[deploy.cloudflare (folder)]] · [[deploy.operations (json)]] · [[Dockerfile]] · [[deploy.cloudbuild-frontend-overlay (yaml)]]
+- Docs: [[operations/neon-backup-restore]]

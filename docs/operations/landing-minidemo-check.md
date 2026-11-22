@@ -99,3 +99,9 @@ Screenshots (not tracked in git): `C:\Users\tomzo\AppData\Local\Temp\claude\4f72
 Not verified: the real hosted app side by side (needs `DATABASE_URL` and a login); the comparison was against `DESIGN.md`
 sections 3 to 6 and the `/demo/*` pages' look. The screenshots have not been sent to the owner (`SendUserFile` is not available
 to this session); the paths above are the hand-off.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Onboarding and CSV import]]
+- Code: [[components.landing (folder)]] · [[demo (folder)]] · [[pages.Welcome]]
+- Docs: [[superpowers/plans/2026-11-18-portfyl-landing-mini-dema-5-smazat-demo]] · [[superpowers/plans/2026-11-18-portfyl-landing-mini-demos]]

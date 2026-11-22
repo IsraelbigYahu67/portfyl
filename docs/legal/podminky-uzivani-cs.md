@@ -287,3 +287,8 @@ Oznamuji, že tímto odstupuji od smlouvy o poskytování služby Portfyl
 Jméno a příjmení: …………………………… \
 E-mail účtu: …………………………… \
 Datum: ……………………………
+
+## Related
+
+- Architecture: [[Portfyl]] · [[Billing and Stripe]] · [[Account deletion and data lifecycle]]
+- Docs: [[legal/terms-of-service-en]] · [[legal/poznamky-pro-pravnika]]

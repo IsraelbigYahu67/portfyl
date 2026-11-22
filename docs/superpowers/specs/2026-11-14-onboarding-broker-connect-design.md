@@ -244,3 +244,8 @@ today.
 Component structure for the slim form, the sync wait threshold, portfolio
 naming, exact copy, and how the "connect step" marker survives the Stripe
 round-trip (storage key alongside `signupIntent`, or a field in it).
+
+## Related
+
+- Architecture: [[Onboarding and CSV import]] · [[Broker importers and sync]] · [[Billing and Stripe]]
+- Code: [[hooks.useOnboardingConnect]] · [[lib.onboardingConnect]] · [[routers.broker]] · [[entitlements]] · [[pages.Onboarding]] · [[broker_connections (table)]] · [[plans]]

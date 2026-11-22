@@ -690,3 +690,9 @@ Still open:
 - Everything in D-4.
 - Which database role the owner's local `.env` connects as (decides whether v1 needs
   `MARKET_WRITER_DATABASE_URL`); the current Neon plan.
+
+## Related
+
+- Architecture: [[Market data]]
+- Code: [[market_data]] · [[cache]] · [[fx]] · [[alphavantage_client]]
+- Docs: [[superpowers/specs/2026-11-08-portfyl-market-data-cache-review]] · [[superpowers/plans/2026-11-12-portfyl-market-data-cache]]

@@ -48,3 +48,9 @@ The public review must confirm controller identity, legal bases, processor
 agreements, international transfers, data-subject request handling, recovery
 needs, incident evidence, and statutory retention. The current six-hour PITR
 acceptance applies only to the private test.
+
+## Related
+
+- Architecture: [[Account deletion and data lifecycle]] · [[Jobs and Cloud Scheduler]] · [[Secrets and security]]
+- Code: [[data_retention]] · [[purge_account_deletions]] · [[jobs]] · [[routers.internal_jobs]]
+- Docs: [[compliance/private-test-legal-status]]

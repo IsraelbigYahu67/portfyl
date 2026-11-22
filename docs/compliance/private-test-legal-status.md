@@ -155,3 +155,9 @@ legal routes are enabled:
 - [EU consumer pre-contract information](https://europa.eu/youreurope/citizens/consumers/shopping/contract-information/index_en.htm)
   and [distance-selling requirements](https://europa.eu/youreurope/business/selling-in-eu/selling-goods-services/ecommerce-distance-selling/index_en.htm),
   to be applied before a public or paid consumer offer.
+
+## Related
+
+- Architecture: [[Portfyl]] · [[Secrets and security]] · [[Account deletion and data lifecycle]]
+- Code: [[beta_access]] · [[manage_beta]]
+- Docs: [[compliance/private-test-retention-policy]] · [[operations/private-beta-access]]

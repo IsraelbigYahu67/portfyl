@@ -40,3 +40,9 @@ The eleven routes were Dashboard, Allocation, Transactions, Dividends, Analytics
 - Both Vite builds retain the existing warning that the main application chunk exceeds 500 kB. Bundle splitting belongs to the roadmap performance work.
 - The AuthProvider negative-context test intentionally logs the caught React error stack while passing.
 - No UX-02 behavior is deferred.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Testing]]
+- Code: [[lib.apiError]] · [[components.ui (folder)]] · [[src.api]] · [[pages.Dashboard]]
+- Docs: [[superpowers/specs/2026-09-13-portfyl-ux-product-coherence-design]] · [[superpowers/plans/2026-09-13-portfyl-ux-overhaul-roadmap]]

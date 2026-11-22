@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/scripts/obsidian_graph_hook.py\"",
+            "timeout": 60,
+            "statusMessage": "Refreshing architecture graph"
+          }
+        ]
+      }
+    ]
+  }
+}

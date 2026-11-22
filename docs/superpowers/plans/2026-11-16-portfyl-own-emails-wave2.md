@@ -84,3 +84,9 @@
 - `deploy/cloudrun.md`: wave 2 behaviour and the first-real-send check for the three e-mails (spec §11); note that session revocation after a password change is now live. `CLAUDE.md`: one sentence in the e-mails paragraph. Spec §7 table and this plan's status line.
 - Full verification: fast suite on Python 3.12, PostgreSQL suite, `alembic heads` vs `EXPECTED_ALEMBIC_HEAD`, `npm test` and `npm run test:cloud`, `npm run build` and `npm run build:cloud`.
 - Report anything that fails, do not paper over it.
+
+## Related
+
+- Architecture: [[Emails]] · [[Account deletion and data lifecycle]]
+- Code: [[emails.notify]] · [[emails.catalog]] · [[account_deletion]] · [[0028_password_changed_seen]] · [[routers.auth_email]]
+- Docs: [[superpowers/specs/2026-11-15-portfyl-own-emails-design]]

@@ -203,3 +203,8 @@ Otevřené otázky:
    zda kontrola zařízení spadá pod výjimku „nezbytně nutné“ podle ePrivacy.
 7. Minimalizace údajů u otisků historie transakcí (5 nejstarších transakcí,
    shoda alespoň 3 z 5).
+
+## Related
+
+- Architecture: [[Portfyl]] · [[Secrets and security]] · [[Account deletion and data lifecycle]]
+- Docs: [[legal/podminky-uzivani-cs]] · [[legal/privacy-policy-en]]

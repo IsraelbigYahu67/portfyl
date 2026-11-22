@@ -1,0 +1,40 @@
+{
+  "generator": "scripts/build_obsidian_architecture.py",
+  "notes": 341,
+  "hubs": [
+    "Account deletion and data lifecycle",
+    "Alerts and integrations",
+    "Auth and sessions",
+    "Backend",
+    "Billing and Stripe",
+    "Broker importers and sync",
+    "Database and migrations",
+    "Deploy and operations",
+    "Edition boundary",
+    "Emails",
+    "Free trial",
+    "Frontend structure",
+    "Jobs and Cloud Scheduler",
+    "Market data",
+    "Onboarding and CSV import",
+    "Portfolio analytics",
+    "Secrets and security",
+    "Tenancy and RLS",
+    "Testing"
+  ],
+  "by_kind": {
+    "backend/folder": 2,
+    "backend/module": 86,
+    "backend/router": 26,
+    "db/migration": 28,
+    "db/table": 43,
+    "frontend/component": 26,
+    "frontend/file": 7,
+    "frontend/folder": 18,
+    "frontend/hook": 12,
+    "frontend/lib": 47,
+    "frontend/page": 23,
+    "ops/folder": 1,
+    "ops/ops": 22
+  }
+}

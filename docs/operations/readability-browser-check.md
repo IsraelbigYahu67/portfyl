@@ -72,3 +72,9 @@ follow-up) at the bottom of this section for the release under review.
 Automated source scanning (`npm run audit:readability`, the Vitest and
 pytest suites, both production builds) must also be green before sign-off —
 this checklist is a supplement, not a replacement.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Testing]]
+- Code: [[lib.contrast]] · [[lib.themeTokens]] · [[DESIGN (md)]]
+- Docs: [[superpowers/specs/2026-09-19-portfyl-public-demo-activation-readability-design]]

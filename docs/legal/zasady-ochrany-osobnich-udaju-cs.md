@@ -212,3 +212,9 @@ portfolií a tajné údaje.
 
 Zásady můžeme aktualizovat. O podstatných změnách vás informujeme e-mailem
 nebo v aplikaci předem. Aktuální verze je vždy na https://portfyl.com/privacy.
+
+## Related
+
+- Architecture: [[Account deletion and data lifecycle]] · [[Secrets and security]] · [[Portfyl]]
+- Code: [[data_retention]] · [[workspace_export]] · [[account_deletion]]
+- Docs: [[legal/privacy-policy-en]] · [[compliance/data-processing-inventory]]

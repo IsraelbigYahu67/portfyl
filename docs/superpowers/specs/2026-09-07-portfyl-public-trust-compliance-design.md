@@ -119,3 +119,9 @@ from optional user-triggered integrations.
   non-essential cookies.
 - Claiming legal compliance solely because the technical controls exist.
 - Publishing placeholder legal identity or contact information.
+
+## Related
+
+- Architecture: [[Portfyl]] · [[Secrets and security]] · [[Account deletion and data lifecycle]]
+- Code: [[pages.Legal]] · [[lib.legalMarkdown]] · [[data_retention]]
+- Docs: [[superpowers/plans/2026-09-07-portfyl-public-trust-compliance]] · [[compliance/data-processing-inventory]]

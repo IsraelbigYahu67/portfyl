@@ -436,3 +436,8 @@ Rollout state (2026-10-13):
   `support@portfyl.com`. The default configuration (`tom.zoubek@gmail.com`)
   has no access to `portfyl-prod-f6shqb`. On machines where PowerShell
   scripts are disabled, call `gcloud.cmd`.
+
+## Related
+
+- Architecture: [[Auth and sessions]]
+- Code: [[auth.firebase]] · [[auth.AuthProvider]] · [[pages.Login]] · [[pages.Register]] · [[firebase_identity]] · [[routers.auth]] · [[security_headers]] · [[auth]]

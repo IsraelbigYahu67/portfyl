@@ -1121,3 +1121,9 @@ git commit -m "fix(frontend): premium redesign contrast/QA tweaks"
 - **Risk note:** Tasks 9/10 may require updating existing test assertions to the
   new markup — instructions say adjust the assertion to the new premium markup,
   never revert the feature.
+
+## Related
+
+- Architecture: [[Frontend structure]]
+- Code: [[DESIGN (md)]] · [[lib.themeTokens]] · [[lib.clayStyle]]
+- Docs: [[superpowers/specs/2026-08-30-portfyl-premium-redesign-design]]

@@ -190,3 +190,9 @@ yfinance-missing-data rendered as empty states (never errors).
   a clean, conventional, self-contained frontend).
 - No desktop optimization — it will render on desktop but is designed for phones.
 - The original `portfyl` repo is untouched (apart from housing this spec).
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Portfyl]]
+- Code: [[lib.bottomNavPrefs]] · [[hooks.useMediaQuery]] · [[components.layout (folder)]]
+- Docs: [[superpowers/plans/2026-07-18-portfyl-mobile]]

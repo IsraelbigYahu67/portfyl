@@ -715,3 +715,9 @@ and the database's awake hours are.
 - **Whether F-30 fails in production**: needs a log look or a test run; nothing was executed in this
   review (no tests, servers or migrations were run, by instruction).
 - Paid-tier latency, and whether Twelve Data adjusts `previous_close` on a split day: need a paid key.
+
+## Related
+
+- Architecture: [[Market data]]
+- Code: [[market_data]] · [[cache]] · [[fx]] · [[alphavantage_client]]
+- Docs: [[superpowers/specs/2026-11-08-portfyl-market-data-cache-design]] · [[superpowers/plans/2026-11-12-portfyl-market-data-cache]]

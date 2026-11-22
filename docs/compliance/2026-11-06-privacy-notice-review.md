@@ -350,3 +350,9 @@ zkušebním období.
 | B5 | Částečně. Registrace (heslo i Google) vyžaduje zaškrtnutí „18+ a souhlas s podmínkami a zásadami“ s odkazy; banner má odkaz „Podrobnosti“ na čl. 8. **Zbývá:** ukládat verzi a čas potvrzení na serveru (vyžaduje backend + migraci). |
 | C | Doplněno ověřené: region Google Cloud, odstraněn Sentry (v produkci neběží), 30denní lhůta smazání (odpovídá kódu), URL zásad. **Zůstává pro provozovatele/právníka:** DPO, region Neonu, přesný subjekt Platebního partnera, DPA/DPF certifikace, doba záloh, lhůta uchování daňových dokladů, datum účinnosti. |
 | D | Inventura sjednocena (kontakt, 18+, správce, brokeři, PostHog). **Zůstává:** rozpor o 10denním zkušebním období (poznámky pro právníka a `podminky-uzivani-cs.md` ho uvádějí, kód a ceník ne) – produktové rozhodnutí. |
+
+## Related
+
+- Architecture: [[Account deletion and data lifecycle]] · [[Secrets and security]] · [[Portfyl]]
+- Code: [[data_retention]] · [[workspace_export]] · [[account_deletion]]
+- Docs: [[legal/zasady-ochrany-osobnich-udaju-cs]] · [[legal/privacy-policy-en]]

@@ -859,3 +859,9 @@ for Stripe return URLs. Check it before payments go live.
   provider's state).
 - `deploy/cloudrun.md` section "Portfyl e-mails": secret, env vars, rollback,
   the checklist above.
+
+## Related
+
+- Architecture: [[Emails]] · [[Auth and sessions]]
+- Code: [[emails.catalog]] · [[emails.render]] · [[emails.transport]] · [[emails.notify]] · [[emails.links]] · [[routers.auth_email]] · [[auth.authEmail]] · [[emails.locales (folder)]]
+- Docs: [[superpowers/plans/2026-11-16-portfyl-own-emails-wave2]] · [[superpowers/plans/2026-11-15-branded-auth-emails-handoff]]

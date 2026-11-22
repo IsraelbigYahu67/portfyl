@@ -1429,3 +1429,9 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - **Spec coverage:** project shape → T1; backend verbatim + seed → T1; scaffold/ports/PWA-no-SW → T2; data layer → T3; theme/contexts/primitives → T4; shell/tabs/drawer/sheet/flattening/AutoLoad → T5; all 17 pages + Stock + landing → T6–15; error handling → per-page recipe (ErrorState/EmptyState/skeletons); verification (pytest, vitest, Playwright 390×844) → T1/T16. Login page needs no task (backend-served, T1 covers it).
 - **Type consistency:** provider contracts in T4 Interfaces match T5/T14 consumers (`usePortfolio().current/currentId/setCurrentId`); `BottomSheet` prop set consistent across T5–T13; `renderWithProviders(ui, { route })` consistent in every test.
 - **Known judgment calls:** page tests assert plan-mandated stable copy (empty states/placeholders) rather than guessed data shapes — the desktop reference file is authoritative for data handling; mock factories mirror each page's real `../api` import list.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Deploy and operations]]
+- Code: [[components.layout (folder)]] · [[hooks.useMediaQuery]] · [[lib.bottomNavPrefs]] · [[frontend.vite.config (js)]]
+- Docs: [[superpowers/specs/2026-07-18-portfyl-mobile-design]]

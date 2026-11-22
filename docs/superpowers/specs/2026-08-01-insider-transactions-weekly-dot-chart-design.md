@@ -158,3 +158,8 @@ change.
 - Click/tap-to-pin interaction, or mobile-specific behavior.
 - Configurable lookback window (stays fixed at 1y / ~52 weeks, matching
   today's chart).
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Market data]]
+- Code: [[lib.insiderWeekly]] · [[edgar_client]] · [[components.stock (folder)]] · [[pages.Stock]]

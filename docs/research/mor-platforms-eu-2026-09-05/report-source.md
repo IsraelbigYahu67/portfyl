@@ -110,3 +110,8 @@ Lemon Squeezy funguje jako MoR a umí SaaS subscriptions. Oficiální dokumentac
 | FastSpring VAT | výběr a odvod DPH | https://developer.fastspring.com/docs/about-vat-and-sales-tax |
 | Stripe Pricing CZ | platební poplatky a Managed Payments | https://stripe.com/en-cz/pricing |
 | Stripe Managed Payments | MoR režim a status public preview | https://docs.stripe.com/payments/managed-payments/how-it-works |
+
+## Related
+
+- Architecture: [[Billing and Stripe]]
+- Code: [[stripe_client]] · [[billing_config]]

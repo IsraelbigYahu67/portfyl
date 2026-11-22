@@ -176,3 +176,8 @@ moodboard's mood (warm bg, embossed cards, mint/coral accents, no blur).
 Default `sb_theme_style` is `"glass"` — existing users see no change until
 they opt in. No backend/API/DB changes; nothing in this spec touches
 `backend/`.
+
+## Related
+
+- Architecture: [[Frontend structure]]
+- Code: [[lib.themeTokens]] · [[lib.clayStyle]] · [[DESIGN (md)]] · [[src.App]]

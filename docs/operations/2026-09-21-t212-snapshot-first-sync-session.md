@@ -135,3 +135,9 @@ viewport, per the existing browser-check docs' format (e.g.
    Needs `BrokerCorporateAction` + application-record models, yfinance
    integration, and a `needs_review` UX path for anything not a clean
    same-instrument `STOCK_SPLIT`.
+
+## Related
+
+- Architecture: [[Broker importers and sync]] · [[Jobs and Cloud Scheduler]]
+- Code: [[t212_sync]] · [[t212_incremental]] · [[broker_reconciliation]] · [[t212_cash]] · [[t212_corporate_actions]] · [[broker_sync_runs (table)]] · [[broker_positions (table)]]
+- Docs: [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]] · [[research/t212-cash-transaction-encoding]]

@@ -416,3 +416,9 @@ dist/assets/index-CDHj4zUT.js                                        146.83 kB �
 dist/assets/TrackerBootstrap-D6hAO884.js                             364.63 kB │ gzip:  97.33 kB
 dist/assets/chartTheme-D4GXYxdw.js                                   399.98 kB │ gzip: 110.30 kB
 ```
+
+## Related
+
+- Architecture: [[Backend]] · [[Secrets and security]]
+- Code: [[0024_remove_ai_assistant]] · [[main]]
+- Docs: [[superpowers/plans/2026-09-13-ux-08-assistant-performance]] · [[superpowers/plans/ux-08-browser-closeout-2026-09-17]]

@@ -943,3 +943,9 @@ has `PORTFYL_MARKET_STORE` unset (= off).
 - [ ] Frontend: `npm test`, `npm run test:cloud`, `npm run build`, `npm run build:cloud`
 - [ ] With `PORTFYL_MARKET_STORE=off`: no behaviour change (until Wave 4 flip)
 - [ ] No file edited outside the task's ownership row
+
+## Related
+
+- Architecture: [[Market data]] · [[Database and migrations]]
+- Code: [[market_data]] · [[cache]] · [[fx]] · [[alphavantage_client]] · [[ticker_map]]
+- Docs: [[superpowers/specs/2026-11-08-portfyl-market-data-cache-design]] · [[superpowers/specs/2026-11-08-portfyl-market-data-cache-review]] · [[superpowers/plans/2026-11-12-portfyl-market-data-cache]]

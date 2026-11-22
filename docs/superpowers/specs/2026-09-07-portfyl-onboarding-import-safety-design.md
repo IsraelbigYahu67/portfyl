@@ -173,3 +173,8 @@ cloud builds and raw import remains available on Free.
 - A new broker connector, paid-plan activation, trial clock, or lifecycle
   e-mail.
 - Persisting demo flags or onboarding progress in a new schema.
+
+## Related
+
+- Architecture: [[Onboarding and CSV import]]
+- Code: [[import_workflow]] · [[import_undo]] · [[ledger_import]] · [[portfolio_activation]] · [[pages.Import]] · [[pages.Onboarding]] · [[components.import (folder)]] · [[routers.portfolio]]

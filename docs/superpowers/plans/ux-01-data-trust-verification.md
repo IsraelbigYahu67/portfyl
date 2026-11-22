@@ -34,3 +34,9 @@ The forced `/api/portfolio/dividends` HTTP 503 rendered the explicit “Could no
 - Both Vite builds warn that the main application chunk exceeds 500 kB. Bundle splitting is tracked by the roadmap performance phase and is not part of UX-01.
 - The AuthProvider negative-context test intentionally prints the caught React error stack in both frontend runs; it is an expected passing assertion, not a test failure.
 - No phase-specific item is deferred.
+
+## Related
+
+- Architecture: [[Portfolio analytics]] · [[Testing]]
+- Code: [[pages.Dividends]] · [[pages.TaxReport]] · [[routers.analytics]] · [[importers.dividends]]
+- Docs: [[superpowers/specs/2026-09-13-portfyl-ux-product-coherence-design]] · [[superpowers/plans/2026-09-13-portfyl-ux-overhaul-roadmap]]

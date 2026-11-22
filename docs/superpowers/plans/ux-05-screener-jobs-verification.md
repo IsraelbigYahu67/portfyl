@@ -77,3 +77,9 @@ or integration test.
   deployment a job would only be pollable from the instance that created it;
   this is acceptable because Screener is local-edition-only (single owner
   instance), not a cloud feature. Noted for any future scale-out.
+
+## Related
+
+- Architecture: [[Jobs and Cloud Scheduler]] · [[Testing]]
+- Code: [[services.screener_jobs]] · [[universes]] · [[private_loop]]
+- Docs: [[superpowers/plans/2026-09-13-ux-05-screener-jobs]]

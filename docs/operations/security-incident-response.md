@@ -173,3 +173,9 @@ The automated technical rehearsal from 2026-09-09 is recorded in
 a disposable Secret Manager rotation and old-version rejection check. Human
 attendance, an application-bound rotation/redeploy decision, and notification
 ownership remain required before the launch gate is closed.
+
+## Related
+
+- Architecture: [[Secrets and security]] · [[Deploy and operations]] · [[Tenancy and RLS]]
+- Code: [[audit]] · [[audit_logs (table)]] · [[secrets_crypto]] · [[error_monitoring]] · [[logging_setup]]
+- Docs: [[operations/incident-tabletop-2026-09-09]]

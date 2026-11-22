@@ -139,3 +139,9 @@ repeatable-read transaction so counts and financial totals use one snapshot.
 - [Neon project configuration](https://api-docs.neon.tech/reference/getproject)
   and [branch deletion](https://api-docs.neon.tech/reference/deleteprojectbranch).
 - [Cloud Monitoring API](https://docs.cloud.google.com/monitoring/docs/apis).
+
+## Related
+
+- Architecture: [[Jobs and Cloud Scheduler]] · [[Deploy and operations]]
+- Code: [[jobs]] · [[routers.internal_jobs]] · [[job_runs (table)]] · [[deploy.operations (json)]] · [[deploy.monitoring-policies (json)]]
+- Docs: [[operations/operational-remediation-2026-09-09]] · [[operations/scheduler-monitoring]]

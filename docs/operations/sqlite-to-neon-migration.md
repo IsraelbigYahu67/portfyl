@@ -118,3 +118,9 @@ not be allowed to claim the workspace.
 After the claim, verify login, portfolio/transaction counts, settings,
 broker/watchlist/benchmark data, and logout-all. Keep the legacy copy and the
 pre-import Neon recovery point until post-cutover verification is signed off.
+
+## Related
+
+- Architecture: [[Database and migrations]] · [[Deploy and operations]]
+- Code: [[migrations.sqlite_to_postgres]] · [[deploy.migrate-sqlite (ps1)]] · [[data_migration_runs (table)]] · [[database]] · [[deploy.run-migrations (ps1)]]
+- Docs: [[operations/neon-backup-restore]]

@@ -130,3 +130,9 @@ neutralizes animations under that query).
   screenshot Stock Detail + Dashboard, confirm: readable text, spaced numbers,
   KPI boxes with rounded corners, warm glass look, working hover/reveal.
 - Manual contrast check on `--muted`, `--gain`, `--loss` against `#F3E8DA`.
+
+## Related
+
+- Architecture: [[Frontend structure]]
+- Code: [[lib.themeTokens]] · [[lib.clayStyle]] · [[DESIGN (md)]] · [[components.ui (folder)]]
+- Docs: [[superpowers/plans/2026-08-30-portfyl-premium-redesign.discarded-draft]]

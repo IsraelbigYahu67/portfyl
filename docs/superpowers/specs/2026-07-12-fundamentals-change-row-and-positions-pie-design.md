@@ -61,3 +61,8 @@ desktop row 1 = `[Positions | Sector Allocation]`, Country moves to row 2.
   change computation (TTM skip, zero/negative guards) and the >2% / "Other"
   grouping.
 - Manual verification of both pages via the running dev servers.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Portfolio analytics]]
+- Code: [[components.AllocationChart]] · [[lib.positionsPie]] · [[pages.Allocation]] · [[lib.chartChanges]] · [[pages.Stock]] · [[components.StockDetail]]

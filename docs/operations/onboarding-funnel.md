@@ -74,3 +74,9 @@ funnels (and any dashboard) in the PostHog project is a manual step for the
 founder, and it needs the founder's approval before anyone does it. Only do it
 after the production blocker in `posthog-activation-analytics.md` is lifted,
 otherwise there is no data to show.
+
+## Related
+
+- Architecture: [[Onboarding and CSV import]] · [[Broker importers and sync]]
+- Code: [[routers.broker_requests]] · [[broker_requests (table)]] · [[portfolio_activation]] · [[components.onboarding (folder)]] · [[lib.onboardingBrokers]]
+- Docs: [[operations/posthog-activation-analytics]]

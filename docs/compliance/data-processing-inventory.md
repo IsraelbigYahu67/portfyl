@@ -179,3 +179,9 @@ Update this inventory in the same change whenever code adds or changes:
 - logging, telemetry, monitoring, or support tooling;
 - authentication, authorization, export, retention, or deletion behaviour;
 - an e-mail, push, webhook, AI, payment, or market-data flow.
+
+## Related
+
+- Architecture: [[Account deletion and data lifecycle]] · [[Secrets and security]] · [[Database and migrations]]
+- Code: [[data_retention]] · [[workspace_export]] · [[account_deletion]] · [[secrets_crypto]] · [[audit]] · [[error_monitoring]] · [[emails.transport]]
+- Docs: [[legal/privacy-policy-en]] · [[legal/zasady-ochrany-osobnich-udaju-cs]]

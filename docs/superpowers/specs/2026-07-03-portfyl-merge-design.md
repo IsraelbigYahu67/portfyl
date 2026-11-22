@@ -87,3 +87,7 @@ New files with no counterpart (PC's routers/pages, NB's Screener/DividendCalenda
 - **NB tests vs PC auth** — known, handled in test setup (see above).
 - **Dark mode × PC tokens** — PC's new tokens have no dark variants yet; DARK_SURFACES must be extended and visually verified in both themes.
 - **DB schema drift** — PC `main.py` runs idempotent `_ensure_*` migrations at startup; merged helpers from both sides must coexist. Using the PC DB (superset schema) minimizes risk; NB-added columns (if any) get ensured on first boot.
+
+## Related
+
+- Architecture: [[Portfyl]] · [[Backend]] · [[Frontend structure]]

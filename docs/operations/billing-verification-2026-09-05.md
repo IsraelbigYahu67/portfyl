@@ -185,3 +185,9 @@ adjust the checkout/webhook routes; expect to reuse everything else. If
 Stripe is chosen after all (e.g. because an accountant is already set up for
 EU VAT OSS), this commit is close to a direct restore plus the still-open
 external sandbox rehearsal from the "Canceled Stripe gate" section above.
+
+## Related
+
+- Architecture: [[Billing and Stripe]] · [[Edition boundary]]
+- Code: [[billing_config]] · [[entitlements]] · [[plans]] · [[routers.billing]] · [[stripe_client]] · [[subscriptions (table)]] · [[0010_billing_entitlements]]
+- Docs: [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]

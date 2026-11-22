@@ -3540,3 +3540,9 @@ git commit -m "docs: document broker import architecture"
 - Pokrytí specu: IBKR Trades/Cash/CorporateActions/Transfers ✔ (Task 3–4), OpenPositions → follow-up (vědomě), ConversionRates → nahrazeno `fxRateToBase` při CZK bázi a `bulk_fetch_fx` jinak; XML upload pro historii > 365 dní ✔ (Task 1+3); eToro osobní klíče ✔ (Task 8, 10), OAuth → follow-up; Degiro oba CSV + vícejazyčnost + ISIN mapování ✔ (Task 2, 5); XTB XLSX + `openpyxl` jako hotspot ✔ (Task 9); Schwab/Fidelity ✔ (Task 6–7); sdílená vrstva `ImportRow` → realizováno jako ledger dict + `validate_rows` ✔; capability → bez nových, `csv_import`/`broker_sync` ✔; onboarding návody ✔ (Task 11); otevřené otázky specu → Task 0.
 - Placeholdery: vědomé neznámé jsou eToro cesty/pole (+ mapování cash transakcí, fail-closed do odpovědi z Tasku 0), přesné XTB/Fidelity sloupce a sémantika IBKR `FS`/`RS`. Jsou izolované do konstant (`ENDPOINTS`, `FIELD_*`, `CASH_MAPPED`, indexy sloupců) a Task 0 je dodává z reálných vzorků.
 - Konzistence typů: `ParseResult(format_name, rows, source_events, skipped_reasons, errors)`, `InstrumentRef(isin, symbol, venue, currency, name)`, `resolve_many`, `net_dividend_rows(legs, *, source, stream)`, `DividendLeg` pole a `insert_new_provider_rows(db, portfolio, rows, *, source)` jsou stejné ve všech taskách.
+
+## Related
+
+- Architecture: [[Broker importers and sync]] · [[Onboarding and CSV import]]
+- Code: [[importers.registry]] · [[importers.formats.ibkr_flex]] · [[importers.formats.degiro_transactions]] · [[importers.formats.degiro_account]] · [[importers.formats.xtb]] · [[importers.instruments]] · [[importers.openfigi]] · [[etoro_client]]
+- Docs: [[superpowers/specs/2026-11-14-onboarding-broker-connect-design]]

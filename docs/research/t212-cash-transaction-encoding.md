@@ -105,3 +105,9 @@ cost if wrong:
    account currency is not stored. Each row keeps the event's own currency,
    exactly as the CSV importer does. Cost if wrong: none observed (all CZK).
 5. `Currency conversion` and every unknown `type` stay `needs_review`.
+
+## Related
+
+- Architecture: [[Broker importers and sync]] · [[Portfolio analytics]]
+- Code: [[t212_cash]] · [[t212_sync]] · [[broker_cash]] · [[cash_ledger]] · [[broker_reconciliation]]
+- Docs: [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]

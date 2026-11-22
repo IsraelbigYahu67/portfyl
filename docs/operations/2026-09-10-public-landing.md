@@ -180,3 +180,8 @@ Reference: https://developers.cloudflare.com/cloudflare-one/access-controls/poli
 - `/en` and `/de` redirect to the slash form. App-shell responses and every
   response on `app.portfyl.com` carry `X-Robots-Tag: noindex, nofollow`.
 - Details and the post-deploy checks: `docs/superpowers/plans/2026-11-09-portfyl-seo.md` §4a.
+
+## Related
+
+- Architecture: [[Frontend structure]] · [[Edition boundary]] · [[Onboarding and CSV import]]
+- Code: [[spa_serving]] · [[pages.Welcome]] · [[src.Root]] · [[seo (folder)]] · [[editions.cloud]] · [[components.landing (folder)]]

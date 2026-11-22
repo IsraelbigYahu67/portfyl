@@ -125,3 +125,9 @@
 - [ ] Add superseding notes to historical Workstream E documents without deleting their evidence.
 - [ ] Search active code/deployment files for Stripe and trial runtime references; resolve every non-historical result.
 - [ ] Run full backend tests, PostgreSQL tests when the disposable database is available, both frontend test modes, and both production builds.
+
+## Related
+
+- Architecture: [[Billing and Stripe]] · [[Edition boundary]]
+- Code: [[plans]] · [[entitlements]] · [[routers.test_plans]] · [[0011_remove_payment_runtime]] · [[pages.Pricing]]
+- Docs: [[superpowers/specs/2026-09-05-portfyl-plans-without-payments-design]]

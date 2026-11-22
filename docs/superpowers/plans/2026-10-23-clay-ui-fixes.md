@@ -498,3 +498,9 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
 
 - **X1** (5-year average P/E vs current/sector P/E in `backend/routers/market.py`): a methodology decision for the owner, tracked separately.
 - Classic dark mode, Screener scan results, Login/Onboarding: the audit did not cover them, so they need their own audit before anyone changes them.
+
+## Related
+
+- Architecture: [[Frontend structure]]
+- Code: [[DESIGN (md)]] · [[lib.clayStyle]] · [[lib.themeTokens]]
+- Docs: [[superpowers/specs/2026-10-23-clay-ui-audit]]
