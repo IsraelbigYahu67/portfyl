@@ -437,7 +437,7 @@ export default function Import({ focused = false }) {
 
       </div>
 
-      {!file && <BrokerGuides initialOpen={broker?.key} />}
+      {!file && (broker ? <BrokerGuides only={broker.key} /> : <BrokerGuides />)}
       </div>
       </>}
 
