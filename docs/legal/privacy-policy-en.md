@@ -8,7 +8,8 @@
 > [zasady-ochrany-osobnich-udaju-cs.md](zasady-ochrany-osobnich-udaju-cs.md).
 
 Effective from: `[[TODO: publication date]]` \
-Version: 0.1 (draft)
+Text last updated: 24 November 2026 \
+Version: 0.2 (draft)
 
 This policy explains what personal data the Portfyl service processes, why,
 for how long, who receives it and what rights you have. It follows
@@ -33,10 +34,10 @@ have not appointed a Data Protection Officer because we are not required to.
 | **Portfolio data** | portfolio names, transactions, tickers, quantities, prices, currencies, dates, cash, dividends, options, notes | you (manual entry, file import) or your broker if you connect it |
 | **Broker and service connections** | encrypted API keys, sync status, an anonymised fingerprint of your broker account number, encrypted Discord webhook URL | you |
 | **Broker requests** | brokers you ask us to support (the name you typed), linked to your account | you |
-| **Subscription data** | plan, period, subscription status, customer and transaction IDs at the Payment Partner, country | the Payment Partner; **we never receive your card number** |
+| **Subscription data** | plan, status and end of the paid period, a flag that the subscription is cancelled at period end, a scheduled plan change if any, customer, subscription and price identifiers at the Payment Partner; technical records of notices from Stripe (only the event identifier and type and the related object, no name or e-mail) | the Payment Partner; **we never receive your card number** and we do not store payment receipts ourselves |
 | **Technical and security data** | IP address, browser type, hashed session tokens, last sign-in time, security records (audit log), feature usage counts | automatically when you use the Service |
 | **Trial abuse-prevention records** | keyed hashes (HMAC-SHA256 with a secret key) of your canonical e-mail address (lower-case, without a `+tag`, Gmail dots folded), of your IP address (IPv6 reduced to its /64), of your broker account numbers and of the identifiers of your 5 oldest imported transactions; a marker that a trial was withheld. The raw values are not stored | derived by us at registration and when you import or sync broker data |
-| **Record of acceptance of the terms** | confirmation that you are at least 18, the versions of the terms and of this policy that were shown at registration, the time and the way you registered (by e-mail or with Google); before your e-mail is verified the record is kept under your Firebase identifier | created by our server at registration |
+| **Record of acceptance of the terms** | confirmation that you are at least 18, the versions of the terms and of this policy that were shown at registration, the time and the way you registered (by e-mail or with Google); before your e-mail is verified the record is kept under your Firebase identifier (unfinished registration, see Section 6) | created by our server at registration |
 | **Support communication** | the content of e-mails you send us | you |
 | **Analytics (consent only)** | pseudonymous app-usage events – after sign-in we link them to an internal account identifier, not to your e-mail or name; see Section 8 | automatically, only if you consent |
 
@@ -68,13 +69,13 @@ how the Service works.
 | Purpose | Legal basis (Art. 6 GDPR) |
 |---|---|
 | Creating and managing your account and providing the Service (calculations, imports, broker sync, notifications) | **performance of a contract** – Art. 6(1)(b) |
-| Managing your subscription and communicating about it | **performance of a contract** – Art. 6(1)(b) |
+| Managing your subscription and communicating about it; receiving and processing Stripe's notices about payments and subscriptions | **performance of a contract** – Art. 6(1)(b) |
 | Proving that at registration you confirmed you are at least 18 and accepted the terms, and that this policy was made available to you | **legitimate interest** in proving that the contract was concluded and the information duty was met – Art. 6(1)(f) `[[LAWYER: verify legal basis]]` |
 | Sending transactional e-mails about your account: e-mail verification, password reset, a notice that your password changed and a notice that your account was deleted (sent through our supplier Brevo, see Section 4) | **performance of a contract** – Art. 6(1)(b) |
 | Securing the Service, preventing abuse, protecting the separation of users' data, handling incidents, error records | **legitimate interest** in secure operation – Art. 6(1)(f) |
-| Offering one free trial per person (recognising that the same mailbox, network, broker account or transaction history already had one) | **legitimate interest** in protecting the free trial from abuse – Art. 6(1)(f) `[[LAWYER: balancing test; are keyed hashes pseudonymous personal data here?]]` |
+| Offering one free trial per person (recognising that the same mailbox, network, broker account or transaction history already had one) | **legitimate interest** in protecting the free trial from abuse – Art. 6(1)(f) We have documented a balancing test and will give you a summary on request. `[[LAWYER: verify the balancing test; are keyed hashes pseudonymous personal data here?]]` |
 | Handling complaints, questions and requests to exercise your rights | **contract** / **legal obligation** – Art. 6(1)(b) and (c) |
-| Meeting tax and accounting obligations | **legal obligation** – Art. 6(1)(c) |
+| Meeting tax and accounting obligations (to the extent the law requires us to keep records of payments received) | **legal obligation** – Art. 6(1)(c) |
 | Protecting our legal claims | **legitimate interest** – Art. 6(1)(f) |
 | App-usage analytics | **consent** – Art. 6(1)(a); you can withdraw it at any time |
 
@@ -98,7 +99,7 @@ data processing agreement:
 |---|---|---|
 | Google Cloud (Google Cloud EMEA Ltd. / Google LLC) | application hosting (Cloud Run), encryption keys, operational logs, scheduled jobs | EU – Belgium (`europe-west1`); support may access from the US |
 | Google Firebase Authentication | registration, sign-in, e-mail verification, Google sign-in | EU/US |
-| Neon Inc. | database (PostgreSQL) and backups | EU – Frankfurt `[[VERIFY]]` |
+| Neon Inc. | database (PostgreSQL) and backups | EU – Frankfurt (AWS `eu-central-1`) `[[VERIFY: confirm the region in the Neon console before publication; last verified 2026-09-09]]` |
 | Cloudflare, Inc. | DNS, encrypted connections (TLS), attack protection, and a bot check when a new account is created (Turnstile) `[[LAWYER: processor or independent controller; DPA]]` | global network |
 | PostHog Inc. (PostHog Cloud EU) | usage analytics – **only with your consent** | EU – Frankfurt |
 | Brevo (a company based in France) `[[TODO: exact name and registered office of the contracting entity under the Brevo agreement]]` | sending transactional e-mails from your account (e-mail verification, password reset, password-changed notice, account-deletion notice). Brevo receives the recipient's e-mail address and the content of the message (including a link and the date and time of the event); links in the e-mails go through Brevo's tracking domain. If sending through the Brevo API fails, the verification or reset e-mail is sent by Firebase Authentication, which also goes through Brevo | `[[VERIFY: processing location, DPA and transfers outside the EEA]]` |
@@ -114,6 +115,15 @@ data processing agreement:
   workspace in Portfyl (a random UUID we use to match the payment to your
   account) and the plan you chose. You enter your card details directly with
   the Payment Partner and we never receive them.
+- **Google** – provider of sign-in with a Google account (only if you use or
+  merely display that option). Google's sign-in script is loaded as soon as the
+  sign-in or registration page is shown (so that the Google window is not
+  blocked by the browser), so **Google may receive your IP address and
+  technical browser data before you click the button**. After you click and
+  choose an account, Google processes data under its own policies as an
+  independent controller; Portfyl receives from it (through Firebase) the
+  verified e-mail and name of the Google account. Google gets no access to
+  your data in Portfyl or to other services.
 - **Your broker** (e.g. Trading 212, Interactive Brokers, eToro) – only if you
   connect it; we send it your API credentials and receive your account data.
 - **Discord** – only if you set up Discord notifications.
@@ -133,9 +143,10 @@ DPA]]` We will provide a copy of the Standard Contractual Clauses on request
 at support@portfyl.com; the list of EU-U.S. Data Privacy Framework certified
 companies is at https://www.dataprivacyframework.gov.
 
-For the supplier Brevo and for the Payment Partner we are still verifying
-whether, and under what safeguards, data may be processed outside the
-European Economic Area. `[[VERIFY: DPA and transfers outside the EEA]]`
+For the supplier Brevo, the Payment Partner and Google in its role as an
+independent controller at sign-in we are still verifying whether, and under
+what safeguards, data may be processed outside the European Economic Area.
+`[[VERIFY: DPA, DPF certification and transfers outside the EEA for each of them]]`
 
 ## 6. How long we keep data
 
@@ -145,7 +156,7 @@ European Economic Area. `[[VERIFY: DPA and transfers outside the EEA]]`
 | Database backups | the backups used to recover the database keep deleted data for at most 7 days, after which it is irreversibly overwritten |
 | Operational logs | 30 days; they contain no portfolio content or passwords |
 | Session records | 30 days after expiry or sign-out |
-| Record of acceptance of the terms | while your account exists; deleted with it `[[VERIFY: deletion of records whose e-mail was never verified]]` |
+| Record of acceptance of the terms | while your account exists; deleted with it. **Unfinished registration:** a record created before your e-mail is verified, and an account that has been neither verified nor completed, are removed after 30 days at the latest |
 | Request rate-limit counters (a keyed digest, not the IP address itself) | until the relevant time window ends (minutes); expired records are removed hourly |
 | Feature-usage records (plan-limit reservations) | 90 days after they are completed or released; at the latest when your account is deleted |
 | Notification delivery records (e.g. to Discord) | sent or finally failed records 90 days; at the latest when your account is deleted |
@@ -158,16 +169,42 @@ European Economic Area. `[[VERIFY: DPA and transfers outside the EEA]]`
 | Trial record: hash of the IP address | 30 days |
 | Trial record of the workspace (start, end, reason, withheld marker) | deleted with the account |
 | Support communication | 1 year after resolution |
-| Payment records | kept by the Payment Partner; we keep subscription records for as long as tax law requires `[[LAWYER: add period]]` `[[VERIFY: when an account is deleted the app today also deletes its subscription records; whether and which tax records we keep outside the app]]` |
-| Analytics data (with consent) | at most 1 year |
+| Subscription data we hold (customer and subscription: identifiers at the Payment Partner, plan, status, end of period) | deleted at once with the workspace |
+| Technical records of notices from Stripe (identifier, type and status of the event and the related object; no name, e-mail or payment details) | not part of the workspace and not deleted when the account is deleted `[[TODO: retention period; the code does not delete these records today, owner decision pending]]` |
+| Receipts, payment details, payment and refund history | kept by the Payment Partner as an independent controller under its policies and the law; we do not keep them |
+| Our accounting and tax records (for example of payouts from the Payment Partner) | for the period set by tax and accounting law `[[LAWYER: add the period and verify which records we keep outside the app]]` |
+| Analytics data (with consent) | at most 1 year; the profile in PostHog may remain for up to 1 year after your account is deleted (see below) |
 
 **Deleting your account:** go to Settings → Data & privacy. For security, we
-first ask you to sign in again and to confirm the deletion after a warning. Deletion takes place
-immediately and cannot be undone; all account data is removed from the database at once and
-disappears from backups no later than the period stated above.
+first ask you to sign in again and to confirm the deletion after a warning.
+Deletion takes place immediately and cannot be undone. The data of your
+workspace is removed from the database at once (portfolios, transactions,
+notes, broker connections, the record of acceptance of the terms, our
+subscription records, sessions and security records), and so is your sign-in
+identity in Firebase. It disappears from backups no later than the period
+stated above. If you have an active subscription, deletion ends it at once;
+within the first 14 days of the order we refund the full price, later the
+remaining part of the period is not refunded (the terms, Sections 6 and 8.3).
+
+**What remains after deletion (exceptions to immediate erasure):**
+
+- **Trial abuse-prevention records** – keyed hashes of the e-mail address and
+  of the broker data for 12 months, the hash of the IP address for 30 days.
+  They are not your raw data but (because we hold the key) pseudonymised
+  personal data; we keep them on the basis of legitimate interest so that the
+  same person cannot repeat the trial. We handle an objection or an erasure
+  request about this record as described in Section 7.
+- **Technical records of notices from Stripe** (see the table above).
+- **Receipts and payment details at the Payment Partner**, which is an
+  independent controller.
+- **E-mails at Brevo** – delivery records for as long as Brevo keeps them.
+- **The analytics profile in PostHog**, if you gave consent to analytics: it
+  may remain for up to 1 year.
+- **Support communication** – 1 year after resolution.
+- **Operational logs** – 30 days.
 
 Cancelling a subscription **does not delete** your account – it only moves
-to the Free plan.
+the account to the Free plan.
 
 ## 7. Your rights
 
@@ -176,7 +213,8 @@ You have the right to:
 - **access** the data we hold about you;
 - **rectify** inaccurate data;
 - **erasure** ("right to be forgotten") – you can delete your account
-  yourself in the app;
+  yourself in the app; records that survive account deletion (see Section 6)
+  we will erase on request unless there is a reason to keep them;
 - **restrict** processing;
 - **data portability** – you can download your data as JSON in Settings;
 - **withdraw consent** (e.g. to analytics) at any time in cookie settings,
@@ -191,6 +229,14 @@ You have the right to:
 processing we carry out on the basis of legitimate interest (security,
 protection of legal claims, the trial abuse-prevention records above). We will stop that processing unless we show
 compelling legitimate grounds that override your interests.
+
+**Trial abuse-prevention records.** A hash is one-way (keyed) and we cannot tell
+from the database whom it belongs to. If you want your hash removed (objection
+or erasure), write from the e-mail address concerned (for broker hashes also
+name the broker or account): we will recompute the hash from that value and
+remove the matching record. After removal, a repeated trial may no longer be
+recognised; there is no other consequence for you.
+`[[LAWYER: verify the procedure and the matching reply to an objection]]`
 
 Send requests to **support@portfyl.com**. We will reply within one month; in
 justified cases we may extend this by a further two months and will tell you
@@ -229,6 +275,13 @@ pseudonym), not to your e-mail or name. We never collect your e-mail, name,
 portfolio contents, transactions, amounts or notes. Session recording is
 disabled. **If you reject analytics or have not yet decided, we send nothing
 to PostHog**, and no analytics cookies or storage are created.
+
+**Sign-in with Google.** Google's sign-in script (Google Identity Services) is
+loaded as soon as the sign-in or registration page is shown, that is before you
+click the Google button; Google therefore receives your IP address and browser
+data and may store its own data in your browser under its own policies (see
+Section 4). Portfyl does not see this data.
+`[[LAWYER: verify whether and how this falls under ePrivacy and whether consent is needed]]`
 
 When a new account is created, the Cloudflare Turnstile bot check runs in
 your browser (Cloudflare's script and frame, `challenges.cloudflare.com`) and

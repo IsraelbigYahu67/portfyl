@@ -1,6 +1,6 @@
 # Právní dokumenty Portfyl – otevřené body a poznámky pro právníka
 
-Stav k 2026-11-22. Návrhy v této složce jsou **pracovní verze 0.1** a nesmí se
+Stav k 2026-11-24. Návrhy v této složce jsou **pracovní verze 0.1** a nesmí se
 zveřejnit, dokud nejsou vyřešeny body označené **BLOKUJE** a texty
 nezkontroluje český advokát (viz brána ve
 [../compliance/private-test-legal-status.md](../compliance/private-test-legal-status.md)).
@@ -70,6 +70,92 @@ bez souhlasu) se nepřebírala.
     EHP, doba uchování);
   - `[[PRÁVNÍK]]` u právního základu záznamu o přijetí podmínek.
 
+## Změny 2026-11-24 (odstoupení od smlouvy, smazání s předplatným, ochrana osobních údajů)
+
+Pozadí: rozhodnutí provozovatele z 2026-11-24 a dvě předběžné AI kontroly
+(spotřebitelské právo; ochrana osobních údajů). Nejsou to právní posudky;
+články předpisů byly čteny jen v kopiích (EUR-Lex a zakonyprolidi.cz nebyly
+dostupné). **Všechno níže je k ověření právníkem.**
+
+**Proč:**
+
+- **SDEU C-234/25 Sky Österreich (9. 7. 2026, tisková zpráva 97/26):** dynamická
+  služba, která se přizpůsobuje uživateli, nemůže o právo na odstoupení přijít
+  tím, že spotřebitel souhlasí s okamžitým zahájením; při odstoupení dluží jen
+  „přiměřenou náhradu“, zásadně podle doby užívání. Dosavadní text „zahájením
+  ztratím právo na odstoupení“ byl proto nesprávný a musí zmizet všude (podmínky,
+  zaškrtávací pole v pokladně, FAQ). Plný rozsudek nebyl čten.
+- **Politika provozovatele:** do 14 dnů od **první placené objednávky** (ne od
+  registrace, ne od zkušebního období) se vrací **100 %** zaplacené ceny, bez
+  výpočtu a sporů (nad zákonné minimum, které by dovolovalo poměrnou část).
+  Po 14 dnech se při dobrovolném ukončení zbývající období nevrací.
+- **Smazání pracovního prostoru s předplatným** předplatné ihned ukončí: do 14
+  dnů jde o odstoupení a plnou refundaci, později se zbytek období nevrací
+  (zákazník to výslovně potvrdí v okně; může místo toho předplatné nejprve
+  zrušit a smazat až po konci období). Práva z vadného plnění (směrnice 2019/770)
+  zůstávají.
+- **Stripe/Link** je prodejce (Merchant of Record). Refund může provést i Link
+  (do 60 dnů; po 48 hodinách bez odpovědi provozovatele). Vlastní refund přes
+  API je v dokumentaci Stripe popsán, **zrušení předplatného přes
+  `DELETE /v1/subscriptions` v Managed Payments v dokumentaci potvrzeno není** a
+  musí se vyzkoušet v testovacím režimu před spuštěním plateb (viz
+  [../operations/withdrawal-refund.md](../operations/withdrawal-refund.md)).
+- **Platby jsou v produkci dál vypnuté** (`PORTFYL_BILLING_ENABLED` není
+  nastaveno); nic z toho není nasazeno.
+
+**Podmínky (CS i EN, čísla článků beze změny):**
+
+- Hlavička: „Poslední aktualizace textu 24. 11. 2026“, verze 0.2. (Kód:
+  `LEGAL_TERMS_VERSION` / `LEGAL_PRIVACY_VERSION` = `2026-11-24`.)
+- Čl. 1: kdo je smluvní strana a vůči komu se uplatňuje odstoupení; značky
+  pro DIČ a telefon.
+- Čl. 2.3 a 2.4: informativní povaha dat bez vyloučení práv z vad; nová
+  informace o funkčnosti a slučitelnosti (§ 1820 odst. 1 písm. r), s) OZ).
+- Čl. 3.1 a 15.2: vrácení nevyčerpané části při zrušení účtu nezletilého nebo
+  při zrušení bez podstatného porušení.
+- Čl. 5.1, 5.3: sjednocení, kdo je prodejce a kdo vrací; zrušení nevrací zaplacené
+  období. Čl. 5.4: konkrétní důvody změny ceny, 30 dní předem, právo zrušit
+  do 30 dnů od oznámení nebo změny (později z nich).
+- **Čl. 6 přepsán:** 14 dnů od první placené objednávky; způsob (jakékoli
+  jednoznačné prohlášení, e-mail, smazání pracovního prostoru do 14 dnů,
+  vzorový formulář); plná refundace jako politika nad zákonné minimum; kdo
+  vrací; po 14 dnech bez refundace. Odstraněna všechna tvrzení, že zahájení
+  služby právo ukončuje, i věta o zániku při úplném poskytnutí.
+- **Vzorový formulář a poučení:** ověřeno z textu nařízení vlády č. 29/2023 Sb.
+  ve znění č. 66/2026 Sb. (účinné od 19. 6. 2026; ruší dřívější č. 363/2013 Sb.).
+  Znění poučení a formuláře je převzato, upraveno jen o plnou refundaci. Anglický
+  překlad není oficiální (vychází z přílohy I(B) směrnice 2011/83/EU).
+  Doplněk pro tlačítko (pokyn č. 4) se vkládá jen tehdy, je-li provozovatel
+  povinen tlačítko nabízet; zatím vynecháno (viz „Co musí doplnit provozovatel“).
+- Čl. 7.3: vrácení ceny i za dobu po ukončení (čl. 16 odst. 1 směrnice 2019/770);
+  čl. 7.4: spotřebitel se může obrátit na soud, i v místě svého bydliště
+  (nařízení č. 1215/2012).
+- **Čl. 8.3 a 15.1:** nové znění podle rozhodnutí (včetně návrhu věty od
+  předběžné kontroly); již neplatí, že lze smazat jen prostor se zrušeným
+  předplatným.
+- Čl. 9.3, 14.2: povaha dat jako informace, ne vyloučení práv z vad.
+- Čl. 13.2 a 16: oprávněné důvody změny, 30 dní, právo ukončit bez sankce do 30
+  dnů od oznámení nebo změny (čl. 19 směrnice 2019/770).
+
+**Zásady (CS i EN):**
+
+- Hlavička jako u podmínek; doplněna jen ověřitelná fakta (region Neon,
+  údaje o předplatném); neověřené zůstává jako značka (viz seznam níže).
+- Nedokončená registrace: čekající záznam o přijetí podmínek a neověřený účet
+  se odstraní nejpozději po 30 dnech (kód: `purge_stale_pending`, denní úloha
+  `account_deletion_cleanup`).
+- Co o předplatném skutečně uchováváme (`billing_customers`, `subscriptions`:
+  smažou se s prostorem) a co ne (doklady má Stripe/Link jako samostatný správce;
+  `stripe_events` zůstávají, lhůta čeká na rozhodnutí).
+- Smazání účtu: seznam výjimek z okamžitého výmazu (otisky proti zneužití
+  zkušebního období, `stripe_events`, Stripe/Link, Brevo, PostHog až 1 rok,
+  podpora 1 rok, logy 30 dní) a vyřízení námitky/výmazu otisku.
+- Google jako příjemce a samostatný správce při přihlášení; skript Google se
+  načte už při zobrazení stránky (IP před kliknutím).
+- Nový podklad: [../compliance/trial-fingerprint-balancing-test.md](../compliance/trial-fingerprint-balancing-test.md)
+  (test vyváženosti; **otevřené rozhodnutí o zkrácení 12 měsíců**, např. na 90 dní).
+- `data-processing-inventory.md`: číslo schématu exportu 9 (dříve 8).
+
 ## Otevřené body
 
 ### 1. Vyřešeno – AI asistent odstraněn
@@ -110,14 +196,15 @@ poradcem.
 
 ### 3. Odstoupení od smlouvy a vracení peněz
 
-Návrh (čl. 6) dává spotřebiteli zákonných 14 dní od uzavření smlouvy
-(čl. 9 směrnice 2011/83/EU, § 1829 OZ), výslovnou žádost o okamžité zahájení
-plnění (čl. 8 odst. 8 směrnice, § 1823 OZ) a při odstoupení vrací cenu
-sníženou o poměrnou část za dobu užívání (čl. 14 odst. 3 směrnice, § 1834 OZ).
-Zahájením služby právo na odstoupení **nezaniká** (zaniká až úplným
-poskytnutím, čl. 16 písm. a) směrnice). Text zaškrtávacího pole v pokladně
-(`Pricing.jsx`, `ConnectStep.jsx`), který tvrdil opak, byl 2026-11-22 opraven
-a `CHECKOUT_CONSENT_VERSION` zvýšena na `2026-11-22`. Doplněno:
+**Stav k 2026-11-24** (nahrazuje dřívější návrh s poměrnou náhradou): čl. 6
+podmínek dává spotřebiteli 14 dnů od první placené objednávky (čl. 9 směrnice
+2011/83/EU, § 1829 OZ) a **vrací celou zaplacenou cenu** jako politiku
+provozovatele nad zákonné minimum (zákon by dovoloval poměrnou část za dobu
+užívání, čl. 14 odst. 3 směrnice, § 1834 OZ). Zahájení služby právo
+na odstoupení neukončuje. Text zaškrtávacího pole v pokladně (`Pricing.jsx`,
+`ConnectStep.jsx`) a `CHECKOUT_CONSENT_VERSION` mění samostatná změna kódu
+(2026-11-24); v pokladně má být výslovný souhlas s okamžitým zahájením a odkaz na
+podmínky odstoupení. Doplněno:
 
 - Lhůta běží k jedné smlouvě **jen jednou**; měsíční obnovení novou lhůtu
   nezakládá. Podle rozsudku SDEU C-565/22 (Sofatutor, 5. 10. 2023) to platí
@@ -125,20 +212,11 @@ a `CHECKOUT_CONSENT_VERSION` zvýšena na `2026-11-22`. Doplněno:
   o ceně a o tom, že po zkušebním období začne platit
   ([shrnutí](https://pravniprostor.cz/clanky/obcanske-pravo/dobra-zprava-pro-podnikatele-spatna-pro-spotrebitele-v-pripade-online-predplatnych-bezi-jen-jedna-lhuta-pro-odstoupeni-od-smlouvy)).
 - Bez řádného poučení se lhůta prodlužuje až o 12 měsíců.
-- Slib 60denních refundací Stripe byl z čl. 6.4 2026-11-22 vypuštěn
-  (podmínky by slibovaly politiku třetí strany, kterou provozovatel
-  nekontroluje); zůstal neutrální odkaz na Platebního partnera.
+- Slib 60denních refundací Stripe zůstává z čl. 6.4 vypuštěn (politika třetí
+  strany); čl. 6.4 uvádí jen, že vrácení provede provozovatel přes Platebního
+  partnera, případně přímo on.
 
-**K ověření:**
-
-- Vůči komu spotřebitel odstupuje, když je prodávajícím Stripe/Link (MoR), a
-  zda je čl. 6 v souladu s podmínkami Linku pro kupující.
-- Zda provozovatel musí mít na webu vlastní **funkci pro odstoupení** podle
-  směrnice (EU) 2023/2673 (podle sekundárních zdrojů od 19. 6. 2026 – ověřit
-  datum i transpozici v ČR), nebo ji za něj zajišťuje Stripe jako prodávající.
-- Zda postačí poměrná náhrada, nebo nabídnout plnou refundaci.
-- Jak formulovat výslovnou žádost o okamžité zahájení plnění na platební
-  stránce Stripe (vlastní text nebo zaškrtávací pole v nastavení Checkout).
+**K ověření:** viz otázky 1 až 6 v oddíle „Otázky pro právníka“ níže.
 
 ### 4. Zkušební období bez karty
 
@@ -255,6 +333,123 @@ Otevřené otázky:
    zda kontrola zařízení spadá pod výjimku „nezbytně nutné“ podle ePrivacy.
 7. Minimalizace údajů u otisků historie transakcí (5 nejstarších transakcí,
    shoda alespoň 3 z 5).
+
+## Otázky pro právníka (souhrn k 2026-11-24)
+
+Číslování je pevné; **NOVÉ** = přibylo 2026-11-24. Starší otázky zůstávají v
+bodech 3, 9 a 10 výše a nejsou zde opakovány.
+
+1. **NOVÉ** Kdo je při Stripe Managed Payments „podnikatelem“ (provozovatel,
+   nebo Link): komu se odstoupení doručuje, kdo musí dát předsmluvní
+   informace a potvrzení na trvalém nosiči?
+2. **NOVÉ** Je SaaS „službou“ (čl. 16 písm. a), poměrná platba), nebo
+   „digitálním obsahem“ (čl. 16 písm. m))? Tisková zpráva k C-234/25 říká, že
+   dynamické předplatné je služba; plný rozsudek nebyl čten.
+3. **NOVÉ** Stačí zaškrtávací pole v aplikaci před přesměrováním na Stripe (čl. 8
+   odst. 8 směrnice)?
+4. **NOVÉ** Je smazání účtu odstoupením? Musí se po smazání uchovat záznam o
+   odstoupení a platbě?
+5. **NOVÉ** Je trvalé nevrácení zbytku období po 14. dni přiměřené vůči čl. 15.3
+   a 16 podmínek (příloha 93/13/EHS bod 1 písm. d))? Je nutná alternativa
+   „zrušit ke konci období“ (podmínky ji nabízejí v čl. 5.3 a 8.3)?
+6. **NOVÉ** Stav tlačítka pro odstoupení (§ 1830a OZ, v ČR podle zdrojů od
+   1. 1. 2027; směrnice od 19. 6. 2026): přímý účinek směrnice? Vložit do poučení
+   doplněk z pokynu č. 4 nařízení č. 29/2023 Sb. ve znění č. 66/2026 Sb.?
+7. **NOVÉ** Je tvrzení „každý nový účet dostane 10 dní“ klamavé, když lze
+   zkušební období nepřiznat (antiabuzivní ochrany)? (Navazuje na bod 10.5.)
+8. **NOVÉ** Je klíčovaný HMAC otisk osobním údajem a je 12 měsíců po smazání
+   přiměřených (čl. 6 odst. 1 písm. f), recitál 47)? Jak vyřídit námitku/výmaz
+   jednoho otisku? Viz
+   [../compliance/trial-fingerprint-balancing-test.md](../compliance/trial-fingerprint-balancing-test.md).
+9. **NOVÉ** Má minimální důkaz o přijetí podmínek přežít smazání účtu
+   (promlčecí lhůty, čl. 17 odst. 3 písm. e))?
+10. **NOVÉ** Je Cloudflare Turnstile „nezbytně nutný“ (§ 89 odst. 3 zák.
+    č. 127/2005 Sb.)? Je Cloudflare zpracovatel, nebo samostatný správce?
+11. **NOVÉ** Je Portfyl poskytovatelem hostingové služby podle aktu o digitálních
+    službách (čl. 11, 12, 16)?
+12. **NOVÉ** Jaké záznamy o předplatném musí Portfyl vést, když je prodejcem
+    Stripe/Link?
+13. **NOVÉ** Skript Google pro přihlášení se načte už při zobrazení přihlašovací
+    stránky (Google obdrží IP před kliknutím): je to v pořádku podle ePrivacy a
+    GDPR a je popis v zásadách (Google jako příjemce a samostatný správce)
+    dostatečný?
+14. **NOVÉ** Je lhůta 30 dnů pro neukončenou registraci (čekající záznam o přijetí
+    podmínek, neověřený účet) přiměřená?
+15. **NOVÉ** Jak dlouho smí zůstat technické záznamy `stripe_events` (jen
+    identifikátory Stripe) po smazání účtu?
+16. **NOVÉ** Antiabuzivní kontrola odmítá jednorázové e-mailové domény; kód to
+    nepíše do podmínek (čl. 4.5 uvádí schránku, síť, účet u brokera, historii).
+    Doplnit?
+17. **NOVÉ** Anglický překlad vzorového formuláře a poučení: stačí, když oficiální
+    je jen český text (nařízení č. 29/2023 Sb.)?
+
+## Co musí doplnit provozovatel
+
+Jediný kontrolní seznam. Zástupné značky `[[...]]` v textech se na webu
+zobrazují jako „čeká na doplnění“; počítadlo na stránce `/terms` a `/privacy`
+ukazuje, kolik jich zbývá. Text se nesmí zveřejnit, dokud nejsou vyřešeny
+body označené BLOKUJE a texty nezkontroluje právník.
+
+### A. Zástupné značky v textech
+
+| Soubor (CS / EN) | Článek | Co je potřeba |
+|---|---|---|
+| podmínky, zásady | hlavička | datum účinnosti (zveřejnění); po zveřejnění zvýšit verzi na „1.0“ a upravit hlavičku |
+| podmínky | 1 | zda je provozovatel plátcem DPH, popřípadě DIČ (**BLOKUJE**) |
+| podmínky | 1 | telefonní číslo, pokud ho provozovatel má (vyžaduje je vzorové poučení o odstoupení); jinak řádek vypustit |
+| podmínky | 3.5 | právník: zda kontrola Turnstile nevyžaduje souhlas |
+| podmínky | 4.1 | adresa stránky s ceníkem po jejím zveřejnění |
+| podmínky | 4.3 | rozhodnutí: zkušební období zůstává bez karty (jinak přepsat) |
+| podmínky | 4.5 | právník: antiabuzivní odepření zkušebního období |
+| podmínky, zásady | 5.1; zásady 4 | přesný název a sídlo prodávajícího subjektu Stripe/Link (z podmínek pro kupující na platební stránce) (**BLOKUJE**) |
+| podmínky | 6 | právník: otázky (a)–(e); ověřit znění poučení a formuláře a § 1832 OZ |
+| podmínky | 11 | právník: ustanovení o licenci (§ 2358 a násl. OZ) a § 66 autorského zákona |
+| podmínky | 14.3, 14.4 | právník: výše stropu odpovědnosti pro podnikatele a strop pro spotřebitele |
+| podmínky | 17.3 | právník: rovnocennost jazykových verzí |
+| zásady | 1 | právník: že není nutný pověřenec |
+| zásady | 3 | právník: právní základ záznamu o přijetí podmínek; test vyváženosti u otisků |
+| zásady | 4 | Neon: potvrdit region v konzoli (v dokumentaci ověřeno 2026-09-09: AWS `eu-central-1`) |
+| zásady | 4 | Cloudflare: zpracovatel, nebo samostatný správce; DPA |
+| zásady | 4 | Brevo: název a sídlo smluvní strany, umístění zpracování, DPA, předání mimo EHP (**BLOKUJE**) |
+| zásady | 5 | DPA a certifikace DPF u každého dodavatele (Google, Cloudflare, Neon, PostHog, Brevo, Stripe/Link) |
+| zásady | 6 | doba uchování záznamů o doručení u Brevo |
+| zásady | 6 | právník: výmaz podle čl. 17 vs. uchování otisku po smazání (a rozhodnutí o zkrácení z 12 měsíců, viz B) |
+| zásady | 6 | doba uchování `stripe_events` (kód dnes nemaže); rozhodnutí provozovatele |
+| zásady | 6 | lhůta pro naše účetní a daňové záznamy a co vedeme mimo aplikaci (daňový poradce) |
+| zásady | 7 | právník: postup vyřízení námitky/výmazu otisku |
+| zásady | 8 | právník: skript Google při zobrazení přihlášení; Turnstile jako „nezbytně nutný“ |
+
+### B. Další otevřené položky (mimo značky)
+
+- **Tlačítko pro odstoupení (čl. 11a směrnice 2011/83/EU).** Zatím
+  nepostaveno; později. Ověřit s právníkem datum závaznosti (otázka 6) a pak ho
+  doplnit do aplikace a do poučení.
+- **Identifikace provozovatele v patičce webu.** Dnes je v patičce jen e-mail;
+  jméno, IČO a adresa jsou jen v podmínkách. Změna UI později.
+- **Označení tlačítka závazné objednávky** na platební stránce Stripe
+  (§ 1826a odst. 2 OZ: musí jasně říkat, že objednávka zavazuje k platbě): zkontrolovat
+  skutečný text mimo repozitář (tlačítko „Upgrade to {plan}“ v aplikaci vede na
+  Stripe).
+- **Stripe v testovacím režimu před spuštěním plateb:** zrušení předplatného přes
+  API v Managed Payments, plný refund včetně daně, chování při opakování
+  (podrobně v [../operations/withdrawal-refund.md](../operations/withdrawal-refund.md),
+  píše jiná část práce).
+- **PostHog:** postup a ověření smazání profilu po smazání účtu (profil může
+  zůstat až 1 rok); dnes je analytika v produkci vypnutá.
+- **Skript Google pro přihlášení** se načítá hned při zobrazení přihlašovací
+  stránky (záměrně, aby okno Google nebylo zablokováno): rozhodnout, zda tak
+  zůstane (otázka 13), a popis v zásadách držet v souladu s kódem.
+- **Zkrácení uchování otisků proti zneužití zkušební doby** z 12 měsíců
+  (otevřené rozhodnutí provozovatele, např. na 90 dní; viz test vyváženosti).
+- **Stránka `/.well-known/security.txt`:** po nasazení ověřit, že se podává
+  jako `text/plain`; obnovit před 2027-10-22.
+- **Úklid nedokončených registrací:** po nasazení ověřit, že denní úloha
+  `account_deletion_cleanup` maže čekající záznamy po 30 dnech (a že se
+  odstraňují i neověřené účty ve Firebase, pokud to zásady slibují).
+- **Zálohy:** doba uchování smazaných dat v záloze (7 dní) musí odpovídat
+  skutečné konfiguraci Neon (dnes 6 hodin).
+- **Veřejné zveřejnění:** `[[...]]` značky pryč, právník, nová verze
+  `LEGAL_TERMS_VERSION` / `LEGAL_PRIVACY_VERSION`.
 
 ## Related
 
