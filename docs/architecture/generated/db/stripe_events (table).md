@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/billing-and-stripe, hub/database-and-migrations]
-source: "backend/models.py:480"
+source: "backend/models.py:525"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 Global, non-tenant webhook receipt log: deduplicates Stripe's at-least-once deliveries and records what happened to each event. Holds no payload and no customer data, only Stripe ids. Outside RLS like job_runs (see docs/security/tenant-isolation-matrix.md).
 
 **Hub:** [[Billing and Stripe]] · [[Database and migrations]]
-**Source:** `backend/models.py:480`
+**Source:** `backend/models.py:525`
 **SQLAlchemy model:** `StripeEvent`
 
 ## Defined in

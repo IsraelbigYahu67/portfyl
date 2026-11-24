@@ -13,10 +13,10 @@ generated: true
 
 **Hub:** [[Backend]] · [[Database and migrations]]
 **Source:** `backend/database.py` (229 lines)
-`EXPECTED_ALEMBIC_HEAD` = `0028_password_changed_seen`
+`EXPECTED_ALEMBIC_HEAD` = `0029_terms_acceptances`
 
 ## Expected Alembic head
-- [[0028_password_changed_seen]]
+- [[0029_terms_acceptances]]
 
 ## Mentioned in docs
 - [[superpowers/plans/2026-09-01-portfyl-saas-monetization]]

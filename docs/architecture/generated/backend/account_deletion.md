@@ -14,7 +14,7 @@ generated: true
 Verified, immediate workspace (and, with its last workspace, account) deletion.
 
 **Hub:** [[Account deletion and data lifecycle]]
-**Source:** `backend/account_deletion.py` (492 lines)
+**Source:** `backend/account_deletion.py` (502 lines)
 
 ## Imports
 - [[audit]]
@@ -29,11 +29,14 @@ Verified, immediate workspace (and, with its last workspace, account) deletion.
 ## Tables used
 - [[memberships (table)]]
 - [[subscriptions (table)]]
+- [[terms_acceptances (table)]]
 - [[users (table)]]
 - [[workspace_settings (table)]]
 - [[workspaces (table)]]
 
 ## Mentioned in docs
+- [[compliance/data-processing-inventory]]
+- [[compliance/private-test-retention-policy]]
 - [[seo/content-drafts/sledovani-portfolia-trading-212]]
 - [[superpowers/plans/2026-10-12-portfyl-google-sign-in]]
 - [[superpowers/plans/2026-11-15-portfyl-landing-redesign-free-trial]]

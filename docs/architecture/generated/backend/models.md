@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Backend]] · [[Database and migrations]]
-**Source:** `backend/models.py` (1385 lines)
+**Source:** `backend/models.py` (1430 lines)
 
 ## Imports
 - [[database]]

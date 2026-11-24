@@ -14,7 +14,7 @@ generated: true
 Scoped key/value setting stores.
 
 **Hub:** [[Tenancy and RLS]]
-**Source:** `backend/app_settings.py` (104 lines)
+**Source:** `backend/app_settings.py` (105 lines)
 
 ## Imports
 - [[models]]

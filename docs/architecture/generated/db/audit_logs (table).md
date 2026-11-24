@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/secrets-and-security, hub/database-and-migrations]
-source: "backend/models.py:213"
+source: "backend/models.py:258"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 Immutable security event with either workspace or personal scope.
 
 **Hub:** [[Secrets and security]] · [[Database and migrations]]
-**Source:** `backend/models.py:213`
+**Source:** `backend/models.py:258`
 **SQLAlchemy model:** `AuditLog`
 
 ## Defined in

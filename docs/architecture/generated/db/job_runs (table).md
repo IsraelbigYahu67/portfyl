@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/jobs-and-cloud-scheduler, hub/database-and-migrations]
-source: "backend/models.py:240"
+source: "backend/models.py:285"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 Last successful completion of each recurring operational job.
 
 **Hub:** [[Jobs and Cloud Scheduler]] · [[Database and migrations]]
-**Source:** `backend/models.py:240`
+**Source:** `backend/models.py:285`
 **SQLAlchemy model:** `JobRun`
 
 ## Defined in

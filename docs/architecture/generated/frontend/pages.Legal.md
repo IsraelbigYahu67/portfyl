@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Frontend structure]]
-**Source:** `frontend/src/pages/Legal.jsx` (190 lines)
+**Source:** `frontend/src/pages/Legal.jsx` (195 lines)
 **Exports:** `LEGAL_LANGUAGES`, `initialLegalLanguage`
 
 ## Imports

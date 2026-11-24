@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/broker-importers-and-sync, hub/database-and-migrations]
-source: "backend/models.py:848"
+source: "backend/models.py:893"
 generated: true
 ---
 
@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Broker importers and sync]] · [[Database and migrations]]
-**Source:** `backend/models.py:848`
+**Source:** `backend/models.py:893`
 **SQLAlchemy model:** `BrokerBalance`
 
 ## Defined in

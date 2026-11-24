@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/alerts-and-integrations, hub/database-and-migrations]
-source: "backend/models.py:1233"
+source: "backend/models.py:1278"
 generated: true
 ---
 
@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Alerts and integrations]] · [[Database and migrations]]
-**Source:** `backend/models.py:1233`
+**Source:** `backend/models.py:1278`
 **SQLAlchemy model:** `TradeNote`
 
 ## Defined in

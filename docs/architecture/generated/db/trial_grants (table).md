@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/free-trial, hub/database-and-migrations]
-source: "backend/models.py:291"
+source: "backend/models.py:336"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 The free Pro trial of one workspace (backend/trials.py is the only module that writes it). Tenant table with forced RLS. `ended_reason` is set only when the trial was cut short (broker check); a trial that simply ran out has it NULL and `ends_at` in the past.
 
 **Hub:** [[Free trial]] · [[Database and migrations]]
-**Source:** `backend/models.py:291`
+**Source:** `backend/models.py:336`
 **SQLAlchemy model:** `TrialGrant`
 
 ## Defined in

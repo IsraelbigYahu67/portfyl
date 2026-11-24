@@ -40,6 +40,7 @@ Verification and password-reset e-mails sent by Portfyl through Brevo.
 - [[users (table)]]
 
 ## Mentioned in docs
+- [[compliance/data-processing-inventory]]
 - [[superpowers/plans/2026-11-16-portfyl-own-emails-wave2]]
 - [[superpowers/plans/2026-11-17-portfyl-own-emails-session-handoff]]
 - [[superpowers/specs/2026-11-15-portfyl-own-emails-design]]

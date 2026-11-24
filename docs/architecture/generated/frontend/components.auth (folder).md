@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Auth and sessions]]
-**Source:** `frontend/src/components/auth/` (100 lines)
+**Source:** `frontend/src/components/auth/` (110 lines)
 
 ## Files
 - `frontend/src/components/auth/AuthMethodDivider.jsx`: The "or" rule between alternative ways to prove identity (Google vs. e-mail and password). Purely decorative, so it is hidden from assistive tech.

@@ -24,4 +24,5 @@ Best-effort account notices (wave 2): render one e-mail and hand it to Brevo.
 - [[routers.auth_email]]
 
 ## Mentioned in docs
+- [[compliance/data-processing-inventory]]
 - [[superpowers/plans/2026-11-16-portfyl-own-emails-wave2]]

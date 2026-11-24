@@ -72,6 +72,7 @@ Markdown outside the vault; its top headings are listed below.
 - [[trials]]
 
 ## Mentioned in docs
+- [[compliance/data-processing-inventory]]
 - [[operations/2026-09-21-t212-snapshot-first-sync-session]]
 - [[operations/billing-verification-2026-09-05]]
 - [[operations/neon-backup-restore]]

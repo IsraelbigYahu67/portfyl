@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/broker-importers-and-sync, hub/database-and-migrations]
-source: "backend/models.py:1073"
+source: "backend/models.py:1118"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 One provider-labelled corporate action (today only Trading 212 STOCK_SPLIT) that Portfyl has recorded for a portfolio (plan 2026-09-24, Track B). `representation` says which single form changes quantities: normalized API trades ("api_normalized", applications below) or CSV split_open/split_close ro…
 
 **Hub:** [[Broker importers and sync]] · [[Database and migrations]]
-**Source:** `backend/models.py:1073`
+**Source:** `backend/models.py:1118`
 **SQLAlchemy model:** `BrokerCorporateAction`
 
 ## Defined in

@@ -14,7 +14,7 @@ generated: true
 Firebase JS SDK browser adapter.
 
 **Hub:** [[Auth and sessions]]
-**Source:** `frontend/src/auth/firebase.js` (345 lines)
+**Source:** `frontend/src/auth/firebase.js` (347 lines)
 **Exports:** `registerWithEmailPassword`, `signInWithEmailPassword`, `sendVerificationEmail`, `reloadFirebaseUser`, `sendPasswordReset`, `applyEmailActionCode`, `checkEmailActionCode`, `verifyResetCode`, `confirmNewPassword`, `getIdToken`, `reauthenticateWithPassword`, `isGoogleSignInEnabled` …
 
 ## Mentioned in docs

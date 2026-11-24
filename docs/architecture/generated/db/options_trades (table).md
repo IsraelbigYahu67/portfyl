@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/edition-boundary, hub/database-and-migrations]
-source: "backend/models.py:809"
+source: "backend/models.py:854"
 generated: true
 ---
 
@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Edition boundary]] · [[Database and migrations]]
-**Source:** `backend/models.py:809`
+**Source:** `backend/models.py:854`
 **SQLAlchemy model:** `OptionsTrade`
 
 ## Defined in

@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/portfolio-analytics, hub/database-and-migrations]
-source: "backend/models.py:1277"
+source: "backend/models.py:1322"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 User-chosen target weight for one ticker in one portfolio (plan 2026-10-10). A missing row means "no target"; a row with 0 is an explicit zero target. Replaced as a whole set by PUT /api/allocation-targets.
 
 **Hub:** [[Portfolio analytics]] · [[Database and migrations]]
-**Source:** `backend/models.py:1277`
+**Source:** `backend/models.py:1322`
 **SQLAlchemy model:** `AllocationTarget`
 
 ## Defined in

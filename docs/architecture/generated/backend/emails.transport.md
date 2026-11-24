@@ -20,4 +20,5 @@ E-mail transports: Brevo over HTTP (with a health flag) and a console stand-in.
 - [[edition]]
 
 ## Mentioned in docs
+- [[compliance/data-processing-inventory]]
 - [[superpowers/specs/2026-11-15-portfyl-own-emails-design]]

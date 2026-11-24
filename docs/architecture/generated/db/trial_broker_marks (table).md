@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/free-trial, hub/database-and-migrations]
-source: "backend/models.py:339"
+source: "backend/models.py:384"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 Global, non-tenant: a broker account (or imported-history) fingerprint seen during a trial. `workspace_id` becomes NULL when that workspace is deleted. Written by the broker check; purged after 12 months.
 
 **Hub:** [[Free trial]] · [[Database and migrations]]
-**Source:** `backend/models.py:339`
+**Source:** `backend/models.py:384`
 **SQLAlchemy model:** `TrialBrokerMark`
 
 ## Defined in

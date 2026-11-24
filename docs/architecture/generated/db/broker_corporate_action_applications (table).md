@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/broker-importers-and-sync, hub/database-and-migrations]
-source: "backend/models.py:1123"
+source: "backend/models.py:1168"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 Records that one ledger Transaction was already adjusted for one BrokerCorporateAction, so a re-run never adjusts it twice. Keyed on the integer transaction id because CSV/legacy rows have no provider event id.
 
 **Hub:** [[Broker importers and sync]] · [[Database and migrations]]
-**Source:** `backend/models.py:1123`
+**Source:** `backend/models.py:1168`
 **SQLAlchemy model:** `BrokerCorporateActionApplication`
 
 ## Defined in

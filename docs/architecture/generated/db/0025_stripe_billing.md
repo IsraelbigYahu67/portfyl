@@ -25,6 +25,7 @@ Add Stripe Managed Payments billing state.
 - [[subscriptions (table)]]
 
 ## Mentioned in docs
+- [[compliance/data-processing-inventory]]
 - [[superpowers/plans/2026-11-09-portfyl-market-data-cache]]
 - [[superpowers/plans/2026-11-12-portfyl-market-data-cache]]
 - [[superpowers/plans/2026-11-12-portfyl-market-data-cache-fable-prompt]]

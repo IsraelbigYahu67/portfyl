@@ -28,3 +28,6 @@ Project canonical Stripe subscription state into Portfyl (cloud only).
 - [[billing_customers (table)]]
 - [[subscriptions (table)]]
 - [[workspaces (table)]]
+
+## Mentioned in docs
+- [[compliance/data-processing-inventory]]

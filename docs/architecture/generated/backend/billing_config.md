@@ -20,6 +20,7 @@ Cloud billing configuration (Stripe Managed Payments).
 - [[plans]]
 
 ## Mentioned in docs
+- [[compliance/data-processing-inventory]]
 - [[operations/billing-verification-2026-09-05]]
 - [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
 - [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]

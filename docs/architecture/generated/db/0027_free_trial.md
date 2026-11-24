@@ -26,6 +26,7 @@ Add the 10-day free Pro trial tables.
 - [[trial_ip_marks (table)]]
 
 ## Mentioned in docs
+- [[compliance/data-processing-inventory]]
 - [[superpowers/plans/2026-11-15-portfyl-landing-redesign-free-trial]]
 - [[superpowers/plans/2026-11-22-free-trial-findings]]
 - [[superpowers/specs/2026-11-15-portfyl-own-emails-design]]

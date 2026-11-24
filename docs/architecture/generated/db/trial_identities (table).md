@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/free-trial, hub/database-and-migrations]
-source: "backend/models.py:317"
+source: "backend/models.py:362"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 Global, non-tenant: HMAC of a canonical e-mail that already had a trial. Survives account deletion on purpose (one trial per mailbox, ever); purged after 12 months. Never holds a raw e-mail.
 
 **Hub:** [[Free trial]] · [[Database and migrations]]
-**Source:** `backend/models.py:317`
+**Source:** `backend/models.py:362`
 **SQLAlchemy model:** `TrialIdentity`
 
 ## Defined in

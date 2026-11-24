@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/auth-and-sessions, hub/database-and-migrations]
-source: "backend/models.py:153"
+source: "backend/models.py:198"
 generated: true
 ---
 
@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Auth and sessions]] · [[Database and migrations]]
-**Source:** `backend/models.py:153`
+**Source:** `backend/models.py:198`
 **SQLAlchemy model:** `AuthSession`
 
 ## Defined in

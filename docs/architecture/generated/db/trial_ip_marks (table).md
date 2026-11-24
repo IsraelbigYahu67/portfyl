@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/free-trial, hub/database-and-migrations]
-source: "backend/models.py:328"
+source: "backend/models.py:373"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 Global, non-tenant: one row per trial granted from a client IP (HMAC, never the raw address). Counted over 30 days, then purged.
 
 **Hub:** [[Free trial]] · [[Database and migrations]]
-**Source:** `backend/models.py:328`
+**Source:** `backend/models.py:373`
 **SQLAlchemy model:** `TrialIpMark`
 
 ## Defined in

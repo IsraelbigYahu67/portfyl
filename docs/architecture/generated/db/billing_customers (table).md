@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/billing-and-stripe, hub/database-and-migrations]
-source: "backend/models.py:405"
+source: "backend/models.py:450"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 The one Stripe Customer that pays for a workspace (cloud only).
 
 **Hub:** [[Billing and Stripe]] · [[Database and migrations]]
-**Source:** `backend/models.py:405`
+**Source:** `backend/models.py:450`
 **SQLAlchemy model:** `BillingCustomer`
 
 ## Defined in

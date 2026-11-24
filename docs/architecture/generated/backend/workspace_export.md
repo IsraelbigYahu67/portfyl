@@ -14,7 +14,7 @@ generated: true
 Versioned, allow-listed workspace data portability export.
 
 **Hub:** [[Account deletion and data lifecycle]]
-**Source:** `backend/workspace_export.py` (561 lines)
+**Source:** `backend/workspace_export.py` (578 lines)
 
 ## Imports
 - [[models]]
@@ -37,6 +37,7 @@ Versioned, allow-listed workspace data portability export.
 - [[polymarket_positions (table)]]
 - [[portfolios (table)]]
 - [[price_alerts (table)]]
+- [[terms_acceptances (table)]]
 - [[trade_notes (table)]]
 - [[transactions (table)]]
 - [[trial_grants (table)]]
@@ -45,6 +46,7 @@ Versioned, allow-listed workspace data portability export.
 - [[workspace_settings (table)]]
 
 ## Mentioned in docs
+- [[compliance/data-processing-inventory]]
 - [[superpowers/plans/2026-09-07-portfyl-public-trust-compliance]]
 - [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]
 - [[superpowers/plans/2026-09-24-t212-corporate-actions-incremental-sync]]

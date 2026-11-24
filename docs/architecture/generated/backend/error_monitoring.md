@@ -20,4 +20,5 @@ Sentry error monitoring -- opt-in via SENTRY_DSN, a no-op without it.
 - [[logging_setup]]
 
 ## Mentioned in docs
+- [[compliance/data-processing-inventory]]
 - [[superpowers/plans/2026-09-11-portfyl-revenue-launch-closing-plan]]

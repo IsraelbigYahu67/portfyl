@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/billing-and-stripe, hub/database-and-migrations]
-source: "backend/models.py:434"
+source: "backend/models.py:479"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 Local projection of a Stripe Subscription. Stripe stays canonical: rows are only ever written from a Subscription retrieved from the Stripe API, never from browser input or an unverified event payload.
 
 **Hub:** [[Billing and Stripe]] · [[Database and migrations]]
-**Source:** `backend/models.py:434`
+**Source:** `backend/models.py:479`
 **SQLAlchemy model:** `Subscription`
 
 ## Defined in

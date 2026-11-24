@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Auth and sessions]]
-**Source:** `backend/routers/auth.py` (519 lines)
+**Source:** `backend/routers/auth.py` (589 lines)
 **API prefix:** `/api/auth`
 
 ## Endpoints
@@ -20,6 +20,7 @@ generated: true
 - `POST /api/auth/logout-all`
 - `GET /api/auth/me`
 - `POST /api/auth/session`
+- `POST /api/auth/signup-acceptance`
 
 ## Imports
 - [[audit]]
@@ -31,6 +32,7 @@ generated: true
 - [[emails.notify]]
 - [[emails.transport]]
 - [[firebase_identity]]
+- [[legal_acceptance]]
 - [[models]]
 - [[rate_limit]]
 - [[trials]]

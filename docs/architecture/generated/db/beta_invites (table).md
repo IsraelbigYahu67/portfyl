@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/auth-and-sessions, hub/database-and-migrations]
-source: "backend/models.py:82"
+source: "backend/models.py:127"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 Global admission record for the invitation-only cloud beta.
 
 **Hub:** [[Auth and sessions]] · [[Database and migrations]]
-**Source:** `backend/models.py:82`
+**Source:** `backend/models.py:127`
 **SQLAlchemy model:** `BetaInvite`
 
 ## Defined in

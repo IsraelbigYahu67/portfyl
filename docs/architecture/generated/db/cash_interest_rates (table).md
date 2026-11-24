@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/portfolio-analytics, hub/database-and-migrations]
-source: "backend/models.py:1254"
+source: "backend/models.py:1299"
 generated: true
 ---
 
@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Portfolio analytics]] · [[Database and migrations]]
-**Source:** `backend/models.py:1254`
+**Source:** `backend/models.py:1299`
 **SQLAlchemy model:** `CashInterestRate`
 
 ## Defined in

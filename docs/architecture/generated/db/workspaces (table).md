@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/tenancy-and-rls, hub/database-and-migrations]
-source: "backend/models.py:112"
+source: "backend/models.py:157"
 generated: true
 ---
 
@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Tenancy and RLS]] · [[Database and migrations]]
-**Source:** `backend/models.py:112`
+**Source:** `backend/models.py:157`
 **SQLAlchemy model:** `Workspace`
 
 ## Defined in

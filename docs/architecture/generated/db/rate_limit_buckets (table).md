@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/secrets-and-security, hub/database-and-migrations]
-source: "backend/models.py:274"
+source: "backend/models.py:319"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 Global, non-tenant fixed-window rate-limit state -- one row per (rule, identity, window). Deliberately outside RLS: see job_runs above and docs/security/tenant-isolation-matrix.md's "Non-tenant infrastructure tables" section. `key` is an opaque HMAC-SHA256 digest (rate_limit.py) -- never a raw IP o…
 
 **Hub:** [[Secrets and security]] · [[Database and migrations]]
-**Source:** `backend/models.py:274`
+**Source:** `backend/models.py:319`
 **SQLAlchemy model:** `RateLimitBucket`
 
 ## Defined in

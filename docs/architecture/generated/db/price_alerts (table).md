@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/market-data, hub/alerts-and-integrations, hub/database-and-migrations]
-source: "backend/models.py:1361"
+source: "backend/models.py:1406"
 generated: true
 ---
 
@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Market data]] · [[Alerts and integrations]] · [[Database and migrations]]
-**Source:** `backend/models.py:1361`
+**Source:** `backend/models.py:1406`
 **SQLAlchemy model:** `PriceAlert`
 
 ## Defined in

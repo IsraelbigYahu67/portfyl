@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Auth and sessions]]
-**Source:** `frontend/src/auth/AuthProvider.jsx` (283 lines)
+**Source:** `frontend/src/auth/AuthProvider.jsx` (285 lines)
 **Exports:** `useAuth`, `AuthProvider`
 
 ## Imports

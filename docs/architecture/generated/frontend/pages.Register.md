@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Auth and sessions]]
-**Source:** `frontend/src/pages/Register.jsx` (213 lines)
+**Source:** `frontend/src/pages/Register.jsx` (232 lines)
 
 ## Imports
 - [[analytics (folder)]]
@@ -21,6 +21,10 @@ generated: true
 - [[components.auth (folder)]]
 - [[i18n (folder)]]
 - [[lib.signupIntent]]
+- [[src.api]]
+
+## Calls backend
+- [[routers.auth]]
 
 ## Mentioned in docs
 - [[compliance/data-processing-inventory]]

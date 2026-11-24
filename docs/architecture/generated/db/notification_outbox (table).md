@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/jobs-and-cloud-scheduler, hub/database-and-migrations]
-source: "backend/models.py:383"
+source: "backend/models.py:428"
 generated: true
 ---
 
@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Jobs and Cloud Scheduler]] · [[Database and migrations]]
-**Source:** `backend/models.py:383`
+**Source:** `backend/models.py:428`
 **SQLAlchemy model:** `NotificationOutbox`
 
 ## Defined in

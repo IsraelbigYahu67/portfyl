@@ -1,6 +1,6 @@
 {
   "generator": "scripts/build_obsidian_architecture.py",
-  "notes": 343,
+  "notes": 346,
   "hubs": [
     "Account deletion and data lifecycle",
     "Alerts and integrations",
@@ -24,10 +24,10 @@
   ],
   "by_kind": {
     "backend/folder": 2,
-    "backend/module": 86,
+    "backend/module": 87,
     "backend/router": 26,
-    "db/migration": 28,
-    "db/table": 43,
+    "db/migration": 29,
+    "db/table": 44,
     "frontend/component": 26,
     "frontend/file": 7,
     "frontend/folder": 18,

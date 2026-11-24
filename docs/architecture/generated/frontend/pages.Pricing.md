@@ -27,6 +27,7 @@ generated: true
 - [[routers.test_plans]]
 
 ## Mentioned in docs
+- [[legal/poznamky-pro-pravnika]]
 - [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
 - [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]
 - [[superpowers/plans/2026-09-11-portfyl-revenue-launch-closing-plan]]

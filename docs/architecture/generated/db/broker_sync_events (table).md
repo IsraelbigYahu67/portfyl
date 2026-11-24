@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/broker-importers-and-sync, hub/database-and-migrations]
-source: "backend/models.py:1029"
+source: "backend/models.py:1074"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 One staged raw provider event (order fill or dividend) belonging to a BrokerSyncRun (T212 snapshot-first sync plan, Task 3, §4.3). Transient operational data -- excluded from workspace export, cascades with its run or portfolio, never logged. Re-reading and re-staging an already-known page is harml…
 
 **Hub:** [[Broker importers and sync]] · [[Database and migrations]]
-**Source:** `backend/models.py:1029`
+**Source:** `backend/models.py:1074`
 **SQLAlchemy model:** `BrokerSyncEvent`
 
 ## Defined in

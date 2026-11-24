@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/billing-and-stripe, hub/database-and-migrations]
-source: "backend/models.py:256"
+source: "backend/models.py:301"
 generated: true
 ---
 
@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Billing and Stripe]] · [[Database and migrations]]
-**Source:** `backend/models.py:256`
+**Source:** `backend/models.py:301`
 **SQLAlchemy model:** `UsageCounter`
 
 ## Defined in

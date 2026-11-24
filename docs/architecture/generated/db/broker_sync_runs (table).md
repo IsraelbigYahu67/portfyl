@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/broker-importers-and-sync, hub/database-and-migrations]
-source: "backend/models.py:937"
+source: "backend/models.py:982"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 A resumable order/dividend history backfill (T212 snapshot-first sync plan, 2026-09-20, Task 3). Progress is durable per stream (`*_next_page_path`/`*_complete`/`*_loaded`) so a run survives a browser close or a Cloud Run restart -- `jobs.broker_backfill_pass` is the only thing that advances a fore…
 
 **Hub:** [[Broker importers and sync]] · [[Database and migrations]]
-**Source:** `backend/models.py:937`
+**Source:** `backend/models.py:982`
 **SQLAlchemy model:** `BrokerSyncRun`
 
 ## Defined in

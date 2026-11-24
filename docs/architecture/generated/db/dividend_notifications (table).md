@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/portfolio-analytics, hub/alerts-and-integrations, hub/database-and-migrations]
-source: "backend/models.py:1337"
+source: "backend/models.py:1382"
 generated: true
 ---
 
@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Portfolio analytics]] · [[Alerts and integrations]] · [[Database and migrations]]
-**Source:** `backend/models.py:1337`
+**Source:** `backend/models.py:1382`
 **SQLAlchemy model:** `DividendNotification`
 
 ## Defined in

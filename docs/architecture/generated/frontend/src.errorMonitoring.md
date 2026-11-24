@@ -18,4 +18,5 @@ Opt-in via VITE_SENTRY_DSN, a no-op without it. The SDK itself is loaded with a 
 **Exports:** `initErrorMonitoring`, `reportError`
 
 ## Mentioned in docs
+- [[compliance/data-processing-inventory]]
 - [[superpowers/plans/2026-09-11-portfyl-revenue-launch-closing-plan]]

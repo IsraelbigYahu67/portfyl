@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/broker-importers-and-sync, hub/onboarding-and-csv-import, hub/database-and-migrations]
-source: "backend/models.py:1307"
+source: "backend/models.py:1352"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 A broker the user asked us to support ("notify me when my broker is supported", onboarding-flow plan Task 3). The name is free text typed by the user, stored whitespace-collapsed and always rendered as plain text. At most one row per workspace and case-insensitive name (see the index below), and at…
 
 **Hub:** [[Broker importers and sync]] · [[Onboarding and CSV import]] · [[Database and migrations]]
-**Source:** `backend/models.py:1307`
+**Source:** `backend/models.py:1352`
 **SQLAlchemy model:** `BrokerRequest`
 
 ## Defined in

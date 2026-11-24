@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Frontend structure]]
-**Source:** `frontend/src/lib/routes.js` (59 lines)
+**Source:** `frontend/src/lib/routes.js` (60 lines)
 **Exports:** `HAS_PUBLIC_HOME`, `TRACKER_HOME`, `isTrackerHost`, `LANDING_PATHS`, `landingLanguage`, `contentPageFor`, `isRetiredDemoPath`, `legalPage`, `ONBOARDING_PREVIEW_PATH`, `isOnboardingPreviewPath`
 
 ## Imports

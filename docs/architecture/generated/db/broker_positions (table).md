@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/broker-importers-and-sync, hub/database-and-migrations]
-source: "backend/models.py:886"
+source: "backend/models.py:931"
 generated: true
 ---
 
@@ -14,7 +14,7 @@ generated: true
 Current broker-reported open position snapshot (T212 snapshot-first sync plan, 2026-09-20, §4.1). Replaced atomically on every successful positions fetch -- a failed fetch leaves the previous snapshot in place, and a successful empty response clears it. This is a current-value surface only; it neve…
 
 **Hub:** [[Broker importers and sync]] · [[Database and migrations]]
-**Source:** `backend/models.py:886`
+**Source:** `backend/models.py:931`
 **SQLAlchemy model:** `BrokerPosition`
 
 ## Defined in

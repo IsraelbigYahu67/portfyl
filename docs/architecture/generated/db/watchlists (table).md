@@ -2,7 +2,7 @@
 type: table
 layer: db
 tags: [arch/db, arch/table, hub/market-data, hub/database-and-migrations]
-source: "backend/models.py:603"
+source: "backend/models.py:648"
 generated: true
 ---
 
@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Market data]] · [[Database and migrations]]
-**Source:** `backend/models.py:603`
+**Source:** `backend/models.py:648`
 **SQLAlchemy model:** `Watchlist`
 
 ## Defined in
