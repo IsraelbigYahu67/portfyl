@@ -204,6 +204,19 @@ def _verify_bot_check(
         raise AuthAPIError(403, "bot_check_failed")
 
 
+def _discard_unaccepted_google_identity(
+    db: Session, verifier: FirebaseIdentityVerifier, uid: str
+) -> None:
+    """Best effort: a failure is logged (never the uid) and must not change
+    the answer the caller returns. Only called on the branch that would
+    create a NEW Portfyl user."""
+    release_connection(db)
+    try:
+        verifier.delete_user(uid)
+    except Exception as exc:
+        log.warning("firebase_identity_discard_failed error=%s", type(exc).__name__)
+
+
 def _read_password_updated_at(
     verifier: FirebaseIdentityVerifier, uid: str
 ) -> datetime | None:
@@ -436,6 +449,12 @@ def exchange_session(
         and not terms_accepted
         and not legal_acceptance.has_pending(db, identity.uid)
     ):
+        if identity.sign_in_provider == "google.com":
+            # The first Google sign-in on /login creates the Firebase identity
+            # before the person has seen the Terms. No Portfyl user exists, so
+            # nothing but the bare identity is lost: remove it instead of
+            # leaving it orphaned (it is recreated on the next sign-in).
+            _discard_unaccepted_google_identity(db, verifier, identity.uid)
         raise AuthAPIError(400, "terms_acceptance_required")
 
     needs_bot_check = (

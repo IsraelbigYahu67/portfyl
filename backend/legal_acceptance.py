@@ -22,10 +22,10 @@ Two ways a record is written:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -33,8 +33,12 @@ from models import TermsAcceptance
 
 
 # Same naming style as billing_config.CHECKOUT_CONSENT_VERSION.
-LEGAL_TERMS_VERSION = "2026-11-22"
-LEGAL_PRIVACY_VERSION = "2026-11-22"
+LEGAL_TERMS_VERSION = "2026-11-24"
+LEGAL_PRIVACY_VERSION = "2026-11-24"
+
+# A pending acceptance (e-mail sign-up, no Portfyl user yet) that is never
+# linked is removed after this many days; the Privacy Policy says "30 days".
+PENDING_ACCEPTANCE_MAX_AGE_DAYS = 30
 
 SOURCE_EMAIL = "email_signup"
 SOURCE_GOOGLE = "google_signup"
@@ -128,6 +132,24 @@ def attach_to_new_user(
     db.add(row)
     db.flush()
     return row
+
+
+def purge_stale_pending(db: Session, now: datetime | None = None) -> int:
+    """Delete pending acceptances (`user_id` IS NULL) older than
+    `PENDING_ACCEPTANCE_MAX_AGE_DAYS`: a registration that was never finished.
+    Linked rows (the proof of acceptance of a real account) are never touched.
+    Returns how many rows went; idempotent. The caller commits. Run by the
+    daily `account_deletion_cleanup` job."""
+    cutoff = (now or datetime.now(timezone.utc)) - timedelta(
+        days=PENDING_ACCEPTANCE_MAX_AGE_DAYS
+    )
+    result = db.execute(
+        delete(TermsAcceptance).where(
+            TermsAcceptance.user_id.is_(None),
+            TermsAcceptance.accepted_at < cutoff,
+        )
+    )
+    return result.rowcount or 0
 
 
 def get_for_user(db: Session, user_id: UUID) -> TermsAcceptance | None:

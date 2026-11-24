@@ -493,6 +493,18 @@ Before enabling `portfyl-account-deletion-cleanup`, inspect production for due
 requests without mutating them and test the purge state machine on disposable
 fixtures. Its first forced run must report a healthy heartbeat in `/health`;
 never infer completion from Scheduler's run acknowledgement alone.
+The same daily job also removes *unfinished registrations*: a pending Terms
+acceptance (`terms_acceptances` row with `user_id` NULL, written at e-mail
+sign-up before the address is verified) that was never linked to a Portfyl
+user is deleted once it is older than 30 days
+(`legal_acceptance.PENDING_ACCEPTANCE_MAX_AGE_DAYS`; the Privacy Policy states
+this period, so change both together). It needs no Scheduler entry of its own,
+no migration and no env flag, logs `terms_acceptance_pending_purge deleted=N`,
+and never touches a row linked to a user. The Firebase identity of such an
+unverified registration is *not* removed by it: an abandoned, never-verified
+Firebase account has to be cleaned from the Firebase Console (Authentication,
+look for accounts with an unverified e-mail and no sign-in) until an automated
+purge exists.
 For `portfyl-broker-backfill`, connect a disposable T212 demo account and
 confirm `gcloud scheduler jobs run portfyl-broker-backfill --location=$REGION`
 logs a `broker_backfill pass: N event(s)` line tagged with a

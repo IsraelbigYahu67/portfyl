@@ -58,10 +58,23 @@ class StubVerifier:
     def password_updated_at(self, uid):
         return None
 
+    def delete_user(self, uid):
+        DELETED.append(uid)
+        if DELETE_ERROR:
+            raise IdentityVerificationError("Firebase user deletion failed")
+
+
+# One StubVerifier is built per request, so what it was asked to delete is
+# kept here; Harness resets both.
+DELETED: list[str] = []
+DELETE_ERROR: list[bool] = []
+
 
 class Harness:
     def __init__(self, db_session, monkeypatch, *, edition=Edition.CLOUD):
         self.db = db_session
+        DELETED.clear()
+        DELETE_ERROR.clear()
         monkeypatch.setattr(auth_router, "set_rls_context", lambda *a, **k: None)
         monkeypatch.setattr(auth_router, "require_active_invite", lambda db, email: None)
         monkeypatch.setitem(rate_limit.RATE_LIMIT_RULES, "auth_session", None)
@@ -115,6 +128,59 @@ def test_a_new_cloud_account_without_acceptance_is_refused_and_nothing_is_create
     assert harness.count(TermsAcceptance) == 0
 
 
+def test_a_refused_first_google_sign_in_deletes_the_orphaned_firebase_identity(harness):
+    response = harness.sign_in("google")
+
+    assert response.status_code == 400
+    assert response.json() == {"code": "terms_acceptance_required"}
+    assert DELETED == ["uid-google"]
+
+
+def test_a_failing_firebase_delete_never_changes_the_refusal(harness):
+    DELETE_ERROR.append(True)
+
+    response = harness.sign_in("google")
+
+    assert response.status_code == 400
+    assert response.json() == {"code": "terms_acceptance_required"}
+    assert DELETED == ["uid-google"]
+    assert harness.count(User) == 0
+
+
+def test_an_accepted_first_google_sign_in_keeps_its_firebase_identity(harness):
+    response = harness.sign_in("google", terms_accepted=True)
+
+    assert response.status_code == 201
+    assert DELETED == []
+
+
+def test_an_existing_google_user_is_never_touched_even_without_the_flag(harness, db_session):
+    harness.sign_in("google", terms_accepted=True)
+    DELETED.clear()
+
+    response = harness.sign_in("google")
+
+    assert response.status_code == 201
+    assert DELETED == []
+    assert harness.count(User) == 1
+
+
+def test_an_e_mail_identity_without_a_record_is_refused_but_not_deleted(harness):
+    """Only the Google branch discards: a password account holds a credential
+    the person chose, and the register page cleans up its own failures."""
+    response = harness.sign_in("verified")
+
+    assert response.status_code == 400
+    assert DELETED == []
+
+
+def test_the_local_edition_never_asks_for_terms_or_deletes_anything(db_session, monkeypatch):
+    local = Harness(db_session, monkeypatch, edition=Edition.LOCAL)
+
+    assert local.sign_in("google").status_code == 201
+    assert DELETED == []
+
+
 @pytest.mark.parametrize("value", [False, None, "true", 1, "yes", [True]])
 def test_only_the_literal_true_counts_as_acceptance(harness, value):
     response = harness.sign_in("google", terms_accepted=value)
@@ -134,7 +200,7 @@ def test_first_google_sign_in_with_acceptance_stores_the_record(harness):
     [record] = harness.records()
     user = harness.db.scalar(select(User).where(User.email == "gina@example.com"))
     assert record.user_id == user.id
-    assert record.terms_version == legal_acceptance.LEGAL_TERMS_VERSION == "2026-11-22"
+    assert record.terms_version == legal_acceptance.LEGAL_TERMS_VERSION == "2026-11-24"
     assert record.privacy_notice_version == legal_acceptance.LEGAL_PRIVACY_VERSION
     assert record.age_confirmed is True
     assert record.source == "google_signup"
@@ -349,3 +415,70 @@ def test_deleting_the_account_deletes_the_acceptance_record(db_session, request_
     db_session.commit()
 
     assert db_session.scalar(select(func.count()).select_from(TermsAcceptance)) == 0
+
+
+# --- cleanup of unfinished registrations --------------------------------------
+
+
+NOW = datetime(2026, 12, 1, 3, 17, tzinfo=timezone.utc)
+
+
+def _pending(db, uid, age_days):
+    row = TermsAcceptance(
+        firebase_uid=uid,
+        terms_version="2026-11-24",
+        privacy_notice_version="2026-11-24",
+        age_confirmed=True,
+        accepted_at=NOW - timedelta(days=age_days),
+        source="email_signup",
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def test_purge_removes_only_old_pending_rows(db_session, request_context):
+    assert legal_acceptance.PENDING_ACCEPTANCE_MAX_AGE_DAYS == 30
+    _pending(db_session, "uid-old", 31)
+    _pending(db_session, "uid-young", 29)
+    _pending(db_session, "uid-edge", 30)  # exactly 30 days: not yet older than 30
+    linked = _accept(db_session, request_context.user, accepted_at=NOW - timedelta(days=400))
+    db_session.commit()
+
+    deleted = legal_acceptance.purge_stale_pending(db_session, NOW)
+    db_session.commit()
+
+    assert deleted == 1
+    left = {r.firebase_uid for r in db_session.scalars(select(TermsAcceptance)).all()}
+    assert left == {"uid-young", "uid-edge", None}
+    assert db_session.get(TermsAcceptance, linked.id) is not None
+
+
+def test_purge_is_idempotent_and_reports_zero_when_nothing_is_stale(db_session):
+    _pending(db_session, "uid-old", 90)
+    db_session.commit()
+
+    assert legal_acceptance.purge_stale_pending(db_session, NOW) == 1
+    db_session.commit()
+    assert legal_acceptance.purge_stale_pending(db_session, NOW) == 0
+
+
+def test_the_daily_cleanup_job_purges_stale_pending_acceptances(db_session, monkeypatch):
+    import asyncio
+    from unittest.mock import Mock
+
+    from jobs import account_deletion_cleanup_pass
+
+    monkeypatch.setattr(
+        "account_deletion.purge_due_workspace_deletions",
+        Mock(return_value={
+            "scanned": 0, "purged": 0, "not_due": 0, "shared": 0, "invalid": 0, "errors": 0,
+        }),
+    )
+    _pending(db_session, "uid-old", 45)
+    _pending(db_session, "uid-young", 3)
+    db_session.commit()
+
+    asyncio.run(account_deletion_cleanup_pass(db_session, now=NOW, identity_admin=object()))
+
+    assert [r.firebase_uid for r in db_session.scalars(select(TermsAcceptance)).all()] == ["uid-young"]

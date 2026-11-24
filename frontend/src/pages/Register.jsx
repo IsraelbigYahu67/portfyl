@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import { UserPlus } from "lucide-react";
 import { recordSignupAcceptance } from "../api";
 import {
+  deleteFirebaseUser,
   getIdToken,
   isGoogleSignInEnabled,
   mapFirebaseAuthError,
@@ -51,8 +52,9 @@ export default function Register() {
       ? t("Please confirm that you are 18 or older and accept the Terms of Service and Privacy Policy.")
       : null
   );
-  // The Firebase user created by a submit whose acceptance call then failed,
-  // so a retry does not try to create the same account again.
+  // The Firebase user created by a submit that then failed before the account
+  // was usable, so a retry does not try to create the same account again. It is
+  // cleared once that user was deleted again (see handleSubmit).
   const createdUser = useRef(null);
   // Art. 13 GDPR: the privacy information is given at the moment the data is
   // collected. Registration (password or Google) needs this 18+ and
@@ -108,7 +110,22 @@ export default function Register() {
       // The Portfyl account only exists after the address is verified (maybe on
       // another device), so the server records the acceptance now, tied to the
       // Firebase user. The flag is all we send; versions and time are the server's.
-      await recordSignupAcceptance(await getIdToken(user));
+      try {
+        await recordSignupAcceptance(await getIdToken(user));
+      } catch (acceptanceError) {
+        // Without the record the person could neither log in (the server asks
+        // for the Terms) nor register again (the e-mail exists), so remove the
+        // account just created and let them simply try again. If even that
+        // fails the user stays (a retry on this page reuses it) and the
+        // error below is still shown.
+        try {
+          await deleteFirebaseUser(user);
+          createdUser.current = null;
+        } catch {
+          // keep createdUser: the next submit on this page reuses it
+        }
+        throw acceptanceError;
+      }
       await sendVerificationEmail(user);
       // Capture before navigating away, and only once Firebase user
       // creation has actually succeeded. No e-mail or Firebase UID leaves

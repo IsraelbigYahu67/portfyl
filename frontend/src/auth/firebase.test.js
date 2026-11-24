@@ -14,6 +14,7 @@ const sdk = vi.hoisted(() => ({
   sendEmailVerification: vi.fn(),
   sendPasswordResetEmail: vi.fn(),
   signOut: vi.fn(),
+  deleteUser: vi.fn(),
   signInWithCredential: vi.fn(),
   GoogleAuthProvider: { credential: vi.fn() },
   auth: { currentUser: null },
@@ -64,6 +65,7 @@ vi.mock("firebase/auth", () => {
     sendEmailVerification: sdk.sendEmailVerification,
     sendPasswordResetEmail: sdk.sendPasswordResetEmail,
     signOut: sdk.signOut,
+    deleteUser: sdk.deleteUser,
     signInWithCredential: sdk.signInWithCredential,
     GoogleAuthProvider: sdk.GoogleAuthProvider,
   };
@@ -84,6 +86,7 @@ beforeEach(() => {
   sdk.sendEmailVerification.mockReset();
   sdk.sendPasswordResetEmail.mockReset();
   sdk.signOut.mockReset().mockResolvedValue(undefined);
+  sdk.deleteUser.mockReset().mockResolvedValue(undefined);
   sdk.GoogleAuthProvider.credential.mockReset().mockImplementation((idToken, accessToken) => ({ idToken, accessToken }));
   sdk.signInWithCredential.mockReset().mockResolvedValue({
     user: { uid: "google-user", getIdToken: vi.fn().mockResolvedValue("fresh-google-token") },
@@ -108,6 +111,17 @@ it("does not load the SDK at adapter import and safely signs out before initiali
   expect(sdk.authLoads).toBe(0);
   await firebase.signOutFirebaseClient();
   expect(sdk.signOut).not.toHaveBeenCalled();
+});
+
+it("deletes a just-created Firebase user through the SDK", async () => {
+  const firebase = await import("./firebase");
+  const user = { uid: "just-created" };
+
+  await firebase.deleteFirebaseUser(user);
+
+  expect(sdk.deleteUser).toHaveBeenCalledWith(user);
+  sdk.deleteUser.mockRejectedValueOnce(firebaseError("auth/requires-recent-login"));
+  await expect(firebase.deleteFirebaseUser(user)).rejects.toMatchObject({ code: "auth/requires-recent-login" });
 });
 
 it("shares one initialized adapter and waits for memory persistence for concurrent sign-ins", async () => {
