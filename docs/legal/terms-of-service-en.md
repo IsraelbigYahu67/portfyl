@@ -6,7 +6,8 @@
 > mirrors [podminky-uzivani-cs.md](podminky-uzivani-cs.md).
 
 Effective from: `[[TODO: publication date]]` \
-Version: 0.1 (draft)
+Text last updated: 24 November 2026 \
+Version: 0.2 (draft)
 
 ## 1. Who operates the service
 
@@ -16,14 +17,20 @@ The Portfyl service available at `portfyl.com` and `app.portfyl.com` (the
 **Jakub Zoubek**, a sole trader under the Czech Trade Licensing Act \
 Registered business address: Brusinková 1983, 252 28 Černošice, Czech Republic \
 Company ID (IČO): 67772366 \
-`[[TODO: VAT registered / not VAT registered]]` \
-E-mail: **support@portfyl.com**
+`[[TODO: VAT registered / not VAT registered, VAT ID if any]]` \
+E-mail: **support@portfyl.com** \
+`[[TODO: telephone number if the Operator has one (the model withdrawal notice lists it); otherwise delete this line]]`
 
 (the "**Operator**", "**we**", "**us**").
 
 These terms govern the relationship between the Operator and everyone who
 creates an account in the Service (the "**User**", "**you**"). By
 registering, you confirm that you have read and accept them.
+
+You conclude the contract for the Service, including the paid plans, with the
+Operator. Payments for paid plans are accepted, and receipts for them issued,
+by the Payment Partner (Section 5.1). You can exercise your right of
+withdrawal under Section 6 towards the Operator.
 
 ## 2. What the Service is – and what it is not
 
@@ -40,15 +47,27 @@ does not hold your money or financial instruments, and does not provide tax
 or accounting advice.
 
 2.3 All data, charts and calculations (such as valuations, fair value,
-dividend forecasts) are **for information only**. They may be
-incomplete, delayed or wrong. You make every investment decision yourself and
-at your own risk. Past performance does not guarantee future returns.
+dividend forecasts) are **for information only**. They are based on data from
+brokers and third parties and on estimates, so (especially third-party data)
+they may be delayed or incomplete; we tell you this in advance and it is the
+nature of such data. You make every investment decision yourself and at your
+own risk. Past performance does not guarantee future returns. This does not
+affect your rights for defects under Section 7 where the Service itself does
+not work as we described it or as you can reasonably expect.
+
+2.4 **Functionality and compatibility.** The Service is a web application. You
+use it in a current version of a common web browser with JavaScript enabled,
+with the cookies needed to sign in (see the Privacy Policy, Section 8) and an
+internet connection; you install nothing. Importing from a broker depends on
+the export format or interface of that broker (Section 9). We list the
+supported brokers and file formats in the Service.
 
 ## 3. Account, registration and workspace
 
 3.1 The Service is only for people **aged 18 or over** with full legal
 capacity. By registering you confirm this. If we learn that an account belongs to someone under 18, we
-will close it and delete its data.
+will close it and delete its data, and we will refund the price paid for the
+unused part of the period.
 
 3.2 You can register with an e-mail and password or sign in with Google.
 Technical details of identity verification and of the data processed at
@@ -83,7 +102,7 @@ Personal data is processed in accordance with the
 
 4.1 The Service is offered as a **Free** plan and the paid **Investor** and
 **Pro** plans. The current features, limits and prices are always shown on
-the Pricing page (`[[TODO: pricing URL]]`). Prices are final and include VAT
+the Pricing page (`[[TODO: pricing URL once published]]`). Prices are final and include VAT
 where applicable.
 
 4.2 Paid plans are paid **monthly**.
@@ -119,9 +138,11 @@ Free limits become read-only (as in 4.4) until you subscribe or remove them.
 brand (the Stripe Managed Payments service), `[[TODO: exact name and address
 of the selling Stripe/Link entity as shown in the buyer terms at checkout]]`
 (the "**Payment Partner**"). The Payment Partner issues receipts, handles
-VAT, payment support, refunds and payment disputes under its buyer terms,
-which you will see at checkout. The charge appears on your statement as
-`LINK.COM* PORTFYL`. The Operator never sees your card details.
+VAT, payment support and payment disputes under its buyer terms, which you
+will see at checkout; it may also carry out refunds (Section 6.4). The
+Operator provides the content and delivery of the Service. The charge appears
+on your statement as `LINK.COM* PORTFYL`. The Operator never sees your card
+details.
 
 5.2 Subscriptions **renew automatically** for another month until
 cancelled. The price for the next month is charged at its start.
@@ -130,11 +151,21 @@ cancelled. The price for the next month is charged at its start.
 website (link.com), where you manage your orders; the link is also in your
 payment receipt. Cancellation takes effect at the end of the period already
 paid for; until then you keep paid features. The account then moves to the
-Free plan.
+Free plan. Cancelling a subscription does not refund the price already paid
+for the running period (unless Section 6 on withdrawal or Section 7 on defects
+applies). You can also end a subscription at once by deleting the workspace
+(Section 8.3).
 
-5.4 We will notify you by e-mail of any price increase at least **30 days**
-in advance. The new price applies only from your next subscription period.
-If you disagree, you may cancel before then.
+5.4 We may change the price of a paid plan only for these reasons: (a) a
+change in tax law or the VAT rate, or in other charges set by law; (b) a
+material change in the costs of suppliers the Service depends on (in
+particular hosting, payment services and market-data licences); (c) a change in
+the scope or content of the plan that the price reflects. We will notify you
+of a price change by e-mail at least **30 days** in advance and state the
+reason. The new price applies only from your next subscription period. If you
+disagree, you may cancel without any penalty within 30 days of the notice or
+of the change taking effect, whichever is later; we will refund any higher
+price already paid for the time after cancellation.
 
 5.5 **Failed payment.** If the payment for the next subscription period
 cannot be collected, you keep the paid features for **14 days** (grace
@@ -145,47 +176,69 @@ you can subscribe again at any time.
 
 ## 6. Right of withdrawal (consumers)
 
-6.1 Paid plans are provided as a digital service. If you are a consumer, you
-may withdraw from a paid subscription contract **without giving a reason
-within 14 days** of concluding it (i.e. of ordering the subscription). Simply
-send a clear statement to support@portfyl.com or to the Payment Partner's
-support, or use the model form attached to these terms. You have this right
-**only once** per subscription contract; an automatic monthly renewal does not
-start a new withdrawal period.
+6.1 **Right of withdrawal.** You have the right to withdraw from this contract
+within 14 days without giving any reason. The withdrawal period expires 14
+days after the day following the day the contract is concluded. The contract
+is concluded by your **first order of a paid subscription**; the period does not
+start at registration or during the free trial. You have this right **only
+once** per subscription contract; an automatic monthly renewal does not start
+a new withdrawal period.
 
-6.2 When ordering, you may **expressly request that the paid features start
-immediately**, i.e. before the withdrawal period ends. Even then you may
-withdraw: you pay only a **proportionate amount** for the time the paid
-features were provided until withdrawal (Section 1834 of the Czech Civil
-Code), and the rest is refunded to you. If you did not expressly request an
-immediate start, you pay nothing for the period before withdrawal. The right
-of withdrawal is not lost merely because the Service has started; it is lost
-only where the service has been fully performed under the conditions of
-Section 1837(a) of the Czech Civil Code.
+6.2 **How to withdraw.** You may withdraw from this contract by any clear
+statement addressed to the Operator (Jakub Zoubek, Brusinková 1983, 252 28
+Černošice, Czech Republic, support@portfyl.com), for example by letter or
+e-mail. You may use the model withdrawal form attached to these terms, but it
+is not obligatory. You may also withdraw by **deleting your workspace** in
+your account settings within the 14 days (Section 8.3); such deletion counts as
+withdrawal from the contract. To meet the withdrawal deadline, it is
+sufficient that you send your withdrawal before the period expires. We will
+confirm receipt of your withdrawal by e-mail.
 
-6.3 We will refund the price paid (reduced under 6.2) through the Payment
-Partner without undue delay and at the latest within **14 days** of the day
-the withdrawal reached us, using the same payment method you paid with.
+6.3 **Effects of withdrawal: full refund.** If you withdraw from this contract,
+we will reimburse to you without undue delay, and at the latest within 14 days
+of the day we receive your withdrawal, **the full price paid**, even if you
+have used the paid features since ordering and even if you expressly asked for
+them to start immediately. In that case the law would allow us to charge an
+amount proportionate to what has already been provided (Section 1834 of the
+Czech Civil Code); the Operator does not charge it. This is the **Operator's
+policy, which goes beyond the legal minimum**. We will use the same means of
+payment you used for the payment, unless you expressly agree otherwise; you
+will not incur any fees as a result. On withdrawal the subscription ends and
+the account moves to the Free plan (your data is kept, as in Section 4.4),
+unless you deleted the workspace.
 
-6.4 Refunds are executed through the Payment Partner. This does not affect
-your right of withdrawal under this Section or your rights for defects under
-Section 7. Whether and under what conditions a payment can be refunded beyond
-what the law requires is governed by the Payment Partner's terms, over which
-the Operator has no control.
+6.4 **Who pays the refund.** The payment was accepted through the Payment
+Partner, so the Operator makes the refund through the Payment Partner, or the
+Payment Partner makes it directly; you may also ask the Payment Partner's
+support (link.com). This does not affect your right of withdrawal under this
+Section or your rights for defects under Section 7. The Payment Partner's
+terms on refunds may be more favourable to you than this Section.
+
+6.5 **After the 14 days.** After the period in Section 6.1 has expired, when you
+end the contract yourself (cancelling the subscription under Section 5.3 or
+deleting the workspace under Section 8.3) the remaining part of the paid period
+is not refunded; you can cancel the subscription so that it runs to the end of
+the paid period. This does not affect your rights for defects (Section 7) or
+other statutory consumer rights.
 
 `[[LAWYER: open questions (not to be resolved without a lawyer): (a) who is
 the "trader" towards the consumer under the Merchant of Record model – the
-Payment Partner or the Operator – and therefore against whom withdrawal under
-Section 6 is exercised and who meets the information duties under Directive
-2011/83/EU; (b) whether the Operator must provide its own withdrawal function
-(button) on the website under Article 11a of Directive 2011/83/EU, inserted by
-Directive (EU) 2023/2673; (c) whether the order flow contains a separate
-express confirmation of the request for immediate start of the service
-(Article 8(8) of Directive 2011/83/EU) and whether to offer a full refund
-instead of a proportionate one; see notes, point 3.]]`
-`[[VERIFY: letter of Section 1837 of the Civil Code (loss of the right of
-withdrawal for a fully performed service; Article 16(a) of Directive
-2011/83/EU) and Section 1832 (refund period).]]`
+Payment Partner or the Operator – and therefore against whom withdrawal is
+exercised, who meets the information duties under Directive 2011/83/EU and who
+confirms the withdrawal on a durable medium; (b) whether the paid subscription
+is a "service" (Article 16(a) of the Directive, proportionate payment) or
+"digital content" (Article 16(m)); the press release in case C-234/25 Sky
+Österreich (9 July 2026) speaks of a service, the full judgment has not been
+read; (c) whether an in-app tick box before the redirect to Stripe is enough
+for the express request for immediate start (Article 8(8) of the Directive);
+(d) whether deleting the workspace is a withdrawal and whether a record of the
+withdrawal and payment must be kept; (e) whether the withdrawal function
+(button) under Article 11a of Directive 2011/83/EU (inserted by Directive (EU)
+2023/2673; Section 1830a of the Civil Code, in the Czech Republic reportedly
+from 1 January 2027) is already mandatory; see notes.]]`
+`[[VERIFY: wording of the notice and form against the current Government
+Regulation No. 29/2023 Coll. as amended by No. 66/2026 Coll., and Section 1832
+of the Civil Code (refund period).]]`
 
 ## 7. Defects and complaints
 
@@ -200,12 +253,16 @@ receipt by e-mail and resolve the complaint without undue delay, within
 
 7.3 If we do not remedy a defect within a reasonable time, you are entitled
 to a reasonable price reduction or – unless the defect is minor – to
-terminate the contract and receive a proportionate refund for the period the
-Service was defective.
+terminate the contract. On termination we will refund the proportionate price
+for the period the Service was defective **and the price paid for the period
+after termination**.
 
 7.4 **Out-of-court dispute resolution:** consumers may contact the Czech
 Trade Inspection Authority (Česká obchodní inspekce), Štěpánská 567/15,
-120 00 Prague 2, `https://adr.coi.cz`.
+120 00 Prague 2, `https://adr.coi.cz`. A consumer may also go to court; if
+you are a consumer resident in another EU Member State, you may under
+Regulation (EU) No 1215/2012 also sue in the courts of the place where you
+live.
 
 ## 8. Your data
 
@@ -229,14 +286,22 @@ included; they can be recalculated from the exported data. Details are in the
 8.3 You can **delete** your account and workspace at any time in your account
 settings. **Deletion is immediate and irreversible:** once confirmed (by
 typing the workspace name and re-authenticating), your data is removed and
-cannot be restored. **Please export your data first (Section 8.2)** and
-consider whether you want to use the remaining paid period. Only a workspace
-whose subscription no longer renews
-can be deleted (cancel it first under Section 5.3). Copies of deleted data
-may remain for at most **7 days** in database backups kept for disaster
-recovery and are then overwritten; we do not restore data from backups on
-request. Which data is kept even after deletion (for example technical marks
-that prevent repeated use of the trial) and for how long is described in the
+cannot be restored. **Please export your data first (Section 8.2).** Deleting a
+workspace with an active subscription ends the subscription immediately. If
+you are within 14 days of the order, the deletion counts as withdrawal from
+the contract and we will refund the full price paid (Section 6). After 14 days
+the remaining part of the paid period is not refunded, because you are ending
+the contract yourself; this does not affect your rights for defects. If you
+want to use the paid features until the end of the period, cancel the
+subscription first (Section 5.3) and delete the workspace only after it has
+ended. We will point out the consequences of deleting a workspace with a
+subscription in the deletion dialog and ask for your express consent before
+deleting. Payment receipts and records are kept by the Payment Partner as an
+independent controller (Section 5.1). Copies of deleted data may remain for
+at most **7 days** in database backups kept for disaster recovery and are then
+overwritten; we do not restore data from backups on request. Which data is
+kept even after deletion (for example technical marks that prevent repeated
+use of the trial) and for how long is described in the
 [Privacy Policy](privacy-policy-en.md).
 
 8.4 You are responsible for the accuracy and completeness of the data you
@@ -259,8 +324,10 @@ to read data about your account and to synchronise your portfolio. Portfyl
 never places trades. Keys are stored encrypted.
 
 9.3 Market data (prices, exchange rates, fundamentals) comes from third
-parties. It may be delayed, incomplete or wrong, and we do not guarantee its
-availability.
+parties. We tell you in advance that such data tends to be delayed or incomplete and
+that we cannot guarantee its availability; that is its nature. This does not
+affect your rights for defects under Section 7 where we display or process the
+data incorrectly ourselves.
 
 9.4 **Revoking access.** You can end Portfyl's access to your broker at any
 time (a) at the broker – by revoking or deleting the API key or token in its
@@ -330,10 +397,15 @@ guarantee** any particular level of availability. The Service may be
 temporarily unavailable because of maintenance, updates or supplier outages.
 This does not affect your statutory rights for defects (Section 7).
 
-13.2 We continuously develop the Service and may change features, provided we
-do not materially reduce what you have paid for. If paid features are
-materially reduced, we will tell you in advance and you may cancel with a
-proportionate refund.
+13.2 We continuously develop the Service and may change features for valid
+reasons (security, legal requirements, technical development, changes to
+third-party data or interfaces, improvement of the Service) and at no extra
+cost to you. If a change materially and negatively affects your access to or
+use of the Service, we will tell you at least 30 days in advance by e-mail. You
+may then terminate the contract without any penalty within 30 days of the
+notice or of the change, whichever is later, and we will refund the
+proportionate price for the time after termination; where technically
+possible, you may instead keep the Service unchanged.
 
 ## 14. Liability
 
@@ -343,7 +415,9 @@ was caused by a breach of our obligations.
 
 14.2 We are not liable for errors, outages or incompleteness of data supplied
 by brokers or market-data providers that we cannot influence; this does not
-apply where we took the data over or processed it incorrectly.
+apply where we took the data over or processed it incorrectly. This provision
+points out the nature of such data and does not exclude a consumer's rights for
+defects (Section 7).
 
 14.3 If you act as a business, our total liability for damage is limited to
 the amount you paid us in the previous 12 months, but at least
@@ -367,11 +441,15 @@ decided, only the statute applies to consumers.]]`
 15.1 You can close your account at any time in your account settings.
 Closing the account means deleting the account and data, which is
 **immediate and irreversible** (Section 8.3); we recommend exporting your
-data first (Section 8.2).
+data first (Section 8.2). If you have a paid subscription, it ends at once
+on deletion; whether the price paid is refunded is governed by Section 8.3
+(within 14 days of the order in full, afterwards not) and Section 6.
 
 15.2 We may suspend or close your account if you materially breach these
 terms (especially Section 10) or where security or the law requires it.
-Except in urgent cases we will warn you first.
+Except in urgent cases we will warn you first. We will refund any unused
+part of the paid period, unless we closed the account because of your material
+breach of these terms.
 
 15.3 We may discontinue the Service as a whole with at least **60 days'**
 notice. During that time you can export your data, and we will refund any
@@ -381,8 +459,10 @@ unused prepaid period.
 
 We may change these terms because of changes to the Service, the law or our
 business terms. We will notify you by e-mail at least **30 days** before a
-change takes effect. If you disagree, you may terminate the contract before
-that date and we will refund any unused prepaid period.
+change takes effect and give the reason. If you disagree, you may terminate
+the contract without penalty before that date, or within 30 days of the notice
+or of the change taking effect, whichever is later, and we will refund any
+unused prepaid period.
 
 ## 17. Contact and disputes
 
@@ -406,17 +486,24 @@ Code).
 ## Annex: Model withdrawal form
 
 *(complete and return this form only if you wish to withdraw from the
-contract)*
+contract; using the form is not obligatory. The wording follows the model
+withdrawal form in the annex to Czech Government Regulation No. 29/2023 Coll.
+as amended by No. 66/2026 Coll., which implements Annex I(B) of Directive
+2011/83/EU; there is no official English text of the Czech regulation.)*
 
-To: Jakub Zoubek, Brusinková 1983, 252 28 Černošice, Czech Republic,
-support@portfyl.com
+**Withdrawal from the contract**
 
-I hereby give notice that I withdraw from my contract for the Portfyl service
-(plan: ……………, ordered on: ……………).
-
-Name: …………………………… \
-Account e-mail: …………………………… \
-Date: ……………………………
+- To: Jakub Zoubek, Brusinková 1983, 252 28 Černošice, Czech Republic, e-mail
+  support@portfyl.com
+- I hereby give notice that I withdraw from my contract for the provision of
+  the following service: paid subscription to the Portfyl service (plan:
+  ……………)
+- Ordered on: ……………
+- Name of consumer: ……………
+- Address of consumer: ……………
+- Portfyl account e-mail (to help us find the order): ……………
+- Date: ……………
+- Signature of consumer (only if this form is notified on paper): ……………
 
 ## Related
 

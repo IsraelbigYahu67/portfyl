@@ -6,7 +6,8 @@
 > otevřené body v [poznamky-pro-pravnika.md](poznamky-pro-pravnika.md).
 
 Účinnost od: `[[DOPLNIT: datum zveřejnění]]` \
-Verze: 0.1 (návrh)
+Poslední aktualizace textu: 24. listopadu 2026 \
+Verze: 0.2 (návrh)
 
 Tyto zásady vysvětlují, jaké osobní údaje služba Portfyl zpracovává, proč,
 jak dlouho, komu je předává a jaká máte práva. Řídí se nařízením (EU)
@@ -31,10 +32,10 @@ nejmenovali, protože nám tato povinnost nevzniká. `[[PRÁVNÍK: ověřit]]`
 | **Údaje o portfoliu** | názvy portfolií, transakce, tickery, počty kusů, ceny, měny, data, hotovost, dividendy, opce, poznámky | od vás (ruční zadání, import souboru) nebo od vašeho brokera, pokud ho připojíte |
 | **Připojení k brokerům a službám** | šifrované API klíče, stav synchronizace, anonymizovaný otisk čísla účtu u brokera, šifrovaná adresa Discord webhooku | od vás |
 | **Požadavky na brokery** | brokeři, které nás požádáte podporovat (název, který jste napsali), propojení s vaším účtem | od vás |
-| **Údaje o předplatném** | tarif, období, stav předplatného, identifikátor zákazníka a transakce u Platebního partnera, země | od Platebního partnera; **číslo karty nikdy nedostáváme** |
+| **Údaje o předplatném** | tarif, stav a konec zaplaceného období, příznak zrušení ke konci období, případná naplánovaná změna tarifu, identifikátory zákazníka, předplatného a ceny u Platebního partnera; technické záznamy o oznámeních od Stripe (jen identifikátor a typ události a související objekt, bez jména a e-mailu) | od Platebního partnera; **číslo karty nikdy nedostáváme** a platební doklady sami neukládáme |
 | **Technické a bezpečnostní údaje** | IP adresa, typ prohlížeče, otisky (hashe) přihlašovacích relací, čas posledního přihlášení, bezpečnostní záznamy (audit log), počty použití funkcí | automaticky při používání Služby |
 | **Záznamy proti zneužití zkušebního období** | klíčované otisky (HMAC-SHA256 s tajným klíčem) kanonického e-mailu (malá písmena, bez `+tagu`, u Gmailu bez teček), IP adresy (IPv6 zkrácená na /64), čísel účtů u brokerů a identifikátorů 5 nejstarších importovaných transakcí; značka, že zkušební období nebylo přiznáno. Samotné hodnoty neukládáme | vytváříme je my při registraci a při importu či synchronizaci dat od brokera |
-| **Záznam o přijetí podmínek** | potvrzení věku alespoň 18 let, verze obchodních podmínek a těchto zásad, které byly při registraci zobrazeny, čas a způsob registrace (e-mailem, nebo přes Google); před ověřením e-mailu je záznam veden pod identifikátorem Firebase | vytváří server při registraci |
+| **Záznam o přijetí podmínek** | potvrzení věku alespoň 18 let, verze obchodních podmínek a těchto zásad, které byly při registraci zobrazeny, čas a způsob registrace (e-mailem, nebo přes Google); před ověřením e-mailu je záznam veden pod identifikátorem Firebase (nedokončená registrace, viz čl. 6) | vytváří server při registraci |
 | **Komunikace s podporou** | obsah e-mailů, které nám pošlete | od vás |
 | **Analytika (jen se souhlasem)** | pseudonymní události o používání aplikace – po přihlášení je spojujeme s interním identifikátorem účtu, nikoli s e-mailem ani jménem; viz čl. 8 | automaticky, pouze pokud souhlasíte |
 
@@ -66,13 +67,13 @@ nemá vliv.
 | Účel | Právní základ (čl. 6 GDPR) |
 |---|---|
 | Vytvoření a správa účtu, poskytování Služby (výpočty, importy, synchronizace s brokerem, upozornění) | **plnění smlouvy** – čl. 6 odst. 1 písm. b) |
-| Správa předplatného a komunikace o něm | **plnění smlouvy** – čl. 6 odst. 1 písm. b) |
+| Správa předplatného a komunikace o něm; přijímání a zpracování oznámení od Stripe o platbách a předplatném | **plnění smlouvy** – čl. 6 odst. 1 písm. b) |
 | Doložení, že jste při registraci potvrdili věk alespoň 18 let a přijali podmínky a že vám byly tyto zásady zpřístupněny | **oprávněný zájem** na prokázání uzavření smlouvy a splnění informační povinnosti – čl. 6 odst. 1 písm. f) `[[PRÁVNÍK: ověřit právní základ]]` |
 | Zasílání transakčních e-mailů k účtu: ověření e-mailu, obnovení hesla, upozornění na změnu hesla a oznámení o smazání účtu (odesíláme je přes dodavatele Brevo, viz čl. 4) | **plnění smlouvy** – čl. 6 odst. 1 písm. b) |
 | Zabezpečení Služby, prevence zneužití, ochrana oddělení dat uživatelů, řešení incidentů, chybové záznamy | **oprávněný zájem** na bezpečném provozu – čl. 6 odst. 1 písm. f) |
-| Nabídnutí jednoho zkušebního období na osobu (rozpoznání, že stejná schránka, síť, účet u brokera nebo historie transakcí už zkušební období měly) | **oprávněný zájem** na ochraně zkušebního období před zneužitím – čl. 6 odst. 1 písm. f) `[[PRÁVNÍK: test vyváženosti; jsou klíčované otisky zde pseudonymizovanými osobními údaji?]]` |
+| Nabídnutí jednoho zkušebního období na osobu (rozpoznání, že stejná schránka, síť, účet u brokera nebo historie transakcí už zkušební období měly) | **oprávněný zájem** na ochraně zkušebního období před zneužitím – čl. 6 odst. 1 písm. f) Test vyváženosti máme zpracován a jeho shrnutí vám na požádání poskytneme. `[[PRÁVNÍK: ověřit test vyváženosti; jsou klíčované otisky zde pseudonymizovanými osobními údaji?]]` |
 | Vyřizování reklamací, dotazů a uplatňování práv | **plnění smlouvy** / **právní povinnost** – čl. 6 odst. 1 písm. b) a c) |
-| Plnění daňových a účetních povinností | **právní povinnost** – čl. 6 odst. 1 písm. c) |
+| Plnění daňových a účetních povinností (v rozsahu, v jakém nám zákon ukládá vést záznamy o přijatých platbách) | **právní povinnost** – čl. 6 odst. 1 písm. c) |
 | Ochrana našich právních nároků | **oprávněný zájem** – čl. 6 odst. 1 písm. f) |
 | Analytika používání aplikace | **souhlas** – čl. 6 odst. 1 písm. a); souhlas můžete kdykoli odvolat |
 
@@ -96,7 +97,7 @@ základě smlouvy o zpracování osobních údajů:
 |---|---|---|
 | Google Cloud (Google Cloud EMEA Ltd. / Google LLC) | hosting aplikace (Cloud Run), šifrovací klíče, provozní záznamy, plánované úlohy | EU – Belgie (`europe-west1`); podpora může přistupovat z USA |
 | Google Firebase Authentication | registrace, přihlášení, ověření e-mailu, přihlášení přes Google | EU/USA |
-| Neon Inc. | databáze (PostgreSQL) a zálohy | EU – Frankfurt `[[OVĚŘIT]]` |
+| Neon Inc. | databáze (PostgreSQL) a zálohy | EU – Frankfurt (AWS `eu-central-1`) `[[OVĚŘIT: před zveřejněním potvrdit region v konzoli Neonu; naposledy ověřeno 2026-09-09]]` |
 | Cloudflare, Inc. | DNS, šifrované spojení (TLS), ochrana proti útokům a kontrola proti robotům při vytvoření nového účtu (Turnstile) `[[PRÁVNÍK: zpracovatel, nebo samostatný správce; DPA]]` | globální síť |
 | PostHog Inc. (PostHog Cloud EU) | analytika používání – **jen pokud udělíte souhlas** | EU – Frankfurt |
 | Brevo (společnost se sídlem ve Francii) `[[DOPLNIT: přesný název a sídlo smluvní strany podle smlouvy s Brevo]]` | odesílání transakčních e-mailů z účtu (ověření e-mailu, obnovení hesla, upozornění na změnu hesla, oznámení o smazání účtu). Brevo dostává e-mailovou adresu příjemce a obsah zprávy (včetně odkazu, data a času události); odkazy v e-mailech vedou přes sledovací doménu Brevo. Pokud odeslání přes Brevo API selže, pošle ověřovací nebo resetovací e-mail Firebase Authentication, který jde rovněž přes Brevo | `[[OVĚŘIT: umístění zpracování, DPA a předání mimo EHP]]` |
@@ -113,6 +114,15 @@ zásad:
   prostoru v Portfyl (náhodné UUID, podle kterého platbu přiřadíme k vašemu
   účtu) a zvolený tarif. Údaje o platební kartě zadáváte přímo u něj a my je
   nikdy nedostaneme.
+- **Google** – poskytovatel přihlášení přes účet Google (jen pokud tuto
+  možnost použijete nebo si ji jen zobrazíte). Skript Google pro přihlášení
+  se načte, jakmile se zobrazí stránka přihlášení nebo registrace (aby okno
+  Google nebylo prohlížečem zablokováno), takže **Google může obdržet vaši IP
+  adresu a technické údaje prohlížeče už před tím, než na tlačítko kliknete**.
+  Po kliknutí a výběru účtu zpracovává Google údaje podle vlastních zásad
+  jako samostatný správce; Portfyl od něj (přes Firebase) dostane ověřený
+  e-mail a jméno z účtu Google. Google nezískává přístup k vašim datům v
+  Portfylu ani k jiným službám Google.
 - **Váš broker** (např. Trading 212, Interactive Brokers, eToro) – jen pokud
   ho sami připojíte; posíláme mu vaše API přihlášení a dostáváme od něj
   údaje o účtu.
@@ -133,9 +143,10 @@ každého dodavatele]]` Kopii standardních smluvních doložek vám na žádost
 poskytneme na support@portfyl.com; seznam certifikovaných společností
 EU-U.S. Data Privacy Framework je na https://www.dataprivacyframework.gov.
 
-U dodavatele Brevo a u platebního partnera zatím ověřujeme, zda a na základě
-jakých záruk mohou být údaje zpracovávány mimo Evropský hospodářský prostor.
-`[[OVĚŘIT: DPA a předání mimo EHP]]`
+U dodavatele Brevo, u Platebního partnera a u Googlu v roli samostatného správce
+při přihlášení zatím ověřujeme, zda a na základě jakých záruk mohou být údaje
+zpracovávány mimo Evropský hospodářský prostor.
+`[[OVĚŘIT: DPA, certifikace DPF a předání mimo EHP u každého z nich]]`
 
 ## 6. Jak dlouho údaje uchováváme
 
@@ -145,7 +156,7 @@ jakých záruk mohou být údaje zpracovávány mimo Evropský hospodářský pr
 | Zálohy databáze | zálohy sloužící k obnovení databáze uchovávají smazaná data nejvýše 7 dní, poté jsou nenávratně přepsána |
 | Provozní záznamy (logy) | 30 dní; neobsahují obsah portfolia ani hesla |
 | Záznamy o přihlašovacích relacích | 30 dní po vypršení nebo odhlášení |
-| Záznam o přijetí podmínek | po dobu existence účtu, smaže se spolu s ním `[[OVĚŘIT: mazání záznamů, jejichž e-mail nebyl nikdy ověřen]]` |
+| Záznam o přijetí podmínek | po dobu existence účtu, smaže se s ním. **Nedokončená registrace:** záznam vytvořený před ověřením e-mailu a účet, který nebyl ověřen ani dokončen, odstraníme nejpozději po 30 dnech |
 | Čítače omezení počtu požadavků (klíčovaný otisk, ne samotná IP adresa) | do uplynutí příslušného časového okna (řádově minuty); prošlé záznamy se mažou každou hodinu |
 | Záznamy o využití funkcí (rezervace limitů tarifu) | 90 dní po dokončení nebo uvolnění rezervace; nejpozději se smazáním účtu |
 | Záznamy o doručení upozornění (např. do Discordu) | odeslané nebo definitivně neúspěšné záznamy 90 dní; nejpozději se smazáním účtu |
@@ -158,14 +169,38 @@ jakých záruk mohou být údaje zpracovávány mimo Evropský hospodářský pr
 | Záznam o zkušebním období: otisk IP adresy | 30 dní |
 | Záznam o zkušebním období pracovního prostoru (začátek, konec, důvod, značka odepření) | smaže se spolu s účtem |
 | Komunikace s podporou | 1 rok od vyřízení |
-| Doklady o platbách | uchovává Platební partner; my údaje o předplatném po dobu, kterou vyžadují daňové předpisy `[[PRÁVNÍK: doplnit lhůtu]]` `[[OVĚŘIT: aplikace dnes při smazání účtu maže i záznamy o předplatném; zda a jaké daňové záznamy vedeme mimo aplikaci]]` |
-| Analytická data (se souhlasem) | nejvýše 1 rok |
+| Údaje o předplatném u nás (zákazník a předplatné: identifikátory u Platebního partnera, tarif, stav, konec období) | smažou se okamžitě spolu s pracovním prostorem |
+| Technické záznamy o oznámeních od Stripe (identifikátor, typ a stav události a související objekt; bez jména, e-mailu a platebních údajů) | nejsou součástí pracovního prostoru a smazáním účtu se nemažou `[[DOPLNIT: doba uchování; kód dnes tyto záznamy nemaže, rozhodnutí provozovatele čeká]]` |
+| Doklady, platební údaje, historie plateb a vracení peněz | uchovává Platební partner jako samostatný správce podle svých zásad a právních předpisů; my je neuchováváme |
+| Naše účetní a daňové záznamy (např. o výplatách od Platebního partnera) | po dobu předepsanou daňovými a účetními předpisy `[[PRÁVNÍK: doplnit lhůtu a ověřit, jaké záznamy vedeme mimo aplikaci]]` |
+| Analytická data (se souhlasem) | nejvýše 1 rok; profil v PostHogu může po smazání účtu zůstat až 1 rok (viz níže) |
 
 **Smazání účtu:** Účet smažete v Nastavení → Data a soukromí. Z
 bezpečnostních důvodů vás nejprve požádáme o nové přihlášení a po upozornění
-o potvrzení smazání. Smazání proběhne okamžitě a nelze je vrátit zpět; všechna
-data účtu jsou ihned odstraněna z databáze a ze záloh zmizí nejpozději po
-uplynutí doby uvedené výše.
+o potvrzení smazání. Smazání proběhne okamžitě a nelze je vrátit zpět. Okamžitě
+se odstraní data vašeho pracovního prostoru z databáze (portfolia, transakce,
+poznámky, připojení k brokerům, záznam o přijetí podmínek, naše záznamy o
+předplatném, relace a bezpečnostní záznamy) i vaše přihlašovací identita ve
+Firebase. Ze záloh databáze zmizí nejpozději po uplynutí doby uvedené výše.
+Máte-li aktivní předplatné, smazáním se ihned ukončí; v prvních 14 dnech od
+objednávky vám vrátíme celou cenu, později se zbývající část období nevrací
+(podmínky, čl. 6 a 8.3).
+
+**Co po smazání zůstává (výjimky z okamžitého výmazu):**
+
+- **Záznamy proti zneužití zkušebního období** – klíčované otisky e-mailu a
+  údajů o brokerovi 12 měsíců, otisk IP adresy 30 dní. Nejde o vaše surové
+  údaje, ale (protože je klíč u nás) o pseudonymizované osobní údaje; uchováváme
+  je na základě oprávněného zájmu, aby stejná osoba nemohla zkušební období
+  opakovat. Námitku nebo žádost o výmaz tohoto záznamu vyřídíme podle čl. 7.
+- **Technické záznamy o oznámeních od Stripe** (viz tabulka výše).
+- **Doklady a platební údaje u Platebního partnera**, který je samostatným
+  správcem.
+- **E-maily u Brevo** – záznamy o doručení podle jeho doby uchování.
+- **Analytický profil v PostHogu**, pokud jste udělili souhlas s analytikou:
+  může zůstat až 1 rok.
+- **Komunikace s podporou** – 1 rok od vyřízení.
+- **Provozní záznamy** – 30 dní.
 
 Zrušení předplatného účet **nemaže** – účet se jen přepne na tarif Free.
 
@@ -176,6 +211,8 @@ Máte právo:
 - **na přístup** – zjistit, jaké údaje o vás zpracováváme;
 - **na opravu** nepřesných údajů;
 - **na výmaz** („být zapomenut“) – účet si můžete smazat sami v aplikaci;
+  záznamy, které smazání účtu přežívají (viz čl. 6), vymažeme na vaši žádost,
+  pokud neexistuje důvod je uchovat;
 - **na omezení zpracování**;
 - **na přenositelnost** – data si můžete sami stáhnout ve formátu JSON
   v Nastavení;
@@ -191,6 +228,14 @@ oprávněného zájmu (zabezpečení, ochrana právních nároků, výše uveden
 záznamy proti zneužití zkušebního období), můžete kdykoli
 vznést námitku na support@portfyl.com. Zpracování ukončíme, pokud
 neprokážeme závažné oprávněné důvody, které převažují nad vašimi zájmy.
+
+**Otisky proti zneužití zkušebního období.** Otisk je jednosměrný (klíčovaný)
+a z databáze nepoznáme, komu patří. Chcete-li, aby byl váš otisk odstraněn
+(námitka nebo výmaz), napište z e-mailu, kterého se týká (u otisků brokera
+uveďte také daného brokera nebo účet): otisk z uvedeného údaje znovu
+vypočítáme a odpovídající záznam odstraníme. Po odstranění se může stát, že
+opakované zkušební období nebude rozpoznáno; žádný jiný důsledek pro vás to
+nemá. `[[PRÁVNÍK: ověřit postup a odpovídající odpověď na námitku]]`
 
 Žádosti posílejte na **support@portfyl.com**. Odpovíme do 1 měsíce; v
 odůvodněných případech můžeme lhůtu prodloužit o další dva měsíce a o
@@ -230,6 +275,13 @@ e-mail, jméno, obsah portfolia, transakce, částky ani poznámky. Nahrávání
 obrazovky je vypnuté. **Pokud analytiku odmítnete nebo se ještě
 nerozhodnete, do PostHogu neodesíláme nic** a žádné analytické cookies ani
 úložiště se nevytvářejí.
+
+**Přihlášení přes Google.** Skript Google pro přihlášení (Google Identity
+Services) se načte, jakmile se zobrazí stránka přihlášení nebo registrace,
+tedy ještě před kliknutím na tlačítko Google; Google tak obdrží vaši IP adresu
+a údaje o prohlížeči a může ukládat vlastní údaje v prohlížeči podle svých
+zásad (viz čl. 4). Portfyl tyto údaje nevidí.
+`[[PRÁVNÍK: ověřit, zda a jak to spadá pod ePrivacy a zda je potřeba souhlas]]`
 
 Při vytvoření nového účtu běží ve vašem prohlížeči kontrola proti robotům
 Cloudflare Turnstile (skript a rám Cloudflare, `challenges.cloudflare.com`) a
