@@ -1267,7 +1267,7 @@ def _lifetime_money_weighted(transactions, V_usd: pd.Series) -> dict:
     xirr_ending_value = net_worth_usd if has_external_cashflows(transactions) else current_value_usd
     if xirr_ending_value > 0:
         xirr_flows.append((date.today(), xirr_ending_value))
-    xirr_rate = _xirr(xirr_flows) if len(xirr_flows) >= 2 else 0.0
+    xirr_rate = _xirr(xirr_flows)  # None when it cannot be computed
 
     return {
         "currency": "USD",
@@ -1279,7 +1279,7 @@ def _lifetime_money_weighted(transactions, V_usd: pd.Series) -> dict:
         "unrealized_pnl": round(unrealized_pnl_usd, 2),
         "net_profit": round(net_profit_usd, 2),
         "simple_roi": round(simple_roi * 100, 2),
-        "xirr": round(xirr_rate * 100, 2),
+        "xirr": round(xirr_rate * 100, 2) if xirr_rate is not None else None,
     }
 
 
