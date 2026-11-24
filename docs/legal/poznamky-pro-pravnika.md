@@ -1,6 +1,6 @@
 # Právní dokumenty Portfyl – otevřené body a poznámky pro právníka
 
-Stav k 2026-11-19. Návrhy v této složce jsou **pracovní verze 0.1** a nesmí se
+Stav k 2026-11-22. Návrhy v této složce jsou **pracovní verze 0.1** a nesmí se
 zveřejnit, dokud nejsou vyřešeny body označené **BLOKUJE** a texty
 nezkontroluje český advokát (viz brána ve
 [../compliance/private-test-legal-status.md](../compliance/private-test-legal-status.md)).
@@ -30,6 +30,45 @@ které je nutné opravit před zveřejněním:
   Record*) – rozhodnuto 2026-10-28, viz bod 2.
 - Data po zrušení účtu smazat **co nejdříve**.
 - Dokumenty v **češtině i angličtině**.
+
+## Změny 2026-11-22 (porovnání s konkurencí, výhradně podle práva EU/ČR)
+
+Texty se srovnávaly s dokumenty konkurenční služby, ale přebíralo se jen to,
+co vyžaduje nebo opravňuje právo EU (přednostně) a ČR. Ustanovení
+v americkém stylu (zákaz refundací, zkrácené promlčení, cizí soud, marketing
+bez souhlasu) se nepřebírala.
+
+- **Podmínky:**
+  - 3.1 „alespoň 18 let“ (dříve „starší 18 let“). Hranice 18+ je smluvní
+    podmínka provozovatele, zákon ji nevyžaduje.
+  - 3.6–3.7 pracovní prostor je osobní a sdílení se nenabízí (v kódu je jen
+    role owner).
+  - 5.5 neúspěšná platba.
+  - 6 přepsán podle směrnice 2011/83/EU (čl. 9, 14 odst. 3, 16 písm. a)).
+  - 8.2 přesný rozsah exportu; 8.3 a 15.1 nevratné okamžité smazání.
+  - 9 pověření a odvolání API klíče.
+  - 10 zakázané užití a výjimka pro sdílení vlastních výsledků.
+  - Nové čl. 11 (duševní vlastnictví a licence) a 12 (zpětná vazba).
+  - 13.1 dostupnost bez dotčení práv z vad.
+  - 14 strop odpovědnosti jen vůči podnikatelům.
+  - 17.4 salvátorská klauzule.
+  - Původní čl. 11–15 jsou nyní 13–17.
+- **Zásady:**
+  - Brevo jako zpracovatel transakčních e-mailů.
+  - Co předáváme Stripe.
+  - Oddíl Děti.
+  - Konkrétní doby uložení, zálohy „nejvýše 7 dní“.
+  - Stížnost i u dozorového úřadu jiného členského státu (čl. 77 GDPR).
+  - Záznam o přijetí podmínek.
+- **Nové:** stránka Zabezpečení (`security-cs.md` / `security-en.md`, `/security`)
+  a `/.well-known/security.txt`. Kontakt pro bezpečnost je support@portfyl.com.
+- **Nové otevřené značky** k posouzení:
+  - `[[OVĚŘIT]]` u § 1837 a § 1832 OZ (čl. 6) a u licenčních ustanovení
+    (čl. 11, § 2358 a násl. OZ);
+  - `[[PRÁVNÍK: výše stropu]]` (čl. 14);
+  - `[[OVĚŘIT]]` / `[[DOPLNIT]]` u Brevo (smluvní strana, DPA, předání mimo
+    EHP, doba uchování);
+  - `[[PRÁVNÍK]]` u právního základu záznamu o přijetí podmínek.
 
 ## Otevřené body
 
@@ -71,9 +110,14 @@ poradcem.
 
 ### 3. Odstoupení od smlouvy a vracení peněz
 
-Návrh (čl. 6) dává spotřebiteli zákonných 14 dní od první platby, výslovnou
-žádost o okamžité zahájení plnění (§ 1823 OZ) a při odstoupení vrací cenu
-sníženou o poměrnou část za dobu užívání (§ 1834 OZ). Doplněno:
+Návrh (čl. 6) dává spotřebiteli zákonných 14 dní od uzavření smlouvy
+(čl. 9 směrnice 2011/83/EU, § 1829 OZ), výslovnou žádost o okamžité zahájení
+plnění (čl. 8 odst. 8 směrnice, § 1823 OZ) a při odstoupení vrací cenu
+sníženou o poměrnou část za dobu užívání (čl. 14 odst. 3 směrnice, § 1834 OZ).
+Zahájením služby právo na odstoupení **nezaniká** (zaniká až úplným
+poskytnutím, čl. 16 písm. a) směrnice). Text zaškrtávacího pole v pokladně
+(`Pricing.jsx`, `ConnectStep.jsx`), který tvrdil opak, byl 2026-11-22 opraven
+a `CHECKOUT_CONSENT_VERSION` zvýšena na `2026-11-22`. Doplněno:
 
 - Lhůta běží k jedné smlouvě **jen jednou**; měsíční obnovení novou lhůtu
   nezakládá. Podle rozsudku SDEU C-565/22 (Sofatutor, 5. 10. 2023) to platí
@@ -81,7 +125,9 @@ sníženou o poměrnou část za dobu užívání (§ 1834 OZ). Doplněno:
   o ceně a o tom, že po zkušebním období začne platit
   ([shrnutí](https://pravniprostor.cz/clanky/obcanske-pravo/dobra-zprava-pro-podnikatele-spatna-pro-spotrebitele-v-pripade-online-predplatnych-bezi-jen-jedna-lhuta-pro-odstoupeni-od-smlouvy)).
 - Bez řádného poučení se lhůta prodlužuje až o 12 měsíců.
-- Nový čl. 6.4 popisuje 60denní refundace Stripe.
+- Slib 60denních refundací Stripe byl z čl. 6.4 2026-11-22 vypuštěn
+  (podmínky by slibovaly politiku třetí strany, kterou provozovatel
+  nekontroluje); zůstal neutrální odkaz na Platebního partnera.
 
 **K ověření:**
 
@@ -133,11 +179,15 @@ poskytovatele dat a podle jeho licence upravit čl. 9.3 a 10 podmínek.
 
 ### 8. Úpravy aplikace před spuštěním (technické úkoly)
 
-- Registrace: zaškrtávací pole „Je mi 18 let a souhlasím s obchodními
-  podmínkami“ + odkaz na zásady ochrany osobních údajů; uložit verzi a čas
-  souhlasu.
-- Veřejné stránky `/terms` a `/privacy` (CZ/EN) a odkazy v patičce webu i
-  aplikace.
+- ~~Registrace: zaškrtávací pole „Je mi 18 let a souhlasím s obchodními
+  podmínkami“ + odkaz na zásady; uložit verzi a čas souhlasu.~~ Hotovo
+  2026-11-22: tabulka `terms_acceptances` (migrace `0029`), verze v
+  `backend/legal_acceptance.py`; přijetí zásad se ukládá jako „informace
+  poskytnuta“, ne jako souhlas podle GDPR. Při každé změně textu podmínek nebo
+  zásad zvýšit `LEGAL_TERMS_VERSION` / `LEGAL_PRIVACY_VERSION`.
+- Veřejné stránky `/terms`, `/privacy` a nově `/security` (CZ/EN) a odkazy
+  v patičce webu i aplikace; `/.well-known/security.txt` (RFC 9116, platnost
+  do 2027-10-22 – před vypršením obnovit).
 - Pokladna (Stripe Checkout s Managed Payments): výslovná žádost o okamžité
   zahájení služby (k bodu 3); URL obchodních podmínek a zásad nastavit ve
   Stripe (Settings → Public details / Checkout), aby se na platební stránce
@@ -149,9 +199,11 @@ poskytovatele dat a podle jeho licence upravit čl. 9.3 a 10 podmínek.
 ### 9. K ověření právníkem
 
 - Akt o digitálních službách (DSA): rozsah povinností pro malý podnik, který
-  ukládá data zadaná uživatelem (kontaktní místo je v čl. 15.1).
-- Omezení odpovědnosti vůči spotřebiteli (čl. 12.3) a § 2898 OZ.
-- Rovnocennost české a anglické verze (čl. 15.3).
+  ukládá data zadaná uživatelem (kontaktní místo je v čl. 17.1).
+- Omezení odpovědnosti (čl. 14): strop nyní jen vůči podnikatelům, vůči
+  spotřebiteli odpovědnost podle zákona (§ 1814 a § 2898 OZ, směrnice 93/13/EHS
+  příloha bod 1 písm. b)); ověřit výši stropu.
+- Rovnocennost české a anglické verze (čl. 17.3).
 - Zda smí PostHog odesílat bezcookiové souhrnné události bez souhlasu.
 - Ověření DPA, certifikací DPF a regionů u Google Cloud, Firebase, Neon,
   Cloudflare, PostHog a Sentry (a zda je Sentry v produkci zapnutý).

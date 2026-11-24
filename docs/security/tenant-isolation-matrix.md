@@ -164,6 +164,7 @@ has all four (`SELECT, INSERT, UPDATE, DELETE`).
 | `rate_limit_buckets` | `SELECT, INSERT, UPDATE, DELETE` | `test_runtime_role_has_exact_grants_on_rate_limit_buckets` (`tests/postgres/test_runtime_role.py`); absent from `RLS_TABLES`/`WORKSPACE_SCOPED_TABLES` by design |
 | `beta_invites` | `SELECT, INSERT, UPDATE, DELETE` | `test_runtime_role_has_exact_grants_on_beta_invites` (`tests/postgres/test_runtime_role.py`); global beta admission, not tenant data |
 | `trial_identities`, `trial_ip_marks`, `trial_broker_marks` | `SELECT, INSERT, UPDATE, DELETE` | `test_runtime_role_can_use_the_global_guard_tables` (`tests/postgres/test_trial_rls.py`); global abuse guards for the trial, purged by the daily `account_deletion_cleanup` job (`trials.purge_trial_records`); `trial_broker_marks.workspace_id` is `ON DELETE SET NULL` |
+| `terms_acceptances` | `SELECT, INSERT, UPDATE, DELETE` | `test_runtime_role_has_exact_grants_on_terms_acceptances` and `test_the_table_is_not_tenant_scoped` (`tests/postgres/test_terms_acceptance.py`); user-level like `users` (no workspace key, no tenant policy), sign-up proof of the Terms acceptance; `user_id` is `ON DELETE CASCADE`; absent from `RLS_TABLES`/`WORKSPACE_SCOPED_TABLES` by design |
 | `stripe_events` | `SELECT, INSERT, UPDATE` | `test_runtime_role_has_exact_grants_on_stripe_events` (`tests/postgres/test_runtime_role.py`); global Stripe webhook receipts (Stripe ids only, no payload), deduplicating deliveries |
 
 ## Adding a resource

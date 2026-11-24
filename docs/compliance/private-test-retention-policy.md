@@ -2,6 +2,13 @@
 
 Effective: 2026-09-09
 
+> **Historical (2026-11-22).** This baseline covered only the private test.
+> Some statements here are no longer true: account deletion is now immediate
+> with no 30-day cancellable grace period (`backend/account_deletion.py`), and
+> paid plans exist (Stripe Managed Payments). The current retention periods are
+> in `data-processing-inventory.md` and in section 6 of the privacy policy
+> (`../legal/zasady-ochrany-osobnich-udaju-cs.md`).
+
 Scope: the free, invitation-only private test described in
 `private-test-legal-status.md`. This is the implemented technical baseline for
 the current operator-only environment. It is not a public privacy notice and

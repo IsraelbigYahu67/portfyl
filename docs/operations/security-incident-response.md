@@ -1,15 +1,17 @@
 # Portfyl Security and Privacy Incident Response
 
-Last reviewed: 2026-09-08
+Last reviewed: 2026-11-22
 
 This is the operator playbook for suspected confidentiality, integrity,
 availability, authentication, tenant-isolation, credential, or personal-data
 incidents. It complements the Cloud Run, Neon restore, KMS, scheduler, audit,
 and account-deletion runbooks.
 
-For the current private-test stage, the approved privacy, support, and security
-contact is `tom.zoubek@gmail.com`. This contact does not substitute for naming
-the controller or assigning incident roles before external users are admitted.
+The contact for support, personal-data protection, and security (including
+incident reports) is `support@portfyl.com` (operator decision recorded in
+`docs/legal/poznamky-pro-pravnika.md`). The controller is Jakub Zoubek, a sole
+trader (OSVČ). This contact does not substitute for assigning an incident lead
+and roles when more people are involved.
 
 ## Priorities
 
@@ -61,7 +63,9 @@ Collect only what answers the incident questions:
 - job name/run status and scheduler invocation metadata;
 - database schema head, aggregate counts, and control totals;
 - Cloudflare rule/DNS/TLS configuration and security events;
-- KMS/Secret Manager access events when credential exposure is suspected.
+- KMS/Secret Manager access events when credential exposure is suspected;
+- for billing or e-mail incidents, Stripe webhook receipts (`stripe_events`) and
+  Brevo send outcomes in the logs (reason codes only, never addresses).
 
 Prefer hashes, counts, timestamps, and public/opaque IDs. If a raw customer row
 is essential, restrict access, record why it was needed, keep it out of general
@@ -91,7 +95,7 @@ chat/tickets, and delete the working copy after the incident retention decision.
 Support must never use knowledge of holdings, a portfolio UUID, a screenshot,
 or a broker account number as proof of identity. It must never ask for a
 password, broker API secret, Discord webhook URL, session cookie, CSRF token,
-Firebase ID token, trusted-edge token, or AI key.
+Firebase ID token, trusted-edge token, Stripe or Brevo key.
 
 For an account-sensitive request:
 
@@ -122,6 +126,46 @@ The controller/operator and qualified counsel decide regulator and customer
 notification duties and timing. Record the decision, owner, rationale, and
 deadline even when the conclusion is that notification is not required. Do not
 delay containment while waiting for legal review.
+
+### Notification deadlines (GDPR)
+
+Portfyl is a personal-data controller under Regulation (EU) 2016/679. These
+rules apply when a personal-data breach (a breach of security leading to
+accidental or unlawful destruction, loss, alteration, unauthorised disclosure
+of, or access to, personal data; Art. 4(12)) is confirmed or credibly
+suspected:
+
+- **Supervisory authority - Art. 33(1).** Notify the Czech Office for Personal
+  Data Protection (Úřad pro ochranu osobních údajů, https://uoou.gov.cz)
+  **without undue delay and, where feasible, within 72 hours after becoming
+  aware** of the breach, unless the breach is unlikely to result in a risk to
+  the rights and freedoms of natural persons. The 72 hours run from the moment
+  the controller becomes aware (record this UTC time), not from the end of the
+  investigation or of legal review. A notification later than 72 hours must give
+  the reasons for the delay (Art. 33(1)). If not all information is available,
+  it may be provided in phases without further undue delay (Art. 33(4)).
+- **Content - Art. 33(3).** Nature of the breach (categories and approximate
+  number of data subjects and records), the contact point (`support@portfyl.com`),
+  likely consequences, and measures taken or proposed.
+- **Data subjects - Art. 34(1).** Where the breach is likely to result in a
+  **high risk** to their rights and freedoms, tell the affected people **without
+  undue delay**, in clear and plain language (Art. 34(2)), by the verified
+  account e-mail, and say what protective action they can take. Art. 34(3)
+  lists the exceptions (for example data that was unintelligible to the
+  attacker because of encryption, or measures that make the high risk no longer
+  likely); record which one is relied on.
+- **Processors - Art. 33(2).** Google Cloud, Neon, Cloudflare, Firebase and
+  Brevo must notify Portfyl without undue delay after becoming aware of a breach
+  on their side; the 72 hours start when Portfyl becomes aware of it. Stripe/Link
+  acts as an independent controller for payments and notifies on its own
+  account, but check whether Portfyl data is affected.
+- **Record - Art. 33(5).** Document every personal-data breach, including those
+  that are not notified: the facts, effects, and remedial action (use the
+  post-incident record below).
+
+If unsure whether notification is required, treat the 72-hour clock as running
+and decide with counsel within it; Art. 33(4) allows information to be given in
+phases.
 
 ## Recovery gate
 

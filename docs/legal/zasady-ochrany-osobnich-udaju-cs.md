@@ -34,11 +34,26 @@ nejmenovali, protože nám tato povinnost nevzniká. `[[PRÁVNÍK: ověřit]]`
 | **Údaje o předplatném** | tarif, období, stav předplatného, identifikátor zákazníka a transakce u Platebního partnera, země | od Platebního partnera; **číslo karty nikdy nedostáváme** |
 | **Technické a bezpečnostní údaje** | IP adresa, typ prohlížeče, otisky (hashe) přihlašovacích relací, čas posledního přihlášení, bezpečnostní záznamy (audit log), počty použití funkcí | automaticky při používání Služby |
 | **Záznamy proti zneužití zkušebního období** | klíčované otisky (HMAC-SHA256 s tajným klíčem) kanonického e-mailu (malá písmena, bez `+tagu`, u Gmailu bez teček), IP adresy (IPv6 zkrácená na /64), čísel účtů u brokerů a identifikátorů 5 nejstarších importovaných transakcí; značka, že zkušební období nebylo přiznáno. Samotné hodnoty neukládáme | vytváříme je my při registraci a při importu či synchronizaci dat od brokera |
+| **Záznam o přijetí podmínek** | potvrzení věku alespoň 18 let, verze obchodních podmínek a těchto zásad, které byly při registraci zobrazeny, čas a způsob registrace (e-mailem, nebo přes Google); před ověřením e-mailu je záznam veden pod identifikátorem Firebase | vytváří server při registraci |
 | **Komunikace s podporou** | obsah e-mailů, které nám pošlete | od vás |
 | **Analytika (jen se souhlasem)** | pseudonymní události o používání aplikace – po přihlášení je spojujeme s interním identifikátorem účtu, nikoli s e-mailem ani jménem; viz čl. 8 | automaticky, pouze pokud souhlasíte |
 
 Nezpracováváme zvláštní kategorie údajů (např. o zdraví) a nežádáme rodné
-číslo ani doklady totožnosti. Službu mohou používat jen osoby starší 18 let.
+číslo ani doklady totožnosti.
+
+### Děti
+
+Služba je určena jen osobám, které dosáhly věku **alespoň 18 let**. Je to
+podmínka smlouvy, kterou při registraci potvrzujete zaškrtnutím. Vědomě
+nezpracováváme osobní údaje osob mladších 18 let. Pokud zjistíme, že účet
+patří osobě mladší 18 let, účet smažeme. Pokud se domníváte, že účet založila
+osoba mladší 18 let, napište nám na support@portfyl.com.
+
+Hlavním základem zpracování je smlouva (čl. 6 odst. 1 písm. b) GDPR), nikoli
+souhlas. Věková hranice 18 let proto nevychází z čl. 8 GDPR ani z § 7 zákona
+č. 110/2019 Sb. (věk, od něhož dítě samo uděluje souhlas se zpracováním
+v souvislosti se službami informační společnosti), ale je smluvní podmínkou
+užívání Služby.
 
 **Povinnost poskytnout údaje.** Poskytnutí e-mailu je nutné k vytvoření
 účtu – bez něj vám Službu nemůžeme poskytovat. Údaje o portfoliu, připojení
@@ -52,6 +67,8 @@ nemá vliv.
 |---|---|
 | Vytvoření a správa účtu, poskytování Služby (výpočty, importy, synchronizace s brokerem, upozornění) | **plnění smlouvy** – čl. 6 odst. 1 písm. b) |
 | Správa předplatného a komunikace o něm | **plnění smlouvy** – čl. 6 odst. 1 písm. b) |
+| Doložení, že jste při registraci potvrdili věk alespoň 18 let a přijali podmínky a že vám byly tyto zásady zpřístupněny | **oprávněný zájem** na prokázání uzavření smlouvy a splnění informační povinnosti – čl. 6 odst. 1 písm. f) `[[PRÁVNÍK: ověřit právní základ]]` |
+| Zasílání transakčních e-mailů k účtu: ověření e-mailu, obnovení hesla, upozornění na změnu hesla a oznámení o smazání účtu (odesíláme je přes dodavatele Brevo, viz čl. 4) | **plnění smlouvy** – čl. 6 odst. 1 písm. b) |
 | Zabezpečení Služby, prevence zneužití, ochrana oddělení dat uživatelů, řešení incidentů, chybové záznamy | **oprávněný zájem** na bezpečném provozu – čl. 6 odst. 1 písm. f) |
 | Nabídnutí jednoho zkušebního období na osobu (rozpoznání, že stejná schránka, síť, účet u brokera nebo historie transakcí už zkušební období měly) | **oprávněný zájem** na ochraně zkušebního období před zneužitím – čl. 6 odst. 1 písm. f) `[[PRÁVNÍK: test vyváženosti; jsou klíčované otisky zde pseudonymizovanými osobními údaji?]]` |
 | Vyřizování reklamací, dotazů a uplatňování práv | **plnění smlouvy** / **právní povinnost** – čl. 6 odst. 1 písm. b) a c) |
@@ -59,11 +76,15 @@ nemá vliv.
 | Ochrana našich právních nároků | **oprávněný zájem** – čl. 6 odst. 1 písm. f) |
 | Analytika používání aplikace | **souhlas** – čl. 6 odst. 1 písm. a); souhlas můžete kdykoli odvolat |
 
-Marketingové e-maily neposíláme. Pokud bychom je v budoucnu chtěli posílat,
-požádáme vás předem o souhlas.
+Transakční e-maily uvedené výše slouží jen k provozu a zabezpečení vašeho
+účtu; nejsou marketingové. Marketingové e-maily neposíláme. Pokud bychom je
+v budoucnu chtěli posílat, požádáme vás předem o souhlas.
 
 Nepoužíváme automatizované rozhodování ani profilování, které by pro vás
-mělo právní nebo podobně závažné účinky.
+mělo právní nebo podobně závažné účinky. Rozpoznání, že stejná schránka,
+síť, účet u brokera nebo historie transakcí už zkušební období měly, probíhá
+automaticky; nepřiznání zkušebního období však nemá právní ani obdobně
+významný účinek – Služba vám zůstává dostupná v tarifu Free.
 
 ## 4. Komu údaje předáváme
 
@@ -78,6 +99,7 @@ základě smlouvy o zpracování osobních údajů:
 | Neon Inc. | databáze (PostgreSQL) a zálohy | EU – Frankfurt `[[OVĚŘIT]]` |
 | Cloudflare, Inc. | DNS, šifrované spojení (TLS), ochrana proti útokům a kontrola proti robotům při vytvoření nového účtu (Turnstile) `[[PRÁVNÍK: zpracovatel, nebo samostatný správce; DPA]]` | globální síť |
 | PostHog Inc. (PostHog Cloud EU) | analytika používání – **jen pokud udělíte souhlas** | EU – Frankfurt |
+| Brevo (společnost se sídlem ve Francii) `[[DOPLNIT: přesný název a sídlo smluvní strany podle smlouvy s Brevo]]` | odesílání transakčních e-mailů z účtu (ověření e-mailu, obnovení hesla, upozornění na změnu hesla, oznámení o smazání účtu). Brevo dostává e-mailovou adresu příjemce a obsah zprávy (včetně odkazu, data a času události); odkazy v e-mailech vedou přes sledovací doménu Brevo. Pokud odeslání přes Brevo API selže, pošle ověřovací nebo resetovací e-mail Firebase Authentication, který jde rovněž přes Brevo | `[[OVĚŘIT: umístění zpracování, DPA a předání mimo EHP]]` |
 
 **Samostatní správci** – tyto subjekty zpracovávají údaje podle vlastních
 zásad:
@@ -86,7 +108,11 @@ zásad:
   Link (Stripe Managed Payments) `[[DOPLNIT: přesný název a sídlo
   prodávajícího subjektu]]` – přijímá platby jako prodejce, vystavuje doklady,
   odvádí DPH a vyřizuje dotazy k platbám, vracení peněz a správu předplatného
-  na webu link.com.
+  na webu link.com. **Platebnímu partnerovi (Stripe) předáváme** při zahájení
+  platby e-mailovou adresu vašeho účtu, identifikátor vašeho pracovního
+  prostoru v Portfyl (náhodné UUID, podle kterého platbu přiřadíme k vašemu
+  účtu) a zvolený tarif. Údaje o platební kartě zadáváte přímo u něj a my je
+  nikdy nedostaneme.
 - **Váš broker** (např. Trading 212, Interactive Brokers, eToro) – jen pokud
   ho sami připojíte; posíláme mu vaše API přihlášení a dostáváme od něj
   údaje o účtu.
@@ -107,21 +133,32 @@ každého dodavatele]]` Kopii standardních smluvních doložek vám na žádost
 poskytneme na support@portfyl.com; seznam certifikovaných společností
 EU-U.S. Data Privacy Framework je na https://www.dataprivacyframework.gov.
 
+U dodavatele Brevo a u platebního partnera zatím ověřujeme, zda a na základě
+jakých záruk mohou být údaje zpracovávány mimo Evropský hospodářský prostor.
+`[[OVĚŘIT: DPA a předání mimo EHP]]`
+
 ## 6. Jak dlouho údaje uchováváme
 
 | Údaje | Doba uložení |
 |---|---|
 | Účet, portfolia a všechna data v aplikaci | po dobu existence účtu; po vaší žádosti o smazání viz níže |
-| Zálohy databáze | data smazaná z aplikace mohou zůstat v záloze ještě nejvýše `[[DOPLNIT: 7 dní]]`, pak jsou nenávratně přepsána |
+| Zálohy databáze | zálohy sloužící k obnovení databáze uchovávají smazaná data nejvýše 7 dní, poté jsou nenávratně přepsána |
 | Provozní záznamy (logy) | 30 dní; neobsahují obsah portfolia ani hesla |
 | Záznamy o přihlašovacích relacích | 30 dní po vypršení nebo odhlášení |
+| Záznam o přijetí podmínek | po dobu existence účtu, smaže se spolu s ním `[[OVĚŘIT: mazání záznamů, jejichž e-mail nebyl nikdy ověřen]]` |
+| Čítače omezení počtu požadavků (klíčovaný otisk, ne samotná IP adresa) | do uplynutí příslušného časového okna (řádově minuty); prošlé záznamy se mažou každou hodinu |
+| Záznamy o využití funkcí (rezervace limitů tarifu) | 90 dní po dokončení nebo uvolnění rezervace; nejpozději se smazáním účtu |
+| Záznamy o doručení upozornění (např. do Discordu) | odeslané nebo definitivně neúspěšné záznamy 90 dní; nejpozději se smazáním účtu |
+| Záznamy o odeslaných upozorněních na dividendy (aby se upozornění neposlalo dvakrát) | 400 dní; nejpozději se smazáním účtu |
+| Dočasná data importu z Trading 212 (surové záznamy obchodů a dividend potřebné k dokončení a kontrole importu) | 14 dní po dokončení, selhání nebo zrušení synchronizace; starší podklady ke kontrole 90 dní; poslední podklad ke kontrole u každého připojení zůstává, dokud existuje účet; nejpozději se smazáním účtu |
+| Transakční e-maily (Brevo) | my kopie odeslaných e-mailů neukládáme; doba uchování záznamů o doručení u Brevo `[[OVĚŘIT: doba uchování u Brevo]]` |
 | Bezpečnostní záznamy (audit log) | po dobu existence účtu, smažou se spolu s ním |
 | Požadavky na brokery (názvy brokerů, které nás požádáte podporovat) | po dobu existence účtu, smažou se spolu s ním |
 | Záznamy o zkušebním období: otisky e-mailu a údajů o brokerovi | 12 měsíců; zůstávají i po smazání účtu, aby stejná osoba nemohla zkušební období opakovat `[[PRÁVNÍK: výmaz podle čl. 17 vs. uchování otisku po smazání]]` |
 | Záznam o zkušebním období: otisk IP adresy | 30 dní |
 | Záznam o zkušebním období pracovního prostoru (začátek, konec, důvod, značka odepření) | smaže se spolu s účtem |
 | Komunikace s podporou | 1 rok od vyřízení |
-| Doklady o platbách | uchovává Platební partner; my údaje o předplatném po dobu, kterou vyžadují daňové předpisy `[[PRÁVNÍK: doplnit lhůtu]]` |
+| Doklady o platbách | uchovává Platební partner; my údaje o předplatném po dobu, kterou vyžadují daňové předpisy `[[PRÁVNÍK: doplnit lhůtu]]` `[[OVĚŘIT: aplikace dnes při smazání účtu maže i záznamy o předplatném; zda a jaké daňové záznamy vedeme mimo aplikaci]]` |
 | Analytická data (se souhlasem) | nejvýše 1 rok |
 
 **Smazání účtu:** Účet smažete v Nastavení → Data a soukromí. Z
@@ -145,7 +182,9 @@ Máte právo:
 - **odvolat souhlas** (např. s analytikou) – kdykoli v nastavení cookies,
   aniž by to ovlivnilo předchozí zpracování;
 - **podat stížnost** u Úřadu pro ochranu osobních údajů, Pplk. Sochora 27,
-  170 00 Praha 7, `https://uoou.gov.cz`.
+  170 00 Praha 7, `https://uoou.gov.cz`, nebo u dozorového úřadu v jiném
+  členském státě EU – podle čl. 77 GDPR u úřadu v zemi vašeho obvyklého
+  bydliště, místa výkonu zaměstnání nebo místa údajného porušení.
 
 **Právo vznést námitku.** Proti zpracování, které provádíme na základě
 oprávněného zájmu (zabezpečení, ochrana právních nároků, výše uvedené
