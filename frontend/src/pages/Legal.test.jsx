@@ -93,7 +93,7 @@ it("picks the language from ?lang, then the landing choice, and switches in plac
   localStorage.setItem(LANGUAGE_KEY, "de");
   render(<Legal page="terms" />);
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Portfyl Terms of Service");
-  fireEvent.click(screen.getByRole("button", { name: "Čeština" }));
+  fireEvent.click(screen.getByRole("button", { name: "CZ – Čeština" }));
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Obchodní podmínky");
   expect(window.location.search).toBe("?lang=cs");
 });
