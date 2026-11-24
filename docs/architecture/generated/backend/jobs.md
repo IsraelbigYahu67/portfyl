@@ -14,7 +14,7 @@ generated: true
 Background job passes, driven by the periodic pollers in main.py.
 
 **Hub:** [[Jobs and Cloud Scheduler]]
-**Source:** `backend/jobs.py` (1338 lines)
+**Source:** `backend/jobs.py` (1342 lines)
 
 ## Imports
 - [[account_deletion]]
@@ -24,6 +24,7 @@ Background job passes, driven by the periodic pollers in main.py.
 - [[edition]]
 - [[entitlements]]
 - [[firebase_identity]]
+- [[legal_acceptance]]
 - [[models]]
 - [[routers.alerts]]
 - [[routers.broker]]

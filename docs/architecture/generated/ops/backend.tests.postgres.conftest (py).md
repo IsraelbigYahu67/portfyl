@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Deploy and operations]] · [[Testing]]
-**Source:** `backend/tests/postgres/conftest.py` (540 lines)
+**Source:** `backend/tests/postgres/conftest.py` (544 lines)
 
 ## Mentioned in docs
 - [[operations/activation-analytics-browser-check]]

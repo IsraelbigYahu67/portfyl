@@ -14,7 +14,7 @@ generated: true
 Server-side record that a person accepted the Terms at sign-up.
 
 **Hub:** [[Backend]]
-**Source:** `backend/legal_acceptance.py` (137 lines)
+**Source:** `backend/legal_acceptance.py` (159 lines)
 
 ## Imports
 - [[models]]

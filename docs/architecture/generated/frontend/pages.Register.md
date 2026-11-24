@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Auth and sessions]]
-**Source:** `frontend/src/pages/Register.jsx` (232 lines)
+**Source:** `frontend/src/pages/Register.jsx` (249 lines)
 
 ## Imports
 - [[analytics (folder)]]

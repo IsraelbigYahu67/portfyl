@@ -156,7 +156,7 @@ what safeguards, data may be processed outside the European Economic Area.
 | Database backups | the backups used to recover the database keep deleted data for at most 7 days, after which it is irreversibly overwritten |
 | Operational logs | 30 days; they contain no portfolio content or passwords |
 | Session records | 30 days after expiry or sign-out |
-| Record of acceptance of the terms | while your account exists; deleted with it. **Unfinished registration:** a record created before your e-mail is verified, and an account that has been neither verified nor completed, are removed after 30 days at the latest |
+| Record of acceptance of the terms | while your account exists; deleted with it. **Unfinished registration:** a record created before your e-mail is verified is removed after 30 days at the latest. A Firebase sign-in account that was neither verified nor completed is not yet removed automatically `[[DECIDE: introduce automatic removal, or until then delete manually in the Firebase console within 30 days, and adjust this text]]` |
 | Request rate-limit counters (a keyed digest, not the IP address itself) | until the relevant time window ends (minutes); expired records are removed hourly |
 | Feature-usage records (plan-limit reservations) | 90 days after they are completed or released; at the latest when your account is deleted |
 | Notification delivery records (e.g. to Discord) | sent or finally failed records 90 days; at the latest when your account is deleted |

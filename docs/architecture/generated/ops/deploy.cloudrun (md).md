@@ -14,7 +14,7 @@ generated: true
 Markdown outside the vault; its top headings are listed below.
 
 **Hub:** [[Deploy and operations]]
-**Source:** `deploy/cloudrun.md` (1278 lines)
+**Source:** `deploy/cloudrun.md` (1290 lines)
 
 ## Headings
 - Cloud Run deploy — Neon PostgreSQL + Firebase identity, multi-instance

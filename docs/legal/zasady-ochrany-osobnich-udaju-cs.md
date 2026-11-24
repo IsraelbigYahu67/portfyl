@@ -156,7 +156,7 @@ zpracovávány mimo Evropský hospodářský prostor.
 | Zálohy databáze | zálohy sloužící k obnovení databáze uchovávají smazaná data nejvýše 7 dní, poté jsou nenávratně přepsána |
 | Provozní záznamy (logy) | 30 dní; neobsahují obsah portfolia ani hesla |
 | Záznamy o přihlašovacích relacích | 30 dní po vypršení nebo odhlášení |
-| Záznam o přijetí podmínek | po dobu existence účtu, smaže se s ním. **Nedokončená registrace:** záznam vytvořený před ověřením e-mailu a účet, který nebyl ověřen ani dokončen, odstraníme nejpozději po 30 dnech |
+| Záznam o přijetí podmínek | po dobu existence účtu, smaže se s ním. **Nedokončená registrace:** záznam vytvořený před ověřením e-mailu odstraníme nejpozději po 30 dnech. Účet v přihlašovací službě Firebase, který nebyl ověřen ani dokončen, zatím automaticky nemažeme `[[ROZHODNOUT: zavést automatické mazání, nebo do té doby mazat ručně v konzoli Firebase nejpozději po 30 dnech, a text upravit]]` |
 | Čítače omezení počtu požadavků (klíčovaný otisk, ne samotná IP adresa) | do uplynutí příslušného časového okna (řádově minuty); prošlé záznamy se mažou každou hodinu |
 | Záznamy o využití funkcí (rezervace limitů tarifu) | 90 dní po dokončení nebo uvolnění rezervace; nejpozději se smazáním účtu |
 | Záznamy o doručení upozornění (např. do Discordu) | odeslané nebo definitivně neúspěšné záznamy 90 dní; nejpozději se smazáním účtu |

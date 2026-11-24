@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Account deletion and data lifecycle]]
-**Source:** `frontend/src/components/DataPrivacySettings.jsx` (401 lines)
+**Source:** `frontend/src/components/DataPrivacySettings.jsx` (437 lines)
 
 ## Imports
 - [[analytics (folder)]]
@@ -26,6 +26,7 @@ generated: true
 
 ## Calls backend
 - [[routers.account]]
+- [[routers.billing]]
 
 ## Mentioned in docs
 - [[superpowers/plans/2026-09-19-portfyl-activation-analytics]]

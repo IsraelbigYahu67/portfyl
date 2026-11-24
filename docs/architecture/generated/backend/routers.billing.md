@@ -14,7 +14,7 @@ generated: true
 Cloud-only billing API: Stripe Managed Payments checkout, Customer Portal and the Stripe webhook.
 
 **Hub:** [[Billing and Stripe]]
-**Source:** `backend/routers/billing.py` (445 lines)
+**Source:** `backend/routers/billing.py` (466 lines)
 **API prefix:** `/api/billing`
 
 ## Endpoints

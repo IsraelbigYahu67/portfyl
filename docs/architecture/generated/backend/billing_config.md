@@ -14,7 +14,7 @@ generated: true
 Cloud billing configuration (Stripe Managed Payments).
 
 **Hub:** [[Billing and Stripe]]
-**Source:** `backend/billing_config.py` (108 lines)
+**Source:** `backend/billing_config.py` (134 lines)
 
 ## Imports
 - [[plans]]
@@ -22,6 +22,7 @@ Cloud billing configuration (Stripe Managed Payments).
 ## Mentioned in docs
 - [[compliance/data-processing-inventory]]
 - [[operations/billing-verification-2026-09-05]]
+- [[operations/withdrawal-refund]]
 - [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
 - [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]
 - [[superpowers/specs/2026-11-15-portfyl-own-emails-design]]

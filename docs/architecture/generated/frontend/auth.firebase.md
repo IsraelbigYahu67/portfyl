@@ -14,8 +14,8 @@ generated: true
 Firebase JS SDK browser adapter.
 
 **Hub:** [[Auth and sessions]]
-**Source:** `frontend/src/auth/firebase.js` (347 lines)
-**Exports:** `registerWithEmailPassword`, `signInWithEmailPassword`, `sendVerificationEmail`, `reloadFirebaseUser`, `sendPasswordReset`, `applyEmailActionCode`, `checkEmailActionCode`, `verifyResetCode`, `confirmNewPassword`, `getIdToken`, `reauthenticateWithPassword`, `isGoogleSignInEnabled` …
+**Source:** `frontend/src/auth/firebase.js` (355 lines)
+**Exports:** `registerWithEmailPassword`, `deleteFirebaseUser`, `signInWithEmailPassword`, `sendVerificationEmail`, `reloadFirebaseUser`, `sendPasswordReset`, `applyEmailActionCode`, `checkEmailActionCode`, `verifyResetCode`, `confirmNewPassword`, `getIdToken`, `reauthenticateWithPassword` …
 
 ## Mentioned in docs
 - [[superpowers/plans/2026-10-12-portfyl-google-sign-in]]
