@@ -27,6 +27,7 @@ from routers.analytics import (
     _benchmark_daily_returns,
     _build_value_cashflow_series,
     _modified_dietz_daily_returns,
+    _normalize_display_currency,
     _resolve_window,
     resolve_benchmark,
 )
@@ -300,12 +301,20 @@ def delete_benchmark(
 def benchmark_comparison(
     period: str = "1y",
     benchmark_id: Optional[UUID] = None,
+    currency: str = "USD",
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
 ):
     """Time series of cumulative TWR for portfolio vs chosen benchmark plus the
     daily active-return curve, with the same comparison metrics surfaced on
-    /risk-metrics for the same window."""
+    /risk-metrics for the same window.
+
+    Basis: both sides are measured in `currency` ("USD" by default, or "CZK")
+    with daily FX history, so the active return contains no currency mismatch.
+    The response's `currency_basis` is that currency, or
+    "benchmark_native_currency" if the benchmark's FX history was unavailable
+    and it is shown in its own quote currency."""
+    display_ccy = _normalize_display_currency(currency) or "USD"
     transactions = (
         db.query(Transaction)
         .filter(
@@ -323,7 +332,9 @@ def benchmark_comparison(
         return {"series": [], "metrics": {}, "benchmark": None}
     start_date, window_start = window
 
-    V, C, closes_index = _build_value_cashflow_series(transactions, start_date)
+    V, C, closes_index = _build_value_cashflow_series(
+        transactions, start_date, display_currency=display_ccy
+    )
     if V is None:
         return {"series": [], "metrics": {}, "benchmark": None}
 
@@ -332,7 +343,8 @@ def benchmark_comparison(
         return {"series": [], "metrics": {}, "benchmark": None}
 
     bench = resolve_benchmark(db, portfolio, benchmark_id)
-    bench_daily = _benchmark_daily_returns(db, bench, start_date, closes_index)
+    bench_daily = _benchmark_daily_returns(db, bench, start_date, closes_index, display_ccy)
+    currency_basis = bench_daily.attrs.get("currency_basis", display_ccy) if bench is not None else display_ccy
 
     aligned = pd.DataFrame({"p": port_daily, "b": bench_daily}).dropna()
     if aligned.empty:
@@ -341,6 +353,8 @@ def benchmark_comparison(
             "metrics": {},
             "benchmark": {"id": str(bench.public_id), "name": bench.name, "kind": bench.kind} if bench else None,
             "period": period,
+            "currency": display_ccy,
+            "currency_basis": currency_basis,
         }
 
     port_cum = (1 + aligned["p"]).cumprod() - 1
@@ -364,6 +378,8 @@ def benchmark_comparison(
 
     return {
         "period": period,
+        "currency": display_ccy,
+        "currency_basis": currency_basis,
         "benchmark": {"id": str(bench.public_id), "name": bench.name, "kind": bench.kind} if bench else None,
         "series": series,
         "metrics": metrics,

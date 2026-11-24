@@ -905,8 +905,67 @@ def _modified_dietz_daily_returns(V: pd.Series, C: pd.Series, window_start: date
     return pd.Series(out_vals, index=out_idx)
 
 
-def _ticker_daily_returns(ticker: str, start_date: date, target_index) -> pd.Series:
-    """Daily simple returns for a single yfinance symbol, reindexed onto target_index."""
+BASIS_NATIVE = "benchmark_native_currency"
+
+
+def _normalize_display_currency(display_currency: str | None) -> str | None:
+    """The series builder only knows USD and CZK (anything else is USD, see
+    `_usd_series_to_display`). None means "do not convert"."""
+    if display_currency is None:
+        return None
+    return "CZK" if display_currency.upper() == "CZK" else "USD"
+
+
+def _close_to_display(
+    close: pd.Series,
+    ccy: str | None,
+    display_currency: str,
+    start_date: date,
+    index: pd.Index,
+) -> pd.Series | None:
+    """Convert a native-currency close series to `display_currency` ("USD" or
+    "CZK") using the *daily* FX history, the same series the portfolio value
+    uses, so currency drift is in both sides of a comparison. None when the FX
+    history for the quote currency (or CZK) is unavailable."""
+    ccy = (ccy or "USD").strip() or "USD"
+    divisor = 100.0 if ccy == "GBp" else 1.0
+    if ccy.upper() == "USD":
+        usd = close / divisor
+    else:
+        fx = _fx_to_usd_series({ccy}, start_date, index).get(ccy)
+        if fx is None:
+            return None
+        usd = close / divisor * fx
+    if display_currency == "CZK":
+        czk_usd = _fx_to_usd_series({"CZK"}, start_date, index).get("CZK")
+        if czk_usd is None:
+            return None
+        return usd / czk_usd.replace(0, np.nan)
+    return usd
+
+
+def _quote_currency(symbol: str) -> str | None:
+    """Listing currency of a Yahoo symbol, None when Yahoo does not say."""
+    try:
+        info = market_data.get_infos([symbol]).get(symbol) or {}
+    except Exception:
+        return None
+    ccy = (info.get("currency") or "").strip()
+    return ccy or None
+
+
+def _ticker_daily_returns(
+    ticker: str,
+    start_date: date,
+    target_index,
+    display_currency: str | None = None,
+) -> pd.Series:
+    """Daily simple returns for a single yfinance symbol, reindexed onto target_index.
+
+    With `display_currency` ("USD"/"CZK") the close is first converted to that
+    currency with daily FX, so the return includes currency drift exactly like
+    the portfolio's. If that conversion is impossible the native-currency
+    return is returned and `.attrs["currency_basis"]` says so."""
     try:
         raw = market_data.download(ticker, start=start_date.isoformat(), auto_adjust=True, progress=False)
     except Exception:
@@ -917,13 +976,30 @@ def _ticker_daily_returns(ticker: str, start_date: date, target_index) -> pd.Ser
     if isinstance(c, pd.DataFrame):
         c = c.squeeze()
     c = c.reindex(target_index, method="ffill").ffill()
-    return c.pct_change()
+    target = _normalize_display_currency(display_currency)
+    basis = BASIS_NATIVE
+    if target is not None:
+        ccy = _quote_currency(ticker)
+        converted = _close_to_display(c, ccy, target, start_date, target_index) if ccy else None
+        if converted is not None:
+            c, basis = converted, target
+    out = c.pct_change()
+    out.attrs["currency_basis"] = basis
+    return out
 
 
-def _basket_daily_returns(components: list[dict], start_date: date, target_index) -> pd.Series:
+def _basket_daily_returns(
+    components: list[dict],
+    start_date: date,
+    target_index,
+    display_currency: str | None = None,
+) -> pd.Series:
     """Weighted daily returns of a basket. Components: [{ticker, weight}].
     Missing tickers are dropped and remaining weights renormalised so a partial
-    failure produces a best-effort series rather than zeroing out the metric."""
+    failure produces a best-effort series rather than zeroing out the metric.
+    With `display_currency` each component is converted with daily FX first;
+    if any component cannot be, the whole basket stays in native currencies
+    (mixing bases inside one basket would be worse) and the basis says so."""
     if not components:
         return pd.Series(dtype=float)
     yf_to_orig: dict[str, str] = {}
@@ -933,8 +1009,23 @@ def _basket_daily_returns(components: list[dict], start_date: date, target_index
     closes = _load_close_panel(list(yf_to_orig.keys()), start_date, keep_split=lambda *_: True)
     if closes.empty:
         return pd.Series(dtype=float)
+    yf_cols = list(closes.columns)
     closes = closes.rename(columns=yf_to_orig)
     closes = closes.reindex(target_index, method="ffill").ffill()
+    target = _normalize_display_currency(display_currency)
+    basis = BASIS_NATIVE
+    if target is not None:
+        converted: dict[str, pd.Series] = {}
+        for yf_col, orig in zip(yf_cols, closes.columns):
+            ccy = _quote_currency(yf_col)
+            series = _close_to_display(closes[orig], ccy, target, start_date, target_index) if ccy else None
+            if series is None:
+                converted = {}
+                break
+            converted[orig] = series
+        if converted:
+            closes = pd.DataFrame(converted, index=target_index)
+            basis = target
     returns = closes.pct_change()
     weights = {c["ticker"]: float(c["weight"]) for c in components}
     available = [t for t in returns.columns if t in weights]
@@ -944,15 +1035,27 @@ def _basket_daily_returns(components: list[dict], start_date: date, target_index
     if w.sum() <= 0:
         return pd.Series(dtype=float)
     w = w / w.sum()
-    return returns[available].mul(w, axis=1).sum(axis=1, min_count=1)
+    out = returns[available].mul(w, axis=1).sum(axis=1, min_count=1)
+    out.attrs["currency_basis"] = basis
+    return out
 
 
-def _benchmark_daily_returns(db: Session, bench: Benchmark | None, start_date: date, target_index) -> pd.Series:
-    """Dispatch on benchmark.kind. Empty series if bench is None."""
+def _benchmark_daily_returns(
+    db: Session,
+    bench: Benchmark | None,
+    start_date: date,
+    target_index,
+    display_currency: str | None = None,
+) -> pd.Series:
+    """Dispatch on benchmark.kind. Empty series if bench is None.
+
+    `display_currency` ("USD"/"CZK") must be the currency the portfolio series
+    was built in; the result carries `.attrs["currency_basis"]` (that currency,
+    or BASIS_NATIVE when FX data was missing or no currency was requested)."""
     if bench is None:
         return pd.Series(dtype=float)
     if bench.kind == "ticker" and bench.ticker:
-        return _ticker_daily_returns(bench.ticker, start_date, target_index)
+        return _ticker_daily_returns(bench.ticker, start_date, target_index, display_currency)
     if bench.kind == "basket":
         # `workspace_id IS NULL` (shared presets) can't be matched with `== None`
         # in SQL, so branch on it explicitly rather than risk silently returning
@@ -967,7 +1070,7 @@ def _benchmark_daily_returns(db: Session, bench: Benchmark | None, start_date: d
             workspace_filter,
         ).all()
         components = [{"ticker": r.ticker, "weight": r.weight} for r in rows]
-        return _basket_daily_returns(components, start_date, target_index)
+        return _basket_daily_returns(components, start_date, target_index, display_currency)
     return pd.Series(dtype=float)
 
 
@@ -1040,11 +1143,20 @@ def _benchmark_compare_metrics(port: pd.Series, bench: pd.Series) -> dict:
 def risk_metrics(
     period: str = "1y",
     benchmark_id: UUID | None = None,
+    currency: str = "USD",
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
 ):
     """Time-weighted return based risk metrics, plus benchmark-relative metrics
-    against the chosen (or portfolio-default) benchmark."""
+    against the chosen (or portfolio-default) benchmark.
+
+    Basis: portfolio and benchmark returns are both measured in `currency`
+    ("USD" by default, or "CZK"), each converted with daily FX history, so the
+    comparison carries the same currency drift on both sides. `currency_basis`
+    in the response is that currency, or "benchmark_native_currency" when the
+    benchmark could not be converted (missing FX data). `lifetime` money values
+    stay in USD (see `_lifetime_money_weighted`)."""
+    display_ccy = _normalize_display_currency(currency) or "USD"
     transactions = (
         db.query(Transaction)
         .filter(
@@ -1062,12 +1174,16 @@ def risk_metrics(
         return {}
     start_date, window_start = window
 
-    V, C, closes_index = _build_value_cashflow_series(transactions, start_date)
-    if V is None:
+    V_usd, C_usd, closes_index = _build_value_cashflow_series(transactions, start_date)
+    if V_usd is None:
         return {}
+    # V_usd stays untouched for the (USD) lifetime block; the returns use V/C
+    # in the requested currency.
+    V, C = _usd_series_to_display(V_usd, C_usd, start_date, display_ccy)
 
     bench = resolve_benchmark(db, portfolio, benchmark_id)
-    bench_daily_full = _benchmark_daily_returns(db, bench, start_date, closes_index)
+    bench_daily_full = _benchmark_daily_returns(db, bench, start_date, closes_index, display_ccy)
+    currency_basis = bench_daily_full.attrs.get("currency_basis", display_ccy) if bench is not None else display_ccy
 
     daily_returns = _modified_dietz_daily_returns(V, C, window_start)
     if len(daily_returns) < 2:
@@ -1114,7 +1230,7 @@ def risk_metrics(
 
     bench_metrics = _benchmark_compare_metrics(daily_returns, bench_daily_full) if not bench_daily_full.empty else {}
 
-    lifetime = _lifetime_money_weighted(transactions, V)
+    lifetime = _lifetime_money_weighted(transactions, V_usd)
 
     return {
         "period": period,
@@ -1144,6 +1260,8 @@ def risk_metrics(
         "worst_day": round(worst_day * 100, 2),
         "risk_free_rate": RISK_FREE_RATE,
         "method": "modified-dietz-twr",
+        "currency": display_ccy,
+        "currency_basis": currency_basis,
         "lifetime": lifetime,
     }
 
