@@ -248,6 +248,7 @@ describe("useOnboardingConnect", () => {
     await act(() => result.current.submit({ flexToken: " tok ", queryId: " 123 " }));
 
     expect(createPendingImportPortfolio).toHaveBeenCalledTimes(1);
+    expect(createPendingImportPortfolio).toHaveBeenCalledWith("My portfolio");
     expect(props.setCurrentId).toHaveBeenCalledWith("p1");
     expect(connectIBKR).toHaveBeenCalledWith("tok", "123", QUIET);
     expect(syncIBKR).toHaveBeenCalledWith(QUIET);

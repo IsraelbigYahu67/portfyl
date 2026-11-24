@@ -1574,4 +1574,5 @@ export default {
   "For <b>{email}</b>": "Pro <b>{email}</b>",
   "New password": "Nové heslo",
   "Save new password": "Uložit nové heslo",
+  "My portfolio": "Moje portfolio",
 };

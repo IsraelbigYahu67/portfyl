@@ -359,7 +359,7 @@ function PortfoliosLoadError({ onRetry }) {
 // AuthProvider has resolved a session with both a user and a workspace.
 function AuthGate() {
   const { ready, user, currentWorkspace } = useAuth();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
 
   // E-mail action links (verify e-mail, reset password) work whether or not
   // this browser is signed in, and need no session to load first.
@@ -377,7 +377,11 @@ function AuthGate() {
         <Route path="/register" element={<Register />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="*" element={<Login />} />
+        <Route path="/login" element={<Login />} />
+        {/* Any other address (the page someone just logged out of) moves to
+            /login instead of showing the login form under the old URL. The
+            query stays: Login reads ?verified=1. */}
+        <Route path="*" element={<Navigate to={{ pathname: "/login", search }} replace />} />
       </Routes>
     );
   }

@@ -15,6 +15,7 @@ from portfolio_activation import (
     set_pending_portfolio,
 )
 from routers.portfolios import (
+    PendingImportCreate,
     activate_pending_import_portfolio,
     create_pending_import_portfolio,
     list_portfolios,
@@ -45,6 +46,47 @@ def test_pending_name_uses_a_workspace_unique_suffix(db_session, request_context
     result = create_pending_import_portfolio(context=request_context, db=db_session)
 
     assert result["name"] == "My portfolio 2"
+
+
+def test_pending_name_follows_the_language_the_client_sends(db_session, request_context):
+    # The UI sends its translated "My portfolio", so a Czech user does not get
+    # an English name they never chose.
+    result = create_pending_import_portfolio(
+        payload=PendingImportCreate(name="  Moje portfolio  "),
+        context=request_context,
+        db=db_session,
+    )
+
+    assert result["name"] == "Moje portfolio"
+
+
+def test_pending_name_sent_by_the_client_still_gets_a_unique_suffix(db_session, request_context):
+    db_session.add(Portfolio(workspace_id=request_context.workspace.id, name="Moje portfolio"))
+    db_session.commit()
+
+    result = create_pending_import_portfolio(
+        payload=PendingImportCreate(name="Moje portfolio"),
+        context=request_context,
+        db=db_session,
+    )
+
+    assert result["name"] == "Moje portfolio 2"
+
+
+@pytest.mark.parametrize("name", [None, "", "   "])
+def test_pending_name_falls_back_to_the_english_default(db_session, request_context, name):
+    result = create_pending_import_portfolio(
+        payload=PendingImportCreate(name=name),
+        context=request_context,
+        db=db_session,
+    )
+
+    assert result["name"] == "My portfolio"
+
+
+def test_pending_name_longer_than_a_portfolio_name_is_refused():
+    with pytest.raises(ValueError):
+        PendingImportCreate(name="x" * 65)
 
 
 def test_pending_creation_counts_toward_portfolio_capacity(

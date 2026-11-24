@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Download, Loader2, Trash2, X } from "lucide-react";
 
@@ -364,8 +365,16 @@ export default function DataPrivacySettings() {
         ))}
       </div>
 
-      {dialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="presentation">
+      {dialogOpen && createPortal(
+        // In a portal like ui/Modal: a transformed ancestor (animate-fade-up)
+        // would turn `fixed` into "fixed to that box", and the dim would stop
+        // short of the top bar. z-[60] sits above the top (z-30) and bottom
+        // (z-40) bars.
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+          style={{ backdropFilter: "blur(var(--blur-overlay))" }}
+          role="presentation"
+        >
           <div
             ref={dialogRef}
             role="dialog"
@@ -553,7 +562,8 @@ export default function DataPrivacySettings() {
               </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

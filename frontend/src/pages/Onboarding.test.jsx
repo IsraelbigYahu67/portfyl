@@ -509,6 +509,8 @@ describe("Onboarding", () => {
       fireEvent.click(screen.getByRole("button", { name: "Import your Degiro file" }));
 
       await waitFor(() => expect(mocks.createPendingImportPortfolio).toHaveBeenCalledTimes(1));
+      // Named in the UI's language, not left to the server's English default.
+      expect(mocks.createPendingImportPortfolio).toHaveBeenCalledWith("My portfolio");
       expect(mocks.setCurrentId).toHaveBeenCalledWith("pending-id");
       expect(await screen.findByText("Import destination")).toBeInTheDocument();
       expect(screen.getByLabelText("location")).toHaveTextContent("/import?broker=degiro");
@@ -712,6 +714,7 @@ describe("Onboarding", () => {
 
       expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
       expect(mocks.createPendingImportPortfolio).toHaveBeenCalledTimes(1);
+      expect(mocks.createPendingImportPortfolio).toHaveBeenCalledWith("My portfolio");
       expect(mocks.setCurrentId).toHaveBeenCalledWith("pending-id");
       expect(mocks.activatePortfolio).toHaveBeenCalledWith("pending-id");
       expect(mocks.recordPortfolioCreated).toHaveBeenCalledWith("broker");

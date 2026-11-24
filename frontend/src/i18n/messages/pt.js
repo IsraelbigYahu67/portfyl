@@ -1574,4 +1574,5 @@ export default {
   "For <b>{email}</b>": "Para <b>{email}</b>",
   "New password": "Nova palavra-passe",
   "Save new password": "Guardar nova palavra-passe",
+  "My portfolio": "A minha carteira",
 };
