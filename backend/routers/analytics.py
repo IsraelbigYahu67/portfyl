@@ -1340,17 +1340,19 @@ def _weighted(totals: dict, profit: dict | None = None) -> list:
 
 def _allocation_totals(db: Session, portfolio: Portfolio, display_ccy: str) -> dict:
     """Raw (un-weighted) per-dimension market-value totals for one portfolio,
-    in `display_ccy` ('CZK' or 'USD'). Cash is folded into sectors/asset_types/
+    in `display_ccy` (any display currency; EUR/GBP/PLN cross through CZK).
+    Cash is folded into sectors/asset_types/
     currencies (never countries), matching get_summary's Cash figure. This is the
     shared core behind both /sector-breakdown and the cross-portfolio Overview."""
+    from currency_codes import normalize_currency
     from fx import folded_cash_display
     from models import CashInterestRate
 
     pid = portfolio.id
     workspace_id = portfolio.workspace_id
 
-    in_czk = display_ccy.upper() == "CZK"
-    display_ccy = "CZK" if in_czk else "USD"
+    display_ccy = normalize_currency(display_ccy)
+    in_czk = display_ccy == "CZK"
 
     transactions = _get_transactions(db, portfolio)
 
@@ -1437,10 +1439,13 @@ def _allocation_totals(db: Session, portfolio: Portfolio, display_ccy: str) -> d
             # Normalize pence-denominated LSE quotes to GBP, then apply FX.
             divisor = 100.0 if ticker_ccy == "GBp" else 1.0
             native_value = data["shares"] * float(price) / divisor
+            fx_ccy = "GBP" if ticker_ccy == "GBp" else ticker_ccy
             if in_czk:
-                live_fx = _live_fx_to_czk("GBP" if ticker_ccy == "GBp" else ticker_ccy, fx_cache)
-            else:
-                live_fx = _live_to_usd("GBP" if ticker_ccy == "GBp" else ticker_ccy)
+                live_fx = _live_fx_to_czk(fx_ccy, fx_cache)
+            elif display_ccy == "USD":
+                live_fx = _live_to_usd(fx_ccy)
+            else:  # EUR, GBP, PLN...: native -> CZK -> display, as get_holdings does
+                live_fx = _live_fx_to_czk(fx_ccy, fx_cache) / _live_fx_to_czk(display_ccy, fx_cache)
             market_value = native_value * live_fx
 
             sector = _classify_sector(info)
@@ -1516,7 +1521,10 @@ def sector_breakdown(
     db: Session = Depends(get_db),
     portfolio: Portfolio = Depends(require_portfolio),
 ):
-    display_ccy = "CZK" if currency.upper() == "CZK" else "USD"
+    from currency_codes import normalize_currency
+    display_ccy = normalize_currency(currency)
+    if len(display_ccy) != 3 or not display_ccy.isalpha() or display_ccy == "GBX":
+        display_ccy = "USD"  # not a currency code: keep the historic default
     raw = _allocation_totals(db, portfolio, display_ccy)
     return {
         "currency": display_ccy,
