@@ -77,7 +77,30 @@ async function openDialogPastWarning() {
   } finally {
     vi.useRealTimers();
   }
-  fireEvent.click(screen.getByRole("button", { name: /i understand, continue/i }));
+  const proceed = await screen.findByRole("button", { name: /i understand, continue/i });
+  await waitFor(() => expect(proceed).toBeEnabled());
+  fireEvent.click(proceed);
+}
+
+
+// Opens the dialog and waits out the countdown, without pressing continue.
+async function openWarningAndWait() {
+  const opener = await screen.findByRole("button", { name: /^delete workspace$/i });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    fireEvent.click(opener);
+    for (let i = 0; i < 10; i += 1) act(() => { vi.advanceTimersByTime(1000); });
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
+
+// Types the confirmation and password, then presses the destructive button.
+function fillAndSubmit() {
+  fireEvent.change(screen.getByLabelText(/type alice workspace/i), { target: { value: "Alice workspace" } });
+  fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "pw" } });
+  fireEvent.click(screen.getByRole("button", { name: /delete permanently now/i }));
 }
 
 
@@ -202,8 +225,8 @@ describe("DataPrivacySettings", () => {
       vi.useRealTimers();
     }
 
-    const ready = screen.getByRole("button", { name: /i understand, continue/i });
-    expect(ready).toBeEnabled();
+    const ready = await screen.findByRole("button", { name: /i understand, continue/i });
+    await waitFor(() => expect(ready).toBeEnabled());
     fireEvent.click(ready);
     expect(await screen.findByLabelText(/type alice workspace/i)).toBeInTheDocument();
     expect(mocks.deleteWorkspaceNow).not.toHaveBeenCalled();
@@ -407,6 +430,8 @@ describe("DataPrivacySettings", () => {
         lang: "en",
         cancel_subscription: true,
       });
+      // The no-refund consent was shown, so no refund is promised.
+      expect(mocks.deleteWorkspaceNow.mock.calls[0][0]).not.toHaveProperty("refund_expected");
     });
 
     it("shows the message when Stripe could not cancel the subscription", async () => {
@@ -539,6 +564,7 @@ describe("DataPrivacySettings", () => {
         confirmation: "Alice workspace",
         lang: "en",
         cancel_subscription: true,
+        refund_expected: true,
       });
     });
 
@@ -584,6 +610,7 @@ describe("DataPrivacySettings", () => {
 
       await waitFor(() => expect(mocks.deleteWorkspaceNow).toHaveBeenCalledTimes(1));
       expect(mocks.deleteWorkspaceNow.mock.calls[0][0]).not.toHaveProperty("cancel_subscription");
+      expect(mocks.deleteWorkspaceNow.mock.calls[0][0]).not.toHaveProperty("refund_expected");
     });
 
     it("shows the usual buttons and no consent when billing does not exist or fails", async () => {
@@ -596,10 +623,181 @@ describe("DataPrivacySettings", () => {
       expect(screen.queryByText(/i agree that i am deleting this workspace/i)).not.toBeInTheDocument();
     });
 
+    it("treats a 404 from billing as no subscription and lets the person continue", async () => {
+      mocks.fetchBillingStatus.mockRejectedValue({ response: { status: 404 } });
+      mount();
+      await openDialogPastWarning();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      fillAndSubmit();
+
+      await waitFor(() => expect(mocks.deleteWorkspaceNow).toHaveBeenCalledTimes(1));
+      expect(mocks.deleteWorkspaceNow.mock.calls[0][0]).not.toHaveProperty("cancel_subscription");
+      expect(mocks.deleteWorkspaceNow.mock.calls[0][0]).not.toHaveProperty("refund_expected");
+    });
+
     it("does not read billing until the dialog is opened", async () => {
       mount();
       await screen.findByRole("button", { name: /^delete workspace$/i });
       expect(mocks.fetchBillingStatus).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("while the subscription status is not known", () => {
+    it("keeps continue disabled while billing is still loading", async () => {
+      let resolveBilling;
+      mocks.fetchBillingStatus.mockReturnValue(new Promise((resolve) => { resolveBilling = resolve; }));
+      mount();
+      await openWarningAndWait();
+
+      expect(screen.getByText(/checking your subscription/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /i understand, continue/i })).toBeDisabled();
+
+      await act(async () => { resolveBilling({ subscription: null }); });
+      await waitFor(() => expect(screen.getByRole("button", { name: /i understand, continue/i })).toBeEnabled());
+      expect(screen.queryByText(/checking your subscription/i)).not.toBeInTheDocument();
+    });
+
+    it("blocks on a billing error other than 404 and offers a retry", async () => {
+      mocks.fetchBillingStatus.mockRejectedValueOnce({ response: { status: 500 } });
+      mount();
+      await openWarningAndWait();
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/could not check your subscription/i);
+      expect(screen.getByRole("button", { name: /i understand, continue/i })).toBeDisabled();
+      expect(mocks.deleteWorkspaceNow).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: /^try again$/i }));
+      await waitFor(() => expect(screen.getByRole("button", { name: /i understand, continue/i })).toBeEnabled());
+      expect(mocks.fetchBillingStatus).toHaveBeenCalledTimes(2);
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("when the server refuses on subscription grounds", () => {
+    it("explains active_subscription and asks to reopen the dialog", async () => {
+      mocks.deleteWorkspaceNow.mockRejectedValueOnce({
+        response: { status: 409, data: { code: "active_subscription" } },
+      });
+      mount();
+      await openDialogPastWarning();
+      fillAndSubmit();
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "You have a paid subscription. Reopen this dialog so that we can show you what happens to it, then try again."
+      );
+      expect(mocks.accountDeleted).not.toHaveBeenCalled();
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    it("returns to the warning with the no-refund consent when the withdrawal window closed meanwhile", async () => {
+      const open = {
+        plan: "investor",
+        status: "active",
+        current_period_end: "2026-12-15T12:00:00+00:00",
+        cancel_at_period_end: false,
+        withdrawal_open: true,
+      };
+      mocks.fetchBillingStatus
+        .mockResolvedValueOnce({ subscription: open })
+        .mockResolvedValue({ subscription: { ...open, withdrawal_open: false } });
+      mocks.deleteWorkspaceNow.mockRejectedValueOnce({
+        response: { status: 409, data: { code: "withdrawal_window_changed" } },
+      });
+      mount();
+      await openWarningAndWait();
+      await screen.findByText(/less than 14 days ago/i);
+      fireEvent.click(await screen.findByRole("button", { name: /^delete and get a refund$/i }));
+      await screen.findByLabelText(/type alice workspace/i);
+
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        fillAndSubmit();
+        await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+
+        // Refund was promised to the server, nothing was deleted.
+        expect(mocks.deleteWorkspaceNow).toHaveBeenCalledTimes(1);
+        expect(mocks.deleteWorkspaceNow.mock.calls[0][0]).toMatchObject({ refund_expected: true, cancel_subscription: true });
+        expect(mocks.accountDeleted).not.toHaveBeenCalled();
+        // The shared billing status was read again.
+        expect(mocks.fetchBillingStatus).toHaveBeenCalledTimes(2);
+        // Back on the warning step with the explanation and a fresh countdown.
+        expect(screen.getByRole("alert")).toHaveTextContent(/withdrawal period ended while you were deleting, so no refund applies. Nothing was deleted/i);
+        expect(screen.queryByLabelText(/type alice workspace/i)).not.toBeInTheDocument();
+        expect(screen.getByText(/the rest of the period is not refunded/i)).toBeInTheDocument();
+        expect(screen.queryByText(/less than 14 days ago/i)).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /continue in 10 s/i })).toBeDisabled();
+        for (let i = 0; i < 9; i += 1) act(() => { vi.advanceTimersByTime(1000); });
+        expect(screen.getByRole("button", { name: /continue in 1 s/i })).toBeDisabled();
+        act(() => { vi.advanceTimersByTime(1000); });
+      } finally {
+        vi.useRealTimers();
+      }
+
+      // The person has to confirm the new terms; the retry no longer claims a refund.
+      fireEvent.click(await screen.findByRole("button", { name: /^delete anyway$/i }));
+      await screen.findByLabelText(/type alice workspace/i);
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      fillAndSubmit();
+      await waitFor(() => expect(mocks.deleteWorkspaceNow).toHaveBeenCalledTimes(2));
+      expect(mocks.deleteWorkspaceNow.mock.calls[1][0]).toMatchObject({ cancel_subscription: true });
+      expect(mocks.deleteWorkspaceNow.mock.calls[1][0]).not.toHaveProperty("refund_expected");
+    });
+  });
+
+  describe("after a refunded deletion", () => {
+    async function deleteWith(result) {
+      mocks.deleteWorkspaceNow.mockResolvedValueOnce(result);
+      mount();
+      await openDialogPastWarning();
+      fillAndSubmit();
+    }
+
+    it("shows the refund amount and only hands over to sign-out when Close is pressed", async () => {
+      await deleteWith({ deleted: true, account_deleted: true, refunded: true, refunded_amount_cents: 599, currency: "eur" });
+
+      expect(await screen.findByText(/we refunded .5\.99\. The money returns to your original payment method/i)).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /workspace deleted/i })).toBeInTheDocument();
+      expect(screen.getByRole("dialog")).toHaveAccessibleDescription(/we refunded .5\.99/i);
+      expect(mocks.accountDeleted).not.toHaveBeenCalled();
+      expect(mocks.reloadAccount).not.toHaveBeenCalled();
+      expect(screen.queryByLabelText(/type alice workspace/i)).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /^close$/i }));
+      expect(mocks.accountDeleted).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("also hands over when the confirmation is dismissed with Escape", async () => {
+      await deleteWith({ deleted: true, account_deleted: true, refunded: true, refunded_amount_cents: 1299, currency: "EUR" });
+      await screen.findByText(/we refunded .12\.99/i);
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(mocks.accountDeleted).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("re-reads the account on Close when the user keeps another workspace", async () => {
+      await deleteWith({ deleted: true, account_deleted: false, refunded: true, refunded_amount_cents: 599, currency: "eur" });
+      await screen.findByText(/we refunded/i);
+      expect(mocks.reloadAccount).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: /^close$/i }));
+      await waitFor(() => expect(mocks.reloadAccount).toHaveBeenCalledTimes(1));
+      expect(mocks.accountDeleted).not.toHaveBeenCalled();
+    });
+
+    it("words the confirmation without an amount when the amount is missing", async () => {
+      await deleteWith({ deleted: true, account_deleted: true, refunded: true, refunded_amount_cents: null, currency: "eur" });
+      expect(await screen.findByText(/we refunded your payment\. The money returns to your original payment method/i)).toBeInTheDocument();
+      expect(screen.queryByText(/\u20ac/)).not.toBeInTheDocument();
+      expect(mocks.accountDeleted).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: /^close$/i }));
+      expect(mocks.accountDeleted).toHaveBeenCalledTimes(1);
+    });
+
+    it("closes at once when nothing was refunded", async () => {
+      await deleteWith({ deleted: true, account_deleted: true, refunded: false, refunded_amount_cents: null, currency: null });
+      await waitFor(() => expect(mocks.accountDeleted).toHaveBeenCalledTimes(1));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(screen.queryByText(/we refunded/i)).not.toBeInTheDocument();
     });
   });
 
