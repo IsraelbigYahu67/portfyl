@@ -158,6 +158,18 @@ describe("Import preview and undo", () => {
     expect(mocks.commitImportCSV).not.toHaveBeenCalled();
   });
 
+  it("offers 'Replace existing portfolio' only when the portfolio is not empty", async () => {
+    const regular = mount();
+    chooseCsv(regular.container);
+    expect(await screen.findByRole("checkbox", { name: /replace existing portfolio/i })).toBeInTheDocument();
+    regular.unmount();
+
+    const first = mount({ focused: true });
+    chooseCsv(first.container);
+    expect(await screen.findByRole("button", { name: /preview import/i })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /replace existing portfolio/i })).not.toBeInTheDocument();
+  });
+
   it("shows the language and currency chip only on the onboarding import", () => {
     const { unmount } = mount({ focused: true });
     expect(screen.getByRole("button", { name: /English · CZK/ })).toBeInTheDocument();
