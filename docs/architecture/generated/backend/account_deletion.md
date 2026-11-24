@@ -14,7 +14,7 @@ generated: true
 Verified, immediate workspace (and, with its last workspace, account) deletion.
 
 **Hub:** [[Account deletion and data lifecycle]]
-**Source:** `backend/account_deletion.py` (619 lines)
+**Source:** `backend/account_deletion.py` (805 lines)
 
 ## Imports
 - [[audit]]

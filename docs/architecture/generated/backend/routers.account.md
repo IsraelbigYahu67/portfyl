@@ -14,7 +14,7 @@ generated: true
 Workspace data portability and verified deletion endpoints.
 
 **Hub:** [[Account deletion and data lifecycle]]
-**Source:** `backend/routers/account.py` (165 lines)
+**Source:** `backend/routers/account.py` (172 lines)
 **API prefix:** `/api/account`
 **Mounted inside:** `routers.settings` (served under `/api/settings`)
 
