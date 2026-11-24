@@ -130,11 +130,22 @@ describe("Pricing with Stripe payments", () => {
     expect(screen.getByText(/Secure payments through Link/)).toBeInTheDocument();
     expect(fetchTestPlan).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /pay a proportionate part of the price/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /get the full amount back/i }));
     fireEvent.click(upgrade);
 
     await waitFor(() => expect(startCheckout).toHaveBeenCalledWith("pro"));
     await waitFor(() => expect(window.location.assign).toHaveBeenCalledWith("https://checkout.stripe.test/cs_1"));
+  });
+
+  it("words the consent as an immediate start with a full refund within 14 days", async () => {
+    fetchBillingStatus.mockResolvedValue(billingStatus());
+    render(<Pricing />);
+
+    expect(await screen.findByRole("checkbox", {
+      name: "I want my subscription to start immediately. I can withdraw from the contract within 14 days of ordering and I will get the full amount back.",
+    })).not.toBeChecked();
+    expect(screen.queryByText(/proportionate/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/lose my/i)).not.toBeInTheDocument();
   });
 
   it("lets a trial workspace buy Pro and marks the Pro card as the trial", async () => {
@@ -153,7 +164,7 @@ describe("Pricing with Stripe payments", () => {
     expect(within(pro).queryByText("Current plan")).not.toBeInTheDocument();
     expect(within(screen.getByRole("region", { name: "Free" })).queryByText("Current plan")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /pay a proportionate part of the price/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /get the full amount back/i }));
     const upgrade = within(pro).getByRole("button", { name: "Upgrade to Pro" });
     expect(upgrade).toBeEnabled();
     fireEvent.click(upgrade);

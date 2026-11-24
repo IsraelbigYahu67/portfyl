@@ -97,7 +97,7 @@ describe("ConnectStep", () => {
     const upgrade = screen.getByRole("button", { name: "Upgrade to Investor" });
     expect(upgrade).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox", {
-      name: "I want my subscription to start immediately. I understand that if I withdraw within 14 days, I will pay a proportionate part of the price for the time the paid features were available.",
+      name: "I want my subscription to start immediately. I can withdraw from the contract within 14 days of ordering and I will get the full amount back.",
     }));
     expect(upgrade).toBeEnabled();
     fireEvent.click(upgrade);

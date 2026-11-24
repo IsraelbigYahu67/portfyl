@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   downloadWorkspaceExport: vi.fn(),
   deleteWorkspaceNow: vi.fn(),
   cancelWorkspaceDeletion: vi.fn(),
+  openBillingPortal: vi.fn(),
   reauthenticateWithPassword: vi.fn(),
   reauthenticateWithGoogle: vi.fn(),
   prepareGoogleSignIn: vi.fn(),
@@ -29,6 +30,7 @@ vi.mock("../api", () => ({
   downloadWorkspaceExport: mocks.downloadWorkspaceExport,
   deleteWorkspaceNow: mocks.deleteWorkspaceNow,
   cancelWorkspaceDeletion: mocks.cancelWorkspaceDeletion,
+  openBillingPortal: mocks.openBillingPortal,
 }));
 
 vi.mock("../auth/firebase", () => ({
@@ -91,6 +93,7 @@ describe("DataPrivacySettings", () => {
     });
     mocks.deleteWorkspaceNow.mockReset().mockResolvedValue({ deleted: true, account_deleted: true });
     mocks.cancelWorkspaceDeletion.mockReset().mockResolvedValue(undefined);
+    mocks.openBillingPortal.mockReset().mockResolvedValue({ url: "https://billing.stripe.test/p" });
     mocks.reauthenticateWithPassword.mockReset().mockResolvedValue("fresh-id-token");
     mocks.reauthenticateWithGoogle.mockReset().mockResolvedValue("fresh-google-token");
     mocks.prepareGoogleSignIn.mockReset().mockResolvedValue(undefined);
@@ -417,6 +420,152 @@ describe("DataPrivacySettings", () => {
 
       expect(await screen.findByRole("alert")).toHaveTextContent(/could not cancel your subscription, so nothing was deleted/i);
       expect(mocks.accountDeleted).not.toHaveBeenCalled();
+    });
+
+    it("shows the consent and the cancel-first hint when the withdrawal window is closed", async () => {
+      mocks.fetchBillingStatus.mockResolvedValue({
+        subscription: { ...subscription, ordered_at: "2026-10-01T12:00:00+00:00", withdrawal_ends_at: "2026-10-15T12:00:00+00:00", withdrawal_open: false },
+      });
+      mount();
+      await openWarningAndWait();
+      expect(await screen.findByText(/the rest of the period is not refunded/i)).toBeInTheDocument();
+      expect(screen.getByText(/cancel the subscription first and delete the workspace after .*2026/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^manage subscription$/i })).toBeEnabled();
+      expect(screen.queryByText(/less than 14 days ago/i)).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^delete anyway$/i })).toBeEnabled();
+    });
+
+    it("words the hint without a date when the period end is unknown", async () => {
+      mocks.fetchBillingStatus.mockResolvedValue({ subscription: { ...subscription, status: "past_due", current_period_end: null } });
+      mount();
+      await openWarningAndWait();
+      expect(await screen.findByText(/delete the workspace after it has ended/i)).toBeInTheDocument();
+    });
+
+    it("opens the billing portal from the manage subscription button", async () => {
+      const assign = vi.fn();
+      vi.stubGlobal("location", { ...window.location, assign });
+      mocks.fetchBillingStatus.mockResolvedValue({ subscription });
+      mount();
+      await openWarningAndWait();
+      fireEvent.click(await screen.findByRole("button", { name: /^manage subscription$/i }));
+      await waitFor(() => expect(assign).toHaveBeenCalledWith("https://billing.stripe.test/p"));
+      expect(mocks.deleteWorkspaceNow).not.toHaveBeenCalled();
+    });
+
+    it("shows an error when the billing portal cannot be opened", async () => {
+      mocks.openBillingPortal.mockRejectedValueOnce({ response: { status: 500 } });
+      mocks.fetchBillingStatus.mockResolvedValue({ subscription });
+      mount();
+      await openWarningAndWait();
+      fireEvent.click(await screen.findByRole("button", { name: /^manage subscription$/i }));
+      expect(await screen.findByRole("alert")).toHaveTextContent(/payment page could not be opened/i);
+    });
+
+    it("shows the message when the refund failed and keeps the dialog open", async () => {
+      mocks.fetchBillingStatus.mockResolvedValue({ subscription });
+      mocks.deleteWorkspaceNow.mockRejectedValueOnce({
+        response: { status: 503, data: { code: "subscription_refund_failed" } },
+      });
+      mount();
+      await openWarningAndWait();
+      await confirmWithPassword();
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/could not refund your payment, so nothing was deleted and your subscription is unchanged/i);
+      expect(mocks.accountDeleted).not.toHaveBeenCalled();
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+  });
+
+  describe("within the 14-day withdrawal window", () => {
+    const subscription = {
+      plan: "investor",
+      status: "active",
+      current_period_end: "2026-12-15T12:00:00+00:00",
+      cancel_at_period_end: false,
+      ordered_at: "2026-11-20T12:00:00+00:00",
+      withdrawal_ends_at: "2026-12-04T12:00:00+00:00",
+      withdrawal_open: true,
+    };
+
+    async function openWarningAndWait() {
+      const opener = await screen.findByRole("button", { name: /^delete workspace$/i });
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        fireEvent.click(opener);
+        for (let i = 0; i < 10; i += 1) act(() => { vi.advanceTimersByTime(1000); });
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+
+    it("explains the refund, hides the no-refund consent and locks the button for ten seconds", async () => {
+      mocks.fetchBillingStatus.mockResolvedValue({ subscription });
+      mount();
+      const opener = await screen.findByRole("button", { name: /^delete workspace$/i });
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        fireEvent.click(opener);
+        await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+        expect(screen.getByText(/ordered this subscription less than 14 days ago.*refund the full amount you paid/i)).toBeInTheDocument();
+        expect(screen.queryByText(/the rest of the period is not refunded/i)).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /^manage subscription$/i })).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /back . let my subscription run/i })).toBeEnabled();
+        expect(screen.getByRole("button", { name: /continue in \d+ s/i })).toBeDisabled();
+        for (let i = 0; i < 9; i += 1) act(() => { vi.advanceTimersByTime(1000); });
+        expect(screen.getByRole("button", { name: /continue in 1 s/i })).toBeDisabled();
+        act(() => { vi.advanceTimersByTime(1000); });
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(screen.getByRole("button", { name: /^delete and get a refund$/i })).toBeEnabled();
+      expect(screen.queryByRole("button", { name: /^delete anyway$/i })).not.toBeInTheDocument();
+      expect(mocks.deleteWorkspaceNow).not.toHaveBeenCalled();
+    });
+
+    it("sends cancel_subscription with the deletion request", async () => {
+      mocks.fetchBillingStatus.mockResolvedValue({ subscription });
+      mount();
+      await openWarningAndWait();
+      await screen.findByText(/less than 14 days ago/i);
+      fireEvent.click(await screen.findByRole("button", { name: /^delete and get a refund$/i }));
+      fireEvent.change(await screen.findByLabelText(/type alice workspace/i), { target: { value: "Alice workspace" } });
+      fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "pw" } });
+      fireEvent.click(screen.getByRole("button", { name: /delete permanently now/i }));
+
+      await waitFor(() => expect(mocks.deleteWorkspaceNow).toHaveBeenCalledTimes(1));
+      expect(mocks.deleteWorkspaceNow).toHaveBeenCalledWith({
+        reauth_id_token: "fresh-id-token",
+        confirmation: "Alice workspace",
+        lang: "en",
+        cancel_subscription: true,
+      });
+    });
+
+    it("the back button closes the dialog without deleting", async () => {
+      mocks.fetchBillingStatus.mockResolvedValue({ subscription });
+      mount();
+      await openWarningAndWait();
+      fireEvent.click(await screen.findByRole("button", { name: /back . let my subscription run/i }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(mocks.deleteWorkspaceNow).not.toHaveBeenCalled();
+    });
+
+    it("treats a missing withdrawal_open as closed", async () => {
+      const { withdrawal_open: _open, ...withoutFlag } = subscription;
+      mocks.fetchBillingStatus.mockResolvedValue({ subscription: withoutFlag });
+      mount();
+      await openWarningAndWait();
+      expect(await screen.findByText(/the rest of the period is not refunded/i)).toBeInTheDocument();
+      expect(screen.queryByText(/less than 14 days ago/i)).not.toBeInTheDocument();
+    });
+
+    it("never treats a null withdrawal_open as open", async () => {
+      mocks.fetchBillingStatus.mockResolvedValue({ subscription: { ...subscription, withdrawal_open: null } });
+      mount();
+      await openWarningAndWait();
+      expect(await screen.findByText(/the rest of the period is not refunded/i)).toBeInTheDocument();
+      expect(screen.queryByText(/less than 14 days ago/i)).not.toBeInTheDocument();
     });
   });
 
