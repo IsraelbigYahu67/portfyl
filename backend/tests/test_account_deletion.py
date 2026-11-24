@@ -17,7 +17,7 @@ from account_deletion import (
     purge_due_workspace_deletions,
 )
 from firebase_identity import VerifiedIdentity
-from models import Membership, User, Workspace, WorkspaceSetting
+from models import Membership, Subscription, User, Workspace, WorkspaceSetting
 from routers.account import (
     DeletionRequestPayload,
     cancel_deletion,
@@ -25,6 +25,7 @@ from routers.account import (
     get_deletion_status,
 )
 from routers.settings import router as settings_router
+from stripe_client import StripeError
 from tenancy import RequestContextError
 
 
@@ -63,6 +64,248 @@ def _delete_now(db, context, *, admin=None, confirmation=None, **identity_overri
         identity_admin=admin or RecordingIdentityAdmin(),
         now=NOW,
     )
+
+
+class RecordingStripe:
+    def __init__(self, error=None):
+        self.cancelled = []
+        self.error = error
+
+    def cancel_subscription(self, subscription_id):
+        self.cancelled.append(subscription_id)
+        if self.error:
+            raise self.error
+        return {"id": subscription_id, "status": "canceled"}
+
+
+def _add_subscription(db, context, **values):
+    row = Subscription(
+        workspace_id=context.workspace.id,
+        stripe_subscription_id=values.pop("stripe_subscription_id", "sub_live"),
+        stripe_customer_id="cus_1",
+        stripe_price_id="price_pro",
+        plan="pro",
+        status=values.pop("status", "active"),
+        current_period_end=NOW + timedelta(days=10),
+        **values,
+    )
+    db.add(row)
+    db.commit()
+    return row
+
+
+def _delete_with_stripe(db, context, stripe, *, cancel, factory_calls=None):
+    def factory():
+        if factory_calls is not None:
+            factory_calls.append(1)
+        if stripe is None:
+            raise RuntimeError("billing is not enabled")
+        return stripe
+
+    return delete_workspace_now(
+        db,
+        context,
+        identity=_identity(context),
+        confirmation=context.workspace.name,
+        identity_admin=RecordingIdentityAdmin(),
+        now=NOW,
+        cancel_subscription=cancel,
+        stripe_client_factory=factory,
+    )
+
+
+def test_renewing_subscription_without_consent_is_refused_and_stripe_untouched(
+    db_session, request_context,
+):
+    _add_subscription(db_session, request_context)
+    stripe = RecordingStripe()
+    calls = []
+
+    with pytest.raises(RequestContextError) as exc_info:
+        _delete_with_stripe(db_session, request_context, stripe, cancel=False, factory_calls=calls)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "active_subscription"
+    assert stripe.cancelled == []
+    assert calls == []
+    assert db_session.get(Workspace, request_context.workspace.id) is not None
+
+
+def test_consent_cancels_the_subscription_once_then_erases(db_session, request_context):
+    _add_subscription(db_session, request_context, stripe_subscription_id="sub_abc")
+    workspace_id = request_context.workspace.id
+    stripe = RecordingStripe()
+
+    result = _delete_with_stripe(db_session, request_context, stripe, cancel=True)
+    db_session.commit()
+
+    assert stripe.cancelled == ["sub_abc"]
+    assert result.account_deleted is True
+    assert db_session.get(Workspace, workspace_id) is None
+
+
+def test_trialing_subscription_is_cancelled_too(db_session, request_context):
+    _add_subscription(db_session, request_context, status="trialing")
+    stripe = RecordingStripe()
+
+    _delete_with_stripe(db_session, request_context, stripe, cancel=True)
+
+    assert stripe.cancelled == ["sub_live"]
+
+
+def test_stripe_failure_aborts_with_503_and_keeps_the_workspace(db_session, request_context):
+    _add_subscription(db_session, request_context)
+    stripe = RecordingStripe(error=StripeError("boom", status=500, transient=True))
+
+    with pytest.raises(RequestContextError) as exc_info:
+        _delete_with_stripe(db_session, request_context, stripe, cancel=True)
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.code == "subscription_cancel_failed"
+    assert stripe.cancelled == ["sub_live"]
+    assert db_session.get(Workspace, request_context.workspace.id) is not None
+    assert db_session.get(User, request_context.user.id) is not None
+
+
+def test_billing_off_with_a_renewing_row_aborts_with_503(db_session, request_context):
+    _add_subscription(db_session, request_context)
+
+    with pytest.raises(RequestContextError) as exc_info:
+        _delete_with_stripe(db_session, request_context, None, cancel=True)
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.code == "subscription_cancel_failed"
+    assert db_session.get(Workspace, request_context.workspace.id) is not None
+
+
+def test_missing_stripe_client_factory_aborts_with_503(db_session, request_context):
+    _add_subscription(db_session, request_context)
+
+    with pytest.raises(RequestContextError) as exc_info:
+        delete_workspace_now(
+            db_session,
+            request_context,
+            identity=_identity(request_context),
+            confirmation=request_context.workspace.name,
+            identity_admin=RecordingIdentityAdmin(),
+            now=NOW,
+            cancel_subscription=True,
+        )
+
+    assert exc_info.value.code == "subscription_cancel_failed"
+    assert db_session.get(Workspace, request_context.workspace.id) is not None
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        StripeError("No such subscription", status=404, code="resource_missing"),
+        StripeError("gone", code="resource_missing"),
+    ],
+)
+def test_subscription_already_cancelled_in_stripe_counts_as_success(
+    db_session, request_context, error,
+):
+    _add_subscription(db_session, request_context)
+    workspace_id = request_context.workspace.id
+    stripe = RecordingStripe(error=error)
+
+    _delete_with_stripe(db_session, request_context, stripe, cancel=True)
+    db_session.commit()
+
+    assert stripe.cancelled == ["sub_live"]
+    assert db_session.get(Workspace, workspace_id) is None
+
+
+def test_no_subscription_never_touches_stripe_even_with_consent(db_session, request_context):
+    stripe = RecordingStripe()
+    calls = []
+
+    _delete_with_stripe(db_session, request_context, stripe, cancel=True, factory_calls=calls)
+
+    assert stripe.cancelled == []
+    assert calls == []
+
+
+def test_subscription_already_ending_proceeds_without_stripe(db_session, request_context):
+    _add_subscription(db_session, request_context, cancel_at_period_end=True)
+    workspace_id = request_context.workspace.id
+    stripe = RecordingStripe()
+    calls = []
+
+    _delete_with_stripe(db_session, request_context, stripe, cancel=False, factory_calls=calls)
+    db_session.commit()
+
+    assert stripe.cancelled == []
+    assert calls == []
+    assert db_session.get(Workspace, workspace_id) is None
+
+
+def test_consent_does_not_bypass_the_other_guards(db_session, request_context):
+    _add_subscription(db_session, request_context)
+    stripe = RecordingStripe()
+
+    with pytest.raises(RequestContextError) as exc_info:
+        delete_workspace_now(
+            db_session,
+            request_context,
+            identity=_identity(request_context),
+            confirmation="wrong workspace",
+            identity_admin=RecordingIdentityAdmin(),
+            now=NOW,
+            cancel_subscription=True,
+            stripe_client_factory=lambda: stripe,
+        )
+
+    assert exc_info.value.code == "workspace_confirmation_mismatch"
+    assert stripe.cancelled == []
+
+
+def test_endpoint_passes_consent_and_maps_stripe_failure_to_503(db_session, request_context):
+    from fastapi import Response
+
+    _add_subscription(db_session, request_context)
+    identity = _identity(request_context, authenticated_at=datetime.now(timezone.utc))
+    stripe = RecordingStripe(error=StripeError("down", status=503, transient=True))
+
+    class Verifier:
+        def verify_id_token(self, token):
+            return identity
+
+        def delete_user(self, uid):
+            raise AssertionError("must not be reached")
+
+    def call(cancel_subscription):
+        return delete_workspace(
+            DeletionRequestPayload(
+                reauth_id_token="t",
+                confirmation=request_context.workspace.name,
+                cancel_subscription=cancel_subscription,
+            ),
+            Response(),
+            db_session,
+            request_context,
+            Verifier(),
+            None,
+            lambda: stripe,
+        )
+
+    with pytest.raises(RequestContextError) as without:
+        call(False)
+    assert without.value.code == "active_subscription"
+    assert stripe.cancelled == []
+
+    with pytest.raises(RequestContextError) as with_consent:
+        call(True)
+    assert with_consent.value.status_code == 503
+    assert with_consent.value.code == "subscription_cancel_failed"
+    assert stripe.cancelled == ["sub_live"]
+    assert db_session.get(Workspace, request_context.workspace.id) is not None
+
+
+def test_payload_defaults_to_no_consent():
+    payload = DeletionRequestPayload(reauth_id_token="t", confirmation="c")
+    assert payload.cancel_subscription is False
 
 
 def test_verified_owner_deletes_workspace_and_account_at_once(db_session, request_context):

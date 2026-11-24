@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Account deletion and data lifecycle]]
-**Source:** `frontend/src/components/DataPrivacySettings.jsx` (367 lines)
+**Source:** `frontend/src/components/DataPrivacySettings.jsx` (401 lines)
 
 ## Imports
 - [[analytics (folder)]]
@@ -21,6 +21,7 @@ generated: true
 - [[components.auth (folder)]]
 - [[hooks.useFocusTrap]]
 - [[i18n (folder)]]
+- [[lib.billingStatusQuery]]
 - [[src.api]]
 
 ## Calls backend

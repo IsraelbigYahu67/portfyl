@@ -1,8 +1,9 @@
 """Verified, immediate workspace (and, with its last workspace, account) deletion.
 
 ``delete_workspace_now`` is the only way to start a deletion: it checks the same
-guards as before (owner, typed name, fresh re-authentication, sole member, no
-renewing subscription) and then erases the data in the same request. There is
+guards as before (owner, typed name, fresh re-authentication, sole member, and
+either no renewing subscription or the owner's explicit consent to cancel it
+now) and then erases the data in the same request. There is
 no grace period and no undo. The deferred state machine below
 (``get_workspace_deletion``, ``cancel_workspace_deletion`` and
 ``purge_due_workspace_deletions``) remains only to finish requests that were
@@ -13,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
@@ -24,7 +26,9 @@ from audit import record_audit_event
 from emails.catalog import SOURCE_LANGUAGE, EmailKind, normalize_language
 from emails.notify import send_account_notice
 from firebase_identity import VerifiedIdentity
+from database import release_connection
 from models import Membership, Subscription, User, Workspace, WorkspaceSetting
+from stripe_client import StripeClientProtocol, StripeError
 from tenancy import RequestContext, RequestContextError
 
 
@@ -117,7 +121,10 @@ def _validate_deletion_request(
     confirmation: str,
     *,
     now: datetime,
-) -> None:
+    cancel_subscription: bool = False,
+) -> str | None:
+    """Run every guard. Returns the Stripe id of the renewing subscription the
+    caller must cancel before erasing, or ``None`` when there is none."""
     if context.membership.role != "owner":
         raise RequestContextError(403, "workspace_owner_required")
     if confirmation != context.workspace.name:
@@ -135,19 +142,59 @@ def _validate_deletion_request(
     if active_members != 1:
         raise RequestContextError(409, "workspace_has_other_members")
 
-    # Deleting the workspace does not stop Stripe from charging the card, so
-    # a renewing subscription must be cancelled (Customer Portal) first. One
-    # already set to end at period end, or past due, may proceed.
+    # Deleting the workspace does not stop Stripe from charging the card, so a
+    # renewing subscription must be cancelled first: either by the user in the
+    # Customer Portal, or here when the user explicitly consented to losing the
+    # rest of the paid period. One already set to end at period end, or past
+    # due, may proceed untouched.
     renewing = db.scalar(
-        select(Subscription.id).where(
+        select(Subscription.stripe_subscription_id).where(
             Subscription.workspace_id == context.workspace.id,
             Subscription.ended_at.is_(None),
             Subscription.status.in_(("active", "trialing")),
             Subscription.cancel_at_period_end.is_(False),
         )
     )
-    if renewing is not None:
+    if renewing is None:
+        return None
+    if cancel_subscription is not True:
         raise RequestContextError(409, "active_subscription")
+    return renewing
+
+
+def _cancel_subscription_before_erasure(
+    db: Session,
+    subscription_id: str,
+    stripe_client_factory: Callable[[], StripeClientProtocol] | None,
+) -> None:
+    """Cancel the renewing subscription in Stripe now (no refund, no final
+    invoice). Anything but success aborts the deletion: never erase a
+    workspace whose card may still be charged."""
+    # Slow outbound call: hand the pooled connection back first. Nothing has
+    # been written yet, so this is a plain end of the read transaction.
+    release_connection(db)
+    try:
+        if stripe_client_factory is None:
+            raise RuntimeError("Stripe client unavailable")
+        client = stripe_client_factory()
+        client.cancel_subscription(subscription_id)
+    except StripeError as exc:
+        # Stripe no longer knows an active subscription under this id: it is
+        # already cancelled (or gone), which is what we wanted.
+        if exc.status == 404 or exc.code == "resource_missing":
+            logger.info("subscription already cancelled in Stripe before deletion")
+            return
+        logger.warning(
+            "subscription cancel for deletion failed status=%s code=%s",
+            exc.status, exc.code,
+        )
+        raise RequestContextError(503, "subscription_cancel_failed") from exc
+    except Exception as exc:  # noqa: BLE001 - billing off / client not buildable
+        logger.error(
+            "subscription cancel for deletion impossible: %s", type(exc).__name__
+        )
+        raise RequestContextError(503, "subscription_cancel_failed") from exc
+    logger.info("subscription cancelled immediately because of workspace deletion")
 
 
 @dataclass(frozen=True)
@@ -209,8 +256,15 @@ def delete_workspace_now(
     identity_admin,
     now: datetime | None = None,
     lang: object = None,
+    cancel_subscription: bool = False,
+    stripe_client_factory: Callable[[], StripeClientProtocol] | None = None,
 ) -> DeletionResult:
     """Validate and erase the caller's workspace immediately.
+
+    ``cancel_subscription`` is the owner's consent to lose the rest of a paid
+    period: a renewing subscription is then cancelled in Stripe (through
+    ``stripe_client_factory``, only called when there is one) after all other
+    checks pass and before anything is erased.
 
     Same guards as the old scheduled flow. Nothing is committed here: the
     endpoint commits, then sends the ``account_deleted`` notice from the
@@ -218,7 +272,16 @@ def delete_workspace_now(
     the workspace and the user being deleted and would be deleted with them.
     """
     now = _as_utc(now or datetime.now(timezone.utc))
-    _validate_deletion_request(db, context, identity, confirmation, now=now)
+    subscription_id = _validate_deletion_request(
+        db, context, identity, confirmation, now=now,
+        cancel_subscription=cancel_subscription,
+    )
+    if subscription_id is not None:
+        # The Stripe cancel is external and cannot be rolled back. If the
+        # erasure below fails afterwards (for instance Firebase refuses), the
+        # subscription stays cancelled: the user can simply retry the deletion
+        # and is never charged again.
+        _cancel_subscription_before_erasure(db, subscription_id, stripe_client_factory)
     # Same RLS context the cleanup job uses, so the deletes below pass the
     # policies on the workspace and the user.
     _set_cleanup_context(db, context.workspace.id, context.user.id)

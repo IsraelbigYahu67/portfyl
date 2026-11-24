@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -20,6 +21,7 @@ from account_deletion import (
     send_account_deleted_notice,
 )
 from auth import clear_session_cookie
+from billing_sync import make_stripe_client
 from database import get_db, release_connection
 from firebase_identity import FirebaseIdentityVerifier, IdentityVerificationError
 from routers.auth import get_identity_verifier
@@ -44,6 +46,21 @@ class DeletionRequestPayload(BaseModel):
     # The app language, for the confirmation e-mail. Accepts anything: a
     # garbage value gives English, never a 422.
     lang: Any = None
+    # The owner's explicit consent to cancel a renewing paid subscription
+    # immediately (no refund of the remaining period). Without it a renewing
+    # subscription still answers 409 active_subscription.
+    cancel_subscription: bool = False
+
+
+def get_stripe_client_factory(request: Request) -> Callable[[], Any]:
+    """A lazy Stripe client builder: only called when a subscription must be
+    cancelled, so a workspace without one never needs Stripe configured."""
+    config = request.app.state.billing_config
+
+    def factory():
+        return make_stripe_client(config)  # raises when billing is not enabled
+
+    return factory
 
 
 @router.get("/export", response_class=Response)
@@ -82,6 +99,7 @@ def delete_workspace(
     context: RequestContext = Depends(require_csrf),
     verifier: FirebaseIdentityVerifier = Depends(get_identity_verifier),
     mailer: Mailer | None = Depends(get_mailer),
+    stripe_client_factory: Callable[[], Any] | None = Depends(get_stripe_client_factory),
 ) -> dict:
     """Erase the caller's workspace now. No grace period, no undo.
 
@@ -103,6 +121,8 @@ def delete_workspace(
             confirmation=payload.confirmation,
             identity_admin=verifier,
             lang=payload.lang,
+            cancel_subscription=payload.cancel_subscription,
+            stripe_client_factory=stripe_client_factory,
         )
         db.commit()
     except RequestContextError:

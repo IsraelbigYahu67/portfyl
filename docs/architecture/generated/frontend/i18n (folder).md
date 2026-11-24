@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Frontend structure]]
-**Source:** `frontend/src/i18n/` (12687 lines)
+**Source:** `frontend/src/i18n/` (12727 lines)
 
 ## Files
 - `frontend/src/i18n/I18nProvider.jsx`

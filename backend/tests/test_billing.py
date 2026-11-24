@@ -112,6 +112,10 @@ class FakeStripe:
     def create_portal_session(self, *, customer_id, return_url):
         return {"url": f"https://billing.stripe.test/{customer_id}"}
 
+    def cancel_subscription(self, subscription_id):
+        self.cancelled = getattr(self, "cancelled", []) + [subscription_id]
+        return {"id": subscription_id, "status": "canceled"}
+
     # Subscription schedules, enough to model a booked plan change.
     schedules: dict
 
@@ -235,6 +239,30 @@ def test_client_sends_nested_form_bodies_through_httpx():
     )
     assert seen["idempotency"] == "checkout:1"
     assert seen["version"] == "2026-09-30.endive"
+
+
+def test_client_cancels_a_subscription_without_proration_or_final_invoice():
+    import httpx
+    from stripe_client import StripeClient
+
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        seen["body"] = request.content.decode()
+        return httpx.Response(200, json={"id": "sub_1", "status": "canceled"})
+
+    client = StripeClient("sk_test_unit", api_version="2026-09-30.endive")
+    client._client = httpx.Client(
+        base_url="https://api.stripe.test/v1",
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert client.cancel_subscription("sub_1")["status"] == "canceled"
+    assert seen["method"] == "DELETE"
+    assert seen["path"] == "/v1/subscriptions/sub_1"
+    assert seen["body"] == "prorate=false&invoice_now=false"
 
 
 def _signature(payload: bytes, timestamp: int, secret: str = WEBHOOK_SECRET) -> str:

@@ -74,6 +74,7 @@ class StripeClientProtocol(Protocol):
     def retrieve_schedule(self, schedule_id: str) -> dict: ...
     def update_schedule(self, schedule_id: str, params: Mapping[str, Any]) -> dict: ...
     def release_schedule(self, schedule_id: str) -> dict: ...
+    def cancel_subscription(self, subscription_id: str) -> dict: ...
 
 
 class StripeClient:
@@ -171,6 +172,18 @@ class StripeClient:
 
     def release_schedule(self, schedule_id: str) -> dict:
         return self._request("POST", f"/subscription_schedules/{schedule_id}/release")
+
+    def cancel_subscription(self, subscription_id: str) -> dict:
+        """End a subscription now, with no proration credit and no final invoice.
+
+        Stripe reads the parameters of a DELETE from the form body as well as
+        the query string, so the shared form-encoded `_request` path works.
+        """
+        return self._request(
+            "DELETE",
+            f"/subscriptions/{subscription_id}",
+            params={"prorate": False, "invoice_now": False},
+        )
 
 
 def verify_webhook(

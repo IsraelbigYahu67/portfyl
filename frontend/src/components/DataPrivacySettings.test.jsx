@@ -11,6 +11,7 @@ import { createMemoryAdapter } from "../analytics/analyticsClient";
 
 const mocks = vi.hoisted(() => ({
   fetchDeletionStatus: vi.fn(),
+  fetchBillingStatus: vi.fn(),
   downloadWorkspaceExport: vi.fn(),
   deleteWorkspaceNow: vi.fn(),
   cancelWorkspaceDeletion: vi.fn(),
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../api", () => ({
   fetchDeletionStatus: mocks.fetchDeletionStatus,
+  fetchBillingStatus: mocks.fetchBillingStatus,
   downloadWorkspaceExport: mocks.downloadWorkspaceExport,
   deleteWorkspaceNow: mocks.deleteWorkspaceNow,
   cancelWorkspaceDeletion: mocks.cancelWorkspaceDeletion,
@@ -80,6 +82,7 @@ async function openDialogPastWarning() {
 describe("DataPrivacySettings", () => {
   beforeEach(() => {
     mocks.fetchDeletionStatus.mockReset().mockResolvedValue({ scheduled: false });
+    mocks.fetchBillingStatus.mockReset().mockResolvedValue({ subscription: null });
     mocks.accountDeleted.mockReset();
     mocks.reloadAccount.mockReset().mockResolvedValue({});
     mocks.downloadWorkspaceExport.mockReset().mockResolvedValue({
@@ -318,6 +321,137 @@ describe("DataPrivacySettings", () => {
 
     await waitFor(() => expect(mocks.cancelWorkspaceDeletion).toHaveBeenCalledTimes(1));
     expect(await screen.findByRole("button", { name: /delete workspace/i })).toBeInTheDocument();
+  });
+
+  describe("with a live paid subscription", () => {
+    const subscription = {
+      plan: "investor",
+      status: "active",
+      current_period_end: "2026-12-15T12:00:00+00:00",
+      cancel_at_period_end: false,
+    };
+
+    // Opens the dialog and waits out the countdown, without pressing continue.
+    async function openWarningAndWait() {
+      const opener = await screen.findByRole("button", { name: /^delete workspace$/i });
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        fireEvent.click(opener);
+        for (let i = 0; i < 10; i += 1) act(() => { vi.advanceTimersByTime(1000); });
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+
+    async function confirmWithPassword() {
+      await screen.findByText(/i agree that i am deleting this workspace/i);
+      fireEvent.click(await screen.findByRole("button", { name: /^delete anyway$/i }));
+      fireEvent.change(await screen.findByLabelText(/type alice workspace/i), { target: { value: "Alice workspace" } });
+      fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "pw" } });
+      fireEvent.click(screen.getByRole("button", { name: /delete permanently now/i }));
+    }
+
+    it("asks for consent, offers a way back and keeps the destructive button locked for ten seconds", async () => {
+      mocks.fetchBillingStatus.mockResolvedValue({ subscription });
+      mount();
+      const opener = await screen.findByRole("button", { name: /^delete workspace$/i });
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        fireEvent.click(opener);
+        // Let React Query hand over the billing status (its notifier uses timers).
+        await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+        expect(screen.getByText(/immediately lose the remaining paid features until the end of the billing period \(.*2026.*\)/i)).toBeInTheDocument();
+        expect(screen.getByText(/the rest of the period is not refunded/i)).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /back . let my subscription run/i })).toBeEnabled();
+        expect(screen.queryByRole("button", { name: /^cancel$/i })).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /continue in \d+ s/i })).toBeDisabled();
+        for (let i = 0; i < 9; i += 1) act(() => { vi.advanceTimersByTime(1000); });
+        expect(screen.getByRole("button", { name: /continue in 1 s/i })).toBeDisabled();
+        act(() => { vi.advanceTimersByTime(1000); });
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(screen.getByRole("button", { name: /^delete anyway$/i })).toBeEnabled();
+      expect(mocks.deleteWorkspaceNow).not.toHaveBeenCalled();
+    });
+
+    it("the back button closes the dialog without deleting", async () => {
+      mocks.fetchBillingStatus.mockResolvedValue({ subscription });
+      mount();
+      await openWarningAndWait();
+      fireEvent.click(await screen.findByRole("button", { name: /back . let my subscription run/i }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(mocks.deleteWorkspaceNow).not.toHaveBeenCalled();
+    });
+
+    it("words the consent without a date when the period end is unknown (past due)", async () => {
+      mocks.fetchBillingStatus.mockResolvedValue({ subscription: { ...subscription, status: "past_due", current_period_end: null } });
+      mount();
+      await openWarningAndWait();
+      expect(await screen.findByText(/until the end of the billing period\. My subscription is cancelled/i)).toBeInTheDocument();
+    });
+
+    it("sends cancel_subscription with the deletion request", async () => {
+      mocks.fetchBillingStatus.mockResolvedValue({ subscription });
+      mount();
+      await openWarningAndWait();
+      await confirmWithPassword();
+
+      await waitFor(() => expect(mocks.deleteWorkspaceNow).toHaveBeenCalledTimes(1));
+      expect(mocks.deleteWorkspaceNow).toHaveBeenCalledWith({
+        reauth_id_token: "fresh-id-token",
+        confirmation: "Alice workspace",
+        lang: "en",
+        cancel_subscription: true,
+      });
+    });
+
+    it("shows the message when Stripe could not cancel the subscription", async () => {
+      mocks.fetchBillingStatus.mockResolvedValue({ subscription });
+      mocks.deleteWorkspaceNow.mockRejectedValueOnce({
+        response: { status: 503, data: { code: "subscription_cancel_failed" } },
+      });
+      mount();
+      await openWarningAndWait();
+      await confirmWithPassword();
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/could not cancel your subscription, so nothing was deleted/i);
+      expect(mocks.accountDeleted).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("without a live subscription", () => {
+    it.each([
+      ["no subscription", { subscription: null }],
+      ["a cancelled subscription", { subscription: { plan: "investor", status: "canceled", current_period_end: null } }],
+    ])("keeps today's dialog and payload with %s", async (_label, status) => {
+      mocks.fetchBillingStatus.mockResolvedValue(status);
+      mount();
+      await openDialogPastWarning();
+      expect(screen.queryByText(/i agree that i am deleting this workspace/i)).not.toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText(/type alice workspace/i), { target: { value: "Alice workspace" } });
+      fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "pw" } });
+      fireEvent.click(screen.getByRole("button", { name: /delete permanently now/i }));
+
+      await waitFor(() => expect(mocks.deleteWorkspaceNow).toHaveBeenCalledTimes(1));
+      expect(mocks.deleteWorkspaceNow.mock.calls[0][0]).not.toHaveProperty("cancel_subscription");
+    });
+
+    it("shows the usual buttons and no consent when billing does not exist or fails", async () => {
+      mocks.fetchBillingStatus.mockRejectedValue({ response: { status: 404 } });
+      mount();
+      fireEvent.click(await screen.findByRole("button", { name: /^delete workspace$/i }));
+      await waitFor(() => expect(mocks.fetchBillingStatus).toHaveBeenCalledTimes(1));
+      expect(await screen.findByRole("button", { name: /^cancel$/i })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /let my subscription run/i })).not.toBeInTheDocument();
+      expect(screen.queryByText(/i agree that i am deleting this workspace/i)).not.toBeInTheDocument();
+    });
+
+    it("does not read billing until the dialog is opened", async () => {
+      mount();
+      await screen.findByRole("button", { name: /^delete workspace$/i });
+      expect(mocks.fetchBillingStatus).not.toHaveBeenCalled();
+    });
   });
 
   it("uses shared pill buttons and a destructive ghost for deleting the workspace", async () => {

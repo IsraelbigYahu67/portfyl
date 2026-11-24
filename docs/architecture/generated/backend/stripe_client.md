@@ -14,4 +14,4 @@ generated: true
 Minimal Stripe REST boundary for cloud billing.
 
 **Hub:** [[Billing and Stripe]]
-**Source:** `backend/stripe_client.py` (221 lines)
+**Source:** `backend/stripe_client.py` (234 lines)

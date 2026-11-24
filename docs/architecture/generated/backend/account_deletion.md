@@ -14,14 +14,16 @@ generated: true
 Verified, immediate workspace (and, with its last workspace, account) deletion.
 
 **Hub:** [[Account deletion and data lifecycle]]
-**Source:** `backend/account_deletion.py` (429 lines)
+**Source:** `backend/account_deletion.py` (492 lines)
 
 ## Imports
 - [[audit]]
+- [[database]]
 - [[emails.catalog]]
 - [[emails.notify]]
 - [[firebase_identity]]
 - [[models]]
+- [[stripe_client]]
 - [[tenancy]]
 
 ## Tables used

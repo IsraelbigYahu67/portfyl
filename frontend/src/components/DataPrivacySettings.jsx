@@ -18,6 +18,7 @@ import {
 } from "../auth/firebase";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { rich, useI18n, useT } from "../i18n/I18nProvider";
+import { billingStatusQuery } from "../lib/billingStatusQuery";
 import AnalyticsPreferences from "../analytics/AnalyticsPreferences";
 import AuthMethodDivider from "./auth/AuthMethodDivider";
 
@@ -25,6 +26,17 @@ import AuthMethodDivider from "./auth/AuthMethodDivider";
 // How long the warning keeps "continue" disabled, so the consequences are read
 // before the typed confirmation and the password are asked for.
 const WARNING_SECONDS = 10;
+
+
+// A subscription that still gives the workspace paid features. Deleting the
+// workspace cancels it on the spot, so the user must consent to that first.
+const LIVE_SUBSCRIPTION_STATUSES = ["active", "trialing", "past_due"];
+
+function longDate(iso, language) {
+  const date = new Date(iso);
+  if (!iso || !Number.isFinite(date.getTime())) return null;
+  return new Intl.DateTimeFormat(language, { day: "numeric", month: "long", year: "numeric" }).format(date);
+}
 
 
 function errorMessage(error, fallback, t) {
@@ -38,6 +50,7 @@ function errorMessage(error, fallback, t) {
     reauthentication_identity_mismatch: t("The signed-in identity does not match this account."),
     email_verification_required: t("Verify your e-mail before deleting."),
     active_subscription: t("Cancel your subscription first, then delete the workspace."),
+    subscription_cancel_failed: t("We could not cancel your subscription, so nothing was deleted. Please try again in a moment."),
     account_deletion_unavailable: t("Deletion could not be completed right now. Nothing was deleted; try again in a moment."),
   };
   return messages[code] || fallback;
@@ -92,6 +105,18 @@ export default function DataPrivacySettings() {
     enabled: Boolean(currentWorkspace?.id),
   });
 
+  // Read only while the dialog is open, and always fresh. Where billing does
+  // not exist (the local edition) or the call fails, there is simply no
+  // subscription and the dialog behaves as it always did.
+  const { data: billing } = useQuery({
+    ...billingStatusQuery,
+    staleTime: 0,
+    enabled: dialogOpen && Boolean(currentWorkspace?.id),
+  });
+  const subscription = billing?.subscription;
+  const hasLiveSubscription = Boolean(subscription) && LIVE_SUBSCRIPTION_STATUSES.includes(subscription.status);
+  const periodEnd = hasLiveSubscription ? longDate(subscription.current_period_end, language) : null;
+
   const exportMutation = useMutation({
     mutationFn: downloadWorkspaceExport,
     onSuccess: ({ blob, filename }) => {
@@ -118,6 +143,8 @@ export default function DataPrivacySettings() {
         reauth_id_token: reauthIdToken,
         confirmation,
         lang: language,
+        // Only sent when the dialog showed the consent for a live subscription.
+        ...(hasLiveSubscription ? { cancel_subscription: true } : {}),
       });
     },
     onSuccess: (result) => {
@@ -285,6 +312,13 @@ export default function DataPrivacySettings() {
                   <li>{t("Connected broker keys and saved integrations are removed.")}</li>
                   <li>{t("If this is your last workspace, your Portfyl account and sign-in are deleted too, and you are signed out.")}</li>
                   <li>{t("Portfyl cannot restore anything afterwards, not even on request. Download the export first if you want a copy.")}</li>
+                  {hasLiveSubscription && (
+                    <li className="font-medium text-loss">
+                      {periodEnd
+                        ? t("I agree that I am deleting this workspace and that I immediately lose the remaining paid features until the end of the billing period ({date}). My subscription is cancelled and the rest of the period is not refunded.", { date: periodEnd })
+                        : t("I agree that I am deleting this workspace and that I immediately lose the remaining paid features until the end of the billing period. My subscription is cancelled and the rest of the period is not refunded.")}
+                    </li>
+                  )}
                 </ul>
                 <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
                   <button
@@ -293,7 +327,7 @@ export default function DataPrivacySettings() {
                     onClick={closeDialog}
                     className="btn-ghost flex items-center justify-center text-sm font-medium min-h-11 md:min-h-0"
                   >
-                    {t("Cancel")}
+                    {hasLiveSubscription ? t("Back – let my subscription run") : t("Cancel")}
                   </button>
                   <button
                     type="button"
@@ -303,7 +337,7 @@ export default function DataPrivacySettings() {
                   >
                     {secondsLeft > 0
                       ? t("Continue in {seconds} s", { seconds: secondsLeft })
-                      : t("I understand, continue")}
+                      : hasLiveSubscription ? t("Delete anyway") : t("I understand, continue")}
                   </button>
                 </div>
               </>
