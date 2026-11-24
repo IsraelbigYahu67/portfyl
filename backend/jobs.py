@@ -1305,7 +1305,11 @@ async def account_deletion_cleanup_pass(
     from trials import purge_trial_records
 
     trial_purge = purge_trial_records(db, now or datetime.now(timezone.utc))
+    from legal_acceptance import purge_stale_pending
+
+    pending_acceptances = purge_stale_pending(db, now or datetime.now(timezone.utc))
     db.commit()
+    log.info("terms_acceptance_pending_purge deleted=%d", pending_acceptances)
     log.info(
         "trial_records_purge identities=%d ip_marks=%d broker_marks=%d",
         trial_purge["identities"],

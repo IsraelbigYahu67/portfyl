@@ -77,6 +77,14 @@ export async function registerWithEmailPassword(email, password) {
   return credential.user;
 }
 
+// Removes a Firebase user the client has just created, e.g. when the Terms
+// acceptance could not be recorded and the sign-up must start over. The SDK
+// also signs the user out of the in-memory session.
+export async function deleteFirebaseUser(user) {
+  const { deleteUser } = await loadFirebaseSdk();
+  await deleteUser(user);
+}
+
 export async function signInWithEmailPassword(email, password) {
   const auth = await readyAuth();
   const { signInWithEmailAndPassword } = await loadFirebaseSdk();

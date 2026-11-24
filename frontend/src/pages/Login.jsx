@@ -12,10 +12,20 @@ import {
 import { sendVerificationEmail } from "../auth/authEmail";
 import AuthMethodDivider from "../components/auth/AuthMethodDivider";
 import GoogleSignInButton from "../components/auth/GoogleSignInButton";
-import { rich, useT } from "../i18n/I18nProvider";
+import { rich, useI18n } from "../i18n/I18nProvider";
+
+// The legal documents exist in Czech and English only; other app languages get
+// the English text and the link says so (same rule as Register.jsx). The two
+// labels are the document titles, as in Settings' "Legal documents" list.
+const LEGAL_LINKS = {
+  cs: { terms: "Obchodní podmínky", privacy: "Zásady ochrany osobních údajů" },
+  en: { terms: "Terms of Service", privacy: "Privacy Policy" },
+};
 
 export default function Login() {
-  const t = useT();
+  const { t, language } = useI18n();
+  const legalLang = language === "cs" ? "cs" : "en";
+  const legalSuffix = language === "cs" || language === "en" ? "" : ` ${t("(in English)")}`;
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { loginWithIdToken } = useAuth();
@@ -167,6 +177,15 @@ export default function Login() {
             <GoogleSignInButton />
           </div>
         )}
+
+        <p className="text-xs text-muted text-center space-x-3">
+          <a href={`/terms?lang=${legalLang}`} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+            {LEGAL_LINKS[legalLang].terms}{legalSuffix}
+          </a>
+          <a href={`/privacy?lang=${legalLang}`} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+            {LEGAL_LINKS[legalLang].privacy}{legalSuffix}
+          </a>
+        </p>
       </div>
     </div>
   );

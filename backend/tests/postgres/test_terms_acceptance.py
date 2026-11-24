@@ -126,3 +126,23 @@ def test_a_pending_record_is_linked_to_the_new_user(postgres_session: Session):
     assert record.user_id == user.id
     assert record.accepted_at == NOW
     assert record.terms_version == legal_acceptance.LEGAL_TERMS_VERSION
+
+
+def test_purge_removes_only_stale_pending_records_under_postgres(postgres_session: Session):
+    from datetime import timedelta
+
+    user = User(email="kept@example.com", firebase_uid="uid-kept")
+    postgres_session.add(user)
+    postgres_session.flush()
+    postgres_session.add_all([
+        _row(firebase_uid="uid-old", accepted_at=NOW - timedelta(days=31)),
+        _row(firebase_uid="uid-young", accepted_at=NOW - timedelta(days=29)),
+        _row(user_id=user.id, firebase_uid="uid-kept", accepted_at=NOW - timedelta(days=500)),
+    ])
+    postgres_session.flush()
+
+    assert legal_acceptance.purge_stale_pending(postgres_session, NOW) == 1
+    assert legal_acceptance.purge_stale_pending(postgres_session, NOW) == 0
+
+    left = {r.firebase_uid for r in postgres_session.scalars(select(TermsAcceptance)).all()}
+    assert left == {"uid-young", "uid-kept"}

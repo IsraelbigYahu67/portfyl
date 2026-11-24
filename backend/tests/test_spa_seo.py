@@ -194,6 +194,37 @@ def test_the_spa_fallback_route_applies_the_rules_end_to_end(dist):
     assert tracker.headers["x-robots-tag"] == spa_serving.NOINDEX and "Vaše" not in tracker.text
 
 
+def test_security_txt_is_a_real_text_file_not_the_app_shell(dist):
+    """RFC 9116: /.well-known/security.txt must be text/plain (utf-8), the
+    file itself (not the SPA HTML fallback), and indexable on the public host."""
+    well_known = pathlib.Path(dist) / ".well-known"
+    well_known.mkdir()
+    (well_known / "security.txt").write_text(
+        "Contact: mailto:support@portfyl.com\nExpires: 2027-10-22T00:00:00.000Z\n",
+        encoding="utf-8",
+    )
+    app = FastAPI()
+
+    @app.api_route("/{full_path:path}", methods=["GET", "HEAD"])
+    def spa(full_path: str, request: Request):
+        return _spa_file_response(full_path, dist, host=spa_serving.request_host(request.headers), query=request.url.query)
+
+    client = TestClient(app)
+    public = client.get("/.well-known/security.txt", headers={"host": PUBLIC})
+    head = client.head("/.well-known/security.txt", headers={"host": PUBLIC})
+    preview = client.get("/.well-known/security.txt", headers={"host": PREVIEW_HOST})
+
+    assert public.status_code == 200
+    assert public.headers["content-type"] == "text/plain; charset=utf-8"
+    assert public.text.startswith("Contact: mailto:support@portfyl.com")
+    assert "<div id=root>" not in public.text
+    assert "x-robots-tag" not in public.headers
+    assert head.status_code == 200 and head.headers["content-type"] == "text/plain; charset=utf-8"
+    # Other hosts stay noindex like every other file, but still serve the text.
+    assert preview.headers["content-type"] == "text/plain; charset=utf-8"
+    assert preview.headers["x-robots-tag"] == spa_serving.NOINDEX
+
+
 # Content pages (guides, broker pages, explainers): prerendered by the cloud
 # build into prerendered/<path>/, exactly like the landing pages. The server
 # keeps no list of them; a page is public when its index.html exists.

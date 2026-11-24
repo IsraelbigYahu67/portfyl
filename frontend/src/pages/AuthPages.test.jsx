@@ -26,6 +26,7 @@ vi.mock("../auth/AuthProvider", () => ({
 const firebaseMocks = vi.hoisted(() => ({
   signInWithEmailPassword: vi.fn(),
   registerWithEmailPassword: vi.fn(),
+  deleteFirebaseUser: vi.fn(() => Promise.resolve()),
   getCurrentFirebaseUser: vi.fn(() => null),
   getIdToken: vi.fn(() => Promise.resolve("id-token-123")),
   mapFirebaseAuthError: vi.fn((err) => err?.code || "Something went wrong. Please try again."),
@@ -136,28 +137,72 @@ describe("Register", () => {
     expect(apiMocks.recordSignupAcceptance).not.toHaveBeenCalled();
   });
 
-  it("stays on the page when the acceptance cannot be recorded, and a retry reuses the created account", async () => {
-    const fakeUser = { email: "new@example.com" };
-    firebaseMocks.registerWithEmailPassword.mockResolvedValue(fakeUser);
-    apiMocks.recordSignupAcceptance.mockRejectedValueOnce(new Error("network"));
-
-    renderAt("/register");
+  function fillAndSubmit() {
     fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "new@example.com" } });
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "s3cret!123" } });
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "s3cret!123" } });
     fireEvent.click(screen.getByRole("checkbox", { name: /18 or older/i }));
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+  }
 
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
+  it("deletes the just-created Firebase user when the acceptance cannot be recorded, so the person can simply try again", async () => {
+    const firstUser = { email: "new@example.com", id: 1 };
+    const secondUser = { email: "new@example.com", id: 2 };
+    firebaseMocks.registerWithEmailPassword
+      .mockResolvedValueOnce(firstUser)
+      .mockResolvedValueOnce(secondUser);
+    apiMocks.recordSignupAcceptance.mockRejectedValueOnce(new Error("network"));
+
+    renderAt("/register");
+    fillAndSubmit();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong");
+    expect(firebaseMocks.deleteFirebaseUser).toHaveBeenCalledTimes(1);
+    expect(firebaseMocks.deleteFirebaseUser).toHaveBeenCalledWith(firstUser);
     expect(authEmailMocks.sendVerificationEmail).not.toHaveBeenCalled();
     expect(screen.queryByText("Verify email page")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     expect(await screen.findByText("Verify email page")).toBeInTheDocument();
-    expect(firebaseMocks.registerWithEmailPassword).toHaveBeenCalledTimes(1);
+    // The deleted user is gone, so the retry registers from scratch.
+    expect(firebaseMocks.registerWithEmailPassword).toHaveBeenCalledTimes(2);
+    expect(authEmailMocks.sendVerificationEmail).toHaveBeenCalledWith(secondUser);
     expect(apiMocks.recordSignupAcceptance).toHaveBeenCalledTimes(2);
     firebaseMocks.registerWithEmailPassword.mockReset();
+  });
+
+  it("still shows the error when deleting the Firebase user fails too, and a retry reuses that user", async () => {
+    const fakeUser = { email: "new@example.com" };
+    firebaseMocks.registerWithEmailPassword.mockResolvedValue(fakeUser);
+    apiMocks.recordSignupAcceptance.mockRejectedValueOnce(new Error("network"));
+    firebaseMocks.deleteFirebaseUser.mockRejectedValueOnce({ code: "auth/requires-recent-login" });
+
+    renderAt("/register");
+    fillAndSubmit();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong");
+    expect(firebaseMocks.deleteFirebaseUser).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Verify email page")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+
+    expect(await screen.findByText("Verify email page")).toBeInTheDocument();
+    expect(firebaseMocks.registerWithEmailPassword).toHaveBeenCalledTimes(1);
+    firebaseMocks.registerWithEmailPassword.mockReset();
+  });
+
+  it("does not delete the Firebase user when the failure is after the acceptance was recorded", async () => {
+    const fakeUser = { email: "new@example.com" };
+    firebaseMocks.registerWithEmailPassword.mockResolvedValueOnce(fakeUser);
+    authEmailMocks.sendVerificationEmail.mockRejectedValueOnce(new Error("mail down"));
+
+    renderAt("/register");
+    fillAndSubmit();
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(apiMocks.recordSignupAcceptance).toHaveBeenCalledTimes(1);
+    expect(firebaseMocks.deleteFirebaseUser).not.toHaveBeenCalled();
   });
 
   it("shows an error and does not navigate when passwords don't match", async () => {
@@ -240,6 +285,13 @@ describe("Register", () => {
 
 describe("Login", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("links to the Terms of Service and the Privacy Policy under the sign-in controls", () => {
+    renderAt("/login");
+
+    expect(screen.getByRole("link", { name: /terms of service/i })).toHaveAttribute("href", "/terms?lang=en");
+    expect(screen.getByRole("link", { name: /privacy policy/i })).toHaveAttribute("href", "/privacy?lang=en");
+  });
 
   it("shows verification instructions for an unverified account and does not log in", async () => {
     firebaseMocks.signInWithEmailPassword.mockResolvedValueOnce({
