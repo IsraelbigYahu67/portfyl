@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Onboarding and CSV import]]
-**Source:** `frontend/src/pages/Import.jsx` (629 lines)
+**Source:** `frontend/src/pages/Import.jsx` (633 lines)
 
 ## Imports
 - [[analytics (folder)]]
