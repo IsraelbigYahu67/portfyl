@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Portfolio analytics]]
-**Source:** `frontend/src/pages/Analytics.jsx` (466 lines)
+**Source:** `frontend/src/pages/Analytics.jsx` (468 lines)
 
 ## Imports
 - [[components.MetricCard]]

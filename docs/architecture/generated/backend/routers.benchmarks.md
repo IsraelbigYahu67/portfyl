@@ -14,7 +14,7 @@ generated: true
 Benchmark management + portfolio-vs-benchmark comparison.
 
 **Hub:** [[Market data]]
-**Source:** `backend/routers/benchmarks.py` (371 lines)
+**Source:** `backend/routers/benchmarks.py` (387 lines)
 **API prefix:** `/api/analytics/benchmarks`
 
 ## Endpoints

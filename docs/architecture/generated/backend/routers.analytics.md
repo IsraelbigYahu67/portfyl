@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Portfolio analytics]]
-**Source:** `backend/routers/analytics.py` (1584 lines)
+**Source:** `backend/routers/analytics.py` (1710 lines)
 **API prefix:** `/api/analytics`
 
 ## Endpoints
@@ -23,6 +23,7 @@ generated: true
 ## Imports
 - [[broker_cash]]
 - [[cash_ledger]]
+- [[currency_codes]]
 - [[database]]
 - [[entitlements]]
 - [[fx]]

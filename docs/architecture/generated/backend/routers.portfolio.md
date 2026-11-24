@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Portfolio analytics]]
-**Source:** `backend/routers/portfolio.py` (2918 lines)
+**Source:** `backend/routers/portfolio.py` (2923 lines)
 **API prefix:** `/api/portfolio`
 
 ## Endpoints
