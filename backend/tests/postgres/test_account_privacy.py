@@ -122,3 +122,110 @@ def test_immediate_deletion_erases_alice_completely_and_leaves_bob_alone(
         assert db.get(User, bob.user_id) is not None
         assert db.scalar(select(func.count()).select_from(Portfolio).where(
             Portfolio.workspace_id == bob.workspace_id)) == 1
+
+
+def test_refund_trace_survives_a_failed_erase_under_rls(
+    matrix_client,
+    matrix_tenants,
+    postgres_engine,
+):
+    """Refund + cancel succeed, the identity provider then fails: the refund
+    trace was committed under forced RLS, the webhook ends the subscription
+    row, and the retry still answers refunded=true without calling Stripe."""
+    from uuid import uuid4
+
+    from firebase_identity import VerifiedIdentity
+    from models import Subscription, User, Workspace, WorkspaceSetting
+    from routers.account import get_stripe_client_factory
+    from routers.auth import get_identity_verifier
+
+    alice = matrix_tenants.alice
+    now = datetime.now(timezone.utc)
+    sub_id = f"sub_live_{uuid4().hex}"
+    with Session(postgres_engine) as db:
+        user = db.get(User, alice.user_id)
+        uid, email = user.firebase_uid, user.email
+        name = db.get(Workspace, alice.workspace_id).name
+        db.add(Subscription(
+            workspace_id=alice.workspace_id,
+            stripe_subscription_id=sub_id,
+            stripe_customer_id="cus_alice",
+            stripe_price_id="price_pro",
+            plan="pro",
+            status="active",
+            current_period_end=now,
+            created_at=now,
+        ))
+        db.commit()
+
+    class FakeStripe:
+        def __init__(self):
+            self.calls = []
+
+        def list_paid_payments(self, subscription_id):
+            self.calls.append("list")
+            return [{"kind": "payment_intent", "id": "pi_1", "amount_cents": 599,
+                     "currency": "eur", "invoice": "in_1"}]
+
+        def create_refund(self, *, payment_intent=None, charge=None, idempotency_key):
+            self.calls.append("refund")
+            return {"id": "re_1", "amount": 599, "currency": "eur", "status": "succeeded"}
+
+        def cancel_subscription(self, subscription_id):
+            self.calls.append("cancel")
+            return {"id": subscription_id, "status": "canceled"}
+
+        def close(self):
+            pass
+
+    stripe = FakeStripe()
+    fail_erase = {"on": True}
+
+    class Verifier:
+        def verify_id_token(self, token):
+            return VerifiedIdentity(
+                uid=uid, email=email, email_verified=True, display_name=None,
+                authenticated_at=datetime.now(timezone.utc),
+            )
+
+        def delete_user(self, firebase_uid):
+            if fail_erase["on"]:
+                raise RuntimeError("firebase unavailable")
+
+    app = matrix_client.app
+    app.dependency_overrides[get_identity_verifier] = lambda: Verifier()
+    app.dependency_overrides[get_stripe_client_factory] = lambda: (lambda: stripe)
+    body = {
+        "reauth_id_token": "t", "confirmation": name,
+        "cancel_subscription": True, "refund_expected": True,
+    }
+
+    first = matrix_client.post("/api/settings/account/deletion", json=body)
+    assert first.status_code == 503
+    assert first.json() == {"code": "account_deletion_unavailable"}
+    assert stripe.calls == ["list", "refund", "cancel"]
+    with Session(postgres_engine) as db:
+        assert db.get(Workspace, alice.workspace_id) is not None
+        assert db.scalar(select(func.count()).select_from(WorkspaceSetting).where(
+            WorkspaceSetting.workspace_id == alice.workspace_id,
+            WorkspaceSetting.key == "privacy.withdrawal_refund",
+        )) == 1
+        row = db.scalar(select(Subscription).where(
+            Subscription.stripe_subscription_id == sub_id))
+        row.status, row.ended_at = "canceled", now  # what the webhook does
+        db.commit()
+
+    fail_erase["on"] = False
+    second = matrix_client.post("/api/settings/account/deletion", json=body)
+
+    assert second.status_code == 200, second.text
+    assert second.json() == {
+        "deleted": True,
+        "account_deleted": True,
+        "refunded": True,
+        "refunded_amount_cents": 599,
+        "currency": "eur",
+    }
+    assert stripe.calls == ["list", "refund", "cancel"]  # untouched on the retry
+    with Session(postgres_engine) as db:
+        assert db.get(Workspace, alice.workspace_id) is None

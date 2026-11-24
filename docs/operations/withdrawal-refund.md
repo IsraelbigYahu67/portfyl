@@ -1,7 +1,8 @@
 # Withdrawal refund on workspace deletion
 
-Status: implemented on branch `feat/withdrawal-refund` (2026-11-24), **not
-deployed, never run against Stripe**. Payments are off in production
+Status: implemented on branch `feat/withdrawal-refund` (2026-11-24) and revised
+after an independent review (`fix/refund-review-backend`), **not deployed, never
+run against Stripe**. Payments are off in production
 (`PORTFYL_BILLING_ENABLED` unset). Run the test-mode checklist below before
 payments go live.
 
@@ -30,25 +31,50 @@ One rule, one place: `billing_config.py` (`WITHDRAWAL_DAYS = 14`,
 `ordered_at` is `subscriptions.created_at` of the live subscription row. The row
 is written when Portfyl first projects the Stripe Subscription (checkout
 confirmation or first webhook, seconds after the order) and a plan change reuses
-the row. A lost webhook that is only repaired by the daily `billing_reconcile`
-can push it later, which favours the customer. No migration was needed.
+the row. No migration was needed. Two consequences, both accepted:
+
+- A lost webhook that is only repaired by the daily `billing_reconcile` pushes
+  `created_at` later, which favours the customer.
+- A payment that starts as `incomplete` (3DS / SCA, up to about 23 hours until
+  it is paid or expires) can have its row BEFORE the money is paid, so the window
+  can end up to those hours earlier than 14 days after the paid order. It never
+  starts later than the order for this reason. Rows in `incomplete` or `paused`
+  hold no paid invoice: a deletion with consent still cancels them (a late 3DS
+  success must not be charged), but there is nothing to refund and `refunded` is
+  `false`.
 
 `GET /api/billing/status`: the `subscription` object has `ordered_at`,
 `withdrawal_ends_at` (ISO UTC) and `withdrawal_open` (bool); the whole object is
 `null` without a subscription. `consent_version` is `2026-11-24`
 (`CHECKOUT_CONSENT_VERSION`), changed with the new checkout consent text.
 
-`POST /api/settings/account/deletion` (`account_deletion.py`):
+`POST /api/settings/account/deletion` (`account_deletion.py`). Request fields
+that matter here: `cancel_subscription` (bool, the owner's consent) and
+`refund_expected` (bool, what the dialog promised; default `false`).
 
 1. All guards as before (owner, typed name, fresh re-authentication, sole
-   member). A renewing subscription (active/trialing, not ending) without
-   `cancel_subscription: true` is still **409 `active_subscription`**.
-2. With the flag and the window open (also for a subscription that is already
-   `cancel_at_period_end`, or `past_due`): **refund first**, then **cancel**,
-   then **erase**. With the flag and the window closed: cancel, then erase, no
-   refund call. A `cancel_at_period_end` or `past_due` subscription outside the
-   window, or without the flag, is left untouched as before.
-3. Refund = every successful payment of the subscription, 100 %, no `amount`
+   member). **Contract without consent** (`cancel_subscription` not `true`):
+   a live subscription answers **409 `active_subscription`** when it is renewing
+   (active/trialing, not ending) and also when it is `cancel_at_period_end` or
+   `past_due` **while the withdrawal window is open** (the customer has a refund
+   right the UI must show). Outside the window a `cancel_at_period_end` or
+   `past_due` subscription proceeds untouched, as before.
+2. With consent, **every live subscription row is cancelled whatever its
+   status** (`past_due` is still retried by Stripe, `cancel_at_period_end` bills
+   until the period end, so leaving them would charge a deleted customer). If the
+   window is open: **refund first**, then **cancel**, then **erase**. If it is
+   closed: cancel, then erase, no refund call.
+3. **`refund_expected`.** The UI decides "full refund" when the dialog opens; the
+   server decides again minutes later. If `refund_expected` is `true` and no
+   refund would happen any more (window closed, or no live subscription and no
+   trace of an earlier refund, see point 7), the answer is **409
+   `withdrawal_window_changed`** before any Stripe call or erasure, so the UI
+   reloads the status and shows the no-refund text. For this request only a
+   **15-minute tolerance** applies: the window counts as open for the refund
+   while `now < ends_at + 15 min`, which protects a customer who opened the
+   dialog in time. Without `refund_expected` there is no tolerance and nothing
+   else changes.
+4. Refund = every successful payment of the subscription, 100 %, no `amount`
    (`POST /v1/refunds` with `payment_intent`, or `charge`). Payments are found
    with `GET /v1/invoices?subscription=&status=paid`, then
    `GET /v1/invoice_payments?invoice=&status=paid` (since API version 2025-03-31
@@ -57,18 +83,43 @@ can push it later, which favours the customer. No migration was needed.
    `payment_intent` or `charge`). A legacy `payment_intent`/`charge` on the
    invoice is used only when no InvoicePayment comes back. Zero-amount payments
    are skipped. Nothing paid: no refund, cancel still happens, `refunded: false`.
-4. Retry safety: idempotency key `withdrawal-refund-<subscription id>-<payment id>`;
-   Stripe's `charge_already_refunded` counts as success. Order refund, cancel,
-   erase means a failure between steps is repaired by retrying the same request
-   (the retry refunds idempotently, then cancels; a cancel that is already done
-   in Stripe is success via 404/`resource_missing`).
-5. Failures: refund step (any other `StripeError`, billing off, no client) is
-   **503 `subscription_refund_failed`**, nothing cancelled, nothing erased.
-   Cancel step is **503 `subscription_cancel_failed`** as before.
-6. The response gains `refunded` (bool), `refunded_amount_cents` and `currency`
-   (null unless refunded). Existing fields are unchanged.
+   A 200 from `POST /v1/refunds` is checked: status `failed`, `canceled` or
+   `requires_action` is a failure (503 `subscription_refund_failed`, logged
+   without personal data); `succeeded` and `pending` are success.
+5. Retry safety. Stripe stores the first response for an idempotency key for
+   24 h **including errors** (500, lock timeout, balance), so a permanent key
+   would replay a failure to every retry for a day. The key is therefore
+   `withdrawal-refund-<subscription id>-<payment id>-<UTC minute bucket>`: it
+   only stops two concurrent requests from both creating a refund. A double
+   refund is prevented by Stripe itself: the refund has no `amount`, and a
+   second attempt on a fully refunded payment fails with
+   `charge_already_refunded`, which counts as success. In that case the amount
+   is not known from the response, so `refunded_amount_cents` is `null` (with
+   `refunded: true`) unless the trace of point 7 holds it. Order refund, cancel,
+   erase means a failure between steps is repaired by retrying the same request.
+6. Cancel. A 404 / `resource_missing` from `DELETE /v1/subscriptions/{id}` is
+   not trusted: the subscription is retrieved and accepted only when its status
+   is `canceled` (a 404 on the retrieve also counts as gone). A subscription that
+   is still live, or a retrieve that fails otherwise, is **503
+   `subscription_cancel_failed`**. A cancel failure after a successful refund is
+   logged at ERROR with the workspace public id (no e-mail, no Stripe ids) so
+   support can see that money was returned while the subscription lives. A
+   refund failure is **503 `subscription_refund_failed`**, nothing cancelled,
+   nothing erased. One Stripe client is built per deletion, used for both calls
+   and closed afterwards.
+7. **Refund trace (retry visibility).** After the refund succeeds and before the
+   erasure, a `workspace_settings` row `privacy.withdrawal_refund`
+   (`amount_cents`, `currency`, `at`) is committed. If the erasure then fails
+   (Firebase), the `customer.subscription.deleted` webhook ends the subscription
+   row, so the retry sees no live subscription; it finds the trace and answers
+   `refunded: true` with the stored amount and currency, without calling Stripe.
+   The trace is only honoured for 14 days, is deleted with the workspace, and a
+   failure to write it never blocks the deletion. No migration.
+8. The response has `refunded` (bool), `refunded_amount_cents` and `currency`
+   (null unless refunded; the amount can be null even when refunded, see 5).
 
-Logs carry only status/code/counts, never ids, amounts or e-mail addresses.
+Logs carry only status/code/counts, never ids, amounts or e-mail addresses (the
+one ERROR line of point 6 carries the workspace public id).
 
 ## Stripe TEST-MODE checklist (must pass before payments go live)
 
@@ -113,6 +164,20 @@ or local instance. Record the result of each line here.
 8. Disputed payment: refund of a disputed charge returns `charge_disputed` or
    `refund_disputed_payment`; the deletion then stops with 503
    `subscription_refund_failed` (nothing erased). Decide what support does.
+9. Cancel while a **subscription schedule** is attached (a booked plan change):
+   does `DELETE /v1/subscriptions/{id}` succeed, or must the schedule be
+   released first? Run it with a booked change, inside the window.
+10. The key scheme: a refund that failed with a stored error (force one, for
+    example a blocked balance), then retry after more than a minute and again
+    after more than 24 h. The retry must not replay the stored error and must
+    end in a refund or `charge_already_refunded`.
+11. Refund `status` under Managed Payments: does `POST /v1/refunds` answer
+    `succeeded` or `pending` (and does it ever answer `requires_action` or
+    `failed`)? Confirm that `pending` still reaches the customer and that
+    `refunded_amount_cents` is the amount.
+12. Failed erase after a refund: make the Firebase deletion fail once, confirm
+    the retry answers `refunded: true` with the amount from the trace even
+    though the webhook has already ended the subscription.
 
 ## Open points
 
@@ -123,10 +188,19 @@ or local instance. Record the result of each line here.
   `ended_at` set) inside the 14 days are not refunded by the deletion: there is
   no live subscription to act on. Withdrawal by e-mail is handled by support,
   and Link may also refund.
-- Without `cancel_subscription: true` a subscription that is already
-  `cancel_at_period_end` is deleted untouched and **not** refunded, even inside
-  the window. The dialog must send the flag whenever the status says
-  `withdrawal_open` or a paid subscription exists.
+- Without `cancel_subscription: true` a paid subscription inside the window is
+  never deleted silently: renewing, `cancel_at_period_end` and `past_due` all
+  answer 409 `active_subscription`, so the dialog can show the refund. The dialog
+  must send the flag (and `refund_expected: true` when it promised a refund)
+  whenever the status says `withdrawal_open` or a paid subscription exists.
+- **Known, accepted risk: repeated withdrawal.** A new Stripe subscription
+  creates a new row and so a new 14-day window. Subscribe, delete the workspace,
+  create a new workspace, subscribe again, delete again gets a 100 % refund each
+  time. The trial guards (`trial_identities`, `trial_ip_marks`,
+  `trial_broker_marks`) only cover the free trial, not refunds. Owner decision:
+  monitor refunds in the Stripe Dashboard; a cheap safeguard if it happens is a
+  refund counter per HMAC of the e-mail (like the trial guards) that logs or
+  alerts from the second refund, or that routes it to manual review.
 - Invoices paid only from the customer balance or credit notes are not
   refunded by this code (no payment to refund); partial earlier refunds are
   topped up to the full amount by the no-`amount` refund.

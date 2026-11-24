@@ -67,9 +67,22 @@ def _delete_now(db, context, *, admin=None, confirmation=None, **identity_overri
 
 
 class RecordingStripe:
-    def __init__(self, error=None):
+    def __init__(self, error=None, *, remote_status="canceled", retrieve_error=None):
         self.cancelled = []
         self.error = error
+        self.remote_status = remote_status
+        self.retrieve_error = retrieve_error
+        self.retrieved = []
+        self.closed = 0
+
+    def retrieve_subscription(self, subscription_id):
+        self.retrieved.append(subscription_id)
+        if self.retrieve_error:
+            raise self.retrieve_error
+        return {"id": subscription_id, "status": self.remote_status}
+
+    def close(self):
+        self.closed += 1
 
     def cancel_subscription(self, subscription_id):
         self.cancelled.append(subscription_id)
@@ -96,7 +109,10 @@ def _add_subscription(db, context, **values):
     return row
 
 
-def _delete_with_stripe(db, context, stripe, *, cancel, factory_calls=None):
+def _delete_with_stripe(
+    db, context, stripe, *, cancel, factory_calls=None, admin=None, now=NOW,
+    refund_expected=False,
+):
     def factory():
         if factory_calls is not None:
             factory_calls.append(1)
@@ -107,11 +123,12 @@ def _delete_with_stripe(db, context, stripe, *, cancel, factory_calls=None):
     return delete_workspace_now(
         db,
         context,
-        identity=_identity(context),
+        identity=_identity(context, authenticated_at=now - timedelta(minutes=1)),
         confirmation=context.workspace.name,
-        identity_admin=RecordingIdentityAdmin(),
-        now=NOW,
+        identity_admin=admin or RecordingIdentityAdmin(),
+        now=now,
         cancel_subscription=cancel,
+        refund_expected=refund_expected,
         stripe_client_factory=factory,
     )
 
@@ -753,9 +770,10 @@ def test_withdrawal_refunds_then_cancels_then_erases(db_session, request_context
     db_session.commit()
 
     assert [event[0] for event in stripe.events] == ["list", "refund", "cancel"]
-    assert stripe.refunds == [
-        {"payment_intent": "pi_1", "charge": None, "key": "withdrawal-refund-sub_w-pi_1"}
-    ]
+    assert len(stripe.refunds) == 1
+    assert stripe.refunds[0]["payment_intent"] == "pi_1"
+    assert stripe.refunds[0]["charge"] is None
+    assert stripe.refunds[0]["key"].startswith("withdrawal-refund-sub_w-pi_1-")
     assert stripe.cancelled == ["sub_w"]
     assert result.refund.refunded is True
     assert result.refund.amount_cents == 599
@@ -868,13 +886,16 @@ def test_retry_after_cancel_failure_refunds_idempotently_and_cancels(db_session,
     second = RefundStripe(refund_error=StripeError(
         "already refunded", status=400, code="charge_already_refunded",
     ))
-    result = _delete_with_stripe(db_session, request_context, second, cancel=True)
+    result = _delete_with_stripe(
+        db_session, request_context, second, cancel=True, now=NOW + timedelta(minutes=2),
+    )
     db_session.commit()
 
-    assert second.refunds[0]["key"] == first.refunds[0]["key"] == "withdrawal-refund-sub_r-pi_1"
+    assert second.refunds[0]["key"] != first.refunds[0]["key"]  # see the key tests
     assert second.cancelled == ["sub_r"]
     assert result.refund.refunded is True
-    assert result.refund.amount_cents == 599  # taken from the paid invoice
+    # Stripe does not say how much: the first attempt's trace does.
+    assert result.refund.amount_cents == 599
     assert db_session.get(Workspace, workspace_id) is None
 
 
@@ -908,12 +929,39 @@ def test_cancel_at_period_end_inside_the_window_is_refunded_and_cancelled(
     assert db_session.get(Workspace, workspace_id) is None
 
 
-def test_cancel_at_period_end_inside_the_window_without_consent_stays_untouched(
+def test_cancel_at_period_end_inside_the_window_without_consent_is_409(
     db_session, request_context,
 ):
+    # A paid, ending subscription inside the window carries a refund right the
+    # dialog must show, so it is not silently deleted without a refund.
     _add_subscription(
         db_session, request_context, created_at=IN_WINDOW, cancel_at_period_end=True,
     )
+    stripe = RefundStripe()
+    calls = []
+
+    with pytest.raises(RequestContextError) as exc_info:
+        _delete_with_stripe(db_session, request_context, stripe, cancel=False, factory_calls=calls)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "active_subscription"
+    assert stripe.events == [] and calls == []
+    assert db_session.get(Workspace, request_context.workspace.id) is not None
+
+
+def test_past_due_inside_the_window_without_consent_is_409(db_session, request_context):
+    _add_subscription(db_session, request_context, status="past_due", created_at=IN_WINDOW)
+
+    with pytest.raises(RequestContextError) as exc_info:
+        _delete_with_stripe(db_session, request_context, RefundStripe(), cancel=False)
+
+    assert exc_info.value.code == "active_subscription"
+
+
+def test_past_due_outside_the_window_without_consent_proceeds_untouched(
+    db_session, request_context,
+):
+    _add_subscription(db_session, request_context, status="past_due")
     stripe = RefundStripe()
 
     _delete_with_stripe(db_session, request_context, stripe, cancel=False)
@@ -921,13 +969,24 @@ def test_cancel_at_period_end_inside_the_window_without_consent_stays_untouched(
     assert stripe.events == []
 
 
-def test_cancel_at_period_end_after_the_window_stays_untouched(db_session, request_context):
-    _add_subscription(db_session, request_context, cancel_at_period_end=True)
+@pytest.mark.parametrize("extra", [{"status": "past_due"}, {"cancel_at_period_end": True}])
+def test_non_renewing_subscription_outside_the_window_is_cancelled_with_consent(
+    db_session, request_context, extra,
+):
+    # Stripe keeps retrying a past_due invoice and bills a cancel_at_period_end
+    # subscription until the period ends: with consent it is cancelled (no
+    # refund call, the window is closed) instead of being left chargeable.
+    _add_subscription(db_session, request_context, stripe_subscription_id="sub_pd", **extra)
+    workspace_id = request_context.workspace.id
     stripe = RefundStripe()
 
-    _delete_with_stripe(db_session, request_context, stripe, cancel=True)
+    result = _delete_with_stripe(db_session, request_context, stripe, cancel=True)
+    db_session.commit()
 
-    assert stripe.events == []
+    assert [event[0] for event in stripe.events] == ["cancel"]
+    assert stripe.cancelled == ["sub_pd"]
+    assert result.refund.refunded is False
+    assert db_session.get(Workspace, workspace_id) is None
 
 
 def test_nothing_paid_skips_the_refund_but_still_cancels(db_session, request_context):
@@ -1024,3 +1083,459 @@ def test_endpoint_maps_refund_failure_to_503(db_session, request_context):
     assert exc_info.value.code == "subscription_refund_failed"
     assert stripe.cancelled == []
     assert db_session.get(Workspace, request_context.workspace.id) is not None
+
+
+# ---------------------------------------------------------------------------
+# Review fixes: idempotency keys, window race, refund status, one client, trace
+# ---------------------------------------------------------------------------
+
+
+def test_refund_idempotency_key_changes_with_the_minute_not_per_attempt(
+    db_session, request_context,
+):
+    _add_subscription(
+        db_session, request_context, stripe_subscription_id="sub_k", created_at=IN_WINDOW,
+    )
+    same_minute = RefundStripe(refund_error=StripeError("x", status=500, transient=True))
+    for _ in range(2):  # a double click inside one minute shares the key
+        with pytest.raises(RequestContextError):
+            _delete_with_stripe(db_session, request_context, same_minute, cancel=True)
+    assert len({r["key"] for r in same_minute.refunds}) == 1
+
+    later = RefundStripe(refund_error=StripeError("x", status=500, transient=True))
+    with pytest.raises(RequestContextError):
+        _delete_with_stripe(
+            db_session, request_context, later, cancel=True, now=NOW + timedelta(minutes=5),
+        )
+    assert later.refunds[0]["key"] != same_minute.refunds[0]["key"]
+    assert later.refunds[0]["key"].startswith("withdrawal-refund-sub_k-pi_1-")
+
+
+def test_a_second_attempt_with_a_new_key_on_a_refunded_payment_is_success(
+    db_session, request_context,
+):
+    # First try failed with a stored 500 (key A). The retry after the bucket
+    # change uses key B and Stripe answers charge_already_refunded: success, no
+    # second refund, nothing claimed about the amount.
+    _add_subscription(db_session, request_context, created_at=IN_WINDOW)
+    workspace_id = request_context.workspace.id
+    stripe = RefundStripe(refund_error=StripeError(
+        "already refunded", status=400, code="charge_already_refunded",
+    ))
+
+    result = _delete_with_stripe(db_session, request_context, stripe, cancel=True)
+    db_session.commit()
+
+    assert result.refund.refunded is True
+    assert result.refund.amount_cents is None  # unknown, never a guess
+    assert result.refund.currency == "eur"
+    assert stripe.cancelled == ["sub_live"]
+    assert db_session.get(Workspace, workspace_id) is None
+
+
+@pytest.mark.parametrize("status", ["failed", "canceled", "requires_action"])
+def test_refund_answered_with_a_failed_status_aborts(db_session, request_context, status):
+    _add_subscription(db_session, request_context, created_at=IN_WINDOW)
+
+    class StatusStripe(RefundStripe):
+        def create_refund(self, **kwargs):
+            super().create_refund(**kwargs)
+            return {"id": "re_1", "amount": 599, "currency": "eur", "status": status}
+
+    stripe = StatusStripe()
+    with pytest.raises(RequestContextError) as exc_info:
+        _delete_with_stripe(db_session, request_context, stripe, cancel=True)
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.code == "subscription_refund_failed"
+    assert stripe.cancelled == []
+    assert db_session.get(Workspace, request_context.workspace.id) is not None
+
+
+@pytest.mark.parametrize("status", ["succeeded", "pending", None])
+def test_refund_succeeded_pending_or_without_status_is_success(
+    db_session, request_context, status,
+):
+    _add_subscription(db_session, request_context, created_at=IN_WINDOW)
+
+    class StatusStripe(RefundStripe):
+        def create_refund(self, **kwargs):
+            super().create_refund(**kwargs)
+            return {"id": "re_1", "amount": 599, "currency": "eur", "status": status}
+
+    result = _delete_with_stripe(db_session, request_context, StatusStripe(), cancel=True)
+
+    assert result.refund.refunded is True and result.refund.amount_cents == 599
+
+
+def test_one_stripe_client_serves_refund_and_cancel_and_is_closed(db_session, request_context):
+    _add_subscription(db_session, request_context, created_at=IN_WINDOW)
+    stripe = RefundStripe()
+    calls = []
+
+    _delete_with_stripe(db_session, request_context, stripe, cancel=True, factory_calls=calls)
+
+    assert calls == [1]
+    assert stripe.closed == 1
+
+
+def test_the_client_is_closed_when_a_step_fails(db_session, request_context):
+    _add_subscription(db_session, request_context, created_at=IN_WINDOW)
+    stripe = RefundStripe(refund_error=StripeError("boom", status=500, transient=True))
+
+    with pytest.raises(RequestContextError):
+        _delete_with_stripe(db_session, request_context, stripe, cancel=True)
+
+    assert stripe.closed == 1
+
+
+def test_stripe_client_close_closes_the_http_client():
+    from stripe_client import StripeClient
+
+    client = StripeClient("sk_test_unit", api_version="2026-09-30.endive")
+    assert client._client.is_closed is False
+    client.close()
+    assert client._client.is_closed is True
+
+
+def test_cancel_404_is_accepted_only_when_stripe_says_canceled(db_session, request_context):
+    _add_subscription(db_session, request_context)
+    stripe = RecordingStripe(
+        error=StripeError("No such subscription", status=404, code="resource_missing"),
+        remote_status="active",
+    )
+
+    with pytest.raises(RequestContextError) as exc_info:
+        _delete_with_stripe(db_session, request_context, stripe, cancel=True)
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.code == "subscription_cancel_failed"
+    assert stripe.retrieved == ["sub_live"]
+    assert db_session.get(Workspace, request_context.workspace.id) is not None
+
+
+def test_cancel_404_then_retrieve_404_is_accepted(db_session, request_context):
+    _add_subscription(db_session, request_context)
+    workspace_id = request_context.workspace.id
+    stripe = RecordingStripe(
+        error=StripeError("No such subscription", status=404, code="resource_missing"),
+        retrieve_error=StripeError("No such subscription", status=404, code="resource_missing"),
+    )
+
+    _delete_with_stripe(db_session, request_context, stripe, cancel=True)
+    db_session.commit()
+
+    assert db_session.get(Workspace, workspace_id) is None
+
+
+def test_cancel_404_then_retrieve_failure_is_not_accepted(db_session, request_context):
+    _add_subscription(db_session, request_context)
+    stripe = RecordingStripe(
+        error=StripeError("gone", status=404, code="resource_missing"),
+        retrieve_error=StripeError("down", status=503, transient=True),
+    )
+
+    with pytest.raises(RequestContextError) as exc_info:
+        _delete_with_stripe(db_session, request_context, stripe, cancel=True)
+
+    assert exc_info.value.code == "subscription_cancel_failed"
+
+
+def test_cancel_failure_after_a_refund_is_logged_at_error_without_pii(
+    db_session, request_context, caplog,
+):
+    import logging
+
+    _add_subscription(
+        db_session, request_context, stripe_subscription_id="sub_secret", created_at=IN_WINDOW,
+    )
+    stripe = RefundStripe(cancel_error=StripeError("boom", status=500, transient=True))
+
+    with caplog.at_level(logging.DEBUG, logger="portfyl.account_deletion"):
+        with pytest.raises(RequestContextError):
+            _delete_with_stripe(db_session, request_context, stripe, cancel=True)
+
+    errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert len(errors) == 1
+    text = errors[0].getMessage()
+    assert str(request_context.workspace.public_id) in text
+    assert "sub_secret" not in text and "pi_1" not in text
+    assert request_context.user.email not in text
+
+
+def test_cancel_failure_without_a_refund_is_not_an_error_log(
+    db_session, request_context, caplog,
+):
+    import logging
+
+    _add_subscription(db_session, request_context)
+    stripe = RecordingStripe(error=StripeError("boom", status=500, transient=True))
+
+    with caplog.at_level(logging.DEBUG, logger="portfyl.account_deletion"):
+        with pytest.raises(RequestContextError):
+            _delete_with_stripe(db_session, request_context, stripe, cancel=True)
+
+    assert [r for r in caplog.records if r.levelno >= logging.ERROR] == []
+
+
+# -- refund_expected: the window race ---------------------------------------
+
+
+def test_refund_expected_with_a_closed_window_is_409_before_any_stripe_call(
+    db_session, request_context,
+):
+    # window ended 20 minutes ago: beyond the 15 minute tolerance
+    _add_subscription(
+        db_session, request_context,
+        created_at=NOW - timedelta(days=14) - timedelta(minutes=20),
+    )
+    stripe = RefundStripe()
+    calls = []
+
+    with pytest.raises(RequestContextError) as exc_info:
+        _delete_with_stripe(
+            db_session, request_context, stripe, cancel=True,
+            refund_expected=True, factory_calls=calls,
+        )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "withdrawal_window_changed"
+    assert stripe.events == [] and calls == []
+    assert db_session.get(Workspace, request_context.workspace.id) is not None
+    assert db_session.get(User, request_context.user.id) is not None
+
+
+def test_refund_expected_inside_the_tolerance_still_refunds(db_session, request_context):
+    # window ended 10 minutes ago, within the 15 minute tolerance
+    _add_subscription(
+        db_session, request_context,
+        created_at=NOW - timedelta(days=14) - timedelta(minutes=10),
+    )
+    workspace_id = request_context.workspace.id
+    stripe = RefundStripe()
+
+    result = _delete_with_stripe(
+        db_session, request_context, stripe, cancel=True, refund_expected=True,
+    )
+    db_session.commit()
+
+    assert [event[0] for event in stripe.events] == ["list", "refund", "cancel"]
+    assert result.refund.refunded is True
+    assert db_session.get(Workspace, workspace_id) is None
+
+
+def test_tolerance_ends_at_exactly_fifteen_minutes(db_session, request_context):
+    _add_subscription(
+        db_session, request_context,
+        created_at=NOW - timedelta(days=14) - timedelta(minutes=15),
+    )
+
+    with pytest.raises(RequestContextError) as exc_info:
+        _delete_with_stripe(
+            db_session, request_context, RefundStripe(), cancel=True, refund_expected=True,
+        )
+
+    assert exc_info.value.code == "withdrawal_window_changed"
+
+
+def test_the_tolerance_never_applies_without_refund_expected(db_session, request_context):
+    _add_subscription(
+        db_session, request_context,
+        created_at=NOW - timedelta(days=14) - timedelta(minutes=5),
+    )
+    stripe = RefundStripe()
+
+    result = _delete_with_stripe(db_session, request_context, stripe, cancel=True)
+
+    assert [event[0] for event in stripe.events] == ["cancel"]
+    assert result.refund.refunded is False
+
+
+def test_refund_expected_with_an_open_window_behaves_as_before(db_session, request_context):
+    _add_subscription(db_session, request_context, created_at=IN_WINDOW)
+
+    result = _delete_with_stripe(
+        db_session, request_context, RefundStripe(), cancel=True, refund_expected=True,
+    )
+
+    assert result.refund.refunded is True
+
+
+def test_refund_expected_without_any_subscription_or_trace_is_409(db_session, request_context):
+    stripe = RefundStripe()
+
+    with pytest.raises(RequestContextError) as exc_info:
+        _delete_with_stripe(
+            db_session, request_context, stripe, cancel=True, refund_expected=True,
+        )
+
+    assert exc_info.value.code == "withdrawal_window_changed"
+    assert stripe.events == []
+
+
+def test_payload_defaults_to_no_refund_expectation():
+    payload = DeletionRequestPayload(reauth_id_token="t", confirmation="c")
+    assert payload.refund_expected is False
+    assert DeletionRequestPayload(
+        reauth_id_token="t", confirmation="c", refund_expected=True,
+    ).refund_expected is True
+
+
+def test_endpoint_passes_refund_expected_and_answers_409(db_session, request_context):
+    from fastapi import Response
+
+    _add_subscription(db_session, request_context, created_at=NOW - timedelta(days=30))
+    identity = _identity(request_context, authenticated_at=datetime.now(timezone.utc))
+    stripe = RefundStripe()
+
+    class Verifier:
+        def verify_id_token(self, token):
+            return identity
+
+        def delete_user(self, uid):
+            raise AssertionError("must not be reached")
+
+    with pytest.raises(RequestContextError) as exc_info:
+        delete_workspace(
+            DeletionRequestPayload(
+                reauth_id_token="t",
+                confirmation=request_context.workspace.name,
+                cancel_subscription=True,
+                refund_expected=True,
+            ),
+            Response(), db_session, request_context, Verifier(), None, lambda: stripe,
+        )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "withdrawal_window_changed"
+    assert stripe.events == []
+
+
+# -- retry visibility: the refund trace -------------------------------------
+
+
+def _end_subscription_like_the_webhook(db, context):
+    row = db.scalar(select(Subscription).where(Subscription.workspace_id == context.workspace.id))
+    row.status = "canceled"
+    row.ended_at = NOW
+    db.commit()
+
+
+def test_retry_after_a_failed_erase_still_reports_the_refund(db_session, request_context):
+    _add_subscription(db_session, request_context, created_at=IN_WINDOW)
+    workspace_id = request_context.workspace.id
+    stripe = RefundStripe()
+
+    # Refund and cancel succeed, the erasure fails (Firebase refuses).
+    with pytest.raises(RuntimeError):
+        _delete_with_stripe(
+            db_session, request_context, stripe, cancel=True,
+            admin=RecordingIdentityAdmin(error=RuntimeError("firebase unavailable")),
+        )
+    db_session.rollback()
+    assert stripe.cancelled == ["sub_live"]
+    assert db_session.get(Workspace, workspace_id) is not None
+    trace = db_session.scalar(select(WorkspaceSetting).where(
+        WorkspaceSetting.workspace_id == workspace_id,
+        WorkspaceSetting.key == "privacy.withdrawal_refund",
+    ))
+    assert trace is not None  # committed before the erase attempt
+
+    # The webhook for the cancel ends the row; the retry finds no subscription.
+    _end_subscription_like_the_webhook(db_session, request_context)
+    retry = RefundStripe()
+    result = _delete_with_stripe(
+        db_session, request_context, retry, cancel=True, refund_expected=True,
+        now=NOW + timedelta(minutes=3),
+    )
+    db_session.commit()
+
+    assert retry.events == []  # Stripe untouched on the retry
+    assert result.refund.refunded is True
+    assert result.refund.amount_cents == 599
+    assert result.refund.currency == "eur"
+    assert db_session.get(Workspace, workspace_id) is None
+
+
+def test_endpoint_retry_after_a_failed_erase_answers_refunded_true(db_session, request_context):
+    from fastapi import Response
+
+    _add_subscription(db_session, request_context, created_at=datetime.now(timezone.utc))
+    workspace_id = request_context.workspace.id
+    identity = _identity(request_context, authenticated_at=datetime.now(timezone.utc))
+    stripe = RefundStripe()
+
+    class Verifier:
+        fail = True
+
+        def verify_id_token(self, token):
+            return identity
+
+        def delete_user(self, uid):
+            if self.fail:
+                raise RuntimeError("firebase unavailable")
+
+    verifier = Verifier()
+
+    def call():
+        return delete_workspace(
+            DeletionRequestPayload(
+                reauth_id_token="t",
+                confirmation=request_context.workspace.name,
+                cancel_subscription=True,
+                refund_expected=True,
+            ),
+            Response(), db_session, request_context, verifier, None, lambda: stripe,
+        )
+
+    with pytest.raises(RequestContextError) as exc_info:
+        call()
+    assert exc_info.value.code == "account_deletion_unavailable"
+    assert db_session.get(Workspace, workspace_id) is not None
+
+    _end_subscription_like_the_webhook(db_session, request_context)
+    verifier.fail = False
+    body = call()
+
+    assert body == {
+        "deleted": True,
+        "account_deleted": True,
+        "refunded": True,
+        "refunded_amount_cents": 599,
+        "currency": "eur",
+    }
+    assert db_session.get(Workspace, workspace_id) is None
+
+
+def test_no_trace_and_no_subscription_reports_no_refund(db_session, request_context):
+    result = _delete_with_stripe(db_session, request_context, RefundStripe(), cancel=True)
+
+    assert result.refund.refunded is False
+
+
+def test_an_old_trace_is_not_reported(db_session, request_context):
+    old = NOW - timedelta(days=20)
+    db_session.add(WorkspaceSetting(
+        workspace_id=request_context.workspace.id,
+        key="privacy.withdrawal_refund",
+        value=json.dumps({"amount_cents": 599, "currency": "eur", "at": old.isoformat()}),
+    ))
+    db_session.commit()
+
+    result = _delete_with_stripe(db_session, request_context, RefundStripe(), cancel=True)
+
+    assert result.refund.refunded is False
+
+
+def test_a_trace_without_an_amount_still_reports_refunded(db_session, request_context):
+    db_session.add(WorkspaceSetting(
+        workspace_id=request_context.workspace.id,
+        key="privacy.withdrawal_refund",
+        value=json.dumps({"amount_cents": None, "currency": "eur", "at": NOW.isoformat()}),
+    ))
+    db_session.commit()
+
+    result = _delete_with_stripe(db_session, request_context, RefundStripe(), cancel=True)
+
+    assert result.refund.refunded is True
+    assert result.refund.amount_cents is None

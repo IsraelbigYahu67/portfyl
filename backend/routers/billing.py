@@ -112,9 +112,11 @@ def _status_payload(
     # is written when Portfyl first projects the Stripe Subscription (checkout
     # confirmation or the first webhook, i.e. within seconds of the first paid
     # order), and a plan change updates the same row, so it stays the first
-    # order. Late projection (a lost webhook until the daily reconcile) can only
-    # push it later, which favours the customer. The server clock decides
-    # `withdrawal_open`; the browser never does.
+    # order. Late projection (a lost webhook until the daily reconcile) pushes
+    # it later, which favours the customer. The opposite also happens: an
+    # `incomplete` payment (3DS, up to ~23 h) can have a row BEFORE it is paid,
+    # so the window can end that many hours earlier than 14 days after the paid
+    # order. The server clock decides `withdrawal_open`; the browser never does.
     ordered_at = as_utc(subscription.created_at) if subscription is not None else None
     ends_at = withdrawal_ends_at(ordered_at)
     return {

@@ -64,6 +64,7 @@ def _scalar(value: Any) -> str:
 
 
 class StripeClientProtocol(Protocol):
+    # ``close()`` is optional: callers that own a client close it when it has one.
     def create_customer(self, *, email: str, workspace_public_id: str, idempotency_key: str) -> dict: ...
     def create_checkout_session(self, params: Mapping[str, Any], *, idempotency_key: str) -> dict: ...
     def retrieve_checkout_session(self, session_id: str) -> dict: ...
@@ -89,6 +90,9 @@ class StripeClient:
             headers={"Stripe-Version": api_version},
             timeout=timeout,
         )
+
+    def close(self) -> None:
+        self._client.close()
 
     def _request(
         self,

@@ -49,8 +49,14 @@ class DeletionRequestPayload(BaseModel):
     # The owner's explicit consent to end a paid subscription immediately:
     # within 14 days of the order it is a withdrawal (full refund), later the
     # rest of the paid period is lost. Without it a renewing subscription
-    # still answers 409 active_subscription.
+    # still answers 409 active_subscription (also a paid cancel_at_period_end
+    # or past_due one while the withdrawal window is open).
     cancel_subscription: bool = False
+    # What the dialog promised: a full refund (true) or none. When true and the
+    # server finds that no refund would happen any more, it answers 409
+    # ``withdrawal_window_changed`` before touching Stripe or the data, so the
+    # UI can reload and show the truth. Absent/false: behaviour unchanged.
+    refund_expected: bool = False
 
 
 def get_stripe_client_factory(request: Request) -> Callable[[], Any]:
@@ -123,6 +129,7 @@ def delete_workspace(
             identity_admin=verifier,
             lang=payload.lang,
             cancel_subscription=payload.cancel_subscription,
+            refund_expected=payload.refund_expected,
             stripe_client_factory=stripe_client_factory,
         )
         db.commit()
