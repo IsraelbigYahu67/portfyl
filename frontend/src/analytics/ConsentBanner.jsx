@@ -27,21 +27,21 @@ export default function ConsentBanner({ language }) {
       className="fixed inset-x-0 bottom-0 z-50 border-t border-hairline bg-surface-card-elevated px-4 py-4 shadow-[var(--shadow-ambient)]"
     >
       <div className="mx-auto flex max-w-4xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="financial-data text-muted space-y-1">
-          <p className="font-semibold text-ink">{t.bannerTitle}</p>
+        <div className="financial-data text-ink space-y-1">
+          <p className="font-semibold">{t.bannerTitle}</p>
           <p>{t.essential}</p>
           <p>
             {t.optional} {t.changeLater}{" "}
-            <a href={lang === "cs" ? PRIVACY_COOKIES_HREF.cs : PRIVACY_COOKIES_HREF.en} className="text-brand hover:underline">
+            <a href={lang === "cs" ? PRIVACY_COOKIES_HREF.cs : PRIVACY_COOKIES_HREF.en} className="font-medium text-brand-dim underline">
               {t.details}
             </a>
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={rejectAnalytics} className="btn-ghost text-sm">
+          <button type="button" onClick={rejectAnalytics} className="btn-ghost text-sm text-ink">
             {t.reject}
           </button>
-          <button type="button" onClick={acceptAnalytics} className="btn-primary text-sm">
+          <button type="button" onClick={acceptAnalytics} className="btn-primary text-sm bg-brand-dim">
             {t.accept}
           </button>
         </div>

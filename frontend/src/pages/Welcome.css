@@ -198,7 +198,7 @@
 /* Footer */
 .welcome-footer { border-top: 1px solid var(--w-line); color: var(--muted); font-size: 0.875rem; }
 .welcome-footer-grid { display: grid; grid-template-columns: minmax(0, 4fr) repeat(3, minmax(0, 2fr)); gap: 28px 40px; padding-block: 40px; }
-.welcome-footer h4 { margin: 0 0 10px; color: var(--ink); font: 600 0.8125rem var(--w-body); letter-spacing: 0; }
+.welcome-footer h3 { margin: 0 0 10px; color: var(--ink); font: 600 0.8125rem var(--w-body); letter-spacing: 0; }
 .welcome-footer ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .welcome-footer nav + ul { margin-top: 8px; }
 .welcome-footer a:hover, .welcome-preview-link:hover { color: var(--ink); text-decoration: underline; }

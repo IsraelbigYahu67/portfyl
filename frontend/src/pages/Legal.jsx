@@ -168,7 +168,7 @@ export default function Legal({ page, signupOpen = import.meta.env.VITE_PUBLIC_S
             aria-label={t.language}
             value={language}
             onChange={chooseLanguage}
-            options={LEGAL_LANGUAGES.map((code) => ({ value: code, label: <span lang={code}>{code === "cs" ? "CZ" : "EN"}</span>, title: code === "cs" ? "Čeština" : "English" }))}
+            options={LEGAL_LANGUAGES.map((code) => ({ value: code, label: <span lang={code}>{code === "cs" ? "CZ" : "EN"}</span>, title: code === "cs" ? "CZ – Čeština" : "EN – English" }))}
           />
         </div>
         <h1>{doc.title}</h1>

@@ -24,21 +24,21 @@ export default function LandingFooter({ copy, language, anchorBase = "" }) {
           <p><small suppressHydrationWarning>© {new Date().getFullYear()} Portfyl</small></p>
         </div>
         <div>
-          <h4>{copy.footer.product}</h4>
+          <h3>{copy.footer.product}</h3>
           <ul>
             {NAV_TARGETS.slice(0, 3).map((id, index) => <li key={id}><a href={`${anchorBase}#${id}`}>{copy.nav[index]}</a></li>)}
             <li><a href={`${anchorBase}#funkce`}>{copy.footer.examples}</a></li>
           </ul>
         </div>
         <div>
-          <h4>{copy.footer.legal}</h4>
+          <h3>{copy.footer.legal}</h3>
           <nav aria-label={copy.legalNavigation}>
             <ul>{copy.legal.map(([page, label]) => <li key={page}><a href={`/${page}?lang=${copy.legalLanguage}`}>{label}</a></li>)}</ul>
           </nav>
           <ul><li><AnalyticsPreferencesLink language={language} /></li></ul>
         </div>
         <div>
-          <h4>{copy.footer.contact}</h4>
+          <h3>{copy.footer.contact}</h3>
           <ul>
             <li><a href="mailto:support@portfyl.com">support@portfyl.com</a></li>
             <li>
