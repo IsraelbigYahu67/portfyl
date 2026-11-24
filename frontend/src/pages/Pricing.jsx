@@ -340,7 +340,7 @@ function PaidPlans({ status, onStatusChange }) {
             className="mt-0.5 h-4 w-4 accent-brand"
           />
           <span className="text-sm">
-            {t("I want my subscription to start immediately. I understand that if I withdraw within 14 days, I will pay a proportionate part of the price for the time the paid features were available.")}
+            {t("I want my subscription to start immediately. I can withdraw from the contract within 14 days of ordering and I will get the full amount back.")}
           </span>
         </label>
       )}

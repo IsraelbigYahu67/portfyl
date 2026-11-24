@@ -7,6 +7,7 @@ import {
   deleteWorkspaceNow,
   downloadWorkspaceExport,
   fetchDeletionStatus,
+  openBillingPortal,
 } from "../api";
 import { useAuth } from "../auth/AuthProvider";
 import {
@@ -51,6 +52,7 @@ function errorMessage(error, fallback, t) {
     email_verification_required: t("Verify your e-mail before deleting."),
     active_subscription: t("Cancel your subscription first, then delete the workspace."),
     subscription_cancel_failed: t("We could not cancel your subscription, so nothing was deleted. Please try again in a moment."),
+    subscription_refund_failed: t("We could not refund your payment, so nothing was deleted and your subscription is unchanged. Please try again in a moment."),
     account_deletion_unavailable: t("Deletion could not be completed right now. Nothing was deleted; try again in a moment."),
   };
   return messages[code] || fallback;
@@ -116,6 +118,9 @@ export default function DataPrivacySettings() {
   const subscription = billing?.subscription;
   const hasLiveSubscription = Boolean(subscription) && LIVE_SUBSCRIPTION_STATUSES.includes(subscription.status);
   const periodEnd = hasLiveSubscription ? longDate(subscription.current_period_end, language) : null;
+  // The server decides, by its own clock, whether the 14 days after the first
+  // paid order are still running. Anything but a literal true counts as closed.
+  const withdrawalOpen = hasLiveSubscription && subscription.withdrawal_open === true;
 
   const exportMutation = useMutation({
     mutationFn: downloadWorkspaceExport,
@@ -165,6 +170,13 @@ export default function DataPrivacySettings() {
         : errorMessage(err, t("Could not delete the workspace."), t);
       setError(message);
     },
+  });
+
+  // Same hand-off as the pricing page: the Stripe portal opens in this tab.
+  const portalMutation = useMutation({
+    mutationFn: openBillingPortal,
+    onSuccess: ({ url }) => window.location.assign(url),
+    onError: () => setError(t("The payment page could not be opened. Please try again.")),
   });
 
   const cancelMutation = useMutation({
@@ -312,7 +324,7 @@ export default function DataPrivacySettings() {
                   <li>{t("Connected broker keys and saved integrations are removed.")}</li>
                   <li>{t("If this is your last workspace, your Portfyl account and sign-in are deleted too, and you are signed out.")}</li>
                   <li>{t("Portfyl cannot restore anything afterwards, not even on request. Download the export first if you want a copy.")}</li>
-                  {hasLiveSubscription && (
+                  {hasLiveSubscription && !withdrawalOpen && (
                     <li className="font-medium text-loss">
                       {periodEnd
                         ? t("I agree that I am deleting this workspace and that I immediately lose the remaining paid features until the end of the billing period ({date}). My subscription is cancelled and the rest of the period is not refunded.", { date: periodEnd })
@@ -320,6 +332,29 @@ export default function DataPrivacySettings() {
                     </li>
                   )}
                 </ul>
+                {withdrawalOpen && (
+                  <div className="text-sm font-medium text-ink bg-brand-light border border-brand/30 rounded-lg px-4 py-3" role="note">
+                    {t("You ordered this subscription less than 14 days ago. Deleting the workspace counts as withdrawing from the contract: we cancel the subscription immediately and refund the full amount you paid.")}
+                  </div>
+                )}
+                {hasLiveSubscription && !withdrawalOpen && (
+                  <div className="text-sm text-muted space-y-1">
+                    <p>
+                      {periodEnd
+                        ? t("If you want to use the paid period, cancel the subscription first and delete the workspace after {date}.", { date: periodEnd })
+                        : t("If you want to use the paid period, cancel the subscription first and delete the workspace after it has ended.")}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => portalMutation.mutate()}
+                      disabled={portalMutation.isPending}
+                      className="btn-ghost flex items-center justify-center gap-2 text-sm font-medium min-h-11 md:min-h-0 disabled:opacity-50"
+                    >
+                      {portalMutation.isPending && <Loader2 size={16} className="animate-spin" />}
+                      {t("Manage subscription")}
+                    </button>
+                  </div>
+                )}
                 <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
                   <button
                     ref={warningCancelRef}
@@ -337,7 +372,8 @@ export default function DataPrivacySettings() {
                   >
                     {secondsLeft > 0
                       ? t("Continue in {seconds} s", { seconds: secondsLeft })
-                      : hasLiveSubscription ? t("Delete anyway") : t("I understand, continue")}
+                      : withdrawalOpen ? t("Delete and get a refund")
+                        : hasLiveSubscription ? t("Delete anyway") : t("I understand, continue")}
                   </button>
                 </div>
               </>
