@@ -1507,7 +1507,10 @@ def _allocation_totals(db: Session, portfolio: Portfolio, display_ccy: str) -> d
     }
 
 
-@router.get("/sector-breakdown", dependencies=[Depends(require_capability("portfolio_analytics"))])
+# The Allocation page (a Free feature) renders this, so it is gated by the Free
+# `allocation` capability. Do not move it back to `portfolio_analytics`: that
+# gave every Free account a 403 and an upgrade toast on the Allocation page.
+@router.get("/sector-breakdown", dependencies=[Depends(require_capability("allocation"))])
 def sector_breakdown(
     currency: str = "USD",
     db: Session = Depends(get_db),
