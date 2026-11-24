@@ -88,7 +88,7 @@ function UpgradeBlock({ connect, disabled }) {
           className="mt-0.5 h-4 w-4 accent-brand"
         />
         <span className="text-sm text-ink">
-          {t("I want my subscription to start immediately. I understand that once it starts I lose my 14-day right of withdrawal for this digital service.")}
+          {t("I want my subscription to start immediately. I understand that if I withdraw within 14 days, I will pay a proportionate part of the price for the time the paid features were available.")}
         </span>
       </label>
       <button type="button" onClick={onUpgrade} disabled={disabled || !consented} className="btn-primary w-full min-h-[44px]">

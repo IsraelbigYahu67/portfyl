@@ -170,7 +170,7 @@ describe.each(LANGUAGES)("$name landing page", ({ code }) => {
     expect(screen.getByText(copy.footer.tagline)).toBeInTheDocument();
     const legal = screen.getByRole("navigation", { name: copy.legalNavigation });
     expect(within(legal).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
-      `/terms?lang=${copy.legalLanguage}`, `/privacy?lang=${copy.legalLanguage}`,
+      `/terms?lang=${copy.legalLanguage}`, `/privacy?lang=${copy.legalLanguage}`, `/security?lang=${copy.legalLanguage}`,
     ]);
     expect(document.documentElement.lang).toBe(code);
     expect(document.title).toBe(copy.title);
@@ -204,7 +204,7 @@ it("shows the hero and the two feature screenshots, and no figure for pictures t
 it("keeps in-page navigation on the page and every other link a normal one", () => {
   renderWelcome({ language: "cs", signupOpen: true });
   const origin = APP_ORIGIN.replace(/[.]/g, "\\.");
-  const allowed = [/^#/, /^\/terms\?lang=cs$/, /^\/privacy\?lang=cs$/, /^\/(en\/|de\/)?$/, /^mailto:support@portfyl\.com$/, new RegExp(`^${origin}/(login|register)`)];
+  const allowed = [/^#/, /^\/terms\?lang=cs$/, /^\/privacy\?lang=cs$/, /^\/security\?lang=cs$/, /^\/(en\/|de\/)?$/, /^mailto:support@portfyl\.com$/, new RegExp(`^${origin}/(login|register)`)];
   for (const link of screen.getAllByRole("link")) {
     const href = link.getAttribute("href");
     expect(allowed.some((pattern) => pattern.test(href)), href).toBe(true);

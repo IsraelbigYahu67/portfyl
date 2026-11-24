@@ -31,7 +31,8 @@ def test_there_is_exactly_one_head_and_it_is_the_expected_one():
     heads = ScriptDirectory.from_config(config).get_heads()
 
     assert heads == [EXPECTED_ALEMBIC_HEAD]
-    assert EXPECTED_ALEMBIC_HEAD == REVISION
+    # 0028 is no longer the head (0029 sits on it); it must still be the parent.
+    assert ScriptDirectory.from_config(config).get_revision(EXPECTED_ALEMBIC_HEAD).down_revision == REVISION
 
 
 def test_0028_adds_one_nullable_column_and_keeps_existing_rows_null(

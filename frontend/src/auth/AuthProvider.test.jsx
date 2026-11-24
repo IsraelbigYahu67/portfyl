@@ -55,6 +55,7 @@ function Probe() {
       <span data-testid="workspace">{auth.currentWorkspace?.id ?? ""}</span>
       <span data-testid="csrf">{auth.csrfToken ?? ""}</span>
       <button onClick={() => auth.loginWithIdToken("id-token-123")}>login</button>
+      <button onClick={() => auth.loginWithIdToken("id-token-123", { termsAccepted: true })}>login-accepted</button>
       <span data-testid="login-error">{loginError}</span>
       <button
         onClick={() => auth.loginWithIdToken("id-token-123").catch((e) => setLoginError(e?.response?.data?.code ?? "other"))}
@@ -144,6 +145,23 @@ describe("AuthProvider", () => {
     expect(firebaseMocks.signOutFirebaseClient).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("email").textContent).toBe("bob@example.com");
     expect(screen.getByTestId("workspace").textContent).toBe("w2");
+  });
+
+  it("passes the Terms acceptance to the exchange only when it was given", async () => {
+    apiMocks.fetchMe.mockRejectedValueOnce({ response: { status: 401 } });
+    apiMocks.exchangeSession.mockResolvedValueOnce({
+      user: { id: "u2", email: "bob@example.com" },
+      workspaces: [{ id: "w2", name: "Bob's workspace", role: "owner" }],
+      csrf_token: "csrf-2",
+    });
+    mount();
+    await waitFor(() => expect(screen.getByTestId("ready").textContent).toBe("true"));
+
+    await act(async () => {
+      screen.getByRole("button", { name: "login-accepted" }).click();
+    });
+
+    expect(apiMocks.exchangeSession).toHaveBeenCalledWith("id-token-123", { termsAccepted: true });
   });
 
   describe("new-account bot check", () => {

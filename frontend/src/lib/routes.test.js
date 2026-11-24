@@ -1,5 +1,20 @@
 import * as routes from "./routes";
-import { HAS_PUBLIC_HOME, ONBOARDING_PREVIEW_PATH, isOnboardingPreviewPath, isRetiredDemoPath } from "./routes";
+import { HAS_PUBLIC_HOME, ONBOARDING_PREVIEW_PATH, isOnboardingPreviewPath, isRetiredDemoPath, legalPage } from "./routes";
+
+describe("legalPage", () => {
+  it("matches the terms, privacy and security pages with an optional trailing slash", () => {
+    expect(legalPage("/terms")).toBe("terms");
+    expect(legalPage("/privacy/")).toBe("privacy");
+    expect(legalPage("/security")).toBe("security");
+    expect(legalPage("/security/")).toBe("security");
+  });
+
+  it("does not match similar paths", () => {
+    for (const pathname of ["/", "/securityx", "/security/x", "/en/security", "/.well-known/security.txt", "/Security"]) {
+      expect(legalPage(pathname), pathname).toBeNull();
+    }
+  });
+});
 
 describe("isRetiredDemoPath", () => {
   it("no longer exports the old isDemoPath", () => {

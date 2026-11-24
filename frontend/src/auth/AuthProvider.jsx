@@ -159,17 +159,19 @@ export function AuthProvider({ children }) {
   const cancelBotCheck = useCallback(() => finishBotCheck(null), [finishBotCheck]);
 
   const loginWithIdToken = useCallback(
-    async (idToken) => {
+    async (idToken, { termsAccepted = false } = {}) => {
+      // Sent only when the register page's box was ticked (first Google sign-in).
+      const accepted = termsAccepted ? { termsAccepted: true } : null;
       let payload;
       try {
-        payload = await exchangeSession(idToken);
+        payload = await (accepted ? exchangeSession(idToken, accepted) : exchangeSession(idToken));
       } catch (error) {
         if (error?.response?.data?.code !== "bot_check_required") throw error;
         const turnstileToken = await askBotCheck();
         // Cancelled: the caller gets the original error. One retry only; a
         // `bot_check_failed` on it is the caller's to show.
         if (!turnstileToken) throw error;
-        payload = await exchangeSession(idToken, { turnstileToken });
+        payload = await exchangeSession(idToken, { turnstileToken, ...accepted });
       }
       applyAccount(payload);
       // The backend session cookie is now the durable credential; the

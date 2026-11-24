@@ -78,7 +78,10 @@ class Harness:
         self.client = TestClient(app)
 
     def sign_in(self, **body):
-        return self.client.post("/api/auth/session", json={"id_token": "tok", **body}, headers=HEADERS)
+        # A new cloud account also needs the Terms acceptance (default: given),
+        # so these tests keep exercising the bot check on its own.
+        payload = {"id_token": "tok", "terms_accepted": True, **body}
+        return self.client.post("/api/auth/session", json=payload, headers=HEADERS)
 
     def count(self, model) -> int:
         self.db.expire_all()

@@ -42,9 +42,10 @@ export const isRetiredDemoPath = (pathname) =>
 
 // Legal pages (both editions; Settings -> Data & Privacy links them). They
 // render on every host, including app.portfyl.com, because Stripe Checkout and
-// signed-out visitors link to them. Returns "terms", "privacy" or null.
+// signed-out visitors link to them. /security is the security page, rendered
+// by the same component. Returns "terms", "privacy", "security" or null.
 export const legalPage = (pathname) => {
-  const match = /^\/(terms|privacy)\/?$/.exec(pathname);
+  const match = /^\/(terms|privacy|security)\/?$/.exec(pathname);
   return match ? match[1] : null;
 };
 

@@ -383,7 +383,7 @@ export default {
   "Payments are processed by Link, a Stripe company, as the seller of record. It handles VAT, receipts and payment support. Portfyl never sees your card details. Cancel anytime; you keep your plan until the end of the paid month.": "I pagamenti sono elaborati da Link, una società Stripe, in qualità di venditore. Link gestisce IVA, ricevute e assistenza sui pagamenti. Portfyl non vede mai i dati della tua carta. Puoi annullare in qualsiasi momento; mantieni il piano fino alla fine del mese pagato.",
   "Your subscription: {plan}": "Il tuo abbonamento: {plan}",
   "Manage subscription": "Gestisci abbonamento",
-  "I want my subscription to start immediately. I understand that once it starts I lose my 14-day right of withdrawal for this digital service.": "Voglio che il mio abbonamento inizi subito. Comprendo che, una volta iniziato, perdo il diritto di recesso di 14 giorni per questo servizio digitale.",
+  "I want my subscription to start immediately. I understand that if I withdraw within 14 days, I will pay a proportionate part of the price for the time the paid features were available.": "Voglio che il mio abbonamento inizi subito. Comprendo che, se recedo entro 14 giorni, pagherò una quota proporzionale del prezzo per il periodo in cui le funzioni a pagamento sono state disponibili.",
   "Only the workspace owner can change the plan or manage billing.": "Solo il proprietario dello spazio di lavoro può cambiare piano o gestire la fatturazione.",
   "Current plan": "Piano attuale",
   "Keep {plan}": "Mantieni {plan}",

@@ -54,10 +54,13 @@ RELEVANT_EVENT_PREFIXES = ("customer.subscription.", "invoice.", "checkout.sessi
 
 class CheckoutPayload(BaseModel):
     plan: PlanTier
-    # The customer's explicit request to start the service immediately and
-    # acknowledgement that this ends the EU 14-day withdrawal right
-    # (Directive 2011/83/EU art. 16(m)). Managed Payments checkout cannot show
-    # custom text, so Portfyl collects it before redirecting.
+    # The customer's express request to start the digital service during the
+    # 14-day withdrawal period (Directive 2011/83/EU art. 8(8); CZ civil code
+    # s. 1823) and acknowledgement that withdrawing then costs a proportionate
+    # part of the price (art. 14(3); s. 1834). Starting the service does NOT end
+    # the withdrawal right -- only full performance does (art. 16(a)). Managed
+    # Payments checkout cannot show custom text, so Portfyl collects it before
+    # redirecting.
     accept_immediate_start: bool = False
 
 

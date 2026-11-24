@@ -10,6 +10,15 @@ import { createMemoryAdapter } from "../analytics/analyticsClient";
 const authMocks = vi.hoisted(() => ({
   loginWithIdToken: vi.fn(() => Promise.resolve({})),
 }));
+// Only the sign-up acceptance call is replaced; the rest of api.js stays real.
+const apiMocks = vi.hoisted(() => ({
+  recordSignupAcceptance: vi.fn(() => Promise.resolve({ status: "recorded" })),
+}));
+vi.mock("../api", async (importOriginal) => ({
+  ...(await importOriginal()),
+  recordSignupAcceptance: apiMocks.recordSignupAcceptance,
+}));
+
 vi.mock("../auth/AuthProvider", () => ({
   useAuth: () => ({ loginWithIdToken: authMocks.loginWithIdToken }),
 }));
@@ -86,6 +95,69 @@ describe("Register", () => {
     );
     await waitFor(() => expect(authEmailMocks.sendVerificationEmail).toHaveBeenCalledWith(fakeUser));
     expect(await screen.findByText("Verify email page")).toBeInTheDocument();
+  });
+
+  it("records the Terms acceptance with the new Firebase user's ID token before the verification e-mail", async () => {
+    const fakeUser = { email: "new@example.com" };
+    firebaseMocks.registerWithEmailPassword.mockResolvedValueOnce(fakeUser);
+    const order = [];
+    apiMocks.recordSignupAcceptance.mockImplementationOnce(() => {
+      order.push("acceptance");
+      return Promise.resolve({ status: "recorded" });
+    });
+    authEmailMocks.sendVerificationEmail.mockImplementationOnce(() => {
+      order.push("verification");
+      return Promise.resolve();
+    });
+
+    renderAt("/register");
+    fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "new@example.com" } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "s3cret!123" } });
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "s3cret!123" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: /18 or older/i }));
+    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+
+    expect(await screen.findByText("Verify email page")).toBeInTheDocument();
+    expect(firebaseMocks.getIdToken).toHaveBeenCalledWith(fakeUser);
+    // Only the token is sent: versions and time are the server's to decide.
+    expect(apiMocks.recordSignupAcceptance).toHaveBeenCalledTimes(1);
+    expect(apiMocks.recordSignupAcceptance).toHaveBeenCalledWith("id-token-123");
+    expect(order).toEqual(["acceptance", "verification"]);
+  });
+
+  it("does not record an acceptance when the form is refused before sign-up", async () => {
+    renderAt("/register");
+    fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "new@example.com" } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "short" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: /18 or older/i }));
+    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/at least 8/i);
+    expect(apiMocks.recordSignupAcceptance).not.toHaveBeenCalled();
+  });
+
+  it("stays on the page when the acceptance cannot be recorded, and a retry reuses the created account", async () => {
+    const fakeUser = { email: "new@example.com" };
+    firebaseMocks.registerWithEmailPassword.mockResolvedValue(fakeUser);
+    apiMocks.recordSignupAcceptance.mockRejectedValueOnce(new Error("network"));
+
+    renderAt("/register");
+    fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: "new@example.com" } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "s3cret!123" } });
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "s3cret!123" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: /18 or older/i }));
+    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(authEmailMocks.sendVerificationEmail).not.toHaveBeenCalled();
+    expect(screen.queryByText("Verify email page")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+
+    expect(await screen.findByText("Verify email page")).toBeInTheDocument();
+    expect(firebaseMocks.registerWithEmailPassword).toHaveBeenCalledTimes(1);
+    expect(apiMocks.recordSignupAcceptance).toHaveBeenCalledTimes(2);
+    firebaseMocks.registerWithEmailPassword.mockReset();
   });
 
   it("shows an error and does not navigate when passwords don't match", async () => {
@@ -256,6 +328,31 @@ describe("Continue with Google", () => {
     expect(authMocks.loginWithIdToken).toHaveBeenCalledWith("id-token-123");
     expect(await screen.findByText("Home")).toBeInTheDocument();
     expect(adapter.events.map(([name]) => name)).not.toContain("signup_completed");
+  });
+
+  it("sends the Terms acceptance flag with a first Google sign-in from /register, and nothing else about it", async () => {
+    authMocks.loginWithIdToken.mockResolvedValue({ account_created: true });
+
+    renderAt("/register");
+    fireEvent.click(screen.getByRole("checkbox", { name: /18 or older/i }));
+    fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
+
+    expect(await screen.findByText("Home")).toBeInTheDocument();
+    expect(authMocks.loginWithIdToken).toHaveBeenCalledWith("id-token-123", { termsAccepted: true });
+  });
+
+  it("sends the Google user from /login to /register when the server needs the Terms confirmation", async () => {
+    authMocks.loginWithIdToken.mockRejectedValue({
+      response: { status: 400, data: { code: "terms_acceptance_required" } },
+    });
+
+    renderAt("/login");
+    fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
+
+    expect(await screen.findByRole("checkbox", { name: /18 or older/i })).toBeInTheDocument();
+    expect(authMocks.loginWithIdToken).toHaveBeenCalledWith("id-token-123");
+    expect(screen.getByRole("alert")).toHaveTextContent(/18 or older and accept the Terms of Service/i);
+    expect(screen.queryByText("Home")).not.toBeInTheDocument();
   });
 
   it("records a first Google sign-in as a signup and skips e-mail verification", async () => {

@@ -335,6 +335,8 @@ const BACKEND_ERROR_MESSAGES = {
   // when the person cancels it or Cloudflare rejects the token).
   bot_check_failed: msg("The sign-up check did not pass. Please try again."),
   bot_check_required: msg("The sign-up check did not pass. Please try again."),
+  // A new account needs the Terms/Privacy confirmation from the register page.
+  terms_acceptance_required: msg("Please confirm that you are 18 or older and accept the Terms of Service and Privacy Policy."),
 };
 
 export function mapFirebaseAuthError(error) {

@@ -177,13 +177,21 @@ api.interceptors.response.use((response) => response, handleResponseError);
 export const fetchMe = () => api.get("/auth/me").then((r) => r.data);
 // `turnstileToken` is sent only on the retry after the server asked for a bot
 // check (`bot_check_required`), so a normal exchange posts exactly `{ id_token }`.
-export const exchangeSession = (idToken, { turnstileToken } = {}) =>
+// `termsAccepted` is the register page's "18+ / Terms / Privacy" box, sent only
+// as `true` (first Google sign-in); the server sets versions and time itself.
+export const exchangeSession = (idToken, { turnstileToken, termsAccepted } = {}) =>
   api
     .post("/auth/session", {
       id_token: idToken,
       ...(turnstileToken ? { turnstile_token: turnstileToken } : {}),
+      ...(termsAccepted === true ? { terms_accepted: true } : {}),
     })
     .then((r) => r.data);
+// E-mail sign-up: the address is verified later (maybe on another device), so
+// the register page records the Terms acceptance right after creating the
+// Firebase user. The ID token proves whose acceptance it is.
+export const recordSignupAcceptance = (idToken) =>
+  api.post("/auth/signup-acceptance", { id_token: idToken, terms_accepted: true }).then((r) => r.data);
 // Portfyl's own verification / password-reset e-mails (backend/routers/auth_email.py).
 // Unauthenticated: the verification one proves the account with the ID token.
 export const requestVerificationEmail = (idToken, lang) =>

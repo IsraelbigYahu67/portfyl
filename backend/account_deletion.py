@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from audit import record_audit_event
@@ -27,7 +27,14 @@ from emails.catalog import SOURCE_LANGUAGE, EmailKind, normalize_language
 from emails.notify import send_account_notice
 from firebase_identity import VerifiedIdentity
 from database import release_connection
-from models import Membership, Subscription, User, Workspace, WorkspaceSetting
+from models import (
+    Membership,
+    Subscription,
+    TermsAcceptance,
+    User,
+    Workspace,
+    WorkspaceSetting,
+)
 from stripe_client import StripeClientProtocol, StripeError
 from tenancy import RequestContext, RequestContextError
 
@@ -242,6 +249,9 @@ def _erase_workspace(
         db.flush()
         if user.firebase_uid:
             identity_admin.delete_user(user.firebase_uid)
+        # Also cascades in PostgreSQL (ON DELETE CASCADE); explicit so the
+        # sign-up acceptance never outlives the account on any backend.
+        db.execute(delete(TermsAcceptance).where(TermsAcceptance.user_id == user.id))
         db.delete(user)
         db.flush()
     return DeletionResult(account_deleted=other_memberships == 0, farewell=farewell)

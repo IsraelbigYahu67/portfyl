@@ -1,6 +1,7 @@
 import {
   api,
   exchangeSession,
+  recordSignupAcceptance,
   fetchHistory,
   applyRequestInterceptors,
   configureRequestContext,
@@ -22,6 +23,25 @@ describe("exchangeSession", () => {
     const post = vi.spyOn(api, "post").mockResolvedValue({ data: {} });
     await exchangeSession("id-token-123", { turnstileToken: "tok" });
     expect(post).toHaveBeenCalledWith("/auth/session", { id_token: "id-token-123", turnstile_token: "tok" });
+    post.mockRestore();
+  });
+
+  it("adds terms_accepted only for a literal true, never other values", async () => {
+    const post = vi.spyOn(api, "post").mockResolvedValue({ data: {} });
+    await exchangeSession("id-token-123", { termsAccepted: true });
+    expect(post).toHaveBeenLastCalledWith("/auth/session", { id_token: "id-token-123", terms_accepted: true });
+    await exchangeSession("id-token-123", { termsAccepted: false });
+    await exchangeSession("id-token-123", { termsAccepted: "yes" });
+    expect(post).toHaveBeenLastCalledWith("/auth/session", { id_token: "id-token-123" });
+    post.mockRestore();
+  });
+});
+
+describe("recordSignupAcceptance", () => {
+  it("posts the ID token and the flag only; versions and time are the server's", async () => {
+    const post = vi.spyOn(api, "post").mockResolvedValue({ data: { status: "recorded" } });
+    await expect(recordSignupAcceptance("id-token-123")).resolves.toEqual({ status: "recorded" });
+    expect(post).toHaveBeenCalledWith("/auth/signup-acceptance", { id_token: "id-token-123", terms_accepted: true });
     post.mockRestore();
   });
 });

@@ -13,7 +13,7 @@ implicit fallback between editions:
   internally (a per-request data-encryption key wrapped by the configured key
   version); the application never generates or stores its own DEK. This is a
   deliberate simplification over app-side DEK generation/wrapping -- our
-  secrets (broker API keys, webhook URLs, an AI API key) are all well under
+  secrets (broker API keys and tokens, webhook URLs) are all well under
   KMS's direct-encrypt payload limit and low-volume, so a second moving part
   buys nothing.
 

@@ -27,7 +27,7 @@ function GoogleMark() {
  * signup_completed itself. Google has already verified the address, so there
  * is no /verify-email step.
  */
-export default function GoogleSignInButton({ sourceSurface = "direct", disabled = false }) {
+export default function GoogleSignInButton({ sourceSurface = "direct", disabled = false, termsAccepted = false }) {
   const t = useT();
   const navigate = useNavigate();
   const { loginWithIdToken } = useAuth();
@@ -50,12 +50,22 @@ export default function GoogleSignInButton({ sourceSurface = "direct", disabled 
       const firebaseUser = await signInWithGoogle();
       if (!firebaseUser) return; // popup dismissed
       const idToken = await getIdToken(firebaseUser);
-      const payload = await loginWithIdToken(idToken);
+      // On /register the box is ticked before this button is enabled; the
+      // server records the acceptance with the new account.
+      const payload = await (termsAccepted
+        ? loginWithIdToken(idToken, { termsAccepted: true })
+        : loginWithIdToken(idToken));
       if (payload?.account_created) {
         capture(ANALYTICS_EVENTS.SIGNUP_COMPLETED, { source_surface: sourceSurface, auth_method: "google" });
       }
       navigate(TRACKER_HOME, { replace: true });
     } catch (err) {
+      if (err?.response?.data?.code === "terms_acceptance_required" && !termsAccepted) {
+        // A first Google sign-in from /login: there is no box here, so send
+        // the person to the register page, where the box is.
+        navigate("/register", { state: { termsRequired: true } });
+        return;
+      }
       setError(t(mapFirebaseAuthError(err)));
     } finally {
       setPending(false);

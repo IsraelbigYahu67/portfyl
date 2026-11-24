@@ -130,7 +130,7 @@ describe("Pricing with Stripe payments", () => {
     expect(screen.getByText(/Secure payments through Link/)).toBeInTheDocument();
     expect(fetchTestPlan).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /lose my 14-day right of withdrawal/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /pay a proportionate part of the price/i }));
     fireEvent.click(upgrade);
 
     await waitFor(() => expect(startCheckout).toHaveBeenCalledWith("pro"));
@@ -153,7 +153,7 @@ describe("Pricing with Stripe payments", () => {
     expect(within(pro).queryByText("Current plan")).not.toBeInTheDocument();
     expect(within(screen.getByRole("region", { name: "Free" })).queryByText("Current plan")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /lose my 14-day right of withdrawal/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /pay a proportionate part of the price/i }));
     const upgrade = within(pro).getByRole("button", { name: "Upgrade to Pro" });
     expect(upgrade).toBeEnabled();
     fireEvent.click(upgrade);

@@ -27,7 +27,7 @@ MONTHLY_PRICE_CENTS = MappingProxyType({
 
 # Bump when the wording of the immediate-start consent shown before checkout
 # changes, so the audit log records which text the customer accepted.
-CHECKOUT_CONSENT_VERSION = "2026-10-28"
+CHECKOUT_CONSENT_VERSION = "2026-11-22"
 
 
 def billing_enabled(env: Mapping[str, str]) -> bool:

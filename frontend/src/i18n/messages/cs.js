@@ -383,7 +383,7 @@ export default {
   "Payments are processed by Link, a Stripe company, as the seller of record. It handles VAT, receipts and payment support. Portfyl never sees your card details. Cancel anytime; you keep your plan until the end of the paid month.": "Platby zpracovává jako prodejce společnost Link ze skupiny Stripe. Stará se o DPH, doklady i podporu k platbám. Portfyl údaje o vaší kartě nikdy nevidí. Zrušit můžete kdykoli; tarif vám zůstane do konce zaplaceného měsíce.",
   "Your subscription: {plan}": "Vaše předplatné: {plan}",
   "Manage subscription": "Spravovat předplatné",
-  "I want my subscription to start immediately. I understand that once it starts I lose my 14-day right of withdrawal for this digital service.": "Chci, aby předplatné začalo hned. Beru na vědomí, že jeho zahájením ztrácím u této digitální služby 14denní právo na odstoupení od smlouvy.",
+  "I want my subscription to start immediately. I understand that if I withdraw within 14 days, I will pay a proportionate part of the price for the time the paid features were available.": "Chci, aby předplatné začalo hned. Beru na vědomí, že pokud do 14 dnů odstoupím, zaplatím poměrnou část ceny za dobu, po kterou byly placené funkce k dispozici.",
   "Only the workspace owner can change the plan or manage billing.": "Tarif a platby může měnit jen vlastník pracovního prostoru.",
   "Current plan": "Aktuální tarif",
   "Keep {plan}": "Ponechat {plan}",

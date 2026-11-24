@@ -5,7 +5,7 @@
 // span holding a [[...]] marker becomes a "pending" node, so an unfinished
 // placeholder is shown as pending instead of as raw syntax.
 
-// The four legal files link to each other by file name; on the site those
+// The legal files link to each other by file name; on the site those
 // become the public routes. Any other relative link points into the repo and
 // is rendered as plain text.
 const DOC_ROUTES = {
@@ -13,6 +13,8 @@ const DOC_ROUTES = {
   "podminky-uzivani-cs.md": "/terms?lang=cs",
   "privacy-policy-en.md": "/privacy?lang=en",
   "zasady-ochrany-osobnich-udaju-cs.md": "/privacy?lang=cs",
+  "security-en.md": "/security?lang=en",
+  "security-cs.md": "/security?lang=cs",
 };
 
 const INLINE = /`([^`]+)`|\*\*(.+?)\*\*|\*([^*\s][^*]*)\*|\[([^\]]+)\]\(([^)\s]+)\)/;

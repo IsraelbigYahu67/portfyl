@@ -278,7 +278,7 @@ def test_cloud_beta_accepts_invite_and_provisions_once(
 
     response = client.post(
         "/api/auth/session",
-        json={"id_token": "alice-token"},
+        json={"id_token": "alice-token", "terms_accepted": True},
         headers={"CF-Connecting-IP": "203.0.113.11"},
     )
 

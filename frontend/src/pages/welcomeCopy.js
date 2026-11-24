@@ -145,7 +145,7 @@ export const COPY = {
     ],
     closing: "Podívejte se, jak vypadá portfolio v Portfylu.",
     footer: { tagline: "Přehled investičního portfolia pro akcie a ETF.", product: "Produkt", legal: "Právní", contact: "Kontakt", examples: "Ukázky" },
-    legal: [["terms", "Obchodní podmínky"], ["privacy", "Ochrana osobních údajů"]], legalLanguage: "cs", legalNavigation: "Právní dokumenty",
+    legal: [["terms", "Obchodní podmínky"], ["privacy", "Ochrana osobních údajů"], ["security", "Zabezpečení"]], legalLanguage: "cs", legalNavigation: "Právní dokumenty",
   },
   en: {
     title: "Portfyl — All your stocks and ETFs in one view", skip: "Skip to content", home: "Portfyl, home", navigation: "Main navigation",
@@ -266,7 +266,7 @@ export const COPY = {
     ],
     closing: "See what a portfolio looks like in Portfyl.",
     footer: { tagline: "Portfolio overview for stocks and ETFs.", product: "Product", legal: "Legal", contact: "Contact", examples: "Examples" },
-    legal: [["terms", "Terms of Service"], ["privacy", "Privacy Policy"]], legalLanguage: "en", legalNavigation: "Legal documents",
+    legal: [["terms", "Terms of Service"], ["privacy", "Privacy Policy"], ["security", "Security"]], legalLanguage: "en", legalNavigation: "Legal documents",
   },
   de: {
     title: "Portfyl — Alle Aktien und ETFs in einer Übersicht", skip: "Zum Inhalt springen", home: "Portfyl, Startseite", navigation: "Hauptnavigation",
@@ -387,6 +387,6 @@ export const COPY = {
     ],
     closing: "Sieh dir an, wie ein Portfolio in Portfyl aussieht.",
     footer: { tagline: "Portfolio-Übersicht für Aktien und ETFs.", product: "Produkt", legal: "Rechtliches", contact: "Kontakt", examples: "Beispiele" },
-    legal: [["terms", "Nutzungsbedingungen (EN)"], ["privacy", "Datenschutz (EN)"]], legalLanguage: "en", legalNavigation: "Rechtliches",
+    legal: [["terms", "Nutzungsbedingungen (EN)"], ["privacy", "Datenschutz (EN)"], ["security", "Sicherheit (EN)"]], legalLanguage: "en", legalNavigation: "Rechtliches",
   },
 };

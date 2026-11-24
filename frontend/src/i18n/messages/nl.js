@@ -383,7 +383,7 @@ export default {
   "Payments are processed by Link, a Stripe company, as the seller of record. It handles VAT, receipts and payment support. Portfyl never sees your card details. Cancel anytime; you keep your plan until the end of the paid month.": "Betalingen worden verwerkt door Link, een Stripe-bedrijf, als verkoper. Link regelt btw, betaalbewijzen en betaalondersteuning. Portfyl ziet je kaartgegevens nooit. Altijd opzegbaar; je houdt je abonnement tot het einde van de betaalde maand.",
   "Your subscription: {plan}": "Je abonnement: {plan}",
   "Manage subscription": "Abonnement beheren",
-  "I want my subscription to start immediately. I understand that once it starts I lose my 14-day right of withdrawal for this digital service.": "Ik wil dat mijn abonnement direct begint. Ik begrijp dat ik zodra het begint mijn herroepingsrecht van 14 dagen voor deze digitale dienst verlies.",
+  "I want my subscription to start immediately. I understand that if I withdraw within 14 days, I will pay a proportionate part of the price for the time the paid features were available.": "Ik wil dat mijn abonnement direct begint. Ik begrijp dat als ik binnen 14 dagen herroep, ik een evenredig deel van de prijs betaal voor de tijd waarin de betaalde functies beschikbaar waren.",
   "Only the workspace owner can change the plan or manage billing.": "Alleen de eigenaar van de werkruimte kan het abonnement wijzigen of de facturatie beheren.",
   "Current plan": "Huidig abonnement",
   "Keep {plan}": "{plan} houden",

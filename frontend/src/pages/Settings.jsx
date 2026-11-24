@@ -338,12 +338,12 @@ export function DataSettings({ headingRef, children }) {
   );
 }
 
-// Cloud only: the public /terms and /privacy pages render outside the app's
+// Cloud only: the public /terms, /privacy and /security pages render outside the app's
 // router (Root.jsx), so these are plain links that open a new tab. The
 // documents exist in English and Czech only, so each link names its language.
 function LegalDocuments() {
   const t = useT();
-  const links = [["/terms?lang=en", "Terms of Service"], ["/privacy?lang=en", "Privacy Policy"], ["/terms?lang=cs", "Obchodní podmínky"], ["/privacy?lang=cs", "Zásady ochrany osobních údajů"]];
+  const links = [["/terms?lang=en", "Terms of Service"], ["/privacy?lang=en", "Privacy Policy"], ["/terms?lang=cs", "Obchodní podmínky"], ["/privacy?lang=cs", "Zásady ochrany osobních údajů"], ["/security?lang=en", "Security"], ["/security?lang=cs", "Zabezpečení"]];
   return (
     <div className="bg-surface-card border border-surface-border rounded-xl p-6 space-y-3">
       <div>

@@ -79,6 +79,51 @@ class User(Base):
     disabled_at = Column(DateTime(timezone=True), nullable=True)
 
 
+class TermsAcceptance(Base):
+    """Proof that a person accepted the Terms and was shown the Privacy
+    Notice when the account was created (GDPR art. 5(2) accountability for the
+    privacy information; evidence for the consumer contract).
+
+    User-level, like `users`: no workspace key and no tenant policy. A row is
+    written by the server only (the versions and the time are never taken from
+    the client). For an e-mail sign-up the e-mail address is verified later, so
+    the row is first written *pending* (`user_id` NULL, keyed by
+    `firebase_uid`) and linked to the Portfyl user when the account is created.
+    The privacy notice is information, never consent: `privacy_notice_version`
+    records which text was shown, not an agreement to processing. Accounts that
+    pre-date this table have no row (NULL by design).
+    """
+
+    __tablename__ = "terms_acceptances"
+    __table_args__ = (
+        CheckConstraint(
+            "user_id IS NOT NULL OR firebase_uid IS NOT NULL",
+            name="ck_terms_acceptance_subject",
+        ),
+        CheckConstraint("age_confirmed IS TRUE", name="ck_terms_acceptance_age"),
+        CheckConstraint(
+            "source IN ('email_signup', 'google_signup')",
+            name="ck_terms_acceptance_source",
+        ),
+    )
+
+    id = _uuid_primary_key()
+    user_id = Column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        unique=True,
+        index=True,
+    )
+    firebase_uid = Column(String, nullable=True, unique=True, index=True)
+    terms_version = Column(String, nullable=False)
+    privacy_notice_version = Column(String, nullable=False)
+    age_confirmed = Column(Boolean, nullable=False)
+    accepted_at = Column(DateTime(timezone=True), nullable=False)
+    source = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class BetaInvite(Base):
     """Global admission record for the invitation-only cloud beta."""
 

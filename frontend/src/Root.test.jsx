@@ -99,6 +99,8 @@ it("leaves /demo to the tracker on the tracker host, like any unknown path", asy
 it.each([
   ["/terms", "portfyl.com", "Portfyl Terms of Service"],
   ["/privacy/", "app.portfyl.com", "Portfyl Privacy and Cookie Policy"],
+  ["/security", "portfyl.com", "Portfyl Security"],
+  ["/security/", "app.portfyl.com", "Portfyl Security"],
 ])("serves %s publicly on %s in both editions, without the tracker", async (pathname, hostname, title) => {
   // jsdom's navigator.language is en-US, so the English text is served.
   setLocation({ pathname, hostname });

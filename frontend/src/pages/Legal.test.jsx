@@ -26,6 +26,24 @@ it.each(PAGES)("renders %s in %s from docs/legal without raw Markdown", (page, l
   expect(document.documentElement.lang).toBe(lang);
 });
 
+const SECURITY_PAGES = [
+  ["cs", "Zabezpečení Portfyl"],
+  ["en", "Portfyl Security"],
+];
+
+it.each(SECURITY_PAGES)("renders the security page in %s from docs/legal without raw Markdown or a draft note", (lang, title) => {
+  window.history.replaceState({}, "", `/security?lang=${lang}`);
+  render(<Legal page="security" />);
+  expect(screen.getByRole("heading", { level: 1, name: title })).toBeInTheDocument();
+  const main = screen.getByRole("main");
+  expect(main.textContent).not.toMatch(/\[\[|\*\*|`|\]\(/);
+  expect(main.querySelectorAll("mark.legal-pending")).toHaveLength(0);
+  expect(screen.queryByRole("note")).not.toBeInTheDocument();
+  expect(main.textContent).toContain("support@portfyl.com");
+  expect(document.title).toBe(`${title} — Portfyl`);
+  expect(document.documentElement.lang).toBe(lang);
+});
+
 it("uses the landing header, whose section links lead back to the landing in the same language", () => {
   window.history.replaceState({}, "", "/privacy?lang=en");
   const { unmount } = render(<Legal page="privacy" />);
@@ -50,6 +68,8 @@ it("links both documents from the page and from the landing footer in the curren
   const footer = within(screen.getByRole("contentinfo"));
   expect(footer.getByRole("link", { name: "Terms of Service" })).toHaveAttribute("href", "/terms?lang=en");
   expect(footer.getByRole("link", { name: "Privacy Policy" })).toHaveAttribute("href", "/privacy?lang=en");
+  expect(within(docs).getByRole("link", { name: "Security" })).toHaveAttribute("href", "/security?lang=en");
+  expect(footer.getByRole("link", { name: "Security" })).toHaveAttribute("href", "/security?lang=en");
 });
 
 it("keeps the draft note and a contents list", () => {

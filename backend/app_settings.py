@@ -3,7 +3,8 @@
 Two independent tables back these helpers:
   * ``user_settings``      -- one row per (user_id, key). Personal preferences
     that follow the signed-in user across every workspace they belong to
-    (no feature stores one today; the AI assistant that used it was removed).
+    (no product feature stores one today; the encrypted user-secret helpers
+    below are kept because the tenant-isolation tests exercise them).
   * ``workspace_settings`` -- one row per (workspace_id, key). Shared config
     for everyone in a workspace (currently the broker auto-sync schedule).
 

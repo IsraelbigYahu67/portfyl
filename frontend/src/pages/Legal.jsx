@@ -4,6 +4,8 @@ import termsCs from "../../../docs/legal/podminky-uzivani-cs.md?raw";
 import termsEn from "../../../docs/legal/terms-of-service-en.md?raw";
 import privacyCs from "../../../docs/legal/zasady-ochrany-osobnich-udaju-cs.md?raw";
 import privacyEn from "../../../docs/legal/privacy-policy-en.md?raw";
+import securityCs from "../../../docs/legal/security-cs.md?raw";
+import securityEn from "../../../docs/legal/security-en.md?raw";
 import { COPY as LANDING_COPY, LANGUAGE_KEY } from "./welcomeCopy";
 import LandingHeader from "../components/landing/LandingHeader";
 import LandingFooter from "../components/landing/LandingFooter";
@@ -15,13 +17,14 @@ import "./Welcome.css";
 import "./Legal.css";
 import "../fonts.css";
 
-// Public /terms and /privacy (cloud edition). The text is read at build time
+// Public /terms, /privacy and /security (cloud edition). The text is read at build time
 // from docs/legal/, the single source the lawyer reviews, so the page cannot
 // drift from it. The Dockerfile copies docs/legal/ into the frontend build
 // stage for these imports.
 const SOURCES = {
   terms: { cs: termsCs, en: termsEn },
   privacy: { cs: privacyCs, en: privacyEn },
+  security: { cs: securityCs, en: securityEn },
 };
 
 export const LEGAL_LANGUAGES = ["cs", "en"];
@@ -30,6 +33,7 @@ const COPY = {
   cs: {
     terms: "Obchodní podmínky",
     privacy: "Ochrana osobních údajů",
+    security: "Zabezpečení",
     navigation: "Právní dokumenty",
     language: "Jazyk stránky",
     skip: "Přejít na obsah",
@@ -43,6 +47,7 @@ const COPY = {
   en: {
     terms: "Terms of Service",
     privacy: "Privacy Policy",
+    security: "Security",
     navigation: "Legal documents",
     language: "Page language",
     skip: "Skip to content",
@@ -159,7 +164,7 @@ export default function Legal({ page, signupOpen = import.meta.env.VITE_PUBLIC_S
         <div className="legal-tools">
           <a className="legal-back" href={anchorBase}><ArrowLeft size={16} aria-hidden="true" />{t.back}</a>
           <nav className="legal-doc-links" aria-label={t.navigation}>
-            {["terms", "privacy"].map((target) => (
+            {["terms", "privacy", "security"].map((target) => (
               <a key={target} href={docLink(target)} aria-current={target === page ? "page" : undefined}>{t[target]}</a>
             ))}
           </nav>

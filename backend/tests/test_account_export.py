@@ -153,7 +153,7 @@ def test_export_contains_portable_workspace_data_without_cross_tenant_rows(
         exported_at=EXPORTED_AT,
     )
 
-    assert payload["schema_version"] == 8
+    assert payload["schema_version"] == 9
     assert payload["exported_at"] == "2026-09-07T12:30:00+00:00"
     assert payload["workspace"]["id"] == str(request_context.workspace.public_id)
     assert payload["membership"] == {
@@ -460,7 +460,7 @@ def test_export_includes_corporate_actions_and_applications(db_session, request_
 
     payload = build_workspace_export(db_session, request_context, exported_at=EXPORTED_AT)
 
-    assert payload["schema_version"] == 8
+    assert payload["schema_version"] == 9
     [a] = payload["broker_corporate_actions"]
     assert a["action_type"] == "STOCK_SPLIT"
     assert float(a["ratio_numerator"]) == 10.0
@@ -485,7 +485,7 @@ def test_export_includes_allocation_targets_for_own_portfolios(db_session, reque
 
     payload = build_workspace_export(db_session, request_context, exported_at=EXPORTED_AT)
 
-    assert payload["schema_version"] == 8
+    assert payload["schema_version"] == 9
     [row] = payload["allocation_targets"]
     assert row["portfolio_id"] == str(portfolio.public_id)
     assert row["ticker"] == "VWCE.DE"

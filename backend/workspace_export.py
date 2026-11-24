@@ -26,6 +26,7 @@ from models import (
     Portfolio,
     PolymarketPosition,
     PriceAlert,
+    TermsAcceptance,
     TradeNote,
     Transaction,
     TrialGrant,
@@ -36,7 +37,7 @@ from models import (
 from tenancy import RequestContext
 
 
-EXPORT_SCHEMA_VERSION = 8
+EXPORT_SCHEMA_VERSION = 9
 
 _WORKSPACE_PREFERENCE_KEYS = (
     "broker_sync_daily_time",
@@ -224,6 +225,9 @@ def build_workspace_export(
         .where(BrokerRequest.workspace_id == workspace_id)
         .order_by(BrokerRequest.created_at, BrokerRequest.id)
     ).all()
+    terms_acceptance = db.scalar(
+        select(TermsAcceptance).where(TermsAcceptance.user_id == context.user.id)
+    )
     trial_grant = db.scalar(select(TrialGrant).where(TrialGrant.workspace_id == workspace_id))
     dividend_notifications = db.scalars(
         select(DividendNotification)
@@ -257,6 +261,19 @@ def build_workspace_export(
             "status": context.membership.status,
             "created_at": _iso(context.membership.created_at),
         },
+        # What the account holder accepted at sign-up. None for accounts that
+        # pre-date the record. The privacy notice is information, not consent.
+        "legal_acceptance": (
+            {
+                "terms_version": terms_acceptance.terms_version,
+                "privacy_notice_version": terms_acceptance.privacy_notice_version,
+                "age_confirmed": bool(terms_acceptance.age_confirmed),
+                "accepted_at": _iso(terms_acceptance.accepted_at),
+                "source": terms_acceptance.source,
+            }
+            if terms_acceptance is not None
+            else None
+        ),
         "portfolios": [
             {
                 "id": str(portfolio.public_id),

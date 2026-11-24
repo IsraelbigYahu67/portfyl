@@ -1,7 +1,9 @@
-import { useEffect, useId, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useId, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { UserPlus } from "lucide-react";
+import { recordSignupAcceptance } from "../api";
 import {
+  getIdToken,
   isGoogleSignInEnabled,
   mapFirebaseAuthError,
   registerWithEmailPassword,
@@ -34,6 +36,7 @@ export default function Register() {
   const passwordId = useId();
   const confirmId = useId();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const { capture } = useAnalytics();
   const sourceSurface = sourceSurfaceFrom(searchParams);
   const language = getAnalyticsLanguage();
@@ -42,7 +45,15 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
+  // A first Google sign-in from /login lands here: the box is needed first.
+  const [error, setError] = useState(() =>
+    location.state?.termsRequired
+      ? t("Please confirm that you are 18 or older and accept the Terms of Service and Privacy Policy.")
+      : null
+  );
+  // The Firebase user created by a submit whose acceptance call then failed,
+  // so a retry does not try to create the same account again.
+  const createdUser = useRef(null);
   // Art. 13 GDPR: the privacy information is given at the moment the data is
   // collected. Registration (password or Google) needs this 18+ and
   // Terms/Privacy confirmation first (privacy review B5).
@@ -89,7 +100,15 @@ export default function Register() {
 
     setSubmitting(true);
     try {
-      const user = await registerWithEmailPassword(email, password);
+      let user = createdUser.current;
+      if (!user || user.email?.toLowerCase() !== email.trim().toLowerCase()) {
+        user = await registerWithEmailPassword(email, password);
+        createdUser.current = user;
+      }
+      // The Portfyl account only exists after the address is verified (maybe on
+      // another device), so the server records the acceptance now, tied to the
+      // Firebase user. The flag is all we send; versions and time are the server's.
+      await recordSignupAcceptance(await getIdToken(user));
       await sendVerificationEmail(user);
       // Capture before navigating away, and only once Firebase user
       // creation has actually succeeded. No e-mail or Firebase UID leaves
@@ -179,7 +198,7 @@ export default function Register() {
         {isGoogleSignInEnabled() && (
           <div className="space-y-4">
             <AuthMethodDivider />
-            <GoogleSignInButton sourceSurface={sourceSurface} disabled={!agreed} />
+            <GoogleSignInButton sourceSurface={sourceSurface} disabled={!agreed} termsAccepted={agreed} />
           </div>
         )}
 

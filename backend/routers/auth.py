@@ -13,6 +13,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from rate_limit import client_ip as _client_ip, rate_limit
+import legal_acceptance
 import trials
 import turnstile
 
@@ -56,6 +57,15 @@ class SessionExchange(BaseModel):
     # create a new identity. `Any` so a wrong type reads as "missing"
     # (bot_check_required) instead of a 422.
     turnstile_token: Any = None
+    # The register page's "18+ and I accept the Terms / have read the Privacy
+    # Policy" box. Only the literal `true` counts; versions and time are set by
+    # the server. Required only when this exchange creates a new account.
+    terms_accepted: Any = None
+
+
+class SignupAcceptance(BaseModel):
+    id_token: str
+    terms_accepted: Any = None
 
 
 class AuthAPIError(Exception):
@@ -92,11 +102,15 @@ def _provision_identity(
     *,
     grant_trial: bool = False,
     client_ip: str | None = None,
+    terms_accepted: bool = False,
 ) -> tuple[User, bool]:
     """Return the Portfyl user for a verified identity and whether this
     exchange created it (and its personal workspace). With `grant_trial` (the
     cloud edition) a new workspace also gets its free Pro trial, in the same
-    transaction, unless one of the trial guards withholds it."""
+    transaction, unless one of the trial guards withholds it. A new user also
+    gets their Terms acceptance record (the pending one from e-mail
+    registration, or one made from `terms_accepted`); whether it is required
+    is the caller's decision."""
     user = db.scalar(select(User).where(User.firebase_uid == identity.uid))
     if user is not None:
         if user.email != identity.email or user.disabled_at is not None:
@@ -124,6 +138,14 @@ def _provision_identity(
     )
     db.add(user)
     db.flush()
+    legal_acceptance.attach_to_new_user(
+        db,
+        user_id=user.id,
+        firebase_uid=identity.uid,
+        accepted_now=terms_accepted,
+        source=legal_acceptance.source_for_provider(identity.sign_in_provider),
+        now=_verified_now(),
+    )
 
     workspace_id = uuid4()
     set_rls_context(db, user_id=user.id, workspace_id=workspace_id)
@@ -401,11 +423,26 @@ def exchange_session(
     # bare test harness) behaves as "off"; main.py always sets one, and it
     # fails closed at startup in the cloud edition.
     bot_check = getattr(request.app.state, "turnstile_config", None)
+    new_identity = _needs_bot_check(db, identity)
+    terms_accepted = payload.terms_accepted is True
+
+    # Creating a cloud account needs a recorded acceptance of the Terms: this
+    # request's flag (first Google sign-in) or the pending record written at
+    # e-mail registration. Existing accounts are never asked, and an account
+    # without a record (created before this rule) keeps working.
+    if (
+        is_cloud
+        and new_identity
+        and not terms_accepted
+        and not legal_acceptance.has_pending(db, identity.uid)
+    ):
+        raise AuthAPIError(400, "terms_acceptance_required")
+
     needs_bot_check = (
         is_cloud
         and bot_check is not None
         and bot_check.mode != "off"
-        and _needs_bot_check(db, identity)
+        and new_identity
     )
 
     # Firebase's "password last changed" time is not in the ID token; it is one
@@ -420,6 +457,7 @@ def exchange_session(
         db,
         identity,
         grant_trial=is_cloud,
+        terms_accepted=terms_accepted,
         # The auth_session rate-limit dependency has already validated this
         # trusted Cloudflare header, so it cannot raise here.
         client_ip=_client_ip(request) if is_cloud else None,
@@ -459,6 +497,38 @@ def exchange_session(
     response = JSONResponse(response_payload, status_code=201)
     set_session_cookie(response, issued.raw_token)
     return response
+
+
+@router.post(
+    "/signup-acceptance",
+    dependencies=[Depends(rate_limit("auth_session", by="ip"))],
+)
+def record_signup_acceptance(
+    payload: SignupAcceptance,
+    db: Session = Depends(get_db),
+    verifier: FirebaseIdentityVerifier = Depends(get_identity_verifier),
+):
+    """Record the Terms acceptance of an e-mail sign-up, before the address is
+    verified (the Portfyl account only exists after that, maybe on another
+    device). The Firebase ID token proves whose acceptance it is; the e-mail
+    does not have to be verified yet. Idempotent, and a no-op for an identity
+    that already has a Portfyl account (those never need it)."""
+    try:
+        identity = verifier.verify_id_token(payload.id_token)
+    except IdentityVerificationError as exc:
+        raise AuthAPIError(401, "authentication_required") from exc
+    if payload.terms_accepted is not True:
+        raise AuthAPIError(400, "terms_acceptance_required")
+    if db.scalar(select(User.id).where(User.firebase_uid == identity.uid)) is not None:
+        return JSONResponse({"status": "not_needed"}, status_code=200)
+    legal_acceptance.record_pending(
+        db,
+        firebase_uid=identity.uid,
+        now=_verified_now(),
+        source=legal_acceptance.SOURCE_EMAIL,
+    )
+    db.commit()
+    return JSONResponse({"status": "recorded"}, status_code=201)
 
 
 @router.get("/me")
