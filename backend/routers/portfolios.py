@@ -86,6 +86,12 @@ class PortfolioCreate(BaseModel):
     color: Optional[str] = None
 
 
+class PendingImportCreate(BaseModel):
+    # The UI's own translation of "My portfolio". Optional and cosmetic: a
+    # missing or blank value gives the English default, never an error.
+    name: Optional[str] = Field(default=None, max_length=64)
+
+
 class PortfolioUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=64)
     color: Optional[str] = None
@@ -211,6 +217,7 @@ def _next_portfolio_name(db: Session, workspace_id: UUID, base: str = "My portfo
 
 @router.post("/pending-import")
 def create_pending_import_portfolio(
+    payload: Optional[PendingImportCreate] = None,
     context: RequestContext = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
@@ -240,7 +247,11 @@ def create_pending_import_portfolio(
     ensure_count_limit(entitlements, "portfolios", used=used, increase=1)
     portfolio = Portfolio(
         workspace_id=context.workspace.id,
-        name=_next_portfolio_name(db, context.workspace.id),
+        name=_next_portfolio_name(
+            db,
+            context.workspace.id,
+            ((payload.name if payload else None) or "").strip() or "My portfolio",
+        ),
         is_default=used == 0,
     )
     try:

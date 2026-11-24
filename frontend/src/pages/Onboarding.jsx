@@ -221,7 +221,7 @@ export default function Onboarding() {
     setBusy("import");
     setError(null);
     try {
-      const portfolio = await createPendingImportPortfolio();
+      const portfolio = await createPendingImportPortfolio(t("My portfolio"));
       setCurrentId(portfolio.id);
       recordPortfolioCreated("csv");
       clearIntendedBroker();
@@ -239,7 +239,7 @@ export default function Onboarding() {
     setBusy("blank");
     setError(null);
     try {
-      const pending = pendingImportPortfolio || await createPendingImportPortfolio();
+      const pending = pendingImportPortfolio || await createPendingImportPortfolio(t("My portfolio"));
       const portfolio = await activatePortfolio(pending.id);
       setCurrentId(portfolio.id);
       recordPortfolioCreated("blank");

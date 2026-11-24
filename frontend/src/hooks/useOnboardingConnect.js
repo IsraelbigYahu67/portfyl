@@ -215,7 +215,7 @@ export function useOnboardingConnect({
     try {
       let pending = latest.current.pendingPortfolio ?? createdRef.current;
       if (!pending) {
-        pending = await createPendingImportPortfolio();
+        pending = await createPendingImportPortfolio(latest.current.t("My portfolio"));
         createdRef.current = pending;
       }
       if (stale()) return;
