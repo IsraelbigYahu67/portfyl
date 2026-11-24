@@ -111,6 +111,36 @@ describe("Analytics decisions", () => {
     await waitFor(() => expect(screen.getByText(expected)).toBeInTheDocument());
   });
 
+  it("shows an em dash, not 0 %, when XIRR cannot be computed", async () => {
+    api.fetchRiskMetrics.mockResolvedValue({
+      ...(await api.fetchRiskMetrics()),
+      lifetime: {
+        simple_roi: 5, xirr: null, net_profit: 24.25, realized_pnl: 10,
+        dividends: 3, total_invested: 100, current_value: 120,
+      },
+    });
+    renderPage();
+    await screen.findByText("Annualized IRR (XIRR)");
+    await waitFor(() => {
+      const card = screen.getByText("Annualized IRR (XIRR)").closest(".card");
+      expect(within(card).getByText("—")).toBeInTheDocument();
+      expect(card.textContent).not.toMatch(/null|0%/);
+    });
+  });
+
+  it("still shows XIRR as a signed percentage when it is a number", async () => {
+    api.fetchRiskMetrics.mockResolvedValue({
+      ...(await api.fetchRiskMetrics()),
+      lifetime: {
+        simple_roi: 5, xirr: 6, net_profit: 24.25, realized_pnl: 10,
+        dividends: 3, total_invested: 100, current_value: 120,
+      },
+    });
+    renderPage();
+    await screen.findByText("Annualized IRR (XIRR)")
+    expect(await screen.findByText("+6%")).toBeInTheDocument();
+  });
+
   it("explains what Net Profit and Simple ROI include", async () => {
     api.fetchRiskMetrics.mockResolvedValue({
       ...(await api.fetchRiskMetrics()),

@@ -249,9 +249,11 @@ export default function Analytics() {
                 <MetricCard
                   label={t("Annualized IRR (XIRR)")}
                   info={INFO.xirr}
-                  value={`${metrics.lifetime.xirr >= 0 ? "+" : ""}${metrics.lifetime.xirr}%`}
-                  positive={metrics.lifetime.xirr >= 0}
-                  negative={metrics.lifetime.xirr < 0}
+                  value={Number.isFinite(metrics.lifetime.xirr)
+                    ? `${metrics.lifetime.xirr >= 0 ? "+" : ""}${metrics.lifetime.xirr}%`
+                    : "—"}
+                  positive={Number.isFinite(metrics.lifetime.xirr) && metrics.lifetime.xirr >= 0}
+                  negative={Number.isFinite(metrics.lifetime.xirr) && metrics.lifetime.xirr < 0}
                   sub={t("Per-year, weights cashflow timing")}
                 />
                 <MetricCard

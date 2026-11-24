@@ -2342,14 +2342,19 @@ def get_dividend_growth(
     return rows
 
 
-def _xirr(flows: list[tuple], guess: float = 0.1) -> float:
+def _xirr(flows: list[tuple], guess: float = 0.1) -> float | None:
+    """Annualised internal rate of return, or ``None`` when it cannot be computed.
+
+    ``None`` (not 0.0) means "no answer": fewer than two flows, no sign change,
+    or no root in the search range. A real 0 % return is a legitimate result.
+    """
     if not flows or len(flows) < 2:
-        return 0.0
+        return None
     flows = sorted(flows, key=lambda x: x[0])
     has_pos = any(a > 0 for _, a in flows)
     has_neg = any(a < 0 for _, a in flows)
     if not (has_pos and has_neg):
-        return 0.0
+        return None
 
     d0 = flows[0][0]
     times = [(d - d0).days / 365.0 for d, _ in flows]
@@ -2384,7 +2389,7 @@ def _xirr(flows: list[tuple], guess: float = 0.1) -> float:
         f_lo = npv(lo)
         f_hi = npv(hi)
         if f_lo * f_hi > 0:
-            return 0.0
+            return None
         for _ in range(200):
             mid = (lo + hi) / 2
             f_mid = npv(mid)
@@ -2398,7 +2403,7 @@ def _xirr(flows: list[tuple], guess: float = 0.1) -> float:
                 f_lo = f_mid
         return (lo + hi) / 2
     except Exception:
-        return 0.0
+        return None
 
 
 def _resolve_start_date(period: str, first_txn_date) -> datetime:
