@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Tenancy and RLS]]
-**Source:** `backend/routers/portfolios.py` (508 lines)
+**Source:** `backend/routers/portfolios.py` (519 lines)
 **API prefix:** `/api/portfolios`
 
 ## Endpoints

@@ -14,7 +14,7 @@ generated: true
 Axios client: injects `portfolio_id`, `X-Workspace-ID` and `X-CSRF-Token` (see PORTFOLIO_AGNOSTIC_PREFIXES); almost every backend call goes through here.
 
 **Hub:** [[Frontend structure]] · [[Backend]]
-**Source:** `frontend/src/api.js` (485 lines)
+**Source:** `frontend/src/api.js` (488 lines)
 **API helpers:** 128 exported, 112 mapped to a router
 
 ## Calls backend
