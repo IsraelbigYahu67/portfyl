@@ -100,7 +100,13 @@ def test_immediate_deletion_erases_alice_completely_and_leaves_bob_alone(
     )
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"deleted": True, "account_deleted": True}
+    assert response.json() == {
+        "deleted": True,
+        "account_deleted": True,
+        "refunded": False,
+        "refunded_amount_cents": None,
+        "currency": None,
+    }
     assert deleted_uids == [uid]
     assert "portfyl_session=" in response.headers["set-cookie"]
     with Session(postgres_engine) as db:

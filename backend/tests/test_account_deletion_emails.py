@@ -124,7 +124,13 @@ def test_immediate_deletion_sends_account_deleted_in_the_app_language(db_session
 
     body = _request(db_session, request_context, mailer, lang="cs")
 
-    assert body == {"deleted": True, "account_deleted": True}
+    assert body == {
+        "deleted": True,
+        "account_deleted": True,
+        "refunded": False,
+        "refunded_amount_cents": None,
+        "currency": None,
+    }
     (to, email, tag), = mailer.transport.sent
     assert to == ADDRESS and tag == EmailKind.ACCOUNT_DELETED.value
     assert email.subject == "Váš účet Portfyl byl smazán"
@@ -191,7 +197,13 @@ def test_no_notice_when_the_user_keeps_another_workspace(db_session, request_con
 
     body = _request(db_session, request_context, mailer)
 
-    assert body == {"deleted": True, "account_deleted": False}
+    assert body == {
+        "deleted": True,
+        "account_deleted": False,
+        "refunded": False,
+        "refunded_amount_cents": None,
+        "currency": None,
+    }
     assert mailer.transport.sent == []
 
 

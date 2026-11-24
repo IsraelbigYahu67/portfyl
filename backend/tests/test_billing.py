@@ -116,6 +116,12 @@ class FakeStripe:
         self.cancelled = getattr(self, "cancelled", []) + [subscription_id]
         return {"id": subscription_id, "status": "canceled"}
 
+    def list_paid_payments(self, subscription_id):
+        return []
+
+    def create_refund(self, *, payment_intent=None, charge=None, idempotency_key):
+        return {"id": "re_1"}
+
     # Subscription schedules, enough to model a booked plan change.
     schedules: dict
 
@@ -743,3 +749,141 @@ def test_renewing_subscription_blocks_workspace_deletion(db_session, request_con
             confirmation=request_context.workspace.name, identity_admin=object(),
         )
     assert exc.value.code == "active_subscription"
+
+
+# ---------------------------------------------------------------------------
+# Withdrawal window: status payload and the Stripe refund boundary
+# ---------------------------------------------------------------------------
+
+
+def test_withdrawal_rule_is_14_days_from_the_order_on_the_server_clock():
+    from billing_config import WITHDRAWAL_DAYS, withdrawal_ends_at, withdrawal_open
+
+    assert WITHDRAWAL_DAYS == 14
+    assert withdrawal_ends_at(None) is None
+    assert withdrawal_open(None, NOW) is False
+    assert withdrawal_ends_at(NOW) == NOW + timedelta(days=14)
+    assert withdrawal_open(NOW, NOW + timedelta(days=14) - timedelta(seconds=1)) is True
+    assert withdrawal_open(NOW, NOW + timedelta(days=14)) is False
+    # naive datetimes (SQLite) are read as UTC
+    assert withdrawal_open(NOW.replace(tzinfo=None), NOW + timedelta(days=1)) is True
+
+
+def test_checkout_consent_version_was_bumped_for_the_withdrawal_text():
+    from billing_config import CHECKOUT_CONSENT_VERSION
+
+    assert CHECKOUT_CONSENT_VERSION == "2026-11-24"
+
+
+def test_status_has_null_order_fields_without_a_subscription(db_session, request_context, config):
+    payload = billing_router._status_payload(
+        db_session, _fake_request(config), request_context, now=NOW,
+    )
+    assert payload["subscription"] is None
+    assert payload["consent_version"] == "2026-11-24"
+
+
+def test_status_reports_ordered_at_and_the_open_window(db_session, request_context, config):
+    ordered = NOW - timedelta(days=3)
+    _subscription(db_session, request_context.workspace, created_at=ordered)
+
+    subscription = billing_router._status_payload(
+        db_session, _fake_request(config), request_context, now=NOW,
+    )["subscription"]
+
+    assert subscription["ordered_at"] == ordered.isoformat()
+    assert subscription["withdrawal_ends_at"] == (ordered + timedelta(days=14)).isoformat()
+    assert subscription["withdrawal_open"] is True
+
+
+def test_status_window_closes_exactly_14_days_after_the_order(db_session, request_context, config):
+    ordered = NOW - timedelta(days=14)
+    _subscription(db_session, request_context.workspace, created_at=ordered)
+    request = _fake_request(config)
+
+    at_end = billing_router._status_payload(
+        db_session, request, request_context, now=NOW,
+    )["subscription"]
+    just_before = billing_router._status_payload(
+        db_session, request, request_context, now=NOW - timedelta(seconds=1),
+    )["subscription"]
+
+    assert at_end["withdrawal_open"] is False
+    assert just_before["withdrawal_open"] is True
+
+
+def test_client_lists_paid_payments_through_invoice_payments():
+    import httpx
+    from stripe_client import StripeClient
+
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path, dict(request.url.params)))
+        if request.url.path == "/v1/invoices":
+            return httpx.Response(200, json={"data": [{"id": "in_1", "currency": "eur"}]})
+        assert request.url.path == "/v1/invoice_payments"
+        return httpx.Response(200, json={"data": [{
+            "amount_paid": 599, "currency": "eur", "status": "paid",
+            "payment": {"type": "payment_intent", "payment_intent": "pi_1"},
+        }]})
+
+    client = StripeClient("sk_test_unit", api_version="2026-09-30.endive")
+    client._client = httpx.Client(
+        base_url="https://api.stripe.test/v1", transport=httpx.MockTransport(handler),
+    )
+
+    assert client.list_paid_payments("sub_1") == [{
+        "kind": "payment_intent", "id": "pi_1", "amount_cents": 599,
+        "currency": "eur", "invoice": "in_1",
+    }]
+    assert seen[0][2]["subscription"] == "sub_1"
+    assert seen[0][2]["status"] == "paid"
+    assert seen[1][2]["invoice"] == "in_1"
+
+
+def test_client_falls_back_to_the_legacy_invoice_shape_and_skips_zero_payments():
+    import httpx
+    from stripe_client import StripeClient
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/invoices":
+            return httpx.Response(200, json={"data": [
+                {"id": "in_old", "currency": "eur", "amount_paid": 999, "payment_intent": "pi_old"},
+                {"id": "in_free", "currency": "eur", "amount_paid": 0, "payment_intent": "pi_free"},
+            ]})
+        return httpx.Response(200, json={"data": []})
+
+    client = StripeClient("sk_test_unit", api_version="2026-09-30.endive")
+    client._client = httpx.Client(
+        base_url="https://api.stripe.test/v1", transport=httpx.MockTransport(handler),
+    )
+
+    assert [p["id"] for p in client.list_paid_payments("sub_1")] == ["pi_old"]
+
+
+def test_client_creates_a_full_refund_with_an_idempotency_key():
+    import httpx
+    from stripe_client import StripeClient
+
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        seen["body"] = request.content.decode()
+        seen["idempotency"] = request.headers.get("Idempotency-Key")
+        return httpx.Response(200, json={"id": "re_1", "amount": 599, "currency": "eur"})
+
+    client = StripeClient("sk_test_unit", api_version="2026-09-30.endive")
+    client._client = httpx.Client(
+        base_url="https://api.stripe.test/v1", transport=httpx.MockTransport(handler),
+    )
+
+    assert client.create_refund(payment_intent="pi_1", idempotency_key="k1")["amount"] == 599
+    assert seen["method"] == "POST"
+    assert seen["path"] == "/v1/refunds"
+    assert seen["body"] == "payment_intent=pi_1&reason=requested_by_customer"  # no amount: full
+    assert seen["idempotency"] == "k1"
+    with pytest.raises(ValueError):
+        client.create_refund(idempotency_key="k2")

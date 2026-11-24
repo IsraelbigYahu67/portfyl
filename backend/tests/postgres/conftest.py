@@ -486,6 +486,10 @@ def _matrix_app(postgres_engine: Engine) -> FastAPI:
     app = FastAPI()
     from edition import Edition
     app.state.portfyl_edition = Edition.LOCAL
+    # routers/account.py (mounted through settings) reads this to build its
+    # lazy Stripe client factory. Billing off, like the local edition.
+    from billing_config import BillingConfig
+    app.state.billing_config = BillingConfig.from_env({})
     app.add_exception_handler(RequestContextError, request_context_error_handler)
     for module in (
         portfolios, portfolio, analytics, benchmarks, cash, notes, allocation_targets,

@@ -3,7 +3,10 @@
 ``delete_workspace_now`` is the only way to start a deletion: it checks the same
 guards as before (owner, typed name, fresh re-authentication, sole member, and
 either no renewing subscription or the owner's explicit consent to cancel it
-now) and then erases the data in the same request. There is
+now) and then erases the data in the same request. Within the withdrawal
+window (``billing_config.WITHDRAWAL_DAYS`` after the first paid order) that
+cancel is a withdrawal: every payment of the subscription is refunded in full
+first, then the subscription is cancelled, then the workspace is erased. There is
 no grace period and no undo. The deferred state machine below
 (``get_workspace_deletion``, ``cancel_workspace_deletion`` and
 ``purge_due_workspace_deletions``) remains only to finish requests that were
@@ -15,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
@@ -26,6 +29,7 @@ from audit import record_audit_event
 from emails.catalog import SOURCE_LANGUAGE, EmailKind, normalize_language
 from emails.notify import send_account_notice
 from firebase_identity import VerifiedIdentity
+from billing_config import withdrawal_open
 from database import release_connection
 from models import (
     Membership,
@@ -121,6 +125,26 @@ def _validate_reauthentication(
         raise RequestContextError(403, "recent_reauthentication_required")
 
 
+@dataclass(frozen=True)
+class SubscriptionTeardown:
+    """What must happen to the Stripe subscription before the erasure."""
+
+    stripe_subscription_id: str
+    refund: bool  # withdrawal window still open: refund every payment first
+
+
+@dataclass(frozen=True)
+class RefundOutcome:
+    refunded: bool = False
+    amount_cents: int | None = None
+    currency: str | None = None
+
+
+# Statuses a withdrawing customer may still have while Stripe can charge or has
+# charged them. ``past_due`` may hold no paid invoice (then nothing is refunded).
+_WITHDRAWABLE_STATUSES = ("active", "trialing", "past_due")
+
+
 def _validate_deletion_request(
     db: Session,
     context: RequestContext,
@@ -129,9 +153,9 @@ def _validate_deletion_request(
     *,
     now: datetime,
     cancel_subscription: bool = False,
-) -> str | None:
-    """Run every guard. Returns the Stripe id of the renewing subscription the
-    caller must cancel before erasing, or ``None`` when there is none."""
+) -> SubscriptionTeardown | None:
+    """Run every guard. Returns what the caller must do to the Stripe
+    subscription before erasing, or ``None`` when Stripe stays untouched."""
     if context.membership.role != "owner":
         raise RequestContextError(403, "workspace_owner_required")
     if confirmation != context.workspace.name:
@@ -151,39 +175,100 @@ def _validate_deletion_request(
 
     # Deleting the workspace does not stop Stripe from charging the card, so a
     # renewing subscription must be cancelled first: either by the user in the
-    # Customer Portal, or here when the user explicitly consented to losing the
-    # rest of the paid period. One already set to end at period end, or past
-    # due, may proceed untouched.
-    renewing = db.scalar(
-        select(Subscription.stripe_subscription_id).where(
+    # Customer Portal, or here when the user explicitly consented. One already
+    # set to end at period end, or past due, may proceed untouched, except
+    # inside the withdrawal window: a customer who consented there is
+    # withdrawing, so it is refunded and cancelled as well.
+    subscription = db.scalar(
+        select(Subscription).where(
             Subscription.workspace_id == context.workspace.id,
             Subscription.ended_at.is_(None),
-            Subscription.status.in_(("active", "trialing")),
-            Subscription.cancel_at_period_end.is_(False),
         )
     )
-    if renewing is None:
+    if subscription is None:
         return None
-    if cancel_subscription is not True:
-        raise RequestContextError(409, "active_subscription")
-    return renewing
+    in_window = withdrawal_open(subscription.created_at, now)
+    renewing = (
+        subscription.status in ("active", "trialing")
+        and not subscription.cancel_at_period_end
+    )
+    if renewing:
+        if cancel_subscription is not True:
+            raise RequestContextError(409, "active_subscription")
+        return SubscriptionTeardown(subscription.stripe_subscription_id, refund=in_window)
+    if (
+        in_window
+        and cancel_subscription is True
+        and subscription.status in _WITHDRAWABLE_STATUSES
+    ):
+        return SubscriptionTeardown(subscription.stripe_subscription_id, refund=True)
+    return None
+
+
+def _stripe_client(
+    stripe_client_factory: Callable[[], StripeClientProtocol] | None,
+) -> StripeClientProtocol:
+    if stripe_client_factory is None:
+        raise RuntimeError("Stripe client unavailable")
+    return stripe_client_factory()
+
+
+def _refund_subscription_payments(
+    subscription_id: str,
+    stripe_client_factory: Callable[[], StripeClientProtocol] | None,
+) -> RefundOutcome:
+    """Refund 100 % of every successful payment of the subscription.
+
+    Retry-safe: the idempotency key is derived from the subscription and the
+    payment, and Stripe's "already fully refunded" counts as done, so a retry
+    after a later step failed neither refunds twice nor skips the refund.
+    Anything else aborts the deletion (nothing cancelled, nothing erased).
+    """
+    try:
+        client = _stripe_client(stripe_client_factory)
+        payments = client.list_paid_payments(subscription_id)
+        total = 0
+        currency: str | None = None
+        for payment in payments:
+            key = f"withdrawal-refund-{subscription_id}-{payment['id']}"
+            if payment["kind"] == "charge":
+                refs = {"charge": payment["id"]}
+            else:
+                refs = {"payment_intent": payment["id"]}
+            amount = payment.get("amount_cents") or 0
+            try:
+                refund = client.create_refund(idempotency_key=key, **refs)
+                amount = refund.get("amount") or amount
+            except StripeError as exc:
+                if exc.code != "charge_already_refunded":
+                    raise
+                logger.info("withdrawal refund already done in Stripe")
+            total += int(amount)
+            currency = currency or payment.get("currency")
+    except StripeError as exc:
+        logger.warning(
+            "withdrawal refund failed status=%s code=%s", exc.status, exc.code
+        )
+        raise RequestContextError(503, "subscription_refund_failed") from exc
+    except Exception as exc:  # noqa: BLE001 - billing off / client not buildable
+        logger.error("withdrawal refund impossible: %s", type(exc).__name__)
+        raise RequestContextError(503, "subscription_refund_failed") from exc
+    if not payments:
+        logger.info("withdrawal: nothing paid, nothing to refund")
+        return RefundOutcome()
+    logger.info("withdrawal refund done payments=%d", len(payments))
+    return RefundOutcome(refunded=True, amount_cents=total, currency=currency)
 
 
 def _cancel_subscription_before_erasure(
-    db: Session,
     subscription_id: str,
     stripe_client_factory: Callable[[], StripeClientProtocol] | None,
 ) -> None:
-    """Cancel the renewing subscription in Stripe now (no refund, no final
+    """Cancel the subscription in Stripe now (no proration credit, no final
     invoice). Anything but success aborts the deletion: never erase a
     workspace whose card may still be charged."""
-    # Slow outbound call: hand the pooled connection back first. Nothing has
-    # been written yet, so this is a plain end of the read transaction.
-    release_connection(db)
     try:
-        if stripe_client_factory is None:
-            raise RuntimeError("Stripe client unavailable")
-        client = stripe_client_factory()
+        client = _stripe_client(stripe_client_factory)
         client.cancel_subscription(subscription_id)
     except StripeError as exc:
         # Stripe no longer knows an active subscription under this id: it is
@@ -204,6 +289,29 @@ def _cancel_subscription_before_erasure(
     logger.info("subscription cancelled immediately because of workspace deletion")
 
 
+def _teardown_subscription_before_erasure(
+    db: Session,
+    teardown: SubscriptionTeardown,
+    stripe_client_factory: Callable[[], StripeClientProtocol] | None,
+) -> RefundOutcome:
+    """Refund (inside the withdrawal window), then cancel. In that order: a
+    refund failure leaves the subscription alive and the workspace intact, and
+    a cancel failure after a refund is repaired by the retry, which refunds
+    idempotently and cancels."""
+    # Slow outbound calls: hand the pooled connection back first. Nothing has
+    # been written yet, so this is a plain end of the read transaction.
+    release_connection(db)
+    outcome = RefundOutcome()
+    if teardown.refund:
+        outcome = _refund_subscription_payments(
+            teardown.stripe_subscription_id, stripe_client_factory
+        )
+    _cancel_subscription_before_erasure(
+        teardown.stripe_subscription_id, stripe_client_factory
+    )
+    return outcome
+
+
 @dataclass(frozen=True)
 class DeletionResult:
     """Outcome of an immediate deletion.
@@ -215,6 +323,7 @@ class DeletionResult:
 
     account_deleted: bool
     farewell: tuple[str, str] | None = None
+    refund: RefundOutcome = RefundOutcome()
 
 
 def _erase_workspace(
@@ -271,10 +380,11 @@ def delete_workspace_now(
 ) -> DeletionResult:
     """Validate and erase the caller's workspace immediately.
 
-    ``cancel_subscription`` is the owner's consent to lose the rest of a paid
-    period: a renewing subscription is then cancelled in Stripe (through
-    ``stripe_client_factory``, only called when there is one) after all other
-    checks pass and before anything is erased.
+    ``cancel_subscription`` is the owner's consent to end a paid subscription:
+    it is then cancelled in Stripe (through ``stripe_client_factory``, only
+    called when there is one) after all other checks pass and before anything
+    is erased. Inside the withdrawal window the payments are refunded in full
+    first (``DeletionResult.refund``); after it the rest of the period is lost.
 
     Same guards as the old scheduled flow. Nothing is committed here: the
     endpoint commits, then sends the ``account_deleted`` notice from the
@@ -282,16 +392,19 @@ def delete_workspace_now(
     the workspace and the user being deleted and would be deleted with them.
     """
     now = _as_utc(now or datetime.now(timezone.utc))
-    subscription_id = _validate_deletion_request(
+    teardown = _validate_deletion_request(
         db, context, identity, confirmation, now=now,
         cancel_subscription=cancel_subscription,
     )
-    if subscription_id is not None:
-        # The Stripe cancel is external and cannot be rolled back. If the
-        # erasure below fails afterwards (for instance Firebase refuses), the
-        # subscription stays cancelled: the user can simply retry the deletion
-        # and is never charged again.
-        _cancel_subscription_before_erasure(db, subscription_id, stripe_client_factory)
+    refund = RefundOutcome()
+    if teardown is not None:
+        # The Stripe refund and cancel are external and cannot be rolled back.
+        # If the erasure below fails afterwards (for instance Firebase
+        # refuses), the subscription stays cancelled and refunded: the user can
+        # simply retry the deletion and is never charged again.
+        refund = _teardown_subscription_before_erasure(
+            db, teardown, stripe_client_factory
+        )
     # Same RLS context the cleanup job uses, so the deletes below pass the
     # policies on the workspace and the user.
     _set_cleanup_context(db, context.workspace.id, context.user.id)
@@ -303,7 +416,11 @@ def delete_workspace_now(
         now=now,
         lang=normalize_language(lang),
     )
-    logger.info("workspace deleted immediately account_deleted=%s", result.account_deleted)
+    result = replace(result, refund=refund)
+    logger.info(
+        "workspace deleted immediately account_deleted=%s refunded=%s",
+        result.account_deleted, refund.refunded,
+    )
     return result
 
 

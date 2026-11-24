@@ -9,6 +9,7 @@ two paid tiers named here.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from types import MappingProxyType
 from typing import Mapping
 
@@ -27,7 +28,32 @@ MONTHLY_PRICE_CENTS = MappingProxyType({
 
 # Bump when the wording of the immediate-start consent shown before checkout
 # changes, so the audit log records which text the customer accepted.
-CHECKOUT_CONSENT_VERSION = "2026-11-22"
+CHECKOUT_CONSENT_VERSION = "2026-11-24"
+
+# Withdrawal window: within this many days of the first paid ORDER of a
+# subscription, deleting the workspace counts as a withdrawal (the
+# subscription is cancelled and every payment refunded in full). After it,
+# deletion only cancels. One rule for the status payload and the deletion.
+WITHDRAWAL_DAYS = 14
+
+
+def as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def withdrawal_ends_at(ordered_at: datetime | None) -> datetime | None:
+    """End of the withdrawal window (UTC), or None without an order."""
+    if ordered_at is None:
+        return None
+    return as_utc(ordered_at) + timedelta(days=WITHDRAWAL_DAYS)
+
+
+def withdrawal_open(ordered_at: datetime | None, now: datetime) -> bool:
+    """True while ``now`` (always the SERVER clock) is before the window end."""
+    ends_at = withdrawal_ends_at(ordered_at)
+    return ends_at is not None and as_utc(now) < ends_at
 
 
 def billing_enabled(env: Mapping[str, str]) -> bool:

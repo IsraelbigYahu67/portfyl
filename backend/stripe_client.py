@@ -75,6 +75,10 @@ class StripeClientProtocol(Protocol):
     def update_schedule(self, schedule_id: str, params: Mapping[str, Any]) -> dict: ...
     def release_schedule(self, schedule_id: str) -> dict: ...
     def cancel_subscription(self, subscription_id: str) -> dict: ...
+    def list_paid_payments(self, subscription_id: str) -> list[dict]: ...
+    def create_refund(
+        self, *, payment_intent: str | None = None, charge: str | None = None, idempotency_key: str
+    ) -> dict: ...
 
 
 class StripeClient:
@@ -183,6 +187,79 @@ class StripeClient:
             "DELETE",
             f"/subscriptions/{subscription_id}",
             params={"prorate": False, "invoice_now": False},
+        )
+
+    def list_paid_payments(self, subscription_id: str) -> list[dict]:
+        """Every successful payment of a subscription's paid invoices, as
+        ``{"kind": "payment_intent"|"charge", "id", "amount_cents", "currency",
+        "invoice"}`` (zero-amount payments left out).
+
+        Since API version 2025-03-31 an Invoice no longer carries
+        ``payment_intent``/``charge``; the money lives in InvoicePayments
+        (``GET /v1/invoice_payments?invoice=``, ``payment.type`` is
+        ``payment_intent`` or ``charge``). Portfyl pins an ``.endive`` version
+        where that is the only shape, but a legacy ``payment_intent``/``charge``
+        on the invoice is honoured when no InvoicePayment is returned, so an
+        override of ``STRIPE_API_VERSION`` to an older version still works.
+        One page of 100 is plenty: the withdrawal window holds one or two
+        invoices.
+        """
+        invoices = self._request(
+            "GET", "/invoices",
+            params={"subscription": subscription_id, "status": "paid", "limit": 100},
+        ).get("data") or []
+        found: dict[str, dict] = {}
+        for invoice in invoices:
+            invoice_id = invoice.get("id")
+            if not invoice_id:
+                continue
+            payments = self._request(
+                "GET", "/invoice_payments",
+                params={"invoice": invoice_id, "status": "paid", "limit": 100},
+            ).get("data") or []
+            entries = []
+            for item in payments:
+                payment = item.get("payment") or {}
+                kind = payment.get("type")
+                ref = payment.get(kind) if kind in ("payment_intent", "charge") else None
+                ref = ref.get("id") if isinstance(ref, dict) else ref
+                if ref:
+                    entries.append((kind, ref, item.get("amount_paid"), item.get("currency")))
+            if not entries:  # legacy invoice shape
+                for kind in ("payment_intent", "charge"):
+                    ref = invoice.get(kind)
+                    ref = ref.get("id") if isinstance(ref, dict) else ref
+                    if ref:
+                        entries.append((kind, ref, invoice.get("amount_paid"), invoice.get("currency")))
+                        break
+            for kind, ref, amount, currency in entries:
+                if not amount or int(amount) <= 0:
+                    continue
+                found.setdefault(ref, {
+                    "kind": kind,
+                    "id": ref,
+                    "amount_cents": int(amount),
+                    "currency": currency or invoice.get("currency"),
+                    "invoice": invoice_id,
+                })
+        return list(found.values())
+
+    def create_refund(
+        self, *, payment_intent: str | None = None, charge: str | None = None, idempotency_key: str
+    ) -> dict:
+        """Refund the whole remaining amount of one payment (no ``amount``).
+        Under Managed Payments the refund includes the sales tax."""
+        if bool(payment_intent) == bool(charge):
+            raise ValueError("exactly one of payment_intent or charge")
+        return self._request(
+            "POST",
+            "/refunds",
+            params={
+                "payment_intent": payment_intent,
+                "charge": charge,
+                "reason": "requested_by_customer",
+            },
+            idempotency_key=idempotency_key,
         )
 
 

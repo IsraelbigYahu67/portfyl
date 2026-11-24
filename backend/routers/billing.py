@@ -21,7 +21,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from audit import record_audit_event
-from billing_config import CHECKOUT_CONSENT_VERSION, MONTHLY_PRICE_CENTS, BillingConfig
+from billing_config import (
+    CHECKOUT_CONSENT_VERSION,
+    MONTHLY_PRICE_CENTS,
+    BillingConfig,
+    as_utc,
+    withdrawal_ends_at,
+    withdrawal_open,
+)
 from billing_sync import (
     ENTITLED_STATUSES,
     BillingDataError,
@@ -92,13 +99,24 @@ def _stripe_unavailable(exc: StripeError) -> HTTPException:
     return HTTPException(status_code=502, detail={"code": "payment_provider_unavailable"})
 
 
-def _status_payload(db: Session, request: Request, context: RequestContext) -> dict:
+def _status_payload(
+    db: Session, request: Request, context: RequestContext, *, now: datetime | None = None,
+) -> dict:
     config: BillingConfig = request.app.state.billing_config
     access = resolve_entitlements(db, edition=request.app.state.portfyl_edition, workspace_id=context.workspace.id)
     subscription = live_subscription(db, context.workspace.id)
     has_customer = db.scalar(
         select(BillingCustomer.id).where(BillingCustomer.workspace_id == context.workspace.id)
     ) is not None
+    # `ordered_at` is the creation time of the local subscription row. The row
+    # is written when Portfyl first projects the Stripe Subscription (checkout
+    # confirmation or the first webhook, i.e. within seconds of the first paid
+    # order), and a plan change updates the same row, so it stays the first
+    # order. Late projection (a lost webhook until the daily reconcile) can only
+    # push it later, which favours the customer. The server clock decides
+    # `withdrawal_open`; the browser never does.
+    ordered_at = as_utc(subscription.created_at) if subscription is not None else None
+    ends_at = withdrawal_ends_at(ordered_at)
     return {
         **access.payload(),
         "billing_enabled": config.enabled,
@@ -121,6 +139,9 @@ def _status_payload(db: Session, request: Request, context: RequestContext) -> d
             "scheduled_change_at": (
                 subscription.scheduled_change_at.isoformat() if subscription.scheduled_change_at else None
             ),
+            "ordered_at": ordered_at.isoformat() if ordered_at else None,
+            "withdrawal_ends_at": ends_at.isoformat() if ends_at else None,
+            "withdrawal_open": withdrawal_open(ordered_at, now or datetime.now(timezone.utc)),
         },
     }
 

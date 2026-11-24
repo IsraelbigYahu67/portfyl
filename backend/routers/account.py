@@ -46,9 +46,10 @@ class DeletionRequestPayload(BaseModel):
     # The app language, for the confirmation e-mail. Accepts anything: a
     # garbage value gives English, never a 422.
     lang: Any = None
-    # The owner's explicit consent to cancel a renewing paid subscription
-    # immediately (no refund of the remaining period). Without it a renewing
-    # subscription still answers 409 active_subscription.
+    # The owner's explicit consent to end a paid subscription immediately:
+    # within 14 days of the order it is a withdrawal (full refund), later the
+    # rest of the paid period is lost. Without it a renewing subscription
+    # still answers 409 active_subscription.
     cancel_subscription: bool = False
 
 
@@ -142,7 +143,15 @@ def delete_workspace(
         send_account_deleted_notice(
             to=result.farewell[0], lang=result.farewell[1], mailer=mailer
         )
-    return {"deleted": True, "account_deleted": result.account_deleted}
+    refund = result.refund
+    return {
+        "deleted": True,
+        "account_deleted": result.account_deleted,
+        # Withdrawal inside the first 14 days: everything paid was refunded.
+        "refunded": refund.refunded,
+        "refunded_amount_cents": refund.amount_cents if refund.refunded else None,
+        "currency": refund.currency if refund.refunded else None,
+    }
 
 
 @router.delete("/deletion", status_code=204)
