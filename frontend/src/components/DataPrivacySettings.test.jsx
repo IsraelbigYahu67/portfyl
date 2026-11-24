@@ -208,6 +208,19 @@ describe("DataPrivacySettings", () => {
     expect(opener).toHaveFocus();
   });
 
+  it("dims the whole screen: the overlay sits on document.body above the top bar", async () => {
+    const { container } = mount();
+    fireEvent.click(await screen.findByRole("button", { name: /^delete workspace$/i }));
+
+    const overlay = screen.getByRole("dialog").parentElement;
+    // A portal keeps a transformed ancestor (animate-fade-up) from turning
+    // `fixed` into "fixed to that box", which left the top bar undimmed.
+    expect(overlay.parentElement).toBe(document.body);
+    expect(container.contains(overlay)).toBe(false);
+    // Above the sticky top bar (z-30) and the bottom bar (z-40), like Modal.
+    expect(overlay).toHaveClass("z-[60]");
+  });
+
   it("states the consequences and keeps continue disabled for ten seconds", async () => {
     mount();
     const opener = await screen.findByRole("button", { name: /^delete workspace$/i });

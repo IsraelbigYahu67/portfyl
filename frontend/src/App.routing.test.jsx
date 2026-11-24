@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App, { usePortfolio } from "./App";
+import AnalyticsProvider from "./analytics/AnalyticsProvider";
+import { createMemoryAdapter } from "./analytics/analyticsClient";
 import { resetRouteFocusAnnouncerForTests } from "./hooks/useRouteFocusAnnouncer";
 import { TRACKER_HOME } from "./lib/routes";
 
@@ -11,14 +13,17 @@ const PORTFOLIO_ID = "11111111-1111-4111-8111-111111111111";
 const mocks = vi.hoisted(() => ({
   fetchCapabilities: vi.fn(),
   fetchPortfolios: vi.fn(),
+  // Flipped by the signed-out describe below; everything else is signed in.
+  signedIn: true,
 }));
 
 vi.mock("./auth/AuthProvider", () => ({
   AuthProvider: ({ children }) => children,
   useAuth: () => ({
     ready: true,
-    user: { email: "tester@portfyl.com" },
-    currentWorkspace: { id: "workspace-1" },
+    user: mocks.signedIn ? { email: "tester@portfyl.com" } : null,
+    currentWorkspace: mocks.signedIn ? { id: "workspace-1" } : null,
+    loginWithIdToken: vi.fn(),
     logout: vi.fn(),
     logoutAll: vi.fn(),
   }),
@@ -57,20 +62,31 @@ vi.mock("./pages/Import", () => ({
 vi.mock("./pages/Cash", () => ({ default: () => <div>Cash page</div> }));
 
 function LocationProbe() {
-  const { pathname } = useLocation();
-  return <output data-testid="location">{pathname}</output>;
+  const { pathname, search } = useLocation();
+  return (
+    <>
+      <output data-testid="location">{pathname}</output>
+      <output data-testid="search">{search}</output>
+    </>
+  );
 }
 
 function renderApp(path = TRACKER_HOME) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+  const app = (
+    <MemoryRouter initialEntries={[path]}>
+      <LocationProbe />
+      <App />
+    </MemoryRouter>
+  );
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[path]}>
-        <LocationProbe />
-        <App />
-      </MemoryRouter>
+      {/* The sign-in pages report analytics events; the real provider sits above App. */}
+      {mocks.signedIn
+        ? app
+        : <AnalyticsProvider initialConsent="pending" adapterFactory={() => createMemoryAdapter()}>{app}</AnalyticsProvider>}
     </QueryClientProvider>,
   );
   return { ...view, queryClient };
@@ -300,5 +316,42 @@ describe("authenticated routing", () => {
     });
     expect(await screen.findByRole("heading", { name: /portfolio overview/i }))
       .toBeInTheDocument();
+  });
+});
+
+describe("signed-out routing", () => {
+  beforeEach(() => {
+    resetRouteFocusAnnouncerForTests();
+    localStorage.clear();
+    localStorage.setItem("sb_theme", "light");
+    mocks.signedIn = false;
+  });
+  afterEach(() => {
+    mocks.signedIn = true;
+  });
+
+  // After logging out the page used to show the login form while the address
+  // bar still said /settings (or whatever page the person was on).
+  it.each(["/settings", "/allocation", "/onboarding?broker=xtb", "/"])(
+    "moves %s to /login instead of showing the login form under the old address",
+    async (path) => {
+      renderApp(path);
+
+      await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/login$/));
+    },
+  );
+
+  it("keeps the query of the e-mail verified notice", async () => {
+    renderApp("/login?verified=1");
+
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/login$/));
+    expect(screen.getByTestId("search")).toHaveTextContent("?verified=1");
+  });
+
+  it.each(["/register", "/verify-email", "/forgot-password"])("leaves the public auth page %s where it is", async (path) => {
+    renderApp(path);
+
+    await screen.findByRole("heading");
+    expect(screen.getByTestId("location")).toHaveTextContent(path);
   });
 });
