@@ -25,11 +25,14 @@ Oprava postupu: u (c) nestačí měnit jen `ends_at`, protože `ck_trial_period_
 chce `ends_at > started_at`. Je třeba posunout i `started_at`
 (`SET started_at = now() - interval '11 days', ends_at = now() - interval '1 day'`).
 
-## Nálezy mimo trial (k opravě)
+## Nálezy mimo trial
 
 Žádný nebrání trialu. Pořadí je podle dopadu.
 
-1. **První import do nového portfolia selže 409.** Když je aktivní portfolio s
+**Stav k 2026-11-25:** body 1–4 jsou vyřešené nebo se nepotvrdily (viz níže u
+každého). Body 5 a 6 zůstávají otevřené.
+
+1. **[Opraveno, commit `5f57a44`: potvrzení posílá `previewed_replace`.] První import do nového portfolia selže 409.** Když je aktivní portfolio s
    ukázkovými daty, aplikace otevře nové prázdné portfolio a náhled spočítá s
    `replace=false`, ale potvrzení pošle původní `replace=true`
    (`frontend/src/pages/Import.jsx:147-174`). Backend přepočítá `preview_id` s
@@ -37,14 +40,14 @@ chce `ends_at > started_at`. Je třeba posunout i `started_at`
    „Portfolio se změnilo“. Druhý pokus projde. Oprava: potvrzení má posílat
    stejné `replace`, s jakým se počítal náhled. Po neúspěchu navíc widget
    Složení portfolia na Dashboardu zůstal u starých ukázkových dat (stará cache).
-2. **Stránka Alokace na tarifu Free ukáže chybu.** Alokace je Free
+2. **[Opraveno, commit `e342bf1`: endpoint vyžaduje capability `allocation`, test `test_free_allocation_access.py`.] Stránka Alokace na tarifu Free ukáže chybu.** Alokace je Free
    (`backend/plans.py:72`), ale stránka volá `/analytics/sector-breakdown`
    (`frontend/src/pages/Allocation.jsx:76`), který vyžaduje `portfolio_analytics`
    (Investor, `backend/routers/analytics.py:1510`). Free účet dostane „Tato data se
    nepodařilo načíst“ a toast „Potřebujete vyšší tarif“. Ten toast vyskočil i v
    Nastavení. Nesouvisí s trialem, týká se každého Free účtu.
-3. **Dialog smazání pracovního prostoru:** zatmavení nepokrývá horní pruh stránky.
-4. **Překlady:** v Nastavení zůstal anglický text („…workspace, and security — always
+3. **[Opraveno: dialog je v portálu se `z-[60]`, `DataPrivacySettings.jsx`.] Dialog smazání pracovního prostoru:** zatmavení nepokrývá horní pruh stránky.
+4. **[Opraveno, commit `6195ae6`: panel analytiky čte jazyk aplikace; „My portfolio“ se nepotvrdilo, UI posílá přeložený název.] Překlady:** v Nastavení zůstal anglický text („…workspace, and security — always
    stays on.“) a výchozí portfolio se jmenuje „My portfolio“.
 5. **Onboarding po nové registraci** stejné schránky přeskočil výběr brokera a rovnou
    ukázal IBKR. Příčina neověřena (pravděpodobně paměť prohlížeče).
@@ -53,9 +56,9 @@ chce `ends_at > started_at`. Je třeba posunout i `started_at`
 
 ## Další otevřené věci
 
-- **Lighthouse a11y opravy** jsou na větvi `fix/landing-lighthouse-a11y`
-  (worktree `portfyl-lh-fixes`), necommitnuté: kontrast cookie banneru, pořadí
-  nadpisů ve footeru, popisky CZ/EN. Mobilní CLS 0,11 způsobuje
+- **Lighthouse a11y opravy** (větev `fix/landing-lighthouse-a11y`: kontrast cookie
+  banneru, pořadí nadpisů ve footeru, popisky CZ/EN) jsou sloučené do `main`
+  (merge `b6a386f`). Mobilní CLS 0,11 způsobuje
   `aside.welcome-language-suggestion` (vkládá se po hydrataci nad `main#obsah`).
 - **Task 6, Step 4** v `2026-11-15-portfyl-landing-redesign-free-trial.md` (prohlížeč
   ve třech jazycích a numerický Performance Lighthouse) a **Step 6** (nasazení) zůstávají
