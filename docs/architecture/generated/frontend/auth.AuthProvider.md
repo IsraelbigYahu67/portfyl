@@ -12,13 +12,15 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Auth and sessions]]
-**Source:** `frontend/src/auth/AuthProvider.jsx` (285 lines)
+**Source:** `frontend/src/auth/AuthProvider.jsx` (291 lines)
 **Exports:** `useAuth`, `AuthProvider`
 
 ## Imports
 - [[analytics (folder)]]
 - [[auth.BotCheckDialog]]
 - [[auth.firebase]]
+- [[lib.onboardingConnect]]
+- [[lib.signupIntent]]
 - [[src.api]]
 
 ## Calls backend

@@ -22,3 +22,6 @@ generated: true
 
 ## Calls backend
 - [[routers.watchlists]]
+
+## Mentioned in docs
+- [[superpowers/specs/2026-10-23-clay-ui-audit]]

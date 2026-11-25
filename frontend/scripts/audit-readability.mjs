@@ -8,7 +8,14 @@ import { pathToFileURL } from "node:url";
 // (docs/superpowers/plans/2026-09-19-portfyl-readability-system.md), never
 // allowlist a financial value, input, action, axis, or legend -- only
 // genuinely decorative, non-data text.
-export const ALLOWLIST = [];
+export const ALLOWLIST = [
+  {
+    path: "components/dashboard/DividendBarsCard.jsx",
+    token: "text-[10px]",
+    reason:
+      "Owner-approved exception recorded in DESIGN.md: the per-month value labels are 10px on phones (12px from sm up) so all twelve months fit.",
+  },
+];
 
 const SCANNABLE_EXTENSIONS = [".jsx", ".js", ".css"];
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git"]);

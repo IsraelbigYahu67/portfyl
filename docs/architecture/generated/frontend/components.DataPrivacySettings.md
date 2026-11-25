@@ -34,3 +34,4 @@ generated: true
 - [[superpowers/plans/2026-10-12-portfyl-google-sign-in]]
 - [[superpowers/plans/2026-10-23-clay-ui-fixes]]
 - [[superpowers/plans/2026-11-17-portfyl-own-emails-session-handoff]]
+- [[superpowers/plans/2026-11-22-free-trial-findings]]

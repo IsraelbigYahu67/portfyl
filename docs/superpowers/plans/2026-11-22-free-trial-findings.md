@@ -29,8 +29,8 @@ chce `ends_at > started_at`. Je třeba posunout i `started_at`
 
 Žádný nebrání trialu. Pořadí je podle dopadu.
 
-**Stav k 2026-11-25:** body 1–4 jsou vyřešené nebo se nepotvrdily (viz níže u
-každého). Body 5 a 6 zůstávají otevřené.
+**Stav k 2026-11-25:** všech šest bodů je vyřešených nebo se nepotvrdilo (viz níže
+u každého). U bodů 5 a 6 chybí už jen ruční kontrola v prohlížeči.
 
 1. **[Opraveno, commit `5f57a44`: potvrzení posílá `previewed_replace`.] První import do nového portfolia selže 409.** Když je aktivní portfolio s
    ukázkovými daty, aplikace otevře nové prázdné portfolio a náhled spočítá s
@@ -49,9 +49,9 @@ každého). Body 5 a 6 zůstávají otevřené.
 3. **[Opraveno: dialog je v portálu se `z-[60]`, `DataPrivacySettings.jsx`.] Dialog smazání pracovního prostoru:** zatmavení nepokrývá horní pruh stránky.
 4. **[Opraveno, commit `6195ae6`: panel analytiky čte jazyk aplikace; „My portfolio“ se nepotvrdilo, UI posílá přeložený název.] Překlady:** v Nastavení zůstal anglický text („…workspace, and security — always
    stays on.“) a výchozí portfolio se jmenuje „My portfolio“.
-5. **Onboarding po nové registraci** stejné schránky přeskočil výběr brokera a rovnou
-   ukázal IBKR. Příčina neověřena (pravděpodobně paměť prohlížeče).
-6. **URL po odhlášení** zůstane na původní stránce (login se ukáže na místě) a po
+5. **[Opraveno, commit `9314af1`: smazání účtu maže zapamatovaného brokera, test v `AuthProvider.test.jsx`.] Onboarding po nové registraci** stejné schránky přeskočil výběr brokera a rovnou
+   ukázal IBKR. Příčina: `portfyl_intended_broker` a `portfyl_onboarding_connect` v `localStorage` přežily smazání účtu.
+6. **[Opraveno, commit `9314af1` a dřívější `b8a14b6`: neznámá adresa přejde na `/login`, kvůli `?verified=1` zůstává jen tento parametr, test v `App.routing.test.jsx`.] URL po odhlášení** zůstane na původní stránce (login se ukáže na místě) a po
    smazání účtu a nové registraci vrátí na `/settings?section=data`. Kosmetické.
 
 ## Další otevřené věci

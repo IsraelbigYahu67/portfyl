@@ -23,4 +23,5 @@ Add broker_requests ("notify me when my broker is supported", onboarding-flow pl
 - [[broker_requests (table)]]
 
 ## Mentioned in docs
+- [[superpowers/plans/2026-11-12-portfyl-market-data-cache]]
 - [[superpowers/plans/2026-11-15-portfyl-landing-redesign-free-trial]]

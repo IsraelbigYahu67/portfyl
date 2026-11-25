@@ -43,6 +43,7 @@ Markdown outside the vault; its top headings are listed below.
 - [[finished]]
 - [[ideas]]
 - [[operations/landing-minidemo-check]]
+- [[superpowers/plans/2026-09-19-portfyl-activation-analytics]]
 - [[superpowers/plans/2026-10-23-clay-ui-fixes]]
 - [[superpowers/plans/2026-11-06-portfyl-app-languages]]
 - [[superpowers/plans/2026-11-09-portfyl-market-data-cache]]

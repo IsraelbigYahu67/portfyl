@@ -487,7 +487,7 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
 - Modify: `docs/superpowers/specs/2026-10-23-clay-ui-audit.md` (append a "Result" section), `DESIGN.md` (only if a wave-2 PR asked for a rule)
 
 - [x] **Step 1: Merge** all task branches into one integration branch and resolve conflicts locally. `git diff --stat main` lists only files named in Tasks 1–14.
-- [ ] **Step 2: Run** `cd frontend && npm test && npm run test:cloud && npm run build && npm run build:cloud`. Expected: all PASS.
+- [x] **Step 2: Run** `cd frontend && npm test && npm run test:cloud && npm run build && npm run build:cloud`. Expected: all PASS. (2026-11-25: `npm test` 1815 passed, 6 skipped; `test:cloud` 1821 passed; both builds OK.)
 - [x] **Step 3: Legacy sweep**: `grep -rEn "\b(bg|text|border)-(white|(gray|slate|zinc|red|green|emerald|amber|yellow|orange|blue|indigo|purple|rose|sky)-[0-9]{2,3})" frontend/src/pages frontend/src/components --include=*.jsx | grep -v "\.test\."`. Expected: no output, or only files outside the audit's scope, each listed in the Result section as a follow-up.
 - [ ] **Step 4: Browser re-audit** in Clay at 1440×900 and 375×812 with the audit's in-page script on every page and stock tab. Expected: 0 text nodes under 12px, 0 page-level horizontal scroll, no clipped heatmap tile, no overlapping target pills. Then check Dashboard and Allocation in Premium, because `Badge`, `Modal` and `Toggle` are shared.
 - [ ] **Step 5: Record** pass/fail per finding ID in the spec's "Result" section and commit: `git commit -m "docs: record Clay audit re-check"`

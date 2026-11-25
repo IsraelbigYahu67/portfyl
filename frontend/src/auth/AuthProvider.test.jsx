@@ -64,6 +64,7 @@ function Probe() {
       </button>
       <button onClick={() => auth.logout()}>logout</button>
       <button onClick={() => auth.logoutAll()}>logout-all</button>
+      <button onClick={() => auth.accountDeleted()}>account-deleted</button>
       <button onClick={() => auth.selectWorkspace("w2")}>switch-workspace</button>
     </div>
   );
@@ -276,6 +277,26 @@ describe("AuthProvider", () => {
     expect(apiMocks.logoutSession).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("email").textContent).toBe("");
     expect(clearSpy).toHaveBeenCalled();
+  });
+
+  it("forgets the remembered broker choices when the account is deleted", async () => {
+    apiMocks.fetchMe.mockResolvedValueOnce({
+      user: { id: "u1", email: "alice@example.com" },
+      workspaces: [{ id: "w1", name: "Alice's workspace", role: "owner" }],
+      csrf_token: "csrf-1",
+    });
+    localStorage.setItem("portfyl_intended_broker", "ibkr");
+    localStorage.setItem("portfyl_onboarding_connect", JSON.stringify({ broker: "ibkr", at: Date.now() }));
+    mount();
+    await waitFor(() => expect(screen.getByTestId("email").textContent).toBe("alice@example.com"));
+
+    await act(async () => {
+      screen.getByRole("button", { name: "account-deleted" }).click();
+    });
+
+    expect(localStorage.getItem("portfyl_intended_broker")).toBeNull();
+    expect(localStorage.getItem("portfyl_onboarding_connect")).toBeNull();
+    expect(screen.getByTestId("email").textContent).toBe("");
   });
 
   it("clears account state and calls the backend on logout-all", async () => {
