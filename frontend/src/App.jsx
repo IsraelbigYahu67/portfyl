@@ -381,7 +381,7 @@ function AuthGate() {
         {/* Any other address (the page someone just logged out of) moves to
             /login instead of showing the login form under the old URL. The
             query stays: Login reads ?verified=1. */}
-        <Route path="*" element={<Navigate to={{ pathname: "/login", search }} replace />} />
+        <Route path="*" element={<Navigate to={{ pathname: "/login", search: new URLSearchParams(search).get("verified") === "1" ? "?verified=1" : "" }} replace />} />
       </Routes>
     );
   }

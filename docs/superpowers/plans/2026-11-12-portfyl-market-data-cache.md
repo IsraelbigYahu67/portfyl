@@ -1,5 +1,13 @@
 # Market-Data Store v1 Implementation Plan
 
+> **ZASTARALÉ (2026-11-25): nic z tohoto plánu není implementováno.** Složka
+> `backend/market_store/` neexistuje a v `main` není žádný commit k market-store.
+> Čísla migrací už neplatí: revize `0026` je teď `0026_broker_requests` a aktuální
+> head je `0029_terms_acceptances`. Před začátkem je nutné migraci přečíslovat
+> (nový head, `EXPECTED_ALEMBIC_HEAD`, `tests/test_plan_schema.py`, odkazy na
+> `0026_market_data_store` v celém plánu) a znovu ověřit ostatní předpoklady proti
+> aktuálnímu kódu. Zaškrtávací políčka níže jsou všechna nezaškrtnutá právem.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make PostgreSQL a durable second cache level under `market_data` in the **local edition**, in front of yfinance, so the dashboard and stock detail are served from the database after a restart and refreshed behind a short deadline — with every number identical to today's.

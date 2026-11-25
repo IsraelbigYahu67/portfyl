@@ -11,6 +11,8 @@ import {
 import { signOutFirebaseClient } from "./firebase";
 import { useAnalytics } from "../analytics/AnalyticsProvider";
 import BotCheckDialog from "./BotCheckDialog";
+import { clearConnectStep } from "../lib/onboardingConnect";
+import { clearIntendedBroker } from "../lib/signupIntent";
 
 const AuthContext = createContext(null);
 
@@ -229,6 +231,10 @@ export function AuthProvider({ children }) {
   // and already cleared the session cookie, so there is nothing to revoke:
   // just forget the local state, which sends the app back to the login screen.
   const accountDeleted = useCallback(() => {
+    // The remembered broker choices belong to the erased account: a new
+    // sign-up on this device must start onboarding at the broker step.
+    clearConnectStep();
+    clearIntendedBroker();
     clearAccount();
     analytics.reset();
   }, [clearAccount, analytics.reset]);
