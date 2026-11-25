@@ -1,4 +1,4 @@
-# Portfyl Activation Analytics Implementation Plan
+﻿# Portfyl Activation Analytics Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -363,18 +363,18 @@ git commit -m "security: restrict analytics connections in HTML CSP"
 - Environment: `VITE_POSTHOG_KEY=<public project token>` and `VITE_POSTHOG_HOST=https://eu.i.posthog.com` are build-time variables, not backend runtime secrets.
 - No-card rule and desired quota behavior: ingestion stops at the free limit; product behavior is unaffected.
 
-- [ ] Write the PostHog project setup steps: select EU region, create one production project, do not add billing method, copy project token, verify disabled features, add `portfyl.com` and `app.portfyl.com`, and restrict team membership.
-- [ ] Document the exact 12-event allowlist and forbidden data list from this plan.
-- [ ] Document three saved funnels exactly:
+- [x] Write the PostHog project setup steps: select EU region, create one production project, do not add billing method, copy project token, verify disabled features, add `portfyl.com` and `app.portfyl.com`, and restrict team membership.
+- [x] Document the exact 12-event allowlist and forbidden data list from this plan.
+- [x] Document three saved funnels exactly:
   1. landing → demo start → demo activation → signup CTA;
   2. signup CTA → signup start → signup complete;
   3. signup complete → portfolio data import → first populated dashboard → user activation.
-- [ ] State that person-level cross-host/date conversion is valid only for accepted analytics; rejected cookieless traffic is aggregate and must not be interpreted as a persistent person.
-- [ ] Add live-debugger verification: accept path, reject path, pending zero-request path, event property inspection, logout reset, workspace transition, blocked endpoint, invalid key, and free-limit behavior.
-- [ ] Add first-month monitoring: weekly event volume, unexpected property audit, funnel sanity, consent split, quota remaining, and confirmation no payment card was added.
-- [ ] Update the compliance inventory with PostHog Cloud EU as a processor/subprocessor, the exact approved data categories, consent basis subject to legal review, EU region, retention, and disabled capabilities.
-- [ ] Add an explicit production blocker: do not provide the two Vite variables until the public privacy notice/subprocessor disclosure has received qualified Czech/EU legal review and is published. Do not invent legal text in this implementation.
-- [ ] Update Cloud Run frontend-build documentation with the two Vite variables and note that changing runtime env alone cannot enable them because Vite compiles them.
+- [x] State that person-level cross-host/date conversion is valid only for accepted analytics; rejected cookieless traffic is aggregate and must not be interpreted as a persistent person.
+- [x] Add live-debugger verification: accept path, reject path, pending zero-request path, event property inspection, logout reset, workspace transition, blocked endpoint, invalid key, and free-limit behavior.
+- [x] Add first-month monitoring: weekly event volume, unexpected property audit, funnel sanity, consent split, quota remaining, and confirmation no payment card was added.
+- [x] Update the compliance inventory with PostHog Cloud EU as a processor/subprocessor, the exact approved data categories, consent basis subject to legal review, EU region, retention, and disabled capabilities.
+- [x] Add an explicit production blocker: do not provide the two Vite variables until the public privacy notice/subprocessor disclosure has received qualified Czech/EU legal review and is published. Do not invent legal text in this implementation.
+- [x] Update Cloud Run frontend-build documentation with the two Vite variables and note that changing runtime env alone cannot enable them because Vite compiles them.
 - [ ] Complete the browser matrix at 390×844, 768×1024, 1024×768, and 1440×900 across landing, all demo routes, register, onboarding/import, dashboard, settings, and logout. Check Premium, Classic light, and Classic dark where available.
 - [ ] In browser storage/network panels verify: pending makes no PostHog request/storage; rejected stores only consent preference and sends cookieless events; accepted creates first-party analytics persistence; no captured payload contains forbidden data; blocked PostHog does not change UI behavior.
 - [ ] Run all release gates:
@@ -396,18 +396,20 @@ Pop-Location
 
   Run `python -m pytest tests/postgres/ -v` with `TEST_DATABASE_URL` configured because backend code changed. Expect every command to pass.
 - [ ] Record exact test counts, build results, browser evidence paths, and any warnings in the browser-check document.
-- [ ] Commit:
+- [x] Commit:
 
 ```powershell
 git add docs/operations/posthog-activation-analytics.md docs/operations/activation-analytics-browser-check.md docs/compliance/data-processing-inventory.md deploy/cloudrun.md .github/workflows/ci.yml
 git commit -m "docs: add activation analytics operations and privacy gate"
 ```
 
+> Stand 2026-11-25: Tasks 1-7 are implemented and the Task 8 documents exist (`docs/operations/posthog-activation-analytics.md`, `activation-analytics-browser-check.md`, compliance inventory, `deploy/cloudrun.md`). The public `/demo` events in this plan were retired on 2026-11-18 (see the runbook). Still open: browser matrix, storage/network checks, release gates and live-debugger confirmation, which need a running app and the test suites. The production variables must stay unset until the legal gate closes.
+
 ## Plan completion gate
 
 - [ ] Run `git diff --check HEAD~8..HEAD` and expect no whitespace errors.
-- [ ] Search production source with `rg -n "posthog|capture\(|identify\(" frontend/src backend` and confirm every capture flows through `AnalyticsProvider`/the strict contract and the only SDK import is in `analyticsClient.js`.
-- [ ] Search with `rg -ni "email|display_name|workspace_name|portfolio_id|balance|amount|holdings|transactions" frontend/src/analytics` and inspect every match; event payload builders must contain none of those fields.
+- [x] Search production source with `rg -n "posthog|capture\(|identify\(" frontend/src backend` and confirm every capture flows through `AnalyticsProvider`/the strict contract and the only SDK import is in `analyticsClient.js`.
+- [x] Search with `rg -ni "email|display_name|workspace_name|portfolio_id|balance|amount|holdings|transactions" frontend/src/analytics` and inspect every match; event payload builders must contain none of those fields.
 - [ ] Confirm the PostHog live debugger receives each approved event at most where expected, with no extra properties.
 - [ ] Confirm no payment card is attached and production variables remain unset until the privacy gate is closed.
 - [ ] Use `superpowers:verification-before-completion` and report actual command outputs before declaring the roadmap complete.
