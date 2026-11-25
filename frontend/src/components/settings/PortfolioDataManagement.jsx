@@ -75,7 +75,7 @@ export default function PortfolioDataManagement() {
 
       {notice && <p role={notice.type === "error" ? "alert" : "status"} className={notice.type === "error" ? "text-sm text-loss" : "text-sm text-gain"}>{notice.message}</p>}
 
-      <button type="button" onClick={requestClear} disabled={clearMutation.isPending} className="flex items-center gap-2 rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40">
+      <button type="button" onClick={requestClear} disabled={clearMutation.isPending} className="flex items-center gap-2 rounded-lg border border-loss/40 px-4 py-2 text-sm font-semibold text-loss hover:bg-loss/10 disabled:opacity-40">
         {clearMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
         {clearMutation.isPending ? t("Clearing…") : t("Clear portfolio")}
       </button>

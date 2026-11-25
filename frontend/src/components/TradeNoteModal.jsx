@@ -87,7 +87,7 @@ export default function TradeNoteModal({ transaction, onClose }) {
                     key={value}
                     onClick={() => setSentiment(sentiment === value ? null : value)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
-                      sentiment === value ? color : "text-muted bg-surface-card border-hairline hover:border-slate-300"
+                      sentiment === value ? color : "text-muted bg-surface-card border-hairline hover:border-brand"
                     }`}
                   >
                     <Icon size={13} />
@@ -113,7 +113,7 @@ export default function TradeNoteModal({ transaction, onClose }) {
                 <button
                   onClick={() => window.confirm(t("Delete this note?")) && deleteMut.mutate()}
                   disabled={deleteMut.isPending}
-                  className="flex items-center gap-1.5 text-red-500 hover:text-red-700 text-sm px-3 py-2"
+                  className="flex items-center gap-1.5 text-loss hover:opacity-80 text-sm px-3 py-2"
                 >
                   <Trash2 size={14} />
                   {t("Delete")}

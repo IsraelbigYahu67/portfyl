@@ -414,7 +414,7 @@ export default function DashboardGrid({ children, editing, onEditToggle }) {
                       type="button"
                       aria-label={t("Hide {widget}", { widget: t(widget?.label ?? "") })}
                       onClick={() => hide(id)}
-                      className="text-muted hover:text-red-500 transition-colors"
+                      className="text-muted hover:text-loss transition-colors"
                     >
                       <X size={13} />
                     </button>

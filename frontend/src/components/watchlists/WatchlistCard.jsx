@@ -152,7 +152,7 @@ export function WatchlistCard({ wl, onAlert, alertsByTicker = new Map(), alertDi
       <header className="flex flex-wrap items-center gap-3 border-b border-surface-border px-4 py-3">
         <div className="mr-auto"><h2 id={`watchlist-${wl.id}-heading`} className="text-lg font-bold">{wl.name}</h2><p className="text-xs text-muted">{wl.count === 1 ? t("{count} stock", { count: 1 }) : t("{count} stocks", { count: wl.count })}</p></div>
         <AddTickerForm watchlistId={wl.id} watchlistName={wl.name} />
-        <button type="button" onClick={askDeleteList} aria-label={t("Delete {name}", { name: wl.name })} className="text-muted hover:text-red-600"><Trash2 size={15} /></button>
+        <button type="button" onClick={askDeleteList} aria-label={t("Delete {name}", { name: wl.name })} className="text-muted hover:text-loss"><Trash2 size={15} /></button>
       </header>
       <div className="flex flex-wrap gap-2 border-b border-surface-border px-4 py-3">
         <label className="relative flex-1 min-w-48"><span className="sr-only">{t("Search {list}", { list: wl.name })}</span><Search size={14} className="absolute left-2.5 top-2.5 text-muted" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("Search {list}", { list: wl.name })} className="w-full rounded-md border border-surface-border bg-surface py-2 pl-8 pr-3 text-sm" /></label>
@@ -177,7 +177,7 @@ export function WatchlistCard({ wl, onAlert, alertsByTicker = new Map(), alertDi
                 </TickerLink>
                 {alert && <span className="text-xs font-medium text-muted">{alert.status === "triggered" ? t("Triggered") : t("Active")}</span>}
                 <button type="button" disabled={Boolean(alertDisabledReason)} onClick={() => onAlert?.(item.ticker)} aria-label={t("Create price alert for {ticker}", { ticker: item.ticker })} title={alertDisabledReason || t("Create price alert")} className="p-1 text-muted hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"><Bell size={14} /></button>
-                <button type="button" onClick={() => askRemoveItem(item)} aria-label={t("Remove {ticker} from {list}", { ticker: item.ticker, list: wl.name })} className="p-1 text-muted hover:text-red-600"><X size={14} /></button>
+                <button type="button" onClick={() => askRemoveItem(item)} aria-label={t("Remove {ticker} from {list}", { ticker: item.ticker, list: wl.name })} className="p-1 text-muted hover:text-loss"><X size={14} /></button>
               </li>
             );
           })}

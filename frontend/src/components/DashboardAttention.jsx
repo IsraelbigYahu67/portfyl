@@ -6,7 +6,7 @@ import { msg, useT } from "../i18n/I18nProvider";
 
 const SEVERITY = {
   critical: { label: msg("Critical"), Icon: AlertTriangle, tone: "text-loss" },
-  warning: { label: msg("Warning"), Icon: AlertCircle, tone: "text-amber-400" },
+  warning: { label: msg("Warning"), Icon: AlertCircle, tone: "text-brand" },
   info: { label: msg("Info"), Icon: Info, tone: "text-muted" },
 };
 

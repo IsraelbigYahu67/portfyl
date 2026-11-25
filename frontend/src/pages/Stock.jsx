@@ -57,7 +57,7 @@ function WatchlistMenu({ ticker }) {
         onClick={() => setOpen((o) => !o)}
         className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border transition-colors ${
           isWatching
-            ? "bg-yellow-500/10 text-yellow-300 border-yellow-500/30"
+            ? "bg-brand/10 text-brand border-brand/30"
             : "bg-surface-hover text-muted border-surface-border hover:bg-surface-hover"
         }`}
         aria-haspopup="menu"
@@ -65,7 +65,7 @@ function WatchlistMenu({ ticker }) {
       >
         <Star
           size={14}
-          className={isWatching ? "fill-yellow-300" : ""}
+          className={isWatching ? "fill-brand" : ""}
         />
         {isWatching
           ? (inLists.length === 1 ? t("In {count} watchlist", { count: 1 }) : t("In {count} watchlists", { count: inLists.length }))

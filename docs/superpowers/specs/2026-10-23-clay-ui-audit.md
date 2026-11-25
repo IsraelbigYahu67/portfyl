@@ -103,6 +103,23 @@ exercised. Each finding has an ID that the fix plan
   (`backend/routers/market.py:426-428`), while CLAUDE.md says valuation uses the
   5-year average P/E. Not a UI fix; decide separately.
 
+## Result (2026-11-25)
+
+Tasks 1–14 of `docs/superpowers/plans/2026-10-23-clay-ui-fixes.md` are merged.
+Legacy sweep (hardcoded Tailwind palette classes in `pages/` and `components/`)
+re-run: the leftovers were moved to theme tokens (`text-loss`, `border-gain/30`,
+`text-brand`, ...). Remaining matches are deliberate:
+
+- `ConfirmDialog.jsx`: destructive-action red is fixed on purpose, not tied to
+  P&L semantics (commented in code).
+- `text-white` on `bg-brand` fills (`Pagination.jsx`, the watchlist check in
+  `Stock.jsx`).
+
+Not yet done, needs a running app: the full test and build run (plan Task 15
+step 2) and the browser re-audit with per-finding pass/fail (steps 4 and 5).
+The colour changes touch the shared `Toast` and `AccountMenu`, so check them in
+Premium and Classic during that re-audit.
+
 ## Related
 
 - Architecture: [[Frontend structure]]

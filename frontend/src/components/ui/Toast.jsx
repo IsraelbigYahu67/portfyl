@@ -26,8 +26,8 @@ export function useToast() {
 let seq = 0;
 
 const VARIANTS = {
-  success: { Icon: CheckCircle, accent: "text-gain", ring: "border-emerald-500/30" },
-  error: { Icon: AlertCircle, accent: "text-loss", ring: "border-red-500/30" },
+  success: { Icon: CheckCircle, accent: "text-gain", ring: "border-gain/30" },
+  error: { Icon: AlertCircle, accent: "text-loss", ring: "border-loss/30" },
   info: { Icon: Info, accent: "text-muted", ring: "border-surface-border" },
 };
 

@@ -69,7 +69,7 @@ export default function AccountMenu({ compact = false }) {
         aria-label={t("Account menu for {email}", { email: user.email })}
         className={compact
           ? "grid h-11 w-11 place-items-center rounded-full bg-surface border border-surface-border hover:border-brand transition-colors"
-          : "w-full flex items-center gap-2 bg-surface border border-surface-border rounded-lg px-3 py-2 text-left hover:border-slate-300 transition-colors"}
+          : "w-full flex items-center gap-2 bg-surface border border-surface-border rounded-lg px-3 py-2 text-left hover:border-brand transition-colors"}
         disabled={busy}
       >
         <User size={compact ? 18 : 14} className="text-brand shrink-0" />

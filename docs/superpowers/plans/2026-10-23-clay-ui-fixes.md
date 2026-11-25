@@ -1,4 +1,4 @@
-# Clay UI/UX Fixes Implementation Plan
+﻿# Clay UI/UX Fixes Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -213,18 +213,18 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
 **Interfaces:**
 - Consumes: `BrokerPositionSnapshot variant="summary"`, `formatPercent`, `legacyColorClassesIn`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `collapses rows without a target into one summary row` (AllocationTargets): with 22 rows of which 1 has a target, the table shows the targeted row plus a button `"21 holdings without a target"`. Clicking it reveals the 21 rows.
   - `All Holdings lists only active positions in the Active view` (Allocation): no row contains the `SOLD` marker while "Active positions" is selected.
   - `legend percentages share one precision`: weights 6 and 8.12 render as `"6.00%"` and `"8.12%"`.
-- [ ] **Step 2: Run** `cd frontend && npx vitest run src/pages/Allocation.decisions.test.jsx src/components/AllocationTargets.test.jsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**
+- [x] **Step 2: Run** `cd frontend && npx vitest run src/pages/Allocation.decisions.test.jsx src/components/AllocationTargets.test.jsx`. Expected: FAIL.
+- [x] **Step 3: Implement**
   - The snapshot uses `variant="summary"` (drop `limit={20}`).
   - The legend percent column becomes `w-12` with `formatPercent(x, { sign: false, digits: 2 })`.
   - All Holdings renders sold rows only when "Sold positions" is active. While `scrollWidth > clientWidth`, the table wrapper gets a right-edge fade (`mask-image: linear-gradient(to right, black 92%, transparent)`); the ticker column is sticky.
   - AllocationTargets groups untargeted rows behind the disclosure button.
-- [ ] **Step 4: Run** `cd frontend && npm test && npm run build`. Expected: PASS.
-- [ ] **Step 5: Commit** `git commit -m "fix(allocation): compact snapshot, grouped untargeted rows, scroll cue"`
+- [x] **Step 4: Run** `cd frontend && npm test && npm run build`. Expected: PASS.
+- [x] **Step 5: Commit** `git commit -m "fix(allocation): compact snapshot, grouped untargeted rows, scroll cue"`
 
 ### Task 5: Transactions (A1, A2, C6, F2, F3, U2, O8)
 
@@ -261,20 +261,20 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
 **Interfaces:**
 - Consumes: `Pagination({ offset, limit, total, onOffsetChange, onLimitChange, ariaLabel })`, `humanizeCode`, `formatTableDate`, `legacyColorClassesIn`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `shows pagination only when rows exceed one page`: 0 rows show the empty state; 25 rows show no pagination nav; 26 rows show the nav and 25 rows on page 1.
   - `ledger has a header row and separate amount and note cells`: header columns `Date | Type | Amount | Note`; a note `"T212 INTEREST_ON_FREE_CASH"` renders as `"T212 Interest on free cash"` in its own cell.
   - `cash type options are humanized`: the select shows `"Deposit"` (value stays `deposit`).
   - `uses no legacy color classes` for `./Cash.jsx`.
-- [ ] **Step 2: Run** `cd frontend && npx vitest run src/pages/Cash.test.jsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**
+- [x] **Step 2: Run** `cd frontend && npx vitest run src/pages/Cash.test.jsx`. Expected: FAIL.
+- [x] **Step 3: Implement**
   - Client-side pagination of `rows.data`, page size 25.
   - A ledger `<thead>` and a `pl-6` note column. Dates use `formatTableDate`.
   - Notes keep a leading `T212 ` prefix and `humanizeCode` the remainder when it matches `/^[A-Z_]+$/`.
   - Delete hover is `hover:text-loss`, with a 44px target below `md`. On mobile each ledger entry is a stacked row (date + type, amount on the right, note below).
   - `CashBalanceChart` XAxis gets `interval="preserveStartEnd"` and `minTickGap={24}`.
-- [ ] **Step 4: Run** `cd frontend && npm test && npm run build`. Expected: PASS.
-- [ ] **Step 5: Commit** `git commit -m "fix(cash): paginated ledger with headers, readable notes, mobile rows"`
+- [x] **Step 4: Run** `cd frontend && npm test && npm run build`. Expected: PASS.
+- [x] **Step 5: Commit** `git commit -m "fix(cash): paginated ledger with headers, readable notes, mobile rows"`
 
 ### Task 7: Dividends and Tax Report (F2, F3, F5, D1, C7, U7, O8)
 
@@ -414,20 +414,20 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
 - Consumes: `CATEGORICAL`, `LOSS_COLOR`, `SegmentedControl`, `Badge`.
 - Produces: `financialPeriodAxisLayout(labels, containerWidth, isQuarterly) -> { fontSize: 12, angle: 0, interval: number, short: boolean }`. It never returns a font under 12. When labels do not fit horizontally, it first sets `short: true` (years as `'17`, quarters as `Q1'24`), then raises `interval` (show every (interval+1)-th label).
 
-- [ ] **Step 1: Replace the two existing `financialPeriodAxisLayout` tests with:**
+- [x] **Step 1: Replace the two existing `financialPeriodAxisLayout` tests with:**
   - `never goes below 12px`: 10 annual labels at 300px give `fontSize === 12`, `angle === 0` and `short === true`.
   - `thins labels when even short labels collide`: 40 quarterly labels at 300px give `interval ≥ 1`.
   - `keeps every label when they fit`: 10 labels at 1200px give `interval === 0` and `short === false`.
   - `bars use theme series, not hex fills`: rendering `MetricBarChart` with the file's existing fixture gives at least one `.recharts-bar-rectangle path`, and no `fill` attribute starts with `#`.
-- [ ] **Step 2: Run** `cd frontend && npx vitest run src/components/StockDetail.financialGrowth.test.jsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**
+- [x] **Step 2: Run** `cd frontend && npx vitest run src/components/StockDetail.financialGrowth.test.jsx`. Expected: FAIL.
+- [x] **Step 3: Implement**
   - The new axis layout.
   - `ChangeTick` drops the YoY line whenever it would render under 12px; the YoY value stays in the bar tooltip.
   - Bar fills: actual `CATEGORICAL[0]`, estimate `CATEGORICAL[5]`, TTM `CATEGORICAL[3]`, negative `LOSS_COLOR`, all with `radius={[7, 7, 0, 0]}`.
   - The Annual/Quarterly toggle becomes `SegmentedControl`.
   - EPS-surprise bars are rounded. (The BEAT/MISS chip moves to Task 14.)
-- [ ] **Step 4: Run** `cd frontend && npm test && npm run build`. Expected: PASS.
-- [ ] **Step 5: Commit** `git commit -m "fix(stock): financial charts at 12px, organic rounded bars"`
+- [x] **Step 4: Run** `cd frontend && npm test && npm run build`. Expected: PASS.
+- [x] **Step 5: Commit** `git commit -m "fix(stock): financial charts at 12px, organic rounded bars"`
 
 ### Task 13: Stock valuation (C1 part 2, O3, F4)
 
@@ -439,20 +439,20 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
 - Consumes: `Badge`, `humanizeCode`, `GAIN_COLOR`, `LOSS_COLOR`.
 - Produces: `export function layoutEdgePills(items: { key, y }[], { top: number, bottom: number, minGap: number }) -> { key, y }[]`. It keeps the input order by y and spreads neighbours until they are ≥ `minGap` px apart, all within `[top + minGap/2, bottom − minGap/2]`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `layoutEdgePills separates overlapping pills`: inputs y = 100, 104, 108 (minGap 22, top 0, bottom 300) come out ≥ 22 apart in the same order.
   - `layoutEdgePills keeps pills inside the plot`: an input at y = 295 (bottom 300, minGap 22) comes out ≤ 289.
   - `analyst rating label is humanized`: the rating shows "Strong buy", not "STRONG_BUY".
-- [ ] **Step 2: Run** `cd frontend && npx vitest run src/components/StockDetail.valuation.test.jsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**
+- [x] **Step 2: Run** `cd frontend && npx vitest run src/components/StockDetail.valuation.test.jsx`. Expected: FAIL.
+- [x] **Step 3: Implement**
   - `RightEdgePills` positions through `layoutEdgePills` with minGap 22, and the cone chart reserves `margin.right = 104` so the pills never clip.
   - Cone fills are `color-mix` 18% of `GAIN_COLOR` (upside) and `LOSS_COLOR` (downside).
   - Analyst bars: strong buy/buy `GAIN_COLOR`, hold `var(--chart-3)`, sell/strong sell `LOSS_COLOR`, as `style={{ backgroundColor }}` on a `rounded-full` bar inside an inset track.
   - DCF cells use `color-mix` of the gain/loss tokens by distance from the current price.
   - `RatingPill` becomes `Badge`.
   - Remove the duplicated About block from `StockValuationTab.jsx`; it stays on Overview.
-- [ ] **Step 4: Run** `cd frontend && npm test && npm run build`. Expected: PASS.
-- [ ] **Step 5: Commit** `git commit -m "fix(stock): non-overlapping target pills, token-colored valuation"`
+- [x] **Step 4: Run** `cd frontend && npm test && npm run build`. Expected: PASS.
+- [x] **Step 5: Commit** `git commit -m "fix(stock): non-overlapping target pills, token-colored valuation"`
 
 ### Task 14: Stock overview, ownership, insiders, filings (C1 part 3, F3, U5)
 
@@ -486,9 +486,9 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
 **Files:**
 - Modify: `docs/superpowers/specs/2026-10-23-clay-ui-audit.md` (append a "Result" section), `DESIGN.md` (only if a wave-2 PR asked for a rule)
 
-- [ ] **Step 1: Merge** all task branches into one integration branch and resolve conflicts locally. `git diff --stat main` lists only files named in Tasks 1–14.
+- [x] **Step 1: Merge** all task branches into one integration branch and resolve conflicts locally. `git diff --stat main` lists only files named in Tasks 1–14.
 - [ ] **Step 2: Run** `cd frontend && npm test && npm run test:cloud && npm run build && npm run build:cloud`. Expected: all PASS.
-- [ ] **Step 3: Legacy sweep**: `grep -rEn "\b(bg|text|border)-(white|(gray|slate|zinc|red|green|emerald|amber|yellow|orange|blue|indigo|purple|rose|sky)-[0-9]{2,3})" frontend/src/pages frontend/src/components --include=*.jsx | grep -v "\.test\."`. Expected: no output, or only files outside the audit's scope, each listed in the Result section as a follow-up.
+- [x] **Step 3: Legacy sweep**: `grep -rEn "\b(bg|text|border)-(white|(gray|slate|zinc|red|green|emerald|amber|yellow|orange|blue|indigo|purple|rose|sky)-[0-9]{2,3})" frontend/src/pages frontend/src/components --include=*.jsx | grep -v "\.test\."`. Expected: no output, or only files outside the audit's scope, each listed in the Result section as a follow-up.
 - [ ] **Step 4: Browser re-audit** in Clay at 1440×900 and 375×812 with the audit's in-page script on every page and stock tab. Expected: 0 text nodes under 12px, 0 page-level horizontal scroll, no clipped heatmap tile, no overlapping target pills. Then check Dashboard and Allocation in Premium, because `Badge`, `Modal` and `Toggle` are shared.
 - [ ] **Step 5: Record** pass/fail per finding ID in the spec's "Result" section and commit: `git commit -m "docs: record Clay audit re-check"`
 
