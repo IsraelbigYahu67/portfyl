@@ -71,7 +71,7 @@ Each session branches off the wave-1 merge commit. For visual checks it runs its
   - `humanizeCode(code: string) -> string`: `"INTEREST_ON_FREE_CASH"` → `"Interest on free cash"`
   - `pluralize(n: number, one: string, many: string) -> string`: returns the word only
 
-- [ ] **Step 1: Write the failing tests** in `format.test.js`:
+- [x] **Step 1: Write the failing tests** in `format.test.js`:
 
 ```js
 describe("locale-aware formatting", () => {
@@ -106,12 +106,12 @@ describe("locale-aware formatting", () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests and check that they fail**
+- [x] **Step 2: Run the tests and check that they fail**
 
 Run: `cd frontend && npx vitest run src/lib/format.test.js`
 Expected: FAIL. `formatTableDate`, `humanizeCode`, `pluralize` and `displayLocale` are not exported, and the CZK compact/quantity strings differ.
 
-- [ ] **Step 3: Implement the helpers in `lib/format.js`**
+- [x] **Step 3: Implement the helpers in `lib/format.js`**
 
 - `displayLocale` reads `LOCALE_BY_CURRENCY`, falling back to `en-US`.
 - `formatCompact` keeps en-US compact notation and, for CZK only, swaps the decimal point for a comma.
@@ -120,12 +120,12 @@ Expected: FAIL. `formatTableDate`, `humanizeCode`, `pluralize` and `displayLocal
 
 Existing callers keep their current output, because the new `currency` argument defaults to `"USD"`.
 
-- [ ] **Step 4: Run the tests and check that they pass**
+- [x] **Step 4: Run the tests and check that they pass**
 
 Run: `cd frontend && npx vitest run src/lib/format.test.js`
 Expected: PASS, including the existing `formatQuantity`/`formatCompact` cases.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/lib/format.js frontend/src/lib/format.test.js
@@ -151,7 +151,7 @@ git commit -m "feat(format): locale-aware compact/quantity, table dates, code la
     - `list` keeps today's behavior.
     - Quantity text: `${formatQuantity(q, currency)} ${pluralize(q, "share", "shares")}`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - In `primitives.test.jsx`:
     - `Badge renders its tone`: `render(<Badge tone="warn">Stale</Badge>)`. Expect `getByText("Stale")` to have `data-tone="warn"`.
     - `Modal closes on Escape and restores focus`: an opener button toggles `<Modal titleId="t"><h2 id="t">Add</h2><input/></Modal>`. After the click, `getByRole("dialog", { name: "Add" })` contains `document.activeElement`. After `userEvent.keyboard("{Escape}")`, `queryByRole("dialog")` is null and the opener has focus.
@@ -159,10 +159,10 @@ git commit -m "feat(format): locale-aware compact/quantity, table dates, code la
   - In `BrokerPositionSnapshot.test.jsx`:
     - `summary variant shows one line and expands`: with 22 positions, `"22 positions"` is shown and `"AAOI"` is absent until "Show positions" is clicked.
     - `uses singular share for one`: quantity 1 renders `"1 share"`.
-- [ ] **Step 2: Run** `cd frontend && npx vitest run src/components/ui/primitives.test.jsx src/components/BrokerPositionSnapshot.test.jsx`. Expected: FAIL (missing exports; `Toggle.jsx` contains `bg-slate-300`/`bg-white`).
-- [ ] **Step 3: Implement the primitives above.** Export `Badge` and `Modal` from `ui/index.js`. Add a "Badges and dialogs" paragraph to DESIGN.md §8 naming the five tones and the Modal contract.
-- [ ] **Step 4: Run** `cd frontend && npm test`. Expected: the whole suite passes (`Toggle` is shared).
-- [ ] **Step 5: Commit**
+- [x] **Step 2: Run** `cd frontend && npx vitest run src/components/ui/primitives.test.jsx src/components/BrokerPositionSnapshot.test.jsx`. Expected: FAIL (missing exports; `Toggle.jsx` contains `bg-slate-300`/`bg-white`).
+- [x] **Step 3: Implement the primitives above.** Export `Badge` and `Modal` from `ui/index.js`. Add a "Badges and dialogs" paragraph to DESIGN.md §8 naming the five tones and the Modal contract.
+- [x] **Step 4: Run** `cd frontend && npm test`. Expected: the whole suite passes (`Toggle` is shared).
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/ui frontend/src/test/legacyClasses.js frontend/src/components/BrokerPositionSnapshot*.jsx DESIGN.md
@@ -181,7 +181,7 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
 - Consumes: `SegmentedControl`, `BrokerPositionSnapshot variant="summary"`, `formatTableDate`, `formatCompact`, `legacyColorClassesIn`.
 - Produces: `export function tileLabels(w: number, h: number) -> { ticker: boolean, change: boolean, weight: boolean }`. `export function squarify(items, W, H)` is now exported for tests.
 
-- [ ] **Step 1: Write the failing tests** in `Heatmap.test.jsx`:
+- [x] **Step 1: Write the failing tests** in `Heatmap.test.jsx`:
   - `tileLabels hides labels that cannot fit at 12px`:
     - `tileLabels(30, 18)` → all false
     - `tileLabels(40, 24)` → `{ ticker: true, change: false, weight: false }`
@@ -189,20 +189,20 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
     - `tileLabels(80, 56)` → all true
   - `squarify keeps every tile inside the box`: weights `[8,8,7,6,6,5,5,4,4,4,4,4,4,3,3,3,3,3,2,2,2,1.9]` in 600×400 give `x + w ≤ 600.5` and `y + h ≤ 400.5` for every tile.
   - `uses no legacy color classes` for `./Heatmap.jsx`.
-- [ ] **Step 2: Run** `cd frontend && npx vitest run src/components/Heatmap.test.jsx`. Expected: FAIL (`tileLabels` is not exported).
-- [ ] **Step 3: Heatmap changes**
+- [x] **Step 2: Run** `cd frontend && npx vitest run src/components/Heatmap.test.jsx`. Expected: FAIL (`tileLabels` is not exported).
+- [x] **Step 3: Heatmap changes**
   - Tile text is fixed at 12px (ticker, change and weight lines) and each line is shown per `tileLabels`. Thresholds: ticker needs w ≥ 36 and h ≥ 20; change needs h ≥ 36; weight needs h ≥ 52.
   - Remove the inner `<h2>Heatmap</h2>`; the dashboard card title already names it.
   - Replace the period buttons with `<SegmentedControl size="sm" options={PERIODS.map((p) => ({ value: p.key, label: p.label }))} value={period} onChange={setPeriod} aria-label="Heatmap period" />`.
   - Make the tile container `flex-1 min-h-0` and drop the inline `minHeight: "400px"`, so the ResizeObserver lays tiles out in the height the card really gives. This removes the clipped bottom row.
   - Tile corners: `rounded-[10px]`.
-- [ ] **Step 4: Dashboard changes**
+- [x] **Step 4: Dashboard changes**
   - Render `<BrokerPositionSnapshot variant="summary">` after the hero, KPI row and attention signals instead of before them.
   - `InsiderBuysCard` dates go through `formatTableDate`, values through `formatCompact(Math.abs(b.value), b.currency)`, so `$3,483,800.00` becomes `$3.5M`.
   - Add `renders net worth before the broker snapshot` to `Dashboard.async.test.jsx`: the "Net worth" label precedes the "Trading 212 snapshot" text in document order (`compareDocumentPosition`).
-- [ ] **Step 5: Run** `cd frontend && npm test && npm run build && npm run test:cloud && npm run build:cloud`. Expected: all PASS.
-- [ ] **Step 6: Visual check** on `npx vite --port 5203 --strictPort` in Clay at 1440 and 375 wide. Expected: no clipped heatmap row, no tile text under 12px.
-- [ ] **Step 7: Commit** `git commit -m "fix(dashboard): heatmap fits its card at 12px, snapshot below hero"`
+- [x] **Step 5: Run** `cd frontend && npm test && npm run build && npm run test:cloud && npm run build:cloud`. Expected: all PASS.
+- [x] **Step 6: Visual check** on `npx vite --port 5203 --strictPort` in Clay at 1440 and 375 wide. Expected: no clipped heatmap row, no tile text under 12px.
+- [x] **Step 7: Commit** `git commit -m "fix(dashboard): heatmap fits its card at 12px, snapshot below hero"`
 
 ### Task 4: Allocation (O5, U3, U1)
 
@@ -235,22 +235,22 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
 **Interfaces:**
 - Consumes: `Modal`, `Badge`, `SegmentedControl`, `formatQuantity`, `formatTableDate`, `legacyColorClassesIn`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `Add Transaction opens as an accessible dialog`: clicking "Add" gives `getByRole("dialog", { name: "Add Transaction" })` with the Ticker input focused; Escape closes it.
   - `placeholders are marked as examples`: Ticker `"e.g. AAPL"`, Shares `"e.g. 10"`, Price `"e.g. 185.50"`.
   - `filters by transaction type`: choosing "Dividend" in the `All | Buy | Sell | Dividend` control leaves only dividend rows.
   - `type renders as a badge`: "Buy" has `data-tone="brand"`, "Sell" `data-tone="neutral"`, "Dividend" `data-tone="gain"`.
   - `uses no legacy color classes` for `./Transactions.jsx`.
-- [ ] **Step 2: Run** `cd frontend && npx vitest run src/pages/Transactions.page.test.jsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**
+- [x] **Step 2: Run** `cd frontend && npx vitest run src/pages/Transactions.page.test.jsx`. Expected: FAIL.
+- [x] **Step 3: Implement**
   - The add form renders inside `<Modal>`, with `initialFocusRef` on Ticker.
   - Placeholders as above.
   - The type filter works client-side over the fetched page.
   - Dates use `formatTableDate`, shares use `formatQuantity(t.shares, currency)`.
   - Delete hover is `hover:text-loss`.
   - Below `md`, a `<ul>` of cards replaces the table (`md:hidden` / `hidden md:block`). Each card shows ticker + type badge, then date · shares × price, then the total right-aligned. Delete and note actions keep 44px targets.
-- [ ] **Step 4: Run** `cd frontend && npm test && npm run build`. Expected: PASS.
-- [ ] **Step 5: Commit** `git commit -m "fix(transactions): accessible add dialog, type filter, badges, mobile cards"`
+- [x] **Step 4: Run** `cd frontend && npm test && npm run build`. Expected: PASS.
+- [x] **Step 5: Commit** `git commit -m "fix(transactions): accessible add dialog, type filter, badges, mobile cards"`
 
 ### Task 6: Cash (O4, F3, F4, C6, O8)
 
@@ -286,15 +286,15 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
 - Consumes: `Badge`, `formatQuantity`, `formatTableDate`, `formatMoney`, `legacyColorClassesIn`.
 - Produces: `export function czRowStatus(gain, yearsByTaxYear) -> "exempt_time" | "exempt_value" | "taxable"` in `TaxReport.jsx`. `yearsByTaxYear` maps `tax_year` to `{ value_test_passed: boolean }`, and the row's tax year is the year of `gain.sell_date`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `marks rows exempt when the sell year passed the value test`: `czRowStatus({ cz_exempt_time_test: false, sell_date: "2026-03-10" }, { 2026: { value_test_passed: true } })` → `"exempt_value"`.
   - `keeps Taxable when the sell year failed the value test`: the same row with `false` → `"taxable"`.
   - `time test wins`: `cz_exempt_time_test: true` → `"exempt_time"` whatever the year says.
   - `row badges read Exempt · 3y, Exempt · value test, Taxable`: rendered with tones gain, gain and warn.
   - `estimated annual income is shown in the display currency` (Dividends): display currency CZK, rate 21.71 and USD rows summing to 18.03 give a card showing `formatMoney(18.03 * 21.71, "CZK")` and no `"USD"` label.
   - `uses no legacy color classes` for both page files.
-- [ ] **Step 2: Run** `cd frontend && npx vitest run src/pages/TaxReport.precision.test.jsx src/pages/Dividends.trust.test.jsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**
+- [x] **Step 2: Run** `cd frontend && npx vitest run src/pages/TaxReport.precision.test.jsx src/pages/Dividends.trust.test.jsx`. Expected: FAIL.
+- [x] **Step 3: Implement**
   - TaxReport:
     - Row badges come from `czRowStatus`.
     - The Term badge becomes `Badge` (long = brand, short = neutral).
@@ -305,8 +305,8 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
   - Dividends:
     - USD estimate totals are converted with the existing `usdRate` and merged into the display currency; other currencies stay separate tiles.
     - Shares use `formatQuantity(row.shares, currency)`, dates use `formatTableDate`.
-- [ ] **Step 4: Run** `cd frontend && npm test && npm run build`. Expected: PASS.
-- [ ] **Step 5: Commit** `git commit -m "fix(tax,dividends): honest CZ badges, display-currency income, unified formats"`
+- [x] **Step 4: Run** `cd frontend && npm test && npm run build`. Expected: PASS.
+- [x] **Step 5: Commit** `git commit -m "fix(tax,dividends): honest CZ badges, display-currency income, unified formats"`
 
 ### Task 8: Analytics (F1, C2, D2, D3, O7)
 
@@ -318,12 +318,12 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
 - Consumes: `formatMoney`, `Badge`, `NEUTRAL_COLOR`, `legacyColorClassesIn`.
 - Produces: `export function correlationColor(v: number) -> string` in `lib/correlationPairs.js`. For v ≥ 0 it returns `color-mix(in srgb, var(--chart-2) P%, var(--surface-card))`; for v < 0 the same with `var(--chart-4)`. P = round(15 + 55·|v|). The caller paints the diagonal with `var(--bg-subtle)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `correlationColor scales copper with positive correlation`: `correlationColor(0.63)` contains `var(--chart-2) 50%`; `correlationColor(-0.2)` contains `var(--chart-4) 26%`.
   - `Analytics money uses the display-currency formatter`: currency CZK, rate 21.71 and a net profit of 24.25 render `formatMoney(24.25 * 21.71, "CZK")`.
   - `uses no legacy color classes` for `./Analytics.jsx`.
-- [ ] **Step 2: Run** `cd frontend && npx vitest run src/lib/correlationPairs.test.js src/pages/Analytics.decisions.test.jsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**
+- [x] **Step 2: Run** `cd frontend && npx vitest run src/lib/correlationPairs.test.js src/pages/Analytics.decisions.test.jsx`. Expected: FAIL.
+- [x] **Step 3: Implement**
   - The local `fmt` becomes `(n) => formatMoney(convert(n), currency)`.
   - Matrix cells use `correlationColor` with `rounded-[10px]`. Ticker chips become `Badge tone="neutral"` (selected = `brand`).
   - "Strongest correlations" values render in `text-ink` with a Copper dot instead of `text-loss`.
@@ -331,8 +331,8 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
   - The benchmark legend dot is `NEUTRAL_COLOR`.
   - The Net profit sub-line gets `truncate` with a `title` of the full text.
   - D2: an info icon on Net profit and Simple ROI. Its `title` states which inputs each figure includes, written from the fields this page reads from the analytics API and the fields `PortfolioHero` reads for "Total profit". Write the sentence after reading both definitions in the code, not before.
-- [ ] **Step 4: Run** `cd frontend && npm test && npm run build`. Expected: PASS.
-- [ ] **Step 5: Commit** `git commit -m "fix(analytics): one money format, organic correlation scale, Clay badges"`
+- [x] **Step 4: Run** `cd frontend && npm test && npm run build`. Expected: PASS.
+- [x] **Step 5: Commit** `git commit -m "fix(analytics): one money format, organic correlation scale, Clay badges"`
 
 ### Task 9: Import (C3)
 
@@ -340,17 +340,17 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
 - Modify: `frontend/src/pages/Import.jsx`
 - Test: `frontend/src/pages/Import.test.jsx`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `uses no legacy color classes` for `./Import.jsx`.
   - `the stepper marks the current step`: the step item "Select source" has `aria-current="step"`.
-- [ ] **Step 2: Run** `cd frontend && npx vitest run src/pages/Import.test.jsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**
+- [x] **Step 2: Run** `cd frontend && npx vitest run src/pages/Import.test.jsx`. Expected: FAIL.
+- [x] **Step 3: Implement**
   - The stepper becomes pill steps in an inset trough (`--clay-inset-sm`, `rounded-full` items). The current step is raised with `--clay-raise-sm` and brand text.
   - Broker chips become `Badge` (Trading 212 = brand, the rest neutral).
   - The dropzone hover uses `hover:border-brand`.
   - The page container widens to `max-w-5xl`, and at `xl` the "How to export" accordion sits beside the dropzone (`xl:grid-cols-2`).
-- [ ] **Step 4: Run** `cd frontend && npm test && npm run build && npm run test:cloud && npm run build:cloud`. Expected: PASS.
-- [ ] **Step 5: Commit** `git commit -m "fix(import): Clay stepper and broker badges"`
+- [x] **Step 4: Run** `cd frontend && npm test && npm run build && npm run test:cloud && npm run build:cloud`. Expected: PASS.
+- [x] **Step 5: Commit** `git commit -m "fix(import): Clay stepper and broker badges"`
 
 ### Task 10: Settings (C4, U6, U1, F4)
 
@@ -361,22 +361,22 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
 **Interfaces:**
 - Consumes: `Badge`, `SegmentedControl`, `Toggle`, `BrokerPositionSnapshot variant="summary"`, `legacyColorClassesIn`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `sync schedule mode is a segmented control`: options "Daily at" and "Every N hours" render through `SegmentedControl` (`aria-label="Sync mode"`), and no `input[type="radio"]` exists.
   - `eToro card is hidden when unavailable`: with the mocked response that today produces "The eToro connection is not available on this server yet.", no "eToro" heading renders.
   - `Clay hides appearance and accent palette`: with theme style `clay`, the "Appearance" and "Accent palette" groups are absent and "Clay uses its own light palette." is shown.
   - `privacy copy uses em dashes`: the text contains `"working — sign-in"` and no `" -- "`.
   - `uses no legacy color classes` for each of the seven modified files.
-- [ ] **Step 2: Run** `cd frontend && npx vitest run src/pages/Settings.sections.test.jsx src/components/SyncScheduleSettings.test.jsx src/components/DiscordSettings.test.jsx src/components/DataPrivacySettings.test.jsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**
+- [x] **Step 2: Run** `cd frontend && npx vitest run src/pages/Settings.sections.test.jsx src/components/SyncScheduleSettings.test.jsx src/components/DiscordSettings.test.jsx src/components/DataPrivacySettings.test.jsx`. Expected: FAIL.
+- [x] **Step 3: Implement**
   - Discord: buttons become `.btn-primary`, the status chip becomes `Badge`, and the toggle uses the default `activeClassName`. Only the logo SVG keeps its `#5865F2` fill (an attribute, not a class).
   - Connect, Disconnect and Clear portfolio become `.btn-primary` / `.btn-ghost` pills; destructive actions use `.btn-ghost text-loss`.
   - Accent palette chips become pills.
   - The inner "Analytics preferences" block becomes an inset well instead of a second raised card.
   - The connections tab uses `BrokerPositionSnapshot variant="summary"`.
   - "Connected" / "Not connected" become `Badge` gain / neutral.
-- [ ] **Step 4: Run** `cd frontend && npm test && npm run build && npm run test:cloud && npm run build:cloud`. Expected: PASS.
-- [ ] **Step 5: Commit** `git commit -m "fix(settings): Clay controls, hide unavailable options, compact snapshot"`
+- [x] **Step 4: Run** `cd frontend && npm test && npm run build && npm run test:cloud && npm run build:cloud`. Expected: PASS.
+- [x] **Step 5: Commit** `git commit -m "fix(settings): Clay controls, hide unavailable options, compact snapshot"`
 
 ### Task 11: Watchlists, Search, Screener, portfolio switcher (C5, U4, O6)
 
@@ -387,20 +387,20 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
 **Interfaces:**
 - Consumes: `SectionHeader`, `Badge`, `legacyColorClassesIn`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `price alerts render after the watchlists`: the "Price Alerts" heading follows the watchlist section in document order.
   - `search shows your holdings before typing`: with an empty query, a "Your holdings" list of up to 8 tickers links to `/stock/:ticker`.
   - `screener filters are open on first visit`: the "Universe" select is visible without clicking Filters.
   - `switcher shows the default badge on its own line`: the portfolio name and `"Default · 759 transactions"` are separate elements, and the name element is not inside the same flex row as the badge.
   - `uses no legacy color classes` for the four files.
-- [ ] **Step 2: Run** `cd frontend && npx vitest run src/pages/Watchlists.flows.test.jsx src/pages/ResearchPages.async.test.jsx src/pages/Screener.test.jsx src/components/PortfolioSwitcher.test.jsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**
+- [x] **Step 2: Run** `cd frontend && npx vitest run src/pages/Watchlists.flows.test.jsx src/pages/ResearchPages.async.test.jsx src/pages/Screener.test.jsx src/components/PortfolioSwitcher.test.jsx`. Expected: FAIL.
+- [x] **Step 3: Implement**
   - Alert inputs use `.input` and buttons `.btn-primary`. The alerts header uses `SectionHeader`, and the alerts card renders after the watchlists.
   - Search holdings reuse the portfolio-holdings query the Allocation page already uses (same query key, so no new request).
   - Screener `showFilters` starts as `true`.
   - Switcher rows: the name on line 1, "Default · N transactions" as `text-xs text-muted` on line 2.
-- [ ] **Step 4: Run** `cd frontend && npm test && npm run build && npm run test:cloud && npm run build:cloud`. Expected: PASS (the cloud build must still exclude Screener).
-- [ ] **Step 5: Commit** `git commit -m "fix(research): Clay alerts, useful empty states, readable switcher"`
+- [x] **Step 4: Run** `cd frontend && npm test && npm run build && npm run test:cloud && npm run build:cloud`. Expected: PASS (the cloud build must still exclude Screener).
+- [x] **Step 5: Commit** `git commit -m "fix(research): Clay alerts, useful empty states, readable switcher"`
 
 ---
 
@@ -463,21 +463,21 @@ git commit -m "feat(ui): Clay Badge, accessible Modal, clay Toggle, compact snap
 **Interfaces:**
 - Consumes: `Badge`, `KpiBox`, `formatTableDate`, `legacyColorClassesIn`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `About is clamped with a toggle`: the description has `line-clamp-3`, and a "Show more" button removes it.
   - `insider rows without a price show a dash`: a type OTHER row with price 0 shows "—" in Price and Value.
   - `insider dates use table format`: `"2026-10-13"` renders as `formatTableDate("2026-10-13")`.
   - `filings are sorted newest first and explain form types`: rows are in descending date order. Titles: `10-K` = "Annual report", `10-Q` = "Quarterly report", `8-K` = "Current report", `4` = "Insider transaction".
   - `StockDetail.jsx uses no legacy color classes`: `legacyColorClassesIn(new URL("./StockDetail.jsx", import.meta.url))` → `[]`. This closes C1 for the whole file, including leftovers from Tasks 12–13.
-- [ ] **Step 2: Run** `cd frontend && npx vitest run src/components/StockDetail.insiderPagination.test.jsx src/components/stock/StockOverviewTab.test.jsx src/components/StockDetail.clay.test.jsx`. Expected: FAIL.
-- [ ] **Step 3: Implement**
+- [x] **Step 2: Run** `cd frontend && npx vitest run src/components/StockDetail.insiderPagination.test.jsx src/components/stock/StockOverviewTab.test.jsx src/components/StockDetail.clay.test.jsx`. Expected: FAIL.
+- [x] **Step 3: Implement**
   - `Chip` tones become `Badge`; `TypeFilterChips` become pill toggles (active = raised with brand text).
   - The earnings BEAT/MISS chip in `EarningsRecapSection` becomes `Badge` gain/loss (moved here from Task 12).
   - Drop the full-row red tint on insider sells; the badge carries the meaning.
   - Ownership and insider panels become `.card`, with nested KPI tiles as `KpiBox` inset wells.
   - Every remaining `bg-*-500` / `text-*-700` class becomes a token.
-- [ ] **Step 4: Run** `cd frontend && npm test && npm run build`. Expected: PASS.
-- [ ] **Step 5: Commit** `git commit -m "fix(stock): Clay ownership/insider/filings, clamped About"`
+- [x] **Step 4: Run** `cd frontend && npm test && npm run build`. Expected: PASS.
+- [x] **Step 5: Commit** `git commit -m "fix(stock): Clay ownership/insider/filings, clamped About"`
 
 ---
 

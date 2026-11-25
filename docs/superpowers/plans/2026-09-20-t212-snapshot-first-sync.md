@@ -959,27 +959,27 @@ run discovery, polling, retry, and final invalidation.
 
 ### Task 1: Lock contracts and provider mappings
 
-- [ ] Add fixtures for summary, positions, multi-fill orders, corporate-action
+- [x] Add fixtures for summary, positions, multi-fill orders, corporate-action
       fills, dividends, and cash transactions.
-- [ ] Lock current CSV/API overlap and unseen-ticker behavior with tests.
-- [ ] Specify exact wallet FX orientation and dividend field mapping.
-- [ ] Specify every `/history/transactions` type; unresolved `TRANSFER` or
+- [x] Lock current CSV/API overlap and unseen-ticker behavior with tests.
+- [x] Specify exact wallet FX orientation and dividend field mapping.
+- [x] Specify every `/history/transactions` type; unresolved `TRANSFER` or
       unknown types must enter `needs_review`, never silent classification.
 - [x] Specify deterministic keyed account fingerprinting and the fail-closed
       legacy-connection migration.
-- [ ] Document provider-labelled automatic transformations versus inferred
+- [x] Document provider-labelled automatic transformations versus inferred
       actions requiring review.
 
 ### Task 2: Ship the fast snapshot
 
-- [ ] Add `BrokerPosition`, expanded `BrokerBalance`, connection snapshot state,
+- [x] Add `BrokerPosition`, expanded `BrokerBalance`, connection snapshot state,
       migration, grants, RLS, cascade, export, and tenant tests.
 - [x] Persist portfolio-level account fingerprint binding and define disconnect
       cleanup without erasing ledger identity.
-- [ ] Fetch summary and positions concurrently and replace snapshots atomically.
-- [ ] Migrate holdings to the stable envelope and summary to explicit nullable
+- [x] Fetch summary and positions concurrently and replace snapshots atomically.
+- [x] Migrate holdings to the stable envelope and summary to explicit nullable
       history fields, exact units, conversion, and component-level sources.
-- [ ] Update all callers and verify 25-hour stale/degraded behavior.
+- [x] Update all callers and verify 25-hour stale/degraded behavior.
 
 ### Task 3: Add resumable history runs
 

@@ -130,7 +130,7 @@ Legal + docs (Task 4), screenshots (Task 5), verification (Task 6): listed in th
 - Produces, in `backend/models.py`: `TrialGrant(id, public_id, workspace_id unique, started_at, ends_at)` with check `ends_at > started_at`; `TrialIdentity(fingerprint primary key, granted_at)`.
 - Produces: `EffectiveEntitlements.source == "trial"` with `effective_until == ends_at`.
 
-- [ ] **Step 1: Write failing tests in `backend/tests/test_trials.py`**
+- [x] **Step 1: Write failing tests in `backend/tests/test_trials.py`**
   - `test_new_workspace_gets_ten_day_pro_trial`: after `grant_trial(..., now=T)`, `resolve_entitlements` returns `plan == PlanTier.PRO`, `source == "trial"`, `effective_until == T + 10 days`.
   - `test_trial_expires_to_free`: at `T + 10 days + 1s` → `plan == FREE`, `source == "free"`.
   - `test_second_grant_for_same_email_returns_none`: second `grant_trial` with `" Alice@Example.com "` after one for `"alice@example.com"` returns `None` and creates no `TrialGrant`.
@@ -140,17 +140,17 @@ Legal + docs (Task 4), screenshots (Task 5), verification (Task 6): listed in th
   - `test_trial_days_zero_grants_nothing` and `test_missing_fingerprint_key_fails_closed`.
   - `test_expired_trial_keeps_overflow_rows_read_only`: 40 positions and 2 broker connections created during the trial; after expiry `ensure_final_count_limit` rejects an increase, allows a decrease, and no row is deleted.
   - `test_purge_removes_only_identities_older_than_365_days`.
-- [ ] **Step 2: Add to `backend/tests/test_entitlements.py`**
+- [x] **Step 2: Add to `backend/tests/test_entitlements.py`**
   - `test_live_subscription_wins_over_trial` (Investor subscription + active trial → `investor`, `source == "subscription"`).
   - `test_test_selection_wins_over_trial_when_billing_off` and `test_trial_wins_over_free_when_billing_on`.
   - `test_local_edition_ignores_trial`.
-- [ ] **Step 3: Run** `cd backend && python -m pytest tests/test_trials.py tests/test_entitlements.py -v` → new tests FAIL (module missing).
-- [ ] **Step 4: Migration `0027_free_trial.py`** (revises `0026_broker_requests`). `trial_grants`: copy the RLS, policy and grant statements used for the tenant table in `0026_broker_requests.py`. `trial_identities`, `trial_ip_marks`, `trial_broker_marks`: no RLS, grants as for `beta_invites` in `0013_private_beta_invites.py`; `trial_broker_marks.workspace_id` references `workspaces.id` with `ON DELETE SET NULL`. Set `EXPECTED_ALEMBIC_HEAD = "0027_free_trial"`.
-- [ ] **Step 5: Implement `backend/trials.py` and the models.** `grant_trial` inserts the identity with `ON CONFLICT DO NOTHING` (PostgreSQL) and creates the grant only when a row was inserted; on SQLite use select-then-insert.
-- [ ] **Step 6: Wire it in.** `entitlements.resolve_entitlements`: order from "Trial rules" item 4. `routers/auth.py::_provision_identity`: call `grant_trial` after the membership flush, cloud edition only, same transaction. `jobs.py`: call `purge_old_identities` in the existing daily pass. `account_deletion.py` and the export: include `trial_grants`; keep `trial_identities`.
-- [ ] **Step 7: PostgreSQL test `backend/tests/postgres/test_trial_rls.py`**: Alice cannot read or insert Bob's `trial_grants` row; the runtime role can insert into `trial_identities`. Add the table to `docs/security/tenant-isolation-matrix.md`.
-- [ ] **Step 8: Run** the fast suite and `python -m pytest tests/postgres/ -v`; `alembic heads` prints exactly `0027_free_trial`. All PASS.
-- [ ] **Step 9: Document** `PORTFYL_TRIAL_DAYS` and `PORTFYL_TRIAL_FINGERPRINT_KEY` (Secret Manager) in `deploy/cloudrun.md`. Commit: `feat(billing): 10-day Pro trial for new workspaces`.
+- [x] **Step 3: Run** `cd backend && python -m pytest tests/test_trials.py tests/test_entitlements.py -v` → new tests FAIL (module missing).
+- [x] **Step 4: Migration `0027_free_trial.py`** (revises `0026_broker_requests`). `trial_grants`: copy the RLS, policy and grant statements used for the tenant table in `0026_broker_requests.py`. `trial_identities`, `trial_ip_marks`, `trial_broker_marks`: no RLS, grants as for `beta_invites` in `0013_private_beta_invites.py`; `trial_broker_marks.workspace_id` references `workspaces.id` with `ON DELETE SET NULL`. Set `EXPECTED_ALEMBIC_HEAD = "0027_free_trial"`.
+- [x] **Step 5: Implement `backend/trials.py` and the models.** `grant_trial` inserts the identity with `ON CONFLICT DO NOTHING` (PostgreSQL) and creates the grant only when a row was inserted; on SQLite use select-then-insert.
+- [x] **Step 6: Wire it in.** `entitlements.resolve_entitlements`: order from "Trial rules" item 4. `routers/auth.py::_provision_identity`: call `grant_trial` after the membership flush, cloud edition only, same transaction. `jobs.py`: call `purge_old_identities` in the existing daily pass. `account_deletion.py` and the export: include `trial_grants`; keep `trial_identities`.
+- [x] **Step 7: PostgreSQL test `backend/tests/postgres/test_trial_rls.py`**: Alice cannot read or insert Bob's `trial_grants` row; the runtime role can insert into `trial_identities`. Add the table to `docs/security/tenant-isolation-matrix.md`.
+- [x] **Step 8: Run** the fast suite and `python -m pytest tests/postgres/ -v`; `alembic heads` prints exactly `0027_free_trial`. All PASS.
+- [x] **Step 9: Document** `PORTFYL_TRIAL_DAYS` and `PORTFYL_TRIAL_FINGERPRINT_KEY` (Secret Manager) in `deploy/cloudrun.md`. Commit: `feat(billing): 10-day Pro trial for new workspaces`.
 
 ### Task 1b: Broker check
 
@@ -160,10 +160,10 @@ Legal + docs (Task 4), screenshots (Task 5), verification (Task 6): listed in th
 - Produces in `backend/trials.py`: `record_broker_marks(db, *, workspace_id, account_fingerprints: list[str], oldest_event_keys: list[tuple[str, str, str]], now, env) -> str | None`. Returns the `ended_reason` when it ended the trial, else `None`. Does nothing when the workspace has no active trial.
 - Produces in the payload: `trial_ended_reason` ("Trial rules" item 11). Task 3 consumes it.
 
-- [ ] **Step 1: Check eToro.** Read the eToro API client in `backend/` and the eToro API docs for a stable account or customer id. Write the finding into "Trial rules" item 11. No id → eToro uses the history fingerprint.
-- [ ] **Step 2: Failing tests `backend/tests/test_trial_broker_check.py`**: the three cases from "Review Focus" item 3; the same workspace re-importing its own file ends nothing; a mark whose workspace was deleted (`workspace_id NULL`) still ends a new trial; a workspace without an active trial records nothing; 2 of 5 history matches end nothing, 3 of 5 do; the audit event carries no account number.
-- [ ] **Step 3: Implement** `record_broker_marks` (it takes ready fingerprints from `account_identity.account_fingerprint`, never raw ids or API keys); make `ibkr_flex.py` return account ids next to the rows; call `record_broker_marks` after the rows are written in the import commit, the IBKR Flex sync and the eToro sync, and in `routers/broker.py` where a Trading 212 live connection is saved (the fingerprint is already computed there), inside the same transaction. Extra test: a second workspace connecting the same Trading 212 live account with a newly generated API key ends its trial; a `demo` connection ends nothing.
-- [ ] **Step 4: Run** the fast suite and the PostgreSQL suite. Commit `feat(billing): end a repeat trial on a known broker account`.
+- [x] **Step 1: Check eToro.** Read the eToro API client in `backend/` and the eToro API docs for a stable account or customer id. Write the finding into "Trial rules" item 11. No id → eToro uses the history fingerprint.
+- [x] **Step 2: Failing tests `backend/tests/test_trial_broker_check.py`**: the three cases from "Review Focus" item 3; the same workspace re-importing its own file ends nothing; a mark whose workspace was deleted (`workspace_id NULL`) still ends a new trial; a workspace without an active trial records nothing; 2 of 5 history matches end nothing, 3 of 5 do; the audit event carries no account number.
+- [x] **Step 3: Implement** `record_broker_marks` (it takes ready fingerprints from `account_identity.account_fingerprint`, never raw ids or API keys); make `ibkr_flex.py` return account ids next to the rows; call `record_broker_marks` after the rows are written in the import commit, the IBKR Flex sync and the eToro sync, and in `routers/broker.py` where a Trading 212 live connection is saved (the fingerprint is already computed there), inside the same transaction. Extra test: a second workspace connecting the same Trading 212 live account with a newly generated API key ends its trial; a `demo` connection ends nothing.
+- [x] **Step 4: Run** the fast suite and the PostgreSQL suite. Commit `feat(billing): end a repeat trial on a known broker account`.
 
 ### Task 1c: Bot check (Cloudflare Turnstile)
 
@@ -185,7 +185,7 @@ Legal + docs (Task 4), screenshots (Task 5), verification (Task 6): listed in th
 - Produces in `clayStyle.js`: token `--landing-paper` (`#FAF5ED`), used as the page background; bands use `--bg`.
 - Consumes: `registerUrl` from `lib/signupIntent.js`, `VITE_PUBLIC_SIGNUP`.
 
-- [ ] **Step 1: Rewrite `Welcome.test.jsx` first (failing).** For each of `cs`, `en`, `de`:
+- [x] **Step 1: Rewrite `Welcome.test.jsx` first (failing).** For each of `cs`, `en`, `de`:
   - one `h1`; header nav has exactly four in-page links targeting `#funkce`, `#brokeri`, `#cenik`, `#otazky`, and those ids exist;
   - a "Log in" link points to `${APP_ORIGIN}/login`;
   - with `signupOpen` false: no `a[href*="/register"]`, primary button links to `/demo`, the beta status line is present;
@@ -194,12 +194,12 @@ Legal + docs (Task 4), screenshots (Task 5), verification (Task 6): listed in th
   - no element has class `welcome-eyebrow`, `welcome-orbit` or `welcome-float`;
   - copy contains none of: "Tax", "Daň", "Steuer", "Screener", "Options", "Polymarket";
   - existing behaviour kept: language links, language suggestion, demo click analytics (`landing_hero`, `landing_closing`), legal links.
-- [ ] **Step 2: Run** `cd frontend && npm test -- Welcome` → FAIL.
-- [ ] **Step 3: Rewrite `welcomeCopy.js`.** Keep keys used by `publicPages.js` (`title`). Czech text is fixed by the mockup; write `en` and `de` to the same meaning, plain sentences, no slogan pairs. New keys: `nav` (4), `login`, `status`, `heading` (string), `lead`, `trialCta`, `trialNote` ("10 dní plánu Pro zdarma. Bez platební karty."), `demoCta`, `demoNote`, `brokers { api, file, missing }`, `features` (3 with screenshots + 2 text), `steps` (3), `dataFacts` (3), `pricing { heading, note, trial, plans[3] }`, `questions` (5, adding "Co se stane po 10 dnech?" → "Účet přejde na plán Free. Data zůstanou, jen nad limit Free budou pouze ke čtení."), `closing`, `footer`.
-- [ ] **Step 4: Build the section components and `Welcome.jsx`.** One component per section from "Design decisions" item 4; `BrokerList` renders the two groups from `lib/onboardingBrokers.js` (API vs. file) and `BrokerCheck` below them. The data fact "you can delete your account and data any time" is included only after confirming `account_deletion.py` is reachable from Settings; otherwise drop that line.
-- [ ] **Step 5: Rewrite `Welcome.css`** from the mockup's stylesheet, with tokens instead of literals. Delete every rule for removed classes. Respect `prefers-reduced-motion`; focus ring 3px `--brand`.
-- [ ] **Step 6: Run** `npm test`, `npm run test:cloud`, `npm run build`, `npm run build:cloud`. Confirm `dist/prerendered/` has the three pages and that with `VITE_PUBLIC_SIGNUP` unset `grep -c "/register" dist/prerendered/index.html` is `0`.
-- [ ] **Step 7: Commit** `feat(landing): flat fact-first landing page`.
+- [x] **Step 2: Run** `cd frontend && npm test -- Welcome` → FAIL.
+- [x] **Step 3: Rewrite `welcomeCopy.js`.** Keep keys used by `publicPages.js` (`title`). Czech text is fixed by the mockup; write `en` and `de` to the same meaning, plain sentences, no slogan pairs. New keys: `nav` (4), `login`, `status`, `heading` (string), `lead`, `trialCta`, `trialNote` ("10 dní plánu Pro zdarma. Bez platební karty."), `demoCta`, `demoNote`, `brokers { api, file, missing }`, `features` (3 with screenshots + 2 text), `steps` (3), `dataFacts` (3), `pricing { heading, note, trial, plans[3] }`, `questions` (5, adding "Co se stane po 10 dnech?" → "Účet přejde na plán Free. Data zůstanou, jen nad limit Free budou pouze ke čtení."), `closing`, `footer`.
+- [x] **Step 4: Build the section components and `Welcome.jsx`.** One component per section from "Design decisions" item 4; `BrokerList` renders the two groups from `lib/onboardingBrokers.js` (API vs. file) and `BrokerCheck` below them. The data fact "you can delete your account and data any time" is included only after confirming `account_deletion.py` is reachable from Settings; otherwise drop that line.
+- [x] **Step 5: Rewrite `Welcome.css`** from the mockup's stylesheet, with tokens instead of literals. Delete every rule for removed classes. Respect `prefers-reduced-motion`; focus ring 3px `--brand`.
+- [x] **Step 6: Run** `npm test`, `npm run test:cloud`, `npm run build`, `npm run build:cloud`. Confirm `dist/prerendered/` has the three pages and that with `VITE_PUBLIC_SIGNUP` unset `grep -c "/register" dist/prerendered/index.html` is `0`.
+- [x] **Step 7: Commit** `feat(landing): flat fact-first landing page`.
 
 ### Task 3: Trial in the app
 

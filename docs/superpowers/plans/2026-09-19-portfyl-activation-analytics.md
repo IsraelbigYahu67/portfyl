@@ -56,18 +56,18 @@
 - `sanitizeEvent(name, properties, { strict = import.meta.env.DEV || import.meta.env.MODE === "test" } = {})` returns `{ name, properties }` or `null` in non-strict mode.
 - Every string is trimmed and capped at 80 characters; UTM values are capped at 120. Numbers must be finite integers within their event-specific range.
 
-- [ ] Run `cd frontend; npm install posthog-js --save` and confirm only `package.json`/lock dependency changes.
-- [ ] Write table-driven tests for all 12 event names and every allowed property.
-- [ ] Test that unknown event names, unknown properties, objects, arrays, non-finite numbers, and overlong values throw in strict mode.
-- [ ] Test that unknown event names and invalid allowed-property values return `null` in `{ strict: false }`; unknown property names are removed while valid allowed properties remain.
-- [ ] Add enum tests: `source_type` is only `demo|csv|broker`; `creation_path` is only `blank|demo|csv|broker`; `source_surface` is only `landing_hero|landing_closing|demo|direct`; `entry_point` is only `landing_hero|landing_closing|direct`; `demo_page` is only `overview|allocation|analytics|dividends|stock`; `activation_path` is only `three_pages|stock_after_page`; languages are `cs|en|de`; `distinct_demo_pages` is integer 2–5.
-- [ ] Add source-safety tests that stringify the contract module and reject forbidden property words: `email`, `display_name`, `workspace_name`, `portfolio_id`, `balance`, `amount`, `holdings`, `transactions`.
-- [ ] Run `npm test -- --run src/analytics/eventContract.test.js` and confirm failure because the module is absent.
-- [ ] Implement the frozen schema as property validator functions; do not accept arbitrary property spreading at any layer.
-- [ ] For `landing_viewed`, normalize referrer to one of `direct|search|social|referral|internal|unknown`; never retain the raw referrer URL.
-- [ ] For UTM values, accept only the three named keys read from the current landing URL, remove them after sanitization, and never send the entire URL/search string.
-- [ ] Re-run the focused tests and expect pass.
-- [ ] Commit:
+- [x] Run `cd frontend; npm install posthog-js --save` and confirm only `package.json`/lock dependency changes.
+- [x] Write table-driven tests for all 12 event names and every allowed property.
+- [x] Test that unknown event names, unknown properties, objects, arrays, non-finite numbers, and overlong values throw in strict mode.
+- [x] Test that unknown event names and invalid allowed-property values return `null` in `{ strict: false }`; unknown property names are removed while valid allowed properties remain.
+- [x] Add enum tests: `source_type` is only `demo|csv|broker`; `creation_path` is only `blank|demo|csv|broker`; `source_surface` is only `landing_hero|landing_closing|demo|direct`; `entry_point` is only `landing_hero|landing_closing|direct`; `demo_page` is only `overview|allocation|analytics|dividends|stock`; `activation_path` is only `three_pages|stock_after_page`; languages are `cs|en|de`; `distinct_demo_pages` is integer 2–5.
+- [x] Add source-safety tests that stringify the contract module and reject forbidden property words: `email`, `display_name`, `workspace_name`, `portfolio_id`, `balance`, `amount`, `holdings`, `transactions`.
+- [x] Run `npm test -- --run src/analytics/eventContract.test.js` and confirm failure because the module is absent.
+- [x] Implement the frozen schema as property validator functions; do not accept arbitrary property spreading at any layer.
+- [x] For `landing_viewed`, normalize referrer to one of `direct|search|social|referral|internal|unknown`; never retain the raw referrer URL.
+- [x] For UTM values, accept only the three named keys read from the current landing URL, remove them after sanitization, and never send the entire URL/search string.
+- [x] Re-run the focused tests and expect pass.
+- [x] Commit:
 
 ```powershell
 git add frontend/package.json frontend/package-lock.json frontend/src/analytics/eventContract.js frontend/src/analytics/eventContract.test.js
@@ -90,9 +90,9 @@ git commit -m "feat: add strict activation event contract"
 - `createNoopAdapter()`, `createMemoryAdapter()`, and `loadPostHogAdapter(config)` expose async `init`, `capture`, `identify`, `reset`, and `shutdown` methods.
 - `loadPostHogAdapter` is the only module allowed to contain `import("posthog-js")`.
 
-- [ ] Write consent tests using a document-cookie shim for missing/invalid cookies, accepted/rejected round trips, production domain attributes, localhost attributes, and clearing the choice.
-- [ ] Write client tests with an injected `importPostHog` spy proving pending never imports, accepted/rejected import once, missing key returns no-op, and import/init/capture failures resolve without throwing.
-- [ ] Assert accepted config exactly includes:
+- [x] Write consent tests using a document-cookie shim for missing/invalid cookies, accepted/rejected round trips, production domain attributes, localhost attributes, and clearing the choice.
+- [x] Write client tests with an injected `importPostHog` spy proving pending never imports, accepted/rejected import once, missing key returns no-op, and import/init/capture failures resolve without throwing.
+- [x] Assert accepted config exactly includes:
 
 ```js
 {
@@ -110,15 +110,15 @@ git commit -m "feat: add strict activation event contract"
 }
 ```
 
-- [ ] Assert rejected config changes `persistence` to `memory`, never calls `identify`, and invokes PostHog's explicit rejection/opt-out method after init so `on_reject` enters cookieless capture.
-- [ ] Assert no config enables surveys, heatmaps, exception capture, text capture, or session recording.
-- [ ] Test the memory adapter's ordered event log, identified ID, reset count, and `clear()` helper.
-- [ ] Run both focused test files and confirm failure.
-- [ ] Implement cookie parsing/writing without localStorage fallback. The consent preference cookie is essential preference storage; no PostHog cookie/localStorage entry may exist in rejected mode.
-- [ ] Implement `loadPostHogAdapter` with dependency injection for tests and a production dynamic import. Pass only the public project key and validated EU host.
-- [ ] Wrap every adapter operation in `try/catch`; return `false` on adapter failure and never log event properties or user IDs.
-- [ ] Re-run focused tests and expect pass.
-- [ ] Commit:
+- [x] Assert rejected config changes `persistence` to `memory`, never calls `identify`, and invokes PostHog's explicit rejection/opt-out method after init so `on_reject` enters cookieless capture.
+- [x] Assert no config enables surveys, heatmaps, exception capture, text capture, or session recording.
+- [x] Test the memory adapter's ordered event log, identified ID, reset count, and `clear()` helper.
+- [x] Run both focused test files and confirm failure.
+- [x] Implement cookie parsing/writing without localStorage fallback. The consent preference cookie is essential preference storage; no PostHog cookie/localStorage entry may exist in rejected mode.
+- [x] Implement `loadPostHogAdapter` with dependency injection for tests and a production dynamic import. Pass only the public project key and validated EU host.
+- [x] Wrap every adapter operation in `try/catch`; return `false` on adapter failure and never log event properties or user IDs.
+- [x] Re-run focused tests and expect pass.
+- [x] Commit:
 
 ```powershell
 git add frontend/src/analytics/consent.js frontend/src/analytics/consent.test.js frontend/src/analytics/analyticsClient.js frontend/src/analytics/analyticsClient.test.js
@@ -153,18 +153,18 @@ const {
 - `captureOnce(scope, event, props)` uses an in-memory Set for rejected mode and a localStorage key only in accepted mode. The scope may contain opaque IDs locally but is never included in event properties.
 - Pending captures are dropped, not queued for later replay.
 
-- [ ] Write provider tests with an injected memory adapter factory for all three initial consent states.
-- [ ] Prove pending renders children/banner but records no events and initializes no adapter; accepting/rejecting initializes exactly one adapter and future captures work.
-- [ ] Prove changing accepted → rejected calls `shutdown/reset`, removes PostHog persistence via adapter reset, reinitializes cookieless, and preserves only the consent preference cookie.
-- [ ] Prove `captureOnce` deduplicates by scope/event, a different scope captures, and `reset` clears only in-memory identity state, not the consent choice.
-- [ ] Test Czech, English, and German banner text, separate essential/optional explanation, equally accessible Accept/Reject actions, visible keyboard focus, and preferences reopening.
-- [ ] Run focused provider and DataPrivacySettings tests; confirm failure.
-- [ ] Implement provider initialization in an effect keyed by consent/key/host. Cancel stale async initialization on consent changes and call adapter shutdown during cleanup.
-- [ ] Read `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST`; accept only `https://eu.i.posthog.com` in production. Missing/invalid config uses no-op with `ready=true` after a decision.
-- [ ] Wrap the entire Root output in `AnalyticsProvider`, outside the Welcome/Demo/Tracker selection and outside AuthProvider. Do not move Firebase/auth into Root.
-- [ ] Render `ConsentBanner` from the provider only while pending. Add `AnalyticsPreferences` access from Welcome footer, DemoShell, and the existing authenticated Data & Privacy settings section.
-- [ ] Add exact localized meaning: essential storage keeps Portfyl working; optional analytics measures anonymous product use; rejecting does not reduce functionality; preference can be changed later.
-- [ ] Run:
+- [x] Write provider tests with an injected memory adapter factory for all three initial consent states.
+- [x] Prove pending renders children/banner but records no events and initializes no adapter; accepting/rejecting initializes exactly one adapter and future captures work.
+- [x] Prove changing accepted → rejected calls `shutdown/reset`, removes PostHog persistence via adapter reset, reinitializes cookieless, and preserves only the consent preference cookie.
+- [x] Prove `captureOnce` deduplicates by scope/event, a different scope captures, and `reset` clears only in-memory identity state, not the consent choice.
+- [x] Test Czech, English, and German banner text, separate essential/optional explanation, equally accessible Accept/Reject actions, visible keyboard focus, and preferences reopening.
+- [x] Run focused provider and DataPrivacySettings tests; confirm failure.
+- [x] Implement provider initialization in an effect keyed by consent/key/host. Cancel stale async initialization on consent changes and call adapter shutdown during cleanup.
+- [x] Read `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST`; accept only `https://eu.i.posthog.com` in production. Missing/invalid config uses no-op with `ready=true` after a decision.
+- [x] Wrap the entire Root output in `AnalyticsProvider`, outside the Welcome/Demo/Tracker selection and outside AuthProvider. Do not move Firebase/auth into Root.
+- [x] Render `ConsentBanner` from the provider only while pending. Add `AnalyticsPreferences` access from Welcome footer, DemoShell, and the existing authenticated Data & Privacy settings section.
+- [x] Add exact localized meaning: essential storage keeps Portfyl working; optional analytics measures anonymous product use; rejecting does not reduce functionality; preference can be changed later.
+- [x] Run:
 
 ```powershell
 cd frontend
@@ -173,7 +173,7 @@ npm run test:cloud -- --run src/analytics/AnalyticsProvider.test.jsx src/compone
 ```
 
   Expect pass in both editions.
-- [ ] Commit:
+- [x] Commit:
 
 ```powershell
 git add frontend/src/analytics frontend/src/Root.jsx frontend/src/pages/Welcome.jsx frontend/src/demo/DemoShell.jsx frontend/src/components/DataPrivacySettings.jsx frontend/src/components/DataPrivacySettings.test.jsx
@@ -197,16 +197,16 @@ git commit -m "feat: add global analytics consent controls"
 
 **Route mapping:** `/demo` → `overview`; `/demo/allocation` → `allocation`; `/demo/analytics` → `analytics`; `/demo/dividends` → `dividends`; valid stock route → `stock`.
 
-- [ ] Test the hook with a memory adapter: duplicate routes do not increase the distinct count; overview→allocation→analytics emits `three_pages`; overview→stock emits `stock_after_page`; stock first does not activate; invalid stock does not emit; each session emits once.
-- [ ] Assert `demo_stock_viewed.demo_symbol` accepts only the ten synthetic demo symbols. This is the only ticker-like analytics field and cannot receive real portfolio symbols.
-- [ ] Add landing tests for one `landing_viewed` after analytics is ready and one `demo_started` with `entry_point="landing_hero"` when the hero demo CTA is clicked.
-- [ ] Add demo shell tests for `demo_started` with `entry_point="direct"` when no landing marker exists, per-route `demo_page_viewed`, stock event, and registration CTA event `signup_cta_clicked { source_surface: "demo", language }`.
-- [ ] Run focused tests and confirm failure.
-- [ ] Implement `useDemoAnalytics({ page, symbol, language })` using route effects and provider `captureOnce`. Keep visited-page state in a hook ref owned by the mounted DemoApp; do not write visited pages to browser storage and never inspect real portfolio data.
-- [ ] On an unmodified same-tab landing CTA click, capture `demo_started` with `captureOnce("public-demo-session", ...)`, use `history.pushState` to `/demo`, and dispatch `popstate` so Root swaps bundles without a reload. Preserve the normal anchor `href="/demo"`; modified clicks and open-in-new-tab remain native navigation and the demo records `entry_point="direct"`. The demo calls the same `captureOnce` scope, preventing a duplicate during same-tab navigation.
-- [ ] Read only the initial landing UTM keys, sanitize through the contract, capture, then use `history.replaceState` to remove those UTM parameters while preserving other app-safe navigation state. Never capture raw referrer or URL.
-- [ ] Instrument CTA click before navigation. If analytics is unavailable, navigation proceeds immediately.
-- [ ] Run:
+- [x] Test the hook with a memory adapter: duplicate routes do not increase the distinct count; overview→allocation→analytics emits `three_pages`; overview→stock emits `stock_after_page`; stock first does not activate; invalid stock does not emit; each session emits once.
+- [x] Assert `demo_stock_viewed.demo_symbol` accepts only the ten synthetic demo symbols. This is the only ticker-like analytics field and cannot receive real portfolio symbols.
+- [x] Add landing tests for one `landing_viewed` after analytics is ready and one `demo_started` with `entry_point="landing_hero"` when the hero demo CTA is clicked.
+- [x] Add demo shell tests for `demo_started` with `entry_point="direct"` when no landing marker exists, per-route `demo_page_viewed`, stock event, and registration CTA event `signup_cta_clicked { source_surface: "demo", language }`.
+- [x] Run focused tests and confirm failure.
+- [x] Implement `useDemoAnalytics({ page, symbol, language })` using route effects and provider `captureOnce`. Keep visited-page state in a hook ref owned by the mounted DemoApp; do not write visited pages to browser storage and never inspect real portfolio data.
+- [x] On an unmodified same-tab landing CTA click, capture `demo_started` with `captureOnce("public-demo-session", ...)`, use `history.pushState` to `/demo`, and dispatch `popstate` so Root swaps bundles without a reload. Preserve the normal anchor `href="/demo"`; modified clicks and open-in-new-tab remain native navigation and the demo records `entry_point="direct"`. The demo calls the same `captureOnce` scope, preventing a duplicate during same-tab navigation.
+- [x] Read only the initial landing UTM keys, sanitize through the contract, capture, then use `history.replaceState` to remove those UTM parameters while preserving other app-safe navigation state. Never capture raw referrer or URL.
+- [x] Instrument CTA click before navigation. If analytics is unavailable, navigation proceeds immediately.
+- [x] Run:
 
 ```powershell
 cd frontend
@@ -214,7 +214,7 @@ npm run test:cloud -- --run src/analytics/useDemoAnalytics.test.jsx src/pages/We
 ```
 
   Expect pass.
-- [ ] Commit:
+- [x] Commit:
 
 ```powershell
 git add frontend/src/analytics/useDemoAnalytics.js frontend/src/analytics/useDemoAnalytics.test.jsx frontend/src/pages/Welcome.jsx frontend/src/pages/Welcome.test.jsx frontend/src/demo/DemoApp.jsx frontend/src/demo/DemoApp.test.jsx frontend/src/demo/pages/DemoStock.jsx frontend/src/demo/pages/DemoStock.test.jsx
@@ -237,16 +237,16 @@ git commit -m "feat: measure public demo activation"
 - Never identify cookieless/rejected traffic.
 - Explicit logout/logout-all resets analytics. Workspace switch resets the anonymous adapter state and re-identifies the same opaque user after the switch; workspace ID is not sent.
 
-- [ ] Extend AuthProvider tests with a mocked `useAnalytics`: accepted account load identifies once with only user ID; rejected/pending does not identify; consent accepted after account load identifies; logout/logout-all reset; workspace switch reset then identify.
-- [ ] Add a negative assertion that serialized analytics mock calls contain neither `email`, `display_name`, workspace name, workspace ID, nor Firebase fields.
-- [ ] Extend Register tests: route mount captures `signup_started` with source `demo` only when `?source=demo`; direct visits use `source_surface="direct"`; successful Firebase registration captures `signup_completed` before navigating to verification; failed registration does not capture completion.
-- [ ] Run the two focused test files and confirm failure.
-- [ ] Consume `useAnalytics` inside AuthProvider. Add an effect watching `ready`, `consent`, `user?.id`, and `currentWorkspace?.id`; the workspace ID may be a local effect dependency/scope but must not be an identify property.
-- [ ] Call analytics reset in `clearAccount` only for explicit logout/logout-all/account transition. Do not reset merely because the initial `/me` request says unauthenticated; preserving a consented landing identity is required to join signup.
-- [ ] In Register, derive source from a strict allowlist (`demo` or `direct`) and never forward arbitrary query parameters.
-- [ ] Capture completion only after Firebase user creation succeeds and before verification navigation. Do not include e-mail or Firebase UID.
-- [ ] Re-run focused tests and expect pass.
-- [ ] Commit:
+- [x] Extend AuthProvider tests with a mocked `useAnalytics`: accepted account load identifies once with only user ID; rejected/pending does not identify; consent accepted after account load identifies; logout/logout-all reset; workspace switch reset then identify.
+- [x] Add a negative assertion that serialized analytics mock calls contain neither `email`, `display_name`, workspace name, workspace ID, nor Firebase fields.
+- [x] Extend Register tests: route mount captures `signup_started` with source `demo` only when `?source=demo`; direct visits use `source_surface="direct"`; successful Firebase registration captures `signup_completed` before navigating to verification; failed registration does not capture completion.
+- [x] Run the two focused test files and confirm failure.
+- [x] Consume `useAnalytics` inside AuthProvider. Add an effect watching `ready`, `consent`, `user?.id`, and `currentWorkspace?.id`; the workspace ID may be a local effect dependency/scope but must not be an identify property.
+- [x] Call analytics reset in `clearAccount` only for explicit logout/logout-all/account transition. Do not reset merely because the initial `/me` request says unauthenticated; preserving a consented landing identity is required to join signup.
+- [x] In Register, derive source from a strict allowlist (`demo` or `direct`) and never forward arbitrary query parameters.
+- [x] Capture completion only after Firebase user creation succeeds and before verification navigation. Do not include e-mail or Firebase UID.
+- [x] Re-run focused tests and expect pass.
+- [x] Commit:
 
 ```powershell
 git add frontend/src/auth/AuthProvider.jsx frontend/src/auth/AuthProvider.test.jsx frontend/src/pages/Register.jsx frontend/src/pages/AuthPages.test.jsx
@@ -282,19 +282,19 @@ const {
 
 **Local state:** accepted analytics uses `portfyl_activation_v1:<opaqueUserId>:<opaqueWorkspaceId>` with `{ sourceType, dataImported, dashboardRendered, activated }`. Rejected analytics uses an in-memory Map with the same logical scope and writes no activation state to browser storage. The key/state never leaves the browser and contains no portfolio ID or financial data.
 
-- [ ] Unit-test accepted-state serialization, corrupted-state recovery, workspace isolation, persistence across analytics identity reset, rejected in-memory behavior, zero rejected-mode localStorage writes, and source enums.
-- [ ] Hook-test the exact order: account/workspace + import source + populated dashboard emits `dashboard_first_value_rendered` then `user_activation_reached`; dashboard before import waits; duplicate renders emit neither again; a different workspace has a separate lifecycle.
-- [ ] Assert all four output events contain only the contract properties and no local scope key.
-- [ ] Extend Onboarding tests: blank emits only `portfolio_created {creation_path:"blank"}`; demo creation emits `portfolio_created {creation_path:"demo"}` and `portfolio_data_imported {source_type:"demo"}` after successful activation; pending CSV portfolio emits created/csv only after creation succeeds; failures emit nothing.
-- [ ] Extend Import test: successful `commitImportCSV` emits `portfolio_data_imported {source_type:"csv"}` after commit success; preview/cancel/failure does not.
-- [ ] Extend Settings test: a Trading 212 sync with imported count greater than zero emits broker import; zero-import and failed sync do not. Preserve existing dirty-file behavior by rebasing/merging intentionally in the clean worktree.
-- [ ] Extend Dashboard async test: only a successful render with non-empty holdings and populated summary calls `recordPopulatedDashboard`; loading, error, or empty state does not.
-- [ ] Run all named focused tests and confirm failure.
-- [ ] Implement activationState with explicit parse validation and versioned key construction. Never enumerate or upload keys.
-- [ ] Implement the hook using `useAuth` plus `useAnalytics`. If user/workspace is absent, methods safely return false.
-- [ ] Wire event calls after successful mutations only. Do not put capture in generic button handlers before success.
-- [ ] In Dashboard, use an effect keyed on boolean `hasPopulatedDashboard`, not full summary/holdings objects, to avoid render-driven duplication.
-- [ ] Run:
+- [x] Unit-test accepted-state serialization, corrupted-state recovery, workspace isolation, persistence across analytics identity reset, rejected in-memory behavior, zero rejected-mode localStorage writes, and source enums.
+- [x] Hook-test the exact order: account/workspace + import source + populated dashboard emits `dashboard_first_value_rendered` then `user_activation_reached`; dashboard before import waits; duplicate renders emit neither again; a different workspace has a separate lifecycle.
+- [x] Assert all four output events contain only the contract properties and no local scope key.
+- [x] Extend Onboarding tests: blank emits only `portfolio_created {creation_path:"blank"}`; demo creation emits `portfolio_created {creation_path:"demo"}` and `portfolio_data_imported {source_type:"demo"}` after successful activation; pending CSV portfolio emits created/csv only after creation succeeds; failures emit nothing.
+- [x] Extend Import test: successful `commitImportCSV` emits `portfolio_data_imported {source_type:"csv"}` after commit success; preview/cancel/failure does not.
+- [x] Extend Settings test: a Trading 212 sync with imported count greater than zero emits broker import; zero-import and failed sync do not. Preserve existing dirty-file behavior by rebasing/merging intentionally in the clean worktree.
+- [x] Extend Dashboard async test: only a successful render with non-empty holdings and populated summary calls `recordPopulatedDashboard`; loading, error, or empty state does not.
+- [x] Run all named focused tests and confirm failure.
+- [x] Implement activationState with explicit parse validation and versioned key construction. Never enumerate or upload keys.
+- [x] Implement the hook using `useAuth` plus `useAnalytics`. If user/workspace is absent, methods safely return false.
+- [x] Wire event calls after successful mutations only. Do not put capture in generic button handlers before success.
+- [x] In Dashboard, use an effect keyed on boolean `hasPopulatedDashboard`, not full summary/holdings objects, to avoid render-driven duplication.
+- [x] Run:
 
 ```powershell
 cd frontend
@@ -303,7 +303,7 @@ npm run test:cloud -- --run src/analytics/activationState.test.js src/analytics/
 ```
 
   Expect pass in both editions.
-- [ ] Commit:
+- [x] Commit:
 
 ```powershell
 git add frontend/src/analytics/activationState.js frontend/src/analytics/activationState.test.js frontend/src/analytics/useRegisteredActivation.js frontend/src/analytics/useRegisteredActivation.test.jsx frontend/src/pages/Onboarding.jsx frontend/src/pages/Onboarding.test.jsx frontend/src/pages/Import.jsx frontend/src/pages/Import.test.jsx frontend/src/pages/Settings.jsx frontend/src/pages/Settings.sections.test.jsx frontend/src/pages/Dashboard.jsx frontend/src/pages/Dashboard.async.test.jsx
@@ -333,13 +333,13 @@ form-action 'self';
 frame-ancestors 'none'
 ```
 
-- [ ] Write unit tests around a small FastAPI fixture with `SecurityHeadersMiddleware`: HTML gets the exact normalized CSP; JSON/API and static image responses do not; any pre-existing CSP is replaced by the approved value; `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin` are present on HTML.
-- [ ] Test `build_content_security_policy()` contains EU PostHog and does not contain US PostHog hosts, wildcard script sources, `unsafe-eval`, or `*` in `connect-src`.
-- [ ] Run `cd backend; python -m pytest tests/test_security_headers.py -v` and confirm failure.
-- [ ] Implement a Starlette `BaseHTTPMiddleware` which inspects the final `Content-Type`; add headers only when it starts with `text/html`.
-- [ ] Add the middleware to `main.py` after GZip so it wraps rendered SPA HTML. Preserve the existing cloud gate, CORS, correlation, and compression behavior.
-- [ ] Run the focused test and `python -m pytest tests/ -v --ignore=tests/postgres`; expect pass.
-- [ ] Commit:
+- [x] Write unit tests around a small FastAPI fixture with `SecurityHeadersMiddleware`: HTML gets the exact normalized CSP; JSON/API and static image responses do not; any pre-existing CSP is replaced by the approved value; `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin` are present on HTML.
+- [x] Test `build_content_security_policy()` contains EU PostHog and does not contain US PostHog hosts, wildcard script sources, `unsafe-eval`, or `*` in `connect-src`.
+- [x] Run `cd backend; python -m pytest tests/test_security_headers.py -v` and confirm failure.
+- [x] Implement a Starlette `BaseHTTPMiddleware` which inspects the final `Content-Type`; add headers only when it starts with `text/html`.
+- [x] Add the middleware to `main.py` after GZip so it wraps rendered SPA HTML. Preserve the existing cloud gate, CORS, correlation, and compression behavior.
+- [x] Run the focused test and `python -m pytest tests/ -v --ignore=tests/postgres`; expect pass.
+- [x] Commit:
 
 ```powershell
 git add backend/security_headers.py backend/tests/test_security_headers.py backend/main.py

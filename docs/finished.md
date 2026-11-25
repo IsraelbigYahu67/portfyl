@@ -1,6 +1,6 @@
 # Hotové plány
 
-Plány, které jsou ke dni 2026-11-18 splněné na 100 % a byly smazány ze `docs/superpowers/plans/`.
+Plány, které jsou ke dni 2026-11-25 splněné na 100 %. Většina byla smazána ze `docs/superpowers/plans/`; ty, na které ještě odkazuje kód nebo dokumentace, tam zůstaly.
 Plné znění každého z nich je v historii gitu (`git log --diff-filter=D -- docs/superpowers/plans/<soubor>`).
 
 - `2026-07-03-portfyl-merge` – sloučení původních repozitářů do jednoho `main`.
@@ -42,6 +42,9 @@ Plné znění každého z nich je v historii gitu (`git log --diff-filter=D -- d
 - `2026-11-19-portfyl-free-trial-completion` – dokončení 10denního trialu Pro (banner, Turnstile, právní texty); plán je jen na nezmergnuté větvi `docs/free-trial-completion-plan`, výsledek je v `2026-11-22-free-trial-findings.md`.
 - `2026-11-19-free-trial-verification` – důkazy z testů, buildů a Lighthouse pro trial (2026-11-20 a 21).
 - `2026-11-21-free-trial-live-walkthrough` – ruční živý průchod scénářů a až i, všechny prošly 2026-11-22; nálezy mimo trial jsou v `2026-11-22-free-trial-findings.md`.
+
+- `2026-09-20-t212-snapshot-first-sync` – rychlý snapshot pozic a zůstatků z Trading 212, vázání na účet přes otisk, obnovitelné běhy historie a ověření na živém účtu (21 pozic sedělo s ledgerem). Soubor plánu zůstává v docs/superpowers/plans/, protože na něj odkazují kód, migrace 0014–0016 a hub Broker importers and sync.
+- `2026-09-24-t212-corporate-actions-incremental-sync` – korporátní akce z T212 (párování reverse splitů, `needs_review`), inkrementální sync a 30denní audity; všechny kroky odškrtnuté 2026-11-25 podle tabulky stavu v plánu. Soubor plánu zůstává ze stejného důvodu.
 
 ## Related
 

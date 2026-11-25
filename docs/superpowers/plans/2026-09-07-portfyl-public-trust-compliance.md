@@ -115,8 +115,8 @@ React/Vite route tests, pytest, Vitest.
 - [ ] Obtain and record the controller identity, working contacts, approved
       legal bases, retention values, provider regions/DPA links, and reviewed
       legal copy.
-- [ ] Write failing route/link/content tests.
-- [ ] Implement accessible public pages from one content source.
+- [x] Write failing route/link/content tests.
+- [x] Implement accessible public pages from one content source.
 - [ ] Run local/cloud frontend tests and production builds.
 - [ ] Obtain final legal approval before production deployment.
 

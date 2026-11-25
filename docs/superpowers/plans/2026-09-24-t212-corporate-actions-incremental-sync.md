@@ -123,7 +123,7 @@ which does not touch `broker_sync_events`). This tool extracts them safely.
   `build_capture(db, workspace_id: uuid.UUID, portfolio_public_id: uuid.UUID) -> dict`.
   The CLI writes `backend/tests/fixtures/t212_corporate_actions/_captured/<ticker>_<date>.json`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # backend/tests/test_t212_capture.py
@@ -186,12 +186,12 @@ def test_selection_keeps_actions_and_same_ticker_neighbours_only():
     assert picked == {"fill:s1", "fill:s2", "fill:t1"}
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd backend && python -m pytest tests/test_t212_capture.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'scripts.t212_capture_corporate_actions'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # backend/scripts/t212_capture_corporate_actions.py
@@ -347,19 +347,19 @@ Append to `.gitignore`:
 backend/tests/fixtures/t212_corporate_actions/_captured/
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cd backend && python -m pytest tests/test_t212_capture.py -v`
 Expected: 4 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/scripts/__init__.py backend/scripts/t212_capture_corporate_actions.py backend/tests/test_t212_capture.py .gitignore
 git commit -m "feat(t212): read-only redacting capture of staged corporate-action fills"
 ```
 
-- [ ] **Step 6 (user-run, not agent): capture**
+- [x] **Step 6 (user-run, not agent): capture**
 
 The user runs the CLI against their own database (local, or Neon with the
 runtime credential) for every portfolio whose history-status shows
@@ -379,7 +379,7 @@ until the "Sign-off" line is filled in.**
 - Create: `docs/research/t212-corporate-action-encoding.md`
 - Create (copied after approval): `backend/tests/fixtures/t212_corporate_actions/stock_split_<forward|reverse>_<num>-<den>.json`
 
-- [ ] **Step 1: Write the record from the captured files**
+- [x] **Step 1: Write the record from the captured files**
 
 Answer each question with a quoted excerpt from a captured fixture:
 
@@ -413,14 +413,14 @@ Differences from hypothesis H1 (plan Track B header): <none / list>
 Sign-off: <name, date>. Mapper may be implemented against this record.
 ```
 
-- [ ] **Step 2: Copy approved fixtures**
+- [x] **Step 2: Copy approved fixtures**
 
 After the user approves, copy the reviewed files from `_captured/` to
 `backend/tests/fixtures/t212_corporate_actions/`. Name them
 `stock_split_<forward|reverse>_<num>-<den>.json` so B2's parametrized test can
 read the issuer ratio from the file name.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/research/t212-corporate-action-encoding.md backend/tests/fixtures/t212_corporate_actions/*.json
@@ -444,7 +444,7 @@ git commit -m "docs(t212): record observed STOCK_SPLIT fill encoding (gate G1)"
   deduplicated, sorted by date, and capped at `REVIEW_DETAILS_LIMIT = 50`.
   Also `t212_sync.SUPPORTED_CORPORATE_ACTION_TYPES: frozenset[str] = frozenset()`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add it to the class in `test_t212_finalize.py` that holds
 `test_corporate_action_fill_sends_run_to_needs_review_without_ledger_writes`:
@@ -471,12 +471,12 @@ Add it to the class in `test_t212_finalize.py` that holds
 The expected tickers assume `t212_sync._normalize_t212_ticker("NVDA_US_EQ") == "NVDA"`.
 Check with one REPL call. If it differs, assert the function's real output.
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd backend && python -m pytest tests/test_t212_finalize.py -k review_details -v`
 Expected: FAIL (`review_details` attribute/column missing)
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Model (`backend/models.py`, inside `BrokerSyncRun`, after `last_error`):
 
@@ -564,18 +564,18 @@ In `finalize_run`, replace the `unsupported` set comprehension with:
             return _send_run_to_needs_review(db, run, unsupported_events)
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd backend && python -m pytest tests/test_t212_finalize.py tests/test_broker_backfill.py -v`
 Expected: all pass (existing `unsupported_action_types` assertions unchanged)
 
-- [ ] **Step 5: Verify migration head**
+- [x] **Step 5: Verify migration head**
 
 Run: `cd backend && alembic heads`
 Expected: `0019_sync_run_review_details (head)`. If PostgreSQL is available,
 also run `alembic upgrade head` with the migration-owner credential.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/alembic/versions/0019_sync_run_review_details.py backend/models.py backend/database.py backend/t212_sync.py backend/tests/test_t212_finalize.py
@@ -621,7 +621,7 @@ Decision rule. Only the **latest** run for the connection matters:
 | `needs_review` | otherwise, including legacy runs with `review_details IS NULL` | `blocked` |
 | none / other terminal | — | `create` |
 
-- [ ] **Step 1: Write failing unit tests** (`backend/tests/test_t212_sync_runs.py`; reuse the file's connection/portfolio fixtures and adapt fixture names to what it defines)
+- [x] **Step 1: Write failing unit tests** (`backend/tests/test_t212_sync_runs.py`; reuse the file's connection/portfolio fixtures and adapt fixture names to what it defines)
 
 ```python
 from datetime import datetime, timezone
@@ -689,7 +689,7 @@ def test_failed_latest_run_creates(db_session, default_portfolio, connection):
     assert t212_sync.history_run_decision(db_session, connection, default_portfolio).action == "create"
 ```
 
-- [ ] **Step 2: Write failing route/job tests**
+- [x] **Step 2: Write failing route/job tests**
 
 In `backend/tests/test_broker.py`, next to
 `test_needs_review_run_is_not_reported_as_retrying`, add these two tests.
@@ -719,12 +719,12 @@ In `backend/tests/test_jobs.py`, add a test asserting that
 an unresolved `needs_review` leaves `BrokerSyncRun` count unchanged. Copy the
 setup of that file's existing autosync test.
 
-- [ ] **Step 3: Run to verify failure**
+- [x] **Step 3: Run to verify failure**
 
 Run: `cd backend && python -m pytest tests/test_t212_sync_runs.py tests/test_broker.py tests/test_jobs.py -k "blocked or force or csv_coverage or supported or retry or legacy_needs_review or failed_latest" -v`
 Expected: FAIL with `AttributeError: module 't212_sync' has no attribute 'history_run_decision'`
 
-- [ ] **Step 4: Implement in `backend/t212_sync.py`** (after `claim_or_create_run`)
+- [x] **Step 4: Implement in `backend/t212_sync.py`** (after `claim_or_create_run`)
 
 ```python
 @dataclass(frozen=True)
@@ -775,7 +775,7 @@ def history_run_decision(
     return HistoryDecision("create", None)
 ```
 
-- [ ] **Step 5: Wire routes in `backend/routers/broker.py`**
+- [x] **Step 5: Wire routes in `backend/routers/broker.py`**
 
 In `sync_transactions`, replace
 `history_run = t212_sync.claim_or_create_run(db, conn, portfolio)`:
@@ -820,12 +820,12 @@ In history-status's returned `run` dict, add:
             ),
 ```
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 Run: `cd backend && python -m pytest tests/test_t212_sync_runs.py tests/test_broker.py tests/test_jobs.py tests/test_broker_backfill.py -v`
 Expected: all pass
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/t212_sync.py backend/routers/broker.py backend/tests/test_t212_sync_runs.py backend/tests/test_broker.py backend/tests/test_jobs.py
@@ -848,7 +848,7 @@ git commit -m "fix(t212): stop re-staging full history into an unchanged needs_r
   the hook returns `retryHistory: () => void` and `retryPending: boolean`;
   `HistoryBackfillStatus` is exported with props `{ run, onRetry, retryPending }`.
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```jsx
 // useT212Sync.test.jsx — mock ../api the way the file's existing tests do
@@ -892,12 +892,12 @@ it("lists review items, the CSV date needed, and a retry button", () => {
 If `Settings.jsx` imports modules that need providers (auth, query client)
 at module level, wrap the render in the providers `Overview.test.jsx` uses.
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd frontend && npx vitest run src/hooks/useT212Sync.test.jsx src/pages/Settings.test.jsx`
 Expected: FAIL (`retryT212History` is not a function / `HistoryBackfillStatus` not exported)
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `api.js`, after `fetchT212HistoryStatus`:
 
@@ -958,12 +958,12 @@ Give the button the classes of the neighbouring secondary Settings buttons.
 Add no new colours; use tokens from `index.css`. At `Settings.jsx:199`, pass
 `onRetry={t212.retryHistory} retryPending={t212.retryPending}`.
 
-- [ ] **Step 4: Run the gates**
+- [x] **Step 4: Run the gates**
 
 Run: `cd frontend && npm test && npm run test:cloud && npm run build && npm run build:cloud`
 Expected: all pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/api.js frontend/src/hooks/useT212Sync.js frontend/src/hooks/useT212Sync.test.jsx frontend/src/pages/Settings.jsx frontend/src/pages/Settings.test.jsx
@@ -1013,7 +1013,7 @@ This task is encoding-agnostic. It may start once G1 is signed off, before B2.
     `(workspace_id, action_id, transaction_id)`. It uses the integer
     `transaction_id`, because CSV/legacy rows have no provider event id.
 
-- [ ] **Step 1: Failing export test** (`test_account_export.py`)
+- [x] **Step 1: Failing export test** (`test_account_export.py`)
 
 ```python
 from datetime import datetime, timezone
@@ -1053,11 +1053,11 @@ def test_export_includes_corporate_actions_and_applications(db_session, default_
 Export the account fingerprint exactly the way `workspace_export.py` treats
 `transactions.source_account_fingerprint` today.
 
-- [ ] **Step 2: Run → FAIL** (`ImportError: cannot import name 'BrokerCorporateAction'`)
+- [x] **Step 2: Run → FAIL** (`ImportError: cannot import name 'BrokerCorporateAction'`)
 
 Run: `cd backend && python -m pytest tests/test_account_export.py -k corporate -v`
 
-- [ ] **Step 3: Implement models**
+- [x] **Step 3: Implement models**
 
 ```python
 class BrokerCorporateAction(Base):
@@ -1113,7 +1113,7 @@ class BrokerCorporateActionApplication(Base):
 Match the exact `public_id` declaration and imports `BrokerSyncRun` uses in
 `models.py`. Add `Numeric`/`CheckConstraint` to the imports if missing.
 
-- [ ] **Step 4: Migration** `0020_broker_corporate_actions.py` (`down_revision = "0021_t212_history_coverage"`;
+- [x] **Step 4: Migration** `0020_broker_corporate_actions.py` (`down_revision = "0021_t212_history_coverage"`;
   Track C shipped first and left the number 0020 free, so 0020 revises 0021 and
   `EXPECTED_ALEMBIC_HEAD` becomes `"0020_broker_corporate_actions"`)
 
@@ -1144,7 +1144,7 @@ Indexes: `public_id` (unique), `workspace_id`, `portfolio_id` on actions;
 downgrade: drop policy, no force, disable, revoke, drop indexes, drop tables
 (applications first).
 
-- [ ] **Step 5: Export + PostgreSQL tenancy test**
+- [x] **Step 5: Export + PostgreSQL tenancy test**
 
 Add both tables to `workspace_export.py` and bump its schema version to 4.
 In `tests/postgres/test_integration_tenancy.py`, extend the Alice/Bob matrix
@@ -1152,13 +1152,13 @@ the same way it covers `broker_sync_runs`: Bob can neither select nor insert
 into either table under Alice's workspace, and deleting Alice's portfolio
 cascades both.
 
-- [ ] **Step 6: Run**
+- [x] **Step 6: Run**
 
 Run: `cd backend && python -m pytest tests/test_account_export.py -v && alembic heads`
 If Docker is available: `docker compose -f deploy/docker-compose.postgres-test.yml up -d --wait` then `python -m pytest tests/postgres/ -v`
 Expected: pass; single head `0020_broker_corporate_actions`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/alembic/versions/0020_broker_corporate_actions.py backend/models.py backend/database.py backend/workspace_export.py backend/tests/test_account_export.py backend/tests/postgres/test_integration_tenancy.py
@@ -1181,7 +1181,7 @@ git commit -m "feat(t212): durable corporate-action and application records (RLS
   - `class UnpairedSplitLeg(Exception)`.
   - `collapse_split_pairs(events: list[BrokerSyncEvent]) -> list[SplitEvidence]`, sorted by `(instrument, effective_at)`.
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```python
 import json
@@ -1258,11 +1258,11 @@ def test_real_fixture_ratio_matches_issuer(fixture):
     assert ev.ratio == Fraction(int(num), int(den))
 ```
 
-- [ ] **Step 2: Run → FAIL** (`ModuleNotFoundError: No module named 't212_corporate_actions'`)
+- [x] **Step 2: Run → FAIL** (`ModuleNotFoundError: No module named 't212_corporate_actions'`)
 
 Run: `cd backend && python -m pytest tests/test_t212_corporate_actions.py -v`
 
-- [ ] **Step 3: Implement** (`backend/t212_corporate_actions.py`)
+- [x] **Step 3: Implement** (`backend/t212_corporate_actions.py`)
 
 ```python
 """Trading 212 corporate-action normalization (plan 2026-09-24 Track B).
@@ -1343,11 +1343,11 @@ def collapse_split_pairs(events: list[BrokerSyncEvent]) -> list[SplitEvidence]:
     return out
 ```
 
-- [ ] **Step 4: Run → PASS**
+- [x] **Step 4: Run → PASS**
 
 Run: `cd backend && python -m pytest tests/test_t212_corporate_actions.py -v`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/t212_corporate_actions.py backend/tests/test_t212_corporate_actions.py
@@ -1387,7 +1387,7 @@ These rules run in order, inside the ledger lock `finalize_run` already holds:
    mutating.
 5. Manual rows (`source="manual"` or any other non-T212 source) are never touched.
 
-- [ ] **Step 1: Failing tests** (`test_t212_finalize.py`)
+- [x] **Step 1: Failing tests** (`test_t212_finalize.py`)
 
 First extend the `_order_event` helper with `side="BUY"`, if it doesn't
 already take one, so split legs can be built. Then add:
@@ -1496,11 +1496,11 @@ the same connection. Stage in it the same split pair plus an older fill
 stored as 30 @ 110, that the run-1 buy is still 90 @ 120 (not 900 @ 12), and
 that there are exactly 2 applications and 1 action.
 
-- [ ] **Step 2: Run → FAIL**
+- [x] **Step 2: Run → FAIL**
 
 Run: `cd backend && python -m pytest tests/test_t212_finalize.py -k "Split or split" -v`
 
-- [ ] **Step 3: Implement `apply_splits`** (append to `t212_corporate_actions.py`)
+- [x] **Step 3: Implement `apply_splits`** (append to `t212_corporate_actions.py`)
 
 ```python
 from datetime import time, timezone
@@ -1596,7 +1596,7 @@ def apply_splits(db: Session, *, run: BrokerSyncRun, portfolio: Portfolio,
     return ApplySummary(created, applied, csv_rep)
 ```
 
-- [ ] **Step 4: Wire into `finalize_run`** (`backend/t212_sync.py`)
+- [x] **Step 4: Wire into `finalize_run`** (`backend/t212_sync.py`)
 
 - Set `SUPPORTED_CORPORATE_ACTION_TYPES = frozenset({"STOCK_SPLIT"})` and
   `_FINALIZE_MAPPER_VERSION = "t212_finalize_v2"`.
@@ -1627,7 +1627,7 @@ def apply_splits(db: Session, *, run: BrokerSyncRun, portfolio: Portfolio,
 - Import inside the function to avoid a circular import, because
   `t212_corporate_actions` imports from `t212_sync`.
 
-- [ ] **Step 5: Update the legacy tests**
+- [x] **Step 5: Update the legacy tests**
 
 `test_corporate_action_fill_sends_run_to_needs_review_without_ledger_writes`
 and the parametrized `test_every_non_trade_fill_type_needs_review` stage a
@@ -1636,12 +1636,12 @@ keep them, but change the parametrized case's assertion for `STOCK_SPLIT`
 only if its `unsupported_action_types` now differs. Change test data, not
 intent.
 
-- [ ] **Step 6: Run the full fast suite**
+- [x] **Step 6: Run the full fast suite**
 
 Run: `cd backend && python -m pytest tests/ --ignore=tests/postgres -q`
 Expected: all pass
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/t212_corporate_actions.py backend/t212_sync.py backend/tests/test_t212_finalize.py
@@ -1665,7 +1665,7 @@ git commit -m "feat(t212): apply provider-labelled stock splits once via durable
   on restore. It also stores the action's identity tuple instead of
   `action_id`.
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 Build it on the replace/undo helpers the test around
 `original.source_fill_type = "TRADE"` (`test_import_workflow.py:494`) uses:
@@ -1682,11 +1682,11 @@ def test_undo_restores_adjusted_rows_with_their_application_markers(db_session, 
 
 Write each comment line as real code. The values are exact.
 
-- [ ] **Step 2: Run → FAIL**
+- [x] **Step 2: Run → FAIL**
 
 Run: `cd backend && python -m pytest tests/test_import_workflow.py -k application_markers -v`
 
-- [ ] **Step 3: Implement.** Capture the portfolio's actions, and the applications
+- [x] **Step 3: Implement.** Capture the portfolio's actions, and the applications
   whose transaction is in the captured set. On restore, inside the
   already-held workspace ledger lock: delete current actions for the portfolio
   (applications cascade), re-insert actions, then transactions (existing
@@ -1694,9 +1694,9 @@ Run: `cd backend && python -m pytest tests/test_import_workflow.py -k applicatio
   identity. A v1/v2 payload restores with no action data, which is correct
   because those points predate any action.
 
-- [ ] **Step 4: Run** `cd backend && python -m pytest tests/test_import_workflow.py -v` → PASS
+- [x] **Step 4: Run** `cd backend && python -m pytest tests/test_import_workflow.py -v` → PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/import_undo.py backend/tests/test_import_workflow.py
@@ -1748,7 +1748,7 @@ unblocks them. This is intended.
     C3 adds `audit`. `sync_transactions`/`retry_history` pass `mode=decision.mode`
     to `claim_or_create_run`.
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```python
     def test_completed_initial_run_sets_frontiers(self, db_session, default_portfolio, connection, completed_run):
@@ -1789,11 +1789,11 @@ In `test_portfolio.py`, add a clear-all test: set all six fields, call the
 clear-all route function the way that file's existing clear-all test does,
 and assert all six are `None`.
 
-- [ ] **Step 2: Run → FAIL**
+- [x] **Step 2: Run → FAIL**
 
 Run: `cd backend && python -m pytest tests/test_t212_finalize.py tests/test_t212_sync_runs.py tests/test_portfolio.py -k "frontier or create_mode or clear" -v`
 
-- [ ] **Step 3: Implement.** Add the model columns and the migration (plain
+- [x] **Step 3: Implement.** Add the model columns and the migration (plain
   `op.add_column`/`op.drop_column`), and bump `EXPECTED_ALEMBIC_HEAD` to
   `"0021_t212_history_coverage"`. In `finalize_run`, just before the success
   commit, add:
@@ -1822,9 +1822,9 @@ Update `history_run_decision`'s final line to
 `return HistoryDecision("create", None, "initial" if connection.history_complete_at is None else "incremental")`,
 and pass `mode=decision.mode` at both `claim_or_create_run` call sites.
 
-- [ ] **Step 4: Run → PASS**, then `cd backend && alembic heads` shows one head.
+- [x] **Step 4: Run → PASS**, then `cd backend && alembic heads` shows one head.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/alembic/versions/0021_t212_history_coverage.py backend/models.py backend/database.py backend/t212_sync.py backend/routers/broker.py backend/routers/portfolio.py backend/tests/test_t212_finalize.py backend/tests/test_t212_sync_runs.py backend/tests/test_portfolio.py
@@ -1873,7 +1873,7 @@ Rules (parent §7):
 - `stop = frontier_at is not None and known_streak >= OVERLAP_PAGES and not ordering_violation`.
 - Nothing compares against `max(Transaction.date)`.
 
-- [ ] **Step 1: Failing pure tests**
+- [x] **Step 1: Failing pure tests**
 
 ```python
 from datetime import datetime, timedelta, timezone
@@ -1932,11 +1932,11 @@ def test_old_unknown_event_for_unseen_ticker_is_not_skipped():
     assert v.stop is False and v.known_streak == 0
 ```
 
-- [ ] **Step 2: Run → FAIL** (`ModuleNotFoundError: No module named 't212_incremental'`)
+- [x] **Step 2: Run → FAIL** (`ModuleNotFoundError: No module named 't212_incremental'`)
 
 Run: `cd backend && python -m pytest tests/test_t212_incremental.py -v`
 
-- [ ] **Step 3: Implement** (`backend/t212_incremental.py`)
+- [x] **Step 3: Implement** (`backend/t212_incremental.py`)
 
 ```python
 """Incremental T212 history stop rule (parent plan §7, plan 2026-09-24 C2).
@@ -1979,7 +1979,7 @@ def evaluate_page(*, page_events: list[tuple[str, datetime | None]], known_ids: 
     return PageVerdict(stop=stop, known_streak=streak, ordering_violation=violation)
 ```
 
-- [ ] **Step 4: Wire into `advance_run`** (only when `run.mode == "incremental"`)
+- [x] **Step 4: Wire into `advance_run`** (only when `run.mode == "incremental"`)
 
 Once per stream per `advance_run` call, load
 `known_ids = {row[0] for row in db.query(Transaction.source_event_id).filter(workspace, portfolio, Transaction.source == "t212_api", Transaction.source_event_stream == stream)}`.
@@ -1999,7 +1999,7 @@ in the same commit as the page:
 `broker_backfill_pass` (`backend/jobs.py`, which already loads `connection`).
 With `connection=None` the stop rule is skipped.
 
-- [ ] **Step 5: Integration tests** (`test_t212_sync_runs.py`)
+- [x] **Step 5: Integration tests** (`test_t212_sync_runs.py`)
 
 Patch `t212_sync._fetch_stream_page` to return scripted
 `(items, next_path)` pages. Four tests:
@@ -2010,12 +2010,12 @@ stops after `1 + OVERLAP_PAGES` pages, and the stream is marked complete;
 walk runs until `next_path` is `None`;
 (d) a run in `mode="initial"` never stops early.
 
-- [ ] **Step 6: Run**
+- [x] **Step 6: Run**
 
 Run: `cd backend && python -m pytest tests/test_t212_incremental.py tests/test_t212_sync_runs.py tests/test_broker_backfill.py -v`
 Expected: all pass
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/t212_incremental.py backend/tests/test_t212_incremental.py backend/t212_sync.py backend/jobs.py backend/tests/test_t212_sync_runs.py
@@ -2059,7 +2059,7 @@ Rules (parent §7):
   Increment `revised`. Unknown IDs are imported as usual, which covers
   late-inserted old dividends.
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```python
 def test_mode_is_audit_after_30_days(db_session, default_portfolio, connection):
@@ -2126,19 +2126,19 @@ In `test_t212_finalize.py`:
 Write the second body in full with the file's existing dividend-staging
 helper. Values are as commented.
 
-- [ ] **Step 2: Run → FAIL**
+- [x] **Step 2: Run → FAIL**
 
 Run: `cd backend && python -m pytest tests/test_t212_sync_runs.py tests/test_t212_finalize.py tests/test_broker_backfill.py -k "audit or revised or never_creates or mismatch" -v`
 
-- [ ] **Step 3: Implement** the rules above. Add `revised: int = 0` as the
+- [x] **Step 3: Implement** the rules above. Add `revised: int = 0` as the
   last `FinalizeResult` field so existing constructors keep working.
 
-- [ ] **Step 4: Run the fast suite**
+- [x] **Step 4: Run the fast suite**
 
 Run: `cd backend && python -m pytest tests/ --ignore=tests/postgres -q`
 Expected: all pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/t212_sync.py backend/routers/broker.py backend/tests/test_t212_sync_runs.py backend/tests/test_t212_finalize.py backend/tests/test_broker_backfill.py
@@ -2170,7 +2170,7 @@ Rules:
 - Use bounded batches, processed per workspace context the same way the
   existing categories are.
 
-- [ ] **Step 1: Failing tests** (one per rule)
+- [x] **Step 1: Failing tests** (one per rule)
 
 ```python
 def test_old_completed_run_events_are_purged(db_session, ...):      # 15-day-old completed run -> 0 events left
@@ -2185,11 +2185,11 @@ Write each in full using the run/event construction from
 Call `cleanup_retained_operational_data(db_session, now=<fixed>)` and assert
 the event counts and `summary["broker_sync_events"]`.
 
-- [ ] **Step 2: FAIL → Step 3: implement → Step 4: PASS**
+- [x] **Step 2: FAIL → Step 3: implement → Step 4: PASS**
 
 Run: `cd backend && python -m pytest <retention test file> -v`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/data_retention.py backend/jobs.py docs/compliance backend/tests/<retention test file>
@@ -2202,21 +2202,21 @@ git commit -m "feat(retention): bounded cleanup of staged T212 events, keeping r
 
 ### Task V1: Gates and real-environment checks
 
-- [ ] `cd backend && python -m pytest tests/ --ignore=tests/postgres -q`: all pass
-- [ ] `cd backend && alembic heads`: exactly one head, equal to `EXPECTED_ALEMBIC_HEAD`
-- [ ] PostgreSQL/RLS suite, which also covers the still-unverified `0017`/`0018`
+- [x] `cd backend && python -m pytest tests/ --ignore=tests/postgres -q`: all pass
+- [x] `cd backend && alembic heads`: exactly one head, equal to `EXPECTED_ALEMBIC_HEAD`
+- [x] PostgreSQL/RLS suite, which also covers the still-unverified `0017`/`0018`
   and new `0019`–`0021`: `docker compose -f deploy/docker-compose.postgres-test.yml up -d --wait`,
   then `cd backend && python -m pytest tests/postgres/ -v`. If Docker is still
   unavailable, report **not verified**. Do not claim done.
-- [ ] `cd frontend && npm test && npm run test:cloud && npm run build && npm run build:cloud`
-- [ ] Real browser (Playwright MCP, http://localhost:5173, Firebase test login):
+- [x] `cd frontend && npm test && npm run test:cloud && npm run build && npm run build:cloud`
+- [x] Real browser (Playwright MCP, http://localhost:5173, Firebase test login):
   the needs_review panel lists items with the CSV link, and retry creates a
   run. Check a completed run too, at mobile and desktop widths.
-- [ ] T212 demo account: the initial run crosses a rate-limit reset and, after
+- [x] T212 demo account: the initial run crosses a rate-limit reset and, after
   Track B, contains a split. The second sync is incremental (new page +
   overlap). Set `last_full_audit_at` 31 days back and check the next manual
   sync creates an `audit` run.
-- [ ] Update docs in the same change: the parent plan's status header and §10
+- [x] Update docs in the same change: the parent plan's status header and §10
   checkboxes (Tasks 4–5), the `t212_sync.py` Task 3/Task 4 section
   docstrings' "deliberately excludes" lists, and `deploy/cloudrun.md` if
   retention changes a scheduled job.

@@ -173,7 +173,7 @@ git commit -m "test: add anonymized broker export samples"
   - `importers.dividends.DividendLeg`, `importers.dividends.net_dividend_rows(legs, *, source: str, stream: str = "dividends") -> tuple[list[dict], list[str], int]`
   - `routers.portfolio.get_instrument_resolver() -> InstrumentResolver` (FastAPI-free factory, testy ho monkeypatchují)
 
-- [ ] **Step 1: Napsat failing testy pro čísla a ID**
+- [x] **Step 1: Napsat failing testy pro čísla a ID**
 
 ```python
 # backend/tests/test_importers_foundation.py
@@ -237,12 +237,12 @@ def test_occurrence_ids_stable_across_overlapping_exports():
     assert occurrence_ids(q1) == occurrence_ids(full_year)[:2]
 ```
 
-- [ ] **Step 2: Spustit, ověřit že padají**
+- [x] **Step 2: Spustit, ověřit že padají**
 
 Run: `cd backend && python -m pytest tests/test_importers_foundation.py -v`
 Expected: FAIL, `ModuleNotFoundError: No module named 'importers'`
 
-- [ ] **Step 3: Implementovat `numbers.py` a `ids.py`**
+- [x] **Step 3: Implementovat `numbers.py` a `ids.py`**
 
 ```python
 # backend/importers/__init__.py
@@ -356,12 +356,12 @@ Poznámka pro implementátora: ID je stabilní, jen pokud oba exporty obsahují
 vzniknout duplikát. Exportní návody (Task 11) proto říkají „exportujte celé
 kalendářní měsíce/kvartály“.
 
-- [ ] **Step 4: Spustit, ověřit že prochází**
+- [x] **Step 4: Spustit, ověřit že prochází**
 
 Run: `cd backend && python -m pytest tests/test_importers_foundation.py -v`
 Expected: PASS
 
-- [ ] **Step 5: Failing testy pro párování dividend**
+- [x] **Step 5: Failing testy pro párování dividend**
 
 ```python
 # append to backend/tests/test_importers_foundation.py
@@ -416,9 +416,9 @@ def test_unknown_share_count_uses_one():
     assert row["shares"] == 1.0 and row["price"] == 3.0
 ```
 
-- [ ] **Step 6: Spustit, ověřit FAIL** (`ModuleNotFoundError: importers.dividends`)
+- [x] **Step 6: Spustit, ověřit FAIL** (`ModuleNotFoundError: importers.dividends`)
 
-- [ ] **Step 7: Implementovat `dividends.py`**
+- [x] **Step 7: Implementovat `dividends.py`**
 
 ```python
 # backend/importers/dividends.py
@@ -502,11 +502,11 @@ def net_dividend_rows(legs, *, source: str, stream: str = "dividends"):
     return rows, errors, skipped
 ```
 
-- [ ] **Step 8: Spustit, ověřit PASS**
+- [x] **Step 8: Spustit, ověřit PASS**
 
 Run: `cd backend && python -m pytest tests/test_importers_foundation.py -v`
 
-- [ ] **Step 9: Failing testy pro base + registry + routing**
+- [x] **Step 9: Failing testy pro base + registry + routing**
 
 ```python
 # backend/tests/test_import_plugin_routing.py
@@ -595,11 +595,11 @@ def test_native_csv_still_parses_without_plugins(monkeypatch):
     assert parsed.skipped_reasons == {}
 ```
 
-- [ ] **Step 10: Spustit, ověřit FAIL**
+- [x] **Step 10: Spustit, ověřit FAIL**
 
 Run: `cd backend && python -m pytest tests/test_import_plugin_routing.py -v`
 
-- [ ] **Step 11: Implementovat `base.py` a `registry.py`**
+- [x] **Step 11: Implementovat `base.py` a `registry.py`**
 
 ```python
 # backend/importers/base.py
@@ -739,7 +739,7 @@ def detect_format(file: ImportFile) -> ImportFormat | None:
     return matches[0] if matches else None
 ```
 
-- [ ] **Step 12: Napojit registry v `routers/portfolio.py`**
+- [x] **Step 12: Napojit registry v `routers/portfolio.py`**
 
 Změny (jen tyto, nic dalšího v souboru):
 
@@ -813,12 +813,12 @@ přidat před `return preview`: `preview["skipped_reasons"] = parsed.skipped_rea
 Ověřit, že `release_request_connections()` je no-op mimo request scope
 (fast suite volá router funkce napřímo). Pokud ne, obalit `try/except RuntimeError`.
 
-- [ ] **Step 13: Spustit nové i stávající import testy**
+- [x] **Step 13: Spustit nové i stávající import testy**
 
 Run: `cd backend && python -m pytest tests/test_import_plugin_routing.py tests/test_importers_foundation.py tests/test_import_workflow.py tests/test_t212_import.py -v`
 Expected: PASS (stávající T212/Native testy beze změny)
 
-- [ ] **Step 14: Celý fast suite + commit**
+- [x] **Step 14: Celý fast suite + commit**
 
 Run: `cd backend && python -m pytest tests/ --ignore=tests/postgres -q`
 
@@ -845,7 +845,7 @@ git commit -m "feat(import): pluggable broker import formats with locale numbers
   - `VENUE_SUFFIX: dict[str, str]`, `yahoo_symbol(symbol: str, venue: str) -> str`
   - `openfigi.OpenFigiClient.map_isins(jobs: list[tuple[str, str | None]]) -> list[list[dict]]`, `openfigi.OpenFigiUnavailable(RuntimeError)`
 
-- [ ] **Step 1: Failing testy**
+- [x] **Step 1: Failing testy**
 
 ```python
 # backend/tests/test_instrument_resolver.py
@@ -941,11 +941,11 @@ def test_batches_respect_job_limit():
     assert sizes == [10, 10, 3]
 ```
 
-- [ ] **Step 2: Spustit, ověřit FAIL**
+- [x] **Step 2: Spustit, ověřit FAIL**
 
 Run: `cd backend && python -m pytest tests/test_instrument_resolver.py -v`
 
-- [ ] **Step 3: Implementovat `openfigi.py`**
+- [x] **Step 3: Implementovat `openfigi.py`**
 
 ```python
 # backend/importers/openfigi.py
@@ -1014,7 +1014,7 @@ hotspotu; `try: result = plugin.parse(...) except OpenFigiUnavailable as exc: ra
 Plus test v `tests/test_import_plugin_routing.py`: parse vyhodí
 `OpenFigiUnavailable` → `HTTPException.status_code == 503`.
 
-- [ ] **Step 4: Implementovat `instruments.py`**
+- [x] **Step 4: Implementovat `instruments.py`**
 
 ```python
 # backend/importers/instruments.py
@@ -1155,11 +1155,11 @@ každá má vlastní cache. OpenFIGI vrací deterministické výsledky, takže
 `preview_id` sedí. Kdyby se to v praxi rozcházelo (409 při commitu), je to
 signál pro perzistentní cache tabulku, což je samostatná migrace mimo tento plán.
 
-- [ ] **Step 5: Spustit, ověřit PASS**
+- [x] **Step 5: Spustit, ověřit PASS**
 
 Run: `cd backend && python -m pytest tests/test_instrument_resolver.py tests/test_import_plugin_routing.py -v`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/importers/instruments.py backend/importers/openfigi.py backend/tests/test_instrument_resolver.py backend/routers/portfolio.py backend/tests/test_import_plugin_routing.py
@@ -1210,7 +1210,7 @@ Sémantiku `FS`/`RS` (jedna řádka s přírůstkem vs. dvě řádky staré/nov�
 na reálném vzorku z Tasku 0. Pokud IBKR u `FS` reportuje jinak, test
 `test_forward_split` upravit podle vzorku, ne podle tohoto plánu.
 
-- [ ] **Step 1: Syntetický fixture**
+- [x] **Step 1: Syntetický fixture**
 
 ```xml
 <!-- backend/tests/fixtures/brokers/ibkr/flex_2025_sample.xml -->
@@ -1242,7 +1242,7 @@ na reálném vzorku z Tasku 0. Pokud IBKR u `FS` reportuje jinak, test
 </FlexQueryResponse>
 ```
 
-- [ ] **Step 2: Failing testy**
+- [x] **Step 2: Failing testy**
 
 ```python
 # backend/tests/test_ibkr_flex_import.py
@@ -1362,9 +1362,9 @@ def test_has_ledger_sections():
     assert not ibkr_flex.has_ledger_sections("<FlexQueryResponse><FlexStatements/></FlexQueryResponse>")
 ```
 
-- [ ] **Step 3: Spustit, ověřit FAIL** (`ImportError: cannot import name 'ibkr_flex'`)
+- [x] **Step 3: Spustit, ověřit FAIL** (`ImportError: cannot import name 'ibkr_flex'`)
 
-- [ ] **Step 4: Implementace**
+- [x] **Step 4: Implementace**
 
 ```python
 # backend/importers/formats/ibkr_flex.py
@@ -1674,11 +1674,11 @@ Poznámka: `fx_in`/`fx_out`/`fee` z FX obchodu mají `fx_to_czk=None` záměrně
 protože `fxRateToBase` na CASH obchodu platí pro kotovanou měnu, ne pro obě nohy.
 `_prepare_import_transactions` je doplní z `bulk_fetch_fx`.
 
-- [ ] **Step 5: Spustit, ověřit PASS**
+- [x] **Step 5: Spustit, ověřit PASS**
 
 Run: `cd backend && python -m pytest tests/test_ibkr_flex_import.py -v`
 
-- [ ] **Step 6: Ověřit routing přes preview**
+- [x] **Step 6: Ověřit routing přes preview**
 
 ```python
 # append to backend/tests/test_ibkr_flex_import.py
@@ -1695,7 +1695,7 @@ def test_flex_xml_routes_through_import_preview(monkeypatch):
 
 Run: `cd backend && python -m pytest tests/test_ibkr_flex_import.py -v`, pak `python -m pytest tests/ --ignore=tests/postgres -q`
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/importers/formats/ibkr_flex.py backend/tests/test_ibkr_flex_import.py backend/tests/fixtures/brokers/ibkr
@@ -1722,7 +1722,7 @@ Pravidla:
 4. Jinak vložit jen řádky, jejichž `(source, source_event_stream, source_event_id)` v portfoliu ještě není. Kapacitu ověřit přes `ensure_count_limit(entitlements, "transactions", used=<workspace count>, increase=len(new))`.
 5. Commit dělá volající (stávající `db.commit()` na konci `_run_ibkr_sync`).
 
-- [ ] **Step 1: Failing testy**
+- [x] **Step 1: Failing testy**
 
 Vzor setupu převzít z `backend/tests/test_broker.py` (helpery v `tests/helpers.py`
 vytváří workspace/portfolio a `BrokerConnection`).
@@ -1777,9 +1777,9 @@ přidat je **lokálně do tohoto test souboru** (conftest je sdílený). Postavi
 z helperů v `tests/helpers.py`, stejně jako `tests/test_broker.py`.
 `bulk_fetch_fx` v testu monkeypatchnout na `lambda keys: {}`, aby test nešel na síť.
 
-- [ ] **Step 2: Spustit, ověřit FAIL** (`ModuleNotFoundError: ibkr_ledger`)
+- [x] **Step 2: Spustit, ověřit FAIL** (`ModuleNotFoundError: ibkr_ledger`)
 
-- [ ] **Step 3: Implementace**
+- [x] **Step 3: Implementace**
 
 ```python
 # backend/ibkr_ledger.py
@@ -1863,7 +1863,7 @@ nechá propadnout do volajícího (stejně jako u CSV commitu). Ověřit, jak
 `jobs.py` auto-sync zachází s `HTTPException` (dead-letter počítadlo), a
 nepřidávat vlastní zachytávání.
 
-- [ ] **Step 4: Napojit v `routers/ibkr.py`** za „Phase 4b“ (balance) a před „Phase 5“:
+- [x] **Step 4: Napojit v `routers/ibkr.py`** za „Phase 4b“ (balance) a před „Phase 5“:
 
 ```python
     # Phase 4c: stock/ETF/cash ledger events from the same statement.
@@ -1878,11 +1878,11 @@ nepřidávat vlastní zachytávání.
 A do návratového dictu přidat `"ledger": ledger`. Opce (fáze 5–7) běží beze
 změny i při `needs_review`.
 
-- [ ] **Step 5: Testy IBKR routeru a celý suite**
+- [x] **Step 5: Testy IBKR routeru a celý suite**
 
 Run: `cd backend && python -m pytest tests/test_ibkr_ledger_sync.py tests/test_broker.py tests/test_event_loop_not_blocked.py -v`, pak `python -m pytest tests/ --ignore=tests/postgres -q`
 
-- [ ] **Step 6: PostgreSQL suite** (unique index + RLS na skutečném Postgresu, vlastní DB lane `ibkr`)
+- [x] **Step 6: PostgreSQL suite** (unique index + RLS na skutečném Postgresu, vlastní DB lane `ibkr`)
 
 Přidat `backend/tests/postgres/test_ibkr_ledger_postgres.py`: dva
 `apply_flex_ledger` + commit za sebou nevyhodí `IntegrityError` a Bob v
@@ -1892,7 +1892,7 @@ isolation matrix nevidí Aliciny IBKR řádky (vzor v existujících
 Run: `cd backend && TEST_DATABASE_URL=postgresql://<user>:<pw>@localhost:15432/portfyl_test_ibkr python -m pytest tests/postgres/ -v`
 Expected: PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/ibkr_ledger.py backend/routers/ibkr.py backend/tests/test_ibkr_ledger_sync.py backend/tests/postgres/test_ibkr_ledger_postgres.py
@@ -1953,7 +1953,7 @@ ACCOUNT_KEYWORDS = {
 Pořadí vyhodnocení je pořadí klíčů v dictu: `tax` před `gross` (`"dividend tax"`
 obsahuje `"dividend"`), `fx_*` před `fee`.
 
-- [ ] **Step 1: Syntetické fixtures** (formát podle research zdrojů; pokud reálný vzorek z Tasku 0 sloupce posouvá, upravit fixture i indexy):
+- [x] **Step 1: Syntetické fixtures** (formát podle research zdrojů; pokud reálný vzorek z Tasku 0 sloupce posouvá, upravit fixture i indexy):
 
 `transactions_en.csv`:
 
@@ -1983,7 +1983,7 @@ Date,Time,Value date,Product,ISIN,Description,FX,Change,,Balance,,Order Id
 31-01-2025,08:00,31-01-2025,,,DEGIRO Exchange Connectivity Fee 2025 (Nasdaq - NDQ),,EUR,-2.50,EUR,163.39,
 ```
 
-- [ ] **Step 2: Failing testy**
+- [x] **Step 2: Failing testy**
 
 ```python
 # backend/tests/test_degiro_import.py
@@ -2081,11 +2081,11 @@ def test_unpaired_fx_is_error():
     assert any("unpaired currency conversion" in e for e in result.errors)
 ```
 
-- [ ] **Step 3: Spustit, ověřit FAIL**
+- [x] **Step 3: Spustit, ověřit FAIL**
 
 Run: `cd backend && python -m pytest tests/test_degiro_import.py -v`
 
-- [ ] **Step 4: Implementace `_degiro_common.py`**
+- [x] **Step 4: Implementace `_degiro_common.py`**
 
 ```python
 # backend/importers/formats/_degiro_common.py
@@ -2128,7 +2128,7 @@ def numeric_cells(rows: list[list[str]], indexes) -> list[str]:
     return [row[i] for row in rows for i in indexes if i < len(row) and row[i].strip()]
 ```
 
-- [ ] **Step 5: Implementace `degiro_transactions.py`**
+- [x] **Step 5: Implementace `degiro_transactions.py`**
 
 ```python
 # backend/importers/formats/degiro_transactions.py
@@ -2219,7 +2219,7 @@ def _parse(file: ImportFile, resolver) -> ParseResult:
 FORMAT = ImportFormat("degiro_transactions", "Degiro (Transactions)", _detect, _parse)
 ```
 
-- [ ] **Step 6: Implementace `degiro_account.py`** podle pravidel výše. Kostra:
+- [x] **Step 6: Implementace `degiro_account.py`** podle pravidel výše. Kostra:
 
 ```python
 # backend/importers/formats/degiro_account.py
@@ -2330,9 +2330,9 @@ shodovat se znaménkem (`deposit` s kladnou částkou, `withdrawal` se zápornou
 „sign contradicts description“. Doplnit test
 `test_sign_contradiction_is_error` (vklad se zápornou částkou).
 
-- [ ] **Step 7: Spustit, ověřit PASS**, pak `python -m pytest tests/ --ignore=tests/postgres -q`
+- [x] **Step 7: Spustit, ověřit PASS**, pak `python -m pytest tests/ --ignore=tests/postgres -q`
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add backend/importers/formats/degiro_transactions.py backend/importers/formats/degiro_account.py backend/importers/formats/_degiro_common.py backend/tests/test_degiro_import.py backend/tests/fixtures/brokers/degiro
@@ -2724,7 +2724,7 @@ Model mapování (nezávislý na přesných názvech polí):
 - Cash transakce: vklad/výběr → `deposit`/`withdrawal`; dividenda → gross leg (eToro připisuje čistou částku, takže jen gross, `notes` „net of withholding“; ověřit Task 0 bod 1); poplatky → `fee`; neznámý typ → chyba.
 - Okna: `trade_history` iteruje `min_date` po 360 dnech do dneška a stránkuje, dokud stránka není prázdná.
 
-- [ ] **Step 1: Failing testy klienta** (httpx `MockTransport`)
+- [x] **Step 1: Failing testy klienta** (httpx `MockTransport`)
 
 ```python
 # backend/tests/test_etoro_client.py
@@ -2777,7 +2777,7 @@ def test_429_raises_with_retry_after():
 Testy počítají s tím, že odpovědi mají seznam pod klíčem `FIELD_ITEMS`
 (syntetický `"items"`). Po Tasku 0 upravit podle reálné odpovědi.
 
-- [ ] **Step 2: Failing testy mapperu**
+- [x] **Step 2: Failing testy mapperu**
 
 ```python
 # backend/tests/test_etoro_mapper.py
@@ -2827,9 +2827,9 @@ def test_unknown_instrument_is_error():
     assert result.errors and result.rows == []
 ```
 
-- [ ] **Step 3: Spustit, ověřit FAIL**
+- [x] **Step 3: Spustit, ověřit FAIL**
 
-- [ ] **Step 4: Implementace klienta**
+- [x] **Step 4: Implementace klienta**
 
 ```python
 # backend/etoro_client.py
@@ -2931,7 +2931,7 @@ Pozor na okna: pokud API vrací pro `minDate` všechno od data do dneška (ne je
 okno), dedup řeší mapper (`positionId`). Ověřit na vzorku a případně přidat
 `maxDate`.
 
-- [ ] **Step 5: Implementace mapperu**
+- [x] **Step 5: Implementace mapperu**
 
 ```python
 # backend/etoro_mapper.py
@@ -3017,7 +3017,7 @@ v Tasku 10 volá `cash_transactions()` jen tehdy, když je mapování hotové
 typ → ledger, testy `test_cash_deposit`, `test_cash_dividend_is_net`,
 `test_unknown_cash_type_is_error` a přepnout `CASH_MAPPED`.
 
-- [ ] **Step 6: PASS + fast suite → Step 7: Commit**
+- [x] **Step 6: PASS + fast suite → Step 7: Commit**
 
 ```bash
 git add backend/etoro_client.py backend/etoro_mapper.py backend/tests/test_etoro_client.py backend/tests/test_etoro_mapper.py backend/tests/fixtures/brokers/etoro
@@ -3037,7 +3037,7 @@ git commit -m "feat(etoro): read-only Public API client and ledger mapper"
 - Consumes: `parse_number`, `DividendLeg`, `net_dividend_rows`, `InstrumentRef`, `unresolved_errors`
 - Produces: `FORMAT` (key `xtb`, „XTB (xStation)“), `XTB_SUFFIX_VENUES: dict[str, str]`
 
-- [ ] **Step 1: Přidat závislost a přegenerovat locky** (z kořene repa, podle CLAUDE.md)
+- [x] **Step 1: Přidat závislost a přegenerovat locky** (z kořene repa, podle CLAUDE.md)
 
 ```bash
 uv pip compile backend/requirements.txt --universal --generate-hashes --python-version 3.12 -o backend/requirements.lock
@@ -3048,7 +3048,7 @@ uv pip install --require-hashes -r backend/requirements-dev.lock
 Ověřit, že `git diff backend/requirements.lock` přidává jen `openpyxl` a
 `et-xmlfile` a nic jiného se neposunulo (bez `--upgrade`).
 
-- [ ] **Step 2: Failing testy.** Předpokládaná struktura podle research [ověřit Task 0]: list `CASH OPERATION HISTORY`, úvodní řádky (účet, `Currency` + hodnota), pak hlavička `ID | Type | Time | Comment | Symbol | Amount`.
+- [x] **Step 2: Failing testy.** Předpokládaná struktura podle research [ověřit Task 0]: list `CASH OPERATION HISTORY`, úvodní řádky (účet, `Currency` + hodnota), pak hlavička `ID | Type | Time | Comment | Symbol | Amount`.
 
 ```python
 # backend/tests/test_xtb_import.py
@@ -3140,9 +3140,9 @@ def test_missing_account_currency_is_error():
     assert xtb.FORMAT.parse(wb_file, RESOLVER).errors
 ```
 
-- [ ] **Step 3: Spustit, ověřit FAIL**
+- [x] **Step 3: Spustit, ověřit FAIL**
 
-- [ ] **Step 4: Implementace**
+- [x] **Step 4: Implementace**
 
 ```python
 # backend/importers/formats/xtb.py
@@ -3286,7 +3286,7 @@ Pro dividendy v měně účtu má `DividendLeg.currency = account_ccy`, takže
 `price` dividendy je v CZK, ne v USD. To je v pořádku, protože analytika
 dividend čte `cash_amount`/`cash_currency` (`signed_cash`).
 
-- [ ] **Step 5: PASS + fast suite na 3.12 i 3.14** (lockfile změna, podle CLAUDE.md)
+- [x] **Step 5: PASS + fast suite na 3.12 i 3.14** (lockfile změna, podle CLAUDE.md)
 
 ```bash
 cd backend && python -m pytest tests/ --ignore=tests/postgres -q
@@ -3295,7 +3295,7 @@ uv pip install --python .venv314 --require-hashes -r requirements-dev.lock
 .venv314/Scripts/python -m pytest tests/ --ignore=tests/postgres -q
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/requirements.txt backend/requirements.lock backend/requirements-dev.lock backend/importers/formats/xtb.py backend/tests/test_xtb_import.py
@@ -3324,7 +3324,7 @@ Chování:
 - Plain `def` všude. `jobs.py`: eToro větev volá `etoro_sync` přímo (je sync), ne přes loop.
 - Tento task vlastní `ibkr_ledger.py` (Task 4 je v té době mergnutý) a refaktoruje ho na `insert_new_provider_rows`. Testy Tasku 4 musí dál procházet beze změny.
 
-- [ ] **Step 1: Failing testy** (router funkce volané napřímo, `EtoroClient` nahrazený fake třídou)
+- [x] **Step 1: Failing testy** (router funkce volané napřímo, `EtoroClient` nahrazený fake třídou)
 
 ```python
 # backend/tests/test_etoro_router.py
@@ -3393,9 +3393,9 @@ def test_status_never_returns_key(db, portfolio, context):
 Fixtures `db`, `portfolio`, `context` postavit jako v `tests/test_broker.py`
 (lokálně v souboru, pokud nejsou v conftestu).
 
-- [ ] **Step 2: Spustit, ověřit FAIL**
+- [x] **Step 2: Spustit, ověřit FAIL**
 
-- [ ] **Step 3: Vytáhnout `ledger_import.insert_new_provider_rows`** z `ibkr_ledger.apply_flex_ledger` (kód od „FX does not depend on ledger state“ dál, parametrizovaný `source`). `apply_flex_ledger` po refaktoru:
+- [x] **Step 3: Vytáhnout `ledger_import.insert_new_provider_rows`** z `ibkr_ledger.apply_flex_ledger` (kód od „FX does not depend on ledger state“ dál, parametrizovaný `source`). `apply_flex_ledger` po refaktoru:
 
 ```python
 def apply_flex_ledger(db, portfolio, xml_text, *, resolver):
@@ -3410,13 +3410,13 @@ def apply_flex_ledger(db, portfolio, xml_text, *, resolver):
 
 Run: `cd backend && python -m pytest tests/test_ibkr_ledger_sync.py -v` → PASS (beze změny testů; monkeypatch `bulk_fetch_fx` přesměrovat na `ledger_import.bulk_fetch_fx`, pokud ho test patchuje přes modul).
 
-- [ ] **Step 4: Implementovat `routers/etoro.py`.** Strukturu connect/status/auto-sync/disconnect zkopírovat z `routers/ibkr.py` (ř. 362–567), Flex volání nahradit `EtoroClient`. Router `APIRouter(prefix="/broker/etoro")`. Mount v `main.py` vedle `ibkr.router`:
+- [x] **Step 4: Implementovat `routers/etoro.py`.** Strukturu connect/status/auto-sync/disconnect zkopírovat z `routers/ibkr.py` (ř. 362–567), Flex volání nahradit `EtoroClient`. Router `APIRouter(prefix="/broker/etoro")`. Mount v `main.py` vedle `ibkr.router`:
 
 ```python
 app.include_router(etoro.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 ```
 
-- [ ] **Step 5: `jobs.py`.** V auto-sync passu (vedle `elif conn.broker == "ibkr":`) přidat:
+- [x] **Step 5: `jobs.py`.** V auto-sync passu (vedle `elif conn.broker == "ibkr":`) přidat:
 
 ```python
             elif conn.broker == "etoro":
@@ -3427,15 +3427,15 @@ app.include_router(etoro.router, prefix="/api", dependencies=_CSRF_DEPENDENCIES)
 Dead-letter počítadlo (`consecutive_failures`) funguje stejně jako u IBKR.
 Ověřit testem v `tests/test_broker_dead_letter.py` (přidat případ pro eToro).
 
-- [ ] **Step 6: Ověřit, že `/broker` je portfolio-scoped cesta** (frontend posílá `portfolio_id` automaticky, `PORTFOLIO_AGNOSTIC_PREFIXES` se nemění).
+- [x] **Step 6: Ověřit, že `/broker` je portfolio-scoped cesta** (frontend posílá `portfolio_id` automaticky, `PORTFOLIO_AGNOSTIC_PREFIXES` se nemění).
 
-- [ ] **Step 7: `deploy/cloudrun.md`:** do sekce secretů přidat `PORTFYL_ETORO_APP_KEY` (Secret Manager, `--set-secrets`) a volitelně `OPENFIGI_API_KEY`. Hodnoty necommitovat.
+- [x] **Step 7: `deploy/cloudrun.md`:** do sekce secretů přidat `PORTFYL_ETORO_APP_KEY` (Secret Manager, `--set-secrets`) a volitelně `OPENFIGI_API_KEY`. Hodnoty necommitovat.
 
-- [ ] **Step 8: Testy**
+- [x] **Step 8: Testy**
 
 Run: `cd backend && python -m pytest tests/test_etoro_router.py tests/test_ibkr_ledger_sync.py tests/test_broker_dead_letter.py tests/test_event_loop_not_blocked.py -v`, pak celý fast suite a `tests/postgres/` (vlastní DB lane `etoro`).
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add backend/routers/etoro.py backend/ledger_import.py backend/ibkr_ledger.py backend/main.py backend/jobs.py deploy/cloudrun.md backend/tests/test_etoro_router.py backend/tests/test_broker_dead_letter.py
@@ -3462,7 +3462,7 @@ Obsah návodů (jazyk podle stávajícího UI v `Import.jsx`):
 - **Fidelity:** Activity & Orders → Download.
 - **eToro:** Nastavení → Trading → API Key Management → nový klíč, oprávnění Read, prostředí Real → vložit v Portfylu do Nastavení → Brokeři.
 
-- [ ] **Step 1: Failing testy**
+- [x] **Step 1: Failing testy**
 
 ```jsx
 // frontend/src/components/import/BrokerGuides.test.jsx
@@ -3489,16 +3489,16 @@ V `Import.test.jsx` přidat: preview s `format: "Degiro (Transactions)"` a
 zobrazí se důvod a počet; **nezobrazí** se varování o nahrazení portfolia
 (to jen pro „Trading 212“).
 
-- [ ] **Step 2: FAIL** (`cd frontend && npm test -- BrokerGuides`)
-- [ ] **Step 3: Implementace** ve stávajícím stylu (tokeny z `index.css`, existující `FormatBadge` rozšířit o neutrální barvu pro ne-T212 formáty). File input `accept=".csv,.xml,.xlsx"`. Texty „CSV“ v UI změnit na „soubor/export“, kde se týkají i XML/XLSX.
-- [ ] **Step 4: Ověření**
+- [x] **Step 2: FAIL** (`cd frontend && npm test -- BrokerGuides`)
+- [x] **Step 3: Implementace** ve stávajícím stylu (tokeny z `index.css`, existující `FormatBadge` rozšířit o neutrální barvu pro ne-T212 formáty). File input `accept=".csv,.xml,.xlsx"`. Texty „CSV“ v UI změnit na „soubor/export“, kde se týkají i XML/XLSX.
+- [x] **Step 4: Ověření**
 
 ```bash
 cd frontend && npm test && npm run test:cloud && npm run build && npm run build:cloud
 ```
 
-- [ ] **Step 5: UI ověření v prohlížeči** (vlastní porty lane `frontend`): spustit backend + frontend, přihlásit se testovacím Firebase účtem, nahrát fixtures z `backend/tests/fixtures/brokers/*` přes Import → preview → commit → undo; screenshot preview pro Degiro a IBKR XML; v Nastavení zkontrolovat kartu eToro (bez app key ukáže „není nakonfigurováno“).
-- [ ] **Step 6: Commit**
+- [x] **Step 5: UI ověření v prohlížeči** (vlastní porty lane `frontend`): spustit backend + frontend, přihlásit se testovacím Firebase účtem, nahrát fixtures z `backend/tests/fixtures/brokers/*` přes Import → preview → commit → undo; screenshot preview pro Degiro a IBKR XML; v Nastavení zkontrolovat kartu eToro (bez app key ukáže „není nakonfigurováno“).
+- [x] **Step 6: Commit**
 
 ```bash
 git add frontend/src/components/import frontend/src/pages/Import.jsx frontend/src/pages/Import.test.jsx frontend/src/pages/Settings.jsx frontend/src/api.js

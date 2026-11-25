@@ -65,60 +65,60 @@
 **Files:** none (account state only)
 **Produces:** `NEW_ACCOUNT` (gcloud credential), `NEW_BILLING_ID`, `NEW_PROJECT_ID`.
 
-- [ ] **Step 1:** Confirm the new Google account's trial is active: console.cloud.google.com → Billing → note the credit amount, currency and **expiry date**; put `expiry − 15 days` in a calendar as "UPGRADE GCP".
-- [ ] **Step 2:** `gcloud auth login` (browser) with the new account. Verify: `gcloud auth list` shows both accounts; do **not** change the active account yet.
-- [ ] **Step 3:** Use a named configuration so the two accounts can never be mixed in one shell:
+- [x] **Step 1:** Confirm the new Google account's trial is active: console.cloud.google.com → Billing → note the credit amount, currency and **expiry date**; put `expiry − 15 days` in a calendar as "UPGRADE GCP".
+- [x] **Step 2:** `gcloud auth login` (browser) with the new account. Verify: `gcloud auth list` shows both accounts; do **not** change the active account yet.
+- [x] **Step 3:** Use a named configuration so the two accounts can never be mixed in one shell:
   ```powershell
   gcloud config configurations create newgcp
   gcloud config set account NEW_ACCOUNT_EMAIL
   gcloud billing accounts list    # copy NEW_BILLING_ID
   ```
-- [ ] **Step 4:** Add the old account as `roles/owner` on the new project after Task 1 (rollback access if the new account is lost).
+- [x] **Step 4:** Add the old account as `roles/owner` on the new project after Task 1 (rollback access if the new account is lost).
 
 ## Wave 1 — Empty infrastructure in the new project (no production impact)
 
 ### Task 1: Project, APIs, budgets
 **Files:** none in repo; follow `deploy/cloudrun.md` §0–2, §8.
-- [ ] **Step 1:** `$PROJECT_ID="portfyl-prod-<random>"`, `$REGION="europe-west1"` (keep identical to prod so Cloud Run URLs/latency behave the same; moving to europe-west3 next to Neon is a separate optimisation).
-- [ ] **Step 2:** Create project, link `NEW_BILLING_ID`, enable the §2 API list **plus** `billingbudgets.googleapis.com`.
-- [ ] **Step 3:** Budget alert at ~25 USD with 50/90/100 % thresholds on the new billing account (currency must match the account; see §8).
-- [ ] **Step 4:** Verify `gcloud billing projects describe $PROJECT_ID` → `billingEnabled: true`.
+- [x] **Step 1:** `$PROJECT_ID="portfyl-prod-<random>"`, `$REGION="europe-west1"` (keep identical to prod so Cloud Run URLs/latency behave the same; moving to europe-west3 next to Neon is a separate optimisation).
+- [x] **Step 2:** Create project, link `NEW_BILLING_ID`, enable the §2 API list **plus** `billingbudgets.googleapis.com`.
+- [x] **Step 3:** Budget alert at ~25 USD with 50/90/100 % thresholds on the new billing account (currency must match the account; see §8).
+- [x] **Step 4:** Verify `gcloud billing projects describe $PROJECT_ID` → `billingEnabled: true`.
 
 ### Task 2: Secrets (copied, not regenerated)
 **Files:** none in repo.
-- [ ] **Step 1:** For each of the six secrets in runbook §4, pipe old → new without printing:
+- [x] **Step 1:** For each of the six secrets in runbook §4, pipe old → new without printing:
   ```powershell
   gcloud secrets create portfyl-edge-token --project=$NEW --replication-policy=automatic
   gcloud secrets versions access latest --secret=portfyl-edge-token --project=portfyl-cloud-fstxby | gcloud secrets versions add portfyl-edge-token --project=$NEW --data-file=-
   ```
   Repeat for `portfyl-database-url`, `portfyl-job-database-url`, `portfyl-migration-database-url`, `portfyl-rate-limit-key-secret`, `portfyl-account-fingerprint-key`.
-- [ ] **Step 2:** Create `portfyl-runtime`, `portfyl-migrator`, `portfyl-scheduler` service accounts and the same `secretAccessor` bindings as §4/§9 (migrator → only the migration URL).
-- [ ] **Step 3:** Verify with `gcloud secrets list --project=$NEW` (6 entries) and `versions list` (1 enabled version each).
+- [x] **Step 2:** Create `portfyl-runtime`, `portfyl-migrator`, `portfyl-scheduler` service accounts and the same `secretAccessor` bindings as §4/§9 (migrator → only the migration URL).
+- [x] **Step 3:** Verify with `gcloud secrets list --project=$NEW` (6 entries) and `versions list` (1 enabled version each).
 
 ### Task 3: Cross-project access to old KMS key and old Firebase
-- [ ] **Step 1:** On the **old** project grant the **new** runtime SA:
+- [x] **Step 1:** On the **old** project grant the **new** runtime SA:
   ```powershell
   gcloud kms keys add-iam-policy-binding secrets --keyring=portfyl --location=<KEY_LOCATION> --project=portfyl-cloud-fstxby --member="serviceAccount:portfyl-runtime@$NEW.iam.gserviceaccount.com" --role="roles/cloudkms.cryptoKeyEncrypterDecrypter"
   gcloud projects add-iam-policy-binding portfyl-cloud-fstxby --member="serviceAccount:portfyl-runtime@$NEW.iam.gserviceaccount.com" --role="roles/firebaseauth.admin"
   ```
   (**Done 2026-10-11:** the real key location is **europe-west3** (`projects/portfyl-cloud-fstxby/locations/europe-west3/keyRings/portfyl/cryptoKeys/secrets`), not europe-west1. Use `--location=europe-west3` above and `<KEY_LOCATION>` = `europe-west3` in Task 4. Both grants applied and verified.)
-- [ ] **Step 2:** Verify with `gcloud kms keys get-iam-policy` that only the old runtime SA and the new runtime SA are bound.
-- [ ] **Step 3 (BLOCKED for gcloud — `SOLO_MUST_INVITE_OWNERS`; must be done in the console by invitation: IAM & Admin → Grant access → `support@portfyl.com` → Owner, then accept the e-mail invitation):** Make `support@portfyl.com` Owner of the old project so it never depends on one Google account: `gcloud projects add-iam-policy-binding portfyl-cloud-fstxby --member="user:support@portfyl.com" --role="roles/owner"` (run as `tom.zoubek@gmail.com`; the owner confirms before this runs). Verify with `gcloud projects get-iam-policy`.
+- [x] **Step 2:** Verify with `gcloud kms keys get-iam-policy` that only the old runtime SA and the new runtime SA are bound.
+- [x] **Step 3 (BLOCKED for gcloud — `SOLO_MUST_INVITE_OWNERS`; must be done in the console by invitation: IAM & Admin → Grant access → `support@portfyl.com` → Owner, then accept the e-mail invitation):** Make `support@portfyl.com` Owner of the old project so it never depends on one Google account: `gcloud projects add-iam-policy-binding portfyl-cloud-fstxby --member="user:support@portfyl.com" --role="roles/owner"` (run as `tom.zoubek@gmail.com`; the owner confirms before this runs). Verify with `gcloud projects get-iam-policy`.
 
 ## Wave 2 — Deploy dark and test
 
 ### Task 4: Image, migration Job, service (no traffic yet)
 **Files:** none unless the build needs `VITE_FIREBASE_*` args (unchanged in phase 1 — same Firebase project).
-- [ ] **Step 1:** Copy the *current prod digest* instead of building new code, so behaviour is identical: `gcloud artifacts docker images copy` old digest → new Artifact Registry (or `gcloud builds submit` from the same git SHA). Record the digest.
-- [ ] **Step 2:** `deploy/run-migrations.ps1` against the new project's Job (no-op: Neon is already at head). Must exit 0.
-- [ ] **Step 3:** Deploy the service per runbook §6 with these deltas in `--set-env-vars`: `GOOGLE_CLOUD_PROJECT=portfyl-cloud-fstxby` and `PORTFYL_KMS_KEY_NAME=projects/portfyl-cloud-fstxby/locations/<KEY_LOCATION>/keyRings/portfyl/cryptoKeys/secrets`. Nothing routes to the new URL yet, so this is safe.
-- [ ] **Step 4:** Set `PORTFYL_SERVICE_URL` and `PORTFYL_SCHEDULER_SERVICE_ACCOUNT` (runbook §9) to the **new** URL.
+- [x] **Step 1:** Copy the *current prod digest* instead of building new code, so behaviour is identical: `gcloud artifacts docker images copy` old digest → new Artifact Registry (or `gcloud builds submit` from the same git SHA). Record the digest.
+- [x] **Step 2:** `deploy/run-migrations.ps1` against the new project's Job (no-op: Neon is already at head). Must exit 0.
+- [x] **Step 3:** Deploy the service per runbook §6 with these deltas in `--set-env-vars`: `GOOGLE_CLOUD_PROJECT=portfyl-cloud-fstxby` and `PORTFYL_KMS_KEY_NAME=projects/portfyl-cloud-fstxby/locations/<KEY_LOCATION>/keyRings/portfyl/cryptoKeys/secrets`. Nothing routes to the new URL yet, so this is safe.
+- [x] **Step 4:** Set `PORTFYL_SERVICE_URL` and `PORTFYL_SCHEDULER_SERVICE_ACCOUNT` (runbook §9) to the **new** URL.
 
 ### Task 5: Dark verification (done *before* cutover)
-- [ ] **Step 1:** Direct `curl https://<new>.run.app/api/auth/me` → **403 untrusted_edge**.
-- [ ] **Step 2:** Add a *test* Worker route (or temporary staging hostname) pointing at the new URL with the edge token; sign in with the owner account → dashboard loads (proves Firebase project + RLS + Neon).
-- [ ] **Step 3:** Open Settings / trigger a broker sync → stored broker secret decrypts (proves cross-project KMS). Any `Could not decrypt` / KMS 403 = stop.
-- [ ] **Step 4:** Create the six Scheduler jobs from runbook §9, then immediately `gcloud scheduler jobs pause` each. Run one manually (`jobs run portfyl-alerts`) and check `/health`.
+- [x] **Step 1:** Direct `curl https://<new>.run.app/api/auth/me` → **403 untrusted_edge**.
+- [x] **Step 2:** Add a *test* Worker route (or temporary staging hostname) pointing at the new URL with the edge token; sign in with the owner account → dashboard loads (proves Firebase project + RLS + Neon).
+- [x] **Step 3:** Open Settings / trigger a broker sync → stored broker secret decrypts (proves cross-project KMS). Any `Could not decrypt` / KMS 403 = stop.
+- [x] **Step 4:** Create the six Scheduler jobs from runbook §9, then immediately `gcloud scheduler jobs pause` each. Run one manually (`jobs run portfyl-alerts`) and check `/health`.
 
 ## Wave 3 — Cutover (maintenance window, ~15 min)
 
