@@ -2,6 +2,7 @@
 // Language is read from the same localStorage key the landing page and the
 // legal pages use -- no network localization, no IP geolocation.
 import { LANGUAGE_KEY } from "../pages/welcomeCopy";
+import { LANGUAGE_STORAGE_KEY } from "../i18n/languages";
 
 export { LANGUAGE_KEY };
 
@@ -52,8 +53,11 @@ export const ANALYTICS_COPY = {
 
 export function getAnalyticsLanguage() {
   try {
-    const saved = localStorage.getItem(LANGUAGE_KEY);
-    if (saved && ANALYTICS_COPY[saved]) return saved;
+    // The signed-in app's own language choice wins over the landing page's.
+    for (const key of [LANGUAGE_STORAGE_KEY, LANGUAGE_KEY]) {
+      const saved = localStorage.getItem(key);
+      if (saved && ANALYTICS_COPY[saved]) return saved;
+    }
   } catch {
     /* Storage may be unavailable (private browsing, blocked cookies). */
   }
