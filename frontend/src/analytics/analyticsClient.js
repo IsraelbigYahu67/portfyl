@@ -62,6 +62,10 @@ function buildOptions({ host }) {
     capture_pageview: false,
     capture_pageleave: false,
     disable_session_recording: true,
+    // The SDK would fetch /array/<key>/config.js from eu-assets.i.posthog.com,
+    // which our CSP (script-src 'self') blocks on every load. Recording,
+    // autocapture and surveys are off, so that script is not needed.
+    disable_external_dependency_loading: true,
     person_profiles: "identified_only",
     cross_subdomain_cookie: true,
     persistence: "localStorage+cookie",

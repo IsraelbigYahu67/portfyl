@@ -69,6 +69,7 @@ describe("analytics adapters", () => {
       capture_pageview: false,
       capture_pageleave: false,
       disable_session_recording: true,
+      disable_external_dependency_loading: true,
       person_profiles: "identified_only",
       cross_subdomain_cookie: true,
       persistence: "localStorage+cookie",

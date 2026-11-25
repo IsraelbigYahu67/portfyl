@@ -204,6 +204,8 @@
 .welcome-footer a:hover, .welcome-preview-link:hover { color: var(--ink); text-decoration: underline; }
 .welcome-footer .welcome-logo { margin-bottom: 10px; color: var(--ink); }
 .welcome-footer-about p + p { margin-top: 10px; }
+/* <small> defaults to 0.8em (11.2px here), under the 12px floor in DESIGN.md. */
+.welcome-footer small { font-size: 0.8125rem; }
 .welcome-preview-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; }
 /* Interim: the legal pages' footer is still a single flex row (plan Task 4). */
 .welcome-footer.welcome-container { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 28px; padding-block: 28px; }
