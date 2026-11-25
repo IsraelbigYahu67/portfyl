@@ -405,7 +405,7 @@ git commit -m "docs: add activation analytics operations and privacy gate"
 
 > Stand 2026-11-25: Tasks 1-7 are implemented and the Task 8 documents exist (`docs/operations/posthog-activation-analytics.md`, `activation-analytics-browser-check.md`, compliance inventory, `deploy/cloudrun.md`). The public `/demo` events in this plan were retired on 2026-11-18 (see the runbook). Still open: browser matrix, storage/network checks, release gates and live-debugger confirmation, which need a running app and the test suites. The production variables must stay unset until the legal gate closes.
 
-> Release gates run on 2026-11-25 (Docker was off, so the PostgreSQL suite and every browser check are still open): `npm test` 1815 passed / 6 skipped, `npm run test:cloud` 1821 passed, `npm run audit:readability` 0 violations (the 10px month labels in `DividendBarsCard` are the owner-approved exception in `DESIGN.md`, now in the audit allowlist), `npm run build` and `npm run build:cloud` OK, backend `pytest tests/ --ignore=tests/postgres` 2553 passed.
+> Release gates run on 2026-11-25 (PostgreSQL suite `tests/postgres/`: 503 passed; every browser check is still open): `npm test` 1815 passed / 6 skipped, `npm run test:cloud` 1821 passed, `npm run audit:readability` 0 violations (the 10px month labels in `DividendBarsCard` are the owner-approved exception in `DESIGN.md`, now in the audit allowlist), `npm run build` and `npm run build:cloud` OK, backend `pytest tests/ --ignore=tests/postgres` 2553 passed.
 
 ## Plan completion gate
 
