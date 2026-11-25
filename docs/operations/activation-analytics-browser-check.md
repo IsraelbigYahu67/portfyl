@@ -64,8 +64,10 @@ For every page in scope:
 - [ ] **Pending consent, no request.** With the consent banner untouched,
       the Network panel shows zero requests to `eu.i.posthog.com` on load
       or on any interaction that would otherwise capture an event.
-- [ ] **Rejected consent, cookieless events only.** After clicking Reject,
-      `localStorage` contains no PostHog keys and no
+- [ ] **Rejected consent, nothing sent.** After clicking Reject, the Network
+      panel shows zero requests to `eu.i.posthog.com` (no cookieless mode —
+      privacy review 2026-11-06, finding A1) and the PostHog SDK is never
+      loaded; `localStorage` contains no PostHog keys and no
       `portfyl_captured_once:*` entries; `document.cookie` contains only
       `portfyl_analytics_consent=rejected` (plus Portfyl's own session/CSRF
       cookies) — no PostHog cookie.
