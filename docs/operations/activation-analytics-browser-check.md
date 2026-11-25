@@ -156,3 +156,29 @@ completes the items above.
 - Architecture: [[Frontend structure]] · [[Onboarding and CSV import]]
 - Code: [[src.TrackerBootstrap]] · [[components.landing (folder)]]
 - Docs: [[operations/posthog-activation-analytics]]
+
+
+## Run of 2026-11-25 (partial)
+
+Cloud edition on a throwaway database, Playwright, a made-up PostHog key
+(`phc_browsercheck_fake`) with every request to `eu.i.posthog.com` answered
+locally, so nothing left the machine.
+
+- Landing `/`, `/en/`, `/de/` at 390×844, 768×1024, 1024×768 and 1440×900: no
+  horizontal scroll; the only text under 12px was the footer copyright (11.2px),
+  fixed to 13px. `/login` and `/register` showed no issue.
+- Pending consent: 0 PostHog requests, no storage. Rejected: 0 requests, SDK not
+  loaded, no `ph_*` or `portfyl_captured_once:*` keys, cookie only
+  `portfyl_analytics_consent=rejected`, including after using all five mini demos.
+- Accepted: `landing_viewed` (`language`, `referrer_class`, `utm_*`) and exactly
+  one `landing_minidemo_used` per mini demo with only `minidemo` and `language`;
+  nothing on scrolling a demo into view. Onboarding demo path:
+  `portfolio_created` (`creation_path`), `portfolio_data_imported`
+  (`source_type`), `onboarding_step_viewed` (`step`). No forbidden properties.
+- **Finding, fixed:** with consent the SDK tried to load
+  `/array/<key>/config.js` from `eu-assets.i.posthog.com`, which `script-src 'self'`
+  blocks on every load. `disable_external_dependency_loading: true` stops it.
+- `/demo/allocation?utm_source=x` ends on `/?utm_source=x` with no PostHog request.
+- Still open: Dashboard, Settings and Import emitted no events in this run (none
+  are defined for page views, nothing to compare); the live-debugger check against
+  the real PostHog project and the Premium / Classic matrix for these pages.

@@ -120,6 +120,24 @@ step 2) and the browser re-audit with per-finding pass/fail (steps 4 and 5).
 The colour changes touch the shared `Toast` and `AccountMenu`, so check them in
 Premium and Classic during that re-audit.
 
+### Browser re-audit (2026-11-25)
+
+Cloud edition on a throwaway database, Playwright, demo data, account with the
+free Pro trial. Clay at 1440×900 and 375×812 on `/dashboard`, `/allocation`,
+`/analytics`, `/dividends`, `/cash`, `/transactions`, `/watchlists`, `/import`,
+`/settings`, `/pricing`, and the four stock tabs of `/stock/AAPL` (Overview,
+Financials, Valuation, Ownership; Filings is not in the cloud edition).
+
+- **0 page-level horizontal scroll** on every page and tab, in Clay, Premium
+  (`sb_theme_style=neu`) and the default appearance, for Dashboard and Allocation.
+- **0 text nodes under 12px**, except the 10px month labels above the bars in
+  `DividendBarsCard` on a phone (the owner-approved exception in `DESIGN.md`).
+- Flagged "truncated" labels on Watchlists are `sr-only` labels (1×1px by
+  design), not clipped text.
+- Not covered by the in-page script: the heatmap tile and target-pill overlap
+  were not inspected one by one; no regression was visible. Classic dark and
+  the Screener (not in cloud) were not exercised.
+
 ## Related
 
 - Architecture: [[Frontend structure]]

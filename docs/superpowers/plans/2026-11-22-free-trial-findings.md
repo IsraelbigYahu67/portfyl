@@ -30,7 +30,7 @@ chce `ends_at > started_at`. Je třeba posunout i `started_at`
 Žádný nebrání trialu. Pořadí je podle dopadu.
 
 **Stav k 2026-11-25:** všech šest bodů je vyřešených nebo se nepotvrdilo (viz níže
-u každého). U bodů 5 a 6 chybí už jen ruční kontrola v prohlížeči.
+u každého). Bod 6 je ověřený v prohlížeči (2026-11-25: odhlášení i přímý odkaz na `/settings?...` skončí na `/login` bez dotazu). U bodu 5 chybí už jen průchod „smazat účet a znovu se zaregistrovat“ v prohlížeči, kryje ho test.
 
 1. **[Opraveno, commit `5f57a44`: potvrzení posílá `previewed_replace`.] První import do nového portfolia selže 409.** Když je aktivní portfolio s
    ukázkovými daty, aplikace otevře nové prázdné portfolio a náhled spočítá s
