@@ -38,4 +38,3 @@ generated: true
 - [[superpowers/plans/2026-09-19-portfyl-activation-analytics]]
 - [[superpowers/plans/2026-10-12-portfyl-google-sign-in]]
 - [[superpowers/plans/2026-11-18-portfyl-landing-mini-dema-5-smazat-demo]]
-- [[superpowers/plans/2026-11-18-portfyl-landing-mini-demos]]

@@ -39,4 +39,3 @@ One codebase ships two products. `PORTFYL_EDITION=local` is the owner's private 
 ## Docs
 - [[superpowers/plans/2026-09-01-portfyl-saas-monetization]]: sections on tiers and why Tax Report and Screener stay out of cloud.
 - [[finished]]: record of the finished edition-boundary plan (`2026-09-03-portfyl-edition-boundary`).
-- [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]: plan switching before real payments.

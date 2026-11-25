@@ -22,8 +22,6 @@ generated: true
 - [[operations/billing-verification-2026-09-05]]
 - [[seo/content-drafts/sledovani-portfolia-trading-212]]
 - [[superpowers/plans/2026-09-01-portfyl-saas-monetization]]
-- [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
-- [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]
 - [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]
 - [[superpowers/plans/2026-09-24-t212-corporate-actions-incremental-sync]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]

@@ -82,4 +82,3 @@ or integration test.
 
 - Architecture: [[Jobs and Cloud Scheduler]] · [[Testing]]
 - Code: [[services.screener_jobs]] · [[universes]] · [[private_loop]]
-- Docs: [[superpowers/plans/2026-09-13-ux-05-screener-jobs]]

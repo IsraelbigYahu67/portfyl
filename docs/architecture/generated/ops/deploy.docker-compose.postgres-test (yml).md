@@ -20,7 +20,6 @@ Own project name: without it both this file and docker-compose.postgres-dev.yml
 - [[operations/2026-09-21-t212-snapshot-first-sync-session]]
 - [[operations/activation-analytics-browser-check]]
 - [[security/tenant-isolation-matrix]]
-- [[superpowers/plans/2026-09-13-ux-08-assistant-performance]]
 - [[superpowers/plans/2026-09-24-t212-corporate-actions-incremental-sync]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]
 - [[superpowers/plans/2026-11-09-portfyl-market-data-cache]]

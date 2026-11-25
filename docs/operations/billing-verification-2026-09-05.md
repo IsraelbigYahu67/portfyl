@@ -190,4 +190,3 @@ external sandbox rehearsal from the "Canceled Stripe gate" section above.
 
 - Architecture: [[Billing and Stripe]] · [[Edition boundary]]
 - Code: [[billing_config]] · [[entitlements]] · [[plans]] · [[routers.billing]] · [[stripe_client]] · [[subscriptions (table)]] · [[0010_billing_entitlements]]
-- Docs: [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]

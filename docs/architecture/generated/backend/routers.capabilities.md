@@ -22,6 +22,3 @@ Runtime edition capabilities consumed by shared frontend surfaces.
 
 ## Imports
 - [[edition]]
-
-## Mentioned in docs
-- [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]

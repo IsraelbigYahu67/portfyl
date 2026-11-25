@@ -36,8 +36,6 @@ Server-side edition, plan, resource-limit, and usage enforcement.
 
 ## Mentioned in docs
 - [[operations/billing-verification-2026-09-05]]
-- [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
-- [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]
 - [[superpowers/plans/2026-09-11-portfyl-revenue-launch-closing-plan]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]
 - [[superpowers/plans/2026-11-15-portfyl-landing-redesign-free-trial]]

@@ -49,6 +49,5 @@ A guard that fails never blocks sign-up. The workspace simply starts on Free, an
 ## Docs
 - [[superpowers/plans/2026-11-15-portfyl-landing-redesign-free-trial]]: the plan that introduced the trial and its landing copy.
 - [[superpowers/plans/2026-11-22-free-trial-findings]]: result of the live walkthrough (scenarios a to i) and findings.
-- [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]: entitlement design the trial plugs into.
 - [[compliance/data-processing-inventory]]: what personal data is processed, including trial fingerprints.
 - [[deploy.cloudrun (md)]]: runbook, including the trial settings.

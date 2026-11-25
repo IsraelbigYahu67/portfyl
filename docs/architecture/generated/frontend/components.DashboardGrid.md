@@ -19,6 +19,3 @@ generated: true
 - [[components.ui (folder)]]
 - [[hooks.useMediaQuery]]
 - [[i18n (folder)]]
-
-## Mentioned in docs
-- [[superpowers/plans/2026-06-26-portfyl-ux-overhaul-foundation-dashboard]]

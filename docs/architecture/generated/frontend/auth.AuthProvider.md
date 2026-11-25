@@ -27,7 +27,6 @@ generated: true
 ## Mentioned in docs
 - [[compliance/2026-11-06-privacy-notice-review]]
 - [[operations/posthog-activation-analytics]]
-- [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
 - [[superpowers/plans/2026-09-19-portfyl-activation-analytics]]
 - [[superpowers/plans/2026-10-12-portfyl-google-sign-in]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]

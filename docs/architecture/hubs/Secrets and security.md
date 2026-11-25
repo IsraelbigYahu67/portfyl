@@ -54,4 +54,3 @@ This hub covers the safety net around the app: how stored secrets are encrypted,
 - [[operations/security-incident-response]]: what to do when something leaks
 - [[operations/incident-tabletop-2026-09-09]]: incident drill record
 - [[compliance/data-processing-inventory]]: which data goes to which processor
-- [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]: related Workstream D era plan

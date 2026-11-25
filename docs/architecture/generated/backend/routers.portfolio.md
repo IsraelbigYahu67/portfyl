@@ -85,8 +85,6 @@ generated: true
 - [[seo/content-drafts/twr-vs-xirr]]
 - [[seo/content-drafts/vykonnost-portfolia-vs-benchmark]]
 - [[seo/content-drafts/yield-on-cost]]
-- [[superpowers/plans/2026-06-26-portfyl-ux-overhaul-foundation-dashboard]]
-- [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
 - [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]
 - [[superpowers/plans/2026-09-24-t212-corporate-actions-incremental-sync]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]

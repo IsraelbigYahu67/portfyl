@@ -22,6 +22,3 @@ generated: true
 
 ## Calls backend
 - [[routers.watchlists]]
-
-## Mentioned in docs
-- [[superpowers/plans/2026-07-18-portfyl-mobile]]

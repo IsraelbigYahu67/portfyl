@@ -104,4 +104,4 @@ to this session); the paths above are the hand-off.
 
 - Architecture: [[Frontend structure]] · [[Onboarding and CSV import]]
 - Code: [[components.landing (folder)]] · [[demo (folder)]] · [[pages.Welcome]]
-- Docs: [[superpowers/plans/2026-11-18-portfyl-landing-mini-dema-5-smazat-demo]] · [[superpowers/plans/2026-11-18-portfyl-landing-mini-demos]]
+- Docs: [[superpowers/plans/2026-11-18-portfyl-landing-mini-dema-5-smazat-demo]]

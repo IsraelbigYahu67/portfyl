@@ -32,7 +32,5 @@ generated: true
 ## Mentioned in docs
 - [[seo/content-drafts/sledovani-dividend]]
 - [[seo/content-drafts/yield-on-cost]]
-- [[superpowers/plans/2026-07-18-portfyl-mobile]]
-- [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]
 - [[superpowers/plans/2026-10-23-clay-ui-fixes]]
 - [[superpowers/specs/2026-07-24-dividend-growth-and-overview-design]]

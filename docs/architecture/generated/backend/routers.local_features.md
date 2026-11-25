@@ -22,7 +22,6 @@ Route manifest for owner-only features in the local edition.
 - [[routers.market]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-09-13-ux-05-screener-jobs]]
 - [[superpowers/plans/ux-05-screener-jobs-verification]]
 - [[superpowers/specs/2026-11-08-portfyl-market-data-cache-design]]
 - [[superpowers/specs/2026-11-08-portfyl-market-data-cache-review]]

@@ -23,6 +23,3 @@ generated: true
 - [[lib.format]]
 - [[lib.pieCorners]]
 - [[lib.tickerLabel]]
-
-## Mentioned in docs
-- [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]

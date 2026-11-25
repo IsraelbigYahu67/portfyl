@@ -34,8 +34,6 @@ Cloud Scheduler-triggered job endpoints -- the cloud edition's replacement for t
 - [[private_loop]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
-- [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]
 - [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]
 - [[superpowers/plans/2026-11-09-portfyl-market-data-cache]]

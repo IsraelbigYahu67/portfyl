@@ -421,4 +421,4 @@ dist/assets/chartTheme-D4GXYxdw.js                                   399.98 kB �
 
 - Architecture: [[Backend]] · [[Secrets and security]]
 - Code: [[0024_remove_ai_assistant]] · [[main]]
-- Docs: [[superpowers/plans/2026-09-13-ux-08-assistant-performance]] · [[superpowers/plans/ux-08-browser-closeout-2026-09-17]]
+- Docs: · [[superpowers/plans/ux-08-browser-closeout-2026-09-17]]

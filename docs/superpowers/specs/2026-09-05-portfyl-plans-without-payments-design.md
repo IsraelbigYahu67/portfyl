@@ -103,4 +103,3 @@ Paddle noted only as the likely future choice rather than an implemented fact.
 
 - Architecture: [[Billing and Stripe]] · [[Edition boundary]]
 - Code: [[plans]] · [[entitlements]] · [[routers.test_plans]] · [[usage_counters (table)]] · [[billing_config]] · [[lib.planPrices]] · [[pages.Pricing]]
-- Docs: [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]

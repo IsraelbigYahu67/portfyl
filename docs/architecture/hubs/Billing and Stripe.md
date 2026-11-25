@@ -56,8 +56,6 @@ Billing is switched off until `PORTFYL_BILLING_ENABLED=1` is set. While it is of
 
 ## Docs
 - [[superpowers/plans/2026-09-01-portfyl-saas-monetization]]: product spec, pricing and rollout for the whole SaaS conversion.
-- [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]: the entitlement design.
-- [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]: the no-payment plan switch.
 - [[superpowers/specs/2026-09-05-portfyl-plans-without-payments-design]]: its design spec.
 - [[superpowers/plans/2026-09-11-portfyl-revenue-launch-closing-plan]]: what is left before payments go live.
 - [[operations/billing-verification-2026-09-05]]: billing verification record.

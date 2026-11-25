@@ -40,18 +40,12 @@ generated: true
 - [[routers.portfolios]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-06-26-portfyl-ux-overhaul-foundation-dashboard]]
-- [[superpowers/plans/2026-07-18-portfyl-mobile]]
-- [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]
-- [[superpowers/plans/2026-08-30-portfyl-premium-redesign.discarded-draft]]
-- [[superpowers/plans/2026-09-13-ux-08-assistant-performance]]
 - [[superpowers/plans/2026-10-23-clay-ui-fixes]]
 - [[superpowers/plans/2026-11-06-portfyl-app-languages]]
 - [[superpowers/plans/2026-11-09-portfyl-seo]]
 - [[superpowers/plans/2026-11-15-branded-auth-emails-handoff]]
 - [[superpowers/plans/2026-11-15-portfyl-landing-redesign-free-trial]]
 - [[superpowers/plans/2026-11-18-portfyl-landing-mini-dema-5-smazat-demo]]
-- [[superpowers/plans/2026-11-18-portfyl-landing-mini-demos]]
 - [[superpowers/plans/ux-08-assistant-performance-verification]]
 - [[superpowers/plans/ux-08-browser-closeout-2026-09-17]]
 - [[superpowers/specs/2026-07-03-portfyl-merge-design]]

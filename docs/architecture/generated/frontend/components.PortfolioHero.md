@@ -21,7 +21,3 @@ generated: true
 - [[hooks.useCountUp]]
 - [[i18n (folder)]]
 - [[lib.format]]
-
-## Mentioned in docs
-- [[superpowers/plans/2026-06-26-portfyl-ux-overhaul-foundation-dashboard]]
-- [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]

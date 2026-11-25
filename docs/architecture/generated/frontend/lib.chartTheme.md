@@ -18,6 +18,5 @@ Shared chart color tokens — every recharts consumer imports from here instead 
 **Exports:** `CATEGORICAL`, `NEUTRAL_COLOR`, `GAIN_COLOR`, `LOSS_COLOR`, `AXIS_TICK`, `AXIS_TICK_STYLE`, `LEGEND_TEXT_STYLE`, `GRID_STROKE`, `TOOLTIP_STYLE`, `SERIES_STYLES`
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]
 - [[superpowers/specs/2026-07-24-dividend-growth-and-overview-design]]
 - [[superpowers/specs/2026-07-30-neumorphism-theme-style-design]]

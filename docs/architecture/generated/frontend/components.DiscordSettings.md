@@ -23,7 +23,6 @@ generated: true
 - [[routers.discord]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]
 - [[superpowers/plans/2026-10-23-clay-ui-fixes]]
 - [[superpowers/specs/2026-07-30-neumorphism-theme-style-design]]

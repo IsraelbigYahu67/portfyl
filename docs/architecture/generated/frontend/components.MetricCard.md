@@ -20,8 +20,6 @@ generated: true
 - [[i18n (folder)]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]
-- [[superpowers/plans/2026-08-30-portfyl-premium-redesign.discarded-draft]]
 - [[superpowers/specs/2026-07-03-portfyl-merge-design]]
 - [[superpowers/specs/2026-07-30-neumorphism-theme-style-design]]
 - [[superpowers/specs/2026-08-30-portfyl-premium-redesign-design]]

@@ -15,8 +15,6 @@ generated: true
 **Source:** `frontend/vite.config.js` (51 lines)
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-06-26-portfyl-ux-overhaul-foundation-dashboard]]
-- [[superpowers/plans/2026-07-18-portfyl-mobile]]
 - [[superpowers/plans/2026-11-09-portfyl-seo]]
 - [[superpowers/specs/2026-07-03-portfyl-merge-design]]
 - [[superpowers/specs/2026-09-13-portfyl-ux-product-coherence-design]]

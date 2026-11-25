@@ -17,5 +17,4 @@ generated: true
 ## Mentioned in docs
 - [[operations/activation-analytics-browser-check]]
 - [[security/tenant-isolation-matrix]]
-- [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]
 - [[superpowers/plans/2026-11-12-portfyl-market-data-cache]]

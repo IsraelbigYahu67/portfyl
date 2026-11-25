@@ -135,4 +135,3 @@ neutralizes animations under that query).
 
 - Architecture: [[Frontend structure]]
 - Code: [[lib.themeTokens]] · [[lib.clayStyle]] · [[DESIGN (md)]] · [[components.ui (folder)]]
-- Docs: [[superpowers/plans/2026-08-30-portfyl-premium-redesign.discarded-draft]]

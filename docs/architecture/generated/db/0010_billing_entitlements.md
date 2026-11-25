@@ -30,4 +30,3 @@ Add cloud billing, trial, entitlement usage, and notification state.
 
 ## Mentioned in docs
 - [[operations/billing-verification-2026-09-05]]
-- [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]

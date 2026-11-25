@@ -20,6 +20,5 @@ Edition and capability classification for the shared Portfyl codebase.
 - [[finished]]
 - [[operations/neon-backup-restore]]
 - [[research/2026-10-16-broker-integrations]]
-- [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
 - [[superpowers/plans/2026-09-11-portfyl-revenue-launch-closing-plan]]
 - [[superpowers/specs/2026-09-03-portfyl-job-triggering-design]]

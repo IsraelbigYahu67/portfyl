@@ -38,9 +38,6 @@ generated: true
 - [[routers.market]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]
-- [[superpowers/plans/2026-08-30-portfyl-premium-redesign.discarded-draft]]
-- [[superpowers/plans/2026-09-13-ux-08-assistant-performance]]
 - [[superpowers/plans/2026-10-23-clay-ui-fixes]]
 - [[superpowers/plans/ux-08-browser-closeout-2026-09-17]]
 - [[superpowers/specs/2026-07-03-portfyl-merge-design]]

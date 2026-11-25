@@ -21,6 +21,3 @@ generated: true
 - [[i18n (folder)]]
 - [[pages.Pricing]]
 - [[pages.TaxReport]]
-
-## Mentioned in docs
-- [[superpowers/plans/2026-09-13-ux-08-assistant-performance]]

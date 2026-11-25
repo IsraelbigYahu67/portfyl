@@ -507,4 +507,3 @@ Spustí se na integrační větvi po sloučení každé vlny (po vlně 1: S1+S2,
 
 - Architecture: [[Frontend structure]] · [[Portfyl]]
 - Code: [[pages.Welcome]] · [[components.landing (folder)]] · [[demo (folder)]] · [[components.showcase (folder)]]
-- Docs: [[superpowers/plans/2026-11-18-portfyl-landing-mini-demos]]

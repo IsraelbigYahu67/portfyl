@@ -56,4 +56,3 @@ generated: true
 ## Mentioned in docs
 - [[superpowers/plans/2026-11-15-portfyl-landing-redesign-free-trial]]
 - [[superpowers/plans/2026-11-18-portfyl-landing-mini-dema-5-smazat-demo]]
-- [[superpowers/plans/2026-11-18-portfyl-landing-mini-demos]]

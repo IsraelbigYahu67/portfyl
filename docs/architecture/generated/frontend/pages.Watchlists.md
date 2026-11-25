@@ -28,6 +28,4 @@ generated: true
 - [[routers.watchlists]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-07-18-portfyl-mobile]]
-- [[superpowers/plans/2026-09-13-ux-08-assistant-performance]]
 - [[superpowers/plans/2026-10-23-clay-ui-fixes]]

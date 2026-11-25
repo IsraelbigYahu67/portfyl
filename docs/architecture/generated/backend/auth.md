@@ -24,7 +24,6 @@ Opaque, revocable Portfyl sessions.
 
 ## Mentioned in docs
 - [[operations/2026-09-21-t212-snapshot-first-sync-session]]
-- [[superpowers/plans/2026-07-19-unified-backend-android]]
 - [[superpowers/plans/2026-09-01-portfyl-saas-monetization]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]
 - [[superpowers/plans/2026-11-16-portfyl-own-emails-wave2]]

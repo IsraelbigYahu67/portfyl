@@ -27,4 +27,3 @@ Remove the unused Stripe payment runtime and automatic trials.
 
 ## Mentioned in docs
 - [[operations/sqlite-to-neon-migration]]
-- [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]

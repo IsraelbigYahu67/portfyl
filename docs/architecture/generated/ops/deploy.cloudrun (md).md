@@ -79,8 +79,6 @@ Markdown outside the vault; its top headings are listed below.
 - [[operations/posthog-activation-analytics]]
 - [[operations/private-beta-access]]
 - [[superpowers/plans/2026-09-01-portfyl-saas-monetization]]
-- [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
-- [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]
 - [[superpowers/plans/2026-09-11-portfyl-revenue-launch-closing-plan]]
 - [[superpowers/plans/2026-09-19-portfyl-activation-analytics]]
 - [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]

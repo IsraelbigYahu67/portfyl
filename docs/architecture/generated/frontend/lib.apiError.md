@@ -19,6 +19,5 @@ generated: true
 - [[i18n (folder)]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-09-13-ux-05-screener-jobs]]
 - [[superpowers/plans/2026-11-06-portfyl-app-languages]]
 - [[superpowers/specs/2026-09-13-portfyl-ux-product-coherence-design]]

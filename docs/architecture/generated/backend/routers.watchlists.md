@@ -36,7 +36,6 @@ generated: true
 
 ## Mentioned in docs
 - [[superpowers/plans/2026-09-01-portfyl-saas-monetization]]
-- [[superpowers/plans/2026-09-13-ux-05-screener-jobs]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]
 - [[superpowers/plans/2026-11-09-portfyl-market-data-cache]]
 - [[superpowers/specs/2026-11-08-portfyl-market-data-cache-design]]

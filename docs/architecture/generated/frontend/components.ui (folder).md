@@ -45,10 +45,5 @@ generated: true
 - [[lib.format]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-06-26-portfyl-ux-overhaul-foundation-dashboard]]
-- [[superpowers/plans/2026-07-18-portfyl-mobile]]
-- [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]
-- [[superpowers/plans/2026-08-30-portfyl-premium-redesign.discarded-draft]]
-- [[superpowers/plans/2026-09-13-ux-05-screener-jobs]]
 - [[superpowers/plans/2026-10-23-clay-ui-fixes]]
 - [[superpowers/specs/2026-09-13-portfyl-ux-product-coherence-design]]

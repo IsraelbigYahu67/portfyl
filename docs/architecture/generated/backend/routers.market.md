@@ -47,7 +47,6 @@ generated: true
 - [[universes]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-09-13-ux-05-screener-jobs]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]
 - [[superpowers/plans/2026-10-23-clay-ui-fixes]]
 - [[superpowers/plans/2026-11-09-portfyl-market-data-cache]]

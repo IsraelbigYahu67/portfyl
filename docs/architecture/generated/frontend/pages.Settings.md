@@ -35,8 +35,6 @@ generated: true
 
 ## Mentioned in docs
 - [[operations/2026-09-21-t212-snapshot-first-sync-session]]
-- [[superpowers/plans/2026-07-18-portfyl-mobile]]
-- [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]
 - [[superpowers/plans/2026-09-19-portfyl-activation-analytics]]
 - [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]
 - [[superpowers/plans/2026-09-24-t212-corporate-actions-incremental-sync]]

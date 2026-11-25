@@ -32,6 +32,3 @@ generated: true
 - [[pages.Stock]]
 - [[pages.Transactions]]
 - [[pages.Watchlists]]
-
-## Mentioned in docs
-- [[superpowers/plans/2026-09-13-ux-08-assistant-performance]]

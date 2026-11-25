@@ -20,7 +20,3 @@ generated: true
 - [[lib.chartTheme]]
 - [[lib.format]]
 - [[lib.growthLineSegments]]
-
-## Mentioned in docs
-- [[superpowers/plans/2026-06-26-portfyl-ux-overhaul-foundation-dashboard]]
-- [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]

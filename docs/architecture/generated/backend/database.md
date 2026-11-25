@@ -20,7 +20,6 @@ generated: true
 
 ## Mentioned in docs
 - [[superpowers/plans/2026-09-01-portfyl-saas-monetization]]
-- [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]
 - [[superpowers/plans/2026-09-24-t212-corporate-actions-incremental-sync]]
 - [[superpowers/plans/2026-10-11-portfyl-gcp-trial-migration]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]

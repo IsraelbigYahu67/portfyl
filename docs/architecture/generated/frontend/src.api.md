@@ -44,10 +44,6 @@ Axios client: injects `portfolio_id`, `X-Workspace-ID` and `X-CSRF-Token` (see P
 ## Mentioned in docs
 - [[operations/2026-09-21-t212-snapshot-first-sync-session]]
 - [[seo/content-drafts/twr-vs-xirr]]
-- [[superpowers/plans/2026-07-18-portfyl-mobile]]
-- [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
-- [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]
-- [[superpowers/plans/2026-09-13-ux-08-assistant-performance]]
 - [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]
 - [[superpowers/plans/2026-09-24-t212-corporate-actions-incremental-sync]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]
@@ -60,7 +56,6 @@ Axios client: injects `portfolio_id`, `X-Workspace-ID` and `X-CSRF-Token` (see P
 - [[superpowers/plans/2026-11-15-portfyl-landing-redesign-free-trial]]
 - [[superpowers/plans/2026-11-16-portfyl-own-emails-wave2]]
 - [[superpowers/plans/2026-11-18-portfyl-landing-mini-dema-5-smazat-demo]]
-- [[superpowers/plans/2026-11-18-portfyl-landing-mini-demos]]
 - [[superpowers/specs/2026-07-03-portfyl-merge-design]]
 - [[superpowers/specs/2026-07-13-broker-sync-schedule-design]]
 - [[superpowers/specs/2026-07-18-portfyl-mobile-design]]

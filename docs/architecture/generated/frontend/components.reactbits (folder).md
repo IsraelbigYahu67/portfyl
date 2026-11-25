@@ -20,5 +20,4 @@ generated: true
 - `frontend/src/components/reactbits/SpotlightCard.jsx`
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-08-30-portfyl-premium-redesign.discarded-draft]]
 - [[superpowers/specs/2026-08-30-portfyl-premium-redesign-design]]

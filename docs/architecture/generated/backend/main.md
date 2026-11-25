@@ -90,10 +90,7 @@ generated: true
 
 ## Mentioned in docs
 - [[operations/scheduler-monitoring]]
-- [[superpowers/plans/2026-07-18-portfyl-mobile]]
-- [[superpowers/plans/2026-07-19-unified-backend-android]]
 - [[superpowers/plans/2026-09-01-portfyl-saas-monetization]]
-- [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]
 - [[superpowers/plans/2026-09-19-portfyl-activation-analytics]]
 - [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]

@@ -20,6 +20,3 @@ generated: true
 
 ## Calls backend
 - [[routers.analytics]]
-
-## Mentioned in docs
-- [[superpowers/plans/2026-09-13-ux-05-screener-jobs]]

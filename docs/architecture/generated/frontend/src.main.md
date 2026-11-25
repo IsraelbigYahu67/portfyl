@@ -20,8 +20,4 @@ generated: true
 - [[src.errorMonitoring]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-06-26-portfyl-ux-overhaul-foundation-dashboard]]
-- [[superpowers/plans/2026-07-18-portfyl-mobile]]
-- [[superpowers/plans/2026-07-19-unified-backend-android]]
-- [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]
 - [[superpowers/plans/2026-11-09-portfyl-seo]]

@@ -37,7 +37,5 @@ generated: true
 - [[src.errorMonitoring]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-09-13-ux-05-screener-jobs]]
-- [[superpowers/plans/2026-09-13-ux-08-assistant-performance]]
 - [[superpowers/plans/2026-11-18-portfyl-landing-mini-dema-5-smazat-demo]]
 - [[superpowers/specs/2026-09-13-portfyl-ux-product-coherence-design]]

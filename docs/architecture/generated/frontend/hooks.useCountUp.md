@@ -16,5 +16,4 @@ generated: true
 **Exports:** `useCountUp`
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-06-26-portfyl-ux-overhaul-foundation-dashboard]]
 - [[superpowers/specs/2026-08-30-portfyl-premium-redesign-design]]

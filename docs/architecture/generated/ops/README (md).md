@@ -68,8 +68,6 @@ Markdown outside the vault; its top headings are listed below.
 - [[ticker_map]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-07-18-portfyl-mobile]]
-- [[superpowers/plans/2026-07-19-unified-backend-android]]
 - [[superpowers/plans/2026-09-01-portfyl-saas-monetization]]
 - [[superpowers/specs/2026-07-03-portfyl-merge-design]]
 - [[superpowers/specs/2026-07-18-portfyl-mobile-design]]

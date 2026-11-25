@@ -23,7 +23,3 @@ generated: true
 
 ## Calls backend
 - [[routers.billing]]
-
-## Mentioned in docs
-- [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]
-- [[superpowers/plans/2026-09-13-ux-08-assistant-performance]]

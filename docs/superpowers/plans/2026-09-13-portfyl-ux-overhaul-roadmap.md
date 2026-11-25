@@ -14,10 +14,10 @@ HEAD after the previous phase has merged. No phase branch targets `main`.
 | 2 | [Platform removal and async-state foundation](2026-09-13-ux-02-platform-state.md) | `codex/ux-02-platform-state` | plan 1 merged | Direct Dashboard routing and shared loading/error/empty contracts |
 | 3 | [Responsive shell, navigation, and accessibility](2026-09-13-ux-03-responsive-a11y.md) | `codex/ux-03-responsive-a11y` | plan 2 merged | One nav model, responsive shell, focus/dialog accessibility floor |
 | 4 | [Scalable collections](2026-09-13-ux-04-scalable-collections.md) | `codex/ux-04-scalable-collections` | plan 3 merged | Server-paged transactions and bounded large views |
-| 5 | [Non-blocking screener](2026-09-13-ux-05-screener-jobs.md) | `codex/ux-05-screener-jobs` | plan 4 merged | Owned in-process scan jobs with progress/cancel/retry |
+| 5 | Non-blocking screener (plan deleted, obsolete) | `codex/ux-05-screener-jobs` | plan 4 merged | Owned in-process scan jobs with progress/cancel/retry |
 | 6 | [Portfolio insight decisions](2026-09-13-ux-06-portfolio-insights.md) | `codex/ux-06-portfolio-insights` | plans 1–5 merged | Distinct Dashboard, Allocation, and Analytics purposes |
 | 7 | [Product flows](2026-09-13-ux-07-product-flows.md) | ~~`codex/ux-07-product-flows`~~ superseded, see note | plan 6 merged | Tabbed stock research and coherent Watchlists/Import/Settings flows |
-| 8 | [Assistant privacy and performance](2026-09-13-ux-08-assistant-performance.md) | `codex/ux-08-assistant-performance` | plan 7 merged | Explicit assistant context, lazy routes, intent prefetch, final QA |
+| 8 | Assistant privacy and performance (plan deleted, obsolete) | `codex/ux-08-assistant-performance` | plan 7 merged | Explicit assistant context, lazy routes, intent prefetch, final QA |
 
 **Phase 7 branch decision (2026-09-17):** phase 7 was implemented twice, independently, from the
 same `main` baseline (`e252933`): the standalone `codex/ux-07-product-flows` (6 commits) and a

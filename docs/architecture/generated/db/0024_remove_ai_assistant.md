@@ -23,5 +23,4 @@ Delete stored state of the removed DeepSeek AI assistant.
 - [[compliance/2026-11-06-privacy-notice-review]]
 - [[compliance/data-processing-inventory]]
 - [[legal/poznamky-pro-pravnika]]
-- [[superpowers/plans/2026-09-13-ux-08-assistant-performance]]
 - [[superpowers/plans/ux-08-assistant-performance-verification]]

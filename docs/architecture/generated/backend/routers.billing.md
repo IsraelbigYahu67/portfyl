@@ -43,5 +43,3 @@ Cloud-only billing API: Stripe Managed Payments checkout, Customer Portal and th
 ## Mentioned in docs
 - [[compliance/data-processing-inventory]]
 - [[operations/billing-verification-2026-09-05]]
-- [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
-- [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]

@@ -25,4 +25,3 @@ Add security audit trail and recurring-job success state.
 
 ## Mentioned in docs
 - [[operations/billing-verification-2026-09-05]]
-- [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]

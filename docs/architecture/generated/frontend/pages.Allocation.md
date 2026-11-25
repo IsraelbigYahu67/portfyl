@@ -35,7 +35,6 @@ generated: true
 ## Mentioned in docs
 - [[seo/content-drafts/rozlozeni-portfolia]]
 - [[seo/content-drafts/sledovani-portfolia-trading-212]]
-- [[superpowers/plans/2026-07-18-portfyl-mobile]]
 - [[superpowers/plans/2026-10-23-clay-ui-fixes]]
 - [[superpowers/plans/2026-11-22-free-trial-findings]]
 - [[superpowers/specs/2026-07-04-portfyl-cash-model-design]]

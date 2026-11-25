@@ -24,6 +24,5 @@ Provider-neutral transactional notification outbox delivery.
 - [[users (table)]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-09-04-portfyl-billing-entitlements]]
 - [[superpowers/plans/2026-09-11-portfyl-revenue-launch-closing-plan]]
 - [[superpowers/specs/2026-11-15-portfyl-own-emails-design]]

@@ -18,5 +18,4 @@ generated: true
 - [[operations/neon-backup-restore]]
 - [[operations/operational-verification-2026-09-09]]
 - [[operations/security-incident-response]]
-- [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]]
 - [[superpowers/plans/2026-10-11-portfyl-gcp-trial-migration]]

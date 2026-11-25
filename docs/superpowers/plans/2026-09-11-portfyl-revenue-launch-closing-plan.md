@@ -163,7 +163,7 @@ Open decision, not yet made (§5.2 below has the tradeoffs).
       is provider-specific.
 
 Once the provider decision (§5.1) is made:
-- [ ] Build checkout, webhook handling (signature verification +
+- [x] Build checkout, webhook handling (signature verification +
       idempotency — this is an explicit unchecked go/no-go item in the
       master spec), subscription lifecycle (create/upgrade/downgrade/cancel),
       and trial-expiry downgrade behaviour on top of the **existing**
@@ -181,7 +181,7 @@ Once the provider decision (§5.1) is made:
       real checkout exists — keep it only as an internal QA tool, and make
       sure it can no longer silently grant paid entitlements to a real
       customer workspace.
-- [ ] Wire a transactional email provider (Postmark or Resend are simplest
+- [x] Wire a transactional email provider (Postmark or Resend are simplest
       for a solo operator) for receipts, payment-failed notices, and
       trial-ending warnings — there is currently no such integration
       anywhere in the codebase.
@@ -335,4 +335,4 @@ accompanies for the same sequence with less cross-referencing.
 ## Related
 
 - Architecture: [[Portfyl]] · [[Billing and Stripe]] · [[Deploy and operations]]
-- Docs: [[superpowers/plans/2026-09-01-portfyl-saas-monetization]] · [[superpowers/plans/2026-09-05-portfyl-plans-without-payments]] · [[superpowers/specs/2026-09-05-portfyl-plans-without-payments-design]]
+- Docs: [[superpowers/plans/2026-09-01-portfyl-saas-monetization]] · [[superpowers/specs/2026-09-05-portfyl-plans-without-payments-design]]

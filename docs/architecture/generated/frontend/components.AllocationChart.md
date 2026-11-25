@@ -22,5 +22,4 @@ generated: true
 - [[lib.pieCorners]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]
 - [[superpowers/specs/2026-07-04-portfyl-cash-model-design]]

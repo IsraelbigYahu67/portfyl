@@ -195,4 +195,3 @@ yfinance-missing-data rendered as empty states (never errors).
 
 - Architecture: [[Frontend structure]] · [[Portfyl]]
 - Code: [[lib.bottomNavPrefs]] · [[hooks.useMediaQuery]] · [[components.layout (folder)]]
-- Docs: [[superpowers/plans/2026-07-18-portfyl-mobile]]

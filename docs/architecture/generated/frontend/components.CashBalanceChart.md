@@ -19,5 +19,4 @@ generated: true
 - [[lib.format]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]
 - [[superpowers/plans/2026-10-23-clay-ui-fixes]]

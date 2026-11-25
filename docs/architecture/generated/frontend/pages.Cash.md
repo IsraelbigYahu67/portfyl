@@ -28,8 +28,6 @@ generated: true
 - [[routers.cash]]
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-07-18-portfyl-mobile]]
-- [[superpowers/plans/2026-07-20-stitch-desktop-reskin]]
 - [[superpowers/plans/2026-09-20-t212-snapshot-first-sync]]
 - [[superpowers/plans/2026-10-23-clay-ui-fixes]]
 - [[superpowers/specs/2026-07-04-portfyl-cash-model-design]]

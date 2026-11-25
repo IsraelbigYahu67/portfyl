@@ -16,12 +16,7 @@ generated: true
 **Exports:** `currencyParts`, `formatMoney`, `displayLocale`, `formatQuantity`, `formatPercent`, `formatCompact`, `formatNumber`, `formatShortDate`, `formatTableDate`, `humanizeCode`, `pluralize`, `formatLongDate` …
 
 ## Mentioned in docs
-- [[superpowers/plans/2026-06-26-portfyl-ux-overhaul-foundation-dashboard]]
-- [[superpowers/plans/2026-07-18-portfyl-mobile]]
-- [[superpowers/plans/2026-08-30-portfyl-premium-redesign.discarded-draft]]
 - [[superpowers/plans/2026-09-13-portfyl-ux-overhaul-roadmap]]
-- [[superpowers/plans/2026-09-13-ux-05-screener-jobs]]
-- [[superpowers/plans/2026-09-13-ux-08-assistant-performance]]
 - [[superpowers/plans/2026-10-23-clay-ui-fixes]]
 - [[superpowers/specs/2026-07-18-portfyl-mobile-design]]
 - [[superpowers/specs/2026-09-13-portfyl-ux-product-coherence-design]]
