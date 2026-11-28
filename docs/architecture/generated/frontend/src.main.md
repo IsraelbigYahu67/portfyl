@@ -21,3 +21,4 @@ generated: true
 
 ## Mentioned in docs
 - [[superpowers/plans/2026-11-09-portfyl-seo]]
+- [[superpowers/plans/2026-11-28-portfyl-growth-channels]]

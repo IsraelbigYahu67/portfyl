@@ -22,9 +22,9 @@ generated: true
 - `frontend/src/components/layout/MobileNavDrawer.jsx`
 - `frontend/src/components/layout/MobileTopBar.jsx`
 - `frontend/src/components/layout/NavGroupsContext.js`
-- `frontend/src/components/layout/navigation.js`
 - `frontend/src/components/layout/RouteBoundary.jsx`
 - `frontend/src/components/layout/RouteFallback.jsx`
+- `frontend/src/components/layout/navigation.js`
 
 ## Imports
 - [[components.AccountMenu]]

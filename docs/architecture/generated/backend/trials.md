@@ -34,3 +34,4 @@ The free Pro trial: grant, abuse guards, lookup and purge.
 - [[compliance/trial-fingerprint-balancing-test]]
 - [[operations/billing-verification-2026-09-05]]
 - [[superpowers/plans/2026-11-15-portfyl-landing-redesign-free-trial]]
+- [[superpowers/plans/2026-11-28-portfyl-growth-channels]]

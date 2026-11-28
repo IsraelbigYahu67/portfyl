@@ -22,7 +22,6 @@ generated: true
 - `frontend/src/components/ui/DeltaPill.jsx`
 - `frontend/src/components/ui/EmptyState.jsx`
 - `frontend/src/components/ui/ErrorState.jsx`
-- `frontend/src/components/ui/index.js`
 - `frontend/src/components/ui/KpiBox.jsx`
 - `frontend/src/components/ui/Modal.jsx`
 - `frontend/src/components/ui/Pagination.jsx`
@@ -34,6 +33,7 @@ generated: true
 - `frontend/src/components/ui/Toggle.jsx`: Clay switch: a pressed well (off track) with a raised knob. The --clay-* shadows only exist under .theme-clay, so each one falls back to the older token or a plain shadow and Premium/Classic keep a flat, readable switch.
 - `frontend/src/components/ui/UrlTabs.jsx`
 - `frontend/src/components/ui/ZoomDialog.jsx`
+- `frontend/src/components/ui/index.js`
 
 ## Imports
 - [[components.MetricCard]]

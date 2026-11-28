@@ -15,13 +15,13 @@ generated: true
 **Source:** `frontend/src/analytics/` (813 lines)
 
 ## Files
+- `frontend/src/analytics/AnalyticsPreferences.jsx`
+- `frontend/src/analytics/AnalyticsProvider.jsx`
+- `frontend/src/analytics/ConsentBanner.jsx`
 - `frontend/src/analytics/activationState.js`
 - `frontend/src/analytics/analyticsClient.js`
 - `frontend/src/analytics/analyticsCopy.js`: Localized strings for the consent banner and analytics preferences panel. Language is read from the same localStorage key the landing page and the legal pages use -- no network localization, no IP geolocation.
-- `frontend/src/analytics/AnalyticsPreferences.jsx`
-- `frontend/src/analytics/AnalyticsProvider.jsx`
 - `frontend/src/analytics/consent.js`
-- `frontend/src/analytics/ConsentBanner.jsx`
 - `frontend/src/analytics/eventContract.js`
 - `frontend/src/analytics/useRegisteredActivation.js`
 
@@ -39,3 +39,4 @@ generated: true
 - [[superpowers/plans/2026-09-19-portfyl-activation-analytics]]
 - [[superpowers/plans/2026-10-12-portfyl-google-sign-in]]
 - [[superpowers/plans/2026-11-18-portfyl-landing-mini-dema-5-smazat-demo]]
+- [[superpowers/plans/2026-11-28-portfyl-growth-channels]]

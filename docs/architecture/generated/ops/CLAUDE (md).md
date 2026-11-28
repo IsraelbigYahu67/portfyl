@@ -93,6 +93,7 @@ Markdown outside the vault; its top headings are listed below.
 - [[superpowers/plans/2026-11-15-portfyl-landing-redesign-free-trial]]
 - [[superpowers/plans/2026-11-16-portfyl-own-emails-wave2]]
 - [[superpowers/plans/2026-11-18-portfyl-landing-mini-dema-5-smazat-demo]]
+- [[superpowers/plans/2026-11-28-portfyl-growth-channels]]
 - [[superpowers/specs/2026-07-03-portfyl-merge-design]]
 - [[superpowers/specs/2026-07-13-broker-sync-schedule-design]]
 - [[superpowers/specs/2026-07-18-portfyl-mobile-design]]

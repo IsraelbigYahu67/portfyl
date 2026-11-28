@@ -18,5 +18,6 @@ generated: true
 ## Mentioned in docs
 - [[superpowers/plans/2026-09-13-portfyl-ux-overhaul-roadmap]]
 - [[superpowers/plans/2026-10-23-clay-ui-fixes]]
+- [[superpowers/plans/2026-11-28-portfyl-growth-channels]]
 - [[superpowers/specs/2026-07-18-portfyl-mobile-design]]
 - [[superpowers/specs/2026-09-13-portfyl-ux-product-coherence-design]]

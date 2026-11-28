@@ -29,3 +29,4 @@ generated: true
 - [[seo/keyword-research-cs]]
 - [[superpowers/plans/2026-11-09-portfyl-seo]]
 - [[superpowers/plans/2026-11-18-portfyl-landing-mini-dema-5-smazat-demo]]
+- [[superpowers/plans/2026-11-28-portfyl-growth-channels]]

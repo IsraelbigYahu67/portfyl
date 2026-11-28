@@ -16,7 +16,6 @@ generated: true
 
 ## Files
 - `frontend/src/components/settings/BottomNavSetting.jsx`
-- `frontend/src/components/settings/brokerCredentialForms.jsx`: Credential fields for the three API brokers. Settings → Connections and the onboarding connect step both render these, so the markup lives here once.
 - `frontend/src/components/settings/BrokerKeyGuides.jsx`: "How to get the key" guides shown next to the broker credential forms, in Settings → Connections and in the onboarding connect step. Pure view code: it must stay importable by the onboarding view (no `api`, no `App`).
 - `frontend/src/components/settings/EtoroConnectionCard.jsx`
 - `frontend/src/components/settings/IBKRConnectionCard.jsx`
@@ -24,6 +23,7 @@ generated: true
 - `frontend/src/components/settings/PreferencesSettings.jsx`
 - `frontend/src/components/settings/SettingsSectionNav.jsx`
 - `frontend/src/components/settings/T212ApiGuide.jsx`: Exact click-path for creating the Trading 212 API credentials Portfyl needs. Shared by Settings → Connections (next to the key fields) and the first-run onboarding (step 3 for Trading 212), so both always show the same steps. Portfyl only reads: the two write permissions stay unticked on purpose. T…
+- `frontend/src/components/settings/brokerCredentialForms.jsx`: Credential fields for the three API brokers. Settings → Connections and the onboarding connect step both render these, so the markup lives here once.
 
 ## Imports
 - [[components.layout (folder)]]

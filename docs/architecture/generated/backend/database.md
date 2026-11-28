@@ -29,6 +29,7 @@ generated: true
 - [[superpowers/plans/2026-11-15-portfyl-landing-redesign-free-trial]]
 - [[superpowers/plans/2026-11-16-portfyl-own-emails-wave2]]
 - [[superpowers/plans/2026-11-18-portfyl-landing-mini-dema-5-smazat-demo]]
+- [[superpowers/plans/2026-11-28-portfyl-growth-channels]]
 - [[superpowers/specs/2026-07-03-portfyl-merge-design]]
 - [[superpowers/specs/2026-09-07-portfyl-onboarding-import-safety-design]]
 - [[superpowers/specs/2026-11-08-portfyl-market-data-cache-design]]

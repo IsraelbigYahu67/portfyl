@@ -25,3 +25,4 @@ Content-Security-Policy and related headers for rendered SPA HTML. See docs/supe
 - [[superpowers/plans/2026-10-12-portfyl-google-sign-in]]
 - [[superpowers/plans/2026-11-09-portfyl-seo]]
 - [[superpowers/plans/2026-11-15-portfyl-landing-redesign-free-trial]]
+- [[superpowers/plans/2026-11-28-portfyl-growth-channels]]

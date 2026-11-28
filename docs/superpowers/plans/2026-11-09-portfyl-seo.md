@@ -493,4 +493,4 @@ documents are listed where found.
 
 - Architecture: [[Frontend structure]] · [[Deploy and operations]]
 - Code: [[spa_serving]] · [[seo (folder)]] · [[src.entry-prerender]] · [[pages.Welcome]] · [[pages.Legal]] · [[frontend.vite.config (js)]]
-- Docs: [[operations/2026-09-10-public-landing]]
+- Docs: [[operations/2026-09-10-public-landing]] · [[superpowers/plans/2026-11-28-portfyl-growth-channels]] (non-SEO-plan growth channels)

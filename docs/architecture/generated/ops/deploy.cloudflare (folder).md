@@ -17,9 +17,9 @@ Cloudflare Worker (beta proxy) and its wrangler config, deployed with wrangler.
 **Source:** `deploy/cloudflare/` (114 lines)
 
 ## Files
+- `deploy/cloudflare/README.md`
 - `deploy/cloudflare/package.json`
 - `deploy/cloudflare/portfyl-beta-proxy.js`
-- `deploy/cloudflare/README.md`
 - `deploy/cloudflare/wrangler.jsonc`
 
 ## Mentioned in docs

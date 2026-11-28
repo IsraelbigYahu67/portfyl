@@ -39,4 +39,5 @@ Server-side edition, plan, resource-limit, and usage enforcement.
 - [[superpowers/plans/2026-09-11-portfyl-revenue-launch-closing-plan]]
 - [[superpowers/plans/2026-10-14-portfyl-code-review-fixes]]
 - [[superpowers/plans/2026-11-15-portfyl-landing-redesign-free-trial]]
+- [[superpowers/plans/2026-11-28-portfyl-growth-channels]]
 - [[superpowers/specs/2026-09-05-portfyl-plans-without-payments-design]]

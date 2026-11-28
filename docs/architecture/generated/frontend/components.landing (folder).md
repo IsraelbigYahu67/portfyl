@@ -24,20 +24,20 @@ generated: true
 - `frontend/src/components/landing/LandingFooter.jsx`
 - `frontend/src/components/landing/LandingHeader.jsx`
 - `frontend/src/components/landing/LandingHero.jsx`
+- `frontend/src/components/landing/MiniDemoSlot.jsx`
+- `frontend/src/components/landing/PricingTeaser.jsx`
+- `frontend/src/components/landing/Shot.jsx`: One product screenshot: the only raised object on the landing page. `image` is a LANDING_IMAGES entry; a null one renders nothing.
 - `frontend/src/components/landing/landingImages.js`: Product screenshots on the landing page. English UI, one set for all three languages. A null entry is a picture that has not been shot yet: its figure is not rendered. Until the owner's new set arrives (plan Task 5) the 2026-09-11 captures stand in for hero, allocation and stock.
 - `frontend/src/components/landing/languagePrefs.js`
-- `frontend/src/components/landing/minidemo/appClayScope.js`
+- `frontend/src/components/landing/miniDemoRegistry.js`
 - `frontend/src/components/landing/minidemo/AppScope.jsx`
 - `frontend/src/components/landing/minidemo/MiniAllocation.jsx`
-- `frontend/src/components/landing/minidemo/miniDemoLabels.js`: Pure mappers from the page copy (COPY[language].miniDemo, written in pages/welcomeCopy.js) onto the `labels` objects the shared panels in components/showcase take. A panel translates nothing: every string it shows arrives from here, so the demos never hold a text of their own.
 - `frontend/src/components/landing/minidemo/MiniDividends.jsx`
 - `frontend/src/components/landing/minidemo/MiniPerformance.jsx`
 - `frontend/src/components/landing/minidemo/MiniPortfolios.jsx`
 - `frontend/src/components/landing/minidemo/MiniStock.jsx`
-- `frontend/src/components/landing/miniDemoRegistry.js`
-- `frontend/src/components/landing/MiniDemoSlot.jsx`
-- `frontend/src/components/landing/PricingTeaser.jsx`
-- `frontend/src/components/landing/Shot.jsx`: One product screenshot: the only raised object on the landing page. `image` is a LANDING_IMAGES entry; a null one renders nothing.
+- `frontend/src/components/landing/minidemo/appClayScope.js`
+- `frontend/src/components/landing/minidemo/miniDemoLabels.js`: Pure mappers from the page copy (COPY[language].miniDemo, written in pages/welcomeCopy.js) onto the `labels` objects the shared panels in components/showcase take. A panel translates nothing: every string it shows arrives from here, so the demos never hold a text of their own.
 - `frontend/src/components/landing/useMiniDemoAnalytics.js`
 
 ## Imports

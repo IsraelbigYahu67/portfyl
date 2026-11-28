@@ -19,9 +19,9 @@ generated: true
 - `frontend/src/components/showcase/DividendsPanel.jsx`
 - `frontend/src/components/showcase/PerformancePanel.jsx`
 - `frontend/src/components/showcase/PortfoliosPanel.jsx`
+- `frontend/src/components/showcase/StockValuationPanel.jsx`
 - `frontend/src/components/showcase/showcaseData.js`: Made-up sample data for the landing-page mini demos (and the shared demo panels). Nothing here comes from a real person, account or quote: the numbers are invented and the landing page labels them as such. The data is frozen, versioned (`portfyl-showcase-v1`) and has no clock: "now" is SHOWCASE_AS_…
 - `frontend/src/components/showcase/showcaseMath.js`: Pure maths for the shared showcase panels (the public /demo pages and the landing-page mini demos). No clock, no window: "now" always comes from the caller (an `asOf` date), so the same input gives the same output on the server, in the browser and in tests.
-- `frontend/src/components/showcase/StockValuationPanel.jsx`
 
 ## Imports
 - [[components.AllocationBreakdownList]]

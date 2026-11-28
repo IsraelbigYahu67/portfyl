@@ -31,3 +31,4 @@ Project canonical Stripe subscription state into Portfyl (cloud only).
 
 ## Mentioned in docs
 - [[compliance/data-processing-inventory]]
+- [[superpowers/plans/2026-11-28-portfyl-growth-channels]]
