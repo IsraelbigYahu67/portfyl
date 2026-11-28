@@ -178,7 +178,16 @@ checked against this list during verification (§5) and monitoring (§6):
 - **Accepted** consent: PostHog persists a first-party
   `localStorage+cookie` identity, and once a user registers and consent is
   accepted, `AuthProvider.jsx` calls `identify(String(user.id))` — Portfyl's
-  own opaque user id only.
+  own opaque user id only. The SDK is started with `advanced_disable_flags`
+  and `disable_external_dependency_loading` (`analyticsClient.js`), so after
+  consent it makes **no** `/flags/` or `/array/<key>/config(.js)` request: the
+  only PostHog traffic is `POST /e/` capture batches. Verified 2026-11-26.
+- **Withdrawing** consent (Settings → Data & Privacy → Reject): the provider
+  calls `reset()` + `shutdown()` and then `clearPostHogStorage()`, which
+  removes the SDK's `ph_*_posthog` keys from `localStorage`/`sessionStorage`
+  and its cookie (host and parent-domain variants), so no analytics identifier
+  stays in the browser. Before 2026-11-26 the keys survived with a fresh random
+  id.
 
 **Only accepted-consent traffic is measured at all.** Funnel volumes
 therefore undercount real visitors by the share who rejected or ignored the

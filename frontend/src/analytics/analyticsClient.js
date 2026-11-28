@@ -66,11 +66,50 @@ function buildOptions({ host }) {
     // which our CSP (script-src 'self') blocks on every load. Recording,
     // autocapture and surveys are off, so that script is not needed.
     disable_external_dependency_loading: true,
+    // Feature flags are not used (runbook: "flags stay disabled"). Without this
+    // the SDK POSTs /flags/ on every load, sending the anonymous id, timezone and
+    // initial URL for nothing.
+    advanced_disable_flags: true,
     person_profiles: "identified_only",
     cross_subdomain_cookie: true,
     persistence: "localStorage+cookie",
     secure_cookie: true,
   };
+}
+
+const POSTHOG_STORAGE_KEY = /^ph_.+_posthog$/;
+const POSTHOG_OPT_KEY_PREFIX = "__ph_opt_in_out_";
+
+// Removes everything the PostHog SDK persisted in this browser (its identity
+// in localStorage/sessionStorage and the cookie, which cross_subdomain_cookie
+// scopes to the parent domain). Called whenever consent is not "accepted", so
+// withdrawing consent leaves no analytics identifier behind, not even the
+// fresh random one the SDK writes on reset(). Never throws.
+export function clearPostHogStorage() {
+  for (const getStore of [() => localStorage, () => sessionStorage]) {
+    try {
+      const store = getStore();
+      for (const key of Object.keys(store)) {
+        if (POSTHOG_STORAGE_KEY.test(key) || key.startsWith(POSTHOG_OPT_KEY_PREFIX)) store.removeItem(key);
+      }
+    } catch {
+      /* Storage may be unavailable (private browsing, blocked cookies). */
+    }
+  }
+  try {
+    const labels = String(globalThis.location?.hostname || "").split(".");
+    const domains = [""];
+    for (let i = 0; i < labels.length - 1; i += 1) domains.push(`.${labels.slice(i).join(".")}`);
+    for (const pair of document.cookie.split("; ")) {
+      const name = pair.split("=")[0];
+      if (!POSTHOG_STORAGE_KEY.test(name)) continue;
+      for (const domain of domains) {
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/${domain ? `; domain=${domain}` : ""}`;
+      }
+    }
+  } catch {
+    /* Cookies may be unavailable. */
+  }
 }
 
 // PostHog is loaded only after an explicit "accepted" decision. A rejected or

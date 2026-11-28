@@ -24,4 +24,5 @@ Record the Terms acceptance made at sign-up.
 
 ## Mentioned in docs
 - [[compliance/data-processing-inventory]]
+- [[operations/activation-analytics-browser-check]]
 - [[superpowers/plans/2026-11-12-portfyl-market-data-cache]]

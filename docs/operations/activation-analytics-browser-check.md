@@ -182,3 +182,55 @@ locally, so nothing left the machine.
 - Still open: Dashboard, Settings and Import emitted no events in this run (none
   are defined for page views, nothing to compare); the live-debugger check against
   the real PostHog project and the Premium / Classic matrix for these pages.
+
+## Run of 2026-11-26 (closes the matrix)
+
+Cloud edition on a throwaway PostgreSQL 16 container (migrated to
+`0029_terms_acceptances`), backend :8010, test proxy :8020, Playwright, a made-up
+PostHog key (`phc_browsercheck_fake`) with every request to `posthog.com`
+answered or aborted locally, so nothing left the machine. The Turnstile test
+site key was used for the bot check. The tester e-mail was invited in that
+database only. Signing in with the real Firebase account was done by the owner.
+
+- **Funnel while signed in (accepted).** Onboarding "explore with demo data"
+  sent `onboarding_step_viewed` (`step`), `portfolio_created` (`creation_path`),
+  `portfolio_data_imported` (`source_type`), then `dashboard_first_value_rendered`
+  and `user_activation_reached` (`source_type`). Only allow-listed properties;
+  `distinct_id` is Portfyl's opaque UUID, no e-mail, name or portfolio figure.
+- **Matrix.** Premium, Classic light and Classic dark at 390×844, 768×1024,
+  1024×768 and 1440×900 on `/dashboard`, `/import`, `/settings`: 36 loads with no
+  horizontal scroll, no visible text under 12px and no PostHog request. The
+  first pass ran on an account that was still in the empty-workspace onboarding,
+  so those routes showed onboarding; after loading the demo data the real pages
+  were covered by the Settings, Data & Privacy, Dashboard and logout checks below.
+- **Settings → Data & Privacy.** Accept starts the SDK (one `ph_*` localStorage
+  key and one cookie); Reject stops it, no request follows, and after a reload
+  nothing is left.
+- **Logout.** The identity resets to a new anonymous `distinct_id`, consent stays
+  `accepted`, the app lands on `/login`, no request is made.
+- **Blocked PostHog.** With `eu.i.posthog.com` aborted the landing and `/login`
+  render and work, one `/e/` request is dropped, no application error.
+- **Findings, fixed (`frontend/src/analytics`):**
+  1. After consent the SDK POSTed `/flags/` (anonymous id, timezone, initial URL)
+     and fetched `/array/<key>/config` on every load although the runbook says
+     flags stay disabled. `advanced_disable_flags: true` removes both; only
+     `POST /e/` remains.
+  2. Accept → Reject left the SDK's `ph_*_posthog` localStorage key and cookie
+     (with a new random id) behind. `clearPostHogStorage()` now runs whenever
+     consent is not `accepted`, after the old adapter's reset/shutdown.
+  3. The consent buttons were English in a Czech app: `getAnalyticsLanguage()`
+     skipped the browser language that the app itself uses. It now follows the
+     same order (saved, landing, browser).
+- **Finding, not fixed (minor):** on the demo path `onboarding_step_viewed` with
+  `step=choices` is sent twice in one batch (before and after the demo is
+  created), so that funnel step is overcounted by one per demo start.
+- **Not verifiable here:** the PostHog live debugger against the real project
+  (no project exists, the two `VITE_POSTHOG_*` variables stay unset; they are
+  empty in `.env`, `frontend/.env.local`, the workflows and the Dockerfile
+  defaults) and the free-limit behaviour.
+
+Release gates after these changes (2026-11-26): `npm test` 1823 passed / 6
+skipped, `npm run test:cloud` 1828 passed, `npm run audit:readability` 0
+violations, `npm run build` and `npm run build:cloud` OK, backend
+`pytest tests/ --ignore=tests/postgres` 2553 passed (backend untouched since the
+PostgreSQL suite run of 2026-11-25: 503 passed), `git diff --check` clean.

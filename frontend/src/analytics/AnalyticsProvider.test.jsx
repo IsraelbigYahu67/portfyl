@@ -76,6 +76,29 @@ describe("AnalyticsProvider", () => {
     expect(adapterFactory).toHaveBeenCalledTimes(2);
   });
 
+  it("removes the PostHog identity from the browser when accepted consent is withdrawn", async () => {
+    const adapter = createMemoryAdapter();
+    mount({ initialConsent: "accepted", adapterFactory: () => adapter });
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("accepted:true"));
+    // The SDK's own persistence, as written while consent was accepted.
+    localStorage.setItem("ph_phc_test_posthog", "{}");
+    document.cookie = "ph_phc_test_posthog=abc; path=/";
+
+    await act(() => screen.getByRole("button", { name: "Reject" }).click());
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("rejected:true"));
+
+    expect(localStorage.getItem("ph_phc_test_posthog")).toBeNull();
+    expect(document.cookie).not.toContain("ph_phc_test_posthog");
+  });
+
+  it("keeps the PostHog identity while consent stays accepted", async () => {
+    localStorage.setItem("ph_phc_test_posthog", "{}");
+    mount({ initialConsent: "accepted", adapterFactory: () => createMemoryAdapter() });
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("accepted:true"));
+    expect(localStorage.getItem("ph_phc_test_posthog")).toBe("{}");
+    localStorage.removeItem("ph_phc_test_posthog");
+  });
+
   it("captureOnce deduplicates by scope+event, but a different scope still captures", async () => {
     localStorage.clear();
     const adapter = createMemoryAdapter();

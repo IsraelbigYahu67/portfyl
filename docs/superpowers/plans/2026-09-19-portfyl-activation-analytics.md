@@ -375,9 +375,9 @@ git commit -m "security: restrict analytics connections in HTML CSP"
 - [x] Update the compliance inventory with PostHog Cloud EU as a processor/subprocessor, the exact approved data categories, consent basis subject to legal review, EU region, retention, and disabled capabilities.
 - [x] Add an explicit production blocker: do not provide the two Vite variables until the public privacy notice/subprocessor disclosure has received qualified Czech/EU legal review and is published. Do not invent legal text in this implementation.
 - [x] Update Cloud Run frontend-build documentation with the two Vite variables and note that changing runtime env alone cannot enable them because Vite compiles them.
-- [ ] Complete the browser matrix at 390×844, 768×1024, 1024×768, and 1440×900 across landing, all demo routes, register, onboarding/import, dashboard, settings, and logout. Check Premium, Classic light, and Classic dark where available.
-- [ ] In browser storage/network panels verify: pending makes no PostHog request/storage; rejected stores only consent preference and sends cookieless events; accepted creates first-party analytics persistence; no captured payload contains forbidden data; blocked PostHog does not change UI behavior.
-- [ ] Run all release gates:
+- [x] Complete the browser matrix at 390×844, 768×1024, 1024×768, and 1440×900 across landing, all demo routes, register, onboarding/import, dashboard, settings, and logout. Check Premium, Classic light, and Classic dark where available.
+- [x] In browser storage/network panels verify: pending makes no PostHog request/storage; rejected stores only consent preference and sends cookieless events; accepted creates first-party analytics persistence; no captured payload contains forbidden data; blocked PostHog does not change UI behavior.
+- [x] Run all release gates:
 
 ```powershell
 Push-Location frontend
@@ -395,7 +395,7 @@ Pop-Location
 ```
 
   Run `python -m pytest tests/postgres/ -v` with `TEST_DATABASE_URL` configured because backend code changed. Expect every command to pass.
-- [ ] Record exact test counts, build results, browser evidence paths, and any warnings in the browser-check document.
+- [x] Record exact test counts, build results, browser evidence paths, and any warnings in the browser-check document.
 - [x] Commit:
 
 ```powershell
@@ -407,14 +407,16 @@ git commit -m "docs: add activation analytics operations and privacy gate"
 
 > Release gates run on 2026-11-25 (PostgreSQL suite `tests/postgres/`: 503 passed; every browser check is still open): `npm test` 1815 passed / 6 skipped, `npm run test:cloud` 1821 passed, `npm run audit:readability` 0 violations (the 10px month labels in `DividendBarsCard` are the owner-approved exception in `DESIGN.md`, now in the audit allowlist), `npm run build` and `npm run build:cloud` OK, backend `pytest tests/ --ignore=tests/postgres` 2553 passed.
 
+> Stand 2026-11-26: the browser matrix, the storage/network checks and the release gates are done and recorded in `docs/operations/activation-analytics-browser-check.md` (Run of 2026-11-26). `npm test` 1823 passed / 6 skipped, `npm run test:cloud` 1828 passed, `npm run audit:readability` 0 violations, both builds OK, backend 2553 passed. The check found and fixed three things in `frontend/src/analytics`: SDK `/flags/` and config requests after consent (`advanced_disable_flags`), PostHog storage left after withdrawing consent (`clearPostHogStorage`), and the consent copy ignoring the browser language. Open: the live-debugger confirmation, which needs the real PostHog project and legal gate; a minor double `onboarding_step_viewed` on the demo path.
+
 ## Plan completion gate
 
-- [ ] Run `git diff --check HEAD~8..HEAD` and expect no whitespace errors.
+- [x] Run `git diff --check HEAD~8..HEAD` and expect no whitespace errors.
 - [x] Search production source with `rg -n "posthog|capture\(|identify\(" frontend/src backend` and confirm every capture flows through `AnalyticsProvider`/the strict contract and the only SDK import is in `analyticsClient.js`.
 - [x] Search with `rg -ni "email|display_name|workspace_name|portfolio_id|balance|amount|holdings|transactions" frontend/src/analytics` and inspect every match; event payload builders must contain none of those fields.
 - [ ] Confirm the PostHog live debugger receives each approved event at most where expected, with no extra properties.
-- [ ] Confirm no payment card is attached and production variables remain unset until the privacy gate is closed.
-- [ ] Use `superpowers:verification-before-completion` and report actual command outputs before declaring the roadmap complete.
+- [x] Confirm no payment card is attached and production variables remain unset until the privacy gate is closed.
+- [x] Use `superpowers:verification-before-completion` and report actual command outputs before declaring the roadmap complete.
 
 ## Related
 

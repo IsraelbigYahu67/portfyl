@@ -4,7 +4,7 @@ import {
   getAnalyticsConsent,
   setAnalyticsConsent,
 } from "./consent";
-import { createNoopAdapter, createMemoryAdapter, loadPostHogAdapter } from "./analyticsClient";
+import { clearPostHogStorage, createNoopAdapter, createMemoryAdapter, loadPostHogAdapter } from "./analyticsClient";
 import { sanitizeEvent } from "./eventContract";
 
 const AnalyticsContext = createContext(null);
@@ -45,6 +45,11 @@ export default function AnalyticsProvider({ children, initialConsent, adapterFac
     let cancelled = false;
     setReady(false);
     readyRef.current = false;
+
+    // Withdrawing (or never giving) consent must leave no PostHog identifier in
+    // the browser. This runs after the previous consent's cleanup below, which
+    // calls reset() and would otherwise leave a fresh random id behind.
+    if (consent !== CONSENT_STATES.ACCEPTED) clearPostHogStorage();
 
     if (consent === CONSENT_STATES.PENDING) {
       adapterRef.current = null;

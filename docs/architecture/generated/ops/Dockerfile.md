@@ -18,6 +18,7 @@ syntax=docker/dockerfile:1
 
 ## Mentioned in docs
 - [[compliance/2026-11-06-privacy-notice-review]]
+- [[operations/activation-analytics-browser-check]]
 - [[operations/posthog-activation-analytics]]
 - [[superpowers/plans/2026-10-11-portfyl-gcp-trial-migration]]
 - [[superpowers/plans/2026-10-12-portfyl-google-sign-in]]

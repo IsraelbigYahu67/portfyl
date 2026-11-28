@@ -61,5 +61,12 @@ export function getAnalyticsLanguage() {
   } catch {
     /* Storage may be unavailable (private browsing, blocked cookies). */
   }
+  // Same order as the app's own initialLanguage(): saved choice, landing choice,
+  // then the browser's languages. Without this a Czech browser got a Czech app
+  // but an English consent panel.
+  for (const tag of globalThis.navigator?.languages ?? []) {
+    const code = String(tag).toLowerCase().split("-")[0];
+    if (ANALYTICS_COPY[code]) return code;
+  }
   return "en";
 }

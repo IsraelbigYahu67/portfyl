@@ -1,9 +1,42 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  clearPostHogStorage,
   createMemoryAdapter,
   createNoopAdapter,
   loadPostHogAdapter,
 } from "./analyticsClient";
+
+describe("clearPostHogStorage", () => {
+  it("removes the SDK's storage and cookie but leaves Portfyl's own keys alone", () => {
+    localStorage.setItem("ph_phc_public_key_posthog", "{}");
+    localStorage.setItem("__ph_opt_in_out_phc_public_key", "1");
+    localStorage.setItem("sb_theme", "light");
+    sessionStorage.setItem("ph_phc_public_key_posthog", "{}");
+    document.cookie = "ph_phc_public_key_posthog=abc; path=/";
+    document.cookie = "portfyl_analytics_consent=rejected; path=/";
+
+    clearPostHogStorage();
+
+    expect(localStorage.getItem("ph_phc_public_key_posthog")).toBeNull();
+    expect(localStorage.getItem("__ph_opt_in_out_phc_public_key")).toBeNull();
+    expect(sessionStorage.getItem("ph_phc_public_key_posthog")).toBeNull();
+    expect(localStorage.getItem("sb_theme")).toBe("light");
+    expect(document.cookie).not.toContain("ph_phc_public_key_posthog");
+    expect(document.cookie).toContain("portfyl_analytics_consent=rejected");
+    localStorage.removeItem("sb_theme");
+    document.cookie = "portfyl_analytics_consent=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+  });
+
+  it("does not throw when storage is blocked", () => {
+    const spy = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    localStorage.setItem("ph_phc_public_key_posthog", "{}");
+    expect(() => clearPostHogStorage()).not.toThrow();
+    spy.mockRestore();
+    localStorage.removeItem("ph_phc_public_key_posthog");
+  });
+});
 
 const acceptedConfig = {
   key: "phc_public_key",
@@ -70,6 +103,7 @@ describe("analytics adapters", () => {
       capture_pageleave: false,
       disable_session_recording: true,
       disable_external_dependency_loading: true,
+      advanced_disable_flags: true,
       person_profiles: "identified_only",
       cross_subdomain_cookie: true,
       persistence: "localStorage+cookie",

@@ -12,7 +12,7 @@ generated: true
 > Rerun the script after code changes; manual edits here are overwritten.
 
 **Hub:** [[Frontend structure]]
-**Source:** `frontend/src/analytics/` (762 lines)
+**Source:** `frontend/src/analytics/` (813 lines)
 
 ## Files
 - `frontend/src/analytics/activationState.js`
